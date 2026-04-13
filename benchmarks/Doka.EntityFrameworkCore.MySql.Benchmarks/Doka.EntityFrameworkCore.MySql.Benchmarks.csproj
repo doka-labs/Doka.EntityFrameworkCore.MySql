@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Doka.EntityFrameworkCore.MySql.Benchmarks</AssemblyName>
+    <RootNamespace>Doka.EntityFrameworkCore.MySql.Benchmarks</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj" />
+    <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../corpora/*.json" Link="corpora/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../baselines/*.json" Link="baselines/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

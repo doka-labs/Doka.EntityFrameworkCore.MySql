@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "baselineVersion": "phase4-package2-initial",
+  "baselineState": "pending-seed",
+  "packageLine": "10.0.x",
+  "representativeTargets": [
+    "mysql84",
+    "mariadb118"
+  ],
+  "mandatoryScenarioGroups": [
+    "options-build",
+    "model-initialization",
+    "translation-latency",
+    "hot-query-throughput",
+    "materialization",
+    "savechanges-10-100-1000",
+    "migrations-sql-generation",
+    "json-scenarios",
+    "spatial-scenarios"
+  ],
+  "comparedMetrics": [
+    "elapsedTime",
+    "allocations"
+  ],
+  "notes": [
+    "This manifest exists so the first accepted dedicated benchmark runs for the representative MySQL and MariaDB targets can seed a reviewable internal Doka baseline without changing the runtime package graph.",
+    "Until the baselineState moves away from pending-seed, benchmark smoke runs must retain evidence per target but do not enforce hard regression thresholds against an internal Doka seed."
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "corpusVersion": "1.0.0",
+  "diffs": [
+    {
+      "id": "empty-to-rich"
+    },
+    {
+      "id": "rich-to-spatial"
+    }
+  ]
+}

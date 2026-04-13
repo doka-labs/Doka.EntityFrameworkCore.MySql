@@ -1,0 +1,17 @@
+{
+  "corpusVersion": "1.0.0",
+  "queries": [
+    {
+      "id": "string-length-filter"
+    },
+    {
+      "id": "date-year-filter"
+    },
+    {
+      "id": "json-string-contains"
+    },
+    {
+      "id": "spatial-distance-sphere"
+    }
+  ]
+}
