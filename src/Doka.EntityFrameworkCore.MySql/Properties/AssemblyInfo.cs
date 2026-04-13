@@ -1,5 +1,5 @@
-using Microsoft.EntityFrameworkCore.Design;
 using System.Runtime.CompilerServices;
+using Microsoft.EntityFrameworkCore.Design;
 
 [assembly: DesignTimeProviderServices("Doka.EntityFrameworkCore.MySql.MySqlDesignTimeServices")]
 [assembly: InternalsVisibleTo("Doka.EntityFrameworkCore.MySql.NetTopologySuite")]
