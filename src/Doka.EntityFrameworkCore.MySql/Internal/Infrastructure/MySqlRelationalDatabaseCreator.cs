@@ -199,17 +199,23 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
             }
         }
 
+        // Prefer the extension's original connection string over DbConnection.ConnectionString:
+        // MySqlConnector strips security-sensitive information (password, etc.) from the
+        // connection string once the connection has been opened, unless
+        // "Persist Security Info=True" is set. The extension keeps the verbatim value
+        // passed to UseMySql(...) which is what server-level operations (CREATE DATABASE,
+        // DROP DATABASE) need to authenticate.
+        if (extension?.ConnectionString is { } extensionConnectionString
+            && !string.IsNullOrWhiteSpace(extensionConnectionString))
+        {
+            return extensionConnectionString;
+        }
+
         var connectionString = Dependencies.Connection.DbConnection.ConnectionString;
 
         if (!string.IsNullOrWhiteSpace(connectionString))
         {
             return connectionString;
-        }
-
-        if (extension?.ConnectionString is { } extensionConnectionString
-            && !string.IsNullOrWhiteSpace(extensionConnectionString))
-        {
-            return extensionConnectionString;
         }
 
         throw new InvalidOperationException(
