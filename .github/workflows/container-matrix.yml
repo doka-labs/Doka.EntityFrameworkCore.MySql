@@ -1,0 +1,95 @@
+name: container-matrix
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * *"
+
+jobs:
+  compatibility-matrix:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql80:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: doka_provider
+          MYSQL_USER: doka
+          MYSQL_PASSWORD: doka_password
+        ports:
+          - 33066:3306
+        options: >-
+          --health-cmd="MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      mysql84:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: doka_provider
+          MYSQL_USER: doka
+          MYSQL_PASSWORD: doka_password
+        ports:
+          - 33068:3306
+        options: >-
+          --health-cmd="MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      mariadb118:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: root_password
+          MARIADB_DATABASE: doka_provider
+          MARIADB_USER: doka
+          MARIADB_PASSWORD: doka_password
+        ports:
+          - 33069:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      mariadb114:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: root_password
+          MARIADB_DATABASE: doka_provider
+          MARIADB_USER: doka
+          MARIADB_PASSWORD: doka_password
+        ports:
+          - 33067:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run scheduled container compatibility path
+        env:
+          DOKA_INTEGRATION_TARGETS: mysql80,mysql84,mariadb114,mariadb118
+          DOKA_MYSQL80_CONNECTION_STRING: Server=127.0.0.1;Port=33066;Database=doka_provider;User ID=doka;Password=doka_password;
+          DOKA_MYSQL84_CONNECTION_STRING: Server=127.0.0.1;Port=33068;Database=doka_provider;User ID=doka;Password=doka_password;
+          DOKA_MARIADB114_CONNECTION_STRING: Server=127.0.0.1;Port=33067;Database=doka_provider;User ID=doka;Password=doka_password;
+          DOKA_MARIADB118_CONNECTION_STRING: Server=127.0.0.1;Port=33069;Database=doka_provider;User ID=doka;Password=doka_password;
+        run: bash ./eng/test-integration.sh --test-only
+
+      - name: Upload compatibility artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-matrix-artifacts
+          path: artifacts/integration

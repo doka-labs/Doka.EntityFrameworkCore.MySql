@@ -1,0 +1,224 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Doka.EntityFrameworkCore.MySql.slnx --tl:off
+
+      - name: Verify formatting
+        run: dotnet format Doka.EntityFrameworkCore.MySql.slnx --verify-no-changes --no-restore
+
+      - name: Vulnerability audit (runtime provider)
+        run: |
+          mkdir -p artifacts/ci-audit
+          dotnet package list \
+            --project src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj \
+            --vulnerable --include-transitive --format json \
+            > artifacts/ci-audit/runtime.json
+          count="$(bash eng/check-vulnerability-audit.sh artifacts/ci-audit/runtime.json)"
+          if [[ "${count}" -ne 0 ]]; then
+            echo "Vulnerability audit failed for runtime provider." >&2
+            exit 1
+          fi
+
+      - name: Vulnerability audit (NetTopologySuite)
+        run: |
+          dotnet package list \
+            --project src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj \
+            --vulnerable --include-transitive --format json \
+            > artifacts/ci-audit/spatial.json
+          count="$(bash eng/check-vulnerability-audit.sh artifacts/ci-audit/spatial.json)"
+          if [[ "${count}" -ne 0 ]]; then
+            echo "Vulnerability audit failed for NetTopologySuite package." >&2
+            exit 1
+          fi
+
+      - name: Verify example projects build
+        run: |
+          failed=0
+          for csproj in examples/*//*.csproj; do
+            if ! dotnet build "${csproj}" --no-restore --tl:off -m:1 > /dev/null 2>&1; then
+              echo "FAIL: ${csproj}" >&2
+              failed=1
+            fi
+          done
+          if [[ "${failed}" -ne 0 ]]; then
+            echo "One or more example projects failed to build." >&2
+            exit 1
+          fi
+          echo "All example projects build successfully."
+
+  repo-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run repo-local test path
+        run: bash ./eng/test.sh
+
+  integration-smoke:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql84:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: doka_provider
+          MYSQL_USER: doka
+          MYSQL_PASSWORD: doka_password
+        ports:
+          - 33068:3306
+        options: >-
+          --health-cmd="MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      mariadb118:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: root_password
+          MARIADB_DATABASE: doka_provider
+          MARIADB_USER: doka
+          MARIADB_PASSWORD: doka_password
+        ports:
+          - 33069:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run representative dual-engine live integration path
+        env:
+          DOKA_INTEGRATION_TARGETS: mysql84,mariadb118
+          DOKA_MYSQL84_CONNECTION_STRING: Server=127.0.0.1;Port=33068;Database=doka_provider;User ID=doka;Password=doka_password;
+          DOKA_MARIADB118_CONNECTION_STRING: Server=127.0.0.1;Port=33069;Database=doka_provider;User ID=doka;Password=doka_password;
+        run: bash ./eng/test-integration.sh --test-only
+
+  runtime-posture:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql84:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: doka_provider
+          MYSQL_USER: doka
+          MYSQL_PASSWORD: doka_password
+        ports:
+          - 33068:3306
+        options: >-
+          --health-cmd="MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install NativeAOT toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang zlib1g-dev
+
+      - name: Run runtime posture smoke
+        run: bash ./eng/test-runtime-posture.sh --test-only
+
+  benchmark-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        benchmark-target:
+          - mysql84
+          - mariadb118
+
+    services:
+      mysql84:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: benchmark_suite
+          MYSQL_USER: doka
+          MYSQL_PASSWORD: doka_password
+        ports:
+          - 33068:3306
+        options: >-
+          --health-cmd="MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      mariadb118:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: root_password
+          MARIADB_DATABASE: benchmark_suite
+          MARIADB_USER: doka
+          MARIADB_PASSWORD: doka_password
+        ports:
+          - 33069:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run benchmark smoke
+        env:
+          DOKA_BENCHMARK_PROFILE: smoke
+          DOKA_BENCHMARK_TARGET: ${{ matrix.benchmark-target }}
+        run: bash ./eng/benchmark.sh --test-only
