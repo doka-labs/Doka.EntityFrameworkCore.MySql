@@ -1,0 +1,617 @@
+namespace Doka.EntityFrameworkCore.MySql.Tests;
+
+/// <summary>
+/// Verifies the runtime baseline for connection and transaction behavior.
+/// </summary>
+public sealed class MySqlRuntimeBaselineTests
+{
+    /// <summary>
+    /// Verifies that the runtime relational connection uses the configured external connection instance.
+    /// </summary>
+    [Fact]
+    public void Relational_connection_uses_the_configured_db_connection_instance()
+    {
+        using var connection = new RecordingDbConnection();
+        using var context = new RuntimeBaselineContext(CreateOptions(connection));
+
+        var relationalConnection = context.GetService<IRelationalConnection>();
+
+        Assert.Same(connection, relationalConnection.DbConnection);
+    }
+
+    /// <summary>
+    /// Verifies that the history repository uses the current transaction for executable commands.
+    /// </summary>
+    [Fact]
+    public void History_repository_commands_use_the_current_transaction_when_present()
+    {
+        using var connection = new RecordingDbConnection();
+        using var context = new RuntimeBaselineContext(CreateOptions(connection));
+        using var transaction = context.Database.BeginTransaction();
+        var historyRepository = context.GetService<IHistoryRepository>();
+
+        historyRepository.Create();
+
+        var command = Assert.Single(connection.Commands);
+
+        Assert.NotNull(command.RecordedTransaction);
+        Assert.Same(connection.LastTransaction, command.RecordedTransaction);
+    }
+
+    /// <summary>
+    /// Verifies that database-creator async methods stay on the async connection and command paths.
+    /// </summary>
+    [Fact]
+    public async Task Database_creator_async_methods_use_async_connection_and_command_paths()
+    {
+        var driverFacade = new AsyncAwareDriverFacade();
+        var services = new ServiceCollection();
+
+        services.AddEntityFrameworkDokaMySql();
+        services.AddSingleton<IMySqlDriverFacade>(driverFacade);
+
+        await using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
+        await using var context =
+            new RuntimeBaselineContext(CreateOptions("Server=localhost;Database=doka;", serviceProvider));
+        var databaseCreator = context.GetService<IRelationalDatabaseCreator>();
+
+        await databaseCreator.CreateAsync();
+        await databaseCreator.DeleteAsync();
+
+        var hasTables = await databaseCreator.HasTablesAsync();
+
+        Assert.True(hasTables);
+        Assert.Equal(2, driverFacade.ServerConnections.Count);
+        Assert.All(
+            driverFacade.ServerConnections,
+            connection =>
+            {
+                Assert.True(connection.OpenAsyncCalled);
+                Assert.False(connection.OpenCalled);
+
+                var command = Assert.Single(connection.Commands);
+
+                Assert.True(command.ExecuteNonQueryAsyncCalled);
+                Assert.False(command.ExecuteNonQueryCalled);
+            });
+
+        var databaseConnection = Assert.Single(
+            driverFacade.DatabaseConnections,
+            connection => connection.Commands.Count > 0);
+
+        Assert.True(databaseConnection.OpenAsyncCalled);
+        Assert.False(databaseConnection.OpenCalled);
+
+        var databaseCommand = Assert.Single(databaseConnection.Commands);
+
+        Assert.True(databaseCommand.ExecuteScalarAsyncCalled);
+        Assert.False(databaseCommand.ExecuteScalarCalled);
+    }
+
+    /// <summary>
+    /// Verifies that provider-created connections propagate the configured GUID format
+    /// to the MySqlConnector connection string, matching the provider's DefaultGuidFormat.
+    /// </summary>
+    [Theory]
+    [InlineData(MySqlGuidFormat.Binary16, MySqlConnector.MySqlGuidFormat.Binary16)]
+    [InlineData(MySqlGuidFormat.Char36, MySqlConnector.MySqlGuidFormat.Char36)]
+    public void Relational_connection_propagates_guid_format_to_connector(
+        MySqlGuidFormat providerFormat,
+        MySqlConnector.MySqlGuidFormat expectedConnectorFormat
+    )
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
+
+        optionsBuilder.UseMySql(
+            "Server=localhost;Database=doka;User ID=root;Password=password;",
+            MySqlServerVersion.MySql(new Version(8, 4, 0)),
+            options => options.DefaultGuidFormat(providerFormat));
+
+        using var context = new RuntimeBaselineContext(optionsBuilder.Options);
+        var relationalConnection = context.GetService<IRelationalConnection>();
+        var builder = new MySqlConnectionStringBuilder(relationalConnection.DbConnection.ConnectionString);
+
+        Assert.Equal(expectedConnectorFormat, builder.GuidFormat);
+    }
+
+    private static DbContextOptions<RuntimeBaselineContext> CreateOptions(
+        DbConnection connection
+    )
+    {
+        var builder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
+
+        builder.UseMySql(connection, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        return builder.Options;
+    }
+
+    private static DbContextOptions<RuntimeBaselineContext> CreateOptions(
+        string connectionString,
+        IServiceProvider internalServiceProvider
+    )
+    {
+        var builder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
+
+        builder.UseInternalServiceProvider(internalServiceProvider);
+        builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        return builder.Options;
+    }
+
+    private sealed class RuntimeBaselineContext : DbContext
+    {
+        public RuntimeBaselineContext(
+            DbContextOptions<RuntimeBaselineContext> options
+        ) : base(options) { }
+    }
+
+    private sealed class RecordingDbConnection : DbConnection
+    {
+        private ConnectionState _state = ConnectionState.Closed;
+
+        public List<RecordingDbCommand> Commands { get; } = new();
+
+        public RecordingDbTransaction? LastTransaction { get; private set; }
+
+        [AllowNull]
+        public override string ConnectionString { get; set; } = "Server=localhost;Database=doka;";
+
+        public override string Database => "doka";
+
+        public override string DataSource => "recording";
+
+        public override string ServerVersion => "8.4.0";
+
+        public override ConnectionState State => _state;
+
+        public override void ChangeDatabase(
+            string databaseName
+        ) => ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
+
+        public override void Close() => _state = ConnectionState.Closed;
+
+        public override void Open() => _state = ConnectionState.Open;
+
+        protected override DbTransaction BeginDbTransaction(
+            IsolationLevel isolationLevel
+        )
+        {
+            if (_state != ConnectionState.Open)
+            {
+                Open();
+            }
+
+            LastTransaction = new RecordingDbTransaction(this, isolationLevel);
+
+            return LastTransaction;
+        }
+
+        protected override DbCommand CreateDbCommand()
+        {
+            var command = new RecordingDbCommand(this);
+
+            Commands.Add(command);
+
+            return command;
+        }
+    }
+
+    private sealed class AsyncAwareDriverFacade : IMySqlDriverFacade
+    {
+        public List<AsyncAwareDbConnection> DatabaseConnections { get; } = new();
+
+        public string DriverName => "AsyncAware";
+
+        public List<AsyncAwareDbConnection> ServerConnections { get; } = new();
+
+        public DbConnection CreateConnection(
+            string connectionString
+        )
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+            var isServerConnection = !connectionString.Contains("Database=", StringComparison.OrdinalIgnoreCase)
+                && !connectionString.Contains("Initial Catalog=", StringComparison.OrdinalIgnoreCase);
+            var connection = new AsyncAwareDbConnection(connectionString);
+
+            if (isServerConnection)
+            {
+                ServerConnections.Add(connection);
+            }
+            else
+            {
+                DatabaseConnections.Add(connection);
+            }
+
+            return connection;
+        }
+    }
+
+    private sealed class AsyncAwareDbConnection : DbConnection
+    {
+        private ConnectionState _state = ConnectionState.Closed;
+
+        public AsyncAwareDbConnection(
+            string connectionString
+        )
+        {
+            ConnectionString = connectionString;
+        }
+
+        public List<AsyncAwareDbCommand> Commands { get; } = new();
+
+        [AllowNull]
+        public override string ConnectionString { get; set; }
+
+        public override string Database => "doka";
+
+        public override string DataSource => "async-aware";
+
+        public bool OpenAsyncCalled { get; private set; }
+
+        public bool OpenCalled { get; private set; }
+
+        public override string ServerVersion => "8.4.0";
+
+        public override ConnectionState State => _state;
+
+        public override void ChangeDatabase(
+            string databaseName
+        ) => ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
+
+        public override void Close() => _state = ConnectionState.Closed;
+
+        public override void Open()
+        {
+            OpenCalled = true;
+            _state = ConnectionState.Open;
+        }
+
+        public override Task OpenAsync(
+            CancellationToken cancellationToken
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            OpenAsyncCalled = true;
+            _state = ConnectionState.Open;
+
+            return Task.CompletedTask;
+        }
+
+        protected override DbTransaction BeginDbTransaction(
+            IsolationLevel isolationLevel
+        ) => throw new NotSupportedException();
+
+        protected override DbCommand CreateDbCommand()
+        {
+            var command = new AsyncAwareDbCommand(this);
+
+            Commands.Add(command);
+
+            return command;
+        }
+    }
+
+    private sealed class RecordingDbTransaction : DbTransaction
+    {
+        private readonly RecordingDbConnection _connection;
+
+        public RecordingDbTransaction(
+            RecordingDbConnection connection,
+            IsolationLevel isolationLevel
+        )
+        {
+            _connection = connection;
+            IsolationLevel = isolationLevel;
+        }
+
+        public override IsolationLevel IsolationLevel { get; }
+
+        protected override DbConnection DbConnection => _connection;
+
+        public override void Commit() { }
+
+        public override void Rollback() { }
+    }
+
+    private sealed class RecordingDbCommand : DbCommand
+    {
+        private readonly RecordingDbConnection _connection;
+        private readonly RecordingDbParameterCollection _parameters = new();
+
+        public RecordingDbCommand(
+            RecordingDbConnection connection
+        )
+        {
+            _connection = connection;
+        }
+
+        [AllowNull]
+        public override string CommandText { get; set; } = string.Empty;
+
+        public override int CommandTimeout { get; set; }
+
+        public override CommandType CommandType { get; set; } = CommandType.Text;
+
+        public override bool DesignTimeVisible { get; set; }
+
+        public override UpdateRowSource UpdatedRowSource { get; set; }
+
+        protected override DbConnection? DbConnection
+        {
+            get => _connection;
+            set => throw new NotSupportedException();
+        }
+
+        protected override DbParameterCollection DbParameterCollection => _parameters;
+
+        protected override DbTransaction? DbTransaction { get; set; }
+
+        public DbTransaction? RecordedTransaction => DbTransaction;
+
+        public override void Cancel() { }
+
+        public override int ExecuteNonQuery() => 1;
+
+        public override object ExecuteScalar() => 1;
+
+        public override void Prepare() { }
+
+        protected override DbParameter CreateDbParameter() => new RecordingDbParameter();
+
+        protected override DbDataReader ExecuteDbDataReader(
+            CommandBehavior behavior
+        ) => new DataTable().CreateDataReader();
+    }
+
+    private sealed class AsyncAwareDbCommand : DbCommand
+    {
+        private readonly AsyncAwareDbConnection _connection;
+        private readonly RecordingDbParameterCollection _parameters = new();
+
+        public AsyncAwareDbCommand(
+            AsyncAwareDbConnection connection
+        )
+        {
+            _connection = connection;
+        }
+
+        [AllowNull]
+        public override string CommandText { get; set; } = string.Empty;
+
+        public override int CommandTimeout { get; set; }
+
+        public override CommandType CommandType { get; set; } = CommandType.Text;
+
+        public override bool DesignTimeVisible { get; set; }
+
+        public bool ExecuteNonQueryAsyncCalled { get; private set; }
+
+        public bool ExecuteNonQueryCalled { get; private set; }
+
+        public bool ExecuteScalarAsyncCalled { get; private set; }
+
+        public bool ExecuteScalarCalled { get; private set; }
+
+        public override UpdateRowSource UpdatedRowSource { get; set; }
+
+        protected override DbConnection? DbConnection
+        {
+            get => _connection;
+            set => throw new NotSupportedException();
+        }
+
+        protected override DbParameterCollection DbParameterCollection => _parameters;
+
+        protected override DbTransaction? DbTransaction { get; set; }
+
+        public override void Cancel() { }
+
+        public override int ExecuteNonQuery()
+        {
+            ExecuteNonQueryCalled = true;
+
+            return 1;
+        }
+
+        public override Task<int> ExecuteNonQueryAsync(
+            CancellationToken cancellationToken
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ExecuteNonQueryAsyncCalled = true;
+
+            return Task.FromResult(1);
+        }
+
+        public override object ExecuteScalar()
+        {
+            ExecuteScalarCalled = true;
+
+            return 1;
+        }
+
+        public override Task<object?> ExecuteScalarAsync(
+            CancellationToken cancellationToken
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ExecuteScalarAsyncCalled = true;
+
+            return Task.FromResult<object?>(1);
+        }
+
+        public override void Prepare() { }
+
+        protected override DbParameter CreateDbParameter() => new RecordingDbParameter();
+
+        protected override DbDataReader ExecuteDbDataReader(
+            CommandBehavior behavior
+        ) => new DataTable().CreateDataReader();
+    }
+
+    private sealed class RecordingDbParameter : DbParameter
+    {
+        public override DbType DbType { get; set; }
+
+        public override ParameterDirection Direction { get; set; } = ParameterDirection.Input;
+
+        public override bool IsNullable { get; set; }
+
+        [AllowNull]
+        public override string ParameterName { get; set; } = string.Empty;
+
+        [AllowNull]
+        public override string SourceColumn { get; set; } = string.Empty;
+
+        public override object? Value { get; set; }
+
+        public override bool SourceColumnNullMapping { get; set; }
+
+        public override int Size { get; set; }
+
+        public override void ResetDbType() { }
+    }
+
+    private sealed class RecordingDbParameterCollection : DbParameterCollection
+    {
+        private readonly List<DbParameter> _parameters = new();
+
+        public override int Count => _parameters.Count;
+
+        public override object SyncRoot => ((ICollection)_parameters).SyncRoot;
+
+        public override int Add(
+            object value
+        )
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _parameters.Add((DbParameter)value);
+
+            return _parameters.Count - 1;
+        }
+
+        public override void AddRange(
+            Array values
+        )
+        {
+            ArgumentNullException.ThrowIfNull(values);
+
+            foreach (var value in values)
+            {
+                Add(value!);
+            }
+        }
+
+        public override void Clear() => _parameters.Clear();
+
+        public override bool Contains(
+            object value
+        )
+        {
+            ArgumentNullException.ThrowIfNull(value);
+
+            return _parameters.Contains((DbParameter)value);
+        }
+
+        public override bool Contains(
+            string value
+        ) => _parameters.Any(parameter => parameter.ParameterName == value);
+
+        public override void CopyTo(
+            Array array,
+            int index
+        ) => ((ICollection)_parameters).CopyTo(array, index);
+
+        public override IEnumerator GetEnumerator() => _parameters.GetEnumerator();
+
+        public override int IndexOf(
+            object value
+        )
+        {
+            ArgumentNullException.ThrowIfNull(value);
+
+            return _parameters.IndexOf((DbParameter)value);
+        }
+
+        public override int IndexOf(
+            string parameterName
+        ) => _parameters.FindIndex(parameter => parameter.ParameterName == parameterName);
+
+        public override void Insert(
+            int index,
+            object value
+        )
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _parameters.Insert(index, (DbParameter)value);
+        }
+
+        public override void Remove(
+            object value
+        )
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _parameters.Remove((DbParameter)value);
+        }
+
+        public override void RemoveAt(
+            int index
+        ) => _parameters.RemoveAt(index);
+
+        public override void RemoveAt(
+            string parameterName
+        )
+        {
+            var index = IndexOf(parameterName);
+
+            if (index >= 0)
+            {
+                RemoveAt(index);
+            }
+        }
+
+        protected override DbParameter GetParameter(
+            int index
+        ) => _parameters[index];
+
+        protected override DbParameter GetParameter(
+            string parameterName
+        )
+        {
+            var index = IndexOf(parameterName);
+
+            return index < 0
+                ? throw new InvalidOperationException($"Parameter '{parameterName}' was not found.")
+                : _parameters[index];
+        }
+
+        protected override void SetParameter(
+            int index,
+            DbParameter value
+        )
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _parameters[index] = value;
+        }
+
+        protected override void SetParameter(
+            string parameterName,
+            DbParameter value
+        )
+        {
+            ArgumentNullException.ThrowIfNull(value);
+
+            var index = IndexOf(parameterName);
+
+            if (index < 0)
+            {
+                _parameters.Add(value);
+
+                return;
+            }
+
+            _parameters[index] = value;
+        }
+    }
+}
