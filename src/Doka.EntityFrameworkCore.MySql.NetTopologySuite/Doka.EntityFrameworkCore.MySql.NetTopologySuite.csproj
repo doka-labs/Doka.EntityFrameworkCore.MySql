@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Doka.EntityFrameworkCore.MySql.NetTopologySuite</AssemblyName>
+    <RootNamespace>Doka.EntityFrameworkCore.MySql</RootNamespace>
+    <PackageId>Doka.EntityFrameworkCore.MySql.NetTopologySuite</PackageId>
+    <Title>Doka.EntityFrameworkCore.MySql.NetTopologySuite</Title>
+    <Description>Optional NetTopologySuite integration for Doka.EntityFrameworkCore.MySql. Adds spatial type mapping, scaffolding, spatial-index DDL, and NTS-backed query translation for MySQL 8.0 / 8.4 and MariaDB 11.4 / 11.8. Install alongside Doka.EntityFrameworkCore.MySql and activate with UseNetTopologySuite().</Description>
+    <PackageTags>entityframeworkcore;efcore;ef;orm;mysql;mariadb;spatial;nettopologysuite;geometry;geospatial</PackageTags>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj" />
+    <PackageReference Include="NetTopologySuite" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" Link="README.md" />
+  </ItemGroup>
+</Project>
