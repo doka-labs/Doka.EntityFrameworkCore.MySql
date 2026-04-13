@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Doka.EntityFrameworkCore.MySql.FunctionalTests</AssemblyName>
+    <RootNamespace>Doka.EntityFrameworkCore.MySql.FunctionalTests</RootNamespace>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational.Specification.Tests" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj" />
+    <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj" />
+    <ProjectReference Include="../../tests/Doka.EntityFrameworkCore.MySql.TestUtilities/Doka.EntityFrameworkCore.MySql.TestUtilities.csproj" />
+  </ItemGroup>
+</Project>
