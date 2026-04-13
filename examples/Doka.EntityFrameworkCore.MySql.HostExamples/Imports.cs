@@ -1,0 +1,13 @@
+global using System;
+global using System.Collections.Generic;
+global using System.Diagnostics;
+global using System.Diagnostics.Metrics;
+global using System.Threading.Tasks;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.Hosting;
+global using Microsoft.Extensions.Logging;
+global using OpenTelemetry.Metrics;
+global using OpenTelemetry.Resources;
+global using OpenTelemetry.Trace;
+global using Serilog;
