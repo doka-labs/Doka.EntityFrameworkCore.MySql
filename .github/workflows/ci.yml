@@ -54,9 +54,13 @@ jobs:
 
       - name: Verify example projects build
         run: |
+          # Standalone example projects are not part of the .slnx and therefore
+          # not covered by the top-level restore, so let each build restore its
+          # own packages. The NuGet cache is already warm from the slnx restore,
+          # which keeps per-example restore near-instant.
           failed=0
-          for csproj in examples/*//*.csproj; do
-            if ! dotnet build "${csproj}" --no-restore --tl:off -m:1 > /dev/null 2>&1; then
+          for csproj in examples/*/*.csproj; do
+            if ! dotnet build "${csproj}" --tl:off -m:1 > /dev/null 2>&1; then
               echo "FAIL: ${csproj}" >&2
               failed=1
             fi
