@@ -1,0 +1,80 @@
+services:
+  mysql80:
+    image: mysql:8.0
+    container_name: doka-mysql80
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: doka_provider
+      MYSQL_USER: doka
+      MYSQL_PASSWORD: doka_password
+    ports:
+      - "33066:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  mysql84:
+    image: mysql:8.4
+    container_name: doka-mysql84
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: doka_provider
+      MYSQL_USER: doka
+      MYSQL_PASSWORD: doka_password
+    ports:
+      - "33068:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  mariadb118:
+    image: mariadb:11.8
+    container_name: doka-mariadb118
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MARIADB_ROOT_PASSWORD: root_password
+      MARIADB_DATABASE: doka_provider
+      MARIADB_USER: doka
+      MARIADB_PASSWORD: doka_password
+    ports:
+      - "33069:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  mariadb114:
+    image: mariadb:11.4
+    container_name: doka-mariadb114
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MARIADB_ROOT_PASSWORD: root_password
+      MARIADB_DATABASE: doka_provider
+      MARIADB_USER: doka
+      MARIADB_PASSWORD: doka_password
+    ports:
+      - "33067:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
