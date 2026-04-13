@@ -1,0 +1,14 @@
+<Project>
+  <!-- Import the repository-root Directory.Build.props so examples inherit shared settings. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!-- Example projects use implicit usings for brevity;
+         the main provider disables them to enforce explicit imports. -->
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Examples are illustrative; they are never packed and emit no XML doc artefact. -->
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>

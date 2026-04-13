@@ -1,0 +1,7 @@
+[*.cs]
+# XML doc comments are optional in benchmark scaffolding; benchmark names document intent.
+dotnet_diagnostic.CS1591.severity = none
+
+# BenchmarkDotNet requires instance methods on public benchmark classes, so
+# CA1822 (can be marked static) is a structural false positive here.
+dotnet_diagnostic.CA1822.severity = none

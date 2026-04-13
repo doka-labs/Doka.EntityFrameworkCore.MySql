@@ -1,0 +1,31 @@
+# Build outputs
+**/bin/
+**/obj/
+
+# NuGet packages and local pack output
+**/*.nupkg
+**/*.snupkg
+**/packages/
+artifacts/
+artifactsbin/
+artifactsobj/
+
+# .NET / Rider / VS local state
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+.DS_Store
+
+# Test results and coverage
+TestResults/
+coverage*/
+*.trx
+*.coveragexml
+
+# Local environment / secrets
+.env
+*.local
+appsettings.Local.json
+appsettings.*.Local.json

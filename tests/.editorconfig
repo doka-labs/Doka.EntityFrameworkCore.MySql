@@ -1,0 +1,18 @@
+[*.cs]
+# Test method names follow Given_When_Then with underscores by convention.
+dotnet_diagnostic.CA1707.severity = none
+
+# XML doc comments are optional in tests; names document intent.
+dotnet_diagnostic.CS1591.severity = none
+
+# CA1304/1307/1309/1311 (culture-sensitive string comparison) stay enforced in
+# tests. The few LINQ call sites that legitimately rely on server-side translation
+# suppress them per-line with rationale.
+
+# EF1002 (raw-SQL injection risk) stays enforced in unit and functional tests so
+# that any new helper introducing non-parameterized SQL surfaces immediately.
+# Integration tests rely on fixture-controlled DDL (DROP/CREATE TABLE, migration
+# generator output) that EF1002 would flag as false-positives; suppression is
+# scoped to that project only.
+[Doka.EntityFrameworkCore.MySql.IntegrationTests/**.cs]
+dotnet_diagnostic.EF1002.severity = none

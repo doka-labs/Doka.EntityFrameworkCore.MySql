@@ -1,0 +1,10 @@
+<Project>
+  <!-- Import the repository-root Directory.Build.props so benchmarks inherit shared settings. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!-- Benchmark projects are never packed and do not ship XML doc artefacts. -->
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>

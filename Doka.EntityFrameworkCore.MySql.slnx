@@ -1,0 +1,43 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj" />
+    <Project Path="src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj" />
+    <Project Path="tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Doka.EntityFrameworkCore.MySql.IntegrationTests.csproj" />
+    <Project Path="tests/Doka.EntityFrameworkCore.MySql.Tests/Doka.EntityFrameworkCore.MySql.Tests.csproj" />
+    <Project Path="tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke/Doka.EntityFrameworkCore.MySql.RuntimeSmoke.csproj" />
+    <Project Path="tests/Doka.EntityFrameworkCore.MySql.TestUtilities/Doka.EntityFrameworkCore.MySql.TestUtilities.csproj" />
+  </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/config/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="dotnet-tools.json" />
+    <File Path="global.json" />
+  </Folder>
+  <Folder Name="/config/tests/">
+    <File Path="tests/.editorconfig" />
+    <File Path="tests/Directory.Build.props" />
+    <File Path="tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj.DotSettings" />
+    <File Path="tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Doka.EntityFrameworkCore.MySql.IntegrationTests.csproj.DotSettings" />
+    <File Path="tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke/Doka.EntityFrameworkCore.MySql.RuntimeSmoke.csproj.DotSettings" />
+  </Folder>
+  <Folder Name="/config/benchmarks/">
+    <File Path="benchmarks/.editorconfig" />
+    <File Path="benchmarks/Directory.Build.props" />
+    <File Path="benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks.csproj.DotSettings" />
+  </Folder>
+  <Folder Name="/config/examples/">
+    <File Path="examples/.editorconfig" />
+    <File Path="examples/Directory.Build.props" />
+  </Folder>
+  <Folder Name="/examples/">
+    <Project Path="examples/Doka.EntityFrameworkCore.MySql.HostExamples/Doka.EntityFrameworkCore.MySql.HostExamples.csproj" />
+  </Folder>
+</Solution>

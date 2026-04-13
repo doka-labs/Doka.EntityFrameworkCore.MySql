@@ -1,0 +1,10 @@
+<Project>
+  <!-- Import the repository-root Directory.Build.props so tests inherit shared settings. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!-- Every project under tests/ is build-only: never packed, no XML doc artefact. -->
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>

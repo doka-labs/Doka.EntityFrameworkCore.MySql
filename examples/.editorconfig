@@ -1,0 +1,6 @@
+# Examples use the top-level-program style where Program.cs legitimately
+# declares types (the implicit Program class + helper types) outside a
+# namespace. CA1050 only fires on those top-level-program files; library-style
+# helpers added later still get the analyzer's attention.
+[**/Program.cs]
+dotnet_diagnostic.CA1050.severity = none
