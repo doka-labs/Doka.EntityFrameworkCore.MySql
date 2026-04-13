@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Doka.EntityFrameworkCore.MySql.RuntimeSmoke</AssemblyName>
+    <RootNamespace>Doka.EntityFrameworkCore.MySql.RuntimeSmoke</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- IL2104/IL3053 are trim/AOT analysis warnings that this smoke harness intentionally emits. -->
+    <NoWarn>$(NoWarn);IL2104;IL3053</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive; compile</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj" />
+    <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj" />
+  </ItemGroup>
+</Project>

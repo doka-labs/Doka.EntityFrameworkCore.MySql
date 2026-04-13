@@ -1,0 +1,10 @@
+global using System;
+global using System.Collections.Generic;
+global using System.Diagnostics.CodeAnalysis;
+global using System.Linq;
+global using System.Runtime.CompilerServices;
+global using System.Threading.Tasks;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.EntityFrameworkCore.Metadata;
+global using MySqlConnector;
+global using NetTopologySuite.Geometries;
