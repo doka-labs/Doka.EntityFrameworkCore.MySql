@@ -82,10 +82,14 @@ jobs:
       - name: Run scheduled container compatibility path
         env:
           DOKA_INTEGRATION_TARGETS: mysql80,mysql84,mariadb114,mariadb118
-          DOKA_MYSQL80_CONNECTION_STRING: Server=127.0.0.1;Port=33066;Database=doka_provider;User ID=doka;Password=doka_password;
-          DOKA_MYSQL84_CONNECTION_STRING: Server=127.0.0.1;Port=33068;Database=doka_provider;User ID=doka;Password=doka_password;
-          DOKA_MARIADB114_CONNECTION_STRING: Server=127.0.0.1;Port=33067;Database=doka_provider;User ID=doka;Password=doka_password;
-          DOKA_MARIADB118_CONNECTION_STRING: Server=127.0.0.1;Port=33069;Database=doka_provider;User ID=doka;Password=doka_password;
+          # Root credentials for throwaway CI containers. Matches the documented
+          # IntegrationTestEnvironment default so tests that need CREATE/DROP DATABASE
+          # (EnsureCreatedAsync/EnsureDeletedAsync round-trips) succeed without
+          # per-test privilege gymnastics.
+          DOKA_MYSQL80_CONNECTION_STRING: Server=127.0.0.1;Port=33066;Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;
+          DOKA_MYSQL84_CONNECTION_STRING: Server=127.0.0.1;Port=33068;Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;
+          DOKA_MARIADB114_CONNECTION_STRING: Server=127.0.0.1;Port=33067;Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;
+          DOKA_MARIADB118_CONNECTION_STRING: Server=127.0.0.1;Port=33069;Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;
         run: bash ./eng/test-integration.sh --test-only
 
       - name: Upload compatibility artifacts
