@@ -1,9 +1,8 @@
 # D-001 — EF-Core-Service-Decorator-Coupling
 
-- **Status:** Accepted — implementation planned in Welle 1 / PR 1.5 (workflow phase id=14)
+- **Status:** Accepted — implementation deferred to a follow-up commit
 - **Date:** 2026-05-16
 - **Scope:** `MySqlServiceCollectionExtensions` runtime + design-time service composition
-- **Related foundation:** `efcore-service-decorator` (foundation id=3)
 
 ## Context
 

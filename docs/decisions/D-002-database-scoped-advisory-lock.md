@@ -3,7 +3,6 @@
 - **Status:** Accepted
 - **Date:** 2026-05-16
 - **Scope:** `MySqlHistoryRepository` migration serialization
-- **Related work:** Welle 1 / PR 1.1 (workflow phase id=10)
 
 ## Context
 
