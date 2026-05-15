@@ -167,10 +167,10 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
 
     private sealed class MySqlMigrationsDatabaseLock : IMigrationsDatabaseLock
     {
-        private const string LockName = "__ef_migrations_lock";
         private const int LockTimeoutSeconds = 60;
 
         private readonly MySqlHistoryRepository _historyRepository;
+        private readonly string _lockName;
         private DbConnection? _dedicatedConnection;
         private bool _lockAcquired;
 
@@ -180,9 +180,13 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         {
             HistoryRepository = historyRepository ?? throw new ArgumentNullException(nameof(historyRepository));
             _historyRepository = (MySqlHistoryRepository)historyRepository;
+            _lockName = MySqlAdvisoryLockNaming.BuildLockName(
+                _historyRepository.Dependencies.Connection.DbConnection.ConnectionString);
         }
 
         public IHistoryRepository HistoryRepository { get; }
+
+        internal string LockName => _lockName;
 
         /// <summary>
         /// Acquires a MySQL advisory lock using GET_LOCK on a dedicated connection.
@@ -194,7 +198,10 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             _dedicatedConnection = CreateDedicatedConnection();
             _dedicatedConnection.Open();
 
-            var result = ExecuteOnDedicatedConnection($"SELECT GET_LOCK('{LockName}', {LockTimeoutSeconds})");
+            var result = ExecuteOnDedicatedConnection(
+                "SELECT GET_LOCK(@name, @timeout)",
+                ("@name", _lockName),
+                ("@timeout", LockTimeoutSeconds));
 
             if (!MySqlScalarConvert.ToBoolean(result))
             {
@@ -202,7 +209,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                 _dedicatedConnection = null;
 
                 throw new TimeoutException(
-                    $"Could not acquire the MySQL advisory lock '{LockName}' within {LockTimeoutSeconds} seconds. "
+                    $"Could not acquire the MySQL advisory lock '{_lockName}' within {LockTimeoutSeconds} seconds. "
                     + "Another migration process may be running concurrently.");
             }
 
@@ -222,8 +229,10 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                 .ConfigureAwait(false);
 
             var result = await ExecuteOnDedicatedConnectionAsync(
-                    $"SELECT GET_LOCK('{LockName}', {LockTimeoutSeconds})",
-                    cancellationToken)
+                    "SELECT GET_LOCK(@name, @timeout)",
+                    cancellationToken,
+                    ("@name", _lockName),
+                    ("@timeout", LockTimeoutSeconds))
                 .ConfigureAwait(false);
 
             if (!MySqlScalarConvert.ToBoolean(result))
@@ -234,7 +243,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                 _dedicatedConnection = null;
 
                 throw new TimeoutException(
-                    $"Could not acquire the MySQL advisory lock '{LockName}' within {LockTimeoutSeconds} seconds. "
+                    $"Could not acquire the MySQL advisory lock '{_lockName}' within {LockTimeoutSeconds} seconds. "
                     + "Another migration process may be running concurrently.");
             }
 
@@ -277,7 +286,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             {
                 try
                 {
-                    ExecuteOnDedicatedConnection($"SELECT RELEASE_LOCK('{LockName}')");
+                    ExecuteOnDedicatedConnection("SELECT RELEASE_LOCK(@name)", ("@name", _lockName));
                 }
                 catch
                 {
@@ -299,8 +308,9 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                 try
                 {
                     await ExecuteOnDedicatedConnectionAsync(
-                            $"SELECT RELEASE_LOCK('{LockName}')",
-                            CancellationToken.None)
+                            "SELECT RELEASE_LOCK(@name)",
+                            CancellationToken.None,
+                            ("@name", _lockName))
                         .ConfigureAwait(false);
                 }
                 catch
@@ -336,24 +346,42 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         }
 
         private object? ExecuteOnDedicatedConnection(
-            string sql
+            string sql,
+            params (string Name, object Value)[] parameters
         )
         {
             using var command = _dedicatedConnection!.CreateCommand();
             command.CommandText = sql;
+            AddParameters(command, parameters);
             return command.ExecuteScalar();
         }
 
         private async Task<object?> ExecuteOnDedicatedConnectionAsync(
             string sql,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken,
+            params (string Name, object Value)[] parameters
         )
         {
             await using var command = _dedicatedConnection!.CreateCommand();
             command.CommandText = sql;
+            AddParameters(command, parameters);
             return await command
                 .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false);
+        }
+
+        private static void AddParameters(
+            DbCommand command,
+            ReadOnlySpan<(string Name, object Value)> parameters
+        )
+        {
+            foreach (var (name, value) in parameters)
+            {
+                var parameter = command.CreateParameter();
+                parameter.ParameterName = name;
+                parameter.Value = value;
+                command.Parameters.Add(parameter);
+            }
         }
     }
 }

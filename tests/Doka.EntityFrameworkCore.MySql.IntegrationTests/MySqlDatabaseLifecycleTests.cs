@@ -43,13 +43,20 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
         Assert.NotNull(databaseLock);
 
-        // Verify lock is actually held via a separate connection.
+        // Verify lock is actually held via a separate connection. The lock name is
+        // database-scoped (per ADR D-002), so we derive it from the connection string.
+        var lockName = MySqlAdvisoryLockNaming.BuildLockName(connectionString);
+
         await using var checkConn = new MySqlConnector.MySqlConnection(connectionString);
         await checkConn
             .OpenAsync()
             .ConfigureAwait(false);
         await using var checkCmd = checkConn.CreateCommand();
-        checkCmd.CommandText = "SELECT IS_USED_LOCK('__ef_migrations_lock');";
+        checkCmd.CommandText = "SELECT IS_USED_LOCK(@name);";
+        var nameParam = checkCmd.CreateParameter();
+        nameParam.ParameterName = "@name";
+        nameParam.Value = lockName;
+        checkCmd.Parameters.Add(nameParam);
         var lockHolder = await checkCmd
             .ExecuteScalarAsync()
             .ConfigureAwait(false);
@@ -79,13 +86,20 @@ public sealed class MySqlDatabaseLifecycleTests
 
         try
         {
-            // Session 2: Try to acquire the same lock with immediate timeout.
+            // Session 2: Try to acquire the same lock with immediate timeout. The lock
+            // name is database-scoped (per ADR D-002).
+            var lockName = MySqlAdvisoryLockNaming.BuildLockName(connectionString);
+
             await using var conn2 = new MySqlConnector.MySqlConnection(connectionString);
             await conn2
                 .OpenAsync()
                 .ConfigureAwait(false);
             await using var cmd2 = conn2.CreateCommand();
-            cmd2.CommandText = "SELECT GET_LOCK('__ef_migrations_lock', 0);";
+            cmd2.CommandText = "SELECT GET_LOCK(@name, 0);";
+            var nameParam = cmd2.CreateParameter();
+            nameParam.ParameterName = "@name";
+            nameParam.Value = lockName;
+            cmd2.Parameters.Add(nameParam);
             var result = await cmd2
                 .ExecuteScalarAsync()
                 .ConfigureAwait(false);
