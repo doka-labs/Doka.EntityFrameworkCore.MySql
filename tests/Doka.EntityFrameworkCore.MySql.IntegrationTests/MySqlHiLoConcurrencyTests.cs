@@ -60,6 +60,66 @@ public sealed class MySqlHiLoConcurrencyTests
         }
     }
 
+    /// <summary>
+    /// Block-cache efficiency check: when many parallel inserts on the same Hi/Lo-backed
+    /// entity share one process-wide block cache, the sequence-update SQL fires once per
+    /// drained block rather than once per insert. The default Hi/Lo block size is 10, so
+    /// 50 parallel inserts must produce ceil(50 / 10) = 5 sequence round-trips, not 50.
+    /// Roundtrips are counted via a server-side AFTER UPDATE trigger on the emulation
+    /// table because <c>MySqlSequenceValueGenerator</c> issues its UPDATE directly through
+    /// the raw <see cref="DbConnection"/> and bypasses the EF Core interceptor pipeline.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
+    public async Task Fifty_parallel_savechanges_use_block_caching_to_minimize_sequence_roundtrips()
+    {
+        const int totalInserts = 50;
+        const int defaultBlockSize = 10;
+        const int expectedRoundtrips = totalInserts / defaultBlockSize;
+
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+
+        await PrepareSchemaAsync(connectionString)
+            .ConfigureAwait(false);
+        await PrepareSequenceAuditAsync(connectionString)
+            .ConfigureAwait(false);
+        MySqlHiLoStateCache.ResetForTesting();
+
+        try
+        {
+            var seenIds = new ConcurrentBag<int>();
+
+            await Parallel
+                .ForEachAsync(
+                    Enumerable.Range(0, totalInserts),
+                    async (_, cancellationToken) =>
+                    {
+                        await using var context = new HiLoContext(BuildOptions(connectionString));
+                        var entity = new HiLoEntity { Name = $"row-{Guid.NewGuid():N}" };
+                        context.Items.Add(entity);
+                        await context
+                            .SaveChangesAsync(cancellationToken)
+                            .ConfigureAwait(false);
+                        seenIds.Add(entity.Id);
+                    })
+                .ConfigureAwait(false);
+
+            var roundtripCount = await ReadSequenceAuditCountAsync(connectionString)
+                .ConfigureAwait(false);
+
+            Assert.Equal(totalInserts, seenIds.Count);
+            Assert.Equal(totalInserts, seenIds.Distinct().Count());
+            Assert.Equal(expectedRoundtrips, roundtripCount);
+        }
+        finally
+        {
+            await TearDownSequenceAuditAsync(connectionString)
+                .ConfigureAwait(false);
+            await TearDownSchemaAsync(connectionString)
+                .ConfigureAwait(false);
+            MySqlHiLoStateCache.ResetForTesting();
+        }
+    }
+
     private static DbContextOptions<HiLoContext> BuildOptions(
         string connectionString
     )
@@ -67,6 +127,64 @@ public sealed class MySqlHiLoConcurrencyTests
         var builder = new DbContextOptionsBuilder<HiLoContext>();
         builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
         return builder.Options;
+    }
+
+    private const string SequenceAuditTable = "hilo_sequence_audit";
+    private const string SequenceAuditTrigger = "trg_hilo_sequence_audit";
+
+    private static async Task PrepareSequenceAuditAsync(
+        string connectionString
+    )
+    {
+        await using var connection = new MySqlConnection(connectionString);
+        await connection
+            .OpenAsync()
+            .ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"DROP TRIGGER IF EXISTS `{SequenceAuditTrigger}`;"
+            + $"DROP TABLE IF EXISTS `{SequenceAuditTable}`;"
+            + $"CREATE TABLE `{SequenceAuditTable}` ("
+            + "  `id` INT NOT NULL AUTO_INCREMENT,"
+            + "  `at` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),"
+            + "  PRIMARY KEY (`id`)"
+            + ") ENGINE=InnoDB CHARACTER SET utf8mb4;"
+            + $"CREATE TRIGGER `{SequenceAuditTrigger}` AFTER UPDATE ON `__efsequence_{SequenceName}`"
+            + $"  FOR EACH ROW INSERT INTO `{SequenceAuditTable}` (`at`) VALUES (CURRENT_TIMESTAMP(6));";
+        await command
+            .ExecuteNonQueryAsync()
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<int> ReadSequenceAuditCountAsync(
+        string connectionString
+    )
+    {
+        await using var connection = new MySqlConnection(connectionString);
+        await connection
+            .OpenAsync()
+            .ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT COUNT(*) FROM `{SequenceAuditTable}`;";
+        var result = await command
+            .ExecuteScalarAsync()
+            .ConfigureAwait(false);
+        return Convert.ToInt32(result, CultureInfo.InvariantCulture);
+    }
+
+    private static async Task TearDownSequenceAuditAsync(
+        string connectionString
+    )
+    {
+        await using var connection = new MySqlConnection(connectionString);
+        await connection
+            .OpenAsync()
+            .ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"DROP TRIGGER IF EXISTS `{SequenceAuditTrigger}`;"
+            + $"DROP TABLE IF EXISTS `{SequenceAuditTable}`;";
+        await command
+            .ExecuteNonQueryAsync()
+            .ConfigureAwait(false);
     }
 
     private static async Task PrepareSchemaAsync(

@@ -109,6 +109,134 @@ public sealed class MySqlMigrationConcurrencyTests
         }
     }
 
+    /// <summary>
+    /// Wait-and-acquire check: when one session already holds the migration lock, a
+    /// concurrent acquire on the same database waits until the holder releases rather
+    /// than proceeding into a parallel migration. The waiter's observed acquire latency
+    /// must reflect the holder's hold duration (within scheduler jitter).
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
+    public async Task Migration_lock_acquire_waits_when_held_by_another_session()
+    {
+        var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+        var dbName = $"doka_lock_w_{Guid.NewGuid():N}"[..30];
+        var holdDuration = TimeSpan.FromSeconds(2);
+
+        await CreateDatabaseAsync(baseConnectionString, dbName)
+            .ConfigureAwait(false);
+        var scopedConnectionString = BuildConnectionString(baseConnectionString, dbName);
+
+        try
+        {
+            await using var holderContext = new LockContext(CreateOptions(scopedConnectionString));
+            await using var waiterContext = new LockContext(CreateOptions(scopedConnectionString));
+            var holderHistory = holderContext.GetService<IHistoryRepository>();
+            var waiterHistory = waiterContext.GetService<IHistoryRepository>();
+
+            await using var heldLock = await holderHistory
+                .AcquireDatabaseLockAsync()
+                .ConfigureAwait(false);
+
+            var releaseHolderTask = Task.Run(async () =>
+            {
+                await Task
+                    .Delay(holdDuration)
+                    .ConfigureAwait(false);
+                await heldLock
+                    .DisposeAsync()
+                    .ConfigureAwait(false);
+            });
+
+            var acquireStopwatch = Stopwatch.StartNew();
+            await using var waitedLock = await waiterHistory
+                .AcquireDatabaseLockAsync()
+                .ConfigureAwait(false);
+            acquireStopwatch.Stop();
+
+            await releaseHolderTask.ConfigureAwait(false);
+
+            Assert.NotNull(waitedLock);
+            Assert.True(
+                acquireStopwatch.Elapsed >= holdDuration - TimeSpan.FromMilliseconds(250),
+                $"Expected acquire to wait at least {holdDuration - TimeSpan.FromMilliseconds(250):c}; actual {acquireStopwatch.Elapsed:c}.");
+        }
+        finally
+        {
+            await DropDatabaseAsync(baseConnectionString, dbName)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Premortem #4 -- holder-connection-disruption: when the session holding the
+    /// migration lock is killed mid-hold, the server reaps the session-scoped lock,
+    /// so a fresh acquire from a new connection succeeds without manual cleanup.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
+    public async Task Migration_lock_is_released_when_holder_connection_is_killed()
+    {
+        var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+        var dbName = $"doka_lock_k_{Guid.NewGuid():N}"[..30];
+
+        await CreateDatabaseAsync(baseConnectionString, dbName)
+            .ConfigureAwait(false);
+        var scopedConnectionString = BuildConnectionString(baseConnectionString, dbName);
+        var lockName = MySqlAdvisoryLockNaming.BuildLockName(scopedConnectionString);
+
+        try
+        {
+            await using var holderConnection = new MySqlConnector.MySqlConnection(scopedConnectionString);
+            await holderConnection
+                .OpenAsync()
+                .ConfigureAwait(false);
+
+            await using (var holdCommand = holderConnection.CreateCommand())
+            {
+                holdCommand.CommandText = "SELECT GET_LOCK(@name, 5);";
+                var holdNameParam = holdCommand.CreateParameter();
+                holdNameParam.ParameterName = "@name";
+                holdNameParam.Value = lockName;
+                holdCommand.Parameters.Add(holdNameParam);
+
+                var holdResult = await holdCommand
+                    .ExecuteScalarAsync()
+                    .ConfigureAwait(false);
+                Assert.Equal(1L, Convert.ToInt64(holdResult, CultureInfo.InvariantCulture));
+            }
+
+            await using var killerConnection = new MySqlConnector.MySqlConnection(scopedConnectionString);
+            await killerConnection
+                .OpenAsync()
+                .ConfigureAwait(false);
+            await using (var killCommand = killerConnection.CreateCommand())
+            {
+                killCommand.CommandText = $"KILL {holderConnection.ServerThread};";
+                await killCommand
+                    .ExecuteNonQueryAsync()
+                    .ConfigureAwait(false);
+            }
+
+            // KILL is asynchronous on the server side; give the reaper a beat before
+            // the verification acquire to keep the test deterministic on slow runners.
+            await Task
+                .Delay(TimeSpan.FromMilliseconds(250))
+                .ConfigureAwait(false);
+
+            await using var verifier = new LockContext(CreateOptions(scopedConnectionString));
+            var verifierHistory = verifier.GetService<IHistoryRepository>();
+            await using var reAcquired = await verifierHistory
+                .AcquireDatabaseLockAsync()
+                .ConfigureAwait(false);
+
+            Assert.NotNull(reAcquired);
+        }
+        finally
+        {
+            await DropDatabaseAsync(baseConnectionString, dbName)
+                .ConfigureAwait(false);
+        }
+    }
+
     private static string BuildConnectionString(
         string baseConnectionString,
         string databaseName
