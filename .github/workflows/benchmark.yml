@@ -5,9 +5,16 @@ on:
   schedule:
     - cron: "15 2 * * *"
 
+permissions:
+  contents: read
+
 jobs:
   benchmark-scorecard:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix:
@@ -48,10 +55,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
         with:
           dotnet-version: 10.0.x
 
@@ -62,7 +69,7 @@ jobs:
         run: bash ./eng/benchmark.sh --test-only
 
       - name: Upload benchmark artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: benchmark-artifacts-${{ matrix.benchmark-target }}
           path: artifacts/benchmarks/${{ matrix.benchmark-target }}

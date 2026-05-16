@@ -1,0 +1,59 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Berlin
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - github-actions
+
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Berlin
+    groups:
+      microsoft-extensions:
+        patterns:
+          - "Microsoft.Extensions.*"
+      opentelemetry:
+        patterns:
+          - "OpenTelemetry.*"
+      serilog:
+        patterns:
+          - "Serilog.*"
+      xunit:
+        patterns:
+          - "xunit*"
+      test-infrastructure:
+        patterns:
+          - "Microsoft.NET.Test.Sdk"
+          - "coverlet.*"
+    ignore:
+      # Microsoft.EntityFrameworkCore.* floats inside the [10.0.4, 10.1.0) range
+      # per ADR D-009; a deliberate provider response is required for 10.1.0+.
+      - dependency-name: "Microsoft.EntityFrameworkCore.*"
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - nuget

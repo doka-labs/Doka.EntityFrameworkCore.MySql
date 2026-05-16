@@ -23,7 +23,16 @@ if [[ ! -f "${unit_assets_file}" ]] \
     dotnet restore "${functional_test_project}" --tl:off --ignore-failed-sources --disable-parallel
 fi
 
+coverage_results_dir="${repo_root}/artifacts/coverage"
+mkdir -p "${coverage_results_dir}"
+
 dotnet build "${unit_test_project}" --configuration Release --no-restore --tl:off -m:1
 dotnet build "${functional_test_project}" --configuration Release --no-restore --tl:off -m:1
-dotnet test "${unit_test_project}" --configuration Release --no-build --no-restore --tl:off
-dotnet test "${functional_test_project}" --configuration Release --no-build --no-restore --tl:off
+dotnet test "${unit_test_project}" --configuration Release --no-build --no-restore --tl:off \
+    --collect:"XPlat Code Coverage" \
+    --results-directory "${coverage_results_dir}" \
+    --logger trx
+dotnet test "${functional_test_project}" --configuration Release --no-build --no-restore --tl:off \
+    --collect:"XPlat Code Coverage" \
+    --results-directory "${coverage_results_dir}" \
+    --logger trx

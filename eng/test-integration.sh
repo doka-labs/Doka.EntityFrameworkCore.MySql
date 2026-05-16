@@ -235,9 +235,15 @@ stop_compose_stack() {
 }
 
 run_integration_tests() {
+    local coverage_results_dir="${repo_root}/artifacts/coverage/integration"
+    mkdir -p "${coverage_results_dir}"
+
     "${repo_root}/eng/verify-dotnet.sh"
     dotnet restore "${integration_test_project}"
-    dotnet test "${integration_test_project}" --configuration Release --no-restore
+    dotnet test "${integration_test_project}" --configuration Release --no-restore \
+        --collect:"XPlat Code Coverage" \
+        --results-directory "${coverage_results_dir}" \
+        --logger trx
 }
 
 target_source_label() {
