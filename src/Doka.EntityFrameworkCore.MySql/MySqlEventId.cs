@@ -81,6 +81,16 @@ public static class MySqlEventId
     public static readonly EventId MissingSpatialTranslation = new(1602, nameof(MissingSpatialTranslation));
 
     /// <summary>
+    /// Emitted when the translator can statically observe that the two
+    /// <c>ST_Distance</c> arguments carry different SRIDs. MySQL rejects the
+    /// mismatch with a hard error; MariaDB silently treats both inputs as
+    /// Cartesian and returns a numerically meaningless result. The warning
+    /// gives consumers a signal before the silent-Cartesian path produces a
+    /// wrong result.
+    /// </summary>
+    public static readonly EventId SpatialSridMismatchDetected = new(1603, nameof(SpatialSridMismatchDetected));
+
+    /// <summary>
     /// Emitted when a foreign key is skipped during scaffolding because its principal table
     /// is not included in the scaffolding filter.
     /// </summary>

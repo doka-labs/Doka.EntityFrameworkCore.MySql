@@ -188,6 +188,7 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
         if (method == s_distanceMethod
             && instance is not null)
         {
+            WarnIfStaticSridMismatch(instance, arguments[0]);
             return TranslateFunction(
                 "ST_Distance",
                 typeof(double),
@@ -346,6 +347,55 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
             .ToArray(),
         returnType,
         typeMapping);
+
+    /// <summary>
+    /// Best-effort static SRID-mismatch detection. When BOTH operands of
+    /// <c>Geometry.Distance</c> are SQL-time constants whose CLR value carries
+    /// a non-zero SRID, the translator compares them and emits
+    /// <see cref="MySqlEventId.SpatialSridMismatchDetected"/> on divergence.
+    /// Mismatches between two columns, or between a column and a runtime-derived
+    /// geometry, escape this check (the translator has no per-column SRID
+    /// metadata at hand); D-012 documents the limitation alongside the warning.
+    /// </summary>
+    private void WarnIfStaticSridMismatch(
+        SqlExpression first,
+        SqlExpression second
+    )
+    {
+        var firstSrid = TryReadStaticSrid(first);
+        var secondSrid = TryReadStaticSrid(second);
+
+        if (firstSrid is null || secondSrid is null || firstSrid == secondSrid)
+        {
+            return;
+        }
+
+        MySqlLoggerMessages.SpatialSridMismatchDetected(_logger, firstSrid.Value, secondSrid.Value);
+    }
+
+    private static int? TryReadStaticSrid(
+        SqlExpression expression
+    )
+    {
+        if (expression is SqlConstantExpression { Value: Geometry geometry })
+        {
+            return geometry.SRID;
+        }
+
+        if (expression is ColumnExpression { Column: { } column })
+        {
+            var property = column
+                .PropertyMappings.Select(mapping => mapping.Property)
+                .FirstOrDefault();
+
+            if (property?.FindAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId)?.Value is int columnSrid)
+            {
+                return columnSrid;
+            }
+        }
+
+        return null;
+    }
 
     private static bool IsSpatialMethod(
         MethodInfo method

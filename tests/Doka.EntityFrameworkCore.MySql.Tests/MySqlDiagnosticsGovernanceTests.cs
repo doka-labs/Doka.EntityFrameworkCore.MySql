@@ -75,6 +75,7 @@ public sealed class MySqlDiagnosticsGovernanceTests
             [nameof(MySqlEventId.BulkInsertParameterCountCapped)] = 1700,
             [nameof(MySqlEventId.BulkInsertPacketSizeCapped)] = 1701,
             [nameof(MySqlEventId.LockReleaseFailed)] = 1102,
+            [nameof(MySqlEventId.SpatialSridMismatchDetected)] = 1603,
         };
 
         Assert.Equal(expectedEventIds.Count, actualEventIds.Count);
@@ -120,6 +121,7 @@ public sealed class MySqlDiagnosticsGovernanceTests
             [nameof(MySqlEventId.BulkInsertParameterCountCapped)] = (1700, 1799),
             [nameof(MySqlEventId.BulkInsertPacketSizeCapped)] = (1700, 1799),
             [nameof(MySqlEventId.LockReleaseFailed)] = (1100, 1199),
+            [nameof(MySqlEventId.SpatialSridMismatchDetected)] = (1600, 1699),
         };
 
         foreach (var field in typeof(MySqlEventId).GetFields(BindingFlags.Public | BindingFlags.Static))

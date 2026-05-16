@@ -74,6 +74,12 @@ internal static class MySqlLoggerMessages
             MySqlEventId.MissingSpatialTranslation,
             "No supported spatial translation exists for '{MemberOrMethod}'.");
 
+    private static readonly Action<ILogger, int, int, Exception?> s_spatialSridMismatchDetected =
+        LoggerMessage.Define<int, int>(
+            LogLevel.Warning,
+            MySqlEventId.SpatialSridMismatchDetected,
+            "ST_Distance arguments declare different SRIDs (FirstSrid={FirstSrid}, SecondSrid={SecondSrid}). MySQL rejects the mismatch with a hard error; MariaDB treats both inputs as Cartesian and returns a numerically meaningless result. Use ST_Transform or align the SRIDs before invoking Distance.");
+
     private static readonly Action<ILogger, string, string, string, Exception?>
         s_foreignKeyPrincipalTableNotScaffolded = LoggerMessage.Define<string, string, string>(
             LogLevel.Warning,
@@ -287,6 +293,17 @@ internal static class MySqlLoggerMessages
         ArgumentException.ThrowIfNullOrWhiteSpace(memberOrMethod);
 
         s_missingSpatialTranslation(logger, memberOrMethod, null);
+    }
+
+    public static void SpatialSridMismatchDetected(
+        ILogger logger,
+        int firstSrid,
+        int secondSrid
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        s_spatialSridMismatchDetected(logger, firstSrid, secondSrid, null);
     }
 
     public static void ForeignKeyPrincipalTableNotScaffolded(

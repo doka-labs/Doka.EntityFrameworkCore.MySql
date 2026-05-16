@@ -86,3 +86,4 @@ static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.RetryLimitExceeded -
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.SchemaUnsupported -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.ServerVersionResolved -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.SoftCancellation -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.SpatialSridMismatchDetected -> Microsoft.Extensions.Logging.EventId

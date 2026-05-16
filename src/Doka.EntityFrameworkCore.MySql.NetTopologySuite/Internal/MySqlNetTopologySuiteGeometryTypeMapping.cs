@@ -9,6 +9,11 @@ internal sealed class
             nameof(ConvertFromProviderExpression),
             BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly MethodInfo s_readSpatialColumnMethod =
+        typeof(MySqlNetTopologySuiteGeometryTypeMapping<TGeometry>).GetMethod(
+            nameof(ReadSpatialColumn),
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+
     public MySqlNetTopologySuiteGeometryTypeMapping(
         ValueConverter<TGeometry, MySqlGeometry> converter,
         string storeType,
@@ -63,6 +68,22 @@ internal sealed class
     {
         ArgumentNullException.ThrowIfNull(expression);
 
+        // The spatial reader surfaces two runtime shapes: MySqlGeometry (the typical
+        // MySQL path where MySqlConnector wraps the wire bytes) and raw byte[] (the
+        // MariaDB path where the wrap does not happen). EF Core's default expression
+        // calls GetFieldValue<T>(ordinal) with the provider type fixed at translation
+        // time; on MariaDB that throws an InvalidCastException because byte[] cannot
+        // be cast to MySqlGeometry or to the concrete geometry CLR type. We
+        // pattern-match the standard GetFieldValue shape, extract the reader plus
+        // ordinal, and route through ReadSpatialColumn which inspects the actual
+        // runtime value and dispatches accordingly. When the input expression does
+        // not match the recognized shape we fall back to the legacy paths so custom
+        // pipelines that pre-process the reader value still work.
+        if (TryExtractReaderAndOrdinal(expression, out var reader, out var ordinal))
+        {
+            return Expression.Call(s_readSpatialColumnMethod, reader, ordinal);
+        }
+
         if (expression.Type == typeof(TGeometry))
         {
             return expression;
@@ -79,6 +100,102 @@ internal sealed class
         }
 
         return expression;
+    }
+
+    /// <summary>
+    /// Pattern-matches the standard EF Core reader expression
+    /// <c>reader.GetFieldValue&lt;MySqlGeometry&gt;(ordinal)</c> and returns the
+    /// underlying reader + ordinal expressions so they can be re-bound to a
+    /// custom dispatching call. Returns false when the input expression deviates
+    /// from the recognized shape; the caller then falls back to the standard
+    /// conversion path.
+    /// </summary>
+    private static bool TryExtractReaderAndOrdinal(
+        Expression expression,
+        out Expression reader,
+        out Expression ordinal
+    )
+    {
+        if (expression is MethodCallExpression
+            {
+                Method.Name: "GetFieldValue", Object: { } readerInstance, Arguments: [{ } ordinalArg],
+            })
+        {
+            reader = readerInstance;
+            ordinal = ordinalArg;
+            return true;
+        }
+
+        reader = null!;
+        ordinal = null!;
+        return false;
+    }
+
+    /// <summary>
+    /// Reads a spatial column from the data reader and converts whatever shape
+    /// the driver returned into the typed geometry. Two shapes are recognized:
+    /// <see cref="MySqlGeometry"/> (the typical MySQL path) and raw <c>byte[]</c>
+    /// (the MariaDB path where MySqlConnector does not wrap the value). MariaDB
+    /// spatial column bytes either start with the byte-order indicator (canonical
+    /// OGC WKB) or with a 4-byte little-endian SRID prefix followed by the
+    /// byte-order indicator (MySQL-style); both layouts are accepted, and the
+    /// extracted SRID lands on the materialized geometry.
+    /// </summary>
+    private static TGeometry ReadSpatialColumn(
+        System.Data.Common.DbDataReader reader,
+        int ordinal
+    )
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+
+        var value = reader.GetValue(ordinal);
+
+        return value switch
+        {
+            MySqlGeometry mySqlGeometry => ConvertFromProvider(mySqlGeometry),
+            byte[] wkbBytes => ConvertFromWkbBytes(wkbBytes),
+            _ => throw new InvalidOperationException(
+                $"The data reader returned an unsupported spatial value type '{value?.GetType().FullName ?? "<null>"}' for '{typeof(TGeometry).Name}'."),
+        };
+    }
+
+    private static TGeometry ConvertFromWkbBytes(
+        byte[] wkbBytes
+    )
+    {
+        if (wkbBytes.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"Empty byte stream cannot be materialized as '{typeof(TGeometry).Name}'.");
+        }
+
+        ReadOnlySpan<byte> data;
+        var srid = 0;
+
+        if (wkbBytes[0] is 0 or 1)
+        {
+            data = wkbBytes;
+        }
+        else if (wkbBytes.Length > 4
+                 && wkbBytes[4] is 0 or 1)
+        {
+            srid = BinaryPrimitives.ReadInt32LittleEndian(wkbBytes.AsSpan(0, 4));
+            data = wkbBytes.AsSpan(4);
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"Unrecognized WKB byte layout for '{typeof(TGeometry).Name}'. "
+                + "Expected canonical OGC WKB (byte-order indicator at index 0) or MySQL-style "
+                + "SRID-prefixed WKB (byte-order indicator at index 4).");
+        }
+
+        var geometry = new WKBReader().Read(data.ToArray());
+        geometry.SRID = srid;
+
+        return geometry as TGeometry
+            ?? throw new InvalidOperationException(
+                $"The data reader returned a geometry of type '{geometry.GetType().Name}' which cannot be materialized as '{typeof(TGeometry).Name}'.");
     }
 
     private static TGeometry ConvertFromProvider(

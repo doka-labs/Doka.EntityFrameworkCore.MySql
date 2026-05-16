@@ -1,9 +1,15 @@
 # D-012 -- NetTopologySuite Spatial-Engine-Detail
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Date:** 2026-05-16
 - **Scope:** `src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/`
-- **Implementation:** deferred to a follow-up commit
+- **Implementation:** SRID-mismatch warning + MariaDB byte[]-WKB read path + MariaDB spatial integration tests shipped in PR 3.6 (Phase 27).
+
+## Implementation notes
+
+- **SRID-mismatch warning** (`MySqlEventId.SpatialSridMismatchDetected` = 1603) fires inside `MySqlNetTopologySuiteMethodCallTranslator.TranslateDistance` when the translator can statically observe that the two operand SRIDs differ. SRID resolution walks both the `SqlConstantExpression` side (reads the literal `Geometry.SRID` value) and the `ColumnExpression` side (walks `Column` (`IColumnBase`) -> `PropertyMappings` -> `IProperty` and reads the `MySqlAnnotationNames.SpatialReferenceSystemId` annotation set by `HasSrid`). Column-vs-constant detection therefore lights up automatically as soon as the consumer declares the column SRID via the `HasSrid` fluent extension. Queries that compute SRIDs at runtime (a join through a GIS metadata table, for example) still escape the static check; the warning is a best-effort safety net, not a guarantee, and that scope is intentional.
+- **MariaDB byte[]-WKB read path** is handled by extending `MySqlNetTopologySuiteGeometryTypeMapping.CustomizeDataReaderExpression` to pattern-match the standard `reader.GetFieldValue<T>(ordinal)` shape and route through a new `ReadSpatialColumn` dispatcher. The dispatcher inspects the actual runtime value: `MySqlGeometry` follows the existing MySQL conversion path; raw `byte[]` is the MariaDB path. Two WKB layouts are accepted on the MariaDB side: canonical OGC WKB (byte-order indicator at index 0) and MySQL-style SRID-prefixed WKB (4-byte little-endian SRID then byte-order indicator at index 4). The extracted SRID lands on the materialized geometry; canonical OGC WKB leaves the SRID at 0 because the format does not embed one. Keeping `MySqlGeometry` as the value-converter provider type preserves the write path on both engines (MariaDB rejects raw `byte[]` WKB on inline parameter binding because it parses the bytes as text).
+- **MariaDB spatial integration tests** in `MySqlNetTopologySuiteIntegrationTests`: `MariaDb118_wkb_roundtrip_preserves_srid_and_coordinates` writes a Point, clears the change tracker, and asserts the materialized round-trip preserves SRID + coordinates; `MariaDb118_spatial_index_ddl_creates_index_on_geometry_column` emits the `CREATE SPATIAL INDEX` form via the migration generator, runs it against the live MariaDB server, then queries `information_schema.statistics` to confirm the index landed. `TranslateDistance_warns_when_column_and_constant_srids_differ` and `TranslateDistance_does_not_warn_when_column_and_constant_srids_match` pin the SRID-warning contract for the realistic column-vs-constant query shape.
 
 ## Context
 
