@@ -123,17 +123,37 @@ public sealed class MySqlScalarConvertTests
     [Fact]
     public void Decimal_nonzero_returns_true() => Assert.True(MySqlScalarConvert.ToBoolean(1.5m));
 
-    /// <summary>String "1", "true", "TRUE", "True" are true; everything else is false.</summary>
+    /// <summary>
+    /// String dispatch contract: <c>"1"</c> compares ordinal-equal; every other input
+    /// routes through <see cref="bool.TryParse(string, out bool)"/> which is
+    /// case-insensitive and whitespace-tolerant. Inputs the parser does not recognize
+    /// (numeric strings other than "1", yes / no, empty string, non-ASCII, etc.) return
+    /// <see langword="false"/>.
+    /// </summary>
     [Theory]
     [InlineData("1", true)]
     [InlineData("true", true)]
-    [InlineData("TRUE", true)]
     [InlineData("True", true)]
-    [InlineData("0", false)]
+    [InlineData("TRUE", true)]
+    [InlineData("trUe", true)]
+    [InlineData("  true  ", true)]
+    [InlineData("\ttrue\n", true)]
     [InlineData("false", false)]
+    [InlineData("False", false)]
     [InlineData("FALSE", false)]
+    [InlineData("  false  ", false)]
+    [InlineData("0", false)]
+    [InlineData("2", false)]
     [InlineData("", false)]
+    [InlineData("   ", false)]
     [InlineData("yes", false)]
+    [InlineData("no", false)]
+    [InlineData("Y", false)]
+    [InlineData("N", false)]
+    [InlineData("verdadero", false)]
+    [InlineData("wahr", false)]
+    [InlineData("ja", false)]
+    [InlineData("nein", false)]
     public void String_converts_correctly(
         string input,
         bool expected

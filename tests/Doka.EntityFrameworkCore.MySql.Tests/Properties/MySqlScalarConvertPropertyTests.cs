@@ -11,13 +11,14 @@ namespace Doka.EntityFrameworkCore.MySql.Tests.Properties;
 /// </summary>
 public sealed class MySqlScalarConvertPropertyTests
 {
-    private static readonly HashSet<string> s_recognizedTrueStrings = new(StringComparer.Ordinal)
-    {
-        "1",
-        "true",
-        "TRUE",
-        "True",
-    };
+    // The string dispatch in MySqlScalarConvert.ToBoolean is: the literal "1" returns true
+    // (Ordinal compare); every other input routes through bool.TryParse, which is
+    // case-insensitive and whitespace-tolerant. The property mirrors that contract so a
+    // future change to the dispatch surfaces as a property failure with FsCheck's shrunk
+    // counter-example, not a silent contract drift.
+    private static bool IsRecognizedTrueString(
+        string input
+    ) => input.Equals("1", StringComparison.Ordinal) || (bool.TryParse(input, out var parsed) && parsed);
 
     [Property(MaxTest = 1000)]
     public bool ToBoolean_matches_non_zero_contract_for_int(
@@ -59,7 +60,7 @@ public sealed class MySqlScalarConvertPropertyTests
             return true;
         }
 
-        return MySqlScalarConvert.ToBoolean(candidate) == s_recognizedTrueStrings.Contains(candidate);
+        return MySqlScalarConvert.ToBoolean(candidate) == IsRecognizedTrueString(candidate);
     }
 
     [Fact]

@@ -19,7 +19,7 @@ internal static class MySqlScalarConvert
         float floatValue => floatValue != 0,
         double doubleValue => doubleValue != 0,
         decimal decimalValue => decimalValue != 0,
-        string s => s is "1" or "true" or "TRUE" or "True",
+        string s => s.Equals("1", StringComparison.Ordinal) || (bool.TryParse(s, out var parsed) && parsed),
         _ => throw new InvalidOperationException(
             $"Cannot convert value of type '{value.GetType().FullName}' to Boolean."),
     };

@@ -82,17 +82,6 @@ public sealed class MySqlRemainingGapTests
         Assert.Contains("varchar(36)", columnType!, StringComparison.OrdinalIgnoreCase);
     }
 
-    // -- ScalarConvert "tRuE" edge case --
-
-    [Fact]
-    public void ToBoolean_mixed_case_true_returns_false()
-    {
-        // Only exact "true", "TRUE", "True" return true; mixed case like "tRuE" returns false.
-        Assert.False(MySqlScalarConvert.ToBoolean("tRuE"));
-        Assert.False(MySqlScalarConvert.ToBoolean("TRUE "));
-        Assert.False(MySqlScalarConvert.ToBoolean(" true"));
-    }
-
     // -- Entities / Contexts --
 
     private sealed class HiLoGuidEntity
