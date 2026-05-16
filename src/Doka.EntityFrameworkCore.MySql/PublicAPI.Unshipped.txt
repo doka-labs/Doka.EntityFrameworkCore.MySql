@@ -1,0 +1,85 @@
+#nullable enable
+Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder
+Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.DefaultGuidFormat(Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
+Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.EnableRetryOnFailure(int maxRetryCount = 6, System.TimeSpan? maxRetryDelay = null) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
+Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilderExtensions
+Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions
+Doka.EntityFrameworkCore.MySql.MySqlDesignTimeServices
+Doka.EntityFrameworkCore.MySql.MySqlDesignTimeServices.ConfigureDesignTimeServices(Microsoft.Extensions.DependencyInjection.IServiceCollection! serviceCollection) -> void
+Doka.EntityFrameworkCore.MySql.MySqlDesignTimeServices.MySqlDesignTimeServices() -> void
+Doka.EntityFrameworkCore.MySql.MySqlEntityTypeBuilderExtensions
+Doka.EntityFrameworkCore.MySql.MySqlEventId
+Doka.EntityFrameworkCore.MySql.MySqlGuidFormat
+Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Binary16 = 0 -> Doka.EntityFrameworkCore.MySql.MySqlGuidFormat
+Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Char36 = 1 -> Doka.EntityFrameworkCore.MySql.MySqlGuidFormat
+Doka.EntityFrameworkCore.MySql.MySqlModelBuilderExtensions
+Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions
+Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder
+Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder.ScaffoldTextGuidsAsGuids() -> Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder!
+Doka.EntityFrameworkCore.MySql.MySqlServerVersion
+Doka.EntityFrameworkCore.MySql.MySqlServerVersion.IsMariaDb.get -> bool
+Doka.EntityFrameworkCore.MySql.MySqlServerVersion.Version.get -> System.Version!
+Doka.EntityFrameworkCore.MySql.MySqlServiceCollectionExtensions
+Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy
+Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy.AutoIncrement = 1 -> Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy
+Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy.ClientGuid = 2 -> Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy
+Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy.HiLo = 3 -> Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy
+Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy.None = 0 -> Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy
+override Doka.EntityFrameworkCore.MySql.MySqlServerVersion.ToString() -> string!
+static Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilderExtensions.UseMySql(this Microsoft.EntityFrameworkCore.DbContextOptionsBuilder! optionsBuilder, MySqlConnector.MySqlDataSource! dataSource, Doka.EntityFrameworkCore.MySql.MySqlServerVersion! serverVersion, System.Action<Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!>? mySqlOptionsAction = null) -> Microsoft.EntityFrameworkCore.DbContextOptionsBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilderExtensions.UseMySql(this Microsoft.EntityFrameworkCore.DbContextOptionsBuilder! optionsBuilder, string! connectionString, Doka.EntityFrameworkCore.MySql.MySqlServerVersion! serverVersion, System.Action<Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!>? mySqlOptionsAction = null) -> Microsoft.EntityFrameworkCore.DbContextOptionsBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilderExtensions.UseMySql(this Microsoft.EntityFrameworkCore.DbContextOptionsBuilder! optionsBuilder, System.Data.Common.DbConnection! connection, Doka.EntityFrameworkCore.MySql.MySqlServerVersion! serverVersion, System.Action<Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!>? mySqlOptionsAction = null) -> Microsoft.EntityFrameworkCore.DbContextOptionsBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilderExtensions.UseMySql<TContext>(this Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<TContext!>! optionsBuilder, MySqlConnector.MySqlDataSource! dataSource, Doka.EntityFrameworkCore.MySql.MySqlServerVersion! serverVersion, System.Action<Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!>? mySqlOptionsAction = null) -> Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<TContext!>!
+static Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilderExtensions.UseMySql<TContext>(this Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<TContext!>! optionsBuilder, string! connectionString, Doka.EntityFrameworkCore.MySql.MySqlServerVersion! serverVersion, System.Action<Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!>? mySqlOptionsAction = null) -> Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<TContext!>!
+static Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilderExtensions.UseMySql<TContext>(this Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<TContext!>! optionsBuilder, System.Data.Common.DbConnection! connection, Doka.EntityFrameworkCore.MySql.MySqlServerVersion! serverVersion, System.Action<Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!>? mySqlOptionsAction = null) -> Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<TContext!>!
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.JsonArray(this Microsoft.EntityFrameworkCore.DbFunctions! functions, params object![]! values) -> string!
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.JsonContains(this Microsoft.EntityFrameworkCore.DbFunctions! functions, string! target, string! candidate) -> bool
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.JsonDepth(this Microsoft.EntityFrameworkCore.DbFunctions! functions, string! json) -> int
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.JsonKeys(this Microsoft.EntityFrameworkCore.DbFunctions! functions, string! json) -> string!
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.JsonLength(this Microsoft.EntityFrameworkCore.DbFunctions! functions, string! json) -> int
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.JsonObject(this Microsoft.EntityFrameworkCore.DbFunctions! functions, params object![]! keyValuePairs) -> string!
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.JsonRemove(this Microsoft.EntityFrameworkCore.DbFunctions! functions, string! json, string! path) -> string!
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.JsonReplace(this Microsoft.EntityFrameworkCore.DbFunctions! functions, string! json, string! path, object! value) -> string!
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.JsonSet(this Microsoft.EntityFrameworkCore.DbFunctions! functions, string! json, string! path, object! value) -> string!
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.JsonType(this Microsoft.EntityFrameworkCore.DbFunctions! functions, string! json) -> string!
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.Match(this Microsoft.EntityFrameworkCore.DbFunctions! functions, string! column, string! searchTerm) -> bool
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.MatchInBooleanMode(this Microsoft.EntityFrameworkCore.DbFunctions! functions, string! column, string! searchTerm) -> bool
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.Regexp(this Microsoft.EntityFrameworkCore.DbFunctions! functions, string! input, string! pattern) -> bool
+static Doka.EntityFrameworkCore.MySql.MySqlEntityTypeBuilderExtensions.HasCharSet(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder! entityTypeBuilder, string! charSet) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlEntityTypeBuilderExtensions.HasCharSet<TEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity!>! entityTypeBuilder, string! charSet) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity!>!
+static Doka.EntityFrameworkCore.MySql.MySqlEntityTypeBuilderExtensions.UseStorageEngine(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder! entityTypeBuilder, string! engine) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlEntityTypeBuilderExtensions.UseStorageEngine<TEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity!>! entityTypeBuilder, string! engine) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity!>!
+static Doka.EntityFrameworkCore.MySql.MySqlModelBuilderExtensions.HasCharSet(this Microsoft.EntityFrameworkCore.ModelBuilder! modelBuilder, string! charSet) -> Microsoft.EntityFrameworkCore.ModelBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.HasMySqlGuidFormat(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder! propertyBuilder, Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.HasMySqlGuidFormat<TProperty>(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>! propertyBuilder, Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.HasMySqlValueGenerationStrategy(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder! propertyBuilder, Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy strategy) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.HasMySqlValueGenerationStrategy<TProperty>(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>! propertyBuilder, Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy strategy) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.IsInvisible(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder! propertyBuilder, bool invisible = true) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.IsInvisible<TProperty>(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>! propertyBuilder, bool invisible = true) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.UseHiLo(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder! propertyBuilder, string? name = null, string? schema = null) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.UseHiLo<TProperty>(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>! propertyBuilder, string? name = null, string? schema = null) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.UseMySqlAutoIncrementColumn(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder! propertyBuilder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.UseMySqlAutoIncrementColumn<TProperty>(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>! propertyBuilder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.UseMySqlClientGuidValueGeneration(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder! propertyBuilder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.UseMySqlClientGuidValueGeneration<TProperty>(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>! propertyBuilder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>!
+static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.AutoDetect(string! serverVersion) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
+static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.AutoDetect(System.Data.Common.DbConnection! connection) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
+static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.MariaDb(System.Version! version) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
+static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.MySql(System.Version! version) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
+static Doka.EntityFrameworkCore.MySql.MySqlServiceCollectionExtensions.AddEntityFrameworkDokaMySql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! serviceCollection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Doka.EntityFrameworkCore.MySql.MySqlServiceCollectionExtensions.AddEntityFrameworkDokaMySqlDesignTime(this Microsoft.Extensions.DependencyInjection.IServiceCollection! serviceCollection, System.Action<Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.CommandTimeoutExhausted -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.CommitUnknown -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.ForeignKeyPrincipalTableNotScaffolded -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.HardCancellation -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.ImplicitDecimalPrecisionDefaulted -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.InvalidConfiguration -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.InvalidSpatialIndexConfiguration -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.KeyOrIndexMaxLengthRequired -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MissingSpatialPackageDuringScaffolding -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MissingSpatialTranslation -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.RetryAttempt -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.RetryLimitExceeded -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.SchemaUnsupported -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.ServerVersionResolved -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.SoftCancellation -> Microsoft.Extensions.Logging.EventId

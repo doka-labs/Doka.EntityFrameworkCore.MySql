@@ -86,6 +86,43 @@ jobs:
       - name: Run repo-local test path
         run: bash ./eng/test.sh
 
+  # EfCorePatchMatrixCI (Backbone-9 / ADR D-009): runs the repo-local test path
+  # against the lower bound of the EF Core 10.0.x patch range plus the latest
+  # floating 10.0.x tag, so a future Microsoft patch that breaks our EF1001
+  # surface surfaces in CI within one nightly cycle rather than at consumer-
+  # install time.
+  efcore-patch-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ef-core-version:
+          - "10.0.4"
+          - "10.0.*"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Override EF Core version
+        env:
+          EF_CORE_VERSION: ${{ matrix.ef-core-version }}
+        run: |
+          sed -i.bak \
+            -e "s|<PackageVersion Include=\"Microsoft.EntityFrameworkCore.Design\" Version=\"\[10.0.4, 10.1.0)\" />|<PackageVersion Include=\"Microsoft.EntityFrameworkCore.Design\" Version=\"${EF_CORE_VERSION}\" />|" \
+            -e "s|<PackageVersion Include=\"Microsoft.EntityFrameworkCore.Relational\" Version=\"\[10.0.4, 10.1.0)\" />|<PackageVersion Include=\"Microsoft.EntityFrameworkCore.Relational\" Version=\"${EF_CORE_VERSION}\" />|" \
+            -e "s|<PackageVersion Include=\"Microsoft.EntityFrameworkCore.Relational.Specification.Tests\" Version=\"\[10.0.4, 10.1.0)\" />|<PackageVersion Include=\"Microsoft.EntityFrameworkCore.Relational.Specification.Tests\" Version=\"${EF_CORE_VERSION}\" />|" \
+            Directory.Packages.props
+          rm -f Directory.Packages.props.bak
+
+      - name: Run repo-local test path against pinned EF Core
+        run: bash ./eng/test.sh
+
   integration-smoke:
     runs-on: ubuntu-latest
 

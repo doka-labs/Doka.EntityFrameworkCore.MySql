@@ -29,6 +29,36 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <DebugType>portable</DebugType>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <!--
+      PublicApiAnalyzers tracks every src project's public surface against the
+      PublicAPI.Shipped.txt / PublicAPI.Unshipped.txt baseline. The global
+      TreatWarningsAsErrors property already promotes RS0016 / RS0017 / RS0036 to
+      errors so unintentional API drift fails the build instead of slipping into
+      a patch release. See ADR D-008.
+
+      EnforceExtendedAnalyzerRules is intentionally NOT set: that property activates
+      the RS1xxx rules meant for analyzer authors (we ship a library, not an analyzer)
+      and would surface unrelated false positives on every Environment.NewLine call.
+    -->
+    <!--
+      RS0026 fires on UseMySql / UseMySql<TContext> overloads because they all carry the
+      optional mySqlOptionsAction = null parameter. The pattern is the EF Core community
+      standard (every provider declares UseXxx with that optional shape) and the optional
+      parameter is part of the documented public API. We accept the SemVer fragility
+      (adding a second optional parameter later would be a breaking-change) as a known
+      design trade-off; the analyzer continues to surface the diagnostic as a warning so
+      a future overload addition still demands explicit reviewer attention.
+    -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);RS0026</WarningsNotAsErrors>
   </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Doka.EntityFrameworkCore.MySql' OR '$(MSBuildProjectName)' == 'Doka.EntityFrameworkCore.MySql.NetTopologySuite'">
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="$(MSBuildProjectDirectory)/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="$(MSBuildProjectDirectory)/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
 
 </Project>

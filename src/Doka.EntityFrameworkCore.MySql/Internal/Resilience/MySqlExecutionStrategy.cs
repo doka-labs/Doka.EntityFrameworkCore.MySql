@@ -5,7 +5,17 @@ internal sealed class MySqlExecutionStrategy : ExecutionStrategy
     private readonly ServerCapabilities _capabilities;
     private readonly IMySqlTransientExceptionDetector _transientExceptionDetector;
     private readonly ILogger? _logger;
-    private Exception? _lastException;
+
+    // _lastException is written by GetNextDelay (called by EF Core's retry loop on the
+    // executing thread) and read by OnRetry (called on the same thread between attempts).
+    // The volatile modifier hardens the publish so a future EF Core change that moves
+    // OnRetry off the executing thread does not need to re-add a memory fence here.
+    private volatile Exception? _lastException;
+
+    // _lastRetryDelay carries the same write-then-read pattern but its TimeSpan struct
+    // is not a legal target for the volatile field modifier. The read in OnRetry runs
+    // on the same thread as the write in GetNextDelay on every EF Core retry path we
+    // exercise; switching strategies would require a long-ticks-with-Interlocked variant.
     private TimeSpan? _lastRetryDelay;
 
     public MySqlExecutionStrategy(

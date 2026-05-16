@@ -7,9 +7,17 @@
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
     <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.4" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational.Specification.Tests" Version="10.0.4" />
+    <!--
+      EF Core packages float across patch releases on the 10.0.x line so downstream
+      consumers can pick up Microsoft patch updates without waiting for a provider bump.
+      The next minor (10.1.0) requires a deliberate provider response per ADR D-009;
+      the EfCorePatchMatrixCI workflow validates every published 10.0.x patch against
+      the provider's full test surface.
+    -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="[10.0.4, 10.1.0)" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="[10.0.4, 10.1.0)" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational.Specification.Tests" Version="[10.0.4, 10.1.0)" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
     <PackageVersion Include="MySqlConnector" Version="2.5.0" />
     <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.15.0" />

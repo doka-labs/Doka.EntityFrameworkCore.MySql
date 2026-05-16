@@ -1,9 +1,29 @@
 # D-008 -- Public-API-Vertrag via PublicApiAnalyzers
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Date:** 2026-05-16
 - **Scope:** `src/Doka.EntityFrameworkCore.MySql/` + `src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/` public surface
-- **Implementation:** deferred to a follow-up commit
+- **Implementation:** `Microsoft.CodeAnalysis.PublicApiAnalyzers` 3.3.4 wired through `Directory.Build.props`; `PublicAPI.Shipped.txt` (empty) and `PublicAPI.Unshipped.txt` (current surface) per src project; CONTRIBUTING.md documents the contributor workflow.
+
+## Implementation notes
+
+- `Microsoft.CodeAnalysis.PublicApiAnalyzers` 3.3.4 is referenced as a build-time analyzer (`PrivateAssets=all`) on both src projects via a conditional `ItemGroup` in `Directory.Build.props`. The same `ItemGroup` registers the two `AdditionalFiles` entries so the analyzer sees the per-project `PublicAPI.{Shipped,Unshipped}.txt` pair.
+- `EnforceExtendedAnalyzerRules` is **not** set: that property activates the RS1xxx rules meant for analyzer authors (we ship a library, not an analyzer) and would surface unrelated false positives on every `Environment.NewLine` call inside the provider. The global `TreatWarningsAsErrors=true` from `Directory.Build.props` already promotes RS0016 / RS0017 / RS0036 to errors, which is the structurally relevant gate.
+- `RS0026` ("Do not add multiple overloads with optional parameters") fires on the `UseMySql` extension family because each overload carries the optional `mySqlOptionsAction = null` parameter. The pattern is the EF Core community standard; the rule is demoted to a warning via `WarningsNotAsErrors` with an explicit rationale comment. A future overload addition still surfaces as a warning and demands explicit reviewer attention.
+- Initial surface population ran via `dotnet format analyzers <csproj> --diagnostics RS0016 --severity info`, which applies the analyzer's auto-fix and writes the exact PublicApiAnalyzer-formatted lines into `PublicAPI.Unshipped.txt`.
+
+## Post-v1.0 follow-up: PackageValidation
+
+Per operator decision (belt-and-suspenders): after the first NuGet release of `Doka.EntityFrameworkCore.MySql` v1.0, the project additionally activates `PackageValidation` (built into the .NET 8+ SDK) so the released `.nupkg` is compared against the previous baseline at every `dotnet pack` time. This complements PublicApiAnalyzers (which guards pre-release surface drift commit-by-commit) with a package-level baseline check that catches assembly-binary-compat regressions PublicApiAnalyzers cannot see (for example, attribute-only changes that affect runtime binding).
+
+The activation is a `Directory.Build.props` edit at release time:
+
+```xml
+<EnablePackageValidation>true</EnablePackageValidation>
+<PackageValidationBaselineVersion>10.0.0</PackageValidationBaselineVersion>
+```
+
+Until the first release publishes a baseline `.nupkg` on nuget.org, PackageValidation has nothing to compare against; PublicApiAnalyzers carries the entire SemVer-discipline load during the pre-v1.0 phase.
 
 ## Context
 

@@ -75,9 +75,27 @@ DOKA_BENCHMARK_TARGET=mysql84 ./eng/benchmark.sh --up-smoke-down
 
 - Target the `main` branch.
 - Keep each PR focused on a single concern.
-- New translation, type-mapping, migration DDL, or scaffolding paths must include both unit / functional tests and — where behavior is engine-specific — live integration tests against the relevant MySQL and MariaDB containers.
+- New translation, type-mapping, migration DDL, or scaffolding paths must include both unit / functional tests and -- where behavior is engine-specific -- live integration tests against the relevant MySQL and MariaDB containers.
 - The build and all test suites must be green before requesting review.
 - Summarize the motivation and approach in the PR description.
+
+## Public-API Changes
+
+Public-API drift is tracked mechanically via `Microsoft.CodeAnalysis.PublicApiAnalyzers` (see ADR D-008). Two text files per src project carry the current contract:
+
+- `PublicAPI.Shipped.txt` -- immutable snapshot of the public API as of the most recent release. Edited only at release time by merging the unshipped delta.
+- `PublicAPI.Unshipped.txt` -- the working set of public-API additions since the last release.
+
+Workflow for changes that add or remove public API:
+
+1. Make the source change. The build will fail with `RS0016` (declared API not in shipped or unshipped) or `RS0017` (shipped API removed from source).
+2. Apply the analyzer code-fix in your IDE or run `dotnet format analyzers <csproj> --diagnostics RS0016 --severity info` from the repository root to populate `PublicAPI.Unshipped.txt` automatically.
+3. Removals require an explicit `*REMOVED*` line in `PublicAPI.Unshipped.txt` plus removal of the symbol from `PublicAPI.Shipped.txt`. The diff makes the SemVer-breaking nature of the change visible in PR review.
+4. At release time, the contents of `Unshipped.txt` move to `Shipped.txt` (and the unshipped file is reset to `#nullable enable`) as part of the tag commit.
+
+`RS0026` ("Do not add multiple overloads with optional parameters") fires on the `UseMySql` extension family and is intentionally demoted to a warning in `Directory.Build.props`; the optional `mySqlOptionsAction = null` pattern is the EF Core community standard and is part of the documented surface. Any new optional parameter on those overloads is still a breaking change and demands explicit reviewer attention.
+
+Post-v1.0 the project will additionally adopt `PackageValidation` (built-in to .NET 8+) so the released NuGet packages are compared against the previous baseline at `dotnet pack` time -- see ADR D-008 for the deferred-activation trigger.
 
 ## Reporting Issues
 

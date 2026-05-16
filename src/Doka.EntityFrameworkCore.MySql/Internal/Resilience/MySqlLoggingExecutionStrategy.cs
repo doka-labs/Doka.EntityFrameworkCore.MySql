@@ -1,5 +1,14 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
+/// <summary>
+/// Wraps the inner execution strategy with structured logging for cancellation, retry
+/// exhaustion, and command-timeout exhaustion. The diagnostic context (current
+/// ConnectionState plus the configured CommandTimeout) is captured BEFORE the try
+/// so the exception filters stay allocation-light and never need to walk the
+/// DbContext.Database service surface from inside a stack-unwinding filter -- which
+/// historically allocated on every retry attempt regardless of whether logging was
+/// enabled.
+/// </summary>
 internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
 {
     private readonly ExecutionStrategyDependencies _dependencies;
@@ -33,11 +42,13 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
         Func<DbContext, TState, ExecutionResult<TResult>>? verifySucceeded
     )
     {
+        var diagnostic = CaptureDiagnosticContext();
+
         try
         {
             return _innerStrategy.Execute(state, operation, verifySucceeded);
         }
-        catch (OperationCanceledException exception) when (LogCancellation(exception))
+        catch (OperationCanceledException exception) when (LogCancellation(exception, diagnostic))
         {
             throw;
         }
@@ -45,7 +56,7 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
         {
             throw;
         }
-        catch (Exception exception) when (LogCommandTimeout(exception))
+        catch (Exception exception) when (LogCommandTimeout(exception, diagnostic))
         {
             throw;
         }
@@ -65,11 +76,13 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
         CancellationToken cancellationToken
     )
     {
+        var diagnostic = CaptureDiagnosticContext();
+
         try
         {
             return await _innerStrategy.ExecuteAsync(state, operation, verifySucceeded, cancellationToken);
         }
-        catch (OperationCanceledException exception) when (LogCancellation(exception))
+        catch (OperationCanceledException exception) when (LogCancellation(exception, diagnostic))
         {
             throw;
         }
@@ -77,9 +90,30 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
         {
             throw;
         }
-        catch (Exception exception) when (LogCommandTimeout(exception))
+        catch (Exception exception) when (LogCommandTimeout(exception, diagnostic))
         {
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Captures the current DbContext-level diagnostic state once per operation so the
+    /// exception filters do not have to call back into the service surface during stack
+    /// unwinding. Safe under a defensive try because the DbContext may be in an early
+    /// disposal state when invoked from a cancellation token's continuation.
+    /// </summary>
+    private DiagnosticContext CaptureDiagnosticContext()
+    {
+        try
+        {
+            var context = _dependencies.CurrentContext.Context;
+            var connection = context.Database.GetDbConnection();
+            var commandTimeout = context.Database.GetCommandTimeout() ?? 0;
+            return new DiagnosticContext(connection.State, commandTimeout);
+        }
+        catch
+        {
+            return DiagnosticContext.Unknown;
         }
     }
 
@@ -105,7 +139,8 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
     }
 
     private bool LogCancellation(
-        OperationCanceledException exception
+        OperationCanceledException exception,
+        DiagnosticContext diagnostic
     )
     {
         ArgumentNullException.ThrowIfNull(exception);
@@ -115,33 +150,21 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
             return false;
         }
 
-        var connectionState = "Unknown";
-        var commandTimeout = 0;
+        var connectionStateName = diagnostic.ConnectionStateName;
 
-        try
+        if (diagnostic.ConnectionState is ConnectionState.Broken or ConnectionState.Closed)
         {
-            var connection = _dependencies.CurrentContext.Context.Database.GetDbConnection();
-            commandTimeout = _dependencies.CurrentContext.Context.Database.GetCommandTimeout() ?? 0;
-            connectionState = connection.State.ToString();
-
-            if (connection.State is ConnectionState.Broken or ConnectionState.Closed)
-            {
-                MySqlLoggerMessages.HardCancellation(_logger, "Unknown", commandTimeout, connectionState);
-                return false;
-            }
-        }
-        catch
-        {
-            // Inside an exception filter -- must not throw. Fall through to soft cancellation
-            // with safe defaults.
+            MySqlLoggerMessages.HardCancellation(_logger, "Unknown", diagnostic.CommandTimeout, connectionStateName);
+            return false;
         }
 
-        MySqlLoggerMessages.SoftCancellation(_logger, "Unknown", commandTimeout, connectionState);
+        MySqlLoggerMessages.SoftCancellation(_logger, "Unknown", diagnostic.CommandTimeout, connectionStateName);
         return false;
     }
 
     private bool LogCommandTimeout(
-        Exception exception
+        Exception exception,
+        DiagnosticContext diagnostic
     )
     {
         ArgumentNullException.ThrowIfNull(exception);
@@ -152,22 +175,27 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
             return false;
         }
 
-        var connectionState = "Unknown";
-        var commandTimeout = 0;
-
-        try
-        {
-            commandTimeout = _dependencies.CurrentContext.Context.Database.GetCommandTimeout() ?? 0;
-            connectionState = _dependencies
-                .CurrentContext.Context.Database.GetDbConnection()
-                .State.ToString();
-        }
-        catch
-        {
-            // Inside an exception filter -- must not throw.
-        }
-
-        MySqlLoggerMessages.CommandTimeoutExhausted(_logger, "Unknown", commandTimeout, connectionState, exception);
+        MySqlLoggerMessages.CommandTimeoutExhausted(
+            _logger,
+            "Unknown",
+            diagnostic.CommandTimeout,
+            diagnostic.ConnectionStateName,
+            exception);
         return false;
+    }
+
+    /// <summary>
+    /// Per-operation diagnostic snapshot. Holds the connection state at the moment the
+    /// operation began plus the configured command-timeout in seconds. The
+    /// <see cref="Unknown"/> singleton is used when the snapshot cannot be captured
+    /// (early-disposal of the DbContext, factory paths that bypass the service surface).
+    /// </summary>
+    private readonly record struct DiagnosticContext(
+        ConnectionState ConnectionState,
+        int CommandTimeout)
+    {
+        public static DiagnosticContext Unknown { get; } = new(ConnectionState.Closed, 0);
+
+        public string ConnectionStateName => ConnectionState.ToString();
     }
 }
