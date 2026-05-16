@@ -52,6 +52,12 @@ generated_code = true
 [*.AssemblyInfo.cs]
 generated_code = true
 
+[*Generated.cs]
+generated_code = true
+
+[tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke/CompiledModels/**.cs]
+generated_code = true
+
 # -----------------------------------------------------------------------------
 # C# (Roslyn / .NET)
 # -----------------------------------------------------------------------------

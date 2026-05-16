@@ -59,7 +59,8 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                     "table schema declared",
                     remediation);
                 throw new InvalidOperationException(
-                    $"MySQL schema configuration is not supported. Remove the schema from entity '{entityType.DisplayName()}'.");
+                    "MySQL schema configuration is not supported. Remove the schema from entity "
+                    + $"'{entityType.DisplayName()}'.");
             }
 
             if (!string.IsNullOrWhiteSpace(entityType.GetViewSchema()))
@@ -71,7 +72,8 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                     "view schema declared",
                     remediation);
                 throw new InvalidOperationException(
-                    $"MySQL schema configuration is not supported. Remove the view schema from entity '{entityType.DisplayName()}'.");
+                    "MySQL schema configuration is not supported. Remove the view schema from entity "
+                    + $"'{entityType.DisplayName()}'.");
             }
         }
 
@@ -118,7 +120,8 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                     property.Name,
                     propertyKind);
                 throw new InvalidOperationException(
-                    $"The keyed or indexed {propertyKind} property '{entityType.DisplayName()}.{property.Name}' must declare an explicit max length.");
+                    $"The keyed or indexed {propertyKind} property "
+                    + $"'{entityType.DisplayName()}.{property.Name}' must declare an explicit max length.");
             }
         }
     }
@@ -208,8 +211,9 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                     && constraintName.Length > maxConstraintNameLength)
                 {
                     var message =
-                        $"The foreign key constraint name '{constraintName}' on entity '{entityType.DisplayName()}' "
-                        + $"exceeds MySQL's {maxConstraintNameLength}-character limit and will be rejected at migration time.";
+                        $"The foreign key constraint name '{constraintName}' on entity "
+                        + $"'{entityType.DisplayName()}' exceeds MySQL's {maxConstraintNameLength}"
+                        + "-character limit and will be rejected at migration time.";
 
                     MySqlLoggerMessages.InvalidConfiguration(logger, message, "ModelValidation", string.Empty);
 
@@ -224,8 +228,10 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                 if (indexName is not null
                     && indexName.Length > maxConstraintNameLength)
                 {
-                    var message = $"The index name '{indexName}' on entity '{entityType.DisplayName()}' "
-                        + $"exceeds MySQL's {maxConstraintNameLength}-character limit and will be rejected at migration time.";
+                    var message =
+                        $"The index name '{indexName}' on entity '{entityType.DisplayName()}' "
+                        + $"exceeds MySQL's {maxConstraintNameLength}-character limit "
+                        + "and will be rejected at migration time.";
 
                     MySqlLoggerMessages.InvalidConfiguration(logger, message, "ModelValidation", string.Empty);
 

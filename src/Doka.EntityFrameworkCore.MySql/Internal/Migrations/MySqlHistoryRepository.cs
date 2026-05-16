@@ -94,21 +94,28 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             .ConfigureAwait(false);
     }
 
-    public override string GetCreateScript() => $"""
-                                                 CREATE TABLE {SqlGenerationHelper.DelimitIdentifier(TableName)} (
-                                                     {SqlGenerationHelper.DelimitIdentifier(MigrationIdColumnName)} varchar(150) NOT NULL,
-                                                     {SqlGenerationHelper.DelimitIdentifier(ProductVersionColumnName)} varchar(32) NOT NULL,
-                                                     CONSTRAINT {SqlGenerationHelper.DelimitIdentifier($"PK_{TableName}")} PRIMARY KEY ({SqlGenerationHelper.DelimitIdentifier(MigrationIdColumnName)})
-                                                 ) CHARACTER SET utf8mb4{SqlGenerationHelper.StatementTerminator}
-                                                 """;
+    public override string GetCreateScript() => BuildCreateHistoryTableScript("CREATE TABLE");
 
-    public override string GetCreateIfNotExistsScript() => $"""
-                                                            CREATE TABLE IF NOT EXISTS {SqlGenerationHelper.DelimitIdentifier(TableName)} (
-                                                                {SqlGenerationHelper.DelimitIdentifier(MigrationIdColumnName)} varchar(150) NOT NULL,
-                                                                {SqlGenerationHelper.DelimitIdentifier(ProductVersionColumnName)} varchar(32) NOT NULL,
-                                                                CONSTRAINT {SqlGenerationHelper.DelimitIdentifier($"PK_{TableName}")} PRIMARY KEY ({SqlGenerationHelper.DelimitIdentifier(MigrationIdColumnName)})
-                                                            ) CHARACTER SET utf8mb4{SqlGenerationHelper.StatementTerminator}
-                                                            """;
+    public override string GetCreateIfNotExistsScript() => BuildCreateHistoryTableScript("CREATE TABLE IF NOT EXISTS");
+
+    private string BuildCreateHistoryTableScript(
+        string createClause
+    )
+    {
+        var tableName = SqlGenerationHelper.DelimitIdentifier(TableName);
+        var idColumn = SqlGenerationHelper.DelimitIdentifier(MigrationIdColumnName);
+        var versionColumn = SqlGenerationHelper.DelimitIdentifier(ProductVersionColumnName);
+        var primaryKey = SqlGenerationHelper.DelimitIdentifier($"PK_{TableName}");
+        var terminator = SqlGenerationHelper.StatementTerminator;
+
+        return $"""
+                {createClause} {tableName} (
+                    {idColumn} varchar(150) NOT NULL,
+                    {versionColumn} varchar(32) NOT NULL,
+                    CONSTRAINT {primaryKey} PRIMARY KEY ({idColumn})
+                ) CHARACTER SET utf8mb4{terminator}
+                """;
+    }
 
     public override IMigrationsDatabaseLock AcquireDatabaseLock()
     {
@@ -132,22 +139,14 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
 
     public override string GetBeginIfNotExistsScript(
         string migrationId
-    )
-    {
-        var migrationIdLiteral = Dependencies
-            .TypeMappingSource.GetMapping(typeof(string))
-            .GenerateSqlLiteral(migrationId);
-
-        return $"""
-                DROP PROCEDURE IF EXISTS {SqlGenerationHelper.DelimitIdentifier(ApplyMigrationProcedureName)}{SqlGenerationHelper.StatementTerminator}
-                CREATE PROCEDURE {SqlGenerationHelper.DelimitIdentifier(ApplyMigrationProcedureName)}()
-                BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM {SqlGenerationHelper.DelimitIdentifier(TableName)} WHERE {SqlGenerationHelper.DelimitIdentifier(MigrationIdColumnName)} = {migrationIdLiteral}) THEN
-
-                """;
-    }
+    ) => BuildBeginConditionalScript("NOT EXISTS", migrationId);
 
     public override string GetBeginIfExistsScript(
+        string migrationId
+    ) => BuildBeginConditionalScript("EXISTS", migrationId);
+
+    private string BuildBeginConditionalScript(
+        string condition,
         string migrationId
     )
     {
@@ -155,22 +154,33 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             .TypeMappingSource.GetMapping(typeof(string))
             .GenerateSqlLiteral(migrationId);
 
+        var procedure = SqlGenerationHelper.DelimitIdentifier(ApplyMigrationProcedureName);
+        var tableName = SqlGenerationHelper.DelimitIdentifier(TableName);
+        var idColumn = SqlGenerationHelper.DelimitIdentifier(MigrationIdColumnName);
+        var terminator = SqlGenerationHelper.StatementTerminator;
+
         return $"""
-                DROP PROCEDURE IF EXISTS {SqlGenerationHelper.DelimitIdentifier(ApplyMigrationProcedureName)}{SqlGenerationHelper.StatementTerminator}
-                CREATE PROCEDURE {SqlGenerationHelper.DelimitIdentifier(ApplyMigrationProcedureName)}()
+                DROP PROCEDURE IF EXISTS {procedure}{terminator}
+                CREATE PROCEDURE {procedure}()
                 BEGIN
-                    IF EXISTS (SELECT 1 FROM {SqlGenerationHelper.DelimitIdentifier(TableName)} WHERE {SqlGenerationHelper.DelimitIdentifier(MigrationIdColumnName)} = {migrationIdLiteral}) THEN
+                    IF {condition} (SELECT 1 FROM {tableName} WHERE {idColumn} = {migrationIdLiteral}) THEN
 
                 """;
     }
 
-    public override string GetEndIfScript() => $"""
-                                                    END IF{SqlGenerationHelper.StatementTerminator}
-                                                END{SqlGenerationHelper.StatementTerminator}
-                                                CALL {SqlGenerationHelper.DelimitIdentifier(ApplyMigrationProcedureName)}(){SqlGenerationHelper.StatementTerminator}
-                                                DROP PROCEDURE IF EXISTS {SqlGenerationHelper.DelimitIdentifier(ApplyMigrationProcedureName)}{SqlGenerationHelper.StatementTerminator}
+    public override string GetEndIfScript()
+    {
+        var procedure = SqlGenerationHelper.DelimitIdentifier(ApplyMigrationProcedureName);
+        var terminator = SqlGenerationHelper.StatementTerminator;
 
-                                                """;
+        return $"""
+                    END IF{terminator}
+                END{terminator}
+                CALL {procedure}(){terminator}
+                DROP PROCEDURE IF EXISTS {procedure}{terminator}
+
+                """;
+    }
 
     internal sealed class MySqlMigrationsDatabaseLock : IMigrationsDatabaseLock
     {
@@ -198,6 +208,11 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         public IHistoryRepository HistoryRepository { get; }
 
         internal string LockName => _lockName;
+
+        private TimeoutException BuildLockTimeoutException() =>
+            new(
+                $"Could not acquire the MySQL advisory lock '{_lockName}' within {LockTimeoutSeconds} seconds. "
+                + "Another migration process may be running concurrently.");
 
         /// <summary>
         /// Acquires a MySQL advisory lock using GET_LOCK on a dedicated connection.
@@ -228,9 +243,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                     {
                         connection.Dispose();
 
-                        throw new TimeoutException(
-                            $"Could not acquire the MySQL advisory lock '{_lockName}' within {LockTimeoutSeconds} seconds. "
-                            + "Another migration process may be running concurrently.");
+                        throw BuildLockTimeoutException();
                     }
                 }
                 catch
@@ -287,9 +300,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                             .DisposeAsync()
                             .ConfigureAwait(false);
 
-                        throw new TimeoutException(
-                            $"Could not acquire the MySQL advisory lock '{_lockName}' within {LockTimeoutSeconds} seconds. "
-                            + "Another migration process may be running concurrently.");
+                        throw BuildLockTimeoutException();
                     }
                 }
                 catch

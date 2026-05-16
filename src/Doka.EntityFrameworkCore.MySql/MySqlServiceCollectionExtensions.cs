@@ -1,3 +1,7 @@
+// File-local using: ICSharpRuntimeAnnotationCodeGenerator is registered via the Design.Internal
+// service-pair below; the rest of this file's surface stays on the public EF Core API.
+using Microsoft.EntityFrameworkCore.Design.Internal;
+
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
