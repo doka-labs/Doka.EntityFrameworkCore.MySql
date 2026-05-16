@@ -35,16 +35,16 @@ internal static class MySqlSequenceValueGenerator
         if (supportsNativeSequences)
         {
             // MariaDB 10.3+: native sequence support.
-            command.CommandText = $"SELECT NEXT VALUE FOR `{sequenceName}`;";
+            command.CommandText = $"SELECT NEXT VALUE FOR {DelimitIdentifier(sequenceName)};";
         }
         else
         {
             // MySQL: table-based sequence emulation.
             // The LAST_INSERT_ID(expr) function sets the session's LAST_INSERT_ID to expr
             // and returns it. This makes the UPDATE + SELECT atomic within the session.
-            var tableName = $"__efsequence_{sequenceName}";
-            command.CommandText = $"UPDATE `{tableName}` SET `value` = LAST_INSERT_ID(`value` + {increment});\n"
-                + $"SELECT LAST_INSERT_ID();";
+            var tableName = DelimitIdentifier("__efsequence_" + sequenceName);
+            command.CommandText = $"UPDATE {tableName} SET `value` = LAST_INSERT_ID(`value` + {increment});\n"
+                + "SELECT LAST_INSERT_ID();";
         }
 
         var result = command.ExecuteScalar();
@@ -77,13 +77,13 @@ internal static class MySqlSequenceValueGenerator
 
         if (supportsNativeSequences)
         {
-            command.CommandText = $"SELECT NEXT VALUE FOR `{sequenceName}`;";
+            command.CommandText = $"SELECT NEXT VALUE FOR {DelimitIdentifier(sequenceName)};";
         }
         else
         {
-            var tableName = $"__efsequence_{sequenceName}";
-            command.CommandText = $"UPDATE `{tableName}` SET `value` = LAST_INSERT_ID(`value` + {increment});\n"
-                + $"SELECT LAST_INSERT_ID();";
+            var tableName = DelimitIdentifier("__efsequence_" + sequenceName);
+            command.CommandText = $"UPDATE {tableName} SET `value` = LAST_INSERT_ID(`value` + {increment});\n"
+                + "SELECT LAST_INSERT_ID();";
         }
 
         var result = await command
@@ -98,5 +98,24 @@ internal static class MySqlSequenceValueGenerator
             ulong ulongValue => (long)ulongValue,
             _ => Convert.ToInt64(result, CultureInfo.InvariantCulture),
         };
+    }
+
+    /// <summary>
+    /// Backtick-quotes a sequence or emulation-table identifier so a user-supplied
+    /// sequence name containing a backtick cannot terminate the enclosing identifier
+    /// and let arbitrary SQL run past the boundary. The escape semantics mirror
+    /// <c>MySqlSqlGenerationHelper.DelimitIdentifier</c> -- doubling every backtick
+    /// then wrapping in backticks -- so a sequence-name change between the runtime
+    /// helper and this generator can never silently produce different SQL.
+    /// </summary>
+    internal static string DelimitIdentifier(
+        string identifier
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        return identifier.AsSpan().IndexOf('`') < 0
+            ? "`" + identifier + "`"
+            : "`" + identifier.Replace("`", "``", StringComparison.Ordinal) + "`";
     }
 }
