@@ -19,4 +19,6 @@ internal static class MySqlAnnotationNames
     public const string HiLoSequenceName = Prefix + nameof(HiLoSequenceName);
 
     public const string Invisible = Prefix + nameof(Invisible);
+
+    public const string IndexPrefixLength = Prefix + nameof(IndexPrefixLength);
 }

@@ -76,7 +76,7 @@ public static class MySqlServiceCollectionExtensions
         // depend on tooling-only services or reflection-based registration paths.
         serviceCollection.AddEntityFrameworkDokaMySql();
         serviceCollection.TryAddSingleton(reverseEngineeringOptions);
-        serviceCollection.TryAddSingleton<MySqlScaffoldingState>();
+        serviceCollection.TryAddSingleton<MySqlScaffoldingContext>();
 
 #pragma warning disable EF1001
         var builder = new EntityFrameworkRelationalDesignServicesBuilder(serviceCollection)

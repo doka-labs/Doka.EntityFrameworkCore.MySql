@@ -14,7 +14,7 @@ public sealed class MySqlDatabaseModelFactoryTests
     public void Reverse_engineering_backfills_preceding_ascending_columns_for_mixed_direction_indexes()
     {
         using var connection = new ScaffoldingDbConnection();
-        var factory = new MySqlDatabaseModelFactory(new StubDriverFacade(), new MySqlScaffoldingState());
+        var factory = new MySqlDatabaseModelFactory(new StubDriverFacade(), new MySqlScaffoldingContext());
 
         var databaseModel = factory.Create(
             connection,
@@ -42,7 +42,7 @@ public sealed class MySqlDatabaseModelFactoryTests
     public void Reverse_engineering_reads_spatial_index_and_srid_metadata()
     {
         using var connection = new ScaffoldingDbConnection();
-        var factory = new MySqlDatabaseModelFactory(new StubDriverFacade(), new MySqlScaffoldingState());
+        var factory = new MySqlDatabaseModelFactory(new StubDriverFacade(), new MySqlScaffoldingContext());
 
         var databaseModel = factory.Create(
             connection,
@@ -286,6 +286,7 @@ public sealed class MySqlDatabaseModelFactoryTests
             table.Columns.Add("COLLATION", typeof(string));
             table.Columns.Add("SEQ_IN_INDEX", typeof(long));
             table.Columns.Add("INDEX_TYPE", typeof(string));
+            table.Columns.Add("SUB_PART", typeof(long));
 
             table.Rows.Add(
                 "mixed_index_table",
@@ -294,7 +295,8 @@ public sealed class MySqlDatabaseModelFactoryTests
                 1L,
                 "A",
                 1L,
-                "BTREE");
+                "BTREE",
+                DBNull.Value);
             table.Rows.Add(
                 "mixed_index_table",
                 "IX_Mixed",
@@ -302,7 +304,8 @@ public sealed class MySqlDatabaseModelFactoryTests
                 1L,
                 "D",
                 2L,
-                "BTREE");
+                "BTREE",
+                DBNull.Value);
             table.Rows.Add(
                 "spatial_feature_table",
                 "IX_Spatial_Location",
@@ -310,7 +313,8 @@ public sealed class MySqlDatabaseModelFactoryTests
                 1L,
                 "A",
                 1L,
-                "SPATIAL");
+                "SPATIAL",
+                DBNull.Value);
 
             return table.CreateDataReader();
         }

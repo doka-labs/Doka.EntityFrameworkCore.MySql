@@ -3,13 +3,13 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
 {
     private readonly MySqlReverseEngineeringOptions _reverseEngineeringOptions;
-    private readonly MySqlScaffoldingState _scaffoldingState;
+    private readonly MySqlScaffoldingContext _scaffoldingContext;
     private readonly IMySqlSpatialTypeProvider? _spatialTypeProvider;
     private readonly ILogger _logger;
 
     public MySqlScaffoldingModelFactory(
         MySqlReverseEngineeringOptions reverseEngineeringOptions,
-        MySqlScaffoldingState scaffoldingState,
+        MySqlScaffoldingContext scaffoldingContext,
         IEnumerable<IMySqlSpatialTypeProvider> spatialTypeProviders,
         ILoggerFactory loggerFactory
     )
@@ -18,7 +18,7 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
         ArgumentNullException.ThrowIfNull(loggerFactory);
 
         _reverseEngineeringOptions = reverseEngineeringOptions ?? throw new ArgumentNullException(nameof(reverseEngineeringOptions));
-        _scaffoldingState = scaffoldingState ?? throw new ArgumentNullException(nameof(scaffoldingState));
+        _scaffoldingContext = scaffoldingContext ?? throw new ArgumentNullException(nameof(scaffoldingContext));
         _spatialTypeProvider = spatialTypeProviders.SingleOrDefault();
         _logger = loggerFactory.CreateLogger(MySqlLoggerCategory.Scaffolding);
     }
@@ -39,7 +39,7 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
         var entityPropertyBuilders = new Dictionary<(DatabaseTable Table, DatabaseColumn Column), PropertyBuilder>();
         var skippedColumns = new HashSet<(DatabaseTable Table, DatabaseColumn Column)>();
 
-        _scaffoldingState.SetUsesNetTopologySuiteScaffolding(false);
+        _scaffoldingContext.SetUsesNetTopologySuiteScaffolding(false);
 
         if (!string.IsNullOrWhiteSpace(modelCharSet))
         {
@@ -172,7 +172,7 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
                     == true)
                 {
                     indexBuilder.Metadata.SetMySqlSpatialIndex(true);
-                    _scaffoldingState.MarkUsesNetTopologySuiteScaffolding();
+                    _scaffoldingContext.MarkUsesNetTopologySuiteScaffolding();
                 }
             }
         }
@@ -326,7 +326,7 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
         ApplyColumnConfiguration(propertyBuilder, column, ColumnMapping.Scalar(spatialClrType));
 
         entityPropertyBuilders[(table, column)] = propertyBuilder;
-        _scaffoldingState.MarkUsesNetTopologySuiteScaffolding();
+        _scaffoldingContext.MarkUsesNetTopologySuiteScaffolding();
 
         return true;
     }

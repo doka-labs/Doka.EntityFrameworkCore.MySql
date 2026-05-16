@@ -2,14 +2,14 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlProviderConfigurationCodeGenerator : ProviderCodeGenerator
 {
-    private readonly MySqlScaffoldingState _scaffoldingState;
+    private readonly MySqlScaffoldingContext _scaffoldingContext;
 
     public MySqlProviderConfigurationCodeGenerator(
         ProviderCodeGeneratorDependencies dependencies,
-        MySqlScaffoldingState scaffoldingState
+        MySqlScaffoldingContext scaffoldingContext
     ) : base(dependencies)
     {
-        _scaffoldingState = scaffoldingState ?? throw new ArgumentNullException(nameof(scaffoldingState));
+        _scaffoldingContext = scaffoldingContext ?? throw new ArgumentNullException(nameof(scaffoldingContext));
     }
 
     public override MethodCallCodeFragment GenerateUseProvider(
@@ -19,7 +19,7 @@ internal sealed class MySqlProviderConfigurationCodeGenerator : ProviderCodeGene
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
-        var detectedServerVersionText = _scaffoldingState.DetectedServerVersionText;
+        var detectedServerVersionText = _scaffoldingContext.DetectedServerVersionText;
         var providerOptionsWithSpatial = providerOptions;
 
         if (string.IsNullOrWhiteSpace(detectedServerVersionText))
@@ -28,7 +28,7 @@ internal sealed class MySqlProviderConfigurationCodeGenerator : ProviderCodeGene
                 "MySQL reverse engineering requires a detected server version before provider configuration code can be generated.");
         }
 
-        if (_scaffoldingState.UsesNetTopologySuiteScaffolding)
+        if (_scaffoldingContext.UsesNetTopologySuiteScaffolding)
         {
             providerOptionsWithSpatial = providerOptionsWithSpatial is null
                 ? new MethodCallCodeFragment("UseNetTopologySuite", Array.Empty<object>())

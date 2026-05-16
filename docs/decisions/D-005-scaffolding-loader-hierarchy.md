@@ -1,9 +1,18 @@
 # D-005 -- Scaffolding-Loader-Hierarchie
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Date:** 2026-05-16
 - **Scope:** `Internal/Scaffolding/` reverse-engineering surface
-- **Implementation:** deferred to a follow-up commit
+- **Implementation:** eight per-aspect loaders under `Internal/Scaffolding/Loaders/`, orchestrated by a 124-LOC `MySqlDatabaseModelFactory`.
+
+## Implementation notes
+
+- `MySqlDatabaseModelFactory` shrank from 812 LOC to 124 LOC; the per-aspect loaders live as `TableLoader`, `ColumnLoader`, `PrimaryKeyLoader`, `UniqueConstraintLoader`, `IndexLoader`, `SpatialColumnLoader`, `ForeignKeyLoader`, `JsonCheckConstraintLoader`.
+- `ScaffoldingPipelineContext` carries the per-call state (live connection, in-flight `DatabaseModel`, table-filter, engine capabilities, MariaDB JSON_VALID column set, lookup dictionaries).
+- `ScaffoldingHelpers.AppendTableNameFilter` binds `WHERE TABLE_NAME IN (@t0, @t1, ...)` as SQL parameters; the loaders keep a client-side `tableFilter.Matches` belt-and-suspenders check so a test stub that ignores parameters still returns deterministic results.
+- `IndexLoader` reads `SUB_PART` and emits `MySqlAnnotationNames.IndexPrefixLength` as an `int[]` (one entry per indexed column, `0` when the column has no prefix length). The previous monolith silently dropped `SUB_PART`.
+- `MySqlScaffoldingState` renamed to `MySqlScaffoldingContext` with an explicit `Begin()` per-call reset method; the DI lifetime stayed Singleton because the EF Core `ProviderCodeGenerator.GenerateUseProvider(string, MethodCallCodeFragment?)` contract has no model parameter through which the cross-service `DetectedServerVersionText` + `UsesNetTopologySuiteScaffolding` flags could flow.
+- Test-double strategy: per-loader unit tests use a hand-rolled stub `DbConnection` / `DbCommand` / `DbDataReader` triple (no SQLite replay needed); the integration tier (`MySqlScaffoldingFilterTests`) exercises the live server-side filter on a 20-table fixture against the MySQL 8.4 LTS container.
 
 ## Context
 

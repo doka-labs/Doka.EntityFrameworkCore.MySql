@@ -238,7 +238,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         services.AddSingleton<IDatabaseModelFactory>(serviceProvider => new StubDatabaseModelFactory(
             databaseModel,
             detectedServerVersionText,
-            serviceProvider.GetRequiredService<MySqlScaffoldingState>()));
+            serviceProvider.GetRequiredService<MySqlScaffoldingContext>()));
 
         return services.BuildServiceProvider(validateScopes: true);
     }
@@ -374,18 +374,18 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
     {
         private readonly DatabaseModel _databaseModel;
         private readonly string _detectedServerVersionText;
-        private readonly MySqlScaffoldingState _scaffoldingState;
+        private readonly MySqlScaffoldingContext _scaffoldingContext;
 
         public StubDatabaseModelFactory(
             DatabaseModel databaseModel,
             string detectedServerVersionText,
-            MySqlScaffoldingState scaffoldingState
+            MySqlScaffoldingContext scaffoldingContext
         )
         {
             _databaseModel = databaseModel ?? throw new ArgumentNullException(nameof(databaseModel));
             _detectedServerVersionText = detectedServerVersionText
                 ?? throw new ArgumentNullException(nameof(detectedServerVersionText));
-            _scaffoldingState = scaffoldingState ?? throw new ArgumentNullException(nameof(scaffoldingState));
+            _scaffoldingContext = scaffoldingContext ?? throw new ArgumentNullException(nameof(scaffoldingContext));
         }
 
         public DatabaseModel Create(
@@ -396,8 +396,8 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
             ArgumentNullException.ThrowIfNull(options);
 
-            _scaffoldingState.Reset();
-            _scaffoldingState.SetDetectedServerVersionText(_detectedServerVersionText);
+            _scaffoldingContext.Begin();
+            _scaffoldingContext.SetDetectedServerVersionText(_detectedServerVersionText);
 
             return _databaseModel;
         }
@@ -410,8 +410,8 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             ArgumentNullException.ThrowIfNull(connection);
             ArgumentNullException.ThrowIfNull(options);
 
-            _scaffoldingState.Reset();
-            _scaffoldingState.SetDetectedServerVersionText(_detectedServerVersionText);
+            _scaffoldingContext.Begin();
+            _scaffoldingContext.SetDetectedServerVersionText(_detectedServerVersionText);
 
             return _databaseModel;
         }
