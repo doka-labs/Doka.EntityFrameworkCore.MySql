@@ -41,13 +41,20 @@ public sealed class MySqlOptionsRegistrationTests
 
     /// <summary>
     /// Verifies that the explicit design-time path composes the runtime registrations.
+    /// The dotnet-ef tooling registers the EF Core default IModelCodeGenerator before
+    /// invoking IDesignTimeServices.ConfigureDesignTimeServices; this test simulates
+    /// that pre-population so the provider-side decorator wrap (per ADR D-001) finds
+    /// an inner registration to wrap rather than hard-failing.
     /// </summary>
     [Fact]
     public void Design_time_registration_uses_the_explicit_design_time_seam()
     {
+#pragma warning disable EF1001 // IModelCodeGenerator pre-population mirrors the dotnet-ef tooling sequence (ADR D-001).
         var services = new ServiceCollection();
+        services.AddSingleton<IModelCodeGenerator, StubModelCodeGenerator>();
 
         new MySqlDesignTimeServices().ConfigureDesignTimeServices(services);
+#pragma warning restore EF1001
 
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IDatabaseProvider));
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IMySqlDriverFacade));
@@ -60,6 +67,40 @@ public sealed class MySqlOptionsRegistrationTests
                 == "Microsoft.EntityFrameworkCore.Design.Internal.ICSharpRuntimeAnnotationCodeGenerator");
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IScaffoldingModelFactory));
     }
+
+    /// <summary>
+    /// Verifies that the design-time path replaces the pre-registered IModelCodeGenerator
+    /// with a descriptor that resolves to MySqlModelCodeGenerator. This is the explicit
+    /// pin for the ADR D-001 wrap on the design-time side; the runtime IMigrationsModelDiffer
+    /// wrap is pinned by EfCoreServiceDecoratorTests in the unit-test project.
+    /// </summary>
+    [Fact]
+    public void Design_time_registration_replaces_IModelCodeGenerator_with_the_doka_decorator()
+    {
+#pragma warning disable EF1001 // see ADR D-001 for the wrap rationale.
+        var services = new ServiceCollection();
+        services.AddSingleton<IModelCodeGenerator, StubModelCodeGenerator>();
+
+        new MySqlDesignTimeServices().ConfigureDesignTimeServices(services);
+
+        var descriptor = services.Last(d => d.ServiceType == typeof(IModelCodeGenerator));
+
+        Assert.NotNull(descriptor.ImplementationFactory);
+        Assert.Null(descriptor.ImplementationType);
+        Assert.Null(descriptor.ImplementationInstance);
+#pragma warning restore EF1001
+    }
+
+#pragma warning disable EF1001 // Stub implements an EF Core internal interface; required to simulate dotnet-ef pre-population.
+    private sealed class StubModelCodeGenerator : IModelCodeGenerator
+    {
+        public string Language => "C#";
+
+        public ScaffoldedModel GenerateModel(
+            IModel model,
+            ModelCodeGenerationOptions options) => throw new NotSupportedException("Test stub.");
+    }
+#pragma warning restore EF1001
 
     /// <summary>
     /// Verifies that repeated registration updates the same extension slot.
