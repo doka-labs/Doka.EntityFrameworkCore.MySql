@@ -46,20 +46,11 @@ public static class MySqlServiceCollectionExtensions
                 .TryAddSingleton<IMySqlTransientExceptionDetector, MySqlTransientExceptionDetector>());
 
         builder.TryAddCoreServices();
-        var existingMigrationsModelDifferDescriptor =
-            serviceCollection.LastOrDefault(descriptor => descriptor.ServiceType == typeof(IMigrationsModelDiffer));
-
-        if (existingMigrationsModelDifferDescriptor is not null)
-        {
-            serviceCollection.Replace(
-                ServiceDescriptor.Describe(
-                    typeof(IMigrationsModelDiffer),
-                    serviceProvider => new MySqlMigrationsModelDiffer(
-                        CreateInnerService<IMigrationsModelDiffer>(
-                            existingMigrationsModelDifferDescriptor,
-                            serviceProvider)),
-                    existingMigrationsModelDifferDescriptor.Lifetime));
-        }
+#pragma warning disable EF1001 // IMigrationsModelDiffer is EF Core internal; wrapping is documented in ADR D-001.
+        EfCoreServiceDecorator.Decorate<IMigrationsModelDiffer, MySqlMigrationsModelDiffer>(
+            serviceCollection,
+            (inner, _) => new MySqlMigrationsModelDiffer(inner));
+#pragma warning restore EF1001
 
         return serviceCollection;
     }
@@ -99,44 +90,12 @@ public static class MySqlServiceCollectionExtensions
 
         serviceCollection.Replace(ServiceDescriptor.Scoped<IScaffoldingModelFactory, MySqlScaffoldingModelFactory>());
 
-        var existingModelCodeGeneratorDescriptor =
-            serviceCollection.LastOrDefault(descriptor => descriptor.ServiceType == typeof(IModelCodeGenerator));
-
-        if (existingModelCodeGeneratorDescriptor is not null)
-        {
-            serviceCollection.Replace(
-                ServiceDescriptor.Singleton<IModelCodeGenerator>(serviceProvider => new MySqlModelCodeGenerator(
-                    CreateInnerService<IModelCodeGenerator>(existingModelCodeGeneratorDescriptor, serviceProvider))));
-        }
+#pragma warning disable EF1001 // IModelCodeGenerator is EF Core internal; wrapping is documented in ADR D-001.
+        EfCoreServiceDecorator.Decorate<IModelCodeGenerator, MySqlModelCodeGenerator>(
+            serviceCollection,
+            (inner, _) => new MySqlModelCodeGenerator(inner));
+#pragma warning restore EF1001
 
         return serviceCollection;
-    }
-
-    private static TService CreateInnerService<TService>(
-        ServiceDescriptor descriptor,
-        IServiceProvider serviceProvider
-    )
-        where TService : class
-    {
-        ArgumentNullException.ThrowIfNull(descriptor);
-        ArgumentNullException.ThrowIfNull(serviceProvider);
-
-        if (descriptor.ImplementationInstance is TService implementationInstance)
-        {
-            return implementationInstance;
-        }
-
-        if (descriptor.ImplementationFactory is not null)
-        {
-            return (TService)descriptor.ImplementationFactory(serviceProvider);
-        }
-
-        if (descriptor.ImplementationType is not null)
-        {
-            return (TService)ActivatorUtilities.CreateInstance(serviceProvider, descriptor.ImplementationType);
-        }
-
-        throw new InvalidOperationException(
-            $"The existing {typeof(TService).Name} registration did not expose an instantiable implementation.");
     }
 }

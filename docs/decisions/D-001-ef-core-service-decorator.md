@@ -1,8 +1,9 @@
 # D-001 -- EF-Core-Service-Decorator-Coupling
 
-- **Status:** Accepted -- implementation deferred to a follow-up commit
+- **Status:** Implemented
 - **Date:** 2026-05-16
 - **Scope:** `MySqlServiceCollectionExtensions` runtime + design-time service composition
+- **Implementation:** `src/Doka.EntityFrameworkCore.MySql/Internal/Infrastructure/EfCoreServiceDecorator.cs`
 
 ## Context
 
@@ -36,7 +37,7 @@ Consolidate the inline `LastOrDefault` + `ActivatorUtilities.CreateInstance`
 pattern behind a single helper:
 
 ```csharp
-internal static class EFCoreServiceDecorator
+internal static class EfCoreServiceDecorator
 {
     public static void Decorate<TService, TDecorator>(
         IServiceCollection services,
