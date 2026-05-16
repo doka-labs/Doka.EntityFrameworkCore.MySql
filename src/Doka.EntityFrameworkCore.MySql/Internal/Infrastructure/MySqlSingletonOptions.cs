@@ -7,7 +7,7 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
 
     public MySqlServerVersion? ServerVersion { get; private set; }
 
-    public ServerCapabilities? Capabilities { get; private set; }
+    public EngineProfile? Profile { get; private set; }
 
     public MySqlRetryOptions? RetryOptions { get; private set; }
 
@@ -50,7 +50,7 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
 
             ServerVersion = extension.ServerVersion
                 ?? throw new InvalidOperationException("A MySQL server version must be configured.");
-            Capabilities = extension.ServerVersion.Capabilities;
+            Profile = extension.ServerVersion.Profile;
             RetryOptions = extension.RetryOptions;
             DefaultGuidFormat = extension.DefaultGuidFormat;
             UsesDataSource = extension.DataSource is not null;

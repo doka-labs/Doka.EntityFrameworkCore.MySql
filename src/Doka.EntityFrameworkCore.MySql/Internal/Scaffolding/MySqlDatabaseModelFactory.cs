@@ -100,7 +100,7 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
                 connection,
                 databaseModel,
                 tableFilter,
-                serverVersion.Capabilities,
+                serverVersion.Profile,
                 mariaDbJsonColumns);
 
             TableLoader.Load(pipelineContext);

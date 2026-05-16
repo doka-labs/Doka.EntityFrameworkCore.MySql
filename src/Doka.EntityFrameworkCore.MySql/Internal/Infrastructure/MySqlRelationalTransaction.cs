@@ -24,7 +24,7 @@ internal sealed class MySqlRelationalTransaction : RelationalTransaction
     }
 
     public override bool SupportsSavepoints =>
-        base.SupportsSavepoints && (_singletonOptions.Capabilities?.SupportsSavepoints ?? false);
+        base.SupportsSavepoints && (_singletonOptions.Profile?.Has(Capability.SupportsSavepoints) ?? false);
 
     public override void CreateSavepoint(
         string name
@@ -121,11 +121,11 @@ internal sealed class MySqlRelationalTransaction : RelationalTransaction
         ArgumentNullException.ThrowIfNull(exception);
 
         var logger = _singletonOptions.ResilienceLogger;
-        var capabilities = _singletonOptions.Capabilities;
+        var profile = _singletonOptions.Profile;
 
         if (logger is null
-            || capabilities is null
-            || !s_transientExceptionDetector.ShouldRetryOn(exception, capabilities))
+            || profile is null
+            || !s_transientExceptionDetector.ShouldRetryOn(exception))
         {
             return false;
         }

@@ -54,7 +54,7 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
 
         var sequence = property.DeclaringType.Model.FindSequence(sequenceName);
         var blockSize = sequence?.IncrementBy ?? 10;
-        var supportsNative = _singletonOptions.Capabilities?.SupportsNativeSequences ?? false;
+        var supportsNative = _singletonOptions.Profile?.Has(Capability.SupportsNativeSequences) ?? false;
 
         var generatorState = MySqlHiLoStateCache.GetOrCreate(sequenceName, blockSize);
 

@@ -45,10 +45,10 @@ public sealed class MariaDbCompatibilityBaselineTests
             Assert.True(detectedServerVersion.IsMariaDb);
             Assert.Equal(expectedVersion.Major, detectedServerVersion.Version.Major);
             Assert.Equal(expectedVersion.Minor, detectedServerVersion.Version.Minor);
-            Assert.True(detectedServerVersion.Capabilities.SupportsSavepoints);
-            Assert.True(detectedServerVersion.Capabilities.SupportsReturningClause);
-            Assert.True(detectedServerVersion.Capabilities.UsesJsonAliasForJsonColumns);
-            Assert.False(detectedServerVersion.Capabilities.SupportsNativeJsonType);
+            Assert.True(detectedServerVersion.Profile.Has(Capability.SupportsSavepoints));
+            Assert.True(detectedServerVersion.Profile.Has(Capability.SupportsReturningClause));
+            Assert.True(detectedServerVersion.Profile.Has(Capability.UsesJsonAliasForJsonColumns));
+            Assert.False(detectedServerVersion.Profile.Has(Capability.SupportsNativeJsonType));
 
             await using var context = new MariaDbCompatibilityContext(CreateOptions(connectionString, expectedVersion));
             var strategy = context.Database.CreateExecutionStrategy();

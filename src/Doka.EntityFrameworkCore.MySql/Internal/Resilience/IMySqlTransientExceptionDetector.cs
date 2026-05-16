@@ -7,7 +7,6 @@ internal interface IMySqlTransientExceptionDetector
     );
 
     bool ShouldRetryOn(
-        Exception exception,
-        ServerCapabilities capabilities
+        Exception exception
     );
 }

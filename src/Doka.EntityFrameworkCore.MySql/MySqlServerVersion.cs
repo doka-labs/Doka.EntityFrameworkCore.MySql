@@ -15,7 +15,7 @@ public sealed record MySqlServerVersion
     /// </summary>
     public bool IsMariaDb { get; }
 
-    internal ServerCapabilities Capabilities { get; }
+    internal EngineProfile Profile { get; }
 
     private MySqlServerVersion(
         Version version,
@@ -26,7 +26,9 @@ public sealed record MySqlServerVersion
 
         Version = version;
         IsMariaDb = isMariaDb;
-        Capabilities = ServerCapabilities.Create(isMariaDb, version);
+        Profile = EngineProfileTable.Resolve(
+            isMariaDb ? EngineFamily.MariaDb : EngineFamily.MySql,
+            version);
     }
 
     /// <summary>

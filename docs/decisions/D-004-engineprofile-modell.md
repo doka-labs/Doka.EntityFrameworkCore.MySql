@@ -1,9 +1,17 @@
 # D-004 -- EngineProfile-Modell statt flacher Bool-Record
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Date:** 2026-05-16
 - **Scope:** `Internal/Capabilities/` engine-routing model
-- **Implementation:** deferred to a follow-up commit
+- **Implementation:** `Capability` enum + `EngineFamily` enum + `EngineProfile` record (with `FrozenSet<Capability>`) + `EngineProfileTable` static lookup with per-`(family, version)` instance cache. `ServerCapabilities.cs` deleted; all 11 consumers (MigrationsSqlGenerator, RelationalTransaction, LoggerMessages, ValueGeneratorSelector, ExecutionStrategy, TransientExceptionDetector, ScaffoldingPipelineContext, SpatialColumnLoader, DatabaseModelFactory, ServerVersion, SingletonOptions) plus 6 test fixtures migrated to `Profile.Has(Capability.X)`.
+
+## Implementation notes
+
+- `EngineProfileTable.Resolve(family, version)` accumulates capabilities by walking a small set of version thresholds (MySQL 5.7 / 8.0 / 8.0.31; MariaDB 10.2 / 10.3 / 10.3.4 / 10.5). Adding a new engine version becomes a single static-table entry append.
+- The three "always-true" capabilities (`SupportsDateTime6`, `SupportsSavepoints`, `SupportsFullTextIndex`) are retained because the transaction surface (`MySqlRelationalTransaction.SupportsSavepoints`), the diagnostic logging (`MySqlLoggerMessages.ServerVersionResolved`), and the engine-baseline tests (`MariaDbCompatibilityBaselineTests`, `MySql80CompatibilityBaselineTests`, `MySqlServerVersionTests`) genuinely consume them. They sit as explicit baseline entries in `EngineProfileTable.Resolve` so a future engine that drops one surfaces as a profile change rather than a silent global assumption.
+- `IMySqlTransientExceptionDetector.ShouldRetryOn` lost its unused `ServerCapabilities` parameter; the detector never branched on capabilities and the parameter was already dead.
+- `EngineProfileTable.s_cache` is a `ConcurrentDictionary<(EngineFamily, Version), EngineProfile>` so two `MySqlServerVersion.MySql(8.4.0)` calls return the same `EngineProfile` reference. Without the cache, every fresh `MySqlServerVersion` instance produced a fresh `FrozenSet<Capability>` (reference equality only) and EF Core's internal service-provider cache invalidated on every test-DbContext build -- the `ManyServiceProvidersCreatedWarning` escalated to an error in suites that build many contexts per run.
+- The `WithProbedOverrides(IProbeRunner)` overlay layer from the ADR is intentionally not implemented yet: no consumer needs it today; the static-table form serves every supported MySQL / MariaDB version through the v1.0 release line.
 
 ## Context
 

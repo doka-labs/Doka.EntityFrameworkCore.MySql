@@ -14,16 +14,16 @@ public sealed class MySqlServerVersionTests
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 
         Assert.False(serverVersion.IsMariaDb);
-        Assert.True(serverVersion.Capabilities.SupportsCommonTableExpressions);
-        Assert.True(serverVersion.Capabilities.SupportsWindowFunctions);
-        Assert.True(serverVersion.Capabilities.SupportsNativeJsonType);
-        Assert.False(serverVersion.Capabilities.UsesJsonAliasForJsonColumns);
-        Assert.True(serverVersion.Capabilities.SupportsGeneratedInvisiblePrimaryKeys);
-        Assert.True(serverVersion.Capabilities.SupportsSavepoints);
-        Assert.True(serverVersion.Capabilities.SupportsGeneratedColumnNullabilityClause);
-        Assert.True(serverVersion.Capabilities.SupportsVirtualGeneratedColumns);
-        Assert.True(serverVersion.Capabilities.SupportsStoredGeneratedColumns);
-        Assert.True(serverVersion.Capabilities.SupportsSpatialColumnSridAttribute);
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsCommonTableExpressions));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsWindowFunctions));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsNativeJsonType));
+        Assert.False(serverVersion.Profile.Has(Capability.UsesJsonAliasForJsonColumns));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsGeneratedInvisiblePrimaryKeys));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsSavepoints));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsGeneratedColumnNullabilityClause));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsVirtualGeneratedColumns));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsStoredGeneratedColumns));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsSpatialColumnSridAttribute));
     }
 
     /// <summary>
@@ -35,16 +35,16 @@ public sealed class MySqlServerVersionTests
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
 
         Assert.True(serverVersion.IsMariaDb);
-        Assert.True(serverVersion.Capabilities.SupportsCommonTableExpressions);
-        Assert.True(serverVersion.Capabilities.SupportsWindowFunctions);
-        Assert.False(serverVersion.Capabilities.SupportsNativeJsonType);
-        Assert.True(serverVersion.Capabilities.UsesJsonAliasForJsonColumns);
-        Assert.True(serverVersion.Capabilities.SupportsReturningClause);
-        Assert.True(serverVersion.Capabilities.SupportsSavepoints);
-        Assert.False(serverVersion.Capabilities.SupportsGeneratedColumnNullabilityClause);
-        Assert.True(serverVersion.Capabilities.SupportsVirtualGeneratedColumns);
-        Assert.True(serverVersion.Capabilities.SupportsStoredGeneratedColumns);
-        Assert.False(serverVersion.Capabilities.SupportsSpatialColumnSridAttribute);
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsCommonTableExpressions));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsWindowFunctions));
+        Assert.False(serverVersion.Profile.Has(Capability.SupportsNativeJsonType));
+        Assert.True(serverVersion.Profile.Has(Capability.UsesJsonAliasForJsonColumns));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsReturningClause));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsSavepoints));
+        Assert.False(serverVersion.Profile.Has(Capability.SupportsGeneratedColumnNullabilityClause));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsVirtualGeneratedColumns));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsStoredGeneratedColumns));
+        Assert.False(serverVersion.Profile.Has(Capability.SupportsSpatialColumnSridAttribute));
     }
 
     /// <summary>
@@ -56,16 +56,16 @@ public sealed class MySqlServerVersionTests
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
 
         Assert.True(serverVersion.IsMariaDb);
-        Assert.True(serverVersion.Capabilities.SupportsCommonTableExpressions);
-        Assert.True(serverVersion.Capabilities.SupportsWindowFunctions);
-        Assert.False(serverVersion.Capabilities.SupportsNativeJsonType);
-        Assert.True(serverVersion.Capabilities.UsesJsonAliasForJsonColumns);
-        Assert.True(serverVersion.Capabilities.SupportsReturningClause);
-        Assert.True(serverVersion.Capabilities.SupportsSavepoints);
-        Assert.False(serverVersion.Capabilities.SupportsGeneratedColumnNullabilityClause);
-        Assert.True(serverVersion.Capabilities.SupportsVirtualGeneratedColumns);
-        Assert.True(serverVersion.Capabilities.SupportsStoredGeneratedColumns);
-        Assert.False(serverVersion.Capabilities.SupportsSpatialColumnSridAttribute);
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsCommonTableExpressions));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsWindowFunctions));
+        Assert.False(serverVersion.Profile.Has(Capability.SupportsNativeJsonType));
+        Assert.True(serverVersion.Profile.Has(Capability.UsesJsonAliasForJsonColumns));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsReturningClause));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsSavepoints));
+        Assert.False(serverVersion.Profile.Has(Capability.SupportsGeneratedColumnNullabilityClause));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsVirtualGeneratedColumns));
+        Assert.True(serverVersion.Profile.Has(Capability.SupportsStoredGeneratedColumns));
+        Assert.False(serverVersion.Profile.Has(Capability.SupportsSpatialColumnSridAttribute));
     }
 
     /// <summary>

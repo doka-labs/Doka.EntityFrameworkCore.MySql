@@ -14,14 +14,14 @@ internal sealed class ScaffoldingPipelineContext
         DbConnection connection,
         DatabaseModel databaseModel,
         TableFilter tableFilter,
-        ServerCapabilities capabilities,
+        EngineProfile profile,
         HashSet<(string TableName, string ColumnName)> mariaDbJsonColumns
     )
     {
         Connection = connection ?? throw new ArgumentNullException(nameof(connection));
         DatabaseModel = databaseModel ?? throw new ArgumentNullException(nameof(databaseModel));
         TableFilter = tableFilter;
-        Capabilities = capabilities ?? throw new ArgumentNullException(nameof(capabilities));
+        Profile = profile ?? throw new ArgumentNullException(nameof(profile));
         MariaDbJsonColumns = mariaDbJsonColumns ?? throw new ArgumentNullException(nameof(mariaDbJsonColumns));
     }
 
@@ -31,7 +31,7 @@ internal sealed class ScaffoldingPipelineContext
 
     public TableFilter TableFilter { get; }
 
-    public ServerCapabilities Capabilities { get; }
+    public EngineProfile Profile { get; }
 
     public HashSet<(string TableName, string ColumnName)> MariaDbJsonColumns { get; }
 

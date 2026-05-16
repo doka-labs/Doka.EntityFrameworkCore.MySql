@@ -187,7 +187,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append(operation.IsStored == true ? "STORED" : "VIRTUAL");
 
         if (!operation.IsNullable
-            && _mySqlSingletonOptions.Capabilities?.SupportsGeneratedColumnNullabilityClause == true)
+            && _mySqlSingletonOptions.Profile?.Has(Capability.SupportsGeneratedColumnNullabilityClause) == true)
         {
             builder.Append(" NOT NULL");
         }
@@ -228,7 +228,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         if (operation.FindAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId)
                 ?.Value is int spatialReferenceSystemId
-            && _mySqlSingletonOptions.Capabilities?.SupportsSpatialColumnSridAttribute == true)
+            && _mySqlSingletonOptions.Profile?.Has(Capability.SupportsSpatialColumnSridAttribute) == true)
         {
             builder
                 .Append(" SRID ")
@@ -295,12 +295,12 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             return;
         }
 
-        if (_mySqlSingletonOptions.Capabilities?.UsesJsonAliasForJsonColumns == true)
+        if (_mySqlSingletonOptions.Profile?.Has(Capability.UsesJsonAliasForJsonColumns) == true)
         {
             return;
         }
 
-        if (_mySqlSingletonOptions.Capabilities?.SupportsNativeJsonType == true)
+        if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsNativeJsonType) == true)
         {
             return;
         }
@@ -325,8 +325,8 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         }
 
         var supportsGeneratedColumns = operation.IsStored.Value
-            ? _mySqlSingletonOptions.Capabilities?.SupportsStoredGeneratedColumns == true
-            : _mySqlSingletonOptions.Capabilities?.SupportsVirtualGeneratedColumns == true;
+            ? _mySqlSingletonOptions.Profile?.Has(Capability.SupportsStoredGeneratedColumns) == true
+            : _mySqlSingletonOptions.Profile?.Has(Capability.SupportsVirtualGeneratedColumns) == true;
 
         if (supportsGeneratedColumns)
         {
@@ -354,7 +354,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
     private bool IsMariaDbJsonAliasColumn(
         ColumnOperation operation
-    ) => _mySqlSingletonOptions.Capabilities?.UsesJsonAliasForJsonColumns == true && IsJsonColumn(operation);
+    ) => _mySqlSingletonOptions.Profile?.Has(Capability.UsesJsonAliasForJsonColumns) == true && IsJsonColumn(operation);
 
     private static bool IsSpatialColumn(
         ColumnOperation operation
@@ -470,7 +470,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
-        if (_mySqlSingletonOptions.Capabilities?.SupportsNativeSequences == true)
+        if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsNativeSequences) == true)
         {
             builder
                 .Append("CREATE SEQUENCE ")
@@ -540,7 +540,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
-        if (_mySqlSingletonOptions.Capabilities?.SupportsNativeSequences == true)
+        if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsNativeSequences) == true)
         {
             builder
                 .Append("DROP SEQUENCE IF EXISTS ")
@@ -572,7 +572,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
-        if (_mySqlSingletonOptions.Capabilities?.SupportsNativeSequences == true)
+        if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsNativeSequences) == true)
         {
             builder
                 .Append("ALTER SEQUENCE ")
@@ -622,7 +622,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         var oldTableName = $"__efsequence_{operation.Name}";
         var newTableName = $"__efsequence_{operation.NewName ?? operation.Name}";
 
-        if (_mySqlSingletonOptions.Capabilities?.SupportsNativeSequences == true)
+        if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsNativeSequences) == true)
         {
             // MariaDB does not support RENAME SEQUENCE -- drop and recreate.
             builder

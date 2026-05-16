@@ -26,7 +26,7 @@ public sealed class MySqlSingletonOptionsTests
         singletonOptions.Initialize(builder.Options);
 
         Assert.Equal(serverVersion, singletonOptions.ServerVersion);
-        Assert.Equal(serverVersion.Capabilities, singletonOptions.Capabilities);
+        Assert.Equal(serverVersion.Profile, singletonOptions.Profile);
         Assert.NotNull(singletonOptions.RetryOptions);
         Assert.Equal(4, singletonOptions.RetryOptions.MaxRetryCount);
         Assert.Equal(TimeSpan.FromSeconds(9), singletonOptions.RetryOptions.MaxRetryDelay);

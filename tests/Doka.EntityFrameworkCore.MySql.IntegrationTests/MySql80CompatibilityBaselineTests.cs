@@ -30,9 +30,9 @@ public sealed class MySql80CompatibilityBaselineTests
             Assert.False(detectedServerVersion.IsMariaDb);
             Assert.Equal(8, detectedServerVersion.Version.Major);
             Assert.Equal(0, detectedServerVersion.Version.Minor);
-            Assert.True(detectedServerVersion.Capabilities.SupportsNativeJsonType);
-            Assert.False(detectedServerVersion.Capabilities.UsesJsonAliasForJsonColumns);
-            Assert.True(detectedServerVersion.Capabilities.SupportsSavepoints);
+            Assert.True(detectedServerVersion.Profile.Has(Capability.SupportsNativeJsonType));
+            Assert.False(detectedServerVersion.Profile.Has(Capability.UsesJsonAliasForJsonColumns));
+            Assert.True(detectedServerVersion.Profile.Has(Capability.SupportsSavepoints));
 
             await using var context = new MySql80CompatibilityContext(CreateOptions(connectionString));
 

@@ -90,12 +90,10 @@ public sealed class MySqlExecutionStrategyTests
     public void Transient_detector_does_not_retry_timeout_or_cancellation_paths()
     {
         var detector = new MySqlTransientExceptionDetector();
-        var capabilities = MySqlServerVersion.MySql(new Version(8, 4, 0))
-            .Capabilities;
 
-        Assert.False(detector.ShouldRetryOn(new TimeoutException("timeout"), capabilities));
-        Assert.False(detector.ShouldRetryOn(new OperationCanceledException("canceled"), capabilities));
-        Assert.True(detector.ShouldRetryOn(new SocketException((int)SocketError.TimedOut), capabilities));
+        Assert.False(detector.ShouldRetryOn(new TimeoutException("timeout")));
+        Assert.False(detector.ShouldRetryOn(new OperationCanceledException("canceled")));
+        Assert.True(detector.ShouldRetryOn(new SocketException((int)SocketError.TimedOut)));
     }
 
     private static DbContextOptions<ExecutionStrategyContext> CreateOptions(

@@ -34,12 +34,10 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
     }
 
     public bool ShouldRetryOn(
-        Exception exception,
-        ServerCapabilities capabilities
+        Exception exception
     )
     {
         ArgumentNullException.ThrowIfNull(exception);
-        ArgumentNullException.ThrowIfNull(capabilities);
 
         var current = exception;
         var depth = 0;

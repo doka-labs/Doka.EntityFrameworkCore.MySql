@@ -87,19 +87,45 @@ internal static class MySqlLoggerMessages
         string redactedConnectionString
     ) => s_invalidConfiguration(logger, message, connectionPath, redactedConnectionString, null);
 
+    // Order-preserving capability snapshot for the resolved-version log line. The
+    // tuple list is declared once at file scope so the diagnostic format stays diffable
+    // when capabilities are added (one tuple per capability) and the call site stays
+    // a short string.Join instead of a hundred-character interpolated string.
+    private static readonly (string Label, Capability Capability)[] s_capabilitySnapshot =
+    [
+        ("CTE", Capability.SupportsCommonTableExpressions),
+        ("WindowFunctions", Capability.SupportsWindowFunctions),
+        ("NativeJson", Capability.SupportsNativeJsonType),
+        ("JsonAlias", Capability.UsesJsonAliasForJsonColumns),
+        ("Returning", Capability.SupportsReturningClause),
+        ("DateTime6", Capability.SupportsDateTime6),
+        ("GeneratedInvisiblePrimaryKeys", Capability.SupportsGeneratedInvisiblePrimaryKeys),
+        ("Savepoints", Capability.SupportsSavepoints),
+        ("GeneratedColumnNullabilityClause", Capability.SupportsGeneratedColumnNullabilityClause),
+        ("VirtualGeneratedColumns", Capability.SupportsVirtualGeneratedColumns),
+        ("StoredGeneratedColumns", Capability.SupportsStoredGeneratedColumns),
+        ("SpatialColumnSridAttribute", Capability.SupportsSpatialColumnSridAttribute),
+        ("NativeSequences", Capability.SupportsNativeSequences),
+        ("IntersectExcept", Capability.SupportsIntersectExcept),
+        ("SystemVersioning", Capability.SupportsSystemVersioning),
+        ("FullTextIndex", Capability.SupportsFullTextIndex),
+    ];
+
     public static void ServerVersionResolved(
         ILogger logger,
         MySqlServerVersion serverVersion
     )
     {
-        var capabilities = serverVersion.Capabilities;
+        var profile = serverVersion.Profile;
+        var snapshot = string.Join(
+            ';',
+            s_capabilitySnapshot.Select(entry => $"{entry.Label}={profile.Has(entry.Capability)}"));
 
         s_serverVersionResolved(
             logger,
             serverVersion.IsMariaDb ? "MariaDB" : "MySQL",
             serverVersion.Version.ToString(),
-            FormattableString.Invariant(
-                $"CTE={capabilities.SupportsCommonTableExpressions};WindowFunctions={capabilities.SupportsWindowFunctions};NativeJson={capabilities.SupportsNativeJsonType};JsonAlias={capabilities.UsesJsonAliasForJsonColumns};Returning={capabilities.SupportsReturningClause};DateTime6={capabilities.SupportsDateTime6};GeneratedInvisiblePrimaryKeys={capabilities.SupportsGeneratedInvisiblePrimaryKeys};Savepoints={capabilities.SupportsSavepoints};GeneratedColumnNullabilityClause={capabilities.SupportsGeneratedColumnNullabilityClause};VirtualGeneratedColumns={capabilities.SupportsVirtualGeneratedColumns};StoredGeneratedColumns={capabilities.SupportsStoredGeneratedColumns};SpatialColumnSridAttribute={capabilities.SupportsSpatialColumnSridAttribute};NativeSequences={capabilities.SupportsNativeSequences};IntersectExcept={capabilities.SupportsIntersectExcept};SystemVersioning={capabilities.SupportsSystemVersioning};FullTextIndex={capabilities.SupportsFullTextIndex}"),
+            snapshot,
             null);
     }
 

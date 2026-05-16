@@ -81,7 +81,7 @@ public sealed class RepoLocalCompatibilityMatrixTests
         Assert.Equal(isMariaDb, detectedServerVersion.IsMariaDb);
         Assert.Equal(expectedVersion.Major, detectedServerVersion.Version.Major);
         Assert.Equal(expectedVersion.Minor, detectedServerVersion.Version.Minor);
-        Assert.Equal(usesJsonAlias, detectedServerVersion.Capabilities.UsesJsonAliasForJsonColumns);
-        Assert.Equal(supportsNativeJsonType, detectedServerVersion.Capabilities.SupportsNativeJsonType);
+        Assert.Equal(usesJsonAlias, detectedServerVersion.Profile.Has(Capability.UsesJsonAliasForJsonColumns));
+        Assert.Equal(supportsNativeJsonType, detectedServerVersion.Profile.Has(Capability.SupportsNativeJsonType));
     }
 }

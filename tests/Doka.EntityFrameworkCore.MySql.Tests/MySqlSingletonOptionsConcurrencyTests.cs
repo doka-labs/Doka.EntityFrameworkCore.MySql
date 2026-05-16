@@ -18,7 +18,7 @@ public sealed class MySqlSingletonOptionsConcurrencyTests
         Parallel.For(0, 4000, _ => singletonOptions.Initialize(options));
 
         Assert.NotNull(singletonOptions.ServerVersion);
-        Assert.NotNull(singletonOptions.Capabilities);
+        Assert.NotNull(singletonOptions.Profile);
         Assert.Equal(MySqlGuidFormat.Char36, singletonOptions.DefaultGuidFormat);
         Assert.False(singletonOptions.UsesDataSource);
     }
@@ -54,7 +54,7 @@ public sealed class MySqlSingletonOptionsConcurrencyTests
             singletonOptions.Validate(options);
         });
 
-        Assert.NotNull(singletonOptions.Capabilities);
+        Assert.NotNull(singletonOptions.Profile);
     }
 
     [Fact]

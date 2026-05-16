@@ -69,7 +69,7 @@ public sealed class IndexLoaderTests
             .Select(row => row.TableName)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
-        var capabilities = MySqlServerVersion.MySql(new Version(8, 4, 0)).Capabilities;
+        var capabilities = MySqlServerVersion.MySql(new Version(8, 4, 0)).Profile;
         var context = new ScaffoldingPipelineContext(
             new IndexStubConnection(rows),
             databaseModel,
