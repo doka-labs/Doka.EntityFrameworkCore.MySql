@@ -3,16 +3,10 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <summary>
 /// A MySQL JSON type mapping that preserves the native CLR type (<see cref="JsonElement"/>,
 /// <see cref="JsonDocument"/>, <see cref="JsonNode"/>, etc.) through the EF Core pipeline
-/// instead of collapsing to <c>string</c>.
+/// instead of collapsing to <c>string</c>. AOT and trimming suppressions are scoped per
+/// factory method so the trimmer's audit window stays limited to the call sites that
+/// genuinely touch JsonNode / JsonDocument surfaces.
 /// </summary>
-[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
-    "Trimming",
-    "IL2026",
-    Justification = "All JsonNode / JsonDocument / JsonElement operations in this type use well-known JSON primitive types that remain rooted under trimming.")]
-[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
-    "AOT",
-    "IL3050",
-    Justification = "JsonNode parsing and mutation in this type operates on well-known JSON primitives; no runtime code generation is triggered at the call sites we exercise.")]
 internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping
 {
     private MySqlJsonTypeMapping(
@@ -57,6 +51,10 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping
         "Trimming",
         "IL2026",
         Justification = "JsonNode.Parse and ToJsonString use well-known JSON types.")]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "AOT",
+        "IL3050",
+        Justification = "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
     public static MySqlJsonTypeMapping CreateJsonNodeMapping() => new(
         new RelationalTypeMappingParameters(
             new CoreTypeMappingParameters(
@@ -76,6 +74,10 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping
         "Trimming",
         "IL2026",
         Justification = "JsonNode.Parse and ToJsonString use well-known JSON types.")]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "AOT",
+        "IL3050",
+        Justification = "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
     public static MySqlJsonTypeMapping CreateJsonObjectMapping() => new(
         new RelationalTypeMappingParameters(
             new CoreTypeMappingParameters(
@@ -95,6 +97,10 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping
         "Trimming",
         "IL2026",
         Justification = "JsonNode.Parse and ToJsonString use well-known JSON types.")]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "AOT",
+        "IL3050",
+        Justification = "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
     public static MySqlJsonTypeMapping CreateJsonArrayMapping() => new MySqlJsonTypeMapping(
         new RelationalTypeMappingParameters(
             new CoreTypeMappingParameters(

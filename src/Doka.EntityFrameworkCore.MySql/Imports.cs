@@ -1,4 +1,5 @@
 global using System;
+global using System.Buffers;
 global using System.Collections.Concurrent;
 global using System.Collections.Frozen;
 global using System.Collections.Generic;
@@ -6,6 +7,7 @@ global using System.Data;
 global using System.Data.Common;
 global using System.Globalization;
 global using System.IO;
+global using System.IO.Hashing;
 global using System.Linq;
 global using System.Linq.Expressions;
 global using System.Net.Sockets;
