@@ -1,30 +1,75 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
+/// <summary>
+/// Redacts MySQL connection strings for safe inclusion in logs, diagnostics, and
+/// error messages. The redactor follows an explicit allowlist: only the
+/// connectivity surface a reviewer needs to recognize the target endpoint
+/// (server, port, database, user, transport security, timeout, pooling toggle)
+/// passes through unchanged. Every other key keeps its name but receives the
+/// sentinel <c>***</c> value, so reviewers can still see which option was
+/// configured without leaking the secret. The whitelist is intentionally narrow:
+/// MySqlConnector's connection-string surface includes thirty-plus keys, several
+/// of which (password fields, certificate paths and passwords, SSL key material,
+/// authentication-plugin handshake parameters, ApplicationName free-text) carry
+/// secrets or PII whose accidental log-trail leak would be hard to recover from.
+/// </summary>
 internal static class MySqlConnectionStringRedactor
 {
+    private const string RedactedSentinel = "***";
+    private const string NoneSentinel = "<none>";
+    private const string MalformedSentinel = "<redacted>";
+
+    private static readonly FrozenSet<string> s_passThroughKeys = new[]
+    {
+        "Server",
+        "Port",
+        "Database",
+        "User ID",
+        "SslMode",
+        "ConnectionTimeout",
+        "Pooling",
+    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Returns a redacted representation of the supplied MySQL connection string.
+    /// Null / empty / whitespace inputs yield <see cref="NoneSentinel"/>; inputs
+    /// MySqlConnectionStringBuilder cannot parse yield <see cref="MalformedSentinel"/>.
+    /// Valid inputs are walked key-by-key: allowlisted keys pass through with their
+    /// original value, every other key's value is replaced with <see cref="RedactedSentinel"/>.
+    /// </summary>
     public static string Redact(
         string? connectionString
     )
     {
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            return "<none>";
+            return NoneSentinel;
         }
 
+        MySqlConnectionStringBuilder builder;
         try
         {
-            var builder = new MySqlConnectionStringBuilder(connectionString);
-
-            if (!string.IsNullOrEmpty(builder.Password))
-            {
-                builder.Password = "***";
-            }
-
-            return builder.ConnectionString;
+            builder = new MySqlConnectionStringBuilder(connectionString);
         }
         catch (ArgumentException)
         {
-            return "<redacted>";
+            return MalformedSentinel;
         }
+
+        var redacted = new MySqlConnectionStringBuilder();
+        foreach (var key in builder.Keys.OfType<string>())
+        {
+            var rawValue = builder[key];
+            if (rawValue is null)
+            {
+                continue;
+            }
+
+            redacted[key] = s_passThroughKeys.Contains(key)
+                ? rawValue
+                : RedactedSentinel;
+        }
+
+        return redacted.ConnectionString;
     }
 }
