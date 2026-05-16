@@ -2,6 +2,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Selects the appropriate value generator for MySQL properties, including Hi/Lo sequence generators.
+/// Hi/Lo state caching lives in <see cref="MySqlHiLoStateCache"/> so block windows survive
+/// across DbContexts.
 /// </summary>
 internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSelector
 {
@@ -19,7 +21,7 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
         _rawSqlCommandBuilder = rawSqlCommandBuilder ?? throw new ArgumentNullException(nameof(rawSqlCommandBuilder));
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
         _singletonOptions = singletonOptions
-                ?.OfType<MySqlSingletonOptions>()
+                .OfType<MySqlSingletonOptions>()
                 .Single()
             ?? throw new ArgumentNullException(nameof(singletonOptions));
     }
@@ -54,7 +56,7 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
         var blockSize = sequence?.IncrementBy ?? 10;
         var supportsNative = _singletonOptions.Capabilities?.SupportsNativeSequences ?? false;
 
-        var generatorState = new HiLoValueGeneratorState(blockSize);
+        var generatorState = MySqlHiLoStateCache.GetOrCreate(sequenceName, blockSize);
 
         var unwrappedType = Nullable.GetUnderlyingType(clrType) ?? clrType;
 
