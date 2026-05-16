@@ -3,7 +3,13 @@
 - **Status:** Implemented
 - **Date:** 2026-05-16
 - **Scope:** `MySqlValueGeneratorSelector` + `MySqlSequenceValueGenerator` runtime
-- **Implementation:** `src/Doka.EntityFrameworkCore.MySql/Internal/Metadata/MySqlHiLoStateCache.cs` (commit `bc5d4ea5d6a4`)
+- **Implementation:** `src/Doka.EntityFrameworkCore.MySql/Internal/Metadata/MySqlHiLoStateCache.cs` (commit `bc5d4ea5d6a4`); block-claim correctness + connection-isolation follow-up in `MySqlSequenceHiLoValueGenerator.cs` + `MySqlValueGeneratorSelector.cs`.
+
+## Implementation notes
+
+- The original `MySqlSequenceHiLoValueGenerator.GetNewLowValue` invoked `MySqlSequenceValueGenerator.GetNextValue` with hard-coded `increment = 1` and returned the post-increment server value unchanged as the block LOW. The cache shared the state across contexts but the underlying server-side row only advanced by 1 per fetch, so consecutive block claims overlapped (block N = `[k..k+blockSize-1]`; block N+1 = `[k+1..k+blockSize]`). Live concurrency test `MySqlHiLoConcurrencyTests.HiLo_inserts_across_parallel_contexts_yield_unique_ids` surfaced as `Duplicate entry '2' for key 'PRIMARY'`. Fix: pass `blockSize` as the server-side increment so each claim advances the sequence by a full block, and compute the LOW client-side from the returned HIGH (`low = newValue - blockSize + 1`) for the emulation path; the native MariaDB path returns the LOW directly because the sequence DDL is created with `INCREMENT BY blockSize`.
+- The generator's previous flow shared the `IRelationalConnection` instance with the surrounding `SaveChanges` operation. Under parallel-context load the underlying `MySqlConnection` could surface a "This MySqlConnection is already in use" error when EF Core's command pipeline and the HiLo sequence-claim tried to run on the same physical session concurrently. Fix: open a dedicated short-lived `MySqlConnection` per block claim using the connection string from the active `IRelationalConnection`. Cost is one extra connection-pool rental per block-exhaustion (rare under typical blockSize=10 usage); benefit is structural isolation from EF Core's connection-state machinery, removing a class of latent races. Sequence-claim is a session-independent operation -- the dedicated-connection shape matches the SqlServer provider's HiLo pattern.
+- Native MariaDB sequences must be created with `INCREMENT BY blockSize` for the LOW-direct return path to stay correct; the migration generator's `CreateSequenceOperation` translation must propagate the `HasHiLoSequence` block size into the DDL. The current `MySqlMigrationsSqlGenerator` honors the `IncrementBy` annotation; operators using `UseHiLo("name", blockSize: 10)` get a sequence with `INCREMENT BY 10` automatically.
 
 ## Context
 

@@ -67,7 +67,8 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
                 _rawSqlCommandBuilder,
                 _connection,
                 sequenceName,
-                supportsNative);
+                supportsNative,
+                blockSize);
         }
 
         if (unwrappedType == typeof(long))
@@ -77,7 +78,8 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
                 _rawSqlCommandBuilder,
                 _connection,
                 sequenceName,
-                supportsNative);
+                supportsNative,
+                blockSize);
         }
 
         if (unwrappedType == typeof(short))
@@ -87,7 +89,8 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
                 _rawSqlCommandBuilder,
                 _connection,
                 sequenceName,
-                supportsNative);
+                supportsNative,
+                blockSize);
         }
 
         if (unwrappedType == typeof(byte))
@@ -97,7 +100,8 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
                 _rawSqlCommandBuilder,
                 _connection,
                 sequenceName,
-                supportsNative);
+                supportsNative,
+                blockSize);
         }
 
         throw new InvalidOperationException(
