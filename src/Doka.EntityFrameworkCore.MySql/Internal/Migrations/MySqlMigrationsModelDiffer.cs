@@ -101,7 +101,7 @@ internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(target);
 
-        // Pre-build lookup to avoid O(N × M) entity-type enumeration per index operation.
+        // Pre-build lookup to avoid O(N x M) entity-type enumeration per index operation.
         var spatialIndexLookup = new HashSet<(string? Schema, string Table, string IndexName)>();
 
         foreach (var entityType in target.Model.GetEntityTypes())

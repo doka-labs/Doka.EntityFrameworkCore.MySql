@@ -316,7 +316,7 @@ public sealed class MySqlTypeMappingBaselineTests
     }
 
     /// <summary>
-    /// Verifies that a custom domain type converter (Money → decimal) produces decimal column.
+    /// Verifies that a custom domain type converter (Money -> decimal) produces decimal column.
     /// </summary>
     [Fact]
     public void Custom_domain_type_converter_produces_correct_column_type()

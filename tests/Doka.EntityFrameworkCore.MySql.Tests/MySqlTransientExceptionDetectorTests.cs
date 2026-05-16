@@ -8,35 +8,35 @@ public sealed class MySqlTransientExceptionDetectorTests
     private readonly MySqlTransientExceptionDetector _detector = new();
     private readonly ServerCapabilities _capabilities = ServerCapabilities.Create(false, new Version(8, 4, 0));
 
-    // ── SocketException (retryable) ──
+    // -- SocketException (retryable) --
 
     /// <summary>SocketException is retryable.</summary>
     [Fact]
     public void SocketException_is_retryable() => Assert.True(
         _detector.ShouldRetryOn(new System.Net.Sockets.SocketException(), _capabilities));
 
-    // ── IOException (retryable) ──
+    // -- IOException (retryable) --
 
     /// <summary>IOException is retryable.</summary>
     [Fact]
     public void IOException_is_retryable() => Assert.True(
         _detector.ShouldRetryOn(new System.IO.IOException("connection reset"), _capabilities));
 
-    // ── OperationCanceledException (not retryable) ──
+    // -- OperationCanceledException (not retryable) --
 
     /// <summary>OperationCanceledException is not retryable.</summary>
     [Fact]
     public void OperationCanceledException_is_not_retryable() =>
         Assert.False(_detector.ShouldRetryOn(new OperationCanceledException(), _capabilities));
 
-    // ── TimeoutException (not retryable via ShouldRetryOn) ──
+    // -- TimeoutException (not retryable via ShouldRetryOn) --
 
     /// <summary>TimeoutException is not retryable (handled separately as command timeout).</summary>
     [Fact]
     public void TimeoutException_is_not_retryable() =>
         Assert.False(_detector.ShouldRetryOn(new TimeoutException(), _capabilities));
 
-    // ── IsCommandTimeout ──
+    // -- IsCommandTimeout --
 
     /// <summary>TimeoutException is recognized as command timeout.</summary>
     [Fact]
@@ -48,7 +48,7 @@ public sealed class MySqlTransientExceptionDetectorTests
     public void Regular_exception_is_not_command_timeout() =>
         Assert.False(_detector.IsCommandTimeout(new InvalidOperationException()));
 
-    // ── Inner exception traversal ──
+    // -- Inner exception traversal --
 
     /// <summary>SocketException nested inside another exception is detected.</summary>
     [Fact]
@@ -70,11 +70,11 @@ public sealed class MySqlTransientExceptionDetectorTests
             current = new InvalidOperationException($"level_{i}", current);
         }
 
-        // The SocketException is at depth 25 — beyond the 20-level traversal limit.
+        // The SocketException is at depth 25 -- beyond the 20-level traversal limit.
         Assert.False(_detector.ShouldRetryOn(current, _capabilities));
     }
 
-    // ── Arbitrary exception (not retryable) ──
+    // -- Arbitrary exception (not retryable) --
 
     /// <summary>Arbitrary exceptions are not retryable.</summary>
     [Fact]

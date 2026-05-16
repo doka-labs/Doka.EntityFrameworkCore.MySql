@@ -45,7 +45,7 @@ public static class MySqlDbFunctionsExtensions
         string searchTerm
     ) => throw new InvalidOperationException("This method is for use with EF Core LINQ queries only.");
 
-    // ── JSON Manipulation ──
+    // -- JSON Manipulation --
 
     /// <summary>
     /// Translates to MySQL <c>JSON_SET(json, path, value)</c>.
@@ -79,7 +79,7 @@ public static class MySqlDbFunctionsExtensions
         string path
     ) => throw new InvalidOperationException("This method is for use with EF Core LINQ queries only.");
 
-    // ── JSON Construction ──
+    // -- JSON Construction --
 
     /// <summary>
     /// Translates to MySQL <c>JSON_ARRAY(val1, val2, ...)</c>.
@@ -99,7 +99,7 @@ public static class MySqlDbFunctionsExtensions
         params object[] keyValuePairs
     ) => throw new InvalidOperationException("This method is for use with EF Core LINQ queries only.");
 
-    // ── JSON Inspection ──
+    // -- JSON Inspection --
 
     /// <summary>
     /// Translates to MySQL <c>JSON_DEPTH(json)</c>.

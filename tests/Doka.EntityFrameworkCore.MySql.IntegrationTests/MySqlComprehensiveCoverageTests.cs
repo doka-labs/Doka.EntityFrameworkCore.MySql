@@ -11,9 +11,9 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// </summary>
 public sealed class MySqlComprehensiveCoverageTests
 {
-    // ══════════════════════════════════════════════════════════════════════
-    // ── Scaffolding: Live Round-Trip ──
-    // ══════════════════════════════════════════════════════════════════════
+    // ======================================================================
+    // -- Scaffolding: Live Round-Trip --
+    // ======================================================================
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Scaffolding_roundtrip_on_mysql84()
@@ -117,9 +117,9 @@ public sealed class MySqlComprehensiveCoverageTests
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // ── MySQL 8.0 Parity ──
-    // ══════════════════════════════════════════════════════════════════════
+    // ======================================================================
+    // -- MySQL 8.0 Parity --
+    // ======================================================================
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
     public async Task MySql80_crud_and_query_parity()
@@ -228,9 +228,9 @@ public sealed class MySqlComprehensiveCoverageTests
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // ── MariaDB 11.4 Parity ──
-    // ══════════════════════════════════════════════════════════════════════
+    // ======================================================================
+    // -- MariaDB 11.4 Parity --
+    // ======================================================================
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_crud_and_query_parity()
@@ -361,9 +361,9 @@ public sealed class MySqlComprehensiveCoverageTests
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // ── HiLo End-to-End through EF SaveChanges ──
-    // ══════════════════════════════════════════════════════════════════════
+    // ======================================================================
+    // -- HiLo End-to-End through EF SaveChanges --
+    // ======================================================================
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task HiLo_generates_block_allocated_ids_on_mysql84()
@@ -407,9 +407,9 @@ public sealed class MySqlComprehensiveCoverageTests
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // ── Idempotent Migration Script on Live DB ──
-    // ══════════════════════════════════════════════════════════════════════
+    // ======================================================================
+    // -- Idempotent Migration Script on Live DB --
+    // ======================================================================
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Idempotent_migration_script_executes_on_mysql84()
@@ -435,7 +435,7 @@ public sealed class MySqlComprehensiveCoverageTests
             // Safe: fullScript is composed from IHistoryRepository's Begin/End helpers around a literal body.
             await context.Database.ExecuteSqlRawAsync(fullScript);
 
-            // Execute again — should be idempotent (no error).
+            // Execute again -- should be idempotent (no error).
             await context.Database.ExecuteSqlRawAsync(fullScript);
         }
         finally
@@ -445,9 +445,9 @@ public sealed class MySqlComprehensiveCoverageTests
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // ── EnsureCreated / EnsureDeleted Round-Trip ──
-    // ══════════════════════════════════════════════════════════════════════
+    // ======================================================================
+    // -- EnsureCreated / EnsureDeleted Round-Trip --
+    // ======================================================================
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mysql84()
@@ -497,9 +497,9 @@ public sealed class MySqlComprehensiveCoverageTests
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // ── GROUP_CONCAT on MariaDB 11.4 ──
-    // ══════════════════════════════════════════════════════════════════════
+    // ======================================================================
+    // -- GROUP_CONCAT on MariaDB 11.4 --
+    // ======================================================================
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_group_concat_executes()
@@ -556,9 +556,9 @@ public sealed class MySqlComprehensiveCoverageTests
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // ── Helpers ──
-    // ══════════════════════════════════════════════════════════════════════
+    // ======================================================================
+    // -- Helpers --
+    // ======================================================================
 
     private static DbContextOptions<T> CreateOptions<T>(
         string cs,
@@ -612,9 +612,9 @@ public sealed class MySqlComprehensiveCoverageTests
         await cmd.ExecuteNonQueryAsync();
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // ── Entities / Contexts ──
-    // ══════════════════════════════════════════════════════════════════════
+    // ======================================================================
+    // -- Entities / Contexts --
+    // ======================================================================
 
     private sealed class ParityItem
     {

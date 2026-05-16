@@ -9,7 +9,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed class MySqlModelingIntegrationTests
 {
     /// <summary>
-    /// TPH CRUD round-trip — insert, query with OfType, discriminator filtering.
+    /// TPH CRUD round-trip -- insert, query with OfType, discriminator filtering.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Tph_crud_roundtrip_on_mysql84()
@@ -218,7 +218,7 @@ public sealed class MySqlModelingIntegrationTests
     }
 
     /// <summary>
-    /// Concurrency check — UPDATE with original value in WHERE.
+    /// Concurrency check -- UPDATE with original value in WHERE.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Concurrency_check_detects_conflict()
@@ -264,7 +264,7 @@ public sealed class MySqlModelingIntegrationTests
     }
 
     /// <summary>
-    /// Bool→string ValueConverter round-trip.
+    /// Bool->string ValueConverter round-trip.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Bool_to_string_converter_roundtrip()
@@ -307,7 +307,7 @@ public sealed class MySqlModelingIntegrationTests
         }
     }
 
-    // ── TPT entities ────────────────────────────────────────────────────
+    // -- TPT entities ----------------------------------------------------
 
     private abstract class TptVehicle
     {
@@ -348,7 +348,7 @@ public sealed class MySqlModelingIntegrationTests
         }
     }
 
-    // ── Concurrency entities ────────────────────────────────────────────
+    // -- Concurrency entities --------------------------------------------
 
     private sealed class ConcurrencyEntity
     {
@@ -381,7 +381,7 @@ public sealed class MySqlModelingIntegrationTests
         }
     }
 
-    // ── Converter entities ──────────────────────────────────────────────
+    // -- Converter entities ----------------------------------------------
 
     private readonly record struct Money(decimal Amount);
 
@@ -419,7 +419,7 @@ public sealed class MySqlModelingIntegrationTests
         }
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // -- Helpers ----------------------------------------------------------
 
     private static DbContextOptions<TContext> CreateOptions<TContext>(
         string connectionString
@@ -445,7 +445,7 @@ public sealed class MySqlModelingIntegrationTests
         }
     }
 
-    // ── Entities ─────────────────────────────────────────────────────────
+    // -- Entities ---------------------------------------------------------
 
     private abstract class TphAnimal
     {

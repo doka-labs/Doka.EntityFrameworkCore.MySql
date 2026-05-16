@@ -10,9 +10,9 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// </summary>
 public sealed class MariaDbFeatureIntegrationTests
 {
-    // ── Database Lifecycle (with root access) ──
+    // -- Database Lifecycle (with root access) --
 
-    // ── Database Exists on MariaDB ──
+    // -- Database Exists on MariaDB --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_database_exists_returns_true()
@@ -34,7 +34,7 @@ public sealed class MariaDbFeatureIntegrationTests
         Assert.True(await creator.ExistsAsync());
     }
 
-    // ── EnsureCreated + HasTables on MariaDB ──
+    // -- EnsureCreated + HasTables on MariaDB --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_ensure_created_and_has_tables()
@@ -51,7 +51,7 @@ public sealed class MariaDbFeatureIntegrationTests
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `SimpleItems`;");
     }
 
-    // ── MariaDB JSON Alias (longtext + CHECK) CRUD ──
+    // -- MariaDB JSON Alias (longtext + CHECK) CRUD --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_json_alias_column_crud_roundtrip()
@@ -102,7 +102,7 @@ public sealed class MariaDbFeatureIntegrationTests
         }
     }
 
-    // ── MariaDB Native Sequence via EF Migration DDL ──
+    // -- MariaDB Native Sequence via EF Migration DDL --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_native_sequence_ddl_creates_and_drops()
@@ -165,7 +165,7 @@ public sealed class MariaDbFeatureIntegrationTests
         }
     }
 
-    // ── MariaDB 11.4 CRUD Baseline ──
+    // -- MariaDB 11.4 CRUD Baseline --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_crud_baseline()
@@ -220,7 +220,7 @@ public sealed class MariaDbFeatureIntegrationTests
         }
     }
 
-    // ── MariaDB 11.8 CRUD Baseline ──
+    // -- MariaDB 11.8 CRUD Baseline --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_crud_baseline()
@@ -273,7 +273,7 @@ public sealed class MariaDbFeatureIntegrationTests
         }
     }
 
-    // ── MariaDB DateTime/DateOnly Arithmetic ──
+    // -- MariaDB DateTime/DateOnly Arithmetic --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_datetime_arithmetic_executes_correctly()
@@ -313,7 +313,7 @@ public sealed class MariaDbFeatureIntegrationTests
         }
     }
 
-    // ── Helpers ──
+    // -- Helpers --
 
     private static DbContextOptions<T> CreateOptions<T>(
         string cs,
@@ -362,7 +362,7 @@ public sealed class MariaDbFeatureIntegrationTests
         await command.ExecuteNonQueryAsync();
     }
 
-    // ── Entities / Contexts ──
+    // -- Entities / Contexts --
 
     private sealed class SimpleItem
     {

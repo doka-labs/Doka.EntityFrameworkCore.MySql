@@ -442,8 +442,8 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
         if (method == s_regexpMethod)
         {
             // EF.Functions.Regexp(input, pattern)
-            // MySQL 8.0+: REGEXP_LIKE(input, pattern) — scalar function
-            // MariaDB: input REGEXP pattern — infix operator (no REGEXP_LIKE function)
+            // MySQL 8.0+: REGEXP_LIKE(input, pattern) -- scalar function
+            // MariaDB: input REGEXP pattern -- infix operator (no REGEXP_LIKE function)
             // Use a sentinel name; MySqlQuerySqlGenerator rewrites to engine-appropriate SQL.
             return _sqlExpressionFactory.Function(
                 "__mysql_regexp",
@@ -462,7 +462,7 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
 
         if (method == s_matchMethod)
         {
-            // EF.Functions.Match(column, term) → MATCH(column) AGAINST(term)
+            // EF.Functions.Match(column, term) -> MATCH(column) AGAINST(term)
             // Use a sentinel function name that MySqlQuerySqlGenerator recognizes and rewrites.
             return _sqlExpressionFactory.Function(
                 "__mysql_match",
@@ -481,7 +481,7 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
 
         if (method == s_matchBooleanMethod)
         {
-            // EF.Functions.MatchInBooleanMode(column, term) → MATCH(column) AGAINST(term IN BOOLEAN MODE)
+            // EF.Functions.MatchInBooleanMode(column, term) -> MATCH(column) AGAINST(term IN BOOLEAN MODE)
             return _sqlExpressionFactory.Function(
                 "__mysql_match_boolean",
                 [
@@ -612,7 +612,7 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
             return TranslateTwoArgumentFunction("JSON_CONTAINS", arguments[1], arguments[2], typeof(bool));
         }
 
-        // DateTime methods → DATE_ADD with INTERVAL.
+        // DateTime methods -> DATE_ADD with INTERVAL.
         if (instance is not null)
         {
             if (method == s_dateTimeAddYearsMethod)
@@ -645,7 +645,7 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
                 return TranslateDateAdd(instance, arguments[0], "SECOND");
             }
 
-            // DateOnly methods → DATE_ADD with INTERVAL.
+            // DateOnly methods -> DATE_ADD with INTERVAL.
             if (method == s_dateOnlyAddDaysMethod)
             {
                 return TranslateDateAdd(instance, arguments[0], "DAY");
@@ -661,7 +661,7 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
                 return TranslateDateAdd(instance, arguments[0], "YEAR");
             }
 
-            // TimeOnly methods → ADDTIME.
+            // TimeOnly methods -> ADDTIME.
             if (method == s_timeOnlyAddHoursMethod)
             {
                 return TranslateTimeOnlyAdd(instance, arguments[0], "HOUR");

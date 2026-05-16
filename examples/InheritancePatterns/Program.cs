@@ -1,7 +1,7 @@
 using Doka.EntityFrameworkCore.MySql;
 using Microsoft.EntityFrameworkCore;
 
-// ── Inheritance Patterns with Doka.EntityFrameworkCore.MySql ──
+// -- Inheritance Patterns with Doka.EntityFrameworkCore.MySql --
 //
 // Demonstrates: TPH with discriminator, OwnsOne (same-table owned type).
 
@@ -38,7 +38,7 @@ Console.WriteLine($"Customer: {customer.Name}, City: {customer.Address?.City}");
 context.Database.EnsureDeleted();
 Console.WriteLine("Inheritance patterns example completed successfully.");
 
-// ── Entities ──
+// -- Entities --
 
 public abstract class Animal
 {

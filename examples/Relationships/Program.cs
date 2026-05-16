@@ -1,10 +1,10 @@
 using Doka.EntityFrameworkCore.MySql;
 using Microsoft.EntityFrameworkCore;
 
-// ── Relationships with Doka.EntityFrameworkCore.MySql ──
+// -- Relationships with Doka.EntityFrameworkCore.MySql --
 //
-// Demonstrates: 1:N (Blog → Posts), M:N (Student ↔ Course),
-// self-referencing (Employee → Manager), Include/ThenInclude.
+// Demonstrates: 1:N (Blog -> Posts), M:N (Student <-> Course),
+// self-referencing (Employee -> Manager), Include/ThenInclude.
 
 var connectionString = Environment.GetEnvironmentVariable("DOKA_MYSQL_CONNECTION_STRING")
     ?? "Server=localhost;Port=33068;Database=relationships_example;User ID=root;Password=root_password;";
@@ -16,7 +16,7 @@ var options = new DbContextOptionsBuilder<RelContext>()
 using var context = new RelContext(options);
 context.Database.EnsureCreated();
 
-// ── 1:N — Blog with Posts ──
+// -- 1:N -- Blog with Posts --
 var blog = new Blog
 {
     Title = "EF Core with MySQL",
@@ -35,7 +35,7 @@ var blogWithPosts = context.Blogs
     .First();
 Console.WriteLine($"Blog '{blogWithPosts.Title}' has {blogWithPosts.Posts.Count} posts.");
 
-// ── M:N — Students and Courses ──
+// -- M:N -- Students and Courses --
 var student = new Student { Name = "Alice" };
 var course1 = new Course { Title = "Databases" };
 var course2 = new Course { Title = "Algorithms" };
@@ -49,7 +49,7 @@ var loadedStudent = context.Students
     .First(s => s.Name == "Alice");
 Console.WriteLine($"Student '{loadedStudent.Name}' enrolled in: {string.Join(", ", loadedStudent.Courses.Select(c => c.Title))}");
 
-// ── Self-referencing — Employee hierarchy ──
+// -- Self-referencing -- Employee hierarchy --
 var ceo = new Employee { Name = "CEO" };
 var vp = new Employee { Name = "VP Engineering", Manager = ceo };
 var dev = new Employee { Name = "Developer", Manager = vp };
@@ -64,7 +64,7 @@ Console.WriteLine($"CEO has {tree.Subordinates.Count} direct reports.");
 context.Database.EnsureDeleted();
 Console.WriteLine("Relationships example completed successfully.");
 
-// ── Entities ──
+// -- Entities --
 
 public class Blog
 {
@@ -104,7 +104,7 @@ public class Employee
     public List<Employee> Subordinates { get; set; } = [];
 }
 
-// ── DbContext ──
+// -- DbContext --
 
 public class RelContext : DbContext
 {

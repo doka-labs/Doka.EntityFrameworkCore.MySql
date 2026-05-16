@@ -8,7 +8,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// </summary>
 public sealed class MySqlNewFeatureTests
 {
-    // ── HiLo Value Generation ──
+    // -- HiLo Value Generation --
 
     /// <summary>
     /// UseHiLo creates a sequence in the model and sets the HiLo value generation strategy.
@@ -68,7 +68,7 @@ public sealed class MySqlNewFeatureTests
         Assert.Contains("__efsequence_HiLoTestSequence", sql, StringComparison.Ordinal);
     }
 
-    // ── DateOnly/TimeOnly Arithmetic ──
+    // -- DateOnly/TimeOnly Arithmetic --
 
     /// <summary>
     /// DateOnly.AddDays translates to DATE_ADD with INTERVAL DAY.
@@ -133,7 +133,7 @@ public sealed class MySqlNewFeatureTests
         Assert.Contains("ADDTIME", query, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── MariaDB INVISIBLE Columns ──
+    // -- MariaDB INVISIBLE Columns --
 
     /// <summary>
     /// IsInvisible annotation generates INVISIBLE keyword in column DDL.
@@ -185,7 +185,7 @@ public sealed class MySqlNewFeatureTests
         Assert.Equal(true, annotation.Value);
     }
 
-    // ── JSON Manipulation Functions ──
+    // -- JSON Manipulation Functions --
 
     /// <summary>
     /// EF.Functions.JsonSet translates to JSON_SET SQL.
@@ -217,7 +217,7 @@ public sealed class MySqlNewFeatureTests
         Assert.Contains("JSON_REMOVE", query, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── JSON Inspection Functions ──
+    // -- JSON Inspection Functions --
 
     /// <summary>
     /// EF.Functions.JsonDepth translates to JSON_DEPTH SQL.
@@ -294,7 +294,7 @@ public sealed class MySqlNewFeatureTests
         Assert.Contains("JSON_CONTAINS", query, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── Helpers ──
+    // -- Helpers --
 
     private static TContext CreateContext<TContext>(
         bool isMariaDb = false
@@ -311,7 +311,7 @@ public sealed class MySqlNewFeatureTests
         return (TContext)Activator.CreateInstance(typeof(TContext), builder.Options)!;
     }
 
-    // ── Entities and Contexts ──
+    // -- Entities and Contexts --
 
     private sealed class HiLoEntity
     {

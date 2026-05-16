@@ -151,7 +151,7 @@ public sealed class MariaDbModelingIntegrationTests
         finally { await CleanupAsync(context, "MdbConverter"); }
     }
 
-    // ── Helpers ──
+    // -- Helpers --
 
     private static DbContextOptions<T> CreateOptions<T>(string cs) where T : DbContext
     {
@@ -171,7 +171,7 @@ public sealed class MariaDbModelingIntegrationTests
         }
     }
 
-    // ── Entities ──
+    // -- Entities --
 
     private abstract class TphAnimal { public int Id { get; set; } public string Name { get; set; } = ""; }
     private sealed class TphDog : TphAnimal { public string Breed { get; set; } = ""; }

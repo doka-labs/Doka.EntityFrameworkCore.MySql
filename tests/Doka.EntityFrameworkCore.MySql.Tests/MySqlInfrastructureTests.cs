@@ -8,9 +8,9 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlInfrastructureTests
 {
-    // ══════════════════════════════════════════════════════════════════════
-    // ── MySqlConnectionStringRedactor ──
-    // ══════════════════════════════════════════════════════════════════════
+    // ======================================================================
+    // -- MySqlConnectionStringRedactor --
+    // ======================================================================
 
     /// <summary>Normal connection string has password redacted.</summary>
     [Fact]
@@ -67,9 +67,9 @@ public sealed class MySqlInfrastructureTests
         Assert.Contains("Server", result, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // ── MySqlUpdateSqlGenerator — SQL output ──
-    // ══════════════════════════════════════════════════════════════════════
+    // ======================================================================
+    // -- MySqlUpdateSqlGenerator -- SQL output --
+    // ======================================================================
 
     /// <summary>UpdateSqlGenerator resolves from DI and is the correct type.</summary>
     [Fact]
@@ -84,9 +84,9 @@ public sealed class MySqlInfrastructureTests
                 .Name);
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // ── MySqlSpatialTypeSupport ──
-    // ══════════════════════════════════════════════════════════════════════
+    // ======================================================================
+    // -- MySqlSpatialTypeSupport --
+    // ======================================================================
 
     /// <summary>NTS Point is recognized as spatial CLR type.</summary>
     [Fact]
@@ -147,9 +147,9 @@ public sealed class MySqlInfrastructureTests
         Assert.Equal(expected, MySqlSpatialTypeSupport.NormalizeStoreTypeName(input));
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // ── Helpers ──
-    // ══════════════════════════════════════════════════════════════════════
+    // ======================================================================
+    // -- Helpers --
+    // ======================================================================
 
     private static InfraContext CreateContext()
     {

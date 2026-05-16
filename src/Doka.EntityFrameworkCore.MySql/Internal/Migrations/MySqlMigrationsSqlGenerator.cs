@@ -459,7 +459,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
     }
 
     /// <summary>
-    /// Generates CREATE SEQUENCE DDL — native on MariaDB 10.3+, table-based emulation on MySQL.
+    /// Generates CREATE SEQUENCE DDL -- native on MariaDB 10.3+, table-based emulation on MySQL.
     /// </summary>
     protected override void Generate(
         CreateSequenceOperation operation,
@@ -529,7 +529,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
     }
 
     /// <summary>
-    /// Generates DROP SEQUENCE DDL — native on MariaDB 10.3+, drops emulation table on MySQL.
+    /// Generates DROP SEQUENCE DDL -- native on MariaDB 10.3+, drops emulation table on MySQL.
     /// </summary>
     protected override void Generate(
         DropSequenceOperation operation,
@@ -561,7 +561,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
     }
 
     /// <summary>
-    /// Generates ALTER SEQUENCE DDL — native on MariaDB 10.3+, updates emulation table on MySQL.
+    /// Generates ALTER SEQUENCE DDL -- native on MariaDB 10.3+, updates emulation table on MySQL.
     /// </summary>
     protected override void Generate(
         AlterSequenceOperation operation,
@@ -599,7 +599,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             return;
         }
 
-        // For MySQL emulation, ALTER means updating the increment behavior — the emulation
+        // For MySQL emulation, ALTER means updating the increment behavior -- the emulation
         // table stores only the current value; increment is applied at fetch time.
         // No DDL action needed for the emulation table itself.
         builder.AppendLine(
@@ -608,7 +608,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
     }
 
     /// <summary>
-    /// Generates RENAME SEQUENCE DDL — renames emulation table on MySQL, not natively supported on MariaDB.
+    /// Generates RENAME SEQUENCE DDL -- renames emulation table on MySQL, not natively supported on MariaDB.
     /// </summary>
     protected override void Generate(
         RenameSequenceOperation operation,
@@ -624,7 +624,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         if (_mySqlSingletonOptions.Capabilities?.SupportsNativeSequences == true)
         {
-            // MariaDB does not support RENAME SEQUENCE — drop and recreate.
+            // MariaDB does not support RENAME SEQUENCE -- drop and recreate.
             builder
                 .Append("-- MariaDB does not support RENAME SEQUENCE; manual migration required.")
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);

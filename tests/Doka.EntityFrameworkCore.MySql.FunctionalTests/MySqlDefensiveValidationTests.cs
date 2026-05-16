@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// </summary>
 public sealed class MySqlDefensiveValidationTests
 {
-    // ── CharSet identifier validation ──
+    // -- CharSet identifier validation --
 
     [Fact]
     public void AppendTableOptions_rejects_charset_with_whitespace_injection()
@@ -138,7 +138,7 @@ public sealed class MySqlDefensiveValidationTests
         Assert.Contains("ENGINE = InnoDB", sql, StringComparison.Ordinal);
     }
 
-    // ── JSON path property name escaping ──
+    // -- JSON path property name escaping --
 
     [Theory]
     [InlineData("normal", "normal")]
@@ -162,7 +162,7 @@ public sealed class MySqlDefensiveValidationTests
         Assert.Equal(expected, escaped);
     }
 
-    // ── Helpers ──
+    // -- Helpers --
 
     private static DefensiveContext CreateContext()
     {

@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// </summary>
 public sealed class MySqlHistoryRepositoryTests
 {
-    // ── GetCreateScript ──
+    // -- GetCreateScript --
 
     [Fact]
     public void GetCreateScript_produces_valid_create_table_sql()
@@ -22,7 +22,7 @@ public sealed class MySqlHistoryRepositoryTests
         Assert.Contains("CHARACTER SET utf8mb4", sql, StringComparison.Ordinal);
     }
 
-    // ── GetCreateIfNotExistsScript ──
+    // -- GetCreateIfNotExistsScript --
 
     [Fact]
     public void GetCreateIfNotExistsScript_contains_if_not_exists()
@@ -34,7 +34,7 @@ public sealed class MySqlHistoryRepositoryTests
         Assert.Contains("`__EFMigrationsHistory`", sql, StringComparison.Ordinal);
     }
 
-    // ── Idempotent Scripting ──
+    // -- Idempotent Scripting --
 
     [Fact]
     public void GetBeginIfNotExistsScript_wraps_in_stored_procedure()
@@ -93,7 +93,7 @@ public sealed class MySqlHistoryRepositoryTests
         Assert.Contains("DROP PROCEDURE IF EXISTS", full, StringComparison.Ordinal);
     }
 
-    // ── ExistsSql ──
+    // -- ExistsSql --
 
     [Fact]
     public void ExistsSql_queries_information_schema()
@@ -107,7 +107,7 @@ public sealed class MySqlHistoryRepositoryTests
         Assert.Contains("CASE", existsSql, StringComparison.Ordinal);
     }
 
-    // ── LockReleaseBehavior ──
+    // -- LockReleaseBehavior --
 
     [Fact]
     public void LockReleaseBehavior_is_explicit()
@@ -116,7 +116,7 @@ public sealed class MySqlHistoryRepositoryTests
         Assert.Equal(LockReleaseBehavior.Explicit, repo.LockReleaseBehavior);
     }
 
-    // ── Helpers ──
+    // -- Helpers --
 
     private static IHistoryRepository CreateRepository()
     {

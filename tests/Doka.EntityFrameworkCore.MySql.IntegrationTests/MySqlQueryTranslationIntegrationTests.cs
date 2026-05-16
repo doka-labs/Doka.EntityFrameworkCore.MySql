@@ -9,7 +9,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
 {
     private const string TableName = "IntQueryItems";
 
-    // ── String Methods ──
+    // -- String Methods --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task String_methods_execute_correctly_on_mysql84()
@@ -78,7 +78,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
                 .CountAsync();
             Assert.Equal(1, endsResult);
 
-            // ToUpper/ToLower run inside an IQueryable expression tree — EF translates
+            // ToUpper/ToLower run inside an IQueryable expression tree -- EF translates
             // them to UPPER()/LOWER() SQL, the CLR culture is never consulted.
 #pragma warning disable CA1304, CA1311
             var upperName = await context
@@ -135,7 +135,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
         }
     }
 
-    // ── DateTime Arithmetic ──
+    // -- DateTime Arithmetic --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task DateTime_arithmetic_executes_correctly_on_mysql84()
@@ -187,7 +187,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
         }
     }
 
-    // ── Math Functions ──
+    // -- Math Functions --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Math_functions_execute_correctly_on_mysql84()
@@ -240,7 +240,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
         }
     }
 
-    // ── GROUP_CONCAT ──
+    // -- GROUP_CONCAT --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Group_concat_executes_on_mysql84()
@@ -313,7 +313,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
         }
     }
 
-    // ── REGEXP ──
+    // -- REGEXP --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Regexp_executes_on_mysql84()
@@ -369,7 +369,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
         }
     }
 
-    // ── JSON Functions ──
+    // -- JSON Functions --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Json_depth_and_length_execute_on_mysql84()
@@ -412,7 +412,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
         }
     }
 
-    // ── Helpers ──
+    // -- Helpers --
 
     private static DbContextOptions<QueryContext> CreateOptions(
         string connectionString,

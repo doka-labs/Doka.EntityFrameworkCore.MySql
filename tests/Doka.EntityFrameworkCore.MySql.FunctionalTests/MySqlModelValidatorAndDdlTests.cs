@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// </summary>
 public sealed class MySqlModelValidatorAndDdlTests
 {
-    // ── Sequence DDL: Drop ──
+    // -- Sequence DDL: Drop --
 
     [Fact]
     public void DropSequence_generates_mysql_drop_table_for_emulated_sequence()
@@ -36,7 +36,7 @@ public sealed class MySqlModelValidatorAndDdlTests
         Assert.Contains("`TestSequence`", sql, StringComparison.Ordinal);
     }
 
-    // ── Sequence DDL: Create ──
+    // -- Sequence DDL: Create --
 
     [Fact]
     public void CreateSequence_generates_mysql_table_emulation()
@@ -80,7 +80,7 @@ public sealed class MySqlModelValidatorAndDdlTests
         Assert.Contains("INCREMENT BY 5", sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── Sequence DDL: Rename ──
+    // -- Sequence DDL: Rename --
 
     [Fact]
     public void RenameSequence_generates_mysql_rename_table()
@@ -101,7 +101,7 @@ public sealed class MySqlModelValidatorAndDdlTests
         Assert.Contains("__efsequence_NewSeq", sql, StringComparison.Ordinal);
     }
 
-    // ── ServerCapabilities Boundaries ──
+    // -- ServerCapabilities Boundaries --
 
     /// <summary>MySQL 5.6 does not support native JSON (introduced in 5.7).</summary>
     [Fact]
@@ -200,7 +200,7 @@ public sealed class MySqlModelValidatorAndDdlTests
         Assert.True(caps.UsesJsonAliasForJsonColumns);
     }
 
-    // ── Helpers ──
+    // -- Helpers --
 
     private static DdlTestContext CreateMySqlContext()
     {

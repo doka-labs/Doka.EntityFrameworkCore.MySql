@@ -10,7 +10,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// </summary>
 public sealed class MySqlJsonTypeMappingTests
 {
-    // ── ValueConverter Round-Trip Tests ──
+    // -- ValueConverter Round-Trip Tests --
 
     /// <summary>
     /// JsonElement property preserves json column type, CLR type, and has an embedded converter.
@@ -102,7 +102,7 @@ public sealed class MySqlJsonTypeMappingTests
         Assert.Equal(typeof(JsonArray), typeMapping.Converter.ModelClrType);
     }
 
-    // ── ValueConverter Serialization/Deserialization Tests ──
+    // -- ValueConverter Serialization/Deserialization Tests --
 
     /// <summary>
     /// JsonElement ValueConverter round-trips through string correctly.
@@ -143,7 +143,7 @@ public sealed class MySqlJsonTypeMappingTests
         Assert.Equal(original!.ToJsonString(), deserialized!.ToJsonString());
     }
 
-    // ── ValueComparer Deep-Equality Tests ──
+    // -- ValueComparer Deep-Equality Tests --
 
     /// <summary>
     /// JsonElement ValueComparer detects content equality, not reference equality.
@@ -225,7 +225,7 @@ public sealed class MySqlJsonTypeMappingTests
         Assert.Equal(typeof(JsonNode), typeMapping.Comparer.Type);
     }
 
-    // ── string property still works with json store type ──
+    // -- string property still works with json store type --
 
     /// <summary>
     /// A string property with json column type still works without a converter.
@@ -241,7 +241,7 @@ public sealed class MySqlJsonTypeMappingTests
         Assert.Equal(typeof(string), property.ClrType);
     }
 
-    // ── Helpers ──
+    // -- Helpers --
 
     private static TContext CreateContext<TContext>()
         where TContext : DbContext
@@ -253,7 +253,7 @@ public sealed class MySqlJsonTypeMappingTests
         return (TContext)Activator.CreateInstance(typeof(TContext), builder.Options)!;
     }
 
-    // ── Entity + Context definitions ──
+    // -- Entity + Context definitions --
 
     private sealed class JsonElementEntity
     {

@@ -56,7 +56,7 @@ internal sealed class MySqlStringAggregateTranslator : IAggregateMethodCallTrans
             return null;
         }
 
-        // string.Join(separator, source) → GROUP_CONCAT(selector SEPARATOR separator)
+        // string.Join(separator, source) -> GROUP_CONCAT(selector SEPARATOR separator)
         // Uses a sentinel name that MySqlQuerySqlGenerator intercepts to emit
         // the correct SEPARATOR keyword syntax instead of a comma-separated argument list.
         var separator = arguments[0];

@@ -1,7 +1,7 @@
 using Doka.EntityFrameworkCore.MySql;
 using Microsoft.EntityFrameworkCore;
 
-// ── Getting Started with Doka.EntityFrameworkCore.MySql ──
+// -- Getting Started with Doka.EntityFrameworkCore.MySql --
 //
 // This example demonstrates the minimal setup for using the Doka MySQL provider:
 // 1. Configure UseMySql() with a connection string and server version
@@ -31,7 +31,7 @@ context.SaveChanges();
 var products = context.Products.ToList();
 foreach (var product in products)
 {
-    Console.WriteLine($"Product #{product.Id}: {product.Name} — {product.Price:C}");
+    Console.WriteLine($"Product #{product.Id}: {product.Name} -- {product.Price:C}");
 }
 
 // Clean up.
@@ -39,7 +39,7 @@ context.Database.EnsureDeleted();
 
 Console.WriteLine("Getting started example completed successfully.");
 
-// ── DbContext ──
+// -- DbContext --
 
 public class AppDbContext : DbContext
 {
@@ -59,7 +59,7 @@ public class AppDbContext : DbContext
     }
 }
 
-// ── Entity ──
+// -- Entity --
 
 public class Product
 {

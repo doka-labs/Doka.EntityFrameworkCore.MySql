@@ -1,7 +1,7 @@
 using Doka.EntityFrameworkCore.MySql;
 using Microsoft.EntityFrameworkCore;
 
-// ── Retry and Resilience with Doka.EntityFrameworkCore.MySql ──
+// -- Retry and Resilience with Doka.EntityFrameworkCore.MySql --
 //
 // Demonstrates: EnableRetryOnFailure(), transient error handling, connection timeout configuration.
 

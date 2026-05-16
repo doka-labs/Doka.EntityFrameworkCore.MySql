@@ -1,6 +1,6 @@
-# D-001 — EF-Core-Service-Decorator-Coupling
+# D-001 -- EF-Core-Service-Decorator-Coupling
 
-- **Status:** Accepted — implementation deferred to a follow-up commit
+- **Status:** Accepted -- implementation deferred to a follow-up commit
 - **Date:** 2026-05-16
 - **Scope:** `MySqlServiceCollectionExtensions` runtime + design-time service composition
 
@@ -51,20 +51,20 @@ The helper:
 - Captures the existing `ServiceDescriptor` for `TService`.
 - Re-instantiates the inner service through `ActivatorUtilities.CreateInstance`
   *and* hard-fails with an actionable diagnostic when the inner constructor
-  cannot be satisfied — instead of silently returning a no-arg fallback.
+  cannot be satisfied -- instead of silently returning a no-arg fallback.
 - Carries the single `#pragma warning disable EF1001` for the entire decorator
   surface, so the pragma is not sprinkled across consumers.
 - Is exercised by a `RuntimeSmoke` test that resolves the decorated service
   from `BuildServiceProvider()` and asserts the resolved instance is the Doka
   decorator type (and its inner reference is the EF Core default).
 
-`MySqlServiceCollectionExtensions` then reduces to two `Decorate<…>(…)` calls.
+`MySqlServiceCollectionExtensions` then reduces to two `Decorate<...>(...)` calls.
 
 ## Consequences
 
 ### Positive
 
-- Single point of EF1001 contact — every patch-coupled call site lives in one
+- Single point of EF1001 contact -- every patch-coupled call site lives in one
   helper that the EF-Core-Patch-Matrix-CI exercises explicitly.
 - Hard-fail diagnostic on constructor mismatch replaces the silent no-op
   fallback that the current inline pattern degrades to.
@@ -78,7 +78,7 @@ The helper:
 - Adds one indirection between the registration call site and the actual
   `services.Replace(...)` invocation. Stack traces during DI resolution include
   the helper frame.
-- The helper itself is `EF1001` surface — a patch release can in principle
+- The helper itself is `EF1001` surface -- a patch release can in principle
   invalidate the helper just as easily as the inline pattern. The
   `efcore-patch-matrix-ci` foundation (id=9) is the structural mitigation.
 

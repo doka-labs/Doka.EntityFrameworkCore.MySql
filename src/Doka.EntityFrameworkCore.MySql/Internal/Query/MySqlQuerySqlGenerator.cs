@@ -28,8 +28,8 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         {
             case { Name: "__mysql_regexp", Arguments.Count: 2 }:
                 {
-                    // MySQL 8.0+: REGEXP_LIKE(input, pattern) — scalar function
-                    // MariaDB: input REGEXP pattern — infix operator (REGEXP_LIKE does not exist)
+                    // MySQL 8.0+: REGEXP_LIKE(input, pattern) -- scalar function
+                    // MariaDB: input REGEXP pattern -- infix operator (REGEXP_LIKE does not exist)
                     var isMariaDb = _singletonOptions.ServerVersion?.IsMariaDb == true;
 
                     if (!isMariaDb)
@@ -71,7 +71,7 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
 
             case { Name: "__mysql_group_concat", Arguments.Count: 2 }:
                 {
-                    // GROUP_CONCAT(expr SEPARATOR sep) — MySQL requires the SEPARATOR keyword;
+                    // GROUP_CONCAT(expr SEPARATOR sep) -- MySQL requires the SEPARATOR keyword;
                     // a standard comma-separated argument list is invalid syntax.
                     Sql.Append("GROUP_CONCAT(");
                     Visit(sqlFunctionExpression.Arguments[0]);
@@ -188,7 +188,7 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         string propertyName
     )
     {
-        // Escape backslashes first — in MySQL's default SQL mode (NO_BACKSLASH_ESCAPES
+        // Escape backslashes first -- in MySQL's default SQL mode (NO_BACKSLASH_ESCAPES
         // absent), a raw backslash in a string literal is treated as an escape prefix.
         // Without doubling, 'path\segment' would be parsed as '$.pathsegment'.
         // Then double any single quotes to prevent premature termination of the

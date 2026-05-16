@@ -8,7 +8,7 @@ public sealed class MySqlAdvisoryLockConnectionTests
 {
     /// <summary>
     /// Verifies that MySqlConnectionStringBuilder with Pooling=false
-    /// produces a connection string that disables pooling — this is the
+    /// produces a connection string that disables pooling -- this is the
     /// exact setup used by MySqlMigrationsDatabaseLock.CreateDedicatedConnection.
     /// </summary>
     [Fact]
@@ -44,7 +44,7 @@ public sealed class MySqlAdvisoryLockConnectionTests
 
     /// <summary>
     /// Verifies that GET_LOCK returning 0 flows through MySqlScalarConvert.ToBoolean
-    /// as false — this is the exact gate that causes AcquireLock to throw TimeoutException.
+    /// as false -- this is the exact gate that causes AcquireLock to throw TimeoutException.
     /// </summary>
     [Theory]
     [InlineData(0L)]

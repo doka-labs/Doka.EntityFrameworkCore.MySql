@@ -132,7 +132,7 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
         }
         catch
         {
-            // Inside an exception filter — must not throw. Fall through to soft cancellation
+            // Inside an exception filter -- must not throw. Fall through to soft cancellation
             // with safe defaults.
         }
 
@@ -164,7 +164,7 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
         }
         catch
         {
-            // Inside an exception filter — must not throw.
+            // Inside an exception filter -- must not throw.
         }
 
         MySqlLoggerMessages.CommandTimeoutExhausted(_logger, "Unknown", commandTimeout, connectionState, exception);

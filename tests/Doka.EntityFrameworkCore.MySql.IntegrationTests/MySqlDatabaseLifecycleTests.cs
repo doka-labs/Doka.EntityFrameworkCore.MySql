@@ -7,7 +7,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// </summary>
 public sealed class MySqlDatabaseLifecycleTests
 {
-    // ── Database Creator: Exists returns true for existing database ──
+    // -- Database Creator: Exists returns true for existing database --
 
     /// <summary>
     /// Verifies that Exists returns true for the existing Docker-provisioned database.
@@ -26,7 +26,7 @@ public sealed class MySqlDatabaseLifecycleTests
                 .ConfigureAwait(false));
     }
 
-    // ── Advisory Lock: GET_LOCK / RELEASE_LOCK ──
+    // -- Advisory Lock: GET_LOCK / RELEASE_LOCK --
 
     /// <summary>
     /// Verifies advisory lock acquire and release on MySQL with IS_USED_LOCK verification.
@@ -192,7 +192,7 @@ public sealed class MySqlDatabaseLifecycleTests
         }
     }
 
-    // ── Sequence Value Generation: Table-Based Emulation ──
+    // -- Sequence Value Generation: Table-Based Emulation --
 
     /// <summary>
     /// Verifies that the table-based sequence emulation creates the sequence table and fetches values.
@@ -247,7 +247,7 @@ public sealed class MySqlDatabaseLifecycleTests
         }
     }
 
-    // ── MariaDB Native Sequence ──
+    // -- MariaDB Native Sequence --
 
     /// <summary>
     /// Verifies that native MariaDB sequences create and fetch values.
@@ -297,9 +297,9 @@ public sealed class MySqlDatabaseLifecycleTests
         }
     }
 
-    // ── Database Creator: Exists returns false for non-existent database ──
+    // -- Database Creator: Exists returns false for non-existent database --
 
-    // ── Helpers ──
+    // -- Helpers --
 
     private static DbContextOptions<LifecycleContext> CreateOptions(
         string connectionString
@@ -328,7 +328,7 @@ public sealed class MySqlDatabaseLifecycleTests
         return builder.Options;
     }
 
-    // ── Context ──
+    // -- Context --
 
     private sealed class LifecycleContext : DbContext
     {
@@ -356,7 +356,7 @@ public sealed class MySqlDatabaseLifecycleTests
         public string Name { get; set; } = string.Empty;
     }
 
-    // ── GUID entities ──
+    // -- GUID entities --
 
     private sealed class GuidBinEntity
     {

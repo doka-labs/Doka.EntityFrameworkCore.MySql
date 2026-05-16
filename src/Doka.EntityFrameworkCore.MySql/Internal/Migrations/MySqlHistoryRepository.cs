@@ -290,7 +290,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                 }
                 catch
                 {
-                    // Best-effort release — closing the dedicated connection will also
+                    // Best-effort release -- closing the dedicated connection will also
                     // release the session-scoped advisory lock.
                 }
 
@@ -315,7 +315,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                 }
                 catch
                 {
-                    // Best-effort release — closing the dedicated connection will also
+                    // Best-effort release -- closing the dedicated connection will also
                     // release the session-scoped advisory lock.
                 }
 

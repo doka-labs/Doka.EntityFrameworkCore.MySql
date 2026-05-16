@@ -5,7 +5,7 @@ internal static class IntegrationTestEnvironment
     private const string TargetSelectionVariable = "DOKA_INTEGRATION_TARGETS";
 
     // Use root credentials for repo-local Docker test containers. These are throwaway
-    // containers with no production data — root access simplifies tests that need
+    // containers with no production data -- root access simplifies tests that need
     // CREATE/DROP DATABASE, GRANT, or other elevated operations.
     private const string MySql80DefaultConnectionString =
         "Server=127.0.0.1;Port=33066;Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;";

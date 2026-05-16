@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// </summary>
 public sealed class MySqlQueryTranslationCoverageTests
 {
-    // ── DateTime.Add* Translations ──
+    // -- DateTime.Add* Translations --
 
     [Fact]
     public void DateTime_AddYears_translates_to_interval_year()
@@ -86,7 +86,7 @@ public sealed class MySqlQueryTranslationCoverageTests
         Assert.Contains("SECOND", sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── TimeSpan Member Translations ──
+    // -- TimeSpan Member Translations --
 
     [Fact]
     public void TimeSpan_TotalSeconds_translates_to_time_to_sec()
@@ -126,7 +126,7 @@ public sealed class MySqlQueryTranslationCoverageTests
         Assert.Contains("3600", sql, StringComparison.Ordinal);
     }
 
-    // ── String Method Translations ──
+    // -- String Method Translations --
 
     [Fact]
     public void String_TrimStart_translates_to_ltrim()
@@ -207,7 +207,7 @@ public sealed class MySqlQueryTranslationCoverageTests
     {
         using var context = CreateContext();
 
-        // string.Equals inside an IQueryable expression — EF translates it to a
+        // string.Equals inside an IQueryable expression -- EF translates it to a
         // server-side equality comparison; CLR StringComparison is not consulted.
 #pragma warning disable CA1309
         var sql = context
@@ -220,7 +220,7 @@ public sealed class MySqlQueryTranslationCoverageTests
         Assert.Contains("=", sql, StringComparison.Ordinal);
     }
 
-    // ── Math Function Translations ──
+    // -- Math Function Translations --
 
     [Fact]
     public void Math_Log10_translates_to_log10()
@@ -322,7 +322,7 @@ public sealed class MySqlQueryTranslationCoverageTests
         Assert.Contains("ROUND", sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── GROUP_CONCAT ──
+    // -- GROUP_CONCAT --
 
     [Fact]
     public void String_Join_translates_to_group_concat()
@@ -343,7 +343,7 @@ public sealed class MySqlQueryTranslationCoverageTests
         Assert.DoesNotContain("GROUP_CONCAT(`c`.`Name`, ", sql, StringComparison.Ordinal);
     }
 
-    // ── DateTime member translations ──
+    // -- DateTime member translations --
 
     [Fact]
     public void DateTime_Day_translates_to_day_function()
@@ -383,7 +383,7 @@ public sealed class MySqlQueryTranslationCoverageTests
 
     // DateTime.Now and DateTime.UtcNow already tested in MySqlQueryTranslationExtendedTests.
 
-    // ── Helpers ──
+    // -- Helpers --
 
     private static CoverageContext CreateContext()
     {

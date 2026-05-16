@@ -1,4 +1,4 @@
-# D-002 — Database-scoped Advisory-Lock-Naming
+# D-002 -- Database-scoped Advisory-Lock-Naming
 
 - **Status:** Accepted
 - **Date:** 2026-05-16

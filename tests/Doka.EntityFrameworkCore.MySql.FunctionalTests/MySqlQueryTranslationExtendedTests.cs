@@ -5,7 +5,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// </summary>
 public sealed class MySqlQueryTranslationExtendedTests
 {
-    // ── String Function Translations ──────────────────────────────
+    // -- String Function Translations ------------------------------
 
     /// <summary>
     /// String.Substring server translation.
@@ -29,7 +29,7 @@ public sealed class MySqlQueryTranslationExtendedTests
     {
         using var context = CreateContext();
 
-        // ToUpper/ToLower run inside an IQueryable expression tree — EF translates
+        // ToUpper/ToLower run inside an IQueryable expression tree -- EF translates
         // them to UPPER()/LOWER() SQL, the CLR culture is never consulted.
 #pragma warning disable CA1304, CA1311
         var upperSql = context
@@ -100,7 +100,7 @@ public sealed class MySqlQueryTranslationExtendedTests
         Assert.Contains("CONCAT", sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── DateTime Function Translations ────────────────────────────
+    // -- DateTime Function Translations ----------------------------
 
     /// <summary>
     /// DateTime.Now translates to NOW().
@@ -130,7 +130,7 @@ public sealed class MySqlQueryTranslationExtendedTests
         Assert.Contains("UTC_TIMESTAMP()", sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── Math Function Translations ────────────────────────────────
+    // -- Math Function Translations --------------------------------
 
     /// <summary>
     /// Math.Pow translates to POWER().
@@ -188,7 +188,7 @@ public sealed class MySqlQueryTranslationExtendedTests
         Assert.Contains("SIGN", sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── Like, Distinct, Query Tags, Subqueries ────────────────
+    // -- Like, Distinct, Query Tags, Subqueries ----------------
 
     /// <summary>
     /// EF.Functions.Like with escape character produces LIKE ... ESCAPE.
@@ -268,7 +268,7 @@ public sealed class MySqlQueryTranslationExtendedTests
     }
 
     /// <summary>
-    /// Ternary expression → CASE WHEN ... THEN ... ELSE ... END.
+    /// Ternary expression -> CASE WHEN ... THEN ... ELSE ... END.
     /// </summary>
     [Fact]
     public void Ternary_expression_translates_to_case_when()
@@ -285,7 +285,7 @@ public sealed class MySqlQueryTranslationExtendedTests
     }
 
     /// <summary>
-    /// Null coalesce ?? → COALESCE(a, b).
+    /// Null coalesce ?? -> COALESCE(a, b).
     /// </summary>
     [Fact]
     public void Null_coalesce_translates_to_coalesce()
@@ -392,7 +392,7 @@ public sealed class MySqlQueryTranslationExtendedTests
     }
 
     /// <summary>
-    /// JsonElement property → json column type.
+    /// JsonElement property -> json column type.
     /// </summary>
     [Fact]
     public void Json_element_property_maps_to_json_column()
@@ -405,7 +405,7 @@ public sealed class MySqlQueryTranslationExtendedTests
     }
 
     /// <summary>
-    /// Having clause after GroupBy → HAVING SQL.
+    /// Having clause after GroupBy -> HAVING SQL.
     /// </summary>
     [Fact]
     public void Groupby_with_having_produces_having_sql()
@@ -482,7 +482,7 @@ public sealed class MySqlQueryTranslationExtendedTests
     }
 
     /// <summary>
-    /// OrderByDescending + First → ORDER BY DESC LIMIT 1.
+    /// OrderByDescending + First -> ORDER BY DESC LIMIT 1.
     /// </summary>
     [Fact]
     public void Last_pattern_orderby_desc_take_1()
@@ -514,7 +514,7 @@ public sealed class MySqlQueryTranslationExtendedTests
     }
 
     /// <summary>
-    /// AutoInclude + IgnoreAutoIncludes — navigation configuration.
+    /// AutoInclude + IgnoreAutoIncludes -- navigation configuration.
     /// </summary>
     [Fact]
     public void Auto_include_can_be_configured()
@@ -603,7 +603,7 @@ public sealed class MySqlQueryTranslationExtendedTests
         Assert.DoesNotContain("REGEXP_LIKE", sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── Enum Query ──────────────────────────────────────────────────────
+    // -- Enum Query ------------------------------------------------------
 
     private enum QueryStatus
     {
@@ -722,7 +722,7 @@ public sealed class MySqlQueryTranslationExtendedTests
         return builder.Options;
     }
 
-    // ── AutoInclude ─────────────────────────────────────────────────────
+    // -- AutoInclude -----------------------------------------------------
 
     private sealed class AutoIncludeBlog
     {
@@ -776,7 +776,7 @@ public sealed class MySqlQueryTranslationExtendedTests
     // Duplicate of Last_pattern_orderby_desc_take_1 removed.
 
     /// <summary>
-    /// ElementAt(n) → OFFSET n LIMIT 1.
+    /// ElementAt(n) -> OFFSET n LIMIT 1.
     /// </summary>
     [Fact]
     public void Skip_take_1_produces_offset_limit()
@@ -792,7 +792,7 @@ public sealed class MySqlQueryTranslationExtendedTests
         Assert.Contains("OFFSET", sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // -- Helpers ----------------------------------------------------------
 
     private static DbContextOptions<JsonPropertyContext> CreateJsonOptions()
     {

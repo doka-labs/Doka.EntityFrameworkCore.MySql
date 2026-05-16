@@ -1,7 +1,7 @@
 using Doka.EntityFrameworkCore.MySql;
 using Microsoft.EntityFrameworkCore;
 
-// ── CRUD Operations with Doka.EntityFrameworkCore.MySql ──
+// -- CRUD Operations with Doka.EntityFrameworkCore.MySql --
 //
 // Demonstrates: Add, Update, Delete, Query with filtering, sorting, and pagination.
 
@@ -15,7 +15,7 @@ var options = new DbContextOptionsBuilder<CrudContext>()
 using var context = new CrudContext(options);
 context.Database.EnsureCreated();
 
-// ── CREATE ──
+// -- CREATE --
 context.Tasks.AddRange(
     new TaskItem { Title = "Buy groceries", Priority = 1, IsCompleted = false },
     new TaskItem { Title = "Write documentation", Priority = 3, IsCompleted = false },
@@ -26,14 +26,14 @@ context.Tasks.AddRange(
 context.SaveChanges();
 Console.WriteLine($"Created {context.Tasks.Count()} tasks.");
 
-// ── READ with filtering ──
+// -- READ with filtering --
 var openTasks = context.Tasks
     .Where(t => !t.IsCompleted)
     .OrderBy(t => t.Priority)
     .ToList();
 Console.WriteLine($"Open tasks (sorted by priority): {openTasks.Count}");
 
-// ── READ with pagination ──
+// -- READ with pagination --
 var page = context.Tasks
     .OrderBy(t => t.Id)
     .Skip(2)
@@ -41,14 +41,14 @@ var page = context.Tasks
     .ToList();
 Console.WriteLine($"Page 2 (2 items): {string.Join(", ", page.Select(t => t.Title))}");
 
-// ── UPDATE ──
+// -- UPDATE --
 var taskToUpdate = context.Tasks.First(t => t.Title == "Fix bug #42");
 taskToUpdate.IsCompleted = false;
 taskToUpdate.Priority = 1;
 context.SaveChanges();
-Console.WriteLine($"Updated '{taskToUpdate.Title}' — IsCompleted={taskToUpdate.IsCompleted}");
+Console.WriteLine($"Updated '{taskToUpdate.Title}' -- IsCompleted={taskToUpdate.IsCompleted}");
 
-// ── DELETE ──
+// -- DELETE --
 var taskToDelete = context.Tasks.First(t => t.Title == "Review PR");
 context.Tasks.Remove(taskToDelete);
 context.SaveChanges();
@@ -57,7 +57,7 @@ Console.WriteLine($"Deleted '{taskToDelete.Title}'. Remaining: {context.Tasks.Co
 context.Database.EnsureDeleted();
 Console.WriteLine("CRUD operations example completed successfully.");
 
-// ── DbContext ──
+// -- DbContext --
 
 public class CrudContext : DbContext
 {

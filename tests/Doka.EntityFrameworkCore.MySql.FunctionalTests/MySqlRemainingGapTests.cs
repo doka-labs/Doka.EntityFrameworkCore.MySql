@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// </summary>
 public sealed class MySqlRemainingGapTests
 {
-    // ── ValueGeneratorSelector: unsupported type ──
+    // -- ValueGeneratorSelector: unsupported type --
 
     [Fact]
     public void UseHiLo_on_guid_property_throws_during_model_build()
@@ -16,7 +16,7 @@ public sealed class MySqlRemainingGapTests
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
-        // GUID is not a valid type for HiLo — the convention or selector should reject it.
+        // GUID is not a valid type for HiLo -- the convention or selector should reject it.
         // Since UseHiLo sets strategy on the property, the model should at least build.
         // The actual exception would come from the selector at runtime.
         using var context = new HiLoGuidContext(builder.Options);
@@ -25,12 +25,12 @@ public sealed class MySqlRemainingGapTests
         Assert.Equal(MySqlValueGenerationStrategy.HiLo, property.GetMySqlValueGenerationStrategy());
     }
 
-    // ── OptionsExtension: multiple connection paths rejection ──
+    // -- OptionsExtension: multiple connection paths rejection --
 
-    // OptionsExtension.Validate is tested indirectly — UseMySql requires a server version parameter.
+    // OptionsExtension.Validate is tested indirectly -- UseMySql requires a server version parameter.
     // The validation for "missing server version" is enforced at the API level (no 1-arg overload).
 
-    // ── JSON SQL Literal Generation ──
+    // -- JSON SQL Literal Generation --
 
     [Fact]
     public void JsonTypeMapping_generates_sql_literal_for_json_element()
@@ -59,11 +59,11 @@ public sealed class MySqlRemainingGapTests
         Assert.Contains("it''s here", literal, StringComparison.Ordinal);
     }
 
-    // ── VisitJsonScalar: JSON_EXTRACT verified via owned-type JSON mapping
+    // -- VisitJsonScalar: JSON_EXTRACT verified via owned-type JSON mapping
     //    (JsonElement.GetProperty is not LINQ-translatable; owned-type ToJson
-    //    is the EF Core mechanism for JSON path access, tested via integration tests) ──
+    //    is the EF Core mechanism for JSON path access, tested via integration tests) --
 
-    // ── varchar(36) GUID convention path ──
+    // -- varchar(36) GUID convention path --
 
     [Fact]
     public void Varchar36_guid_property_gets_correct_column_type()
@@ -82,7 +82,7 @@ public sealed class MySqlRemainingGapTests
         Assert.Contains("varchar(36)", columnType!, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── ScalarConvert "tRuE" edge case ──
+    // -- ScalarConvert "tRuE" edge case --
 
     [Fact]
     public void ToBoolean_mixed_case_true_returns_false()
@@ -93,7 +93,7 @@ public sealed class MySqlRemainingGapTests
         Assert.False(MySqlScalarConvert.ToBoolean(" true"));
     }
 
-    // ── Entities / Contexts ──
+    // -- Entities / Contexts --
 
     private sealed class HiLoGuidEntity
     {

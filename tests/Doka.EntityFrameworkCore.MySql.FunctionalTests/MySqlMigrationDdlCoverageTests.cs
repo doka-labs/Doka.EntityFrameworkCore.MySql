@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// </summary>
 public sealed class MySqlMigrationDdlCoverageTests
 {
-    // ── RENAME TABLE ──
+    // -- RENAME TABLE --
 
     [Fact]
     public void RenameTable_generates_rename_table_sql()
@@ -27,7 +27,7 @@ public sealed class MySqlMigrationDdlCoverageTests
         Assert.Contains("`NewTable`", sql, StringComparison.Ordinal);
     }
 
-    // ── RENAME COLUMN ──
+    // -- RENAME COLUMN --
 
     [Fact]
     public void RenameColumn_generates_alter_table_rename_column_sql()
@@ -50,7 +50,7 @@ public sealed class MySqlMigrationDdlCoverageTests
         Assert.Contains("`NewCol`", sql, StringComparison.Ordinal);
     }
 
-    // ── ALTER SEQUENCE ──
+    // -- ALTER SEQUENCE --
 
     [Fact]
     public void AlterSequence_mysql_generates_comment()
@@ -89,7 +89,7 @@ public sealed class MySqlMigrationDdlCoverageTests
         Assert.Contains("INCREMENT BY 5", sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── SPATIAL INDEX ──
+    // -- SPATIAL INDEX --
 
     [Fact]
     public void CreateIndex_with_spatial_annotation_generates_spatial_index()
@@ -110,7 +110,7 @@ public sealed class MySqlMigrationDdlCoverageTests
         Assert.Contains("SPATIAL INDEX", sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── JSON translation gaps ──
+    // -- JSON translation gaps --
 
     [Fact]
     public void JsonReplace_translates_to_json_replace_sql()
@@ -124,7 +124,7 @@ public sealed class MySqlMigrationDdlCoverageTests
         Assert.Contains("JSON_REPLACE", sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── TimeOnly.AddHours / AddMinutes ──
+    // -- TimeOnly.AddHours / AddMinutes --
 
     [Fact]
     public void TimeOnly_AddHours_translates_to_interval_hour()
@@ -152,7 +152,7 @@ public sealed class MySqlMigrationDdlCoverageTests
         Assert.Contains("MINUTE", sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── ModelValidator: constraint name length ──
+    // -- ModelValidator: constraint name length --
 
     [Fact]
     public void Model_with_long_fk_name_builds_and_validator_rejects()
@@ -174,7 +174,7 @@ public sealed class MySqlMigrationDdlCoverageTests
         Assert.Contains("64", exception.Message, StringComparison.Ordinal);
     }
 
-    // ── HiLo for short type ──
+    // -- HiLo for short type --
 
     [Fact]
     public void UseHiLo_on_short_property_sets_strategy()
@@ -191,7 +191,7 @@ public sealed class MySqlMigrationDdlCoverageTests
         Assert.Equal(MySqlValueGenerationStrategy.HiLo, property.GetMySqlValueGenerationStrategy());
     }
 
-    // ── Helpers ──
+    // -- Helpers --
 
     private static string JoinSql(
         IReadOnlyList<MigrationCommand> commands
@@ -234,7 +234,7 @@ public sealed class MySqlMigrationDdlCoverageTests
         return new TemporalContext(builder.Options);
     }
 
-    // ── Entities / Contexts ──
+    // -- Entities / Contexts --
 
     private sealed class DdlCoverageContext : DbContext
     {

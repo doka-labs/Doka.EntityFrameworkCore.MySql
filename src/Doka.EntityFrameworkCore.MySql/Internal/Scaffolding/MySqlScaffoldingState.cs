@@ -2,7 +2,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Holds mutable scaffolding-pipeline state. This is a design-time singleton
-/// accessed only from the sequential scaffolding flow — no concurrent access.
+/// accessed only from the sequential scaffolding flow -- no concurrent access.
 /// </summary>
 internal sealed class MySqlScaffoldingState
 {

@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// </summary>
 public sealed class MySqlModelingBaselineTests
 {
-    // ── TPH ──────────────────────────────────────────────────────────────
+    // -- TPH --------------------------------------------------------------
 
     /// <summary>
     /// TPH produces a single table with discriminator column and nullable derived columns.
@@ -39,7 +39,7 @@ public sealed class MySqlModelingBaselineTests
     }
 
     /// <summary>
-    /// Three-level TPH hierarchy Animal → Mammal → Dog shares single table.
+    /// Three-level TPH hierarchy Animal -> Mammal -> Dog shares single table.
     /// </summary>
     [Fact]
     public void Tph_three_level_hierarchy_shares_single_table()
@@ -88,7 +88,7 @@ public sealed class MySqlModelingBaselineTests
         Assert.Contains("Canine", sql, StringComparison.Ordinal);
     }
 
-    // ── TPT ──────────────────────────────────────────────────────────────
+    // -- TPT --------------------------------------------------------------
 
     /// <summary>
     /// TPT produces separate tables with FK and LEFT JOIN query on base type.
@@ -123,7 +123,7 @@ public sealed class MySqlModelingBaselineTests
         Assert.Contains("Cars", sql, StringComparison.Ordinal);
     }
 
-    // ── TPC ──────────────────────────────────────────────────────────────
+    // -- TPC --------------------------------------------------------------
 
     /// <summary>
     /// TPC produces separate tables with ALL columns and UNION ALL query.
@@ -146,7 +146,7 @@ public sealed class MySqlModelingBaselineTests
         Assert.Contains("UNION ALL", sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── Owned Types ──────────────────────────────────────────────────────
+    // -- Owned Types ------------------------------------------------------
 
     /// <summary>
     /// OwnsOne same-table produces Navigation_Property column naming convention.
@@ -193,7 +193,7 @@ public sealed class MySqlModelingBaselineTests
         Assert.NotNull(phoneType.GetTableName());
     }
 
-    // ── Complex Types ────────────────────────────────────────────────────
+    // -- Complex Types ----------------------------------------------------
 
     [Fact]
     public void Complex_type_columns_are_flattened_into_owner_table()
@@ -210,7 +210,7 @@ public sealed class MySqlModelingBaselineTests
         Assert.NotNull(complexType.FindProperty(nameof(ComplexAddress.City)));
     }
 
-    // ── Discriminator Column Type ────────────────────────────────────────
+    // -- Discriminator Column Type ----------------------------------------
 
     /// <summary>
     /// String discriminator should produce varchar, not longtext.
@@ -223,16 +223,16 @@ public sealed class MySqlModelingBaselineTests
         var discriminator = baseType.FindDiscriminatorProperty()!;
         var columnType = discriminator.GetColumnType();
 
-        // Must not be longtext — should be varchar with a bounded length.
+        // Must not be longtext -- should be varchar with a bounded length.
         Assert.NotNull(columnType);
         Assert.DoesNotContain("longtext", columnType, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("varchar", columnType, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── Many-to-Many ────────────────────────────────────────────────────
+    // -- Many-to-Many ----------------------------------------------------
 
     /// <summary>
-    /// Implicit junction table DDL — composite PK, two FKs.
+    /// Implicit junction table DDL -- composite PK, two FKs.
     /// </summary>
     [Fact]
     public void Many_to_many_produces_implicit_junction_table()
@@ -255,7 +255,7 @@ public sealed class MySqlModelingBaselineTests
         Assert.NotNull(joinEntityType);
     }
 
-    // ── Cascade Delete ──────────────────────────────────────────────────
+    // -- Cascade Delete --------------------------------------------------
 
     /// <summary>
     /// ON DELETE CASCADE FK DDL verification.
@@ -272,7 +272,7 @@ public sealed class MySqlModelingBaselineTests
         Assert.Equal(DeleteBehavior.Cascade, fk.DeleteBehavior);
     }
 
-    // ── Self-Referencing FK ─────────────────────────────────────────────
+    // -- Self-Referencing FK ---------------------------------------------
 
     [Fact]
     public void Self_referencing_fk_produces_valid_model()
@@ -287,10 +287,10 @@ public sealed class MySqlModelingBaselineTests
         Assert.Equal(typeof(Employee), fk.DeclaringEntityType.ClrType);
     }
 
-    // ── Additional Modeling Tests ──────────────────────────────────────
+    // -- Additional Modeling Tests --------------------------------------
 
     /// <summary>
-    /// Abstract base class in TPH — DeepAnimal is abstract, verified via model.
+    /// Abstract base class in TPH -- DeepAnimal is abstract, verified via model.
     /// </summary>
     [Fact]
     public void Tph_abstract_base_class_is_modeled()
@@ -303,7 +303,7 @@ public sealed class MySqlModelingBaselineTests
     }
 
     /// <summary>
-    /// TPT 3-level hierarchy — base + derived + leaf produces correct table count.
+    /// TPT 3-level hierarchy -- base + derived + leaf produces correct table count.
     /// </summary>
     [Fact]
     public void Tpt_three_level_hierarchy_produces_three_tables()
@@ -331,7 +331,7 @@ public sealed class MySqlModelingBaselineTests
     }
 
     /// <summary>
-    /// Discriminator with explicit HasMaxLength(64) → varchar(64).
+    /// Discriminator with explicit HasMaxLength(64) -> varchar(64).
     /// </summary>
     [Fact]
     public void Tph_discriminator_with_explicit_max_length_produces_correct_varchar()
@@ -420,7 +420,7 @@ public sealed class MySqlModelingBaselineTests
     }
 
     /// <summary>
-    /// Table splitting — two entity types share one table.
+    /// Table splitting -- two entity types share one table.
     /// </summary>
     [Fact]
     public void Table_splitting_shares_single_table()
@@ -435,7 +435,7 @@ public sealed class MySqlModelingBaselineTests
     }
 
     /// <summary>
-    /// Check constraint DDL — HasCheckConstraint produces valid model.
+    /// Check constraint DDL -- HasCheckConstraint produces valid model.
     /// </summary>
     [Fact]
     public void Check_constraint_is_preserved_in_model()
@@ -480,7 +480,7 @@ public sealed class MySqlModelingBaselineTests
     }
 
     /// <summary>
-    /// Enum HasConversion to string → varchar column.
+    /// Enum HasConversion to string -> varchar column.
     /// </summary>
     [Fact]
     public void Enum_to_string_conversion_produces_varchar_column()
@@ -493,7 +493,7 @@ public sealed class MySqlModelingBaselineTests
     }
 
     /// <summary>
-    /// SaveChanges on keyless entity model — keyless entity configured.
+    /// SaveChanges on keyless entity model -- keyless entity configured.
     /// </summary>
     [Fact]
     public void Keyless_entity_is_modeled_without_key()
@@ -505,7 +505,7 @@ public sealed class MySqlModelingBaselineTests
     }
 
     /// <summary>
-    /// NRT — scaffolded non-nullable column produces non-nullable CLR property model.
+    /// NRT -- scaffolded non-nullable column produces non-nullable CLR property model.
     /// </summary>
     [Fact]
     public void Non_nullable_property_is_modeled_as_required()
@@ -517,7 +517,7 @@ public sealed class MySqlModelingBaselineTests
         Assert.False(nameProperty.IsNullable);
     }
 
-    // ── Additional Context Definitions ───────────────────────────────────
+    // -- Additional Context Definitions -----------------------------------
 
     // Table splitting
     private sealed class OrderHeader
@@ -862,7 +862,7 @@ public sealed class MySqlModelingBaselineTests
     }
 
     /// <summary>
-    /// Entity splitting — one entity maps to two tables.
+    /// Entity splitting -- one entity maps to two tables.
     /// </summary>
     [Fact]
     public void Entity_splitting_maps_to_two_tables()
@@ -927,7 +927,7 @@ public sealed class MySqlModelingBaselineTests
     }
 
     /// <summary>
-    /// Lazy loading — verifies model accepts proxy configuration.
+    /// Lazy loading -- verifies model accepts proxy configuration.
     /// Note: actual proxy loading requires live DB, but model configuration can be verified.
     /// </summary>
     [Fact]
@@ -942,7 +942,7 @@ public sealed class MySqlModelingBaselineTests
     }
 
     /// <summary>
-    /// Sequence value generator — MySQL atomic increment SQL pattern.
+    /// Sequence value generator -- MySQL atomic increment SQL pattern.
     /// </summary>
     [Fact]
     public void Sequence_value_generator_produces_correct_mysql_sql()
@@ -985,7 +985,7 @@ public sealed class MySqlModelingBaselineTests
     }
 
     /// <summary>
-    /// HasDefaultValue(42) → literal default.
+    /// HasDefaultValue(42) -> literal default.
     /// </summary>
     [Fact]
     public void Has_default_value_literal_is_preserved()
@@ -1009,7 +1009,7 @@ public sealed class MySqlModelingBaselineTests
     }
 
     /// <summary>
-    /// HasDbFunction — user-defined scalar function mapping.
+    /// HasDbFunction -- user-defined scalar function mapping.
     /// </summary>
     [Fact]
     public void Has_db_function_is_preserved_in_model()
@@ -1081,7 +1081,7 @@ public sealed class MySqlModelingBaselineTests
         Assert.Equal("Feline", catType.GetDiscriminatorValue());
     }
 
-    // ── SetNull Context ─────────────────────────────────────────────────
+    // -- SetNull Context -------------------------------------------------
 
     private sealed class PostWithComments
     {
@@ -1131,7 +1131,7 @@ public sealed class MySqlModelingBaselineTests
         }
     }
 
-    // ── DbFunction Context ──────────────────────────────────────────────
+    // -- DbFunction Context ----------------------------------------------
 
     private sealed class DbFunctionEntity
     {
@@ -1164,7 +1164,7 @@ public sealed class MySqlModelingBaselineTests
         }
     }
 
-    // ── Entity Splitting ────────────────────────────────────────────────
+    // -- Entity Splitting ------------------------------------------------
 
     private sealed class SplitProduct
     {
@@ -1200,7 +1200,7 @@ public sealed class MySqlModelingBaselineTests
         }
     }
 
-    // ── Seed Data ────────────────────────────────────────────────────────
+    // -- Seed Data --------------------------------------------------------
 
     private sealed class SeedEntity
     {
@@ -1238,7 +1238,7 @@ public sealed class MySqlModelingBaselineTests
         }
     }
 
-    // ── Int Discriminator ────────────────────────────────────────────────
+    // -- Int Discriminator ------------------------------------------------
 
     private abstract class IntAnimal
     {
@@ -1273,7 +1273,7 @@ public sealed class MySqlModelingBaselineTests
         }
     }
 
-    // ── Helper ──────────────────────────────────────────────────────────
+    // -- Helper ----------------------------------------------------------
 
     private static DbContextOptions<TContext> CreateOptions<TContext>()
         where TContext : DbContext
@@ -1287,7 +1287,7 @@ public sealed class MySqlModelingBaselineTests
         return builder.Options;
     }
 
-    // ── TPH Entities ────────────────────────────────────────────────────
+    // -- TPH Entities ----------------------------------------------------
 
     private abstract class Animal
     {
@@ -1332,7 +1332,7 @@ public sealed class MySqlModelingBaselineTests
         }
     }
 
-    // ── TPH Deep Hierarchy ──────────────────────────────────────────────
+    // -- TPH Deep Hierarchy ----------------------------------------------
 
     private abstract class DeepAnimal
     {
@@ -1370,7 +1370,7 @@ public sealed class MySqlModelingBaselineTests
         }
     }
 
-    // ── TPT Entities ────────────────────────────────────────────────────
+    // -- TPT Entities ----------------------------------------------------
 
     private abstract class Vehicle
     {
@@ -1415,7 +1415,7 @@ public sealed class MySqlModelingBaselineTests
         }
     }
 
-    // ── TPC Entities ────────────────────────────────────────────────────
+    // -- TPC Entities ----------------------------------------------------
 
     private abstract class Shape
     {
@@ -1458,7 +1458,7 @@ public sealed class MySqlModelingBaselineTests
         }
     }
 
-    // ── Owned Types Entities ────────────────────────────────────────────
+    // -- Owned Types Entities --------------------------------------------
 
     private sealed class Customer
     {
@@ -1502,7 +1502,7 @@ public sealed class MySqlModelingBaselineTests
         }
     }
 
-    // ── Complex Types Entities ───────────────────────────────────────────
+    // -- Complex Types Entities -------------------------------------------
 
     private sealed class Order
     {
@@ -1539,7 +1539,7 @@ public sealed class MySqlModelingBaselineTests
         }
     }
 
-    // ── Many-to-Many Entities ───────────────────────────────────────────
+    // -- Many-to-Many Entities -------------------------------------------
 
     private sealed class Student
     {
@@ -1581,7 +1581,7 @@ public sealed class MySqlModelingBaselineTests
         }
     }
 
-    // ── Cascade Delete Entities ─────────────────────────────────────────
+    // -- Cascade Delete Entities -----------------------------------------
 
     private sealed class Blog
     {
@@ -1625,7 +1625,7 @@ public sealed class MySqlModelingBaselineTests
         }
     }
 
-    // ── Self-Referencing Entities ────────────────────────────────────────
+    // -- Self-Referencing Entities ----------------------------------------
 
     private sealed class Employee
     {
