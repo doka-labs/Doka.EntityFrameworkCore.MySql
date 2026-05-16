@@ -20,14 +20,15 @@ internal static class SpatialColumnLoader
         }
 
         using var command = context.Connection.CreateCommand();
-        var sql = new StringBuilder("""
-                                    SELECT
-                                        TABLE_NAME,
-                                        COLUMN_NAME,
-                                        SRS_ID
-                                    FROM information_schema.ST_GEOMETRY_COLUMNS
-                                    WHERE TABLE_SCHEMA = DATABASE()
-                                    """);
+        var sql = new StringBuilder(
+            """
+            SELECT
+                TABLE_NAME,
+                COLUMN_NAME,
+                SRS_ID
+            FROM information_schema.ST_GEOMETRY_COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+            """);
 
         ScaffoldingHelpers.AppendTableNameFilter(sql, command, context.TableFilter);
         sql.Append(" ORDER BY TABLE_NAME, COLUMN_NAME;");
@@ -39,7 +40,8 @@ internal static class SpatialColumnLoader
         {
             var tableName = reader.GetString(0);
 
-            if (!context.TableFilter.Matches(tableName) || reader.IsDBNull(2))
+            if (!context.TableFilter.Matches(tableName)
+                || reader.IsDBNull(2))
             {
                 continue;
             }

@@ -63,13 +63,12 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
                 typeof(int),
             ])!;
 
-    private static readonly MethodInfo s_replaceMethod =
-        typeof(string).GetRuntimeMethod(
-            nameof(string.Replace),
-            [
-                typeof(string),
-                typeof(string),
-            ])!;
+    private static readonly MethodInfo s_replaceMethod = typeof(string).GetRuntimeMethod(
+        nameof(string.Replace),
+        [
+            typeof(string),
+            typeof(string),
+        ])!;
 
     private static readonly MethodInfo s_toLowerMethod =
         typeof(string).GetRuntimeMethod(nameof(string.ToLower), Type.EmptyTypes)!;

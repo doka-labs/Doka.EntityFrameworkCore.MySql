@@ -27,9 +27,7 @@ internal static class MySqlHiLoStateCache
         ArgumentException.ThrowIfNullOrWhiteSpace(sequenceName);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(blockSize);
 
-        return s_states.GetOrAdd(
-            (sequenceName, blockSize),
-            static key => new HiLoValueGeneratorState(key.BlockSize));
+        return s_states.GetOrAdd((sequenceName, blockSize), static key => new HiLoValueGeneratorState(key.BlockSize));
     }
 
     /// <summary>

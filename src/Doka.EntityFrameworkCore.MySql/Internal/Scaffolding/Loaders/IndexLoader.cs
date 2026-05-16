@@ -18,20 +18,21 @@ internal static class IndexLoader
         ArgumentNullException.ThrowIfNull(context);
 
         using var command = context.Connection.CreateCommand();
-        var sql = new StringBuilder("""
-                                    SELECT
-                                        TABLE_NAME,
-                                        INDEX_NAME,
-                                        COLUMN_NAME,
-                                        NON_UNIQUE,
-                                        COLLATION,
-                                        SEQ_IN_INDEX,
-                                        INDEX_TYPE,
-                                        SUB_PART
-                                    FROM information_schema.STATISTICS
-                                    WHERE TABLE_SCHEMA = DATABASE()
-                                      AND INDEX_NAME <> 'PRIMARY'
-                                    """);
+        var sql = new StringBuilder(
+            """
+            SELECT
+                TABLE_NAME,
+                INDEX_NAME,
+                COLUMN_NAME,
+                NON_UNIQUE,
+                COLLATION,
+                SEQ_IN_INDEX,
+                INDEX_TYPE,
+                SUB_PART
+            FROM information_schema.STATISTICS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND INDEX_NAME <> 'PRIMARY'
+            """);
 
         ScaffoldingHelpers.AppendTableNameFilter(sql, command, context.TableFilter);
         sql.Append(" ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX;");
@@ -85,10 +86,10 @@ internal static class IndexLoader
                 index.SetAnnotation(MySqlAnnotationNames.SpatialIndex, true);
             }
 
-            var subPart = reader.IsDBNull(7) ? (int?)null : Convert.ToInt32(reader.GetValue(7), CultureInfo.InvariantCulture);
-            var lengths = prefixLengths.TryGetValue(key, out var list)
-                ? list
-                : prefixLengths[key] = new List<int>();
+            var subPart = reader.IsDBNull(7)
+                ? (int?)null
+                : Convert.ToInt32(reader.GetValue(7), CultureInfo.InvariantCulture);
+            var lengths = prefixLengths.TryGetValue(key, out var list) ? list : prefixLengths[key] = [];
 
             lengths.Add(subPart ?? 0);
         }

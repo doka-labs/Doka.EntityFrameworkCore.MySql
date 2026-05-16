@@ -168,17 +168,20 @@ internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
     {
         var clone = this;
 
-        if (keep != ConnectionPath.ConnectionString && !string.IsNullOrEmpty(ConnectionString))
+        if (keep != ConnectionPath.ConnectionString
+            && !string.IsNullOrEmpty(ConnectionString))
         {
             clone = (MySqlOptionsExtension)((RelationalOptionsExtension)clone).WithConnectionString(null);
         }
 
-        if (keep != ConnectionPath.Connection && Connection is not null)
+        if (keep != ConnectionPath.Connection
+            && Connection is not null)
         {
             clone = (MySqlOptionsExtension)((RelationalOptionsExtension)clone).WithConnection(null, owned: false);
         }
 
-        if (keep != ConnectionPath.DataSource && DataSource is not null)
+        if (keep != ConnectionPath.DataSource
+            && DataSource is not null)
         {
             clone.DataSource = null;
         }
@@ -227,8 +230,6 @@ internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
             return nameof(DbConnection);
         }
 
-        return !string.IsNullOrWhiteSpace(ConnectionString)
-            ? "ConnectionString"
-            : "Unconfigured";
+        return !string.IsNullOrWhiteSpace(ConnectionString) ? "ConnectionString" : "Unconfigured";
     }
 }

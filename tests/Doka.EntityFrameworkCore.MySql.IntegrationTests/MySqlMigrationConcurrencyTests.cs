@@ -27,10 +27,10 @@ public sealed class MySqlMigrationConcurrencyTests
 
         try
         {
-            await using var contextA = new LockContext(CreateOptions(
-                BuildConnectionString(baseConnectionString, dbNameA)));
-            await using var contextB = new LockContext(CreateOptions(
-                BuildConnectionString(baseConnectionString, dbNameB)));
+            await using var contextA =
+                new LockContext(CreateOptions(BuildConnectionString(baseConnectionString, dbNameA)));
+            await using var contextB =
+                new LockContext(CreateOptions(BuildConnectionString(baseConnectionString, dbNameB)));
 
             var historyA = contextA.GetService<IHistoryRepository>();
             var historyB = contextB.GetService<IHistoryRepository>();
@@ -38,14 +38,13 @@ public sealed class MySqlMigrationConcurrencyTests
             var acquireA = historyA.AcquireDatabaseLockAsync();
             var acquireB = historyB.AcquireDatabaseLockAsync();
 
-            await Task.WhenAll(acquireA, acquireB)
+            await Task
+                .WhenAll(acquireA, acquireB)
                 .WaitAsync(TimeSpan.FromSeconds(5))
                 .ConfigureAwait(false);
 
-            await using var lockA = await acquireA
-                .ConfigureAwait(false);
-            await using var lockB = await acquireB
-                .ConfigureAwait(false);
+            await using var lockA = await acquireA.ConfigureAwait(false);
+            await using var lockB = await acquireB.ConfigureAwait(false);
 
             Assert.NotNull(lockA);
             Assert.NotNull(lockB);

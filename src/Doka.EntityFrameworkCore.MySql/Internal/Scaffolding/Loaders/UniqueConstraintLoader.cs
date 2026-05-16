@@ -15,17 +15,18 @@ internal static class UniqueConstraintLoader
         ArgumentNullException.ThrowIfNull(context);
 
         using var command = context.Connection.CreateCommand();
-        var sql = new StringBuilder("""
-                                    SELECT
-                                        TABLE_NAME,
-                                        INDEX_NAME,
-                                        COLUMN_NAME,
-                                        SEQ_IN_INDEX
-                                    FROM information_schema.STATISTICS
-                                    WHERE TABLE_SCHEMA = DATABASE()
-                                      AND NON_UNIQUE = 0
-                                      AND INDEX_NAME <> 'PRIMARY'
-                                    """);
+        var sql = new StringBuilder(
+            """
+            SELECT
+                TABLE_NAME,
+                INDEX_NAME,
+                COLUMN_NAME,
+                SEQ_IN_INDEX
+            FROM information_schema.STATISTICS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND NON_UNIQUE = 0
+              AND INDEX_NAME <> 'PRIMARY'
+            """);
 
         ScaffoldingHelpers.AppendTableNameFilter(sql, command, context.TableFilter);
         sql.Append(" ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX;");

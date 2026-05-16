@@ -37,16 +37,13 @@ public class IdentifierQuotingBenchmark
     }
 
     [Benchmark]
-    public string DelimitStringPlain()
-        => _helper.DelimitIdentifier(PlainIdentifier);
+    public string DelimitStringPlain() => _helper.DelimitIdentifier(PlainIdentifier);
 
     [Benchmark]
-    public string DelimitStringBacktick()
-        => _helper.DelimitIdentifier(BacktickIdentifier);
+    public string DelimitStringBacktick() => _helper.DelimitIdentifier(BacktickIdentifier);
 
     [Benchmark]
-    public string DelimitStringSchemaPlain()
-        => _helper.DelimitIdentifier(PlainIdentifier, Schema);
+    public string DelimitStringSchemaPlain() => _helper.DelimitIdentifier(PlainIdentifier, Schema);
 
     [Benchmark]
     public int DelimitBuilderPlain()

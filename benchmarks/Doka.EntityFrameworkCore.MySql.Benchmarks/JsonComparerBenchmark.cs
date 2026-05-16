@@ -112,7 +112,8 @@ public class JsonComparerBenchmark
                 builder.Append(',');
             }
 
-            builder.Append("{\"id\":")
+            builder
+                .Append("{\"id\":")
                 .Append(i)
                 .Append(",\"name\":\"item-")
                 .Append(i)

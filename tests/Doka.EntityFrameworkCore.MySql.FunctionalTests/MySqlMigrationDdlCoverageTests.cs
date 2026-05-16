@@ -185,8 +185,7 @@ public sealed class MySqlMigrationDdlCoverageTests
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
         using var context = new HiLoShortContext(builder.Options);
-        var property = context.Model.FindEntityType(typeof(HiLoShortEntity))!
-            .FindProperty(nameof(HiLoShortEntity.Id))!;
+        var property = context.Model.FindEntityType(typeof(HiLoShortEntity))!.FindProperty(nameof(HiLoShortEntity.Id))!;
 
         Assert.Equal(MySqlValueGenerationStrategy.HiLo, property.GetMySqlValueGenerationStrategy());
     }
@@ -195,8 +194,7 @@ public sealed class MySqlMigrationDdlCoverageTests
 
     private static string JoinSql(
         IReadOnlyList<MigrationCommand> commands
-    )
-        => string.Join("\n", commands.Select(c => c.CommandText));
+    ) => string.Join("\n", commands.Select(c => c.CommandText));
 
     private static DdlCoverageContext CreateMySqlContext()
     {
@@ -286,7 +284,7 @@ public sealed class MySqlMigrationDdlCoverageTests
 
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
-        ) => modelBuilder.Entity<TemporalEntity>(e => { e.HasKey(x => x.Id); });
+        ) => modelBuilder.Entity<TemporalEntity>(e => e.HasKey(x => x.Id));
     }
 
     private sealed class TemporalEntity

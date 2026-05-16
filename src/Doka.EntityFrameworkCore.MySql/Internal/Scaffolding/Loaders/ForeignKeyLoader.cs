@@ -19,22 +19,23 @@ internal static class ForeignKeyLoader
         ArgumentNullException.ThrowIfNull(context);
 
         using var command = context.Connection.CreateCommand();
-        var sql = new StringBuilder("""
-                                    SELECT
-                                        source.TABLE_NAME,
-                                        source.CONSTRAINT_NAME,
-                                        source.COLUMN_NAME,
-                                        source.ORDINAL_POSITION,
-                                        source.REFERENCED_TABLE_NAME,
-                                        source.REFERENCED_COLUMN_NAME,
-                                        constraints.DELETE_RULE
-                                    FROM information_schema.KEY_COLUMN_USAGE AS source
-                                    INNER JOIN information_schema.REFERENTIAL_CONSTRAINTS AS constraints
-                                        ON constraints.CONSTRAINT_SCHEMA = source.CONSTRAINT_SCHEMA
-                                       AND constraints.CONSTRAINT_NAME = source.CONSTRAINT_NAME
-                                    WHERE source.TABLE_SCHEMA = DATABASE()
-                                      AND source.REFERENCED_TABLE_NAME IS NOT NULL
-                                    """);
+        var sql = new StringBuilder(
+            """
+            SELECT
+                source.TABLE_NAME,
+                source.CONSTRAINT_NAME,
+                source.COLUMN_NAME,
+                source.ORDINAL_POSITION,
+                source.REFERENCED_TABLE_NAME,
+                source.REFERENCED_COLUMN_NAME,
+                constraints.DELETE_RULE
+            FROM information_schema.KEY_COLUMN_USAGE AS source
+            INNER JOIN information_schema.REFERENTIAL_CONSTRAINTS AS constraints
+                ON constraints.CONSTRAINT_SCHEMA = source.CONSTRAINT_SCHEMA
+               AND constraints.CONSTRAINT_NAME = source.CONSTRAINT_NAME
+            WHERE source.TABLE_SCHEMA = DATABASE()
+              AND source.REFERENCED_TABLE_NAME IS NOT NULL
+            """);
 
         ScaffoldingHelpers.AppendTableNameFilter(sql, command, context.TableFilter, "source.TABLE_NAME");
         sql.Append(" ORDER BY source.TABLE_NAME, source.CONSTRAINT_NAME, source.ORDINAL_POSITION;");

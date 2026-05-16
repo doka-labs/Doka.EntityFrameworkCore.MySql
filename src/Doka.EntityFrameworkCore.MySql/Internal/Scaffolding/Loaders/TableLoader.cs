@@ -15,17 +15,18 @@ internal static class TableLoader
         ArgumentNullException.ThrowIfNull(context);
 
         using var command = context.Connection.CreateCommand();
-        var sql = new StringBuilder("""
-                                    SELECT
-                                        TABLE_NAME,
-                                        TABLE_COLLATION,
-                                        TABLE_COMMENT,
-                                        ENGINE,
-                                        TABLE_TYPE
-                                    FROM information_schema.TABLES
-                                    WHERE TABLE_SCHEMA = DATABASE()
-                                      AND TABLE_TYPE IN ('BASE TABLE', 'VIEW')
-                                    """);
+        var sql = new StringBuilder(
+            """
+            SELECT
+                TABLE_NAME,
+                TABLE_COLLATION,
+                TABLE_COMMENT,
+                ENGINE,
+                TABLE_TYPE
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_TYPE IN ('BASE TABLE', 'VIEW')
+            """);
 
         ScaffoldingHelpers.AppendTableNameFilter(sql, command, context.TableFilter);
         sql.Append(" ORDER BY TABLE_NAME;");

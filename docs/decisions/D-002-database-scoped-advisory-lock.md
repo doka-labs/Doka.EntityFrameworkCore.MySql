@@ -1,8 +1,9 @@
 # D-002 -- Database-scoped Advisory-Lock-Naming
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Date:** 2026-05-16
 - **Scope:** `MySqlHistoryRepository` migration serialization
+- **Implementation:** `src/Doka.EntityFrameworkCore.MySql/Internal/Migrations/MySqlAdvisoryLockNaming.cs` (commit `06812e0129a7`); `MySqlHistoryRepository` calls `MySqlAdvisoryLockNaming.BuildLockName(connectionString)` instead of the legacy `__ef_migrations_lock` constant; `GET_LOCK` and `RELEASE_LOCK` are invoked via parameterized SQL.
 
 ## Context
 

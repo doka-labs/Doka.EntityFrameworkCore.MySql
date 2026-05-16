@@ -63,11 +63,10 @@ internal sealed class MySqlStringAggregateTranslator : IAggregateMethodCallTrans
 
         return _sqlExpressionFactory.Function(
             "__mysql_group_concat",
-            new SqlExpression[]
-            {
+            [
                 selector,
-                separator
-            },
+                separator,
+            ],
             nullable: true,
             argumentsPropagateNullability:
             [

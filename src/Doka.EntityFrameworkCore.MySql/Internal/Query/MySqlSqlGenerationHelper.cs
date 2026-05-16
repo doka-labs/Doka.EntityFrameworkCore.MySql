@@ -137,7 +137,9 @@ internal sealed class MySqlSqlGenerationHelper : RelationalSqlGenerationHelper
             var character = identifier[index];
             if (character == '`')
             {
-                builder.Append('`').Append('`');
+                builder
+                    .Append('`')
+                    .Append('`');
             }
             else
             {

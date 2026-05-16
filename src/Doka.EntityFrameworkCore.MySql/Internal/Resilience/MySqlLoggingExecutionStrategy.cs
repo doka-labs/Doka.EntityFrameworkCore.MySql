@@ -192,7 +192,8 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
     /// </summary>
     private readonly record struct DiagnosticContext(
         ConnectionState ConnectionState,
-        int CommandTimeout)
+        int CommandTimeout
+    )
     {
         public static DiagnosticContext Unknown { get; } = new(ConnectionState.Closed, 0);
 

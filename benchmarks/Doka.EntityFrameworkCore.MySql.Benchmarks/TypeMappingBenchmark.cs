@@ -30,36 +30,28 @@ public class TypeMappingBenchmark
     }
 
     [Benchmark]
-    public RelationalTypeMapping? FindByStoreTypeVarchar()
-        => _source.FindMapping("varchar(255)");
+    public RelationalTypeMapping? FindByStoreTypeVarchar() => _source.FindMapping("varchar(255)");
 
     [Benchmark]
-    public RelationalTypeMapping? FindByStoreTypeDecimal()
-        => _source.FindMapping("decimal(18,2)");
+    public RelationalTypeMapping? FindByStoreTypeDecimal() => _source.FindMapping("decimal(18,2)");
 
     [Benchmark]
-    public RelationalTypeMapping? FindByStoreTypeDatetime()
-        => _source.FindMapping("datetime(6)");
+    public RelationalTypeMapping? FindByStoreTypeDatetime() => _source.FindMapping("datetime(6)");
 
     [Benchmark]
-    public RelationalTypeMapping? FindByStoreTypeLongtext()
-        => _source.FindMapping("longtext");
+    public RelationalTypeMapping? FindByStoreTypeLongtext() => _source.FindMapping("longtext");
 
     [Benchmark]
-    public RelationalTypeMapping? FindByClrTypeString()
-        => _source.FindMapping(typeof(string));
+    public RelationalTypeMapping? FindByClrTypeString() => _source.FindMapping(typeof(string));
 
     [Benchmark]
-    public RelationalTypeMapping? FindByClrTypeDecimal()
-        => _source.FindMapping(typeof(decimal));
+    public RelationalTypeMapping? FindByClrTypeDecimal() => _source.FindMapping(typeof(decimal));
 
     [Benchmark]
-    public RelationalTypeMapping? FindByClrTypeGuid()
-        => _source.FindMapping(typeof(Guid));
+    public RelationalTypeMapping? FindByClrTypeGuid() => _source.FindMapping(typeof(Guid));
 
     [Benchmark]
-    public RelationalTypeMapping? FindByClrTypeInt()
-        => _source.FindMapping(typeof(int));
+    public RelationalTypeMapping? FindByClrTypeInt() => _source.FindMapping(typeof(int));
 
     private sealed class MappingBenchmarkContext : DbContext
     {

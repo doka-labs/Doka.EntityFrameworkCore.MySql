@@ -160,12 +160,16 @@ internal static class ScaffoldingHelpers
         string columnReference = "TABLE_NAME"
     )
     {
-        if (filter.Tables is null || filter.Tables.Count == 0)
+        if (filter.Tables is null
+            || filter.Tables.Count == 0)
         {
             return 0;
         }
 
-        sql.Append(" AND ").Append(columnReference).Append(" IN (");
+        sql
+            .Append(" AND ")
+            .Append(columnReference)
+            .Append(" IN (");
 
         var index = 0;
         foreach (var tableName in filter.Tables)

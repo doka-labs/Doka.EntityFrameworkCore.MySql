@@ -49,7 +49,8 @@ internal static class MySqlAdvisoryLockNaming
         // negligible for the small set of databases an application is
         // realistically deployed against.
         var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(databaseName));
-        var suffix = Convert.ToHexString(hashBytes.AsSpan(0, 8))
+        var suffix = Convert
+            .ToHexString(hashBytes.AsSpan(0, 8))
             .ToLowerInvariant();
 
         return LockNamePrefix + suffix;

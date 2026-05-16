@@ -78,8 +78,7 @@ public sealed class MySqlHiLoConcurrencyTests
             .OpenAsync()
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
-        command.CommandText =
-            $"DROP TABLE IF EXISTS `{TableName}`;"
+        command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
             + $"DROP TABLE IF EXISTS `__efsequence_{SequenceName}`;"
             + $"CREATE TABLE `__efsequence_{SequenceName}` (`value` BIGINT NOT NULL) ENGINE=InnoDB;"
             + $"INSERT INTO `__efsequence_{SequenceName}` (`value`) VALUES (0);"
@@ -102,8 +101,7 @@ public sealed class MySqlHiLoConcurrencyTests
             .OpenAsync()
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
-        command.CommandText =
-            $"DROP TABLE IF EXISTS `{TableName}`;"
+        command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
             + $"DROP TABLE IF EXISTS `__efsequence_{SequenceName}`;";
         await command
             .ExecuteNonQueryAsync()
@@ -135,7 +133,9 @@ public sealed class MySqlHiLoConcurrencyTests
                 builder
                     .Property(e => e.Id)
                     .UseHiLo(SequenceName);
-                builder.Property(e => e.Name).HasMaxLength(64);
+                builder
+                    .Property(e => e.Name)
+                    .HasMaxLength(64);
             });
         }
     }

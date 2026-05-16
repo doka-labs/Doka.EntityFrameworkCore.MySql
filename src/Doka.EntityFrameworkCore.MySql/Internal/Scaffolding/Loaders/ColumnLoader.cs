@@ -20,21 +20,22 @@ internal static class ColumnLoader
         ArgumentNullException.ThrowIfNull(context);
 
         using var command = context.Connection.CreateCommand();
-        var sql = new StringBuilder("""
-                                    SELECT
-                                        TABLE_NAME,
-                                        COLUMN_NAME,
-                                        IS_NULLABLE,
-                                        COLUMN_TYPE,
-                                        DATA_TYPE,
-                                        COLUMN_DEFAULT,
-                                        EXTRA,
-                                        GENERATION_EXPRESSION,
-                                        COLUMN_COMMENT,
-                                        COLLATION_NAME
-                                    FROM information_schema.COLUMNS
-                                    WHERE TABLE_SCHEMA = DATABASE()
-                                    """);
+        var sql = new StringBuilder(
+            """
+            SELECT
+                TABLE_NAME,
+                COLUMN_NAME,
+                IS_NULLABLE,
+                COLUMN_TYPE,
+                DATA_TYPE,
+                COLUMN_DEFAULT,
+                EXTRA,
+                GENERATION_EXPRESSION,
+                COLUMN_COMMENT,
+                COLLATION_NAME
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+            """);
 
         ScaffoldingHelpers.AppendTableNameFilter(sql, command, context.TableFilter);
         sql.Append(" ORDER BY TABLE_NAME, ORDINAL_POSITION;");

@@ -98,7 +98,8 @@ public sealed class MySqlOptionsRegistrationTests
 
         public ScaffoldedModel GenerateModel(
             IModel model,
-            ModelCodeGenerationOptions options) => throw new NotSupportedException("Test stub.");
+            ModelCodeGenerationOptions options
+        ) => throw new NotSupportedException("Test stub.");
     }
 #pragma warning restore EF1001
 

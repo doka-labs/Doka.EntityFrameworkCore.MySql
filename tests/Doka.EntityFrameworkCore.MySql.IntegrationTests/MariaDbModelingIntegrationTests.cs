@@ -38,7 +38,10 @@ public sealed class MariaDbModelingIntegrationTests
             Assert.Equal("Shepherd", dogs[0].Breed);
             Assert.Equal(2, await context.Animals.CountAsync());
         }
-        finally { await CleanupAsync(context, "MdbTphAnimals"); }
+        finally
+        {
+            await CleanupAsync(context, "MdbTphAnimals");
+        }
     }
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
@@ -61,7 +64,10 @@ public sealed class MariaDbModelingIntegrationTests
             Assert.Equal("Audi", car.Make);
             Assert.Equal(4, car.SeatCount);
         }
-        finally { await CleanupAsync(context, "MdbTptCars", "MdbTptVehicles"); }
+        finally
+        {
+            await CleanupAsync(context, "MdbTptCars", "MdbTptVehicles");
+        }
     }
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
@@ -76,13 +82,25 @@ public sealed class MariaDbModelingIntegrationTests
 
         try
         {
-            context.Customers.Add(new OwnedCustomer { Name = "Bob", Address = new OwnedAddress { Street = "Hauptstr. 1", City = "Munich" } });
+            context.Customers.Add(
+                new OwnedCustomer
+                {
+                    Name = "Bob",
+                    Address = new OwnedAddress
+                    {
+                        Street = "Hauptstr. 1",
+                        City = "Munich",
+                    },
+                });
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
             var c = await context.Customers.FirstAsync();
             Assert.Equal("Munich", c.Address!.City);
         }
-        finally { await CleanupAsync(context, "MdbOwnedCustomers"); }
+        finally
+        {
+            await CleanupAsync(context, "MdbOwnedCustomers");
+        }
     }
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
@@ -92,9 +110,12 @@ public sealed class MariaDbModelingIntegrationTests
         await using var context = new M2MContext(CreateOptions<M2MContext>(connectionString));
         await CleanupAsync(context, "MdbM2MCourseStudent", "MdbStudents", "MdbCourses");
 
-        await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS `MdbStudents` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
-        await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS `MdbCourses` (`Id` int NOT NULL AUTO_INCREMENT, `Title` varchar(200) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
-        await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS `MdbM2MCourseStudent` (`CoursesId` int NOT NULL, `StudentsId` int NOT NULL, PRIMARY KEY (`CoursesId`, `StudentsId`), FOREIGN KEY (`CoursesId`) REFERENCES `MdbCourses` (`Id`) ON DELETE CASCADE, FOREIGN KEY (`StudentsId`) REFERENCES `MdbStudents` (`Id`) ON DELETE CASCADE) CHARACTER SET utf8mb4;");
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS `MdbStudents` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS `MdbCourses` (`Id` int NOT NULL AUTO_INCREMENT, `Title` varchar(200) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS `MdbM2MCourseStudent` (`CoursesId` int NOT NULL, `StudentsId` int NOT NULL, PRIMARY KEY (`CoursesId`, `StudentsId`), FOREIGN KEY (`CoursesId`) REFERENCES `MdbCourses` (`Id`) ON DELETE CASCADE, FOREIGN KEY (`StudentsId`) REFERENCES `MdbStudents` (`Id`) ON DELETE CASCADE) CHARACTER SET utf8mb4;");
 
         try
         {
@@ -103,10 +124,15 @@ public sealed class MariaDbModelingIntegrationTests
             context.Students.Add(s);
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
-            var loaded = await context.Students.Include(x => x.Courses).FirstAsync();
+            var loaded = await context
+                .Students.Include(x => x.Courses)
+                .FirstAsync();
             Assert.Single(loaded.Courses);
         }
-        finally { await CleanupAsync(context, "MdbM2MCourseStudent", "MdbStudents", "MdbCourses"); }
+        finally
+        {
+            await CleanupAsync(context, "MdbM2MCourseStudent", "MdbStudents", "MdbCourses");
+        }
     }
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
@@ -127,7 +153,10 @@ public sealed class MariaDbModelingIntegrationTests
             entity.Name = "Modified";
             await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => context.SaveChangesAsync());
         }
-        finally { await CleanupAsync(context, "MdbConcurrency"); }
+        finally
+        {
+            await CleanupAsync(context, "MdbConcurrency");
+        }
     }
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
@@ -137,30 +166,45 @@ public sealed class MariaDbModelingIntegrationTests
         await using var context = new ConverterContext(CreateOptions<ConverterContext>(connectionString));
         await CleanupAsync(context, "MdbConverter");
 
-        await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS `MdbConverter` (`Id` int NOT NULL AUTO_INCREMENT, `IsActive` varchar(1) NOT NULL, `Price` decimal(18,2) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS `MdbConverter` (`Id` int NOT NULL AUTO_INCREMENT, `IsActive` varchar(1) NOT NULL, `Price` decimal(18,2) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
 
         try
         {
-            context.Items.Add(new ConverterItem { IsActive = true, Price = 99.95m });
+            context.Items.Add(
+                new ConverterItem
+                {
+                    IsActive = true,
+                    Price = 99.95m
+                });
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
             var loaded = await context.Items.FirstAsync();
             Assert.True(loaded.IsActive);
             Assert.Equal(99.95m, loaded.Price);
         }
-        finally { await CleanupAsync(context, "MdbConverter"); }
+        finally
+        {
+            await CleanupAsync(context, "MdbConverter");
+        }
     }
 
     // -- Helpers --
 
-    private static DbContextOptions<T> CreateOptions<T>(string cs) where T : DbContext
+    private static DbContextOptions<T> CreateOptions<T>(
+        string cs
+    )
+        where T : DbContext
     {
         var b = new DbContextOptionsBuilder<T>();
         b.UseMySql(cs, MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
         return b.Options;
     }
 
-    private static async Task CleanupAsync(DbContext ctx, params string[] tables)
+    private static async Task CleanupAsync(
+        DbContext ctx,
+        params string[] tables
+    )
     {
         foreach (var t in tables)
         {
@@ -173,76 +217,248 @@ public sealed class MariaDbModelingIntegrationTests
 
     // -- Entities --
 
-    private abstract class TphAnimal { public int Id { get; set; } public string Name { get; set; } = ""; }
-    private sealed class TphDog : TphAnimal { public string Breed { get; set; } = ""; }
-    private sealed class TphCat : TphAnimal { public bool IsIndoor { get; set; } }
+    private abstract class TphAnimal
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+    }
+
+    private sealed class TphDog : TphAnimal
+    {
+        public string Breed { get; set; } = "";
+    }
+
+    private sealed class TphCat : TphAnimal
+    {
+        public bool IsIndoor { get; set; }
+    }
+
     private sealed class TphContext : DbContext
     {
-        public TphContext(DbContextOptions<TphContext> o) : base(o) { }
+        public TphContext(
+            DbContextOptions<TphContext> o
+        ) : base(o) { }
+
         public DbSet<TphAnimal> Animals => Set<TphAnimal>();
-        protected override void OnModelCreating(ModelBuilder m)
+
+        protected override void OnModelCreating(
+            ModelBuilder m
+        )
         {
-            m.Entity<TphAnimal>(e => { e.ToTable("MdbTphAnimals"); e.HasDiscriminator<string>("Type").HasValue<TphDog>("Dog").HasValue<TphCat>("Cat"); e.Property("Type").HasMaxLength(64); e.Property(a => a.Name).HasMaxLength(100); });
-            m.Entity<TphDog>(e => e.Property(d => d.Breed).HasMaxLength(100));
+            m.Entity<TphAnimal>(e =>
+            {
+                e.ToTable("MdbTphAnimals");
+                e
+                    .HasDiscriminator<string>("Type")
+                    .HasValue<TphDog>("Dog")
+                    .HasValue<TphCat>("Cat");
+                e
+                    .Property("Type")
+                    .HasMaxLength(64);
+                e
+                    .Property(a => a.Name)
+                    .HasMaxLength(100);
+            });
+            m.Entity<TphDog>(e => e
+                .Property(d => d.Breed)
+                .HasMaxLength(100));
         }
     }
 
-    private abstract class TptVehicle { public int Id { get; set; } public string Make { get; set; } = ""; }
-    private sealed class TptCar : TptVehicle { public int SeatCount { get; set; } }
+    private abstract class TptVehicle
+    {
+        public int Id { get; set; }
+        public string Make { get; set; } = "";
+    }
+
+    private sealed class TptCar : TptVehicle
+    {
+        public int SeatCount { get; set; }
+    }
+
     private sealed class TptContext : DbContext
     {
-        public TptContext(DbContextOptions<TptContext> o) : base(o) { }
+        public TptContext(
+            DbContextOptions<TptContext> o
+        ) : base(o) { }
+
         public DbSet<TptVehicle> Vehicles => Set<TptVehicle>();
-        protected override void OnModelCreating(ModelBuilder m)
+
+        protected override void OnModelCreating(
+            ModelBuilder m
+        )
         {
-            m.Entity<TptVehicle>().UseTptMappingStrategy();
-            m.Entity<TptVehicle>(e => { e.ToTable("MdbTptVehicles"); e.Property(v => v.Make).HasMaxLength(100); });
-            m.Entity<TptCar>().ToTable("MdbTptCars");
+            m
+                .Entity<TptVehicle>()
+                .UseTptMappingStrategy();
+            m.Entity<TptVehicle>(e =>
+            {
+                e.ToTable("MdbTptVehicles");
+                e
+                    .Property(v => v.Make)
+                    .HasMaxLength(100);
+            });
+            m
+                .Entity<TptCar>()
+                .ToTable("MdbTptCars");
         }
     }
 
-    private sealed class OwnedCustomer { public int Id { get; set; } public string Name { get; set; } = ""; public OwnedAddress? Address { get; set; } }
-    private sealed class OwnedAddress { public string Street { get; set; } = ""; public string City { get; set; } = ""; }
+    private sealed class OwnedCustomer
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public OwnedAddress? Address { get; set; }
+    }
+
+    private sealed class OwnedAddress
+    {
+        public string Street { get; set; } = "";
+        public string City { get; set; } = "";
+    }
+
     private sealed class OwnedContext : DbContext
     {
-        public OwnedContext(DbContextOptions<OwnedContext> o) : base(o) { }
+        public OwnedContext(
+            DbContextOptions<OwnedContext> o
+        ) : base(o) { }
+
         public DbSet<OwnedCustomer> Customers => Set<OwnedCustomer>();
-        protected override void OnModelCreating(ModelBuilder m)
+
+        protected override void OnModelCreating(
+            ModelBuilder m
+        )
         {
-            m.Entity<OwnedCustomer>(e => { e.ToTable("MdbOwnedCustomers"); e.Property(c => c.Name).HasMaxLength(100); e.OwnsOne(c => c.Address, a => { a.Property(x => x.Street).HasMaxLength(200); a.Property(x => x.City).HasMaxLength(100); }); });
+            m.Entity<OwnedCustomer>(e =>
+            {
+                e.ToTable("MdbOwnedCustomers");
+                e
+                    .Property(c => c.Name)
+                    .HasMaxLength(100);
+                e.OwnsOne(
+                    c => c.Address,
+                    a =>
+                    {
+                        a
+                            .Property(x => x.Street)
+                            .HasMaxLength(200);
+                        a
+                            .Property(x => x.City)
+                            .HasMaxLength(100);
+                    });
+            });
         }
     }
 
-    private sealed class M2MStudent { public int Id { get; set; } public string Name { get; set; } = ""; public List<M2MCourse> Courses { get; set; } = []; }
-    private sealed class M2MCourse { public int Id { get; set; } public string Title { get; set; } = ""; public List<M2MStudent> Students { get; set; } = []; }
+    private sealed class M2MStudent
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public List<M2MCourse> Courses { get; set; } = [];
+    }
+
+    private sealed class M2MCourse
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = "";
+        public List<M2MStudent> Students { get; set; } = [];
+    }
+
     private sealed class M2MContext : DbContext
     {
-        public M2MContext(DbContextOptions<M2MContext> o) : base(o) { }
+        public M2MContext(
+            DbContextOptions<M2MContext> o
+        ) : base(o) { }
+
         public DbSet<M2MStudent> Students => Set<M2MStudent>();
-        protected override void OnModelCreating(ModelBuilder m)
+
+        protected override void OnModelCreating(
+            ModelBuilder m
+        )
         {
-            m.Entity<M2MStudent>(e => { e.ToTable("MdbStudents"); e.Property(s => s.Name).HasMaxLength(100); });
-            m.Entity<M2MCourse>(e => { e.ToTable("MdbCourses"); e.Property(c => c.Title).HasMaxLength(200); });
-            m.Entity<M2MStudent>().HasMany(s => s.Courses).WithMany(c => c.Students).UsingEntity(j => j.ToTable("MdbM2MCourseStudent"));
+            m.Entity<M2MStudent>(e =>
+            {
+                e.ToTable("MdbStudents");
+                e
+                    .Property(s => s.Name)
+                    .HasMaxLength(100);
+            });
+            m.Entity<M2MCourse>(e =>
+            {
+                e.ToTable("MdbCourses");
+                e
+                    .Property(c => c.Title)
+                    .HasMaxLength(200);
+            });
+            m
+                .Entity<M2MStudent>()
+                .HasMany(s => s.Courses)
+                .WithMany(c => c.Students)
+                .UsingEntity(j => j.ToTable("MdbM2MCourseStudent"));
         }
     }
 
-    private sealed class ConcurrencyItem { public int Id { get; set; } public string Name { get; set; } = ""; [ConcurrencyCheck] public int Version { get; set; } }
-    private sealed class ConcurrencyContext : DbContext
+    private sealed class ConcurrencyItem
     {
-        public ConcurrencyContext(DbContextOptions<ConcurrencyContext> o) : base(o) { }
-        public DbSet<ConcurrencyItem> Items => Set<ConcurrencyItem>();
-        protected override void OnModelCreating(ModelBuilder m) { m.Entity<ConcurrencyItem>(e => { e.ToTable("MdbConcurrency"); e.Property(c => c.Name).HasMaxLength(100); }); }
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+
+        [ConcurrencyCheck]
+        public int Version { get; set; }
     }
 
-    private sealed class ConverterItem { public int Id { get; set; } public bool IsActive { get; set; } public decimal Price { get; set; } }
+    private sealed class ConcurrencyContext : DbContext
+    {
+        public ConcurrencyContext(
+            DbContextOptions<ConcurrencyContext> o
+        ) : base(o) { }
+
+        public DbSet<ConcurrencyItem> Items => Set<ConcurrencyItem>();
+
+        protected override void OnModelCreating(
+            ModelBuilder m
+        )
+        {
+            m.Entity<ConcurrencyItem>(e =>
+            {
+                e.ToTable("MdbConcurrency");
+                e
+                    .Property(c => c.Name)
+                    .HasMaxLength(100);
+            });
+        }
+    }
+
+    private sealed class ConverterItem
+    {
+        public int Id { get; set; }
+        public bool IsActive { get; set; }
+        public decimal Price { get; set; }
+    }
+
     private sealed class ConverterContext : DbContext
     {
-        public ConverterContext(DbContextOptions<ConverterContext> o) : base(o) { }
+        public ConverterContext(
+            DbContextOptions<ConverterContext> o
+        ) : base(o) { }
+
         public DbSet<ConverterItem> Items => Set<ConverterItem>();
-        protected override void OnModelCreating(ModelBuilder m)
+
+        protected override void OnModelCreating(
+            ModelBuilder m
+        )
         {
-            m.Entity<ConverterItem>(e => { e.ToTable("MdbConverter"); e.Property(c => c.IsActive).HasConversion(v => v ? "Y" : "N", v => v == "Y").HasMaxLength(1); e.Property(c => c.Price).HasPrecision(18, 2); });
+            m.Entity<ConverterItem>(e =>
+            {
+                e.ToTable("MdbConverter");
+                e
+                    .Property(c => c.IsActive)
+                    .HasConversion(v => v ? "Y" : "N", v => v == "Y")
+                    .HasMaxLength(1);
+                e
+                    .Property(c => c.Price)
+                    .HasPrecision(18, 2);
+            });
         }
     }
 }

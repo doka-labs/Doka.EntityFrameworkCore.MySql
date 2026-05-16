@@ -14,8 +14,7 @@ public sealed class MySqlSpecTestAnchorTests
     {
         await IntegrationDatabaseUtilities
             .EnsureDatabaseExistsAsync(
-                IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84)
-            )
+                IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84))
             .ConfigureAwait(false);
 
         var fixture = new MySqlMigrationsInfrastructureFixture();
@@ -40,19 +39,17 @@ public sealed class MySqlSpecTestAnchorTests
                 .ConfigureAwait(false);
             await IntegrationDatabaseUtilities
                 .EnsureDatabaseExistsAsync(
-                    IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84)
-                )
+                    IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84))
                 .ConfigureAwait(false);
         }
     }
 
-    private sealed class MySqlMigrationsInfrastructureAnchor
-        : MigrationsInfrastructureTestBase<MySqlMigrationsInfrastructureFixture>
+    private sealed class
+        MySqlMigrationsInfrastructureAnchor : MigrationsInfrastructureTestBase<MySqlMigrationsInfrastructureFixture>
     {
         public MySqlMigrationsInfrastructureAnchor(
             MySqlMigrationsInfrastructureFixture fixture
-        )
-            : base(fixture) { }
+        ) : base(fixture) { }
 
         public override void Can_diff_against_2_2_model() { }
 
@@ -93,48 +90,27 @@ public sealed class MySqlSpecTestAnchorTests
 
         public override TestStore Create(
             string storeName
-        )
-        {
-            return new MySqlSpecTestStore(storeName);
-        }
+        ) => new MySqlSpecTestStore(storeName);
 
         public override TestStore GetOrCreate(
             string storeName
-        )
-        {
-            return new MySqlSpecTestStore(storeName);
-        }
+        ) => new MySqlSpecTestStore(storeName);
 
         public override IServiceCollection AddProviderServices(
             IServiceCollection serviceCollection
-        )
-        {
-            return serviceCollection.AddEntityFrameworkDokaMySql();
-        }
+        ) => serviceCollection.AddEntityFrameworkDokaMySql();
     }
 
     private sealed class MySqlSpecTestStore : RelationalTestStore
     {
         public MySqlSpecTestStore(
             string name
-        )
-            : base(name, shared: true, new MySqlConnection(BuildConnectionString())) { }
+        ) : base(name, shared: true, new MySqlConnection(BuildConnectionString())) { }
 
         public override DbContextOptionsBuilder AddProviderOptions(
             DbContextOptionsBuilder builder
-        )
-        {
-            return builder.UseMySql(
-                BuildConnectionString(),
-                MySqlServerVersion.MySql(new Version(8, 4, 0))
-            );
-        }
+        ) => builder.UseMySql(BuildConnectionString(), MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
-        private static string BuildConnectionString()
-        {
-            return IntegrationTestEnvironment.GetConnectionString(
-                IntegrationDatabaseTarget.MySql84
-            );
-        }
+        private static string BuildConnectionString() => IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
     }
 }

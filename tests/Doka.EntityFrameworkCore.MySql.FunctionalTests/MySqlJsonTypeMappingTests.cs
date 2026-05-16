@@ -1,5 +1,4 @@
 using System.Text.Json.Nodes;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
@@ -140,7 +139,7 @@ public sealed class MySqlJsonTypeMappingTests
         var deserialized = (JsonNode?)converter.ConvertFromProvider(serialized);
 
         Assert.NotNull(deserialized);
-        Assert.Equal(original!.ToJsonString(), deserialized!.ToJsonString());
+        Assert.Equal(original!.ToJsonString(), deserialized.ToJsonString());
     }
 
     // -- ValueComparer Deep-Equality Tests --

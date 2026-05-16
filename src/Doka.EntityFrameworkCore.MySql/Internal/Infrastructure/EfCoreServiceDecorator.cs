@@ -47,12 +47,11 @@ internal static class EfCoreServiceDecorator
                 + "The EF Core service graph may have changed; review the decorator setup against "
                 + "the current EF Core patch version (see ADR D-001).");
 
-        services.Replace(ServiceDescriptor.Describe(
-            typeof(TService),
-            serviceProvider => factory(
-                ResolveInner<TService>(innerDescriptor, serviceProvider),
-                serviceProvider),
-            innerDescriptor.Lifetime));
+        services.Replace(
+            ServiceDescriptor.Describe(
+                typeof(TService),
+                serviceProvider => factory(ResolveInner<TService>(innerDescriptor, serviceProvider), serviceProvider),
+                innerDescriptor.Lifetime));
     }
 
     private static TService ResolveInner<TService>(

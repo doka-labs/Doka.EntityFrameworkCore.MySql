@@ -17,18 +17,18 @@ internal static class JsonCheckConstraintLoader
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        var result = new HashSet<(string TableName, string ColumnName)>(
-            CaseInsensitiveColumnTupleComparer.Instance);
+        var result = new HashSet<(string TableName, string ColumnName)>(CaseInsensitiveColumnTupleComparer.Instance);
 
         using var command = connection.CreateCommand();
-        var sql = new StringBuilder("""
-                                    SELECT
-                                        TABLE_NAME,
-                                        CHECK_CLAUSE
-                                    FROM information_schema.CHECK_CONSTRAINTS
-                                    WHERE CONSTRAINT_SCHEMA = DATABASE()
-                                      AND LOWER(CHECK_CLAUSE) LIKE '%json_valid%'
-                                    """);
+        var sql = new StringBuilder(
+            """
+            SELECT
+                TABLE_NAME,
+                CHECK_CLAUSE
+            FROM information_schema.CHECK_CONSTRAINTS
+            WHERE CONSTRAINT_SCHEMA = DATABASE()
+              AND LOWER(CHECK_CLAUSE) LIKE '%json_valid%'
+            """);
 
         ScaffoldingHelpers.AppendTableNameFilter(sql, command, tableFilter);
         sql.Append(';');

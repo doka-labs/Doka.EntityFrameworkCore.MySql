@@ -54,8 +54,11 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     // GUID text representations are ASCII-only (32 hex digits plus four hyphens), so
     // the column does not need utf8mb4 storage; Unicode: false keeps the on-disk and
     // wire footprint at one byte per character.
-    private static readonly RelationalTypeMapping s_guidChar36Mapping =
-        new StringTypeMapping("char(36)", DbType.StringFixedLength, unicode: false, size: 36);
+    private static readonly RelationalTypeMapping s_guidChar36Mapping = new StringTypeMapping(
+        "char(36)",
+        DbType.StringFixedLength,
+        unicode: false,
+        size: 36);
 
     private static readonly RelationalTypeMapping s_guidVarchar36Mapping =
         new StringTypeMapping("varchar(36)", DbType.String, unicode: false, size: 36);
@@ -81,8 +84,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     private static readonly RelationalTypeMapping s_byteArrayMapping =
         new ByteArrayTypeMapping("longblob", DbType.Binary);
 
-    private static readonly RelationalTypeMapping s_mediumIntMapping =
-        new IntTypeMapping("mediumint", DbType.Int32);
+    private static readonly RelationalTypeMapping s_mediumIntMapping = new IntTypeMapping("mediumint", DbType.Int32);
 
     private static readonly RelationalTypeMapping s_mediumIntUnsignedMapping =
         new UIntTypeMapping("mediumint unsigned", DbType.UInt32);
@@ -90,11 +92,15 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     private static readonly RelationalTypeMapping s_mediumTextMapping =
         new StringTypeMapping("mediumtext", DbType.String, unicode: true);
 
-    private static readonly RelationalTypeMapping s_tinyTextMapping =
-        new StringTypeMapping("tinytext", DbType.String, unicode: true);
+    private static readonly RelationalTypeMapping s_tinyTextMapping = new StringTypeMapping(
+        "tinytext",
+        DbType.String,
+        unicode: true);
 
-    private static readonly RelationalTypeMapping s_textMapping =
-        new StringTypeMapping("text", DbType.String, unicode: true);
+    private static readonly RelationalTypeMapping s_textMapping = new StringTypeMapping(
+        "text",
+        DbType.String,
+        unicode: true);
 
     private static readonly RelationalTypeMapping s_mediumBlobMapping =
         new ByteArrayTypeMapping("mediumblob", DbType.Binary);
@@ -102,23 +108,24 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     private static readonly RelationalTypeMapping s_tinyBlobMapping =
         new ByteArrayTypeMapping("tinyblob", DbType.Binary);
 
-    private static readonly RelationalTypeMapping s_blobMapping =
-        new ByteArrayTypeMapping("blob", DbType.Binary);
+    private static readonly RelationalTypeMapping s_blobMapping = new ByteArrayTypeMapping("blob", DbType.Binary);
 
     private static readonly RelationalTypeMapping s_varBinaryMapping =
         new ByteArrayTypeMapping("varbinary", DbType.Binary);
 
-    private static readonly RelationalTypeMapping s_charMapping =
-        new StringTypeMapping("char", DbType.StringFixedLength, unicode: true);
+    private static readonly RelationalTypeMapping s_charMapping = new StringTypeMapping(
+        "char",
+        DbType.StringFixedLength,
+        unicode: true);
 
-    private static readonly RelationalTypeMapping s_varCharMapping =
-        new StringTypeMapping("varchar", DbType.String, unicode: true);
+    private static readonly RelationalTypeMapping s_varCharMapping = new StringTypeMapping(
+        "varchar",
+        DbType.String,
+        unicode: true);
 
-    private static readonly RelationalTypeMapping s_bitMapping =
-        new BoolTypeMapping("bit(1)", DbType.Boolean);
+    private static readonly RelationalTypeMapping s_bitMapping = new BoolTypeMapping("bit(1)", DbType.Boolean);
 
-    private static readonly RelationalTypeMapping s_yearMapping =
-        new ShortTypeMapping("year", DbType.Int16);
+    private static readonly RelationalTypeMapping s_yearMapping = new ShortTypeMapping("year", DbType.Int16);
 
     // Geometry round-trips as MySQL well-known-binary (WKB). The richer
     // NetTopologySuite-backed mapping ships in the optional spatial package; the

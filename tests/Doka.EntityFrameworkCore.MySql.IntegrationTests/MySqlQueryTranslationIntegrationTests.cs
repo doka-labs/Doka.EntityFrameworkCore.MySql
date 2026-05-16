@@ -292,8 +292,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
             context.ChangeTracker.Clear();
 
             var groups = await context
-                .Items
-                .GroupBy(e => e.Category)
+                .Items.GroupBy(e => e.Category)
                 .Select(g => new
                 {
                     Category = g.Key,
@@ -357,8 +356,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
             context.ChangeTracker.Clear();
 
             var matches = await context
-                .Items
-                .Where(e => EF.Functions.Regexp(e.Name, "[0-9]+"))
+                .Items.Where(e => EF.Functions.Regexp(e.Name, "[0-9]+"))
                 .CountAsync();
 
             Assert.Equal(1, matches);
@@ -390,19 +388,15 @@ public sealed class MySqlQueryTranslationIntegrationTests
                 """);
 
             var jsonValue = """{"a":1,"b":{"c":2}}""";
-            await context.Database.ExecuteSqlRawAsync(
-                "INSERT INTO `IntJsonItems` (`Data`) VALUES ({0});",
-                jsonValue);
+            await context.Database.ExecuteSqlRawAsync("INSERT INTO `IntJsonItems` (`Data`) VALUES ({0});", jsonValue);
 
             var depth = await context
-                .Items
-                .Select(e => EF.Functions.JsonDepth(e.Data))
+                .Items.Select(e => EF.Functions.JsonDepth(e.Data))
                 .FirstAsync();
             Assert.Equal(3, depth);
 
             var length = await context
-                .Items
-                .Select(e => EF.Functions.JsonLength(e.Data))
+                .Items.Select(e => EF.Functions.JsonLength(e.Data))
                 .FirstAsync();
             Assert.Equal(2, length);
         }

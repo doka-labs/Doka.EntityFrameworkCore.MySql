@@ -345,7 +345,7 @@ public sealed class MariaDbFeatureIntegrationTests
         string newDatabase
     )
     {
-        var csb = new MySqlConnector.MySqlConnectionStringBuilder(connectionString) { Database = newDatabase };
+        var csb = new MySqlConnectionStringBuilder(connectionString) { Database = newDatabase };
         return csb.ConnectionString;
     }
 
@@ -354,8 +354,8 @@ public sealed class MariaDbFeatureIntegrationTests
         string databaseName
     )
     {
-        var csb = new MySqlConnector.MySqlConnectionStringBuilder(connectionString) { Database = string.Empty };
-        await using var connection = new MySqlConnector.MySqlConnection(csb.ConnectionString);
+        var csb = new MySqlConnectionStringBuilder(connectionString) { Database = string.Empty };
+        await using var connection = new MySqlConnection(csb.ConnectionString);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP DATABASE IF EXISTS `{databaseName}`;";

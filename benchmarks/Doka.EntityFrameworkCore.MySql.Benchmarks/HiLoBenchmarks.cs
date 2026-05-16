@@ -143,8 +143,7 @@ public class HiLoBulkInsertBenchmarks
             .OpenAsync()
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
-        command.CommandText =
-            $"DROP TABLE IF EXISTS `{TableName}`;"
+        command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
             + $"DROP TABLE IF EXISTS `__efsequence_{SequenceName}`;";
         await command
             .ExecuteNonQueryAsync()
@@ -176,7 +175,9 @@ public class HiLoBulkInsertBenchmarks
                 builder
                     .Property(e => e.Id)
                     .UseHiLo(SequenceName);
-                builder.Property(e => e.Name).HasMaxLength(64);
+                builder
+                    .Property(e => e.Name)
+                    .HasMaxLength(64);
             });
         }
     }

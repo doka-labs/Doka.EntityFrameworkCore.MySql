@@ -19,12 +19,15 @@ public sealed class MySqlScaffoldingFilterTests
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
 
-        await PrepareSchemaAsync(connectionString).ConfigureAwait(false);
+        await PrepareSchemaAsync(connectionString)
+            .ConfigureAwait(false);
 
         try
         {
             await using var connection = new MySqlConnection(connectionString);
-            await connection.OpenAsync().ConfigureAwait(false);
+            await connection
+                .OpenAsync()
+                .ConfigureAwait(false);
 
             var factory = new MySqlDatabaseModelFactory(
                 new MySqlConnectorDriverFacade(),
@@ -32,7 +35,12 @@ public sealed class MySqlScaffoldingFilterTests
 
             var filteredModel = factory.Create(
                 connection,
-                new DatabaseModelFactoryOptions([TablePrefix + "03", TablePrefix + "07"], Array.Empty<string>()));
+                new DatabaseModelFactoryOptions(
+                    [
+                        TablePrefix + "03",
+                        TablePrefix + "07",
+                    ],
+                    Array.Empty<string>()));
 
             Assert.Equal(2, filteredModel.Tables.Count);
             Assert.Contains(filteredModel.Tables, table => table.Name == TablePrefix + "03");
@@ -40,7 +48,8 @@ public sealed class MySqlScaffoldingFilterTests
         }
         finally
         {
-            await TearDownSchemaAsync(connectionString).ConfigureAwait(false);
+            await TearDownSchemaAsync(connectionString)
+                .ConfigureAwait(false);
         }
     }
 
@@ -49,12 +58,15 @@ public sealed class MySqlScaffoldingFilterTests
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
 
-        await PrepareSchemaAsync(connectionString).ConfigureAwait(false);
+        await PrepareSchemaAsync(connectionString)
+            .ConfigureAwait(false);
 
         try
         {
             await using var connection = new MySqlConnection(connectionString);
-            await connection.OpenAsync().ConfigureAwait(false);
+            await connection
+                .OpenAsync()
+                .ConfigureAwait(false);
 
             var factory = new MySqlDatabaseModelFactory(
                 new MySqlConnectorDriverFacade(),
@@ -67,15 +79,15 @@ public sealed class MySqlScaffoldingFilterTests
             // Filter set is empty -> MatchAll. Expect at least our 20 fixture tables;
             // other test suites may run concurrently and leave residual tables behind.
             var fixtureTables = fullModel
-                .Tables
-                .Where(table => table.Name.StartsWith(TablePrefix, StringComparison.Ordinal))
+                .Tables.Where(table => table.Name.StartsWith(TablePrefix, StringComparison.Ordinal))
                 .ToArray();
 
             Assert.Equal(TableCount, fixtureTables.Length);
         }
         finally
         {
-            await TearDownSchemaAsync(connectionString).ConfigureAwait(false);
+            await TearDownSchemaAsync(connectionString)
+                .ConfigureAwait(false);
         }
     }
 
@@ -84,20 +96,23 @@ public sealed class MySqlScaffoldingFilterTests
     )
     {
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync().ConfigureAwait(false);
+        await connection
+            .OpenAsync()
+            .ConfigureAwait(false);
 
         for (var index = 0; index < TableCount; index++)
         {
             await using var command = connection.CreateCommand();
             var tableName = TablePrefix + index.ToString("D2", CultureInfo.InvariantCulture);
-            command.CommandText =
-                $"DROP TABLE IF EXISTS `{tableName}`;"
+            command.CommandText = $"DROP TABLE IF EXISTS `{tableName}`;"
                 + $"CREATE TABLE `{tableName}` ("
                 + "  `Id` INT NOT NULL,"
                 + "  `Name` VARCHAR(64) NOT NULL,"
                 + "  PRIMARY KEY (`Id`)"
                 + ") CHARACTER SET utf8mb4;";
-            await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+            await command
+                .ExecuteNonQueryAsync()
+                .ConfigureAwait(false);
         }
     }
 
@@ -106,14 +121,18 @@ public sealed class MySqlScaffoldingFilterTests
     )
     {
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync().ConfigureAwait(false);
+        await connection
+            .OpenAsync()
+            .ConfigureAwait(false);
 
         for (var index = 0; index < TableCount; index++)
         {
             await using var command = connection.CreateCommand();
             var tableName = TablePrefix + index.ToString("D2", CultureInfo.InvariantCulture);
             command.CommandText = $"DROP TABLE IF EXISTS `{tableName}`;";
-            await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+            await command
+                .ExecuteNonQueryAsync()
+                .ConfigureAwait(false);
         }
     }
 }

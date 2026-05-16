@@ -15,16 +15,17 @@ internal static class PrimaryKeyLoader
         ArgumentNullException.ThrowIfNull(context);
 
         using var command = context.Connection.CreateCommand();
-        var sql = new StringBuilder("""
-                                    SELECT
-                                        TABLE_NAME,
-                                        COLUMN_NAME,
-                                        CONSTRAINT_NAME,
-                                        ORDINAL_POSITION
-                                    FROM information_schema.KEY_COLUMN_USAGE
-                                    WHERE TABLE_SCHEMA = DATABASE()
-                                      AND CONSTRAINT_NAME = 'PRIMARY'
-                                    """);
+        var sql = new StringBuilder(
+            """
+            SELECT
+                TABLE_NAME,
+                COLUMN_NAME,
+                CONSTRAINT_NAME,
+                ORDINAL_POSITION
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND CONSTRAINT_NAME = 'PRIMARY'
+            """);
 
         ScaffoldingHelpers.AppendTableNameFilter(sql, command, context.TableFilter);
         sql.Append(" ORDER BY TABLE_NAME, ORDINAL_POSITION;");

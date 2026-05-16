@@ -53,21 +53,14 @@ internal static class MySqlJsonValueComparers
         v => CloneJsonDocument(v));
 
     /// <summary>
-    /// Explicit backing field for <see cref="JsonNodeComparer"/>. Declared separately so the
-    /// trimming suppression lives on the initializer site without being attached to the
-    /// auto-generated property getter, where the ILLinker otherwise re-reports IL2026.
-    /// </summary>
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
-        "Trimming",
-        "IL2026",
-        Justification = "Delegates to CreateJsonNodeComparer which uses well-known JSON types that are preserved.")]
-    private static readonly ValueComparer<JsonNode?> s_jsonNodeComparer = CreateJsonNodeComparer();
-
-    /// <summary>
     /// A <see cref="ValueComparer{T}"/> for <see cref="JsonNode"/> that compares via streaming
     /// token walk and hashes via XxHash64 over the node's serialized form.
     /// </summary>
-    public static ValueComparer<JsonNode?> JsonNodeComparer => s_jsonNodeComparer;
+    [field: System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2026",
+        Justification = "Delegates to CreateJsonNodeComparer which uses well-known JSON types that are preserved.")]
+    public static ValueComparer<JsonNode?> JsonNodeComparer { get; } = CreateJsonNodeComparer();
 
     [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
         "Trimming",
@@ -102,7 +95,9 @@ internal static class MySqlJsonValueComparers
             var lengthB = WriteCanonicalJson(b, ref bufferB);
 
             return lengthA == lengthB
-                && bufferA.AsSpan(0, lengthA).SequenceEqual(bufferB.AsSpan(0, lengthB));
+                && bufferA
+                    .AsSpan(0, lengthA)
+                    .SequenceEqual(bufferB.AsSpan(0, lengthB));
         }
         finally
         {
@@ -163,7 +158,9 @@ internal static class MySqlJsonValueComparers
             var lengthB = WriteCanonicalJson(b, ref bufferB);
 
             return lengthA == lengthB
-                && bufferA.AsSpan(0, lengthA).SequenceEqual(bufferB.AsSpan(0, lengthB));
+                && bufferA
+                    .AsSpan(0, lengthA)
+                    .SequenceEqual(bufferB.AsSpan(0, lengthB));
         }
         finally
         {
@@ -301,19 +298,16 @@ internal static class MySqlJsonValueComparers
     /// </summary>
     private sealed class PooledByteBufferStream : Stream
     {
-        private byte[] _buffer;
-        private int _position;
-
         public PooledByteBufferStream(
             byte[] initialBuffer
         )
         {
-            _buffer = initialBuffer;
+            Buffer = initialBuffer;
         }
 
-        public byte[] Buffer => _buffer;
+        public byte[] Buffer { get; private set; }
 
-        public int WrittenLength => _position;
+        public int WrittenLength { get; private set; }
 
         public override bool CanRead => false;
 
@@ -321,11 +315,11 @@ internal static class MySqlJsonValueComparers
 
         public override bool CanWrite => true;
 
-        public override long Length => _position;
+        public override long Length => WrittenLength;
 
         public override long Position
         {
-            get => _position;
+            get => WrittenLength;
             set => throw new NotSupportedException();
         }
 
@@ -356,33 +350,35 @@ internal static class MySqlJsonValueComparers
             ReadOnlySpan<byte> source
         )
         {
-            EnsureCapacity(_position + source.Length);
-            source.CopyTo(_buffer.AsSpan(_position));
-            _position += source.Length;
+            EnsureCapacity(WrittenLength + source.Length);
+            source.CopyTo(Buffer.AsSpan(WrittenLength));
+            WrittenLength += source.Length;
         }
 
         public override void WriteByte(
             byte value
         )
         {
-            EnsureCapacity(_position + 1);
-            _buffer[_position++] = value;
+            EnsureCapacity(WrittenLength + 1);
+            Buffer[WrittenLength++] = value;
         }
 
         private void EnsureCapacity(
             int requiredLength
         )
         {
-            if (requiredLength <= _buffer.Length)
+            if (requiredLength <= Buffer.Length)
             {
                 return;
             }
 
-            var newCapacity = Math.Max(_buffer.Length * 2, requiredLength);
+            var newCapacity = Math.Max(Buffer.Length * 2, requiredLength);
             var newBuffer = ArrayPool<byte>.Shared.Rent(newCapacity);
-            _buffer.AsSpan(0, _position).CopyTo(newBuffer);
-            ArrayPool<byte>.Shared.Return(_buffer);
-            _buffer = newBuffer;
+            Buffer
+                .AsSpan(0, WrittenLength)
+                .CopyTo(newBuffer);
+            ArrayPool<byte>.Shared.Return(Buffer);
+            Buffer = newBuffer;
         }
     }
 }

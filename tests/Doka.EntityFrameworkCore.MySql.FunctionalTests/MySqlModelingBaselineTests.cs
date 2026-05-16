@@ -155,7 +155,6 @@ public sealed class MySqlModelingBaselineTests
     public void Owns_one_same_table_produces_navigation_property_columns()
     {
         using var context = new OwnedContext(CreateOptions<OwnedContext>());
-        var entityType = context.Model.FindEntityType(typeof(Customer))!;
         var addressType = context.Model.FindEntityType(typeof(Address))!;
 
         // Address columns should be flattened into Customer table.
@@ -205,7 +204,7 @@ public sealed class MySqlModelingBaselineTests
         var complexProperty = entityType.FindComplexProperty(nameof(Order.BillingAddress));
         Assert.NotNull(complexProperty);
 
-        var complexType = complexProperty!.ComplexType;
+        var complexType = complexProperty.ComplexType;
         Assert.NotNull(complexType.FindProperty(nameof(ComplexAddress.Street)));
         Assert.NotNull(complexType.FindProperty(nameof(ComplexAddress.City)));
     }
@@ -354,7 +353,7 @@ public sealed class MySqlModelingBaselineTests
         var sequence = context.Model.FindSequence("OrderNumbers");
 
         Assert.NotNull(sequence);
-        Assert.Equal(1000L, sequence!.StartValue);
+        Assert.Equal(1000L, sequence.StartValue);
     }
 
     /// <summary>
@@ -489,7 +488,7 @@ public sealed class MySqlModelingBaselineTests
         var entityType = context.Model.FindEntityType(typeof(EnumEntity))!;
         var columnType = entityType.FindProperty(nameof(EnumEntity.StatusText))!.GetColumnType();
 
-        Assert.Contains("varchar", columnType!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("varchar", columnType, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -938,7 +937,7 @@ public sealed class MySqlModelingBaselineTests
         var navigation = blogType.FindNavigation(nameof(Blog.Posts));
 
         Assert.NotNull(navigation);
-        Assert.True(navigation!.IsCollection);
+        Assert.True(navigation.IsCollection);
     }
 
     /// <summary>
@@ -1021,7 +1020,7 @@ public sealed class MySqlModelingBaselineTests
             .FirstOrDefault(f => f.Name == "CalculateDiscount");
 
         Assert.NotNull(function);
-        Assert.Equal(typeof(decimal), function!.ReturnType);
+        Assert.Equal(typeof(decimal), function.ReturnType);
     }
 
     /// <summary>
