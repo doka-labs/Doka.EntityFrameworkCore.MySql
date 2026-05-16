@@ -145,14 +145,17 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
     {
         ArgumentNullException.ThrowIfNull(exception);
 
+        var connectionStateName = diagnostic.ConnectionStateName;
+        var isHardPath = diagnostic.ConnectionState is ConnectionState.Broken or ConnectionState.Closed;
+
+        MySqlMeter.CancellationTotal.Add(1, new KeyValuePair<string, object?>("path", isHardPath ? "hard" : "soft"));
+
         if (_logger is null)
         {
             return false;
         }
 
-        var connectionStateName = diagnostic.ConnectionStateName;
-
-        if (diagnostic.ConnectionState is ConnectionState.Broken or ConnectionState.Closed)
+        if (isHardPath)
         {
             MySqlLoggerMessages.HardCancellation(_logger, "Unknown", diagnostic.CommandTimeout, connectionStateName);
             return false;
@@ -169,8 +172,14 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
     {
         ArgumentNullException.ThrowIfNull(exception);
 
-        if (_logger is null
-            || !_transientExceptionDetector.IsCommandTimeout(exception))
+        if (!_transientExceptionDetector.IsCommandTimeout(exception))
+        {
+            return false;
+        }
+
+        MySqlMeter.CommandTimeoutTotal.Add(1);
+
+        if (_logger is null)
         {
             return false;
         }

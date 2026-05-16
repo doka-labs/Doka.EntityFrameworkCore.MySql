@@ -56,16 +56,22 @@ internal sealed class MySqlExecutionStrategy : ExecutionStrategy
 
     protected override void OnRetry()
     {
+        var attemptNumber = ExceptionsEncountered.Count;
+
         if (_logger is not null
             && _lastException is not null)
         {
             MySqlLoggerMessages.RetryAttempt(
                 _logger,
-                ExceptionsEncountered.Count,
+                attemptNumber,
                 MaxRetryCount,
                 _lastRetryDelay,
                 _lastException);
         }
+
+        MySqlMeter.RetryAttemptsTotal.Add(1, new KeyValuePair<string, object?>("outcome", "attempt"));
+
+        using var activity = MySqlActivitySource.StartRetryAttempt(attemptNumber);
 
         base.OnRetry();
     }

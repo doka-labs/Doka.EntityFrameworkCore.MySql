@@ -201,34 +201,50 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         /// </summary>
         public void AcquireLock()
         {
-            var connection = CreateDedicatedConnection();
-            connection.Open();
+            using var activity = MySqlActivitySource.StartMigrationLockAcquire();
+            activity?.SetTag("db.migration.lock_name", _lockName);
+            var stopwatch = Stopwatch.StartNew();
+            var outcome = "timeout";
 
             try
             {
-                var result = ExecuteOnConnection(
-                    connection,
-                    "SELECT GET_LOCK(@name, @timeout)",
-                    ("@name", _lockName),
-                    ("@timeout", LockTimeoutSeconds));
+                var connection = CreateDedicatedConnection();
+                connection.Open();
 
-                if (!MySqlScalarConvert.ToBoolean(result))
+                try
+                {
+                    var result = ExecuteOnConnection(
+                        connection,
+                        "SELECT GET_LOCK(@name, @timeout)",
+                        ("@name", _lockName),
+                        ("@timeout", LockTimeoutSeconds));
+
+                    if (!MySqlScalarConvert.ToBoolean(result))
+                    {
+                        connection.Dispose();
+
+                        throw new TimeoutException(
+                            $"Could not acquire the MySQL advisory lock '{_lockName}' within {LockTimeoutSeconds} seconds. "
+                            + "Another migration process may be running concurrently.");
+                    }
+                }
+                catch
                 {
                     connection.Dispose();
-
-                    throw new TimeoutException(
-                        $"Could not acquire the MySQL advisory lock '{_lockName}' within {LockTimeoutSeconds} seconds. "
-                        + "Another migration process may be running concurrently.");
+                    throw;
                 }
-            }
-            catch
-            {
-                connection.Dispose();
-                throw;
-            }
 
-            _dedicatedConnection = connection;
-            Interlocked.Exchange(ref _lockAcquired, 1);
+                _dedicatedConnection = connection;
+                Interlocked.Exchange(ref _lockAcquired, 1);
+                outcome = "acquired";
+            }
+            finally
+            {
+                stopwatch.Stop();
+                MySqlMeter.MigrationLockAcquireDuration.Record(
+                    stopwatch.Elapsed.TotalSeconds,
+                    new KeyValuePair<string, object?>("outcome", outcome));
+            }
         }
 
         /// <summary>
@@ -238,42 +254,58 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             CancellationToken cancellationToken = default
         )
         {
-            var connection = CreateDedicatedConnection();
-            await connection
-                .OpenAsync(cancellationToken)
-                .ConfigureAwait(false);
+            using var activity = MySqlActivitySource.StartMigrationLockAcquire();
+            activity?.SetTag("db.migration.lock_name", _lockName);
+            var stopwatch = Stopwatch.StartNew();
+            var outcome = "timeout";
 
             try
             {
-                var result = await ExecuteOnConnectionAsync(
-                        connection,
-                        "SELECT GET_LOCK(@name, @timeout)",
-                        cancellationToken,
-                        ("@name", _lockName),
-                        ("@timeout", LockTimeoutSeconds))
+                var connection = CreateDedicatedConnection();
+                await connection
+                    .OpenAsync(cancellationToken)
                     .ConfigureAwait(false);
 
-                if (!MySqlScalarConvert.ToBoolean(result))
+                try
+                {
+                    var result = await ExecuteOnConnectionAsync(
+                            connection,
+                            "SELECT GET_LOCK(@name, @timeout)",
+                            cancellationToken,
+                            ("@name", _lockName),
+                            ("@timeout", LockTimeoutSeconds))
+                        .ConfigureAwait(false);
+
+                    if (!MySqlScalarConvert.ToBoolean(result))
+                    {
+                        await connection
+                            .DisposeAsync()
+                            .ConfigureAwait(false);
+
+                        throw new TimeoutException(
+                            $"Could not acquire the MySQL advisory lock '{_lockName}' within {LockTimeoutSeconds} seconds. "
+                            + "Another migration process may be running concurrently.");
+                    }
+                }
+                catch
                 {
                     await connection
                         .DisposeAsync()
                         .ConfigureAwait(false);
-
-                    throw new TimeoutException(
-                        $"Could not acquire the MySQL advisory lock '{_lockName}' within {LockTimeoutSeconds} seconds. "
-                        + "Another migration process may be running concurrently.");
+                    throw;
                 }
-            }
-            catch
-            {
-                await connection
-                    .DisposeAsync()
-                    .ConfigureAwait(false);
-                throw;
-            }
 
-            _dedicatedConnection = connection;
-            Interlocked.Exchange(ref _lockAcquired, 1);
+                _dedicatedConnection = connection;
+                Interlocked.Exchange(ref _lockAcquired, 1);
+                outcome = "acquired";
+            }
+            finally
+            {
+                stopwatch.Stop();
+                MySqlMeter.MigrationLockAcquireDuration.Record(
+                    stopwatch.Elapsed.TotalSeconds,
+                    new KeyValuePair<string, object?>("outcome", outcome));
+            }
         }
 
         public IMigrationsDatabaseLock ReacquireIfNeeded(

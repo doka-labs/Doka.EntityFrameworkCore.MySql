@@ -45,6 +45,8 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
                 return;
             }
 
+            using var activity = MySqlActivitySource.StartServerVersionResolve();
+
             var extension = options.FindExtension<MySqlOptionsExtension>()
                 ?? throw new InvalidOperationException("The Doka MySQL options extension is not configured.");
 
@@ -54,6 +56,10 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
             RetryOptions = extension.RetryOptions;
             DefaultGuidFormat = extension.DefaultGuidFormat;
             UsesDataSource = extension.DataSource is not null;
+
+            activity?.SetTag("db.system", "mysql");
+            activity?.SetTag("db.serverversion.engine_family", Profile.Family.ToString());
+            activity?.SetTag("db.serverversion.version", ServerVersion.Version.ToString());
 
             var loggerFactory = options.FindExtension<CoreOptionsExtension>()
                 ?.LoggerFactory;

@@ -1,5 +1,15 @@
 #nullable enable
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder
+Doka.EntityFrameworkCore.MySql.MySqlDiagnostics
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.CancellationTotalMetricName = "doka_mysql_cancellation_total" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.CommandTimeoutTotalMetricName = "doka_mysql_command_timeout_total" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.CommitUnknownTotalMetricName = "doka_mysql_commit_unknown_total" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.MigrationLockAcquireDurationMetricName = "doka_mysql_migration_lock_acquire_duration_seconds" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.MigrationLockSpanName = "db.migration.lock" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.RetryAttemptSpanName = "db.retry.attempt" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.RetryAttemptsTotalMetricName = "doka_mysql_retry_attempts_total" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.ServerVersionResolveSpanName = "db.serverversion.resolve" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.SourceName = "Doka.EntityFrameworkCore.MySql" -> string!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.DefaultGuidFormat(Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.EnableRetryOnFailure(int maxRetryCount = 6, System.TimeSpan? maxRetryDelay = null) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilderExtensions

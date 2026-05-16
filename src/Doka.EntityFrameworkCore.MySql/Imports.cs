@@ -4,6 +4,8 @@ global using System.Collections.Concurrent;
 global using System.Collections.Frozen;
 global using System.Collections.Generic;
 global using System.Data;
+global using System.Diagnostics;
+global using System.Diagnostics.Metrics;
 global using System.Data.Common;
 global using System.Globalization;
 global using System.IO;

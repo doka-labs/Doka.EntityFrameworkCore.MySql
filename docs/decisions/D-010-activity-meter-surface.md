@@ -1,9 +1,16 @@
 # D-010 -- Activity/Meter-Surface (Diagnostic-Triple)
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Date:** 2026-05-16
-- **Scope:** provider-wide diagnostic surface (`Internal/Diagnostics/`)
-- **Implementation:** deferred to a follow-up commit
+- **Scope:** provider-wide diagnostic surface (`Internal/Diagnostics/`); public source / meter / instrument names land in `MySqlDiagnostics`.
+- **Implementation:** Backbone-4 diagnostic-triple shipped in PR 4.2 (Phase 29). The provider exposes an `ActivitySource` and a `Meter` named `Doka.EntityFrameworkCore.MySql` (the canonical `MySqlDiagnostics.SourceName` constant); three spans (`db.migration.lock`, `db.retry.attempt`, `db.serverversion.resolve`) and five instruments (`doka_mysql_migration_lock_acquire_duration_seconds` histogram + `doka_mysql_retry_attempts_total` / `doka_mysql_cancellation_total` / `doka_mysql_command_timeout_total` / `doka_mysql_commit_unknown_total` counters) are wired across the migration-lock, execution-strategy, logging-execution-strategy, server-version-resolution, and commit paths. The hot-path `HasListeners()` guard inside `MySqlActivitySource.Start*` keeps the no-subscriber case allocation-free; the `Meter` counter and histogram writes are unconditional because `System.Diagnostics.Metrics.Meter` short-circuits internally on no-listener. In-process smoke coverage (`MySqlActivityAndMeterSmokeTests`) pins each span + counter / histogram via the dotnet `ActivityListener` and `MeterListener` surfaces, asserting both that emission happens when a listener is subscribed and that `Start*` returns `null` when no listener is attached.
+
+## Implementation notes
+
+- `MySqlDiagnostics.SourceName` (`Doka.EntityFrameworkCore.MySql`) is the documented public surface consumers subscribe to via `builder.WithTracing(t => t.AddSource(MySqlDiagnostics.SourceName))` and `builder.WithMetrics(m => m.AddMeter(MySqlDiagnostics.SourceName))`. The span and instrument names are public constants on the same class so dashboard / alert configurations can reference them without string duplication.
+- The migration-lock instrumentation records on both success and timeout paths via a `try`/`finally` around `Stopwatch.StartNew()`; the `outcome` tag (`acquired` / `timeout`) lets SLO dashboards compare the two without re-deriving the threshold from histogram buckets.
+- The cancellation counter carries a `path` tag (`soft` / `hard`) that mirrors the existing logger event split between `SoftCancellation` and `HardCancellation`.
+- Per-operation activities use `ActivityKind.Client` (migration lock) or `ActivityKind.Internal` (retry, server-version-resolve); the provider is the originator of the span, not a network bridge.
 
 ## Context
 

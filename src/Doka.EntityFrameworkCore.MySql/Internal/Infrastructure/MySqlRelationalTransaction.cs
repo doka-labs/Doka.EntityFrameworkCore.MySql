@@ -120,12 +120,18 @@ internal sealed class MySqlRelationalTransaction : RelationalTransaction
     {
         ArgumentNullException.ThrowIfNull(exception);
 
-        var logger = _singletonOptions.ResilienceLogger;
         var profile = _singletonOptions.Profile;
 
-        if (logger is null
-            || profile is null
+        if (profile is null
             || !s_transientExceptionDetector.ShouldRetryOn(exception))
+        {
+            return false;
+        }
+
+        MySqlMeter.CommitUnknownTotal.Add(1);
+
+        var logger = _singletonOptions.ResilienceLogger;
+        if (logger is null)
         {
             return false;
         }
