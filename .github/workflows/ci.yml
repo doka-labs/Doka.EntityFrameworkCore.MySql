@@ -146,6 +146,76 @@ jobs:
       - name: Run repo-local test path against pinned EF Core
         run: bash ./eng/test.sh
 
+  spec-test-suite:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql84:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: doka_provider
+          MYSQL_USER: doka
+          MYSQL_PASSWORD: doka_password
+        ports:
+          - 33068:3306
+        options: >-
+          --health-cmd="MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      mariadb118:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: root_password
+          MARIADB_DATABASE: doka_provider
+          MARIADB_USER: doka
+          MARIADB_PASSWORD: doka_password
+        ports:
+          - 33069:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        engine:
+          - { name: mysql84, token: "mysql:8.4", port: "33068" }
+          - { name: mariadb118, token: "mariadb:11.8", port: "33069" }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore + build FunctionalTests
+        run: |
+          dotnet restore tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --tl:off
+          dotnet build tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --configuration Release --no-restore --tl:off
+
+      - name: Run specification suite against ${{ matrix.engine.name }}
+        env:
+          DOKA_SPEC_TEST_CONNECTION_STRING: "Server=127.0.0.1;Port=${{ matrix.engine.port }};User ID=root;Password=root_password;Persist Security Info=True;"
+          DOKA_SPEC_TEST_SERVER_VERSION: ${{ matrix.engine.token }}
+        # The first specification runs ship with infrastructure only; the failing-test triage is
+        # tracked in tests/.../Specification/SkipList.md per ADR D-011. Allow continue-on-error so
+        # the suite surfaces every failure for triage instead of stopping at the first one.
+        continue-on-error: true
+        run: |
+          dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
+            --configuration Release --no-build --no-restore --tl:off \
+            --filter "Category=Spec" \
+            --logger trx \
+            --results-directory artifacts/spec-tests/${{ matrix.engine.name }}
+
   integration-smoke:
     runs-on: ubuntu-latest
 

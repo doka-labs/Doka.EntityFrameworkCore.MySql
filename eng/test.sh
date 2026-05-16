@@ -32,7 +32,10 @@ dotnet test "${unit_test_project}" --configuration Release --no-build --no-resto
     --collect:"XPlat Code Coverage" \
     --results-directory "${coverage_results_dir}" \
     --logger trx
+# Specification-suite tests require a live MySQL / MariaDB and run in the spec-test
+# CI job against the docker-compose stack; they are excluded from the repo-tests path.
 dotnet test "${functional_test_project}" --configuration Release --no-build --no-restore --tl:off \
+    --filter "Category!=Spec" \
     --collect:"XPlat Code Coverage" \
     --results-directory "${coverage_results_dir}" \
     --logger trx

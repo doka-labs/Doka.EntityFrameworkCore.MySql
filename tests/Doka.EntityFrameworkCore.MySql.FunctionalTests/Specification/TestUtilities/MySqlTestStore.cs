@@ -1,0 +1,156 @@
+using MySqlConnector;
+
+namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
+
+/// <summary>
+/// Per-database test store for Doka.EntityFrameworkCore.MySql specification suites. Wires the
+/// provider's <c>UseMySql</c> registration onto the EF Core spec-test infrastructure, handles
+/// database create / clean / drop lifecycle, and exposes the server-version snapshot the spec
+/// tests query through <see cref="ServerVersion"/>.
+/// </summary>
+public class MySqlTestStore : RelationalTestStore
+{
+    public const int DefaultCommandTimeout = 600;
+
+    private static readonly string s_adminConnectionString = BuildAdminConnectionString();
+
+    public MySqlTestStore(
+        string name,
+        bool shared = true
+    ) : base(name, shared, new MySqlConnection(BuildConnectionString(name)))
+    {
+    }
+
+    /// <summary>
+    /// Cached server version pulled from the active spec-test connection. The value comes from
+    /// <see cref="MySqlTestEnvironment.ServerVersion"/>; specification tests use it to dispatch
+    /// per-engine assertions when behavior diverges between MySQL and MariaDB.
+    /// </summary>
+    public static MySqlServerVersion ServerVersion => MySqlTestEnvironment.ServerVersion;
+
+    public static MySqlTestStore GetOrCreate(string name) => new(name);
+
+    public static MySqlTestStore Create(string name) => new(name, shared: false);
+
+    public override DbContextOptionsBuilder AddProviderOptions(
+        DbContextOptionsBuilder builder
+    ) => builder.UseMySql(Connection, ServerVersion);
+
+    protected override async Task InitializeAsync(
+        Func<DbContext> createContext,
+        Func<DbContext, Task>? seed,
+        Func<DbContext, Task>? clean
+    )
+    {
+        if (!await EnsureDatabaseExistsAsync(clean))
+        {
+            return;
+        }
+
+        await using var context = createContext();
+        await context.Database.EnsureCreatedResilientlyAsync();
+
+        if (seed is not null)
+        {
+            await seed(context);
+        }
+    }
+
+    public override async Task CleanAsync(
+        DbContext context
+    )
+    {
+        await context.Database.EnsureDeletedAsync();
+        await context.Database.EnsureCreatedAsync();
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
+
+        if (!Shared)
+        {
+            await DropDatabaseAsync();
+        }
+
+        GC.SuppressFinalize(this);
+    }
+
+    private async Task<bool> EnsureDatabaseExistsAsync(
+        Func<DbContext, Task>? clean
+    )
+    {
+        await using var admin = new MySqlConnection(s_adminConnectionString);
+        await admin.OpenAsync();
+
+        if (await DatabaseExistsAsync(admin, Name))
+        {
+            await using var context = new DbContext(
+                AddProviderOptions(new DbContextOptionsBuilder().EnableServiceProviderCaching(false)).Options);
+
+            if (clean is not null)
+            {
+                await clean(context);
+            }
+
+            await CleanAsync(context);
+            return true;
+        }
+
+        await ExecuteNonQueryAsync(admin, $"CREATE DATABASE `{Name}` CHARACTER SET utf8mb4;");
+        return true;
+    }
+
+    private async Task DropDatabaseAsync()
+    {
+        await using var admin = new MySqlConnection(s_adminConnectionString);
+        await admin.OpenAsync();
+        await ExecuteNonQueryAsync(admin, $"DROP DATABASE IF EXISTS `{Name}`;");
+    }
+
+    private static async Task<bool> DatabaseExistsAsync(
+        MySqlConnection admin,
+        string name
+    )
+    {
+        await using var command = admin.CreateCommand();
+        command.CommandText =
+            "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = @name;";
+        command.CommandTimeout = DefaultCommandTimeout;
+        command.Parameters.AddWithValue("@name", name);
+
+        var result = await command.ExecuteScalarAsync();
+        return result is not null && Convert.ToInt64(result, CultureInfo.InvariantCulture) > 0;
+    }
+
+    private static async Task ExecuteNonQueryAsync(
+        MySqlConnection admin,
+        string sql
+    )
+    {
+        await using var command = admin.CreateCommand();
+        command.CommandText = sql;
+        command.CommandTimeout = DefaultCommandTimeout;
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private static string BuildConnectionString(
+        string databaseName
+    ) => new MySqlConnectionStringBuilder(MySqlTestEnvironment.ConnectionString)
+    {
+        Database = databaseName,
+        DefaultCommandTimeout = (uint)DefaultCommandTimeout,
+        AllowUserVariables = true,
+        UseAffectedRows = false,
+    }.ConnectionString;
+
+    private static string BuildAdminConnectionString()
+    {
+        var builder = new MySqlConnectionStringBuilder(MySqlTestEnvironment.ConnectionString)
+        {
+            DefaultCommandTimeout = (uint)DefaultCommandTimeout,
+        };
+        builder.Remove("Database");
+        return builder.ConnectionString;
+    }
+}

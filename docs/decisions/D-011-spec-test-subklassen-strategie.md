@@ -1,9 +1,9 @@
 # D-011 -- Spec-Test-Subklassen-Strategie
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Date:** 2026-05-16
 - **Scope:** `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/`
-- **Implementation:** deferred to a follow-up commit
+- **Implementation:** infrastructure (`MySqlTestEnvironment`, `MySqlTestStore`, factories) plus the first two subclasses (`NorthwindWhereQueryMySqlTest`, `BuiltInDataTypesMySqlTest`) ship in the same commit as this status update. The remaining Northwind variants (Aggregate, GroupBy, Join, ...) follow incrementally. Test classes carry `[Trait("Category", "Spec")]` so the repo-tests path excludes them and the dedicated CI `spec-test-suite` job runs them against MySQL 8.4 + MariaDB 11.8.
 
 ## Context
 
