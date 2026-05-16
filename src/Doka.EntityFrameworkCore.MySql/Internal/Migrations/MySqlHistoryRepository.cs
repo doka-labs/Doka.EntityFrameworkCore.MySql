@@ -2,6 +2,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlHistoryRepository : HistoryRepository
 {
+    private const string ApplyMigrationProcedureName = "__ef_apply_migration";
+
     public MySqlHistoryRepository(
         HistoryRepositoryDependencies dependencies
     ) : base(dependencies)
@@ -132,8 +134,8 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             .GenerateSqlLiteral(migrationId);
 
         return $"""
-                DROP PROCEDURE IF EXISTS {SqlGenerationHelper.DelimitIdentifier("__ef_apply_migration")}{SqlGenerationHelper.StatementTerminator}
-                CREATE PROCEDURE {SqlGenerationHelper.DelimitIdentifier("__ef_apply_migration")}()
+                DROP PROCEDURE IF EXISTS {SqlGenerationHelper.DelimitIdentifier(ApplyMigrationProcedureName)}{SqlGenerationHelper.StatementTerminator}
+                CREATE PROCEDURE {SqlGenerationHelper.DelimitIdentifier(ApplyMigrationProcedureName)}()
                 BEGIN
                     IF NOT EXISTS (SELECT 1 FROM {SqlGenerationHelper.DelimitIdentifier(TableName)} WHERE {SqlGenerationHelper.DelimitIdentifier(MigrationIdColumnName)} = {migrationIdLiteral}) THEN
 
@@ -149,8 +151,8 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             .GenerateSqlLiteral(migrationId);
 
         return $"""
-                DROP PROCEDURE IF EXISTS {SqlGenerationHelper.DelimitIdentifier("__ef_apply_migration")}{SqlGenerationHelper.StatementTerminator}
-                CREATE PROCEDURE {SqlGenerationHelper.DelimitIdentifier("__ef_apply_migration")}()
+                DROP PROCEDURE IF EXISTS {SqlGenerationHelper.DelimitIdentifier(ApplyMigrationProcedureName)}{SqlGenerationHelper.StatementTerminator}
+                CREATE PROCEDURE {SqlGenerationHelper.DelimitIdentifier(ApplyMigrationProcedureName)}()
                 BEGIN
                     IF EXISTS (SELECT 1 FROM {SqlGenerationHelper.DelimitIdentifier(TableName)} WHERE {SqlGenerationHelper.DelimitIdentifier(MigrationIdColumnName)} = {migrationIdLiteral}) THEN
 
@@ -160,8 +162,8 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
     public override string GetEndIfScript() => $"""
                                                     END IF{SqlGenerationHelper.StatementTerminator}
                                                 END{SqlGenerationHelper.StatementTerminator}
-                                                CALL {SqlGenerationHelper.DelimitIdentifier("__ef_apply_migration")}(){SqlGenerationHelper.StatementTerminator}
-                                                DROP PROCEDURE IF EXISTS {SqlGenerationHelper.DelimitIdentifier("__ef_apply_migration")}{SqlGenerationHelper.StatementTerminator}
+                                                CALL {SqlGenerationHelper.DelimitIdentifier(ApplyMigrationProcedureName)}(){SqlGenerationHelper.StatementTerminator}
+                                                DROP PROCEDURE IF EXISTS {SqlGenerationHelper.DelimitIdentifier(ApplyMigrationProcedureName)}{SqlGenerationHelper.StatementTerminator}
 
                                                 """;
 

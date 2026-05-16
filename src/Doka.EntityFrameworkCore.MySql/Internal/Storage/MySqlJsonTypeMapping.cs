@@ -133,19 +133,6 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping
                 $"Cannot generate SQL literal for JSON value of type '{value.GetType().FullName}'."),
         };
 
-        return $"'{EscapeSqlLiteral(json)}'";
+        return MySqlSqlLiteralEscaper.EscapeAndQuote(json);
     }
-
-    /// <summary>
-    /// Escapes a JSON payload for safe embedding in a MySQL single-quoted SQL literal.
-    /// Backslash must be doubled <em>before</em> the single quote: in MySQL's default
-    /// <c>sql_mode</c> (with <c>NO_BACKSLASH_ESCAPES</c> off) a stray backslash escapes
-    /// the next character, so writing a single quote before doubling backslashes would
-    /// terminate the literal mid-payload and let the rest run on as raw SQL.
-    /// </summary>
-    private static string EscapeSqlLiteral(
-        string literal
-    ) => literal
-        .Replace("\\", "\\\\", StringComparison.Ordinal)
-        .Replace("'", "''", StringComparison.Ordinal);
 }

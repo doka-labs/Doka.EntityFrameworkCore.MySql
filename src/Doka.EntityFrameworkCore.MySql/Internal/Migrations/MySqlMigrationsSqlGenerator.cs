@@ -276,26 +276,8 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         {
             builder
                 .Append(" COMMENT = ")
-                .Append(EscapeSqlStringLiteral(comment));
+                .Append(MySqlSqlLiteralEscaper.EscapeAndQuote(comment));
         }
-    }
-
-    /// <summary>
-    /// Wraps a free-form string in single quotes and escapes embedded backslashes /
-    /// single quotes per MySQL string-literal rules. Used for places where a user-
-    /// supplied value (table COMMENT) needs to land verbatim in DDL; the
-    /// <see cref="ValidateIdentifier"/> path is unsuitable here because a comment
-    /// legitimately contains arbitrary text.
-    /// </summary>
-    private static string EscapeSqlStringLiteral(
-        string value
-    )
-    {
-        var escaped = value
-            .Replace("\\", @"\\", StringComparison.Ordinal)
-            .Replace("'", "\\'", StringComparison.Ordinal);
-
-        return $"'{escaped}'";
     }
 
     /// <summary>
@@ -613,7 +595,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         }
 
         // MySQL table-based sequence emulation.
-        var tableName = $"__efsequence_{operation.Name}";
+        var tableName = MySqlSequenceNaming.EmulationTableName(operation.Name);
         var delimitedTableName = Dependencies.SqlGenerationHelper.DelimitIdentifier(tableName);
 
         builder
@@ -663,7 +645,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             return;
         }
 
-        var tableName = $"__efsequence_{operation.Name}";
+        var tableName = MySqlSequenceNaming.EmulationTableName(operation.Name);
 
         builder
             .Append("DROP TABLE IF EXISTS ")
@@ -732,8 +714,8 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
-        var oldTableName = $"__efsequence_{operation.Name}";
-        var newTableName = $"__efsequence_{operation.NewName ?? operation.Name}";
+        var oldTableName = MySqlSequenceNaming.EmulationTableName(operation.Name);
+        var newTableName = MySqlSequenceNaming.EmulationTableName(operation.NewName ?? operation.Name);
 
         if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsNativeSequences) == true)
         {

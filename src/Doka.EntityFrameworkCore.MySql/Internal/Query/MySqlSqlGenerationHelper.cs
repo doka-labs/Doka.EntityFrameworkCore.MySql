@@ -43,14 +43,7 @@ internal sealed class MySqlSqlGenerationHelper : RelationalSqlGenerationHelper
 
     public override string EscapeIdentifier(
         string identifier
-    )
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
-
-        return identifier.AsSpan().IndexOf('`') < 0
-            ? identifier
-            : identifier.Replace("`", "``", StringComparison.Ordinal);
-    }
+    ) => MySqlIdentifierEscaping.EscapeBackticks(identifier);
 
     public override void EscapeIdentifier(
         StringBuilder builder,

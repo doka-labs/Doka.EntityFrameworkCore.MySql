@@ -223,25 +223,14 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     /// Escapes a JSON path property name for safe inclusion in a MySQL JSON path literal.
     /// Property names come from model metadata (developer-controlled), but characters that
     /// could terminate the enclosing SQL string literal or act as escape sequences must be
-    /// escaped defensively to prevent silent query mismatches.
+    /// escaped defensively to prevent silent query mismatches. The clean-name fast path
+    /// returns the input unchanged so the common case incurs no allocation; the slow path
+    /// delegates to <see cref="MySqlSqlLiteralEscaper.Escape"/> for the SQL-standard
+    /// double-quote / double-backslash form.
     /// </summary>
     private static string EscapeJsonPathPropertyName(
         string propertyName
-    )
-    {
-        // Escape backslashes first -- in MySQL's default SQL mode (NO_BACKSLASH_ESCAPES
-        // absent), a raw backslash in a string literal is treated as an escape prefix.
-        // Without doubling, 'path\segment' would be parsed as '$.pathsegment'.
-        // Then double any single quotes to prevent premature termination of the
-        // enclosing MySQL string literal '$.Path'.
-        if (propertyName.Contains('\\', StringComparison.Ordinal)
-            || propertyName.Contains('\'', StringComparison.Ordinal))
-        {
-            return propertyName
-                .Replace("\\", "\\\\", StringComparison.Ordinal)
-                .Replace("'", "''", StringComparison.Ordinal);
-        }
-
-        return propertyName;
-    }
+    ) => propertyName.Contains('\\', StringComparison.Ordinal) || propertyName.Contains('\'', StringComparison.Ordinal)
+        ? MySqlSqlLiteralEscaper.Escape(propertyName)
+        : propertyName;
 }
