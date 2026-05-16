@@ -80,6 +80,18 @@ internal static class MySqlLoggerMessages
             MySqlEventId.ForeignKeyPrincipalTableNotScaffolded,
             "Skipping foreign key '{ForeignKeyName}' on table '{TableName}' because principal table '{PrincipalTableName}' is not included in the scaffolding filter.");
 
+    private static readonly Action<ILogger, int, int, int, Exception?> s_bulkInsertParameterCountCapped =
+        LoggerMessage.Define<int, int, int>(
+            LogLevel.Warning,
+            MySqlEventId.BulkInsertParameterCountCapped,
+            "Multi-row INSERT batch split at the MySQL prepared-statement parameter limit. EffectiveBatchSize={EffectiveBatchSize} ProjectedParameterCount={ProjectedParameterCount} MaxParameterCount={MaxParameterCount}");
+
+    private static readonly Action<ILogger, int, int, int, Exception?> s_bulkInsertPacketSizeCapped =
+        LoggerMessage.Define<int, int, int>(
+            LogLevel.Warning,
+            MySqlEventId.BulkInsertPacketSizeCapped,
+            "Multi-row INSERT batch split at the conservative max_allowed_packet budget. EffectiveBatchSize={EffectiveBatchSize} EstimatedPacketSizeBytes={EstimatedPacketSizeBytes} MaxPacketSizeBytes={MaxPacketSizeBytes}");
+
     public static void InvalidConfiguration(
         ILogger logger,
         string message,
@@ -281,5 +293,29 @@ internal static class MySqlLoggerMessages
         ArgumentNullException.ThrowIfNull(logger);
 
         s_foreignKeyPrincipalTableNotScaffolded(logger, foreignKeyName, tableName, principalTableName, null);
+    }
+
+    public static void BulkInsertParameterCountCapped(
+        ILogger logger,
+        int effectiveBatchSize,
+        int projectedParameterCount,
+        int maxParameterCount
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        s_bulkInsertParameterCountCapped(logger, effectiveBatchSize, projectedParameterCount, maxParameterCount, null);
+    }
+
+    public static void BulkInsertPacketSizeCapped(
+        ILogger logger,
+        int effectiveBatchSize,
+        int estimatedPacketSizeBytes,
+        int maxPacketSizeBytes
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        s_bulkInsertPacketSizeCapped(logger, effectiveBatchSize, estimatedPacketSizeBytes, maxPacketSizeBytes, null);
     }
 }

@@ -15,7 +15,7 @@ public sealed class MySqlDiagnosticsGovernanceTests
         "Doka.EntityFrameworkCore.MySql.Migrations",
         "Doka.EntityFrameworkCore.MySql.Scaffolding",
         "Doka.EntityFrameworkCore.MySql.Resilience",
-        "Doka.EntityFrameworkCore.MySql.Spatial"
+        "Doka.EntityFrameworkCore.MySql.Spatial",
     };
 
     /// <summary>
@@ -32,7 +32,7 @@ public sealed class MySqlDiagnosticsGovernanceTests
             MySqlLoggerCategory.Migrations,
             MySqlLoggerCategory.Scaffolding,
             MySqlLoggerCategory.Resilience,
-            MySqlLoggerCategory.Spatial
+            MySqlLoggerCategory.Spatial,
         };
 
         Assert.Equal(s_expectedCategories, categories);
@@ -71,7 +71,9 @@ public sealed class MySqlDiagnosticsGovernanceTests
             [nameof(MySqlEventId.ForeignKeyPrincipalTableNotScaffolded)] = 1403,
             [nameof(MySqlEventId.MissingSpatialPackageDuringScaffolding)] = 1600,
             [nameof(MySqlEventId.InvalidSpatialIndexConfiguration)] = 1601,
-            [nameof(MySqlEventId.MissingSpatialTranslation)] = 1602
+            [nameof(MySqlEventId.MissingSpatialTranslation)] = 1602,
+            [nameof(MySqlEventId.BulkInsertParameterCountCapped)] = 1700,
+            [nameof(MySqlEventId.BulkInsertPacketSizeCapped)] = 1701,
         };
 
         Assert.Equal(expectedEventIds.Count, actualEventIds.Count);
@@ -113,7 +115,9 @@ public sealed class MySqlDiagnosticsGovernanceTests
             [nameof(MySqlEventId.ForeignKeyPrincipalTableNotScaffolded)] = (1400, 1499),
             [nameof(MySqlEventId.MissingSpatialPackageDuringScaffolding)] = (1600, 1699),
             [nameof(MySqlEventId.InvalidSpatialIndexConfiguration)] = (1600, 1699),
-            [nameof(MySqlEventId.MissingSpatialTranslation)] = (1600, 1699)
+            [nameof(MySqlEventId.MissingSpatialTranslation)] = (1600, 1699),
+            [nameof(MySqlEventId.BulkInsertParameterCountCapped)] = (1700, 1799),
+            [nameof(MySqlEventId.BulkInsertPacketSizeCapped)] = (1700, 1799),
         };
 
         foreach (var field in typeof(MySqlEventId).GetFields(BindingFlags.Public | BindingFlags.Static))

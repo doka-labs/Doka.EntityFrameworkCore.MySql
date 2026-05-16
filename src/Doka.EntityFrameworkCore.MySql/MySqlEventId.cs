@@ -86,4 +86,20 @@ public static class MySqlEventId
     /// </summary>
     public static readonly EventId ForeignKeyPrincipalTableNotScaffolded =
         new(1403, nameof(ForeignKeyPrincipalTableNotScaffolded));
+
+    /// <summary>
+    /// Emitted at most once per <see cref="DbContext.SaveChanges()"/> batch when the
+    /// projected prepared-statement parameter count would exceed the MySQL hard limit
+    /// (65535 placeholders). The batch is split at the command that would have crossed
+    /// the cap; the next command opens a fresh batch.
+    /// </summary>
+    public static readonly EventId BulkInsertParameterCountCapped = new(1700, nameof(BulkInsertParameterCountCapped));
+
+    /// <summary>
+    /// Emitted at most once per <see cref="DbContext.SaveChanges()"/> batch when the
+    /// estimated wire-size of the multi-row INSERT would exceed the conservative
+    /// <c>max_allowed_packet</c> budget. The batch is split at the command that would
+    /// have crossed the cap.
+    /// </summary>
+    public static readonly EventId BulkInsertPacketSizeCapped = new(1701, nameof(BulkInsertPacketSizeCapped));
 }

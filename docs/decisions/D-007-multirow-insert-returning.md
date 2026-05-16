@@ -1,9 +1,17 @@
 # D-007 -- Multi-Row-INSERT + RETURNING-Routing
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Date:** 2026-05-16
-- **Scope:** `Internal/Update/MySqlModificationCommandBatch` write-path batching
-- **Implementation:** deferred to a follow-up commit
+- **Scope:** `Internal/Update/MySqlModificationCommandBatch` + `Internal/Update/MySqlUpdateSqlGenerator` write-path
+- **Implementation:** `MySqlUpdateSqlGenerator.AppendBulkInsertOperation` routes between three paths -- single-row (delegates to `AppendInsertOperation`), multi-row write-only (`AppendInsertMultipleRowsInSingleStatementOperation`), and multi-row read-back. On MariaDB 10.5+ the read-back path collapses into a single `INSERT ... VALUES (..),(..) RETURNING ...` statement via `AppendBulkInsertReturningOperation`; on MySQL the read-back path falls back to a per-row INSERT loop because `LAST_INSERT_ID()` only reports the first auto-increment value of a multi-row batch. `MySqlModificationCommandBatch` buffers consecutive `EntityState.Added` commands that pass `CanBeInsertedInSameStatement` (same table + schema + write-column list + read-column list) into `_pendingBulkInsertCommands` and flushes them via `ApplyPendingBulkInsertCommands` on shape change, non-INSERT command, or `Complete`. The integration test `MySqlBulkInsertReturningTests` covers auto-increment, trigger-modified columns, write-only, MySQL per-row fallback, and shape-split. `BulkInsertBenchmark` measures throughput against the per-row baseline for regression detection.
+
+## Implementation notes
+
+- The buffered `_pendingBulkInsertCommands` list grows up to the user's `MaxBatchSize` (capped at the existing `DefaultMaxBatchSize = 1000`), then closes early when either of two server-side safety caps would be crossed: the prepared-statement placeholder count (65535, MySQL/MariaDB hard limit) and a conservative `max_allowed_packet` budget (4 MB wire-size estimate at 256 bytes per parameter, under the smallest commonly seen server configuration). The cap event logs once per batch via `MySqlEventId.BulkInsertParameterCountCapped` / `MySqlEventId.BulkInsertPacketSizeCapped` with the effective batch size and the projected count / byte estimate; the first command is always accepted so an oversized single row surfaces with the clean server error instead of silently dropping commands.
+- `CanBeInsertedInSameStatement` compares write- and read-column ColumnName sequences in declaration order. Tables with the same columns in a different order force a shape-split; this is intentional and matches Pomelo's behavior.
+- The shadow property `MySqlModificationCommandBatch.UpdateSqlGenerator` re-types the inherited `IUpdateSqlGenerator` slot to the provider's concrete `MySqlUpdateSqlGenerator` so the bulk-insert entry point is callable without a per-call cast.
+- `AppendBulkInsertReturningOperation` reads the column list from the first command's `ColumnModifications.Where(IsRead)`; the shape check above guarantees the rest of the buffer agrees.
+- The MariaDB fallback path on engines that do not support RETURNING delegates to a `foreach` over `AppendInsertOperation`; on those engines the multi-row read-back batch becomes a series of single-row statements within the same `ModificationCommandBatch`. The result is correctness over throughput on legacy engines, which matches the secure-defaults principle the ADR named.
 
 ## Context
 

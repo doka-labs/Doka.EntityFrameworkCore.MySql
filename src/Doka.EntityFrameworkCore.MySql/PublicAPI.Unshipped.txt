@@ -68,6 +68,8 @@ static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.MariaDb(System.Version!
 static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.MySql(System.Version! version) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
 static Doka.EntityFrameworkCore.MySql.MySqlServiceCollectionExtensions.AddEntityFrameworkDokaMySql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! serviceCollection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Doka.EntityFrameworkCore.MySql.MySqlServiceCollectionExtensions.AddEntityFrameworkDokaMySqlDesignTime(this Microsoft.Extensions.DependencyInjection.IServiceCollection! serviceCollection, System.Action<Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.BulkInsertPacketSizeCapped -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.BulkInsertParameterCountCapped -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.CommandTimeoutExhausted -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.CommitUnknown -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.ForeignKeyPrincipalTableNotScaffolded -> Microsoft.Extensions.Logging.EventId
