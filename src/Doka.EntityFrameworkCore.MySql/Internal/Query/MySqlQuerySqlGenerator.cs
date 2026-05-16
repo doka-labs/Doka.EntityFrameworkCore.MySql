@@ -82,9 +82,50 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
                     return sqlFunctionExpression;
                 }
 
+            case { Name: var name, Arguments.Count: 2 }
+                when name.StartsWith(DateAddSentinelPrefix, StringComparison.Ordinal):
+                {
+                    EmitDateAdd(sqlFunctionExpression, name[DateAddSentinelPrefix.Length..]);
+                    return sqlFunctionExpression;
+                }
+
+            case { Name: var name, Arguments.Count: 2 }
+                when name.StartsWith(TimeAddSentinelPrefix, StringComparison.Ordinal):
+                {
+                    EmitDateAdd(sqlFunctionExpression, name[TimeAddSentinelPrefix.Length..]);
+                    return sqlFunctionExpression;
+                }
+
             default:
                 return base.VisitSqlFunction(sqlFunctionExpression);
         }
+    }
+
+    private const string DateAddSentinelPrefix = "__mysql_date_add_";
+    private const string TimeAddSentinelPrefix = "__mysql_time_add_";
+
+    /// <summary>
+    /// Emits <c>DATE_ADD(arg0, INTERVAL arg1 UNIT)</c> for the parametrized-interval
+    /// translation path. The interval keyword sits between the comma and the value, so
+    /// the standard function-arguments comma-separator path cannot express the shape;
+    /// the sentinel-function-name pattern lets the translator stay inside the
+    /// SqlExpression tree and lets this writer hand-roll the syntax.
+    /// </summary>
+    private void EmitDateAdd(
+        SqlFunctionExpression expression,
+        string unit
+    )
+    {
+        var arguments = expression.Arguments
+            ?? throw new InvalidOperationException($"Sentinel function '{expression.Name}' must carry arguments.");
+
+        Sql.Append("DATE_ADD(");
+        Visit(arguments[0]);
+        Sql.Append(", INTERVAL ");
+        Visit(arguments[1]);
+        Sql.Append(" ");
+        Sql.Append(unit);
+        Sql.Append(")");
     }
 
     /// <summary>

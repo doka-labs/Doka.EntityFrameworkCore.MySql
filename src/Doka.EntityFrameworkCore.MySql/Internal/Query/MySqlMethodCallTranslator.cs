@@ -905,34 +905,26 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
         argument.TypeMapping);
 
     /// <summary>
-    /// Translates DateTime.AddX(n) to the MySQL addition operator with INTERVAL.
-    /// Uses the <c>dt + INTERVAL n UNIT</c> syntax which EF Core can represent
-    /// as a binary add expression with an interval fragment on the right side.
+    /// Translates DateTime.AddX(n) to the MySQL DATE_ADD function with INTERVAL syntax.
+    /// Both constant and parametrized intervals route through the sentinel function name
+    /// <c>__mysql_date_add_UNIT</c>; the QuerySqlGenerator rewrites the sentinel to
+    /// <c>DATE_ADD(arg0, INTERVAL arg1 UNIT)</c> so a parametrized interval keeps its
+    /// server-side evaluation path instead of falling back to client-side enumeration.
     /// </summary>
-    private SqlExpression? TranslateDateAdd(
+    private SqlExpression TranslateDateAdd(
         SqlExpression instance,
         SqlExpression interval,
         string unit
-    )
-    {
-        // Non-constant intervals cannot be represented with INTERVAL keyword syntax
-        // through standard EF Core expression trees. Return null for client evaluation.
-        if (interval is not SqlConstantExpression { Value: not null } constant)
-        {
-            return null;
-        }
-
-        // MySQL supports: dt + INTERVAL n UNIT
-        // We represent the INTERVAL portion as a SqlFragmentExpression for constant values.
-        var formattedValue = Convert
-            .ToDouble(constant.Value, CultureInfo.InvariantCulture)
-            .ToString(CultureInfo.InvariantCulture);
-
-        return _sqlExpressionFactory.Add(
+    ) => _sqlExpressionFactory.Function(
+        $"__mysql_date_add_{unit}",
+        [
             instance,
-            new SqlFragmentExpression($"INTERVAL {formattedValue} {unit}"),
-            instance.TypeMapping);
-    }
+            interval,
+        ],
+        nullable: true,
+        argumentsPropagateNullability: s_roundTwoArgumentNullPropagation,
+        instance.Type,
+        instance.TypeMapping);
 
     private SqlExpression TranslateSubstring(
         SqlExpression instance,
@@ -1032,28 +1024,25 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
     }
 
     /// <summary>
-    /// Translates TimeOnly.AddHours/AddMinutes to ADDTIME with INTERVAL syntax.
+    /// Translates TimeOnly.AddHours / AddMinutes / AddSeconds to MySQL DATE_ADD with the
+    /// INTERVAL keyword. Both constant and parametrized intervals route through the
+    /// sentinel function name <c>__mysql_time_add_UNIT</c>; the QuerySqlGenerator rewrites
+    /// the sentinel to <c>DATE_ADD(arg0, INTERVAL arg1 UNIT)</c>.
     /// </summary>
-    private SqlExpression? TranslateTimeOnlyAdd(
+    private SqlExpression TranslateTimeOnlyAdd(
         SqlExpression instance,
         SqlExpression interval,
         string unit
-    )
-    {
-        if (interval is not SqlConstantExpression { Value: not null } constant)
-        {
-            return null;
-        }
-
-        var formattedValue = Convert
-            .ToDouble(constant.Value, CultureInfo.InvariantCulture)
-            .ToString(CultureInfo.InvariantCulture);
-
-        return _sqlExpressionFactory.Add(
+    ) => _sqlExpressionFactory.Function(
+        $"__mysql_time_add_{unit}",
+        [
             instance,
-            new SqlFragmentExpression($"INTERVAL {formattedValue} {unit}"),
-            instance.TypeMapping);
-    }
+            interval,
+        ],
+        nullable: true,
+        argumentsPropagateNullability: s_roundTwoArgumentNullPropagation,
+        instance.Type,
+        instance.TypeMapping);
 
     /// <summary>
     /// Translates TimeOnly.Add(TimeSpan) to MySQL ADDTIME(time, timespan).
