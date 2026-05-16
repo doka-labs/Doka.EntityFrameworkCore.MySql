@@ -167,9 +167,7 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
                     indexBuilder.IsUnique();
                 }
 
-                if (index.FindAnnotation(MySqlAnnotationNames.SpatialIndex)
-                        ?.Value as bool?
-                    == true)
+                if ((index.FindAnnotation(MySqlAnnotationNames.SpatialIndex)?.Value as bool?) == true)
                 {
                     indexBuilder.Metadata.SetMySqlSpatialIndex(true);
                     _scaffoldingContext.MarkUsesNetTopologySuiteScaffolding();
@@ -315,7 +313,8 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
             skippedColumns.Add((table, column));
             MySqlLoggerMessages.MissingSpatialPackageDuringScaffolding(
                 _logger,
-                $"Skipping spatial column '{table.Name}.{column.Name}' during reverse engineering because the optional Doka.EntityFrameworkCore.MySql.NetTopologySuite package is not active in the design-time service graph.");
+                table.Name,
+                column.Name);
 
             return true;
         }

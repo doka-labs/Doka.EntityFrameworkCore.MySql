@@ -39,32 +39,39 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
         ILogger logger
     )
     {
+        const string remediation = "Remove the configured schema; MySQL treats schema and database as synonyms.";
+
         if (!string.IsNullOrWhiteSpace(model.GetDefaultSchema()))
         {
-            const string message = "MySQL schema configuration is not supported. Remove the configured default schema.";
-
-            MySqlLoggerMessages.SchemaUnsupported(logger, message);
-            throw new InvalidOperationException(message);
+            MySqlLoggerMessages.SchemaUnsupported(logger, "Model", "<default>", "default schema declared", remediation);
+            throw new InvalidOperationException(
+                "MySQL schema configuration is not supported. Remove the configured default schema.");
         }
 
         foreach (var entityType in model.GetEntityTypes())
         {
             if (!string.IsNullOrWhiteSpace(entityType.GetSchema()))
             {
-                var message =
-                    $"MySQL schema configuration is not supported. Remove the schema from entity '{entityType.DisplayName()}'.";
-
-                MySqlLoggerMessages.SchemaUnsupported(logger, message);
-                throw new InvalidOperationException(message);
+                MySqlLoggerMessages.SchemaUnsupported(
+                    logger,
+                    "Entity",
+                    entityType.DisplayName(),
+                    "table schema declared",
+                    remediation);
+                throw new InvalidOperationException(
+                    $"MySQL schema configuration is not supported. Remove the schema from entity '{entityType.DisplayName()}'.");
             }
 
             if (!string.IsNullOrWhiteSpace(entityType.GetViewSchema()))
             {
-                var message =
-                    $"MySQL schema configuration is not supported. Remove the view schema from entity '{entityType.DisplayName()}'.";
-
-                MySqlLoggerMessages.SchemaUnsupported(logger, message);
-                throw new InvalidOperationException(message);
+                MySqlLoggerMessages.SchemaUnsupported(
+                    logger,
+                    "View",
+                    entityType.DisplayName(),
+                    "view schema declared",
+                    remediation);
+                throw new InvalidOperationException(
+                    $"MySQL schema configuration is not supported. Remove the view schema from entity '{entityType.DisplayName()}'.");
             }
         }
 
@@ -72,11 +79,14 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
         {
             if (!string.IsNullOrWhiteSpace(sequence.Schema))
             {
-                var message =
-                    $"MySQL schema configuration is not supported. Remove the schema from sequence '{sequence.Name}'.";
-
-                MySqlLoggerMessages.SchemaUnsupported(logger, message);
-                throw new InvalidOperationException(message);
+                MySqlLoggerMessages.SchemaUnsupported(
+                    logger,
+                    "Sequence",
+                    sequence.Name,
+                    "sequence schema declared",
+                    remediation);
+                throw new InvalidOperationException(
+                    $"MySQL schema configuration is not supported. Remove the schema from sequence '{sequence.Name}'.");
             }
         }
     }
@@ -101,11 +111,14 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                 }
 
                 var propertyKind = UnwrapNullableType(property.ClrType) == typeof(byte[]) ? "binary" : "text";
-                var message =
-                    $"The keyed or indexed {propertyKind} property '{entityType.DisplayName()}.{property.Name}' must declare an explicit max length.";
 
-                MySqlLoggerMessages.KeyOrIndexMaxLengthRequired(logger, message);
-                throw new InvalidOperationException(message);
+                MySqlLoggerMessages.KeyOrIndexMaxLengthRequired(
+                    logger,
+                    entityType.DisplayName(),
+                    property.Name,
+                    propertyKind);
+                throw new InvalidOperationException(
+                    $"The keyed or indexed {propertyKind} property '{entityType.DisplayName()}.{property.Name}' must declare an explicit max length.");
             }
         }
     }
@@ -129,10 +142,12 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                     continue;
                 }
 
-                var message =
-                    $"The decimal property '{entityType.DisplayName()}.{property.Name}' does not declare an explicit precision/scale. The provider default 'decimal(18,2)' will be used.";
-
-                MySqlLoggerMessages.ImplicitDecimalPrecisionDefaulted(logger, message);
+                MySqlLoggerMessages.ImplicitDecimalPrecisionDefaulted(
+                    logger,
+                    entityType.DisplayName(),
+                    property.Name,
+                    defaultPrecision: 18,
+                    defaultScale: 2);
             }
         }
     }
@@ -238,7 +253,8 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                 {
                     ThrowInvalidSpatialIndexConfiguration(
                         logger,
-                        $"The spatial index '{entityType.DisplayName()}.{index.GetDatabaseName() ?? index.Properties[0].Name}' must target exactly one property by this provider.");
+                        $"{entityType.DisplayName()}.{index.GetDatabaseName() ?? index.Properties[0].Name}",
+                        "must target exactly one property");
                 }
 
                 var property = index.Properties[0];
@@ -247,21 +263,24 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                 {
                     ThrowInvalidSpatialIndexConfiguration(
                         logger,
-                        $"The spatial index '{entityType.DisplayName()}.{index.GetDatabaseName() ?? property.Name}' must target a NetTopologySuite geometry property.");
+                        $"{entityType.DisplayName()}.{index.GetDatabaseName() ?? property.Name}",
+                        "must target a NetTopologySuite geometry property");
                 }
 
                 if (property.IsNullable)
                 {
                     ThrowInvalidSpatialIndexConfiguration(
                         logger,
-                        $"The spatial index '{entityType.DisplayName()}.{index.GetDatabaseName() ?? property.Name}' must target a non-nullable geometry property.");
+                        $"{entityType.DisplayName()}.{index.GetDatabaseName() ?? property.Name}",
+                        "must target a non-nullable geometry property");
                 }
 
                 if (index.IsUnique)
                 {
                     ThrowInvalidSpatialIndexConfiguration(
                         logger,
-                        $"The spatial index '{entityType.DisplayName()}.{index.GetDatabaseName() ?? property.Name}' cannot be unique by this provider.");
+                        $"{entityType.DisplayName()}.{index.GetDatabaseName() ?? property.Name}",
+                        "cannot be unique");
                 }
             }
         }
@@ -269,11 +288,12 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
 
     private static void ThrowInvalidSpatialIndexConfiguration(
         ILogger logger,
-        string message
+        string index,
+        string reason
     )
     {
-        MySqlLoggerMessages.InvalidSpatialIndexConfiguration(logger, message);
-        throw new InvalidOperationException(message);
+        MySqlLoggerMessages.InvalidSpatialIndexConfiguration(logger, index, reason);
+        throw new InvalidOperationException($"The spatial index '{index}' {reason} by this provider.");
     }
 
     private static Type UnwrapNullableType(

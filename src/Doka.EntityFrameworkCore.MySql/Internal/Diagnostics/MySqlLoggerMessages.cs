@@ -8,20 +8,23 @@ internal static class MySqlLoggerMessages
             MySqlEventId.InvalidConfiguration,
             "{Message} ConnectionPath={ConnectionPath} RedactedConnectionString={RedactedConnectionString}");
 
-    private static readonly Action<ILogger, string, string, string, Exception?> s_serverVersionResolved =
+    private static readonly Action<ILogger, string, string, string, string, Exception?> s_schemaUnsupported =
+        LoggerMessage.Define<string, string, string, string>(
+            LogLevel.Error,
+            MySqlEventId.SchemaUnsupported,
+            "MySQL schema configuration is not supported. Scope={Scope} ScopeName={ScopeName} Reason={Reason} Remediation={Remediation}");
+
+    private static readonly Action<ILogger, string, string, string, Exception?> s_keyOrIndexMaxLengthRequired =
         LoggerMessage.Define<string, string, string>(
-            LogLevel.Information,
-            MySqlEventId.ServerVersionResolved,
-            "Resolved {DatabaseEngine} server version {ServerVersion}. Capabilities={Capabilities}");
+            LogLevel.Error,
+            MySqlEventId.KeyOrIndexMaxLengthRequired,
+            "The keyed or indexed {PropertyKind} property '{EntityType}.{Property}' must declare an explicit max length.");
 
-    private static readonly Action<ILogger, string, Exception?> s_schemaUnsupported =
-        LoggerMessage.Define<string>(LogLevel.Error, MySqlEventId.SchemaUnsupported, "{Message}");
-
-    private static readonly Action<ILogger, string, Exception?> s_keyOrIndexMaxLengthRequired =
-        LoggerMessage.Define<string>(LogLevel.Error, MySqlEventId.KeyOrIndexMaxLengthRequired, "{Message}");
-
-    private static readonly Action<ILogger, string, Exception?> s_implicitDecimalPrecisionDefaulted =
-        LoggerMessage.Define<string>(LogLevel.Warning, MySqlEventId.ImplicitDecimalPrecisionDefaulted, "{Message}");
+    private static readonly Action<ILogger, string, string, int, int, Exception?> s_implicitDecimalPrecisionDefaulted =
+        LoggerMessage.Define<string, string, int, int>(
+            LogLevel.Warning,
+            MySqlEventId.ImplicitDecimalPrecisionDefaulted,
+            "The decimal property '{EntityType}.{Property}' does not declare an explicit precision/scale. The provider default 'decimal({DefaultPrecision},{DefaultScale})' will be used.");
 
     private static readonly Action<ILogger, int, int, double, string, Exception?> s_retryAttempt =
         LoggerMessage.Define<int, int, double, string>(
@@ -59,14 +62,17 @@ internal static class MySqlLoggerMessages
             MySqlEventId.CommitUnknown,
             "MySQL transaction commit failed with an unknown outcome. TransactionId={TransactionId} ConnectionState={ConnectionState} Guidance={Guidance}");
 
-    private static readonly Action<ILogger, string, Exception?> s_missingSpatialPackageDuringScaffolding =
-        LoggerMessage.Define<string>(
+    private static readonly Action<ILogger, string, string, Exception?> s_missingSpatialPackageDuringScaffolding =
+        LoggerMessage.Define<string, string>(
             LogLevel.Warning,
             MySqlEventId.MissingSpatialPackageDuringScaffolding,
-            "{Message}");
+            "Skipping spatial column during reverse engineering because the optional Doka.EntityFrameworkCore.MySql.NetTopologySuite package is not active in the design-time service graph. Table={Table} Column={Column}");
 
-    private static readonly Action<ILogger, string, Exception?> s_invalidSpatialIndexConfiguration =
-        LoggerMessage.Define<string>(LogLevel.Error, MySqlEventId.InvalidSpatialIndexConfiguration, "{Message}");
+    private static readonly Action<ILogger, string, string, Exception?> s_invalidSpatialIndexConfiguration =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Error,
+            MySqlEventId.InvalidSpatialIndexConfiguration,
+            "Spatial index configuration violates the supported provider contract. Index={Index} Reason={Reason}");
 
     private static readonly Action<ILogger, string, Exception?> s_missingSpatialTranslation =
         LoggerMessage.Define<string>(
@@ -111,10 +117,11 @@ internal static class MySqlLoggerMessages
         string redactedConnectionString
     ) => s_invalidConfiguration(logger, message, connectionPath, redactedConnectionString, null);
 
-    // Order-preserving capability snapshot for the resolved-version log line. The
-    // tuple list is declared once at file scope so the diagnostic format stays diffable
-    // when capabilities are added (one tuple per capability) and the call site stays
-    // a short string.Join instead of a hundred-character interpolated string.
+    // Order-preserving capability snapshot for the resolved-version log payload. The
+    // tuple list is declared once at file scope so the diagnostic surface stays
+    // diffable when capabilities are added (one tuple per capability) and every
+    // capability ships as its own structured field in the log state, queryable by
+    // name from OpenTelemetry sinks.
     private static readonly (string Label, Capability Capability)[] s_capabilitySnapshot =
     [
         ("CTE", Capability.SupportsCommonTableExpressions),
@@ -133,6 +140,7 @@ internal static class MySqlLoggerMessages
         ("IntersectExcept", Capability.SupportsIntersectExcept),
         ("SystemVersioning", Capability.SupportsSystemVersioning),
         ("FullTextIndex", Capability.SupportsFullTextIndex),
+        ("RenameColumnSyntax", Capability.SupportsRenameColumnSyntax),
     ];
 
     public static void ServerVersionResolved(
@@ -140,33 +148,44 @@ internal static class MySqlLoggerMessages
         MySqlServerVersion serverVersion
     )
     {
-        var profile = serverVersion.Profile;
-        var snapshot = string.Join(
-            ';',
-            s_capabilitySnapshot.Select(entry => $"{entry.Label}={profile.Has(entry.Capability)}"));
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(serverVersion);
 
-        s_serverVersionResolved(
-            logger,
-            serverVersion.IsMariaDb ? "MariaDB" : "MySQL",
-            serverVersion.Version.ToString(),
-            snapshot,
-            null);
+        if (!logger.IsEnabled(LogLevel.Information))
+        {
+            return;
+        }
+
+        logger.Log(
+            LogLevel.Information,
+            MySqlEventId.ServerVersionResolved,
+            new ServerVersionResolvedLogValues(serverVersion),
+            exception: null,
+            ServerVersionResolvedLogValues.Render);
     }
 
     public static void SchemaUnsupported(
         ILogger logger,
-        string message
-    ) => s_schemaUnsupported(logger, message, null);
+        string scope,
+        string scopeName,
+        string reason,
+        string remediation
+    ) => s_schemaUnsupported(logger, scope, scopeName, reason, remediation, null);
 
     public static void KeyOrIndexMaxLengthRequired(
         ILogger logger,
-        string message
-    ) => s_keyOrIndexMaxLengthRequired(logger, message, null);
+        string entityType,
+        string property,
+        string propertyKind
+    ) => s_keyOrIndexMaxLengthRequired(logger, propertyKind, entityType, property, null);
 
     public static void ImplicitDecimalPrecisionDefaulted(
         ILogger logger,
-        string message
-    ) => s_implicitDecimalPrecisionDefaulted(logger, message, null);
+        string entityType,
+        string property,
+        int defaultPrecision,
+        int defaultScale
+    ) => s_implicitDecimalPrecisionDefaulted(logger, entityType, property, defaultPrecision, defaultScale, null);
 
     public static void RetryAttempt(
         ILogger logger,
@@ -266,22 +285,24 @@ internal static class MySqlLoggerMessages
 
     public static void MissingSpatialPackageDuringScaffolding(
         ILogger logger,
-        string message
+        string table,
+        string column
     )
     {
         ArgumentNullException.ThrowIfNull(logger);
 
-        s_missingSpatialPackageDuringScaffolding(logger, message, null);
+        s_missingSpatialPackageDuringScaffolding(logger, table, column, null);
     }
 
     public static void InvalidSpatialIndexConfiguration(
         ILogger logger,
-        string message
+        string index,
+        string reason
     )
     {
         ArgumentNullException.ThrowIfNull(logger);
 
-        s_invalidSpatialIndexConfiguration(logger, message, null);
+        s_invalidSpatialIndexConfiguration(logger, index, reason, null);
     }
 
     public static void MissingSpatialTranslation(
@@ -352,5 +373,68 @@ internal static class MySqlLoggerMessages
         ArgumentNullException.ThrowIfNull(exception);
 
         s_lockReleaseFailed(logger, lockName, exception.GetType().Name, exception);
+    }
+
+    /// <summary>
+    /// Carries every server-version-resolution field as a structured key-value
+    /// entry so OpenTelemetry sinks can query each capability boolean by name.
+    /// <c>LoggerMessage.Define</c> caps at six generic parameters which would
+    /// force the capability snapshot back into a joined string; the
+    /// per-capability fields stay queryable here because the struct implements
+    /// <see cref="IReadOnlyList{T}"/> over <see cref="KeyValuePair{TKey,TValue}"/>.
+    /// </summary>
+    private readonly struct ServerVersionResolvedLogValues : IReadOnlyList<KeyValuePair<string, object?>>
+    {
+        public static readonly Func<ServerVersionResolvedLogValues, Exception?, string> Render = (
+            state,
+            _
+        ) => state.ToString();
+
+        private readonly MySqlServerVersion _serverVersion;
+
+        public ServerVersionResolvedLogValues(
+            MySqlServerVersion serverVersion
+        )
+        {
+            _serverVersion = serverVersion;
+        }
+
+        public int Count => 2 + s_capabilitySnapshot.Length;
+
+        public KeyValuePair<string, object?> this[
+            int index
+        ] =>
+            index switch
+            {
+                0 => new KeyValuePair<string, object?>(
+                    "DatabaseEngine",
+                    _serverVersion.IsMariaDb ? "MariaDB" : "MySQL"),
+                1 => new KeyValuePair<string, object?>("ServerVersion", _serverVersion.Version.ToString()),
+                _ when index < Count => new KeyValuePair<string, object?>(
+                    s_capabilitySnapshot[index - 2].Label,
+                    _serverVersion.Profile.Has(s_capabilitySnapshot[index - 2].Capability)),
+                _ => throw new ArgumentOutOfRangeException(nameof(index)),
+            };
+
+        public IEnumerator<KeyValuePair<string, object?>> GetEnumerator()
+        {
+            for (var index = 0; index < Count; index++)
+            {
+                yield return this[index];
+            }
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+        public override string ToString()
+        {
+            var profile = _serverVersion.Profile;
+            var engine = _serverVersion.IsMariaDb ? "MariaDB" : "MySQL";
+            var capabilities = string.Join(
+                ';',
+                s_capabilitySnapshot.Select(entry => $"{entry.Label}={profile.Has(entry.Capability)}"));
+
+            return $"Resolved {engine} server version {_serverVersion.Version}. Capabilities={capabilities}";
+        }
     }
 }

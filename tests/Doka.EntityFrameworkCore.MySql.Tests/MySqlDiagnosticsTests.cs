@@ -46,7 +46,12 @@ public sealed class MySqlDiagnosticsTests
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
         singletonOptions.Initialize(optionsBuilder.Options);
-        MySqlLoggerMessages.SchemaUnsupported(singletonOptions.ProviderLogger!, "schema unsupported");
+        MySqlLoggerMessages.SchemaUnsupported(
+            singletonOptions.ProviderLogger!,
+            "Model",
+            "<default>",
+            "schema unsupported",
+            "remove the schema");
 
         var entry = sink.Entries.First(e => e.EventId.Id == MySqlEventId.SchemaUnsupported.Id);
 
@@ -99,7 +104,9 @@ public sealed class MySqlDiagnosticsTests
         singletonOptions.Initialize(optionsBuilder.Options);
         MySqlLoggerMessages.KeyOrIndexMaxLengthRequired(
             singletonOptions.ProviderLogger!,
-            "The keyed or indexed text property 'Entity.Code' must declare an explicit max length.");
+            "Entity",
+            "Code",
+            "text");
 
         var entry = sink.Entries.First(e => e.EventId.Id == MySqlEventId.KeyOrIndexMaxLengthRequired.Id);
 
@@ -127,7 +134,10 @@ public sealed class MySqlDiagnosticsTests
         singletonOptions.Initialize(optionsBuilder.Options);
         MySqlLoggerMessages.ImplicitDecimalPrecisionDefaulted(
             singletonOptions.ProviderLogger!,
-            "The decimal property 'Entity.Amount' does not declare an explicit precision/scale. The provider default 'decimal(18,2)' will be used.");
+            "Entity",
+            "Amount",
+            defaultPrecision: 18,
+            defaultScale: 2);
 
         var entry = sink.Entries.First(e => e.EventId.Id == MySqlEventId.ImplicitDecimalPrecisionDefaulted.Id);
 

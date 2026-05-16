@@ -96,6 +96,45 @@ public sealed class MySqlDiagnosticsGovernanceTests
     }
 
     /// <summary>
+    /// Reverse-coverage drift gate: every <see cref="MySqlEventId"/> field must
+    /// have a matching emitter method on <see cref="MySqlLoggerMessages"/> with
+    /// the same name. The pairing convention is intentional: the EventId is the
+    /// stable consumer-facing surface, the emitter method is the only legitimate
+    /// way to fire that EventId. Drift between the two means either an EventId
+    /// was added without a logger entry (no production caller can emit it) or a
+    /// logger entry was removed without retiring the EventId (the consumer sees
+    /// the EventId surface but the production code path no longer fires).
+    /// </summary>
+    [Fact]
+    public void Every_event_id_has_a_matching_logger_message_emitter()
+    {
+        var eventIdNames = typeof(MySqlEventId)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(field => field.FieldType == typeof(EventId))
+            .Select(field => field.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var emitterMethodNames = typeof(MySqlLoggerMessages)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(method =>
+                method.GetParameters()
+                    .FirstOrDefault()
+                    ?.ParameterType
+                == typeof(ILogger))
+            .Select(method => method.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var unconsumed = eventIdNames
+            .Except(emitterMethodNames, StringComparer.Ordinal)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(
+            unconsumed.Count == 0,
+            $"Every MySqlEventId field must have a same-named MySqlLoggerMessages emitter. Unconsumed event IDs: {string.Join(", ", unconsumed)}.");
+    }
+
+    /// <summary>
     /// Verifies that the current provider event catalog remains inside the approved subsystem ranges.
     /// </summary>
     [Fact]

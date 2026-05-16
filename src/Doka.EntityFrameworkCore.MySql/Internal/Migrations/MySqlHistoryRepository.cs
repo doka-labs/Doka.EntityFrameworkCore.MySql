@@ -22,7 +22,12 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
 
             if (logger is not null)
             {
-                MySqlLoggerMessages.SchemaUnsupported(logger, message);
+                MySqlLoggerMessages.SchemaUnsupported(
+                    logger,
+                    "MigrationsHistory",
+                    TableSchema,
+                    "migrations-history table schema declared",
+                    "Remove the configured migrations history table schema.");
             }
 
             throw new InvalidOperationException(message);
