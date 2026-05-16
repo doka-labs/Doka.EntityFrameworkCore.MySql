@@ -34,7 +34,30 @@ Entry shape:
 
 ## Permanent skips
 
-No permanent skips yet; entries land here only after a structural-reason ADR justifies them.
+Entries here are gated by ADR D-011 bucket 3: the upstream specification test assumes a behavior,
+feature, or history that the MySQL / MariaDB engines (or the Doka provider's design) structurally
+do not provide.
+
+- MigrationsMySqlTest.Can_diff_against_2_2_model (mysql:8.4, mariadb:11.8) -- The spec test
+  verifies that an EF-Core-2.2-era ModelSnapshot diffs to zero against the current model. Doka's
+  first release is on EF Core 10; no prior-version Doka snapshot exists in the wild and any
+  hand-fabricated snapshot would only verify symmetry with the fabrication itself. Structural
+  inapplicability per ADR D-011.
+- MigrationsMySqlTest.Can_diff_against_2_1_ASP_NET_Identity_model (mysql:8.4, mariadb:11.8) --
+  same structural reason as the 2.2 entry above; no prior-version Doka snapshot of the
+  ASP.NET Identity 2.1 model exists.
+- MigrationsMySqlTest.Can_diff_against_2_2_ASP_NET_Identity_model (mysql:8.4, mariadb:11.8) --
+  same structural reason; no prior-version Doka snapshot of the ASP.NET Identity 2.2 model
+  exists.
+- MigrationsMySqlTest.Can_diff_against_3_0_ASP_NET_Identity_model (mysql:8.4, mariadb:11.8) --
+  same structural reason; no prior-version Doka snapshot of the ASP.NET Identity 3.0 model
+  exists.
+- UpdatesMySqlTest.Identifiers_are_generated_correctly (mysql:8.4, mariadb:11.8) -- the spec
+  asserts that the deliberately-long entity-type name flows through the identifier pipeline
+  UNTRUNCATED into table / key / constraint / index names. Doka's MySqlModelValidator rejects
+  any FK or index name above MySQL's 64-character limit at model-build time rather than
+  silently truncating; the design choice favors explicit error over silent name collision.
+  Engine-aware design divergence per ADR D-011.
 
 <!--
 Entry shape:
