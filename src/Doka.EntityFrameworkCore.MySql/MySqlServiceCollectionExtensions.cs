@@ -78,6 +78,16 @@ public static class MySqlServiceCollectionExtensions
         serviceCollection.TryAddSingleton(reverseEngineeringOptions);
         serviceCollection.TryAddSingleton<MySqlScaffoldingContext>();
 
+        // EF Core 10's EntityFrameworkRelationalDesignServicesBuilder.TryAddCoreServices only
+        // registers IAnnotationCodeGenerator + ICSharpRuntimeAnnotationCodeGenerator;
+        // IModelCodeGenerator + the rest of the design-time core (CSharpModelGenerator,
+        // ModelCodeGeneratorSelector, CSharpMigrationsGenerator, ...) live in
+        // AddEntityFrameworkDesignTimeServices. The dotnet-ef tooling calls that helper
+        // through DesignTimeServicesBuilder before invoking the provider; standalone
+        // consumers (integration tests, custom scaffolders) skip the tooling path, so we
+        // run the helper here to make this method self-contained.
+        serviceCollection.AddEntityFrameworkDesignTimeServices();
+
 #pragma warning disable EF1001
         var builder = new EntityFrameworkRelationalDesignServicesBuilder(serviceCollection)
             .TryAdd<IDatabaseModelFactory, MySqlDatabaseModelFactory>()

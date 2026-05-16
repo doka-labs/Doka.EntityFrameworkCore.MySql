@@ -3,7 +3,12 @@
 - **Status:** Implemented
 - **Date:** 2026-05-16
 - **Scope:** `MySqlServiceCollectionExtensions` runtime + design-time service composition
-- **Implementation:** `src/Doka.EntityFrameworkCore.MySql/Internal/Infrastructure/EfCoreServiceDecorator.cs`
+- **Implementation:** `src/Doka.EntityFrameworkCore.MySql/Internal/Infrastructure/EfCoreServiceDecorator.cs`; design-time bootstrap fix in `MySqlServiceCollectionExtensions.AddEntityFrameworkDokaMySqlDesignTime`.
+
+## Implementation notes
+
+- `EntityFrameworkRelationalDesignServicesBuilder.TryAddCoreServices` in EF Core 10.0.4 registers only `IAnnotationCodeGenerator` + `ICSharpRuntimeAnnotationCodeGenerator` + the relational annotation dependencies. The remaining design-time core (`IModelCodeGenerator`, `IModelCodeGeneratorSelector`, `ICompiledModelCodeGenerator`, `IMigrationsCodeGenerator`, `ICSharpHelper`, ...) lives in `IServiceCollection.AddEntityFrameworkDesignTimeServices`. The `dotnet ef` tooling pipeline calls that helper through `DesignTimeServicesBuilder` BEFORE invoking provider-specific design services; stand-alone consumers (integration tests, custom scaffolders that build the service collection themselves) skip the tooling path and previously caused `EfCoreServiceDecorator.Decorate<IModelCodeGenerator, MySqlModelCodeGenerator>` to fail with `No inner 'IModelCodeGenerator' registration was found to decorate`. Fix: `AddEntityFrameworkDokaMySqlDesignTime` now invokes `serviceCollection.AddEntityFrameworkDesignTimeServices()` before the decorator runs, making the entry point self-contained without breaking the `dotnet ef` flow (the inner `TryAddSingletonEnumerable` calls are idempotent).
+- Live integration test `MySqlComprehensiveCoverageTests.Scaffolding_roundtrip_on_mysql84` + `Scaffolding_roundtrip_on_mariadb118` pin the fix: both build the service collection via `services.AddEntityFrameworkDokaMySqlDesignTime()` and resolve `IDatabaseModelFactory` + `IModelCodeGenerator` directly, which is the structural shape the previous setup could not satisfy.
 
 ## Context
 
