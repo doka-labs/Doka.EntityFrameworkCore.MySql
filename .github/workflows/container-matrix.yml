@@ -10,21 +10,6 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      mysql80:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root_password
-          MYSQL_DATABASE: doka_provider
-          MYSQL_USER: doka
-          MYSQL_PASSWORD: doka_password
-        ports:
-          - 33066:3306
-        options: >-
-          --health-cmd="MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
       mysql84:
         image: mysql:8.4
         env:
@@ -81,12 +66,11 @@ jobs:
 
       - name: Run scheduled container compatibility path
         env:
-          DOKA_INTEGRATION_TARGETS: mysql80,mysql84,mariadb114,mariadb118
+          DOKA_INTEGRATION_TARGETS: mysql84,mariadb114,mariadb118
           # Root credentials for throwaway CI containers. Matches the documented
           # IntegrationTestEnvironment default so tests that need CREATE/DROP DATABASE
           # (EnsureCreatedAsync/EnsureDeletedAsync round-trips) succeed without
           # per-test privilege gymnastics.
-          DOKA_MYSQL80_CONNECTION_STRING: Server=127.0.0.1;Port=33066;Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;
           DOKA_MYSQL84_CONNECTION_STRING: Server=127.0.0.1;Port=33068;Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;
           DOKA_MARIADB114_CONNECTION_STRING: Server=127.0.0.1;Port=33067;Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;
           DOKA_MARIADB118_CONNECTION_STRING: Server=127.0.0.1;Port=33069;Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;

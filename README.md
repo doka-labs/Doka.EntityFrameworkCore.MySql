@@ -5,7 +5,7 @@
 [![NuGet NetTopologySuite](https://img.shields.io/nuget/v/Doka.EntityFrameworkCore.MySql.NetTopologySuite.svg)](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql.NetTopologySuite)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-`Doka.EntityFrameworkCore.MySql` is an Entity Framework Core 10 provider for MySQL-compatible databases. It targets MySQL 8.0 / 8.4 and MariaDB 11.4 / 11.8 on top of the [`MySqlConnector`](https://mysqlconnector.net) ADO.NET driver.
+`Doka.EntityFrameworkCore.MySql` is an Entity Framework Core 10 provider for MySQL-compatible databases. It targets MySQL 8.4 LTS and MariaDB 11.4 / 11.8 LTS on top of the [`MySqlConnector`](https://mysqlconnector.net) ADO.NET driver.
 
 The main goal is release responsiveness for `.NET 10` and `EF Core 10` together with a maintainability- and performance-first architecture: a single capability model drives engine differences, the runtime is trim- and AOT-aware, and every feature is test-backed against the supported engine matrix.
 
@@ -26,14 +26,14 @@ This provider is designed for teams that need:
 - .NET 10.0 or later
 - EF Core 10.x (`Microsoft.EntityFrameworkCore.Relational`)
 - One of:
-  - MySQL 8.0 or 8.4
-  - MariaDB 11.4 or 11.8
+  - MySQL 8.4 LTS
+  - MariaDB 11.4 LTS or 11.8 LTS
 - Transitive: [MySqlConnector](https://mysqlconnector.net) 2.5.x (the modern fully-managed ADO.NET driver)
 
 ### Building From Source
 
 - .NET 10 SDK (version `10.0.201` or later)
-- Docker — only required to run the live integration and benchmark suites
+- Docker -- only required to run the live integration and benchmark suites
 
 ## Installation
 
@@ -43,7 +43,7 @@ This provider is designed for teams that need:
 dotnet add package Doka.EntityFrameworkCore.MySql
 ```
 
-**Optional spatial extension** (NetTopologySuite integration — only install if you use spatial types):
+**Optional spatial extension** (NetTopologySuite integration -- only install if you use spatial types):
 
 ```bash
 dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite
@@ -51,10 +51,10 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite
 
 ## Supported Engines
 
-| Engine        | Versions    | Native JSON | Native Sequences | `RETURNING` |
-|---------------|-------------|-------------|------------------|-------------|
-| MySQL         | 8.0, 8.4    | ✓           | emulated (table) | —           |
-| MariaDB       | 11.4, 11.8  | alias       | ✓ (10.3+)        | ✓ (10.5+)   |
+| Engine        | Versions             | Native JSON | Native Sequences   | `RETURNING`  |
+|---------------|----------------------|-------------|--------------------|--------------|
+| MySQL         | 8.4 LTS              | yes         | emulated (table)   | n/a          |
+| MariaDB       | 11.4 LTS, 11.8 LTS   | alias       | yes (10.3+)        | yes (10.5+)  |
 
 Engine-specific behavior is captured by the internal `ServerCapabilities` model and exposed automatically at runtime; application code does not branch on engine or version.
 
@@ -183,7 +183,7 @@ var depth = context.Documents
     .FirstOrDefault();
 ```
 
-Full set: `Regexp`, `Match`, `MatchInBooleanMode`, `JsonSet`, `JsonReplace`, `JsonRemove`, `JsonArray`, `JsonObject`, `JsonDepth`, `JsonLength`, `JsonType`, `JsonKeys`, `JsonContains`. REGEXP uses `REGEXP_LIKE(...)` on MySQL 8.0+ and the infix `REGEXP` operator on MariaDB.
+Full set: `Regexp`, `Match`, `MatchInBooleanMode`, `JsonSet`, `JsonReplace`, `JsonRemove`, `JsonArray`, `JsonObject`, `JsonDepth`, `JsonLength`, `JsonType`, `JsonKeys`, `JsonContains`. REGEXP uses `REGEXP_LIKE(...)` on MySQL and the infix `REGEXP` operator on MariaDB.
 
 ### MariaDB `INVISIBLE` columns
 
@@ -241,7 +241,7 @@ The provider ships with:
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests`
   EF-pipeline tests: model validation, SQL generation, type mapping, migrations, scaffolding.
 - `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests`
-  Live-database tests against MySQL 8.0 / 8.4 and MariaDB 11.4 / 11.8.
+  Live-database tests against MySQL 8.4 and MariaDB 11.4 / 11.8.
 - `tests/Doka.EntityFrameworkCore.MySql.TestUtilities`
   Shared test helpers and log sinks.
 - `benchmarks/`
@@ -249,7 +249,7 @@ The provider ships with:
 - `examples/`
   Runnable samples for CRUD, inheritance patterns, JSON columns, generated columns, GUID formats, relationships, retry / resilience, spatial queries, migrations workflow, multi-tenancy, bulk operations, character sets, and Docker integration.
 - `docker/compose.yml`
-  Bundled MySQL 8.0 / 8.4 and MariaDB 11.4 / 11.8 services for local integration testing.
+  Bundled MySQL 8.4 and MariaDB 11.4 / 11.8 services for local integration testing.
 - `eng/`
   Developer scripts: `test.sh`, `test-integration.sh`, `test-runtime-posture.sh`, `benchmark.sh`, `release-candidate.sh`.
 - `docs/`
@@ -269,7 +269,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full test commands, integration-targe
 
 ### JetBrains Rider and ReSharper
 
-Rider and ReSharper ship an EF Core inspection that flags provider-specific `EF.Functions.*` extensions — for example `EF.Functions.Regexp(...)`, `EF.Functions.Match(...)`, or `EF.Functions.DistanceSphere(...)` — with:
+Rider and ReSharper ship an EF Core inspection that flags provider-specific `EF.Functions.*` extensions -- for example `EF.Functions.Regexp(...)`, `EF.Functions.Match(...)`, or `EF.Functions.DistanceSphere(...)` -- with:
 
 > Function is not convertible to SQL and must not be called in the database context.
 
@@ -292,7 +292,7 @@ var results = context.Articles
 // ReSharper disable EntityFramework.UnsupportedServerSideFunctionCall
 ```
 
-**Per project** (recommended — keeps the inspection active elsewhere)
+**Per project** (recommended -- keeps the inspection active elsewhere)
 
 Place a `<YourProject>.csproj.DotSettings` alongside each consumer `.csproj` that writes LINQ queries against the provider:
 
@@ -306,7 +306,7 @@ This repository ships that variant for each affected test/benchmark project, so 
 
 ## Compatibility and Hosted Targets
 
-The provider targets the self-hosted MySQL 8.x and MariaDB 11.x lines.
+The provider targets the self-hosted MySQL 8.4 LTS line and the MariaDB 11.x LTS line.
 
 **Azure Database for MySQL** is considered possible future validation work. Because Azure Database for MySQL is a managed MySQL Community distribution, it inherits capability behavior from the self-hosted MySQL profile; a dedicated compatibility mode would only be introduced if observed runtime behavior required one. No hosted Azure workflow is active until credentials are provisioned.
 
@@ -316,15 +316,15 @@ The provider targets the self-hosted MySQL 8.x and MariaDB 11.x lines.
 
 This provider intentionally does **not** try to be:
 
-- a drop-in wrapper around a different ADO.NET driver — `MySqlConnector` is the only supported driver
+- a drop-in wrapper around a different ADO.NET driver -- `MySqlConnector` is the only supported driver
 - a feature-count-maximizing provider at the cost of maintainability or correctness
 - a source-generator or analyzer package
 - a branded managed-service API surface (`UseAurora(...)` / `UseAzureMySql(...)`)
-- a fallback to client-evaluation for supported queryable paths — unsupported translations fail loudly
+- a fallback to client-evaluation for supported queryable paths -- unsupported translations fail loudly
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT -- see [LICENSE](LICENSE).
 
 ## Further Reading
 
