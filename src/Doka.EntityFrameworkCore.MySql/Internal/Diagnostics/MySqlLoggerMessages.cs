@@ -92,6 +92,12 @@ internal static class MySqlLoggerMessages
             MySqlEventId.BulkInsertPacketSizeCapped,
             "Multi-row INSERT batch split at the conservative max_allowed_packet budget. EffectiveBatchSize={EffectiveBatchSize} EstimatedPacketSizeBytes={EstimatedPacketSizeBytes} MaxPacketSizeBytes={MaxPacketSizeBytes}");
 
+    private static readonly Action<ILogger, string, string, Exception?> s_lockReleaseFailed =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Warning,
+            MySqlEventId.LockReleaseFailed,
+            "MySQL migration advisory lock release failed. LockName={LockName} ExceptionType={ExceptionType}. The dedicated connection is still disposed, which releases the session-scoped lock implicitly.");
+
     public static void InvalidConfiguration(
         ILogger logger,
         string message,
@@ -317,5 +323,17 @@ internal static class MySqlLoggerMessages
         ArgumentNullException.ThrowIfNull(logger);
 
         s_bulkInsertPacketSizeCapped(logger, effectiveBatchSize, estimatedPacketSizeBytes, maxPacketSizeBytes, null);
+    }
+
+    public static void LockReleaseFailed(
+        ILogger logger,
+        string lockName,
+        Exception exception
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(exception);
+
+        s_lockReleaseFailed(logger, lockName, exception.GetType().Name, exception);
     }
 }

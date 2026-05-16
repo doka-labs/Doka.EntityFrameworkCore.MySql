@@ -74,6 +74,7 @@ public sealed class MySqlDiagnosticsGovernanceTests
             [nameof(MySqlEventId.MissingSpatialTranslation)] = 1602,
             [nameof(MySqlEventId.BulkInsertParameterCountCapped)] = 1700,
             [nameof(MySqlEventId.BulkInsertPacketSizeCapped)] = 1701,
+            [nameof(MySqlEventId.LockReleaseFailed)] = 1102,
         };
 
         Assert.Equal(expectedEventIds.Count, actualEventIds.Count);
@@ -118,6 +119,7 @@ public sealed class MySqlDiagnosticsGovernanceTests
             [nameof(MySqlEventId.MissingSpatialTranslation)] = (1600, 1699),
             [nameof(MySqlEventId.BulkInsertParameterCountCapped)] = (1700, 1799),
             [nameof(MySqlEventId.BulkInsertPacketSizeCapped)] = (1700, 1799),
+            [nameof(MySqlEventId.LockReleaseFailed)] = (1100, 1199),
         };
 
         foreach (var field in typeof(MySqlEventId).GetFields(BindingFlags.Public | BindingFlags.Static))

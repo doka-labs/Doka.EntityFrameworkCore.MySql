@@ -78,6 +78,7 @@ static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.ImplicitDecimalPreci
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.InvalidConfiguration -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.InvalidSpatialIndexConfiguration -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.KeyOrIndexMaxLengthRequired -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.LockReleaseFailed -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MissingSpatialPackageDuringScaffolding -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MissingSpatialTranslation -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.RetryAttempt -> Microsoft.Extensions.Logging.EventId

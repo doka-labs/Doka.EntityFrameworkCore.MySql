@@ -3,7 +3,7 @@
 - **Status:** Implemented
 - **Date:** 2026-05-16
 - **Scope:** `MySqlHistoryRepository` migration serialization
-- **Implementation:** `src/Doka.EntityFrameworkCore.MySql/Internal/Migrations/MySqlAdvisoryLockNaming.cs` (commit `06812e0129a7`); `MySqlHistoryRepository` calls `MySqlAdvisoryLockNaming.BuildLockName(connectionString)` instead of the legacy `__ef_migrations_lock` constant; `GET_LOCK` and `RELEASE_LOCK` are invoked via parameterized SQL.
+- **Implementation:** `src/Doka.EntityFrameworkCore.MySql/Internal/Migrations/MySqlAdvisoryLockNaming.cs` (commit `06812e0129a7`); `MySqlHistoryRepository` calls `MySqlAdvisoryLockNaming.BuildLockName(connectionString)` instead of the legacy `__ef_migrations_lock` constant; `GET_LOCK` and `RELEASE_LOCK` are invoked via parameterized SQL. Lock-lifecycle hardening (idempotent `Dispose` via `Interlocked.Exchange` on `_dedicatedConnection`; `ReacquireIfNeeded` disposes the existing connection before opening the next one; `RELEASE_LOCK` failures emit `MySqlEventId.LockReleaseFailed` warning instead of being swallowed) shipped as a follow-up to close the lifecycle gaps in `MySqlMigrationsDatabaseLock`.
 
 ## Context
 

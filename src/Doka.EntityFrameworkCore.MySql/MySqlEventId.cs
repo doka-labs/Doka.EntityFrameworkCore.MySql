@@ -88,6 +88,15 @@ public static class MySqlEventId
         new(1403, nameof(ForeignKeyPrincipalTableNotScaffolded));
 
     /// <summary>
+    /// Emitted when the migration advisory lock could not be released cleanly via
+    /// <c>RELEASE_LOCK</c>. The dedicated connection is still disposed afterwards,
+    /// which releases the session-scoped lock implicitly, so the migration outcome
+    /// is unaffected; the warning surfaces an unusual server-side state worth
+    /// investigating.
+    /// </summary>
+    public static readonly EventId LockReleaseFailed = new(1102, nameof(LockReleaseFailed));
+
+    /// <summary>
     /// Emitted at most once per <see cref="DbContext.SaveChanges()"/> batch when the
     /// projected prepared-statement parameter count would exceed the MySQL hard limit
     /// (65535 placeholders). The batch is split at the command that would have crossed

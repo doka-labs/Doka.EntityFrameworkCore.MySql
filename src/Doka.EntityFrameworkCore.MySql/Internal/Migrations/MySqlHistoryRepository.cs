@@ -165,14 +165,15 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
 
                                                 """;
 
-    private sealed class MySqlMigrationsDatabaseLock : IMigrationsDatabaseLock
+    internal sealed class MySqlMigrationsDatabaseLock : IMigrationsDatabaseLock
     {
         private const int LockTimeoutSeconds = 60;
 
         private readonly MySqlHistoryRepository _historyRepository;
         private readonly string _lockName;
+        private readonly ILogger? _logger;
         private DbConnection? _dedicatedConnection;
-        private bool _lockAcquired;
+        private int _lockAcquired;
 
         public MySqlMigrationsDatabaseLock(
             IHistoryRepository historyRepository
@@ -182,6 +183,9 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             _historyRepository = (MySqlHistoryRepository)historyRepository;
             _lockName = MySqlAdvisoryLockNaming.BuildLockName(
                 _historyRepository.Dependencies.Connection.DbConnection.ConnectionString);
+            _logger = _historyRepository
+                .Dependencies.Options.FindExtension<CoreOptionsExtension>()
+                ?.LoggerFactory?.CreateLogger(MySqlLoggerCategory.Migrations);
         }
 
         public IHistoryRepository HistoryRepository { get; }
@@ -195,25 +199,34 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         /// </summary>
         public void AcquireLock()
         {
-            _dedicatedConnection = CreateDedicatedConnection();
-            _dedicatedConnection.Open();
+            var connection = CreateDedicatedConnection();
+            connection.Open();
 
-            var result = ExecuteOnDedicatedConnection(
-                "SELECT GET_LOCK(@name, @timeout)",
-                ("@name", _lockName),
-                ("@timeout", LockTimeoutSeconds));
-
-            if (!MySqlScalarConvert.ToBoolean(result))
+            try
             {
-                _dedicatedConnection.Dispose();
-                _dedicatedConnection = null;
+                var result = ExecuteOnConnection(
+                    connection,
+                    "SELECT GET_LOCK(@name, @timeout)",
+                    ("@name", _lockName),
+                    ("@timeout", LockTimeoutSeconds));
 
-                throw new TimeoutException(
-                    $"Could not acquire the MySQL advisory lock '{_lockName}' within {LockTimeoutSeconds} seconds. "
-                    + "Another migration process may be running concurrently.");
+                if (!MySqlScalarConvert.ToBoolean(result))
+                {
+                    connection.Dispose();
+
+                    throw new TimeoutException(
+                        $"Could not acquire the MySQL advisory lock '{_lockName}' within {LockTimeoutSeconds} seconds. "
+                        + "Another migration process may be running concurrently.");
+                }
+            }
+            catch
+            {
+                connection.Dispose();
+                throw;
             }
 
-            _lockAcquired = true;
+            _dedicatedConnection = connection;
+            Interlocked.Exchange(ref _lockAcquired, 1);
         }
 
         /// <summary>
@@ -223,31 +236,42 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             CancellationToken cancellationToken = default
         )
         {
-            _dedicatedConnection = CreateDedicatedConnection();
-            await _dedicatedConnection
+            var connection = CreateDedicatedConnection();
+            await connection
                 .OpenAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            var result = await ExecuteOnDedicatedConnectionAsync(
-                    "SELECT GET_LOCK(@name, @timeout)",
-                    cancellationToken,
-                    ("@name", _lockName),
-                    ("@timeout", LockTimeoutSeconds))
-                .ConfigureAwait(false);
-
-            if (!MySqlScalarConvert.ToBoolean(result))
+            try
             {
-                await _dedicatedConnection
+                var result = await ExecuteOnConnectionAsync(
+                        connection,
+                        "SELECT GET_LOCK(@name, @timeout)",
+                        cancellationToken,
+                        ("@name", _lockName),
+                        ("@timeout", LockTimeoutSeconds))
+                    .ConfigureAwait(false);
+
+                if (!MySqlScalarConvert.ToBoolean(result))
+                {
+                    await connection
+                        .DisposeAsync()
+                        .ConfigureAwait(false);
+
+                    throw new TimeoutException(
+                        $"Could not acquire the MySQL advisory lock '{_lockName}' within {LockTimeoutSeconds} seconds. "
+                        + "Another migration process may be running concurrently.");
+                }
+            }
+            catch
+            {
+                await connection
                     .DisposeAsync()
                     .ConfigureAwait(false);
-                _dedicatedConnection = null;
-
-                throw new TimeoutException(
-                    $"Could not acquire the MySQL advisory lock '{_lockName}' within {LockTimeoutSeconds} seconds. "
-                    + "Another migration process may be running concurrently.");
+                throw;
             }
 
-            _lockAcquired = true;
+            _dedicatedConnection = connection;
+            Interlocked.Exchange(ref _lockAcquired, 1);
         }
 
         public IMigrationsDatabaseLock ReacquireIfNeeded(
@@ -257,7 +281,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         {
             if (connectionReopened)
             {
-                _lockAcquired = false;
+                ReleaseAndDisposeCurrent();
                 AcquireLock();
             }
 
@@ -272,7 +296,8 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         {
             if (connectionReopened)
             {
-                _lockAcquired = false;
+                await ReleaseAndDisposeCurrentAsync()
+                    .ConfigureAwait(false);
                 await AcquireLockAsync(cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -280,55 +305,76 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             return this;
         }
 
-        public void Dispose()
-        {
-            if (_lockAcquired && _dedicatedConnection is not null)
-            {
-                try
-                {
-                    ExecuteOnDedicatedConnection("SELECT RELEASE_LOCK(@name)", ("@name", _lockName));
-                }
-                catch
-                {
-                    // Best-effort release -- closing the dedicated connection will also
-                    // release the session-scoped advisory lock.
-                }
+        public void Dispose() => ReleaseAndDisposeCurrent();
 
-                _lockAcquired = false;
+        public ValueTask DisposeAsync() => ReleaseAndDisposeCurrentAsync();
+
+        /// <summary>
+        /// Atomically detaches the dedicated connection (via
+        /// <see cref="Interlocked.Exchange{T}(ref T, T)"/>) and disposes it after a
+        /// best-effort <c>RELEASE_LOCK</c>. Idempotent: a second call observes the
+        /// detached null state and returns. The exchange ordering guarantees that
+        /// concurrent <see cref="Dispose"/> + <see cref="ReacquireIfNeeded"/> calls
+        /// cannot race on the field, even if the operator invokes the lock from
+        /// multiple threads.
+        /// </summary>
+        private void ReleaseAndDisposeCurrent()
+        {
+            var connection = Interlocked.Exchange(ref _dedicatedConnection, null);
+            if (connection is null)
+            {
+                return;
             }
 
-            _dedicatedConnection?.Dispose();
-            _dedicatedConnection = null;
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            if (_lockAcquired && _dedicatedConnection is not null)
+            if (Interlocked.Exchange(ref _lockAcquired, 0) == 1)
             {
                 try
                 {
-                    await ExecuteOnDedicatedConnectionAsync(
+                    ExecuteOnConnection(connection, "SELECT RELEASE_LOCK(@name)", ("@name", _lockName));
+                }
+                catch (Exception exception)
+                {
+                    if (_logger is not null)
+                    {
+                        MySqlLoggerMessages.LockReleaseFailed(_logger, _lockName, exception);
+                    }
+                }
+            }
+
+            connection.Dispose();
+        }
+
+        private async ValueTask ReleaseAndDisposeCurrentAsync()
+        {
+            var connection = Interlocked.Exchange(ref _dedicatedConnection, null);
+            if (connection is null)
+            {
+                return;
+            }
+
+            if (Interlocked.Exchange(ref _lockAcquired, 0) == 1)
+            {
+                try
+                {
+                    await ExecuteOnConnectionAsync(
+                            connection,
                             "SELECT RELEASE_LOCK(@name)",
                             CancellationToken.None,
                             ("@name", _lockName))
                         .ConfigureAwait(false);
                 }
-                catch
+                catch (Exception exception)
                 {
-                    // Best-effort release -- closing the dedicated connection will also
-                    // release the session-scoped advisory lock.
+                    if (_logger is not null)
+                    {
+                        MySqlLoggerMessages.LockReleaseFailed(_logger, _lockName, exception);
+                    }
                 }
-
-                _lockAcquired = false;
             }
 
-            if (_dedicatedConnection is not null)
-            {
-                await _dedicatedConnection
-                    .DisposeAsync()
-                    .ConfigureAwait(false);
-                _dedicatedConnection = null;
-            }
+            await connection
+                .DisposeAsync()
+                .ConfigureAwait(false);
         }
 
         private MySqlConnection CreateDedicatedConnection()
@@ -345,24 +391,26 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             return new MySqlConnection(builder.ConnectionString);
         }
 
-        private object? ExecuteOnDedicatedConnection(
+        private static object? ExecuteOnConnection(
+            DbConnection connection,
             string sql,
             params (string Name, object Value)[] parameters
         )
         {
-            using var command = _dedicatedConnection!.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText = sql;
             AddParameters(command, parameters);
             return command.ExecuteScalar();
         }
 
-        private async Task<object?> ExecuteOnDedicatedConnectionAsync(
+        private static async Task<object?> ExecuteOnConnectionAsync(
+            DbConnection connection,
             string sql,
             CancellationToken cancellationToken,
             params (string Name, object Value)[] parameters
         )
         {
-            await using var command = _dedicatedConnection!.CreateCommand();
+            await using var command = connection.CreateCommand();
             command.CommandText = sql;
             AddParameters(command, parameters);
             return await command
