@@ -7,7 +7,7 @@
          the main provider disables them to enforce explicit imports. -->
     <ImplicitUsings>enable</ImplicitUsings>
 
-    <!-- Examples are illustrative; they are never packed and emit no XML doc artefact. -->
+    <!-- Examples are illustrative; they are never packed and emit no XML doc artifact. -->
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>

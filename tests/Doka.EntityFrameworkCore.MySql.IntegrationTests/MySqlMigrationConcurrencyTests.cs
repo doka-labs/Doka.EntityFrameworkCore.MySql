@@ -64,7 +64,7 @@ public sealed class MySqlMigrationConcurrencyTests
     /// timeout surfaces a <see cref="TimeoutException"/>.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Migration_locks_serialise_on_same_database_and_surface_timeout()
+    public async Task Migration_locks_serialize_on_same_database_and_surface_timeout()
     {
         var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         var dbName = $"doka_lock_s_{Guid.NewGuid():N}"[..30];
