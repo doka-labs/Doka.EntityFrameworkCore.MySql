@@ -111,6 +111,27 @@ review-visible.
   size; the project would adopt a per-public-namespace split or move to
   a generated baseline file.
 
+## Naming choice vs the Pomelo MySQL provider
+
+The Pomelo MySQL provider has historically been the reference EF Core MySQL provider; consumers migrating to Doka have established muscle-memory around Pomelo's fluent-API names. This raised the question whether Doka should mimic Pomelo's names for source-compatibility on options-builder calls, or align with the EF Core relational base API contract.
+
+The decision is **align with the EF Core relational base API contract**:
+
+- `CommandTimeout(int)` -- matches `RelationalDbContextOptionsBuilder<TBuilder, TExtension>.CommandTimeout` exactly.
+- `MaxBatchSize(int)` / `MinBatchSize(int)` -- match the relational base.
+- `MigrationsHistoryTable(string, string?)` -- matches the relational base.
+- `UseQuerySplittingBehavior(QuerySplittingBehavior)` -- matches the relational base.
+
+This carries three properties Pomelo-mimicry would not:
+
+1. **Consistency across providers.** A consumer who already uses `UseSqlServer(...).EnableRetryOnFailure(...).CommandTimeout(...)` reaches for the same names on Doka. Pomelo-mimicry would require Doka-specific aliases for names other relational providers do not carry.
+2. **One name per concept.** Pomelo exposed `MaxBatchSize` but also accepted Pomelo-specific spellings (e.g. `MaxBatchSize` vs `MaximumStatements`). Doka exposes only the EF Core relational name; the surface stays scannable.
+3. **PublicApiAnalyzers discipline carries through.** The contract this ADR codifies (Shipped vs Unshipped + analyzer-enforced drift detection) applies the same way regardless of provider; mimicking Pomelo's names would not change the discipline but would add a second alias-axis to maintain in `PublicAPI.Shipped.txt`.
+
+Pomelo-consumers migrating to Doka adjust their `UseMySql(...)` lambda once at migration time; the rest of the EF Core surface (DbSet, SaveChanges, Include, etc.) is unchanged. The one-time migration cost is bounded; the alias-axis maintenance cost would have been recurring.
+
+The `EnableRetryOnFailure(int, TimeSpan?)` signature matches Pomelo by coincidence -- it also matches the EF Core SqlServer provider, which set the relational community convention years before Pomelo adopted it.
+
 ## Alternatives considered
 
 - **Status quo (manual `CHANGELOG.md` plus reviewer attention).**

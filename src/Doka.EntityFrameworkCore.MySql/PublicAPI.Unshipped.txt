@@ -10,8 +10,13 @@ const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.RetryAttemptSpanName = "db
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.RetryAttemptsTotalMetricName = "doka_mysql_retry_attempts_total" -> string!
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.ServerVersionResolveSpanName = "db.serverversion.resolve" -> string!
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.SourceName = "Doka.EntityFrameworkCore.MySql" -> string!
+Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.CommandTimeout(int commandTimeout) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.DefaultGuidFormat(Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.EnableRetryOnFailure(int maxRetryCount = 6, System.TimeSpan? maxRetryDelay = null) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
+Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MaxBatchSize(int maxBatchSize) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
+Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MigrationsHistoryTable(string! tableName, string? schema = null) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
+Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MinBatchSize(int minBatchSize) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
+Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.UseQuerySplittingBehavior(Microsoft.EntityFrameworkCore.QuerySplittingBehavior querySplittingBehavior) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilderExtensions
 Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions
 Doka.EntityFrameworkCore.MySql.MySqlDesignTimeServices
