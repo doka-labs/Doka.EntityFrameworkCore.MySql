@@ -28,4 +28,5 @@ internal enum Capability
     SupportsIntersectExcept,
     SupportsSystemVersioning,
     SupportsFullTextIndex,
+    SupportsRenameColumnSyntax,
 }

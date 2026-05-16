@@ -21,6 +21,7 @@ internal static class EngineProfileTable
     private static readonly Version s_mariaDb103 = new(10, 3, 0);
     private static readonly Version s_mariaDb1034 = new(10, 3, 4);
     private static readonly Version s_mariaDb105 = new(10, 5, 0);
+    private static readonly Version s_mariaDb1052 = new(10, 5, 2);
 
     // Per-(family, version) instance cache. EF Core caches its internal service
     // provider per options-graph; the cache hit requires identical references to
@@ -92,6 +93,7 @@ internal static class EngineProfileTable
             capabilities.Add(Capability.SupportsCommonTableExpressions);
             capabilities.Add(Capability.SupportsWindowFunctions);
             capabilities.Add(Capability.SupportsGeneratedInvisiblePrimaryKeys);
+            capabilities.Add(Capability.SupportsRenameColumnSyntax);
         }
 
         if (IsAtLeast(version, s_mySql8031))
@@ -137,6 +139,11 @@ internal static class EngineProfileTable
         if (IsAtLeast(version, s_mariaDb105))
         {
             capabilities.Add(Capability.SupportsReturningClause);
+        }
+
+        if (IsAtLeast(version, s_mariaDb1052))
+        {
+            capabilities.Add(Capability.SupportsRenameColumnSyntax);
         }
     }
 

@@ -21,4 +21,8 @@ internal static class MySqlAnnotationNames
     public const string Invisible = Prefix + nameof(Invisible);
 
     public const string IndexPrefixLength = Prefix + nameof(IndexPrefixLength);
+
+    public const string Collation = Prefix + nameof(Collation);
+
+    public const string Comment = Prefix + nameof(Comment);
 }
