@@ -94,9 +94,7 @@ internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
         var clone = (MySqlOptionsExtension)base.WithConnectionString(connectionString);
-        clone.DataSource = null;
-
-        return clone;
+        return clone.ResetOtherConnectionPaths(ConnectionPath.ConnectionString);
     }
 
     public new MySqlOptionsExtension WithConnection(
@@ -106,9 +104,7 @@ internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
         ArgumentNullException.ThrowIfNull(connection);
 
         var clone = (MySqlOptionsExtension)base.WithConnection(connection, owned: false);
-        clone.DataSource = null;
-
-        return clone;
+        return clone.ResetOtherConnectionPaths(ConnectionPath.Connection);
     }
 
     public MySqlOptionsExtension WithDataSource(
@@ -117,13 +113,9 @@ internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
     {
         ArgumentNullException.ThrowIfNull(dataSource);
 
-        var clone = CopyRelationalOptionsTo(new MySqlOptionsExtension());
+        var clone = (MySqlOptionsExtension)Clone();
         clone.DataSource = dataSource;
-        clone.ServerVersion = ServerVersion;
-        clone.RetryOptions = RetryOptions;
-        clone.DefaultGuidFormat = DefaultGuidFormat;
-
-        return clone;
+        return clone.ResetOtherConnectionPaths(ConnectionPath.DataSource);
     }
 
     public MySqlOptionsExtension WithServerVersion(
@@ -165,64 +157,40 @@ internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
         return clone;
     }
 
-    private MySqlOptionsExtension CopyRelationalOptionsTo(
-        MySqlOptionsExtension target
+    // The three connection-path properties (ConnectionString, Connection, DataSource) are
+    // mutex per Validate -- exactly one must be configured. The active path is set by the
+    // calling With*-method; this helper nulls out the other two. The base setters accept
+    // null when invoked through the RelationalOptionsExtension surface, so the casts route
+    // around the provider's public ArgumentNullException-throwing overrides.
+    private MySqlOptionsExtension ResetOtherConnectionPaths(
+        ConnectionPath keep
     )
     {
-        var clone = target;
+        var clone = this;
 
-        if (CommandTimeout is not null)
+        if (keep != ConnectionPath.ConnectionString && !string.IsNullOrEmpty(ConnectionString))
         {
-            clone = (MySqlOptionsExtension)clone.WithCommandTimeout(CommandTimeout);
+            clone = (MySqlOptionsExtension)((RelationalOptionsExtension)clone).WithConnectionString(null);
         }
 
-        if (MaxBatchSize is not null)
+        if (keep != ConnectionPath.Connection && Connection is not null)
         {
-            clone = (MySqlOptionsExtension)clone.WithMaxBatchSize(MaxBatchSize);
+            clone = (MySqlOptionsExtension)((RelationalOptionsExtension)clone).WithConnection(null, owned: false);
         }
 
-        if (MinBatchSize is not null)
+        if (keep != ConnectionPath.DataSource && DataSource is not null)
         {
-            clone = (MySqlOptionsExtension)clone.WithMinBatchSize(MinBatchSize);
+            clone.DataSource = null;
         }
-
-        if (UseRelationalNulls)
-        {
-            clone = (MySqlOptionsExtension)clone.WithUseRelationalNulls(true);
-        }
-
-        if (QuerySplittingBehavior is not null)
-        {
-            clone = (MySqlOptionsExtension)clone.WithUseQuerySplittingBehavior(QuerySplittingBehavior.Value);
-        }
-
-        if (MigrationsAssemblyObject is not null)
-        {
-            clone = (MySqlOptionsExtension)clone.WithMigrationsAssembly(MigrationsAssemblyObject);
-        }
-        else if (!string.IsNullOrWhiteSpace(MigrationsAssembly))
-        {
-            clone = (MySqlOptionsExtension)clone.WithMigrationsAssembly(MigrationsAssembly);
-        }
-
-        if (!string.IsNullOrWhiteSpace(MigrationsHistoryTableName))
-        {
-            clone = (MySqlOptionsExtension)clone.WithMigrationsHistoryTableName(MigrationsHistoryTableName);
-        }
-
-        if (!string.IsNullOrWhiteSpace(MigrationsHistoryTableSchema))
-        {
-            clone = (MySqlOptionsExtension)clone.WithMigrationsHistoryTableSchema(MigrationsHistoryTableSchema);
-        }
-
-        if (ExecutionStrategyFactory is not null)
-        {
-            clone = (MySqlOptionsExtension)clone.WithExecutionStrategyFactory(ExecutionStrategyFactory);
-        }
-
-        clone = (MySqlOptionsExtension)clone.WithUseParameterizedCollectionMode(ParameterizedCollectionMode);
 
         return clone;
+    }
+
+    private enum ConnectionPath
+    {
+        ConnectionString,
+        Connection,
+        DataSource,
     }
 
     private void LogInvalidConfiguration(
