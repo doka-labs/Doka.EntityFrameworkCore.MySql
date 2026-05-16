@@ -127,13 +127,13 @@ public sealed class MySqlDiagnosticsTests
         singletonOptions.Initialize(optionsBuilder.Options);
         MySqlLoggerMessages.ImplicitDecimalPrecisionDefaulted(
             singletonOptions.ProviderLogger!,
-            "The decimal property 'Entity.Amount' does not declare an explicit precision/scale. The provider default 'decimal(65,30)' will be used.");
+            "The decimal property 'Entity.Amount' does not declare an explicit precision/scale. The provider default 'decimal(18,2)' will be used.");
 
         var entry = sink.Entries.First(e => e.EventId.Id == MySqlEventId.ImplicitDecimalPrecisionDefaulted.Id);
 
         Assert.Equal(MySqlLoggerCategory.Configuration, entry.Category);
         Assert.Equal(LogLevel.Warning, entry.LogLevel);
-        Assert.Contains("decimal(65,30)", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("decimal(18,2)", entry.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

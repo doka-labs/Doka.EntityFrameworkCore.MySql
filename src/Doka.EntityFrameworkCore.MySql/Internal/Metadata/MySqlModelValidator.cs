@@ -130,7 +130,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                 }
 
                 var message =
-                    $"The decimal property '{entityType.DisplayName()}.{property.Name}' does not declare an explicit precision/scale. The provider default 'decimal(65,30)' will be used.";
+                    $"The decimal property '{entityType.DisplayName()}.{property.Name}' does not declare an explicit precision/scale. The provider default 'decimal(18,2)' will be used.";
 
                 MySqlLoggerMessages.ImplicitDecimalPrecisionDefaulted(logger, message);
             }

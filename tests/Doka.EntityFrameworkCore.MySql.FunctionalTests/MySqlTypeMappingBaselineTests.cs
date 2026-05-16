@@ -25,7 +25,7 @@ public sealed class MySqlTypeMappingBaselineTests
         Assert.Equal(
             "varchar(24)",
             entityType.FindProperty(nameof(TypeMappingEntity.StringBackedStatus))!.GetColumnType());
-        Assert.Equal("decimal(65,30)", entityType.FindProperty(nameof(TypeMappingEntity.Amount))!.GetColumnType());
+        Assert.Equal("decimal(18,2)", entityType.FindProperty(nameof(TypeMappingEntity.Amount))!.GetColumnType());
         Assert.Equal(
             "decimal(18,2)",
             entityType.FindProperty(nameof(TypeMappingEntity.ExplicitAmount))!.GetColumnType());
@@ -63,9 +63,9 @@ public sealed class MySqlTypeMappingBaselineTests
 
         Assert.NotNull(tinyIntMapping);
         Assert.NotNull(tinyIntBooleanMapping);
-        Assert.Equal(typeof(sbyte), tinyIntMapping!.ClrType);
+        Assert.Equal(typeof(sbyte), tinyIntMapping.ClrType);
         Assert.Equal("tinyint", tinyIntMapping.StoreType);
-        Assert.Equal(typeof(bool), tinyIntBooleanMapping!.ClrType);
+        Assert.Equal(typeof(bool), tinyIntBooleanMapping.ClrType);
         Assert.Equal("tinyint(1)", tinyIntBooleanMapping.StoreType);
     }
 

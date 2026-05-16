@@ -1,9 +1,15 @@
 # D-006 -- Default-Decimal `decimal(18,2)` als Breaking-Change
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Date:** 2026-05-16
 - **Scope:** `Internal/Storage/MySqlTypeMappingSource` default-decimal mapping
-- **Implementation:** deferred to a follow-up commit
+- **Implementation:** `DefaultDecimalPrecision = 18`, `DefaultDecimalScale = 2`; `s_decimalMapping` and `CreateDecimalStoreType` derive their store-type strings from the two constants. `MySqlModelValidator` warning message updated to surface the new default.
+
+## Implementation notes
+
+- The default-decimal change lands as a single-line constant flip in `MySqlTypeMappingSource` plus a warning-message update in `MySqlModelValidator`. The `ImplicitDecimalPrecisionDefaulted` event continues to fire on the first unannotated decimal property per `DbContext` build so upgrading consumers see the new default before a migration is generated against it.
+- The CHANGELOG ships the breaking-change entry under the v1.0 section with the migration recipe (no change required for currency / `(18,2)` consumers; add `HasPrecision(p, s)` or `[Precision(p, s)]` for higher precision; run a `SELECT MAX(ABS(x))` audit before generating the post-upgrade migration on existing schemata that had relied on the `(65,30)` default).
+- The new mapping is verified by `MySqlTypeMappingBaselineTests.Default_decimal_resolves_to_18_2_when_unannotated` and the diagnostics-side `MySqlDiagnosticsTests` warning assertion was rewired to expect the new message text.
 
 ## Context
 

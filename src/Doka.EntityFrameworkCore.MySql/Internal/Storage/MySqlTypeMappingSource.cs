@@ -4,8 +4,15 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
 {
     private const int DefaultDateTimePrecision = 6;
     private const int DefaultTimePrecision = 6;
-    private const int DefaultDecimalPrecision = 65;
-    private const int DefaultDecimalScale = 30;
+
+    // v1.0 default decimal precision/scale changed from the MySQL maximum (65,30) to
+    // the practical real-world default (18,2). The previous default reserved the
+    // maximum on-disk row footprint for every unattributed decimal column and would
+    // silently widen existing schemata on the first post-upgrade migration. See
+    // ADR D-006 for the breaking-change rationale, migration recipe, and the
+    // ImplicitDecimalPrecisionDefaulted warning that fires on first use per context.
+    private const int DefaultDecimalPrecision = 18;
+    private const int DefaultDecimalScale = 2;
 
     private static readonly RelationalTypeMapping s_intMapping = new IntTypeMapping("int", DbType.Int32);
     private static readonly RelationalTypeMapping s_longMapping = new LongTypeMapping("bigint", DbType.Int64);
@@ -28,7 +35,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     private static readonly RelationalTypeMapping s_floatMapping = new FloatTypeMapping("float", DbType.Single);
 
     private static readonly RelationalTypeMapping s_decimalMapping = new DecimalTypeMapping(
-        "decimal(65,30)",
+        $"decimal({DefaultDecimalPrecision},{DefaultDecimalScale})",
         DbType.Decimal,
         DefaultDecimalPrecision,
         DefaultDecimalScale);
@@ -44,11 +51,14 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     private static readonly RelationalTypeMapping s_timeSpanMapping = new TimeSpanTypeMapping("time(6)", DbType.Time);
     private static readonly RelationalTypeMapping s_guidBinaryMapping = new GuidTypeMapping("binary(16)", DbType.Guid);
 
+    // GUID text representations are ASCII-only (32 hex digits plus four hyphens), so
+    // the column does not need utf8mb4 storage; Unicode: false keeps the on-disk and
+    // wire footprint at one byte per character.
     private static readonly RelationalTypeMapping s_guidChar36Mapping =
-        new StringTypeMapping("char(36)", DbType.StringFixedLength, unicode: true, size: 36);
+        new StringTypeMapping("char(36)", DbType.StringFixedLength, unicode: false, size: 36);
 
     private static readonly RelationalTypeMapping s_guidVarchar36Mapping =
-        new StringTypeMapping("varchar(36)", DbType.String, unicode: true, size: 36);
+        new StringTypeMapping("varchar(36)", DbType.String, unicode: false, size: 36);
 
     private static readonly RelationalTypeMapping s_jsonStringMapping = new MySqlJsonStringTypeMapping("json");
 
@@ -70,6 +80,52 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
 
     private static readonly RelationalTypeMapping s_byteArrayMapping =
         new ByteArrayTypeMapping("longblob", DbType.Binary);
+
+    private static readonly RelationalTypeMapping s_mediumIntMapping =
+        new IntTypeMapping("mediumint", DbType.Int32);
+
+    private static readonly RelationalTypeMapping s_mediumIntUnsignedMapping =
+        new UIntTypeMapping("mediumint unsigned", DbType.UInt32);
+
+    private static readonly RelationalTypeMapping s_mediumTextMapping =
+        new StringTypeMapping("mediumtext", DbType.String, unicode: true);
+
+    private static readonly RelationalTypeMapping s_tinyTextMapping =
+        new StringTypeMapping("tinytext", DbType.String, unicode: true);
+
+    private static readonly RelationalTypeMapping s_textMapping =
+        new StringTypeMapping("text", DbType.String, unicode: true);
+
+    private static readonly RelationalTypeMapping s_mediumBlobMapping =
+        new ByteArrayTypeMapping("mediumblob", DbType.Binary);
+
+    private static readonly RelationalTypeMapping s_tinyBlobMapping =
+        new ByteArrayTypeMapping("tinyblob", DbType.Binary);
+
+    private static readonly RelationalTypeMapping s_blobMapping =
+        new ByteArrayTypeMapping("blob", DbType.Binary);
+
+    private static readonly RelationalTypeMapping s_varBinaryMapping =
+        new ByteArrayTypeMapping("varbinary", DbType.Binary);
+
+    private static readonly RelationalTypeMapping s_charMapping =
+        new StringTypeMapping("char", DbType.StringFixedLength, unicode: true);
+
+    private static readonly RelationalTypeMapping s_varCharMapping =
+        new StringTypeMapping("varchar", DbType.String, unicode: true);
+
+    private static readonly RelationalTypeMapping s_bitMapping =
+        new BoolTypeMapping("bit(1)", DbType.Boolean);
+
+    private static readonly RelationalTypeMapping s_yearMapping =
+        new ShortTypeMapping("year", DbType.Int16);
+
+    // Geometry round-trips as MySQL well-known-binary (WKB). The richer
+    // NetTopologySuite-backed mapping ships in the optional spatial package; the
+    // bare byte-array mapping here lets reverse engineering scaffold geometry
+    // columns without forcing the spatial dependency.
+    private static readonly RelationalTypeMapping s_geometryMapping =
+        new ByteArrayTypeMapping("geometry", DbType.Binary);
 
     private static readonly Dictionary<Type, RelationalTypeMapping> s_clrMappings = new()
     {
@@ -99,14 +155,20 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         [typeof(JsonArray)] = s_jsonArrayMapping,
     };
 
-    private static readonly Dictionary<string, RelationalTypeMapping> s_storeTypeMappings =
-        new(StringComparer.OrdinalIgnoreCase)
+    // FrozenDictionary trades a higher one-time construction cost for the fastest
+    // possible TryGetValue path; the store-type lookup runs on every cold-path
+    // FindMapping that resolves an unannotated property, so the read-throughput
+    // matters here more than the construction cost.
+    private static readonly FrozenDictionary<string, RelationalTypeMapping> s_storeTypeMappings =
+        new Dictionary<string, RelationalTypeMapping>(StringComparer.OrdinalIgnoreCase)
         {
             ["int"] = s_intMapping,
             ["integer"] = s_intMapping,
             ["bigint"] = s_longMapping,
             ["smallint"] = s_shortMapping,
             ["smallint unsigned"] = s_ushortMapping,
+            ["mediumint"] = s_mediumIntMapping,
+            ["mediumint unsigned"] = s_mediumIntUnsignedMapping,
             ["tinyint"] = s_sbyteMapping,
             ["tinyint unsigned"] = s_byteMapping,
             ["int unsigned"] = s_uintMapping,
@@ -118,17 +180,24 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
             ["timestamp"] = s_timestampMapping,
             ["date"] = s_dateOnlyMapping,
             ["time"] = s_timeOnlyMapping,
+            ["year"] = s_yearMapping,
+            ["bit"] = s_bitMapping,
             ["binary"] = s_guidBinaryMapping,
             ["guid"] = s_guidBinaryMapping,
-            ["varbinary"] = new ByteArrayTypeMapping("varbinary", DbType.Binary),
-            ["longblob"] = new ByteArrayTypeMapping("longblob", DbType.Binary),
-            ["blob"] = new ByteArrayTypeMapping("blob", DbType.Binary),
+            ["varbinary"] = s_varBinaryMapping,
+            ["longblob"] = s_byteArrayMapping,
+            ["mediumblob"] = s_mediumBlobMapping,
+            ["tinyblob"] = s_tinyBlobMapping,
+            ["blob"] = s_blobMapping,
             ["json"] = s_jsonStringMapping,
-            ["char"] = new StringTypeMapping("char", DbType.StringFixedLength, unicode: true),
-            ["varchar"] = new StringTypeMapping("varchar", DbType.String, unicode: true),
-            ["longtext"] = new StringTypeMapping("longtext", DbType.String, unicode: true),
-            ["text"] = new StringTypeMapping("text", DbType.String, unicode: true),
-        };
+            ["char"] = s_charMapping,
+            ["varchar"] = s_varCharMapping,
+            ["longtext"] = s_stringMapping,
+            ["mediumtext"] = s_mediumTextMapping,
+            ["tinytext"] = s_tinyTextMapping,
+            ["text"] = s_textMapping,
+            ["geometry"] = s_geometryMapping,
+        }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
     private readonly MySqlSingletonOptions _mySqlSingletonOptions;
 
