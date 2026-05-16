@@ -89,6 +89,130 @@ public sealed class MySqlMigrationDdlCoverageTests
         Assert.Contains("INCREMENT BY 5", sql, StringComparison.OrdinalIgnoreCase);
     }
 
+    // -- CREATE SEQUENCE quoting (emulation + native) --
+
+    [Fact]
+    public void CreateSequence_emulation_quotes_table_name_with_backtick_prefix()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new CreateSequenceOperation
+        {
+            Name = "OrderSeq",
+            StartValue = 1,
+            IncrementBy = 10,
+            ClrType = typeof(long),
+        };
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains("CREATE TABLE `__efsequence_OrderSeq`", sql, StringComparison.Ordinal);
+        Assert.Contains("`value` BIGINT NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("INSERT INTO `__efsequence_OrderSeq`", sql, StringComparison.Ordinal);
+        Assert.Contains("VALUES (1)", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateSequence_emulation_doubles_embedded_backticks_in_table_name()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new CreateSequenceOperation
+        {
+            Name = "evil`seq",
+            StartValue = 1,
+            IncrementBy = 1,
+            ClrType = typeof(long),
+        };
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains("`__efsequence_evil``seq`", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("__efsequence_evil`seq`", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateSequence_native_quotes_sequence_name_with_backticks()
+    {
+        using var context = CreateMariaDbContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new CreateSequenceOperation
+        {
+            Name = "OrderSeq",
+            StartValue = 100,
+            IncrementBy = 5,
+            ClrType = typeof(long),
+        };
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains("CREATE SEQUENCE `OrderSeq`", sql, StringComparison.Ordinal);
+        Assert.Contains("START WITH 100", sql, StringComparison.Ordinal);
+        Assert.Contains("INCREMENT BY 5", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateSequence_native_doubles_embedded_backticks_in_sequence_name()
+    {
+        using var context = CreateMariaDbContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new CreateSequenceOperation
+        {
+            Name = "evil`seq",
+            StartValue = 1,
+            IncrementBy = 1,
+            ClrType = typeof(long),
+        };
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains("CREATE SEQUENCE `evil``seq`", sql, StringComparison.Ordinal);
+    }
+
+    // -- DROP SEQUENCE quoting --
+
+    [Fact]
+    public void DropSequence_emulation_quotes_emulation_table_name()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new DropSequenceOperation { Name = "evil`seq" };
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains("DROP TABLE IF EXISTS `__efsequence_evil``seq`", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DropSequence_native_quotes_sequence_name()
+    {
+        using var context = CreateMariaDbContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new DropSequenceOperation { Name = "evil`seq" };
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains("DROP SEQUENCE IF EXISTS `evil``seq`", sql, StringComparison.Ordinal);
+    }
+
+    // -- RENAME SEQUENCE quoting --
+
+    [Fact]
+    public void RenameSequence_emulation_quotes_old_and_new_emulation_table_names()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new RenameSequenceOperation
+        {
+            Name = "OldSeq",
+            NewName = "evil`new",
+        };
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains("RENAME TABLE `__efsequence_OldSeq` TO `__efsequence_evil``new`", sql, StringComparison.Ordinal);
+    }
+
     // -- SPATIAL INDEX --
 
     [Fact]
