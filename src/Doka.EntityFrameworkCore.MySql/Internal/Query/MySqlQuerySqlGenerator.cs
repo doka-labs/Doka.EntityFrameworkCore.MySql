@@ -370,22 +370,16 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
             return jsonScalarExpression;
         }
 
-        // String properties need JSON_UNQUOTE to strip the surrounding double quotes.
-        // Driven by Type (CLR type at the SQL boundary) so converted-to-string properties
-        // also get the unquote.
-        var needsUnquote = jsonScalarExpression.Type == typeof(string);
-
-        if (needsUnquote)
-        {
-            Sql.Append("JSON_UNQUOTE(");
-        }
-
+        // Default path: always JSON_UNQUOTE. The earlier branches (bool wrapper +
+        // CAST path) cover every CLR type whose JSON representation is a non-string
+        // primitive (boolean, number). Everything that reaches here was serialized into
+        // JSON as a string and the .NET shaper needs the unquoted text form: string,
+        // Guid (e.g. `"12345678-..."`), DateTimeOffset (e.g.
+        // `"2000-01-01 12:34:56-08:00"`), byte[] (base64), char, custom-converter types
+        // with string provider mapping.
+        Sql.Append("JSON_UNQUOTE(");
         EmitJsonExtract(jsonScalarExpression);
-
-        if (needsUnquote)
-        {
-            Sql.Append(")");
-        }
+        Sql.Append(")");
 
         return jsonScalarExpression;
     }
