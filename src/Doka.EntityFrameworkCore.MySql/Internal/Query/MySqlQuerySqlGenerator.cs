@@ -129,6 +129,112 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     }
 
     /// <summary>
+    /// Dispatches to the <see cref="MySqlJsonTableExpression"/>-specific emitter when the
+    /// table-valued-function expression is our JSON_TABLE shape; falls through to the base
+    /// emitter for ordinary stored TVFs (no MySQL-specific TVFs other than JSON_TABLE today).
+    /// </summary>
+    protected override Expression VisitTableValuedFunction(
+        TableValuedFunctionExpression tableValuedFunctionExpression
+    )
+    {
+        ArgumentNullException.ThrowIfNull(tableValuedFunctionExpression);
+
+        if (tableValuedFunctionExpression is MySqlJsonTableExpression jsonTableExpression)
+        {
+            return VisitJsonTableExpression(jsonTableExpression);
+        }
+
+        return base.VisitTableValuedFunction(tableValuedFunctionExpression);
+    }
+
+    /// <summary>
+    /// Emits the cross-engine JSON_TABLE grammar both MySQL 8.0+ and MariaDB 10.6+ accept:
+    /// <c>JSON_TABLE(json, '$[*]' COLUMNS (col TYPE PATH '$.x', key FOR ORDINALITY, nested JSON PATH '$.n')) AS alias</c>.
+    /// Path strings reuse <see cref="AppendStaticJsonPath"/> / <see cref="AppendDynamicJsonPath"/>
+    /// so dynamic array indices (non-constant SqlExpressions) splice in through CONCAT the same
+    /// way <see cref="VisitJsonScalar"/> handles them.
+    /// </summary>
+    private MySqlJsonTableExpression VisitJsonTableExpression(
+        MySqlJsonTableExpression jsonTableExpression
+    )
+    {
+        Sql.Append("JSON_TABLE(");
+        Visit(jsonTableExpression.JsonExpression);
+        Sql.Append(", ");
+
+        if (jsonTableExpression.Path is { Count: > 0 } rowPath)
+        {
+            if (HasDynamicArrayIndex(rowPath))
+            {
+                AppendDynamicJsonPath(rowPath);
+            }
+            else
+            {
+                AppendStaticJsonPath(rowPath);
+            }
+        }
+        else
+        {
+            // No row-source path means "iterate over the top-level array elements" --
+            // the standard expansion for a primitive collection without nested access.
+            Sql.Append("'$[*]'");
+        }
+
+        if (jsonTableExpression.ColumnInfos is { Count: > 0 } columnInfos)
+        {
+            Sql.Append(" COLUMNS (");
+
+            for (var i = 0; i < columnInfos.Count; i++)
+            {
+                if (i > 0)
+                {
+                    Sql.Append(", ");
+                }
+
+                var column = columnInfos[i];
+
+                Sql.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(column.Name));
+
+                if (column.ForOrdinality)
+                {
+                    Sql.Append(" FOR ORDINALITY");
+                    continue;
+                }
+
+                Sql.Append(" ");
+                Sql.Append(column.AsJson ? "JSON" : column.TypeMapping.StoreType);
+                Sql.Append(" PATH ");
+
+                if (column.Path is { Count: > 0 } columnPath)
+                {
+                    if (HasDynamicArrayIndex(columnPath))
+                    {
+                        AppendDynamicJsonPath(columnPath);
+                    }
+                    else
+                    {
+                        AppendStaticJsonPath(columnPath);
+                    }
+                }
+                else
+                {
+                    // No per-column path -- the JSON_TABLE element itself (i.e. the row's whole
+                    // JSON value); the standard JSON-path expression for "current row" is '$'.
+                    Sql.Append("'$'");
+                }
+            }
+
+            Sql.Append(")");
+        }
+
+        Sql.Append(")");
+        Sql.Append(AliasSeparator);
+        Sql.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(jsonTableExpression.Alias!));
+
+        return jsonTableExpression;
+    }
+
+    /// <summary>
     /// Translates JSON scalar path expressions to MySQL JSON_EXTRACT / JSON_UNQUOTE syntax.
     /// For string results: JSON_UNQUOTE(JSON_EXTRACT(column, '$.Path'))
     /// For numeric/bool results: JSON_EXTRACT(column, '$.Path')
