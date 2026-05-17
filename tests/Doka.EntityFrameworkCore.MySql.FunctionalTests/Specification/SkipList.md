@@ -30,9 +30,24 @@ held as a single quarantine entry rather than 52 per-test rows so the audit trai
 scannable. Per-test triage continues in subsequent triage phases as each category gets a
 provider-side fix or a documented permanent skip.
 
-- NorthwindWhereQueryMySqlTest (mysql:8.4, 18 tests) -- LINQ expression untranslatable to SQL.
-  Pattern: query shapes the provider's translator does not yet support; needs per-test
-  investigation, some likely structural for MySQL. Follow-up triage phase.
+(closed 2026-05-17 via two dispositions:
+- 18 anonymous-type / Tuple equality tests (`Where_compare_constructed_*`,
+  `Where_compare_tuple_constructed_*`, `Where_compare_tuple_create_constructed_*`,
+  9 methods x 2 async): mirror SqlServer's `AssertTranslationFailed(...)` override.
+  The base spec test asserts a per-field rewrite of `new { x = c.City } == new { x = "London" }`,
+  but EF Core 10's `RelationalSqlTranslatingExpressionVisitor.TryRewriteStructuralTypeEquality`
+  covers only `IEntityType` / `IComplexType` / `IComplexProperty` operands and falls through
+  to "not translated" for anonymous-type / Tuple. The behavior is engine-uniform; every
+  relational provider (SqlServer, Sqlite, PostgreSQL) overrides the test to assert the
+  documented translation failure. See `dotnet/efcore` issue 14672 for upstream tracking.
+- 4 string-Add result-mismatch tests (`Using_same_parameter_twice_*`,
+  `EF_Constant_does_not_parameterized_as_part_of_bigger_subtree_*`, 2 methods x 2 async):
+  root-cause was a missing string-concat override on `MySqlQuerySqlGenerator.VisitSqlBinary`.
+  The base generator emits `left + right` for every `SqlBinaryExpression{OperatorType: Add}`,
+  but MySQL's `+` is arithmetic addition; `'10' + 'ALFKI' + '10'` evaluates to `20`, not
+  `'10ALFKI10'`. Override now emits `CONCAT(left, right)` when the binary's CLR Type is
+  `string`. Nested chains of string-Adds produce nested CONCATs which MySQL evaluates with
+  the documented concatenation semantics.)
 (closed 2026-05-17: root cause was an explicit `FindCollectionMapping(...) => null`
 override on `MySqlTypeMappingSource` that blocked EF Core's collection-mapping resolution
 path; without a collection mapping the `InExpression.ValuesParameter` produced for
@@ -53,9 +68,9 @@ Closed 16 NorthwindWhereQueryMySqlTest failures across `@orderIds`, `@customerId
 both MySQL 8.4 and MariaDB 11.8.)
 - NorthwindWhereQueryMySqlTest (mysql:8.4, 2 tests) -- "syntax error near 'longtext)'".
   CLOSED in this iteration via the same VisitSqlUnary override (longtext / text / nchar -> CHAR).
-- NorthwindWhereQueryMySqlTest (mysql:8.4, 4 tests) -- Assert.Equal failures (actual SQL
-  produces wrong result OR expected-SQL-string mismatch). Per-test investigation; small
-  population so manageable in a single triage iteration.
+(closed 2026-05-17 via the string-Add CONCAT override on `MySqlQuerySqlGenerator.VisitSqlBinary`
+ -- the per-test investigation showed both Assert.Equal failures collapsed to the same
+ root cause as the 4 string-Add result-mismatch tests above.)
 - BuiltInDataTypesMySqlTest (mysql:8.4, 11 tests) -- DbUpdateException on save (inner
   exception varies by test); collection of type-mapping + SQL-emission issues that surface
   during INSERT path. Follow-up provider-side triage.

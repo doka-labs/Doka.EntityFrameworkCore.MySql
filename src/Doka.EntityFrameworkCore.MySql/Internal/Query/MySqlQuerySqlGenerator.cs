@@ -216,6 +216,35 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     }
 
     /// <summary>
+    /// Intercepts string-typed Add expressions so they emit MySQL <c>CONCAT(left, right)</c> rather
+    /// than the base generator's <c>left + right</c>. MySQL's <c>+</c> operator is arithmetic
+    /// addition only; the implicit string-to-number coercion silently produces wrong results
+    /// (<c>'10' + 'ALFKI' + '10'</c> evaluates to <c>20</c> not <c>'10ALFKI10'</c>). The check
+    /// fires on Add binaries whose CLR Type is <see cref="string"/>; nested chains of string-Adds
+    /// produce nested CONCATs which MySQL evaluates left-to-right with the documented string
+    /// concatenation semantics.
+    /// </summary>
+    protected override Expression VisitSqlBinary(
+        SqlBinaryExpression sqlBinaryExpression
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sqlBinaryExpression);
+
+        if (sqlBinaryExpression.OperatorType != ExpressionType.Add
+            || sqlBinaryExpression.Type != typeof(string))
+        {
+            return base.VisitSqlBinary(sqlBinaryExpression);
+        }
+
+        Sql.Append("CONCAT(");
+        Visit(sqlBinaryExpression.Left);
+        Sql.Append(", ");
+        Visit(sqlBinaryExpression.Right);
+        Sql.Append(")");
+        return sqlBinaryExpression;
+    }
+
+    /// <summary>
     /// Maps a column-level MySQL store-type string to the cast-context-valid keyword. Returns
     /// <see langword="null"/> when the input is not a recognized integer / text / binary store
     /// type, leaving the base generator's StoreType-verbatim path untouched (which is correct
