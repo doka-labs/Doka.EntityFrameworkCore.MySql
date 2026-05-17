@@ -225,6 +225,45 @@ do not provide.
   silently truncating; the design choice favors explicit error over silent name collision.
   Engine-aware design divergence per ADR D-011.
 
+- JsonQueryMySqlTest JSON-collection-projection cluster (mariadb:11.8 ONLY; 32 tests)
+  -- MariaDB 11.8 does NOT implement SQL-standard LATERAL derived tables in any JOIN
+  context. Empirical probe 2026-05-17 (doka-mariadb118): `SELECT a.c, b.v FROM (SELECT 1
+  c) a LEFT JOIN LATERAL (SELECT a.c + 1 v) b ON TRUE` returns `ERROR 1064 (42000):
+  syntax error near '(SELECT a.c + 1 v) b ON TRUE'`. Same result for INNER, CROSS, and
+  comma-style LATERAL variants. Primary source: MariaDB Jira
+  [MDEV-19078](https://jira.mariadb.org/browse/MDEV-19078) "Support lateral derived
+  tables", status OPEN, fix version ROADMAP (no specific release assigned, retrieved
+  2026-05-17). MariaDB implements an internal lateral optimizer for SPLIT but does not
+  expose the `LATERAL` keyword in derived-table position. EF Core 10 emits `LEFT JOIN
+  LATERAL (SELECT ... FROM JSON_TABLE(...) ORDER BY ... LIMIT ...)` for JSON-owned
+  collection projections that require LINQ composition (`ElementAt`, `Skip`/`Take`,
+  `Distinct`, nested `Where`+`Select`); the LATERAL keyword survives the provider's
+  `VisitOuterApply` / `VisitCrossApply` overrides because the right-hand subquery is
+  NOT a `MySqlJsonTableExpression` (it's a `SelectExpression` wrapping JSON_TABLE) and
+  the LATERAL keyword is mandatory for the outer query to see correlations into the
+  subquery on MySQL 8.x. Same SQL shape runs successfully on MySQL 8.4 (32 tests green
+  there). The 32 affected tests cluster by LINQ shape:
+  - 4 `Json_collection_Select_entity_*_ElementAt` (in_anonymous_object + with_initializer,
+    async + sync)
+  - 4 `Json_collection_skip_take_*` (in_projection_project_into_anonymous_type +
+    with_json_reference_access_as_final_operation, async + sync)
+  - 4 `Json_collection_*_distinct_*` (distinct_and_other_collection +
+    distinct_in_projection, async + sync)
+  - 4 `Json_collection_*projection*` (filter_in_projection + leaf_filter_in_projection,
+    async + sync)
+  - 4 `Json_collection_in_projection_with_composition_where_and_anonymous_projection_*`
+    (of_primitive_arrays + of_scalars, async + sync)
+  - 4 `Json_collection_OrderByDescending_Skip_ElementAt` + `Json_collection_index_with_
+    parameter_Select_ElementAt` (async + sync)
+  - 4 `Json_collection_*Where_ElementAt` + `Json_collection_index_in_projection_using_
+    untranslatable_client_method` variants
+  - 4 misc nested-collection composition tests
+  Re-evaluation trigger: remove from this list when EITHER (a) MDEV-19078 closes in a
+  consumed MariaDB minor / major version (Doka tracks 11.4 LTS + 11.8 LTS today), OR
+  (b) EF Core's translator produces a non-LATERAL equivalent for these query shapes
+  (e.g., correlated scalar subqueries inside SELECT projection, or stream-only
+  per-row materialization).
+
 <!--
 Entry shape:
 - BuiltInDataTypesMySqlTest.Can_perform_query_with_max_length (mariadb:11.8) -- MariaDB rejects
