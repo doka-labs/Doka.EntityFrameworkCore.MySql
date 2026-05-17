@@ -350,11 +350,23 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         // CAST grammar accepted by both engines (SIGNED, UNSIGNED, DECIMAL(p,s), DOUBLE).
         if (typeMapping?.ElementTypeMapping is null
             && typeMapping is not null
-            && JsonScalarCastTarget(typeMapping.StoreType) is { } castTarget)
+            && JsonScalarCastTarget(typeMapping.StoreType) is { } cast)
         {
             Sql.Append("CAST(");
+
+            if (cast.NeedsUnquote)
+            {
+                Sql.Append("JSON_UNQUOTE(");
+            }
+
             EmitJsonExtract(jsonScalarExpression);
-            Sql.Append(" AS ").Append(castTarget).Append(")");
+
+            if (cast.NeedsUnquote)
+            {
+                Sql.Append(")");
+            }
+
+            Sql.Append(" AS ").Append(cast.Target).Append(")");
             return jsonScalarExpression;
         }
 
@@ -379,14 +391,23 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     }
 
     /// <summary>
+    /// Holds the CAST target token (e.g. <c>SIGNED</c>, <c>DECIMAL(10,2)</c>,
+    /// <c>DATETIME(6)</c>) plus a flag indicating whether the source expression must go
+    /// through <c>JSON_UNQUOTE</c> first. Numeric types do not need UNQUOTE (JSON_EXTRACT
+    /// returns the numeric value as a JSON number without quotes); temporal types DO need
+    /// UNQUOTE because they are stored as JSON strings (e.g. <c>"2023-01-01T00:00:00"</c>).
+    /// </summary>
+    private readonly record struct JsonScalarCast(string Target, bool NeedsUnquote);
+
+    /// <summary>
     /// Maps a column-level MySQL <c>StoreType</c> string to the CAST target a JSON scalar
     /// projection wraps the <c>JSON_EXTRACT</c> call in. Returns <see langword="null"/> for
     /// store types where no CAST is needed -- string-shaped types fall through to
     /// <c>JSON_UNQUOTE</c>; <c>json</c> stays raw; <c>tinyint(1)</c>/<c>bit(1)</c> are the
-    /// boolean shape handled by the earlier <c>(= TRUE)</c> branch; temporal and binary
-    /// store types are handled by a later commit that adds a UNQUOTE+CAST wrapper.
+    /// boolean shape handled by the earlier <c>(= TRUE)</c> branch; binary store types are
+    /// handled by a later commit.
     /// </summary>
-    private static string? JsonScalarCastTarget(
+    private static JsonScalarCast? JsonScalarCastTarget(
         string storeType
     )
     {
@@ -402,24 +423,42 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
 
         // Strip trailing parameter list `(p,s)` / `(N)` so e.g. `decimal(10,2)` matches
         // `decimal`; the original storeType is reused verbatim when the CAST target needs
-        // the precision (DECIMAL).
+        // the precision (DECIMAL, DATETIME, TIME).
         var parenIndex = baseType.IndexOf('(');
         var simpleType = parenIndex >= 0 ? baseType[..parenIndex] : baseType;
+
+        var precisionSuffix = parenIndex >= 0
+            ? storeType[storeType.IndexOf('(')..(storeType.IndexOf(')') + 1)]
+            : null;
 
         return simpleType switch
         {
             "tinyint" or "smallint" or "mediumint" or "int" or "integer" or "bigint" or "year"
-                => unsigned ? "UNSIGNED" : "SIGNED",
+                => new JsonScalarCast(unsigned ? "UNSIGNED" : "SIGNED", NeedsUnquote: false),
             "decimal" or "numeric" or "fixed" or "dec"
                 // Preserve the precision/scale from the store type so the reader gets a
                 // DECIMAL with the same shape as the underlying column.
-                => parenIndex >= 0
-                    ? "DECIMAL" + storeType[storeType.IndexOf('(')..(storeType.IndexOf(')') + 1)]
-                    : "DECIMAL",
+                => new JsonScalarCast(
+                    precisionSuffix is null ? "DECIMAL" : "DECIMAL" + precisionSuffix,
+                    NeedsUnquote: false),
             "float" or "double" or "real"
                 // Both engines accept CAST AS DOUBLE for any floating-point storage; reader
                 // GetFloat narrows the DOUBLE to float losslessly within the original range.
-                => "DOUBLE",
+                => new JsonScalarCast("DOUBLE", NeedsUnquote: false),
+            "datetime" or "timestamp"
+                // Stored as JSON string "2023-01-01T00:00:00..."; UNQUOTE first to strip
+                // the surrounding double quotes before MySQL parses it as a temporal
+                // literal. Precision suffix preserved so DATETIME(6) round-trips
+                // microseconds.
+                => new JsonScalarCast(
+                    precisionSuffix is null ? "DATETIME" : "DATETIME" + precisionSuffix,
+                    NeedsUnquote: true),
+            "date"
+                => new JsonScalarCast("DATE", NeedsUnquote: true),
+            "time"
+                => new JsonScalarCast(
+                    precisionSuffix is null ? "TIME" : "TIME" + precisionSuffix,
+                    NeedsUnquote: true),
             _ => null,
         };
     }
