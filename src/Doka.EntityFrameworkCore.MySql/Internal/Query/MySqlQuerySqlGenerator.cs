@@ -342,6 +342,22 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
             return jsonScalarExpression;
         }
 
+        // Non-string non-bool primitives that have a known MySQL CAST target: wrap in
+        // CAST so the reader sees a typed value matching its GetXxx expectation. Driven
+        // by TypeMapping.StoreType (storage SQL type, post-converter) rather than ClrType
+        // -- enum/bool/etc with int storage all want CAST AS SIGNED regardless of the
+        // model-side type. The CAST target maps the MySQL column type into the narrower
+        // CAST grammar accepted by both engines (SIGNED, UNSIGNED, DECIMAL(p,s), DOUBLE).
+        if (typeMapping?.ElementTypeMapping is null
+            && typeMapping is not null
+            && JsonScalarCastTarget(typeMapping.StoreType) is { } castTarget)
+        {
+            Sql.Append("CAST(");
+            EmitJsonExtract(jsonScalarExpression);
+            Sql.Append(" AS ").Append(castTarget).Append(")");
+            return jsonScalarExpression;
+        }
+
         // String properties need JSON_UNQUOTE to strip the surrounding double quotes.
         // Driven by Type (CLR type at the SQL boundary) so converted-to-string properties
         // also get the unquote.
@@ -360,6 +376,52 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         }
 
         return jsonScalarExpression;
+    }
+
+    /// <summary>
+    /// Maps a column-level MySQL <c>StoreType</c> string to the CAST target a JSON scalar
+    /// projection wraps the <c>JSON_EXTRACT</c> call in. Returns <see langword="null"/> for
+    /// store types where no CAST is needed -- string-shaped types fall through to
+    /// <c>JSON_UNQUOTE</c>; <c>json</c> stays raw; <c>tinyint(1)</c>/<c>bit(1)</c> are the
+    /// boolean shape handled by the earlier <c>(= TRUE)</c> branch; temporal and binary
+    /// store types are handled by a later commit that adds a UNQUOTE+CAST wrapper.
+    /// </summary>
+    private static string? JsonScalarCastTarget(
+        string storeType
+    )
+    {
+        var lower = storeType.ToLowerInvariant();
+
+        // Strip trailing UNSIGNED suffix so the base type-name switch finds the matching
+        // numeric family; UNSIGNED then drives the CAST-target selection.
+        var unsigned = lower.EndsWith(" unsigned", StringComparison.Ordinal);
+
+        var baseType = unsigned
+            ? lower[..^" unsigned".Length].TrimEnd()
+            : lower;
+
+        // Strip trailing parameter list `(p,s)` / `(N)` so e.g. `decimal(10,2)` matches
+        // `decimal`; the original storeType is reused verbatim when the CAST target needs
+        // the precision (DECIMAL).
+        var parenIndex = baseType.IndexOf('(');
+        var simpleType = parenIndex >= 0 ? baseType[..parenIndex] : baseType;
+
+        return simpleType switch
+        {
+            "tinyint" or "smallint" or "mediumint" or "int" or "integer" or "bigint" or "year"
+                => unsigned ? "UNSIGNED" : "SIGNED",
+            "decimal" or "numeric" or "fixed" or "dec"
+                // Preserve the precision/scale from the store type so the reader gets a
+                // DECIMAL with the same shape as the underlying column.
+                => parenIndex >= 0
+                    ? "DECIMAL" + storeType[storeType.IndexOf('(')..(storeType.IndexOf(')') + 1)]
+                    : "DECIMAL",
+            "float" or "double" or "real"
+                // Both engines accept CAST AS DOUBLE for any floating-point storage; reader
+                // GetFloat narrows the DOUBLE to float losslessly within the original range.
+                => "DOUBLE",
+            _ => null,
+        };
     }
 
     /// <summary>
