@@ -132,6 +132,12 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     /// Translates JSON scalar path expressions to MySQL JSON_EXTRACT / JSON_UNQUOTE syntax.
     /// For string results: JSON_UNQUOTE(JSON_EXTRACT(column, '$.Path'))
     /// For numeric/bool results: JSON_EXTRACT(column, '$.Path')
+    /// When the path contains a non-constant array index (a SQL expression rather than a
+    /// literal integer), the path is emitted via CONCAT so the dynamic expression lives
+    /// OUTSIDE the JSON path string literal:
+    /// <c>JSON_EXTRACT(col, CONCAT('$[', CAST(expr AS CHAR), '].Name'))</c>. The base
+    /// implementation would inline the SQL expression verbatim inside the path string and
+    /// trip <c>Invalid JSON path expression</c> against both engines.
     /// </summary>
     protected override Expression VisitJsonScalar(
         JsonScalarExpression jsonScalarExpression
@@ -157,24 +163,18 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
 
         Sql.Append("JSON_EXTRACT(");
         Visit(jsonScalarExpression.Json);
-        Sql.Append(", '$");
+        Sql.Append(", ");
 
-        foreach (var segment in path)
+        if (HasDynamicArrayIndex(path))
         {
-            if (segment.PropertyName is not null)
-            {
-                Sql.Append(".");
-                Sql.Append(EscapeJsonPathPropertyName(segment.PropertyName));
-            }
-            else if (segment.ArrayIndex is not null)
-            {
-                Sql.Append("[");
-                Visit(segment.ArrayIndex);
-                Sql.Append("]");
-            }
+            AppendDynamicJsonPath(path);
+        }
+        else
+        {
+            AppendStaticJsonPath(path);
         }
 
-        Sql.Append("')");
+        Sql.Append(")");
 
         if (needsUnquote)
         {
@@ -182,6 +182,92 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         }
 
         return jsonScalarExpression;
+    }
+
+    private void AppendStaticJsonPath(
+        IReadOnlyList<PathSegment> path
+    )
+    {
+        Sql.Append("'$");
+        foreach (var segment in path)
+        {
+            AppendPathSegmentLiteral(segment);
+        }
+
+        Sql.Append("'");
+    }
+
+    private void AppendPathSegmentLiteral(
+        PathSegment segment
+    )
+    {
+        if (segment.PropertyName is not null)
+        {
+            Sql.Append(".");
+            Sql.Append(EscapeJsonPathPropertyName(segment.PropertyName));
+        }
+        else if (segment.ArrayIndex is SqlConstantExpression { Value: int constantIndex })
+        {
+            Sql.Append("[");
+            Sql.Append(constantIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Sql.Append("]");
+        }
+    }
+
+    private void AppendDynamicJsonPath(
+        IReadOnlyList<PathSegment> path
+    )
+    {
+        Sql.Append("CONCAT('$");
+        var stringBufferOpen = true;
+
+        foreach (var segment in path)
+        {
+            if (segment.PropertyName is not null)
+            {
+                Sql.Append(".");
+                Sql.Append(EscapeJsonPathPropertyName(segment.PropertyName));
+                continue;
+            }
+
+            if (segment.ArrayIndex is SqlConstantExpression { Value: int constantIndex })
+            {
+                Sql.Append("[");
+                Sql.Append(constantIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                Sql.Append("]");
+                continue;
+            }
+
+            if (segment.ArrayIndex is not null)
+            {
+                // Break out of the path string literal, splice in the expression as CHAR,
+                // then re-open the literal for the suffix segments.
+                Sql.Append("[', CAST(");
+                Visit(segment.ArrayIndex);
+                Sql.Append(" AS CHAR), ']");
+                stringBufferOpen = true;
+            }
+        }
+
+        if (stringBufferOpen)
+        {
+            Sql.Append("')");
+        }
+    }
+
+    private static bool HasDynamicArrayIndex(
+        IReadOnlyList<PathSegment> path
+    )
+    {
+        foreach (var segment in path)
+        {
+            if (segment.ArrayIndex is not null and not SqlConstantExpression)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -315,17 +401,71 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     }
 
     /// <summary>
-    /// Escapes a JSON path property name for safe inclusion in a MySQL JSON path literal.
-    /// Property names come from model metadata (developer-controlled), but characters that
-    /// could terminate the enclosing SQL string literal or act as escape sequences must be
-    /// escaped defensively to prevent silent query mismatches. The clean-name fast path
-    /// returns the input unchanged so the common case incurs no allocation; the slow path
-    /// delegates to <see cref="MySqlSqlLiteralEscaper.Escape"/> for the SQL-standard
-    /// double-quote / double-backslash form.
+    /// Escapes a JSON path property name for safe inclusion in a MySQL / MariaDB JSON path
+    /// literal. MySQL accepts an unquoted path segment <c>$.ident</c> only when the segment
+    /// matches the identifier shape (ASCII letter / underscore followed by ASCII letters /
+    /// digits / underscores); any other shape -- non-ASCII characters, dots, brackets,
+    /// punctuation, leading digit -- has to be wrapped in JSON path double quotes, with
+    /// embedded double quotes / backslashes escaped per the JSON spec
+    /// (<c>$."weird\\\"name"</c>). The clean-name fast path returns the unquoted form so
+    /// the common case stays allocation-light; everything else flows through the
+    /// quote-and-escape path so the engines do not reject the literal with
+    /// "Invalid JSON path expression".
     /// </summary>
     private static string EscapeJsonPathPropertyName(
         string propertyName
-    ) => propertyName.Contains('\\', StringComparison.Ordinal) || propertyName.Contains('\'', StringComparison.Ordinal)
-        ? MySqlSqlLiteralEscaper.Escape(propertyName)
-        : propertyName;
+    ) => IsSimpleIdentifier(propertyName)
+        ? propertyName
+        : BuildQuotedJsonPathSegment(propertyName);
+
+    private static bool IsSimpleIdentifier(
+        string name
+    )
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return false;
+        }
+
+        var first = name[0];
+        if (!(char.IsAsciiLetter(first) || first == '_'))
+        {
+            return false;
+        }
+
+        for (var i = 1; i < name.Length; i++)
+        {
+            var c = name[i];
+            if (!(char.IsAsciiLetterOrDigit(c) || c == '_'))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string BuildQuotedJsonPathSegment(
+        string name
+    )
+    {
+        var sb = new StringBuilder(name.Length + 4);
+        sb.Append('"');
+        foreach (var c in name)
+        {
+            if (c is '"' or '\\')
+            {
+                sb.Append('\\');
+            }
+
+            sb.Append(c);
+        }
+
+        sb.Append('"');
+        // The path literal itself sits inside a single-quoted SQL string, so single
+        // quotes embedded in the property name still need SQL-level doubling.
+        return sb
+            .ToString()
+            .Replace("'", "''", StringComparison.Ordinal);
+    }
 }
