@@ -36,6 +36,19 @@ public class MySqlTestStore : RelationalTestStore
         DbContextOptionsBuilder builder
     ) => builder.UseMySql(Connection, ServerVersion);
 
+    /// <summary>
+    /// MySQL and MariaDB delimit identifiers with backticks by default; the SQL-standard
+    /// double-quote form is only accepted when SQL mode ANSI_QUOTES is on, which would also
+    /// flip the meaning of <c>"text"</c> from string literal to identifier and break the rest
+    /// of the spec test corpus. EF Core spec tests author raw SQL with the portable
+    /// <c>[name]</c> placeholder and rely on the test store to expand it to the engine's native
+    /// delimiter form; override these so <see cref="RelationalTestStore.NormalizeDelimitersInRawString"/>
+    /// produces backtick-quoted identifiers.
+    /// </summary>
+    protected override string OpenDelimiter => "`";
+
+    protected override string CloseDelimiter => "`";
+
     protected override async Task InitializeAsync(
         Func<DbContext> createContext,
         Func<DbContext, Task>? seed,
