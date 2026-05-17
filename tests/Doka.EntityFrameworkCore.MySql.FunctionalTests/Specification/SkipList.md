@@ -24,8 +24,32 @@ here and vice versa.
 
 ## Triage queue
 
-No queue entries yet; this section populates after the first specification run lands on a live
-MySQL or MariaDB target.
+The first live-DB run against MySQL 8.4 landed 356 / 408 NorthwindWhereQueryMySqlTest tests
+green. The remaining 52 failures cluster into six categories listed below; each category is
+held as a single quarantine entry rather than 52 per-test rows so the audit trail stays
+scannable. Per-test triage continues in subsequent triage phases as each category gets a
+provider-side fix or a documented permanent skip.
+
+- NorthwindWhereQueryMySqlTest (mysql:8.4, 18 tests) -- LINQ expression untranslatable to SQL.
+  Pattern: query shapes the provider's translator does not yet support; needs per-test
+  investigation, some likely structural for MySQL. Follow-up triage phase.
+- NorthwindWhereQueryMySqlTest (mysql:8.4, 16 tests) -- "Expression '@X' in the SQL tree does
+  not have a type mapping assigned" for parameterized collections (orderIds, customerIds,
+  array, cities). Provider-side SqlExpression type-mapping gap on collection parameters.
+  Follow-up triage phase OR provider-side fix.
+- NorthwindWhereQueryMySqlTest (mysql:8.4, 10 tests) -- "syntax error near 'bigint)'". The
+  provider's SQL generator emits CAST(x AS bigint), but MySQL expects CAST(x AS SIGNED) for
+  integer casts. Provider-side bug in the CAST translator.
+- NorthwindWhereQueryMySqlTest (mysql:8.4, 4 tests) -- "MySQL doesn't yet support 'LIMIT &
+  IN/ALL/ANY/SOME subquery'". Documented MySQL engine limitation; spec tests assume a SQL
+  engine that supports LIMIT in subqueries. Likely permanent skip with structural reason,
+  pending engine-conditional ConditionalTheory wrapper.
+- NorthwindWhereQueryMySqlTest (mysql:8.4, 2 tests) -- "syntax error near 'longtext)'". The
+  provider emits CAST(x AS longtext), but MySQL expects CAST(x AS CHAR). Provider-side bug
+  in the CAST translator (sibling to the bigint case above).
+- NorthwindWhereQueryMySqlTest (mysql:8.4, 4 tests) -- Assert.Equal failures (actual SQL
+  produces wrong result OR expected-SQL-string mismatch). Per-test investigation; small
+  population so manageable in a single triage iteration.
 
 <!--
 Entry shape:

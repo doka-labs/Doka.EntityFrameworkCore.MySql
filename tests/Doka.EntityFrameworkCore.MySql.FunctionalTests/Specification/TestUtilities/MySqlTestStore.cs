@@ -42,17 +42,25 @@ public class MySqlTestStore : RelationalTestStore
         Func<DbContext, Task>? clean
     )
     {
-        if (!await EnsureDatabaseExistsAsync(clean))
-        {
-            return;
-        }
+        var databaseFreshlyCreated = await EnsureDatabaseCreatedIfMissingAsync();
 
         await using var context = createContext();
-        await context.Database.EnsureCreatedResilientlyAsync();
 
-        if (seed is not null)
+        // Seed runs only when this init just created the database; for shared stores that
+        // already exist with a seeded state from an earlier fixture-init the data must
+        // stay put across test classes. The framework-supplied clean callback runs
+        // independently when the test explicitly asks for a per-method reset.
+        if (databaseFreshlyCreated)
         {
-            await seed(context);
+            await context.Database.EnsureCreatedResilientlyAsync();
+            if (seed is not null)
+            {
+                await seed(context);
+            }
+        }
+        else if (clean is not null)
+        {
+            await clean(context);
         }
     }
 
@@ -60,6 +68,12 @@ public class MySqlTestStore : RelationalTestStore
         DbContext context
     )
     {
+        // CleanAsync is invoked when the spec-test framework explicitly requests a per-test
+        // reset (rare; mostly via the InitializeAsync clean-callback contract). Drop-and-
+        // recreate is the heavy hammer; per-table truncation would be lighter but EF Core
+        // provides no public helper that walks the model and emits TRUNCATE statements
+        // engine-agnostically. The provider's own MySqlRelationalDatabaseCreator handles
+        // the recreate path consistently with the rest of the suite.
         await context.Database.EnsureDeletedAsync();
         await context.Database.EnsureCreatedAsync();
     }
@@ -76,25 +90,14 @@ public class MySqlTestStore : RelationalTestStore
         GC.SuppressFinalize(this);
     }
 
-    private async Task<bool> EnsureDatabaseExistsAsync(
-        Func<DbContext, Task>? clean
-    )
+    private async Task<bool> EnsureDatabaseCreatedIfMissingAsync()
     {
         await using var admin = new MySqlConnection(s_adminConnectionString);
         await admin.OpenAsync();
 
         if (await DatabaseExistsAsync(admin, Name))
         {
-            await using var context = new DbContext(
-                AddProviderOptions(new DbContextOptionsBuilder().EnableServiceProviderCaching(false)).Options);
-
-            if (clean is not null)
-            {
-                await clean(context);
-            }
-
-            await CleanAsync(context);
-            return true;
+            return false;
         }
 
         await ExecuteNonQueryAsync(admin, $"CREATE DATABASE `{Name}` CHARACTER SET utf8mb4;");
