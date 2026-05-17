@@ -87,6 +87,22 @@ public class BuiltInDataTypesMySqlTest : BuiltInDataTypesTestBase<
                     .WithMany(e => e.Dependents)
                     .HasConstraintName("FK_StringForeignKeyDataType_StringKey");
             });
+
+            // MaxLengthDataTypes carries deliberately oversized varchar(9000) + varbinary(9000)
+            // columns to exercise the upper-end of the EF Core MaxLength contract. MySQL's
+            // 65535-byte row-size limit under utf8mb4 (4 bytes per char) caps a single
+            // varchar at ~16382 chars only when it is the sole column; two 9000-char columns
+            // in the same row exceed the limit and the CREATE TABLE fails with ER_TOO_BIG_ROWSIZE.
+            // Off-row storage (TEXT / LONGTEXT / LONGBLOB) does not count against the in-row
+            // budget and is the standard MySQL response for large-payload columns. Without this
+            // override EnsureCreated bails at MaxLengthDataTypes and skips every subsequent
+            // table in declaration order (AnimalIdentification, StringEnclosure, ...).
+            modelBuilder.Entity<MaxLengthDataTypes>(b =>
+            {
+                b.Property(e => e.String9000).HasMaxLength(0).HasColumnType("longtext");
+                b.Property(e => e.StringUnbounded).HasMaxLength(0).HasColumnType("longtext");
+                b.Property(e => e.ByteArray9000).HasMaxLength(0).HasColumnType("longblob");
+            });
         }
     }
 }

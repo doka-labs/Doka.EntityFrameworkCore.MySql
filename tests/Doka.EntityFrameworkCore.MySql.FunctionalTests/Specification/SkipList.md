@@ -59,9 +59,17 @@ both MySQL 8.4 and MariaDB 11.8.)
   not match" on parameter binding; value-conversion contract gap.
 - BuiltInDataTypesMySqlTest (mysql:8.4, 4 tests) -- "syntax error near 'int)'".
   CLOSED in this iteration via the same VisitSqlUnary override (int -> SIGNED).
-- BuiltInDataTypesMySqlTest (mysql:8.4, 4 tests) -- missing seed tables (AnimalIdentification
-  and StringEnclosure). The spec test base seeds these via EnsureCreatedResilientlyAsync,
-  but the fixture's OnModelCreating may not include them; per-fixture seed inspection.
+(closed 2026-05-17: root cause was NOT missing entity registration but a CREATE TABLE
+failure on MaxLengthDataTypes whose varchar(9000) + varbinary(9000) columns exceeded MySQL's
+65535-byte row-size limit under utf8mb4. EF Core's EnsureCreatedAsync emits tables in
+declaration order and throws on the first failure; every subsequent table (AnimalIdentification,
+StringEnclosure, MaxLengthDataTypes itself, UnicodeDataTypes, ObjectBackedDataTypes,
+NullableBackedDataTypes, NonNullableBackedDataTypes, BinaryForeignKeyDataType,
+StringKeyDataType, StringForeignKeyDataType, AnimalDetails) was silently skipped. The
+fixture-level fix maps String9000 / StringUnbounded / ByteArray9000 to longtext / longblob
+column types which store off-row and bypass the row-size limit. The MySQL general-log
+diagnostic that surfaced the SQL "CREATE TABLE MaxLengthDataTypes ... varchar(9000) ... ;
+rollback" was decisive in identifying the cutoff point.)
 - BuiltInDataTypesMySqlTest (mysql:8.4, 2 tests) -- coercion-operator + Sequence-contains-
   no-elements errors; per-test investigation in follow-up.
 
