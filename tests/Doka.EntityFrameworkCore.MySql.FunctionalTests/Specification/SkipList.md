@@ -42,10 +42,8 @@ provider-side fix or a documented permanent skip.
   StoreType (int / bigint / longtext / etc.) into MySQL CAST-grammar keywords (SIGNED / CHAR /
   BINARY). Some of these tests now run + assert; any that still fail with wrong-value have
   been reclassified to the "Assert.Equal / Assert.Single" categories below.
-- NorthwindWhereQueryMySqlTest (mysql:8.4, 4 tests) -- "MySQL doesn't yet support 'LIMIT &
-  IN/ALL/ANY/SOME subquery'". Documented MySQL engine limitation; spec tests assume a SQL
-  engine that supports LIMIT in subqueries. Likely permanent skip with structural reason,
-  pending engine-conditional ConditionalTheory wrapper.
+(moved to Permanent skips below: "LIMIT & IN/ALL/ANY/SOME subquery" -- validated against
+both MySQL 8.4 and MariaDB 11.8.)
 - NorthwindWhereQueryMySqlTest (mysql:8.4, 2 tests) -- "syntax error near 'longtext)'".
   CLOSED in this iteration via the same VisitSqlUnary override (longtext / text / nchar -> CHAR).
 - NorthwindWhereQueryMySqlTest (mysql:8.4, 4 tests) -- Assert.Equal failures (actual SQL
@@ -92,6 +90,19 @@ do not provide.
 - MigrationsMySqlTest.Can_diff_against_3_0_ASP_NET_Identity_model (mysql:8.4, mariadb:11.8) --
   same structural reason; no prior-version Doka snapshot of the ASP.NET Identity 3.0 model
   exists.
+- NorthwindWhereQueryMySqlTest.Where_multiple_contains_in_subquery_with_or +
+  Where_multiple_contains_in_subquery_with_and (mysql:8.4, mariadb:11.8, 4 test invocations
+  total counting async true/false) -- "LIMIT & IN/ALL/ANY/SOME subquery" is structurally
+  rejected by both engines (ERROR 1235, SQLSTATE 42000). Primary-source documentation:
+  MySQL 8.4 Reference Manual section "Subquery Restrictions"
+  (https://dev.mysql.com/doc/refman/8.4/en/subquery-restrictions.html, retrieved 2026-05-17)
+  carries the verbatim example "SELECT * FROM t1 WHERE s1 IN (SELECT s2 FROM t2 ORDER BY
+  s1 LIMIT 1)" producing ERROR 1235; MariaDB Server Reference "Subquery Limitations"
+  (https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/subqueries/subquery-limitations,
+  retrieved 2026-05-17) carries the same error 1235 (42000). Empirical probe 2026-05-17
+  against doka-mysql84 + doka-mariadb118 docker containers confirmed both reject the pattern
+  with and without ORDER BY. The spec tests assume an engine that supports the construct
+  (SQL Server, PostgreSQL, SQLite); structural inapplicability per ADR D-011 bucket 3.
 - UpdatesMySqlTest.Identifiers_are_generated_correctly (mysql:8.4, mariadb:11.8) -- the spec
   asserts that the deliberately-long entity-type name flows through the identifier pipeline
   UNTRUNCATED into table / key / constraint / index names. Doka's MySqlModelValidator rejects
