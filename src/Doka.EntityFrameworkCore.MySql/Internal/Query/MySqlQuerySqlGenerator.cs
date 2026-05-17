@@ -275,18 +275,31 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
 
         Sql.Append(")");
         Sql.Append(AliasSeparator);
-        Sql.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(jsonTableExpression.Alias!));
+        Sql.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(jsonTableExpression.Alias));
 
         return jsonTableExpression;
     }
 
     /// <summary>
-    /// Translates JSON scalar path expressions to MySQL JSON_EXTRACT / JSON_UNQUOTE syntax.
-    /// For string results: JSON_UNQUOTE(JSON_EXTRACT(column, '$.Path'))
-    /// For numeric/bool results: JSON_EXTRACT(column, '$.Path')
+    /// Translates JSON scalar path expressions to MySQL / MariaDB syntax with type-aware
+    /// coercion so the column value the .NET shaper reads matches the type the shaper
+    /// expects from <c>RelationalTypeMapping.GetDataReaderMethod()</c>.
+    /// <list type="bullet">
+    /// <item>Element-collection / nested-JSON mapping -> raw <c>JSON_EXTRACT</c>
+    /// (returns JSON text; downstream JSON-aware shaper handles parsing).</item>
+    /// <item><see cref="string"/> -> <c>JSON_UNQUOTE(JSON_EXTRACT(...))</c> to strip the
+    /// JSON-text surrounding quotes.</item>
+    /// <item><see cref="bool"/> -> <c>(JSON_EXTRACT(...) = TRUE)</c>; MySQL and MariaDB
+    /// have no <c>CAST ... AS BOOL</c> / <c>BIT</c> grammar, so a boolean comparison
+    /// produces a TINYINT 0/1 that <c>reader.GetBoolean</c> reads natively.</item>
+    /// </list>
+    /// Numeric and temporal types are routed through <see cref="VisitJsonScalar"/>'s
+    /// follow-up CAST shapes in subsequent commits; the current commit ships only the
+    /// bool branch to verify the regression-free path before extending.
+    ///
     /// When the path contains a non-constant array index (a SQL expression rather than a
-    /// literal integer), the path is emitted via CONCAT so the dynamic expression lives
-    /// OUTSIDE the JSON path string literal:
+    /// literal integer), the path is emitted via <c>CONCAT</c> so the dynamic expression
+    /// lives OUTSIDE the JSON path string literal:
     /// <c>JSON_EXTRACT(col, CONCAT('$[', CAST(expr AS CHAR), '].Name'))</c>. The base
     /// implementation would inline the SQL expression verbatim inside the path string and
     /// trip <c>Invalid JSON path expression</c> against both engines.
@@ -305,7 +318,33 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
             return jsonScalarExpression;
         }
 
+        var typeMapping = jsonScalarExpression.TypeMapping;
+        var modelClrType = typeMapping?.ClrType;
+        var modelNonNullable = modelClrType is null
+            ? null
+            : Nullable.GetUnderlyingType(modelClrType) ?? modelClrType;
+        var hasConverter = typeMapping?.Converter is not null;
+
+        // bool: emit `(JSON_EXTRACT(...) = TRUE)`. The boolean-comparison result is TINYINT
+        // 0/1 which the shaper's reader.GetBoolean consumes natively. Two guard rails:
+        // (1) skip for value-converted properties (TypeMapping.Converter set) -- for a bool
+        // stored as int 0/1 the SQL must produce the int value the converter then maps to
+        // bool on the .NET side; wrapping with `(=TRUE)` shortcircuits to 0/1 before the
+        // converter sees the raw stored value. (2) skip for element-collection mappings
+        // (structural-JSON path; raw JSON_EXTRACT below feeds the JSON-aware shaper).
+        if (modelNonNullable == typeof(bool)
+            && !hasConverter
+            && typeMapping?.ElementTypeMapping is null)
+        {
+            Sql.Append("(");
+            EmitJsonExtract(jsonScalarExpression);
+            Sql.Append(" = TRUE)");
+            return jsonScalarExpression;
+        }
+
         // String properties need JSON_UNQUOTE to strip the surrounding double quotes.
+        // Driven by Type (CLR type at the SQL boundary) so converted-to-string properties
+        // also get the unquote.
         var needsUnquote = jsonScalarExpression.Type == typeof(string);
 
         if (needsUnquote)
@@ -313,20 +352,7 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
             Sql.Append("JSON_UNQUOTE(");
         }
 
-        Sql.Append("JSON_EXTRACT(");
-        Visit(jsonScalarExpression.Json);
-        Sql.Append(", ");
-
-        if (HasDynamicArrayIndex(path))
-        {
-            AppendDynamicJsonPath(path);
-        }
-        else
-        {
-            AppendStaticJsonPath(path);
-        }
-
-        Sql.Append(")");
+        EmitJsonExtract(jsonScalarExpression);
 
         if (needsUnquote)
         {
@@ -334,6 +360,31 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         }
 
         return jsonScalarExpression;
+    }
+
+    /// <summary>
+    /// Emits the raw <c>JSON_EXTRACT(&lt;json&gt;, '&lt;path&gt;')</c> expression, dispatching
+    /// to the static-path / dynamic-path helper based on whether the path carries any
+    /// non-constant array index. Shared by every <see cref="VisitJsonScalar"/> code path.
+    /// </summary>
+    private void EmitJsonExtract(
+        JsonScalarExpression jsonScalarExpression
+    )
+    {
+        Sql.Append("JSON_EXTRACT(");
+        Visit(jsonScalarExpression.Json);
+        Sql.Append(", ");
+
+        if (HasDynamicArrayIndex(jsonScalarExpression.Path))
+        {
+            AppendDynamicJsonPath(jsonScalarExpression.Path);
+        }
+        else
+        {
+            AppendStaticJsonPath(jsonScalarExpression.Path);
+        }
+
+        Sql.Append(")");
     }
 
     private void AppendStaticJsonPath(
@@ -361,7 +412,7 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         else if (segment.ArrayIndex is SqlConstantExpression { Value: int constantIndex })
         {
             Sql.Append("[");
-            Sql.Append(constantIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Sql.Append(constantIndex.ToString(CultureInfo.InvariantCulture));
             Sql.Append("]");
         }
     }
@@ -385,7 +436,7 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
             if (segment.ArrayIndex is SqlConstantExpression { Value: int constantIndex })
             {
                 Sql.Append("[");
-                Sql.Append(constantIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                Sql.Append(constantIndex.ToString(CultureInfo.InvariantCulture));
                 Sql.Append("]");
                 continue;
             }
