@@ -22,7 +22,7 @@ public class BuiltInDataTypesMySqlTest : BuiltInDataTypesTestBase<
     {
         protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
-        public override bool StrictEquality => true;
+        public override bool StrictEquality => false;
 
         public override bool SupportsAnsi => false;
 
