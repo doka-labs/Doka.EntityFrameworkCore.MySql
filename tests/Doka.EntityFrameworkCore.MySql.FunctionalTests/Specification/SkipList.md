@@ -225,6 +225,39 @@ do not provide.
   silently truncating; the design choice favors explicit error over silent name collision.
   Engine-aware design divergence per ADR D-011.
 
+- JsonQueryMySqlTest JSON_TABLE-outer-correlation-depth cluster (mariadb:11.8 ONLY;
+  6 tests) -- MariaDB 11.8's JSON_TABLE name resolution does NOT see outer query
+  columns when more than one subquery level sits between the outer table and the
+  JSON_TABLE call. Empirical probe 2026-05-17 (doka-mariadb118):
+  - `SELECT j.Id FROM JsonEntitiesBasic j WHERE (SELECT COUNT(*) FROM JSON_TABLE(
+    j.OwnedReferenceRoot, '$.x' COLUMNS (id int PATH '$.id')) o) > 0 LIMIT 1`
+    succeeds (ONE subquery level between `j` and JSON_TABLE).
+  - `SELECT j.Id FROM JsonEntitiesBasic j WHERE (SELECT COUNT(*) FROM (SELECT o.id
+    FROM JSON_TABLE(j.OwnedReferenceRoot, '$.x' COLUMNS (id int PATH '$.id')) o)
+    o0) > 0 LIMIT 1` returns ERROR 1054 "Unknown column 'j.OwnedReferenceRoot' in
+    'JSON_TABLE'" (TWO subquery levels).
+  MySQL 8.4 accepts both forms (6 tests green there). The 6 affected spec tests
+  emit two-level-nested-subquery shapes for `Json_collection_Distinct_Count_with
+  _predicate` (`COUNT` over `DISTINCT` over JSON_TABLE), `Json_collection_Skip`
+  (subquery wraps the JSON_TABLE-derived row source for SKIP/Offset translation),
+  and `Json_collection_OrderByDescending_Skip_ElementAt` (descending ORDER BY +
+  Skip wraps in a derived subquery before ElementAt projects out). Primary source:
+  MariaDB has a cluster of open JSON_TABLE name-resolution issues
+  ([MDEV-25254](https://jira.mariadb.org/browse/MDEV-25254) "JSON_TABLE: Inconsistent
+  name resolution with right joins",
+  [MDEV-25256](https://jira.mariadb.org/browse/MDEV-25256) "ER_VIEW_INVALID upon
+  running query via view",
+  [MDEV-25346](https://jira.mariadb.org/browse/MDEV-25346) "Server crashes in
+  Item_field::fix_outer_field upon subquery with unknown column",
+  [MDEV-25352](https://jira.mariadb.org/browse/MDEV-25352) "Inconsistent name
+  resolution and ER_VIEW_INVALID upon combination of RIGHT and NATURAL JOIN")
+  -- all OPEN, no fix version, retrieved 2026-05-17. MDEV-30623 fixed the
+  related "JSON_TABLE in subquery not marked as correlated" bug in 11.5.2 but
+  did not address the depth-of-nesting limitation. Re-evaluation trigger: remove
+  when MariaDB lands a JSON_TABLE name-resolution fix that allows outer column
+  references from deeper subquery nesting; verify empirically against the probe
+  above. Structural engine inapplicability per ADR D-011 bucket 3.
+
 - JsonQueryMySqlTest JSON-collection-projection cluster (mariadb:11.8 ONLY; 32 tests)
   -- MariaDB 11.8 does NOT implement SQL-standard LATERAL derived tables in any JOIN
   context. Empirical probe 2026-05-17 (doka-mariadb118): `SELECT a.c, b.v FROM (SELECT 1
