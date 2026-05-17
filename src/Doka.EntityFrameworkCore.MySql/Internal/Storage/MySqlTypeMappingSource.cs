@@ -49,7 +49,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     private static readonly RelationalTypeMapping s_dateOnlyMapping = new DateOnlyTypeMapping("date", DbType.Date);
     private static readonly RelationalTypeMapping s_timeOnlyMapping = new TimeOnlyTypeMapping("time(6)", DbType.Time);
     private static readonly RelationalTypeMapping s_timeSpanMapping = new TimeSpanTypeMapping("time(6)", DbType.Time);
-    private static readonly RelationalTypeMapping s_guidBinaryMapping = new GuidTypeMapping("binary(16)", DbType.Guid);
+    private static readonly RelationalTypeMapping s_guidBinaryMapping = new MySqlGuidBinaryTypeMapping();
 
     // GUID text representations are ASCII-only (32 hex digits plus four hyphens), so
     // the column does not need utf8mb4 storage; Unicode: false keeps the on-disk and
@@ -239,11 +239,6 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
 
         if (clrType is not null)
         {
-            if (clrType.IsEnum)
-            {
-                return CreateEnumMapping(clrType);
-            }
-
             if (clrType == typeof(decimal))
             {
                 return CreateDecimalMapping(mappingInfo);
@@ -424,7 +419,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
                 : new StringTypeMapping($"varchar({size.GetValueOrDefault(36)})", DbType.String, unicode: true, size),
             "binary" => size == 16
                 ? s_guidBinaryMapping
-                : new GuidTypeMapping($"binary({size.GetValueOrDefault(16)})", DbType.Guid),
+                : new MySqlGuidBinaryTypeMapping($"binary({size.GetValueOrDefault(16)})"),
             _ => _mySqlSingletonOptions.DefaultGuidFormat == MySqlGuidFormat.Char36
                 ? s_guidChar36Mapping
                 : s_guidBinaryMapping

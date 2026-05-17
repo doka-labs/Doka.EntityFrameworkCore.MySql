@@ -71,14 +71,25 @@ both MySQL 8.4 and MariaDB 11.8.)
 (closed 2026-05-17 via the string-Add CONCAT override on `MySqlQuerySqlGenerator.VisitSqlBinary`
  -- the per-test investigation showed both Assert.Equal failures collapsed to the same
  root cause as the 4 string-Add result-mismatch tests above.)
-- BuiltInDataTypesMySqlTest (mysql:8.4, 11 tests) -- DbUpdateException on save (inner
-  exception varies by test); collection of type-mapping + SQL-emission issues that surface
-  during INSERT path. Follow-up provider-side triage.
-- BuiltInDataTypesMySqlTest (mysql:8.4, 4 tests) -- InvalidCastException casting Enum16
-  to nullable Int16. Enum value-conversion gap in the type-mapping pipeline; needs provider
-  fix for nested-generic enum-as-nullable-numeric.
-- BuiltInDataTypesMySqlTest (mysql:8.4, 4 tests) -- ArgumentException "Argument types do
-  not match" on parameter binding; value-conversion contract gap.
+(closed 2026-05-17 via two root-cause fixes:
+- The `MySqlTypeMappingSource.CreateEnumMapping` short-circuit returned a raw numeric
+  mapping for enum CLR types without an `EnumToNumberConverter`, so EF Core's seed-write
+  path emitted the unquoted enum name literal (`Enum16.SomeValue` -> `SomeValue`) which
+  failed with "Unknown column 'SomeValue' in 'field list'". Removing the short-circuit
+  lets the base `RelationalTypeMappingSource.WithConverter` loop attach the conventional
+  `EnumToNumberConverter<TEnum, TUnderlying>` and emit numeric literals (e.g. `1`).
+- The default `GuidTypeMapping("binary(16)", DbType.Guid)` emitted Guid literals as the
+  38-char string `'00000000-0000-0000-0000-000000000000'` (incompatible with `binary(16)`,
+  "Data too long for column"). The new `MySqlGuidBinaryTypeMapping` wires a
+  `GuidToBytesConverter` for parameter binding AND emits `X'HEX16'` literals so seed
+  inserts land in the binary column. Closed the 11 DbUpdateException-on-save tests, the
+  4 InvalidCastException-Enum16-to-Nullable&lt;Int16&gt; tests, the 4 ArgumentException
+  parameter-binding tests, plus 4 secondary Assert.Single-empty cases that cascaded
+  from seed-failure. BuiltInDataTypesMySqlTest tally: 1/30 -> 24/30. The remaining 6
+  Duplicate-PK failures (Ids 11, 12, 100, 'Gumball!', 799) point at a test-isolation
+  gap in the shared-store fixture where adjacent test methods cannot insert the same
+  primary key across re-runs; deferred to a follow-up triage iteration that wires the
+  per-class CleanAsync hook + transactional-test-store contract.)
 - BuiltInDataTypesMySqlTest (mysql:8.4, 4 tests) -- "syntax error near 'int)'".
   CLOSED in this iteration via the same VisitSqlUnary override (int -> SIGNED).
 (closed 2026-05-17: root cause was NOT missing entity registration but a CREATE TABLE
