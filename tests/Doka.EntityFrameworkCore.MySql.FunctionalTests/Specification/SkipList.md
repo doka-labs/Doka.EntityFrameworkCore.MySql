@@ -153,6 +153,33 @@ rollback" was decisive in identifying the cutoff point.)
   that revisits the advisory-lock timeout budget and the dedicated-connection lifecycle
   during parallel test execution.
 
+- JsonQueryMySqlTest (mysql:8.4, mariadb:11.8, JSON-owned-collection projection warning
+  cluster) -- 16 tests previously failed with two upstream EF Core 10 false-positive
+  warnings: 10 with `DistinctAfterOrderByWithoutRowLimitingOperatorWarning`
+  (`CoreEventId.DistinctAfterOrderByWithoutRowLimitingOperatorWarning`) and 6 with
+  `MultipleCollectionIncludeWarning` (`RelationalEventId.MultipleCollectionInclude
+  Warning`). NOT actually skipped: ADR D-015 downgrades both warnings from `Throw`
+  to `Log` in `JsonQueryMySqlFixture.AddOptions` override, scoped to the spec test
+  fixture only; tests RUN and verify SQL correctness. After suppression: 6 tests
+  pass cleanly (the warning was the sole failure mode); 10 tests reveal underlying
+  assertion mismatches the warning had masked -- those move into the per-test
+  assertion-mismatch triage category (now ~28 `Values differ` failures pending
+  per-test investigation in a follow-up phase). Root cause of the warnings is upstream
+  EF Core 10: every `MySqlJsonTableExpression`-backed collection projection increments
+  `_collectionId` inside `RelationalShapedQueryCompilingExpressionVisitor.ShaperProcessing
+  ExpressionVisitor`; the warning fires as soon as two JSON collections co-project.
+  Cross-provider empirical verification (SqlServer 10.0.4 + SQL Server 2022 Docker,
+  spec-test config with `Default(Throw)` + 2 specific `Log` overrides) confirmed the
+  same shape throws identically -- no mainstream EF Core 8+ JSON provider (SqlServer,
+  Npgsql) has a translator-side bypass; SQLite sidesteps via an unrelated
+  `ApplyNotSupported` earlier error. The provider's runtime configuration is unchanged
+  -- production users see whatever `WarningBehavior` they configure (EF Core default:
+  Log). Upstream tracking: `dotnet/efcore` issue #29665, open since 2022-11-23.
+  Re-evaluation triggers per ADR D-015: remove the suppression when #29665 closes in
+  a consumed EF Core release, OR when EF Core ships a `protected virtual` extension
+  point for the warning, OR when JSON-aware bypass logic lands in
+  `RelationalShapedQueryCompilingExpressionVisitor`.
+
 <!--
 Entry shape:
 - NorthwindWhereQueryMySqlTest.Where_simple (mysql:8.4) -- tracking-issue or work-item reference; one-line summary.
