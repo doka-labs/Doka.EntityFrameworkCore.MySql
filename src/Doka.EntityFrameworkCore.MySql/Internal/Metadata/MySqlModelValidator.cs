@@ -203,6 +203,15 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
 
         foreach (var entityType in model.GetEntityTypes())
         {
+            // Owned types mapped to a JSON column collapse into the principal table's JSON
+            // column at SQL-emit time; EF Core still attaches a conceptual FK + key index on
+            // the owned end to track ownership, but neither name reaches the database. The
+            // length check would reject auto-generated names that the engine never sees.
+            if (entityType.IsMappedToJson())
+            {
+                continue;
+            }
+
             foreach (var foreignKey in entityType.GetForeignKeys())
             {
                 var constraintName = foreignKey.GetConstraintName();

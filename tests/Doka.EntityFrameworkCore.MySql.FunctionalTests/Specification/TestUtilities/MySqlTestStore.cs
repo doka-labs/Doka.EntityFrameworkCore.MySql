@@ -145,6 +145,14 @@ public class MySqlTestStore : RelationalTestStore
         DefaultCommandTimeout = (uint)DefaultCommandTimeout,
         AllowUserVariables = true,
         UseAffectedRows = false,
+        // Match what the provider's MySqlRelationalConnection.CreateDbConnection() sets
+        // on connections built from UseMySql(connectionString); the test infrastructure
+        // bypasses that path by constructing the MySqlConnection directly and passing it
+        // through UseMySql(DbConnection, ...), so the GuidFormat has to be set explicitly
+        // on the test connection string. Binary16 matches our MySqlGuidBinaryTypeMapping's
+        // RFC 4122 / big-endian X'HEX' literal-emission path so seed inserts (HasData) and
+        // parameter-bound writes (AddAsync + SaveChangesAsync) land byte-identical.
+        GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
     }.ConnectionString;
 
     private static string BuildAdminConnectionString()

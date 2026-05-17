@@ -25,22 +25,22 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
 
     public override bool Exists()
     {
+        // Server-side authoritative existence check via information_schema.SCHEMATA
+        // rather than open-with-database. The latter can return TRUE against a
+        // pooled MySqlConnector connection cached from a prior session even after
+        // the database has been dropped, because the pool's connection-validation
+        // path does not re-resolve database existence on checkout. The
+        // information_schema query always reaches the server and reflects the
+        // current schema state.
         try
         {
-            using var connection = CreateDatabaseConnection();
+            using var connection = CreateServerConnection();
             connection.Open();
-
-            return true;
+            return SchemaExists(connection);
         }
         catch (MySqlException exception)
         {
-            if (IsMissingDatabase(exception))
-            {
-                return false;
-            }
-
-            if (IsMissingDatabaseAccessDenied(exception)
-                && CanConnectToServer())
+            if (IsMissingDatabaseAccessDenied(exception))
             {
                 return false;
             }
@@ -55,29 +55,56 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
     {
         try
         {
-            await using var connection = CreateDatabaseConnection();
+            await using var connection = CreateServerConnection();
             await connection
                 .OpenAsync(cancellationToken)
                 .ConfigureAwait(false);
-
-            return true;
+            return await SchemaExistsAsync(connection, cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (MySqlException exception)
         {
-            if (IsMissingDatabase(exception))
-            {
-                return false;
-            }
-
-            if (IsMissingDatabaseAccessDenied(exception)
-                && await CanConnectToServerAsync(cancellationToken)
-                    .ConfigureAwait(false))
+            if (IsMissingDatabaseAccessDenied(exception))
             {
                 return false;
             }
 
             throw;
         }
+    }
+
+    private bool SchemaExists(
+        DbConnection connection
+    )
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = @name";
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "@name";
+        parameter.Value = GetDatabaseName();
+        command.Parameters.Add(parameter);
+
+        var result = command.ExecuteScalar();
+        return result is not null && Convert.ToInt64(result, CultureInfo.InvariantCulture) > 0;
+    }
+
+    private async Task<bool> SchemaExistsAsync(
+        DbConnection connection,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = @name";
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "@name";
+        parameter.Value = GetDatabaseName();
+        command.Parameters.Add(parameter);
+
+        var result = await command
+            .ExecuteScalarAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return result is not null && Convert.ToInt64(result, CultureInfo.InvariantCulture) > 0;
     }
 
     public override void Create()

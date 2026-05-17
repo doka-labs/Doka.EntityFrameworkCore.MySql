@@ -65,6 +65,18 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
 
     private static readonly RelationalTypeMapping s_jsonStringMapping = new MySqlJsonStringTypeMapping("json");
 
+    // The relational model builder asks for FindMapping(typeof(JsonTypePlaceholder), null)
+    // when it constructs the JSON container column for ToJson()-mapped owned entities;
+    // returning null trips Microsoft.EntityFrameworkCore.Internal.RelationalStrings
+    // UnsupportedJsonColumnType ("JSON columns require a provider-specific JSON store
+    // type"). MySQL's native JSON column type satisfies the contract.
+    // CLR type is MemoryStream (not string) so EF Core's GenerateJsonReader path can hand
+    // the JSON column straight to a Utf8JsonReaderManager without a string -> MemoryStream
+    // coercion that the base RelationalShapedQueryCompilingExpressionVisitor cannot
+    // generate. See MySqlJsonContainerTypeMapping for the GetString -> MemoryStream
+    // wrapping that keeps MySqlConnector's default json-as-string read path intact.
+    private static readonly RelationalTypeMapping s_jsonContainerColumnMapping = new MySqlJsonContainerTypeMapping("json");
+
     private static readonly RelationalTypeMapping
         s_jsonElementMapping = MySqlJsonTypeMapping.CreateJsonElementMapping();
 
@@ -235,6 +247,11 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         if (clrType == typeof(Guid))
         {
             return CreateGuidMapping(mappingInfo);
+        }
+
+        if (clrType == typeof(JsonTypePlaceholder))
+        {
+            return s_jsonContainerColumnMapping;
         }
 
         if (clrType is not null)

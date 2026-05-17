@@ -8,10 +8,12 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// column ..." on every <c>HasData</c>-style seed or other literal-emission path. This
 /// mapping overrides only the literal-emission path to produce MySQL's hex-binary form
 /// <c>X'00112233445566778899AABBCCDDEEFF'</c>. Parameter binding stays on the base
-/// <see cref="DbType.Guid"/> code path which MySqlConnector's native Guid handling already
-/// round-trips correctly against <c>binary(16)</c> columns; the parallel <c>char(36)</c> and
-/// <c>varchar(36)</c> string-form Guid mappings remain handled by <see cref="StringTypeMapping"/>
-/// instances and are not affected by this class.
+/// <see cref="System.Data.DbType.Guid"/> code path; for parameter-bound writes against
+/// <c>binary(16)</c> columns the connection-string-level <c>GuidFormat=Binary16</c> setting
+/// makes MySqlConnector ship the Guid as 16 bytes instead of the 36-char string default.
+/// Without that connection-string setting, parameter-bound writes against binary(16) Guid
+/// columns trip "Data too long for column"; with it set, the wire format matches the
+/// literal-emission path documented here.
 /// </summary>
 internal sealed class MySqlGuidBinaryTypeMapping : GuidTypeMapping
 {
@@ -37,12 +39,11 @@ internal sealed class MySqlGuidBinaryTypeMapping : GuidTypeMapping
                 $"MySqlGuidBinaryTypeMapping received an unexpected value of type '{value.GetType().FullName}'.");
         }
 
-        // MySqlConnector's parameter binding for DbType.Guid against a binary(16) column ships the
-        // bytes in big-endian (RFC 4122) order. Guid.ToByteArray() defaults to the Microsoft
-        // little-endian layout for the first three fields, which round-trips with itself but not
-        // with the connector. Using ToByteArray(bigEndian: true) keeps the seed-literal path
-        // byte-identical to the runtime-parameter path so the same Guid value reaches the same
-        // row regardless of how the row was inserted.
+        // Match MySqlConnector's RFC 4122 / big-endian wire format for binary(16) Guid
+        // columns when DbType.Guid is bound, so HasData / migration seed inserts land
+        // byte-identical to the runtime parameter-bound path. The 32-hex form keeps the
+        // seed literal valid for a binary(16) column (the base GuidTypeMapping emits a
+        // 36-char string which trips "Data too long for column").
         return $"X'{Convert.ToHexString(guid.ToByteArray(bigEndian: true))}'";
     }
 }

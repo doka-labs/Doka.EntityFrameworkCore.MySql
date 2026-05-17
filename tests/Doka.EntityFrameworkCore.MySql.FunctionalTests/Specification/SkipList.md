@@ -125,6 +125,34 @@ rollback" was decisive in identifying the cutoff point.)
   investigation queued for a follow-up triage phase. (Surfaced 2026-05-17 after the
   StrictEquality=false fix unblocked the surrounding tests.)
 
+- UpdatesMySqlTest.Save_with_shared_foreign_key (mysql:8.4, mariadb:11.8) -- the spec
+  test creates a Product (binary(16) Guid PK) plus a ProductWithBytes (same Guid PK
+  shape) and inserts a ProductCategory row whose FK column would reference either of
+  them depending on which polymorphic principal is present. EF Core emits a single
+  `FK_ProductCategory_Products_ProductId` constraint pointing at the Products table;
+  the test's `ProductId = Guid.Empty` row matches the ProductWithBytes seed row, not
+  any Products row, so MySQL's FK enforcement rejects the insert. The polymorphic-FK
+  pattern needs a model-build-time decision (TPH discriminator on a shared base table
+  vs explicit per-target FK pairs vs `OnDelete(NoAction)` plus application-level FK
+  validation); follow-up phase per-test investigation required.
+
+- MigrationsMySqlTest (mysql:8.4, mariadb:11.8, 6 tests in parallel + transaction
+  classes) -- `Can_apply_one_migration_in_parallel{,_async}`, `Can_apply_second_migration
+  _in_parallel{,_async}`, `Can_apply_all_migrations{,_async}`, `Can_apply_one_migration`,
+  `Can_apply_two_migrations_in_transaction_async`, `Can_generate_up_and_down_scripts_no
+  Transactions`. Two provider-level fixes already landed: MySqlMigrationsDatabaseLock's
+  dedicated connection drops `Database` from its connection string (GET_LOCK is
+  server-scoped, not database-scoped, and binding to a dropped database makes the lock
+  acquire fail), and MySqlRelationalDatabaseCreator.Exists / ExistsAsync now query
+  information_schema.SCHEMATA on the server connection instead of opening a
+  potentially-pooled database connection that returns TRUE against a dropped database.
+  The 6 remaining failures cluster around parallel-migration test scenarios (advisory-
+  lock timeouts when two migrators run concurrently with overlapping commits) and
+  EF Core's connection-state assertions when the migrator reuses a connection mid-
+  transaction. Triage queue entry; per-test investigation queued for a follow-up phase
+  that revisits the advisory-lock timeout budget and the dedicated-connection lifecycle
+  during parallel test execution.
+
 <!--
 Entry shape:
 - NorthwindWhereQueryMySqlTest.Where_simple (mysql:8.4) -- tracking-issue or work-item reference; one-line summary.
@@ -179,7 +207,42 @@ Entry shape:
 
 ## Quarantine
 
-No quarantined subclasses yet.
+- JsonQueryMySqlTest (mysql:8.4, mariadb:11.8) -- 170 of 445 inherited
+  JsonQueryRelationalTestBase tests fail after the provider closed the model-build
+  cascade plus the JSON-container-column read cascade (JsonTypePlaceholder default
+  mapping returns the MySQL `json` store-type so EF Core's owned-JSON validator
+  passes; RelationalModelValidator.ValidateConstraintNameLengths skips IsMappedToJson
+  entities so their auto-generated FK / index names do not trip the 64-character
+  limit; per-property Ignore() on the 12 nested primitive collections of
+  JsonEntityAllTypes + JsonOwnedAllTypes works around the EF Core core
+  `ValidatePrimitiveCollections` limit; MySqlJsonContainerTypeMapping overrides
+  `CustomizeDataReaderExpression` to wrap MySqlConnector's `GetString` result in a
+  `new MemoryStream(Encoding.UTF8.GetBytes(...))` so the shaper's
+  `GenerateJsonReader` path that demands a `MemoryStream` target gets a stream-typed
+  expression instead of a `string` that the LINQ Expression coercion cannot bridge).
+  The 268 tests that pass cover basic JSON projection, predicate, ToList, and most
+  Where / OrderBy cases. The remaining 170 cluster into three categories that need
+  provider engineering, each tracked as concrete follow-up work:
+  56 LINQ translation failures (`j.OwnedCollectionRoot Q-> ...`) need a
+  `MySqlSqlExpressionFactory.MakeJsonTable` plus a `MySqlQuerySqlGenerator.VisitJsonTable`
+  override that emits MySQL's native `JSON_TABLE(col, '$.path' COLUMNS (...))` shape
+  (the base `RelationalQuerySqlGenerator` emits SQL Server's `OPENJSON` shape that
+  MySQL cannot parse and falls back to a double-quoted identifier subquery shape
+  that fails with "syntax near '\"JsonEntitiesInheritance\" AS j'"). 56 JSON-path
+  errors at characters 2 / 24 / 27 / 32 / 47 come from EF Core's
+  `JsonScalarExpression` lowering that the provider's `MySqlQuerySqlGenerator`
+  emits as a literal SQL string with the wrong path quoting; the fix is a
+  `VisitJsonScalar` override that emits `JSON_EXTRACT(col, '$.\"path\"')` with
+  MySQL's single-quoted-path-with-escaped-double-quotes literal shape. 6 JSON
+  scalar-cast failures (`Can't convert JSON to Int32` /
+  `String -> Boolean`) need `JSON_VALUE(col, '$.X' RETURNING SIGNED|UNSIGNED|CHAR)`
+  type-aware extraction via the same VisitJsonScalar override. 22 assertion
+  mismatches (`Values differ` / `Strings differ`) cover per-test SQL formatting
+  details (parameter-vs-constant inlining, sort ordering on identifier collations,
+  multi-statement result-set offsets) and need per-test triage after the
+  translator-side fixes land. Upstream tracking for the inherited
+  nested-primitive-collection
+  limit: https://github.com/dotnet/efcore/issues/30713.
 
 <!--
 Entry shape:

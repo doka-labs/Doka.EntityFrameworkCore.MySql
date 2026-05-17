@@ -432,11 +432,16 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             // Create a dedicated non-pooled connection for the advisory lock.
             // Pooling is disabled to ensure the lock is held on a single physical session
             // and released deterministically when the connection is disposed.
+            // Database is cleared because GET_LOCK / RELEASE_LOCK are server-scoped, not
+            // database-scoped; binding to a specific database makes the lock connection fail
+            // when the target database does not yet exist (initial migration) or has been
+            // dropped between tests (spec-suite re-init).
             var connectionString = _historyRepository.Dependencies.Connection.DbConnection.ConnectionString;
             var builder = new MySqlConnectionStringBuilder(connectionString)
             {
                 Pooling = false,
             };
+            builder.Remove("Database");
 
             return new MySqlConnection(builder.ConnectionString);
         }
