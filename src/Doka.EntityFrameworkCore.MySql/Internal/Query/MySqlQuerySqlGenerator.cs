@@ -134,6 +134,10 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     /// MariaDB 10.3+ both implement LATERAL derived tables with the same semantics as APPLY
     /// (the right-hand subquery sees columns from the left-hand source); the provider targets
     /// versions newer than both engines' first-supporting release.
+    /// JSON_TABLE is already inherently lateral and both engines REJECT the LATERAL keyword
+    /// in front of a table-valued function call -- LATERAL is reserved for derived-table
+    /// subqueries. The <see cref="MySqlJsonTableExpression"/> branch emits plain <c>JOIN</c>
+    /// instead.
     /// </summary>
     protected override Expression VisitCrossApply(
         CrossApplyExpression crossApplyExpression
@@ -141,7 +145,9 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     {
         ArgumentNullException.ThrowIfNull(crossApplyExpression);
 
-        Sql.Append("JOIN LATERAL ");
+        Sql.Append(crossApplyExpression.Table is MySqlJsonTableExpression
+            ? "JOIN "
+            : "JOIN LATERAL ");
         Visit(crossApplyExpression.Table);
         Sql.Append(" ON TRUE");
         return crossApplyExpression;
@@ -150,7 +156,9 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     /// <summary>
     /// Translates <c>OUTER APPLY &lt;table&gt;</c> into <c>LEFT JOIN LATERAL &lt;table&gt; ON TRUE</c>.
     /// Same LATERAL-derived-table mechanism as <see cref="VisitCrossApply"/>; the outer variant
-    /// preserves the left-hand rows whose lateral subquery produces no match.
+    /// preserves the left-hand rows whose lateral subquery produces no match. JSON_TABLE
+    /// branch emits <c>LEFT JOIN</c> without the LATERAL keyword for the same reason as
+    /// <see cref="VisitCrossApply"/>.
     /// </summary>
     protected override Expression VisitOuterApply(
         OuterApplyExpression outerApplyExpression
@@ -158,7 +166,9 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     {
         ArgumentNullException.ThrowIfNull(outerApplyExpression);
 
-        Sql.Append("LEFT JOIN LATERAL ");
+        Sql.Append(outerApplyExpression.Table is MySqlJsonTableExpression
+            ? "LEFT JOIN "
+            : "LEFT JOIN LATERAL ");
         Visit(outerApplyExpression.Table);
         Sql.Append(" ON TRUE");
         return outerApplyExpression;
