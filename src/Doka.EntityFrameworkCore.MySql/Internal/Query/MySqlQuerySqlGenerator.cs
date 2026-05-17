@@ -184,6 +184,72 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         return jsonScalarExpression;
     }
 
+    /// <summary>
+    /// Translates EF Core's <c>SqlUnaryExpression</c> Convert operator into a MySQL-valid
+    /// <c>CAST(... AS target)</c>. The base generator uses the type-mapping's column-level
+    /// <c>StoreType</c> verbatim, which produces MySQL-invalid syntax: <c>CAST(x AS int)</c>,
+    /// <c>CAST(x AS bigint)</c>, <c>CAST(x AS longtext)</c> all fail to parse. MySQL's CAST
+    /// grammar accepts only a narrow vocabulary -- <c>SIGNED</c>, <c>UNSIGNED</c>,
+    /// <c>CHAR</c>, <c>BINARY</c>, <c>DECIMAL</c>, <c>DATE</c>, <c>DATETIME</c>, <c>TIME</c>,
+    /// <c>JSON</c>, <c>NCHAR</c>. This override translates the column-level store-type into
+    /// the cast-context-valid keyword for the Convert path; all other operators fall
+    /// through to the base implementation.
+    /// </summary>
+    protected override Expression VisitSqlUnary(
+        SqlUnaryExpression sqlUnaryExpression
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sqlUnaryExpression);
+
+        if (sqlUnaryExpression is not { OperatorType: ExpressionType.Convert, TypeMapping: { } typeMapping }
+            || TranslateStoreTypeToCastTarget(typeMapping.StoreType) is not { } castTarget)
+        {
+            return base.VisitSqlUnary(sqlUnaryExpression);
+        }
+
+        Sql.Append("CAST(");
+        Visit(sqlUnaryExpression.Operand);
+        Sql.Append(" AS ");
+        Sql.Append(castTarget);
+        Sql.Append(")");
+        return sqlUnaryExpression;
+    }
+
+    /// <summary>
+    /// Maps a column-level MySQL store-type string to the cast-context-valid keyword. Returns
+    /// <see langword="null"/> when the input is not a recognized integer / text / binary store
+    /// type, leaving the base generator's StoreType-verbatim path untouched (which is correct
+    /// for the cast-grammar keywords that MySQL already accepts as both column and cast type,
+    /// e.g. <c>DECIMAL</c>, <c>DATE</c>, <c>DATETIME</c>, <c>TIME</c>, <c>JSON</c>).
+    /// </summary>
+    private static string? TranslateStoreTypeToCastTarget(
+        string storeType
+    )
+    {
+        if (string.IsNullOrEmpty(storeType))
+        {
+            return null;
+        }
+
+        // Strip any "(N)" / "(p,s)" suffix for the lookup; CAST keeps the precision for
+        // DECIMAL / CHAR-with-length / BINARY-with-length.
+        var parenthesisIndex = storeType.IndexOf('(', StringComparison.Ordinal);
+        var baseToken = parenthesisIndex < 0 ? storeType : storeType[..parenthesisIndex];
+        var trailing = parenthesisIndex < 0 ? string.Empty : storeType[parenthesisIndex..];
+
+        return baseToken.ToLowerInvariant() switch
+        {
+            "tinyint" or "smallint" or "mediumint" or "int" or "integer" or "bigint" => "SIGNED",
+            "tinyint unsigned" or "smallint unsigned" or "mediumint unsigned" or "int unsigned" or "bigint unsigned" =>
+                "UNSIGNED",
+            "char" or "varchar" or "text" or "tinytext" or "mediumtext" or "longtext" or "nchar" or "nvarchar" =>
+                "CHAR" + trailing,
+            "binary" or "varbinary" or "blob" or "tinyblob" or "mediumblob" or "longblob" => "BINARY" + trailing,
+            "float" or "double" or "real" => "DECIMAL",
+            _ => null,
+        };
+    }
+
     protected override void GenerateLimitOffset(
         SelectExpression selectExpression
     )

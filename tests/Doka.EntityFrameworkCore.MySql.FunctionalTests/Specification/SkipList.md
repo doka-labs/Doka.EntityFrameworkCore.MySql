@@ -37,19 +37,35 @@ provider-side fix or a documented permanent skip.
   not have a type mapping assigned" for parameterized collections (orderIds, customerIds,
   array, cities). Provider-side SqlExpression type-mapping gap on collection parameters.
   Follow-up triage phase OR provider-side fix.
-- NorthwindWhereQueryMySqlTest (mysql:8.4, 10 tests) -- "syntax error near 'bigint)'". The
-  provider's SQL generator emits CAST(x AS bigint), but MySQL expects CAST(x AS SIGNED) for
-  integer casts. Provider-side bug in the CAST translator.
+- NorthwindWhereQueryMySqlTest (mysql:8.4, 10 tests) -- "syntax error near 'bigint)'".
+  CLOSED in this iteration: MySqlQuerySqlGenerator.VisitSqlUnary now translates column-level
+  StoreType (int / bigint / longtext / etc.) into MySQL CAST-grammar keywords (SIGNED / CHAR /
+  BINARY). Some of these tests now run + assert; any that still fail with wrong-value have
+  been reclassified to the "Assert.Equal / Assert.Single" categories below.
 - NorthwindWhereQueryMySqlTest (mysql:8.4, 4 tests) -- "MySQL doesn't yet support 'LIMIT &
   IN/ALL/ANY/SOME subquery'". Documented MySQL engine limitation; spec tests assume a SQL
   engine that supports LIMIT in subqueries. Likely permanent skip with structural reason,
   pending engine-conditional ConditionalTheory wrapper.
-- NorthwindWhereQueryMySqlTest (mysql:8.4, 2 tests) -- "syntax error near 'longtext)'". The
-  provider emits CAST(x AS longtext), but MySQL expects CAST(x AS CHAR). Provider-side bug
-  in the CAST translator (sibling to the bigint case above).
+- NorthwindWhereQueryMySqlTest (mysql:8.4, 2 tests) -- "syntax error near 'longtext)'".
+  CLOSED in this iteration via the same VisitSqlUnary override (longtext / text / nchar -> CHAR).
 - NorthwindWhereQueryMySqlTest (mysql:8.4, 4 tests) -- Assert.Equal failures (actual SQL
   produces wrong result OR expected-SQL-string mismatch). Per-test investigation; small
   population so manageable in a single triage iteration.
+- BuiltInDataTypesMySqlTest (mysql:8.4, 11 tests) -- DbUpdateException on save (inner
+  exception varies by test); collection of type-mapping + SQL-emission issues that surface
+  during INSERT path. Follow-up provider-side triage.
+- BuiltInDataTypesMySqlTest (mysql:8.4, 4 tests) -- InvalidCastException casting Enum16
+  to nullable Int16. Enum value-conversion gap in the type-mapping pipeline; needs provider
+  fix for nested-generic enum-as-nullable-numeric.
+- BuiltInDataTypesMySqlTest (mysql:8.4, 4 tests) -- ArgumentException "Argument types do
+  not match" on parameter binding; value-conversion contract gap.
+- BuiltInDataTypesMySqlTest (mysql:8.4, 4 tests) -- "syntax error near 'int)'".
+  CLOSED in this iteration via the same VisitSqlUnary override (int -> SIGNED).
+- BuiltInDataTypesMySqlTest (mysql:8.4, 4 tests) -- missing seed tables (AnimalIdentification
+  and StringEnclosure). The spec test base seeds these via EnsureCreatedResilientlyAsync,
+  but the fixture's OnModelCreating may not include them; per-fixture seed inspection.
+- BuiltInDataTypesMySqlTest (mysql:8.4, 2 tests) -- coercion-operator + Sequence-contains-
+  no-elements errors; per-test investigation in follow-up.
 
 <!--
 Entry shape:

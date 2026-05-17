@@ -37,5 +37,56 @@ public class BuiltInDataTypesMySqlTest : BuiltInDataTypesTestBase<
         public override bool PreservesDateTimeKind => false;
 
         public override DateTime DefaultDateTime => new();
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder,
+            DbContext context
+        )
+        {
+            base.OnModelCreating(modelBuilder, context);
+
+            // The binary-key entities have byte[] primary and foreign keys; MySqlModelValidator
+            // requires every keyed or indexed binary property to declare an explicit max length
+            // because MySQL refuses to index BLOB / LONGBLOB columns without a prefix. The 36-byte
+            // ceiling fits the spec test's binary-key payloads (most are 36-byte GUID-like blobs)
+            // while staying inside MySQL's 64-character index-key-prefix budget when combined
+            // with the index-key overhead.
+            modelBuilder
+                .Entity<BinaryKeyDataType>()
+                .Property(e => e.Id)
+                .HasMaxLength(36);
+
+            modelBuilder.Entity<BinaryForeignKeyDataType>(b =>
+            {
+                b
+                    .Property(e => e.BinaryKeyDataTypeId)
+                    .HasMaxLength(36);
+                // The default FK constraint name "FK_BinaryForeignKeyDataType_BinaryKeyDataType_
+                // BinaryKeyDataTypeId" exceeds MySQL's 64-character identifier limit which
+                // MySqlModelValidator rejects at model-build time. The shorter explicit name
+                // keeps the spec-test schema buildable without weakening the provider's
+                // identifier-length contract.
+                b
+                    .HasOne(e => e.Principal)
+                    .WithMany(e => e.Dependents)
+                    .HasConstraintName("FK_BinaryForeignKeyDataType_BinaryKey");
+            });
+
+            modelBuilder
+                .Entity<StringKeyDataType>()
+                .Property(e => e.Id)
+                .HasMaxLength(64);
+
+            modelBuilder.Entity<StringForeignKeyDataType>(b =>
+            {
+                b
+                    .Property(e => e.StringKeyDataTypeId)
+                    .HasMaxLength(64);
+                b
+                    .HasOne(e => e.Principal)
+                    .WithMany(e => e.Dependents)
+                    .HasConstraintName("FK_StringForeignKeyDataType_StringKey");
+            });
+        }
     }
 }
