@@ -716,7 +716,7 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     /// quote-and-escape path so the engines do not reject the literal with
     /// "Invalid JSON path expression".
     /// </summary>
-    private static string EscapeJsonPathPropertyName(
+    private string EscapeJsonPathPropertyName(
         string propertyName
     ) => IsSimpleIdentifier(propertyName)
         ? propertyName
@@ -749,20 +749,42 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         return true;
     }
 
-    private static string BuildQuotedJsonPathSegment(
+    private string BuildQuotedJsonPathSegment(
         string name
     )
     {
+        var isMariaDb = _singletonOptions.ServerVersion?.IsMariaDb == true;
         var sb = new StringBuilder(name.Length + 4);
         sb.Append('"');
         foreach (var c in name)
         {
-            if (c is '"' or '\\')
+            switch (c)
             {
-                sb.Append('\\');
+                case '"':
+                    // MySQL 8.4 rejects the `\"` escape inside a JSON-path quoted name
+                    // ("Invalid JSON path expression at position N"); MariaDB 11.8 accepts
+                    // both forms. Engine-discriminated: MariaDB takes the simple `\"`,
+                    // MySQL takes `\\u0022` -- the double backslash survives MySQL's
+                    // single-quoted-string parser (which strips a single `\` before the
+                    // unrecognized `\u` escape) and arrives at the JSON path parser as
+                    // `"`, which then decodes to a literal double-quote. Empirical
+                    // probe (MySqlConnector direct, 2026-05-17) confirmed both shapes work
+                    // on their respective engines and fail when swapped.
+                    sb.Append(isMariaDb ? "\\\"" : @"\\u0022");
+                    break;
+                case '\\':
+                    // Same engine asymmetry as for the double-quote: MariaDB's SQL parser
+                    // preserves `\` literally in single-quoted strings outside the documented
+                    // escape set, MySQL's SQL parser silently strips the leading `\`.
+                    // MariaDB's `\\` survives both layers; MySQL needs `\\u005C` so the SQL
+                    // parser ends up handing `\` to the JSON path parser which then
+                    // decodes to a literal backslash.
+                    sb.Append(isMariaDb ? @"\\" : @"\\u005C");
+                    break;
+                default:
+                    sb.Append(c);
+                    break;
             }
-
-            sb.Append(c);
         }
 
         sb.Append('"');
