@@ -322,13 +322,6 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         return s_sbyteMapping;
     }
 
-    protected override RelationalTypeMapping? FindCollectionMapping(
-        RelationalTypeMappingInfo info,
-        Type modelType,
-        Type? providerType,
-        CoreTypeMapping? elementMapping
-    ) => null;
-
     private string NormalizeStoreTypeName(
         string storeTypeName
     )

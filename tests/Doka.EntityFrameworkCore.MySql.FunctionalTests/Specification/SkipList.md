@@ -33,10 +33,17 @@ provider-side fix or a documented permanent skip.
 - NorthwindWhereQueryMySqlTest (mysql:8.4, 18 tests) -- LINQ expression untranslatable to SQL.
   Pattern: query shapes the provider's translator does not yet support; needs per-test
   investigation, some likely structural for MySQL. Follow-up triage phase.
-- NorthwindWhereQueryMySqlTest (mysql:8.4, 16 tests) -- "Expression '@X' in the SQL tree does
-  not have a type mapping assigned" for parameterized collections (orderIds, customerIds,
-  array, cities). Provider-side SqlExpression type-mapping gap on collection parameters.
-  Follow-up triage phase OR provider-side fix.
+(closed 2026-05-17: root cause was an explicit `FindCollectionMapping(...) => null`
+override on `MySqlTypeMappingSource` that blocked EF Core's collection-mapping resolution
+path; without a collection mapping the `InExpression.ValuesParameter` produced for
+`list.Contains(x.Id)` queries never received an `ElementTypeMapping`, and the
+`RelationalTypeMappingPostprocessor` rejected the parameter with
+`NullTypeMappingInSqlTree`. Removing the override lets the base implementation build
+a JSON-collection-string mapping with the element mapping wired through to
+`SqlNullabilityProcessor.ProcessInExpressionValues`, which expands the parameter into
+inlined SQL constants per `ParameterTranslationMode.MultipleParameters` (the default).
+Closed 16 NorthwindWhereQueryMySqlTest failures across `@orderIds`, `@customerIds`,
+`@array`, `@cities`, and `@entity_equality_customer_Orders_OrderID` parameter cases.)
 - NorthwindWhereQueryMySqlTest (mysql:8.4, 10 tests) -- "syntax error near 'bigint)'".
   CLOSED in this iteration: MySqlQuerySqlGenerator.VisitSqlUnary now translates column-level
   StoreType (int / bigint / longtext / etc.) into MySQL CAST-grammar keywords (SIGNED / CHAR /

@@ -79,6 +79,29 @@ public sealed class MySqlQueryTranslationBaselineTests
     }
 
     /// <summary>
+    /// Verifies that a parameterized-collection <c>Contains</c> against an entity column resolves
+    /// the collection type-mapping path (FindCollectionMapping inherited from base) and expands
+    /// into inlined SQL constants at translation time. A null <c>FindCollectionMapping</c> override
+    /// would re-introduce the NullTypeMappingInSqlTree failure observed on the EF Core 10
+    /// specification suite (NorthwindWhereQueryRelationalTestBase, 16 IN-Contains tests).
+    /// </summary>
+    [Fact]
+    public void Collection_parameter_contains_translates_to_inline_in_constants()
+    {
+        using var context = new QueryTranslationContext(CreateOptions());
+        var names = new List<string> { "alpha", "beta", "gamma" };
+
+        var sql = context
+            .Entities.Where(entity => names.Contains(entity.Name))
+            .ToQueryString();
+
+        Assert.Contains("IN (", sql, StringComparison.Ordinal);
+        Assert.Contains("'alpha'", sql, StringComparison.Ordinal);
+        Assert.Contains("'beta'", sql, StringComparison.Ordinal);
+        Assert.Contains("'gamma'", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies that unsupported members still fail explicitly instead of falling back.
     /// </summary>
     [Fact]
