@@ -41,6 +41,36 @@ internal sealed class
         new MySqlQueryableMethodTranslatingExpressionVisitor(this);
 
     /// <summary>
+    /// Tells EF Core's translator that a <see cref="SelectExpression"/> whose row source is a
+    /// <see cref="MySqlJsonTableExpression"/> ordered by its synthetic <c>key</c> ordinality
+    /// column is "naturally ordered" -- the ordering reflects the inherent row order JSON_TABLE
+    /// produces (1, 2, 3, ...), not an explicit user OrderBy. Without this hook EF Core fires
+    /// <c>DistinctAfterOrderByWithoutRowLimitingOperatorWarning</c> on every Distinct over a
+    /// JSON_TABLE-derived collection because it cannot tell the ordering apart from a user
+    /// `.OrderBy()` whose meaning would be lost across the Distinct. Mirrors the SqlServer
+    /// <see href="https://github.com/dotnet/efcore/blob/release/10.0/src/EFCore.SqlServer/Query/Internal/SqlServerQueryableMethodTranslatingExpressionVisitor.cs">
+    /// OPENJSON</see> recognition shape; differs only in not requiring a <c>Convert</c> wrapper
+    /// around the key column (our key is already typed <see cref="int"/>; SqlServer's OPENJSON
+    /// key is string and gets converted to int for ordering).
+    /// </summary>
+    protected override bool IsNaturallyOrdered(
+        SelectExpression selectExpression
+    )
+    {
+        if (selectExpression.Tables is not [MySqlJsonTableExpression jsonTable, ..])
+        {
+            return false;
+        }
+
+        if (selectExpression.Orderings is not [{ IsAscending: true, Expression: ColumnExpression { Name: "key" } orderingColumn }])
+        {
+            return false;
+        }
+
+        return orderingColumn.TableAlias == jsonTable.Alias;
+    }
+
+    /// <summary>
     /// Translates a SQL expression that holds a primitive collection (an <c>int[]</c> column,
     /// an inline array constant, etc.) into a JSON_TABLE call exposing two columns: <c>value</c>
     /// (the element value) and <c>key</c> (its 1-based ordinality position).
