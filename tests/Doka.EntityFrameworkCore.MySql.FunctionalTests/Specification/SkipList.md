@@ -86,10 +86,22 @@ both MySQL 8.4 and MariaDB 11.8.)
   4 InvalidCastException-Enum16-to-Nullable&lt;Int16&gt; tests, the 4 ArgumentException
   parameter-binding tests, plus 4 secondary Assert.Single-empty cases that cascaded
   from seed-failure. BuiltInDataTypesMySqlTest tally: 1/30 -> 24/30. The remaining 6
-  Duplicate-PK failures (Ids 11, 12, 100, 'Gumball!', 799) point at a test-isolation
-  gap in the shared-store fixture where adjacent test methods cannot insert the same
-  primary key across re-runs; deferred to a follow-up triage iteration that wires the
-  per-class CleanAsync hook + transactional-test-store contract.)
+  Duplicate-PK failures (Ids 11, 12, 100, 'Gumball!', 799) deferred to a follow-up
+  triage iteration: a deep-dive surfaced a separate latent bug --
+  `MySqlValueGenerationConvention.ApplyValueGenerationStrategy` unconditionally
+  overrode user-set `ValueGenerated.Never` with `OnAdd` for integer primary keys
+  (every `eb.Property(e => e.Id).ValueGeneratedNever()` was silently flipped back
+  to AUTO_INCREMENT) -- which is now fixed at the convention layer. Even with the
+  schema correctly emitting `Id int NOT NULL` (no AUTO_INCREMENT) the 6 Duplicate-PK
+  tests still fail. General-log + IDbCommandInterceptor trace shows ONLY ONE INSERT
+  per test (no second statement that would actually duplicate), the row lands in
+  the DB successfully, yet EF Core's `ReaderModificationCommandBatch.ConsumeAsync`
+  raises `MySqlException : Duplicate entry '...'` on the response read. No
+  CommandFailed interceptor event fires. The failure is below the IDbCommandInterceptor
+  surface -- likely in MySqlConnector's multi-statement batch protocol where a stale
+  error packet from the preceding multi-INSERT seed batch leaks into the next batch's
+  reader. Follow-up investigation needs MySqlConnector debug logging + protocol-level
+  packet capture; defer.)
 - BuiltInDataTypesMySqlTest (mysql:8.4, 4 tests) -- "syntax error near 'int)'".
   CLOSED in this iteration via the same VisitSqlUnary override (int -> SIGNED).
 (closed 2026-05-17: root cause was NOT missing entity registration but a CREATE TABLE

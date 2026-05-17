@@ -152,6 +152,19 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
             return;
         }
 
+        // Respect an explicit `ValueGeneratedNever()` from the user model. EF Core stores
+        // that decision on the core ValueGenerated facet; the auto-increment default below
+        // must not override it. Without this guard every integer-key entity gets
+        // AUTO_INCREMENT regardless of intent, which breaks modification-batch protocols
+        // that read back the generated key when the user provides an explicit primary key
+        // (the round-trip "fetch back the generated Id" path collides with the explicit
+        // value the user already supplied and the server reports as a duplicate-PK).
+        if (property.ValueGenerated == ValueGenerated.Never)
+        {
+            mutableProperty.SetMySqlValueGenerationStrategy(MySqlValueGenerationStrategy.None);
+            return;
+        }
+
         if (property.ClrType == typeof(Guid))
         {
             mutableProperty.SetMySqlValueGenerationStrategy(MySqlValueGenerationStrategy.None);
