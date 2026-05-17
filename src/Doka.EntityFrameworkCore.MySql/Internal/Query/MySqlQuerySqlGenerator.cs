@@ -129,6 +129,42 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     }
 
     /// <summary>
+    /// Translates the EF Core T-SQL idiom <c>CROSS APPLY &lt;table&gt;</c> into the
+    /// cross-engine standard <c>JOIN LATERAL &lt;table&gt; ON TRUE</c>. MySQL 8.0.14+ and
+    /// MariaDB 10.3+ both implement LATERAL derived tables with the same semantics as APPLY
+    /// (the right-hand subquery sees columns from the left-hand source); the provider targets
+    /// versions newer than both engines' first-supporting release.
+    /// </summary>
+    protected override Expression VisitCrossApply(
+        CrossApplyExpression crossApplyExpression
+    )
+    {
+        ArgumentNullException.ThrowIfNull(crossApplyExpression);
+
+        Sql.Append("JOIN LATERAL ");
+        Visit(crossApplyExpression.Table);
+        Sql.Append(" ON TRUE");
+        return crossApplyExpression;
+    }
+
+    /// <summary>
+    /// Translates <c>OUTER APPLY &lt;table&gt;</c> into <c>LEFT JOIN LATERAL &lt;table&gt; ON TRUE</c>.
+    /// Same LATERAL-derived-table mechanism as <see cref="VisitCrossApply"/>; the outer variant
+    /// preserves the left-hand rows whose lateral subquery produces no match.
+    /// </summary>
+    protected override Expression VisitOuterApply(
+        OuterApplyExpression outerApplyExpression
+    )
+    {
+        ArgumentNullException.ThrowIfNull(outerApplyExpression);
+
+        Sql.Append("LEFT JOIN LATERAL ");
+        Visit(outerApplyExpression.Table);
+        Sql.Append(" ON TRUE");
+        return outerApplyExpression;
+    }
+
+    /// <summary>
     /// Dispatches to the <see cref="MySqlJsonTableExpression"/>-specific emitter when the
     /// table-valued-function expression is our JSON_TABLE shape; falls through to the base
     /// emitter for ordinary stored TVFs (no MySQL-specific TVFs other than JSON_TABLE today).
