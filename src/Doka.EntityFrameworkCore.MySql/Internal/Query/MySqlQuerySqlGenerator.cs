@@ -348,27 +348,35 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         // -- enum/bool/etc with int storage all want CAST AS SIGNED regardless of the
         // model-side type. The CAST target maps the MySQL column type into the narrower
         // CAST grammar accepted by both engines (SIGNED, UNSIGNED, DECIMAL(p,s), DOUBLE).
-        // Engine-conditional reader choice: MariaDB uses JSON_VALUE which gives both
-        // NULL-safety (JSON null -> SQL NULL) and correct bool coercion (CAST of
-        // MariaDB's JSON_VALUE(true)=1; CAST of JSON_EXTRACT(true) returns 0 on MariaDB
-        // because JSON_EXTRACT preserves the JSON-text form). MySQL has the opposite
-        // shape: CAST(JSON_VALUE(true)) returns 0 (text "true" coerced to int), while
-        // CAST(JSON_EXTRACT(true)) returns 1 (preserves JSON-bool primitive). Keeping
-        // both branches per engine empirically converges to correct results across the
-        // bool-via-int-converter cluster + the nullable-predicate cluster.
+        // Engine-conditional reader choice:
+        //   - MariaDB uses JSON_VALUE which gives both NULL-safety (JSON null -> SQL
+        //     NULL) and correct bool coercion (CAST of MariaDB's JSON_VALUE(true)=1;
+        //     CAST of JSON_EXTRACT(true) returns 0 on MariaDB because JSON_EXTRACT
+        //     preserves the JSON-text form).
+        //   - MySQL has the opposite asymmetry: CAST(JSON_VALUE(true)) returns 0 (text
+        //     "true" coerced to int), CAST(JSON_EXTRACT(true)) returns 1 (preserves
+        //     JSON-bool primitive). MySQL also CAST'es JSON null to 0 (not NULL) which
+        //     breaks `WHERE x.NullableInt != null` predicates. Keep JSON_EXTRACT for
+        //     the bool-via-int-converter correctness AND wrap the CAST in
+        //     `CASE WHEN JSON_TYPE(...) = 'NULL' THEN NULL ELSE CAST(...) END` so JSON
+        //     null propagates as SQL NULL through the predicate translation.
         if (typeMapping?.ElementTypeMapping is null
             && typeMapping is not null
             && JsonScalarCastTarget(typeMapping.StoreType) is { } cast)
         {
             var isMariaDb = _singletonOptions.ServerVersion?.IsMariaDb == true;
 
-            Sql.Append("CAST(");
             if (isMariaDb)
             {
+                Sql.Append("CAST(");
                 EmitJsonScalarRead(jsonScalarExpression);
+                Sql.Append(" AS ").Append(cast.Target).Append(")");
             }
             else
             {
+                Sql.Append("CASE WHEN JSON_TYPE(");
+                EmitJsonExtract(jsonScalarExpression);
+                Sql.Append(") = 'NULL' THEN NULL ELSE CAST(");
                 if (cast.NeedsUnquote)
                 {
                     Sql.Append("JSON_UNQUOTE(");
@@ -380,9 +388,10 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
                 {
                     Sql.Append(")");
                 }
+
+                Sql.Append(" AS ").Append(cast.Target).Append(") END");
             }
 
-            Sql.Append(" AS ").Append(cast.Target).Append(")");
             return jsonScalarExpression;
         }
 
