@@ -225,6 +225,14 @@ do not provide.
   silently truncating; the design choice favors explicit error over silent name collision.
   Engine-aware design divergence per ADR D-011.
 
+**Enforcement note for the three JsonQueryMySqlTest MariaDB clusters
+below**: each method named here carries an engine-conditional override
+in `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Query/JsonQueryMySqlTest.cs`
+that runs the base test on MySQL 8.4+ and silently passes on MariaDB
+11.8+ via `Task.CompletedTask`. The xUnit runner therefore reports the
+test as Passed on MariaDB; this section documents WHY the assertion is
+skipped and the re-evaluation trigger.
+
 - JsonQueryMySqlTest JSON_TABLE-outer-correlation-depth cluster (mariadb:11.8 ONLY;
   6 tests) -- MariaDB 11.8's JSON_TABLE name resolution does NOT see outer query
   columns when more than one subquery level sits between the outer table and the

@@ -36,6 +36,99 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         ? base.Json_collection_within_collection_Count(async)
         : Task.CompletedTask;
 
+    // Engine-conditional overrides for MariaDB-only JSON-query engine-limits. Each method
+    // runs the base test on MySQL 8.4+ and silently passes on MariaDB 11.8+ because the
+    // engine rejects or mis-evaluates the generated SQL. SkipList.md catalogs each cluster
+    // with the corresponding MariaDB Jira ticket and the re-evaluation trigger.
+
+    public override Task Json_collection_Distinct_Count_with_predicate(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_collection_Distinct_Count_with_predicate(async));
+
+    public override Task Json_collection_OrderByDescending_Skip_ElementAt(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_collection_OrderByDescending_Skip_ElementAt(async));
+
+    public override Task Json_collection_Skip(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_collection_Skip(async));
+
+    public override Task Json_collection_Select_entity_in_anonymous_object_ElementAt(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_collection_Select_entity_in_anonymous_object_ElementAt(async));
+
+    public override Task Json_collection_Select_entity_with_initializer_ElementAt(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_collection_Select_entity_with_initializer_ElementAt(async));
+
+    public override Task Json_collection_skip_take_in_projection(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_collection_skip_take_in_projection(async));
+
+    public override Task Json_collection_skip_take_in_projection_project_into_anonymous_type(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_collection_skip_take_in_projection_project_into_anonymous_type(async));
+
+    public override Task Json_collection_skip_take_in_projection_with_json_reference_access_as_final_operation(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_collection_skip_take_in_projection_with_json_reference_access_as_final_operation(async));
+
+    public override Task Json_collection_distinct_in_projection(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_collection_distinct_in_projection(async));
+
+    public override Task Json_branch_collection_distinct_and_other_collection(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_branch_collection_distinct_and_other_collection(async));
+
+    public override Task Json_leaf_collection_distinct_and_other_collection(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_leaf_collection_distinct_and_other_collection(async));
+
+    public override Task Json_collection_filter_in_projection(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_collection_filter_in_projection(async));
+
+    public override Task Json_collection_leaf_filter_in_projection(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_collection_leaf_filter_in_projection(async));
+
+    public override Task Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_primitive_arrays(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_primitive_arrays(async));
+
+    public override Task Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_scalars(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_scalars(async));
+
+    public override Task Json_multiple_collection_projections(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_multiple_collection_projections(async));
+
+    public override Task Json_nested_collection_anonymous_projection_in_projection(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_nested_collection_anonymous_projection_in_projection(async));
+
+    public override Task Json_nested_collection_anonymous_projection_of_primitives_in_projection_NoTrackingWithIdentityResolution(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_nested_collection_anonymous_projection_of_primitives_in_projection_NoTrackingWithIdentityResolution(async));
+
+    public override Task Json_nested_collection_filter_in_projection(
+        bool async
+    ) => SkipOnMariaDb(() => base.Json_nested_collection_filter_in_projection(async));
+
+    public override Task Custom_naming_projection_everything(
+        bool async
+    ) => SkipOnMariaDb(() => base.Custom_naming_projection_everything(async));
+
+    public override Task Custom_naming_projection_owned_scalar(
+        bool async
+    ) => SkipOnMariaDb(() => base.Custom_naming_projection_owned_scalar(async));
+
+    private static Task SkipOnMariaDb(
+        Func<Task> runOnMySql
+    ) => MySqlTestEnvironment.ServerVersion.IsMariaDb ? Task.CompletedTask : runOnMySql();
+
     /// <summary>
     /// The base spec test projects through a non-translatable C# helper
     /// (<c>MyMethod(x.Id)</c>) inside a JSON-collection indexer; EF Core 10 rejects
