@@ -1,20 +1,21 @@
 # D-009 -- EF-Core-Patch-Coupling-Politik (Range vs. Pin)
 
 - **Status:** Implemented
-- **Date:** 2026-05-16
+- **Date:** 2026-05-16 (floor raised 10.0.4 -> 10.0.8 on 2026-05-18)
 - **Scope:** `Directory.Packages.props` -- Microsoft.EntityFrameworkCore.* package pinning
-- **Implementation:** `Directory.Packages.props` pins the three Microsoft.EntityFrameworkCore.* packages to the range `[10.0.4, 10.1.0)`; `.github/workflows/ci.yml` carries the `efcore-patch-matrix` job that runs the repo-local test path against `10.0.4` (lower bound) and `10.0.*` (latest 10.0.x patch) on every push.
+- **Implementation:** `Directory.Packages.props` pins the three Microsoft.EntityFrameworkCore.* packages to the range `[10.0.8, 10.1.0)`; `.github/workflows/ci.yml` carries the `efcore-patch-matrix` job that runs the repo-local test path against `10.0.8` (lower bound) and `10.0.*` (latest 10.0.x patch) on every push.
 
 ## Implementation notes
 
-- Range chosen: `[10.0.4, 10.1.0)` per operator decision -- the conservative patch-only variant. The minor-tolerance variant `[10.0.4, 11.0.0)` from the alternatives section was rejected because the EF1001 surface drift across 10.x minors cannot be covered by a CI matrix without doubling the per-push CI minutes.
-- The `efcore-patch-matrix` job rewrites the central `PackageVersion` entries via `sed` before restore so the matrix axis maps cleanly to the canonical NuGet version syntax (an exact version like `10.0.4` replaces the range; the floating `10.0.*` resolves to the latest 10.0.x patch at restore time).
+- Range chosen: `[10.0.8, 10.1.0)` per operator decision -- the conservative patch-only variant. The minor-tolerance variant `[10.0.8, 11.0.0)` from the alternatives section was rejected because the EF1001 surface drift across 10.x minors cannot be covered by a CI matrix without doubling the per-push CI minutes.
+- The `efcore-patch-matrix` job rewrites the central `PackageVersion` entries via `sed` before restore so the matrix axis maps cleanly to the canonical NuGet version syntax (an exact version like `10.0.8` replaces the range; the floating `10.0.*` resolves to the latest 10.0.x patch at restore time).
 - Scope is intentionally narrow: only the repo-local test path (`./eng/test.sh`, which runs Unit + Functional) is exercised per matrix entry. Integration tests stay on a single pin to keep CI minutes manageable; an EF Core patch that breaks the integration-only surface is caught in the nightly `container-matrix` workflow.
-- The next minor (10.1.0) requires a deliberate provider response -- either a range widening (`[10.0.4, 10.2.0)` with the matrix gaining a `10.1.x` axis) or the EF Core 11 jump (ADR D-013). The decision is deferred until 10.1.0 is published.
+- The next minor (10.1.0) requires a deliberate provider response -- either a range widening (`[10.0.8, 10.2.0)` with the matrix gaining a `10.1.x` axis) or the EF Core 11 jump (ADR D-013). The decision is deferred until 10.1.0 is published.
+- **Floor-raise log:** 2026-05-18 -- lower bound moved from `10.0.4` to `10.0.8` to absorb four published patches in one step (consumers on `10.0.4..10.0.7` are still inside the range when they pull this provider through transitive resolution; the floor-raise only affects fresh restores). The change closes the diamond-dependency exposure on downstream graphs that already pin `>= 10.0.8`.
 
 ## Context
 
-`Directory.Packages.props` currently pins
+`Directory.Packages.props` originally pinned
 `Microsoft.EntityFrameworkCore.Relational` to an exact version
 (`10.0.4`). Two consequences for downstream consumers:
 
@@ -37,9 +38,10 @@ scenarios that the consumer would hit at runtime.
 ## Decision
 
 Pin `Microsoft.EntityFrameworkCore.*` packages to the range
-`[10.0.4, 10.1.0)` in `Directory.Packages.props`. The range covers the
-known-good baseline (10.0.4) and floats upward across patches without
-crossing into the next minor.
+`[10.0.8, 10.1.0)` in `Directory.Packages.props`. The range covers the
+current known-good floor (10.0.8, raised from the original 10.0.4
+baseline) and floats upward across patches without crossing into the
+next minor.
 
 The risk that `EF1001` patch-drift breaks the decorator is structurally
 mitigated by the `EfCorePatchMatrixCI` (foundation backbone 9): a
@@ -84,7 +86,7 @@ minimum-version bump in the range or a hot-fix release.
 ## Re-evaluation triggers
 
 - EF Core 10.1.0 is published; the range must be widened to
-  `[10.0.4, 11.0.0)` or the provider must explicitly opt into the
+  `[10.0.8, 11.0.0)` or the provider must explicitly opt into the
   minor-version cadence. The choice depends on whether 10.1.0 changes
   the `EF1001` surface in a way that requires provider work; D-013
   governs the major-version case.

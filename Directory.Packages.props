@@ -3,31 +3,83 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
 
-  <ItemGroup>
-    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+  <!--
+    Production packages. Consumed by the shipped Doka.EntityFrameworkCore.MySql
+    surface and its NetTopologySuite plugin; surfaces in customer NuGet
+    downloads and is the highest-priority slice for security-advisory triage.
+
+    Consumers:
+      src/Doka.EntityFrameworkCore.MySql
+      src/Doka.EntityFrameworkCore.MySql.NetTopologySuite
+
+    EF Core packages float across patch releases on the 10.0.x line so
+    downstream consumers can pick up Microsoft patch updates without waiting
+    for a provider bump. The next minor (10.1.0) requires a deliberate provider
+    response per ADR D-009; the EfCorePatchMatrixCI workflow validates every
+    published 10.0.x patch against the provider's full test surface.
+  -->
+  <ItemGroup Label="Production">
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="[10.0.8, 10.1.0)" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="[10.0.8, 10.1.0)" />
+    <PackageVersion Include="MySqlConnector" Version="2.5.0" />
+    <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
+    <PackageVersion Include="System.IO.Hashing" Version="10.0.8" />
+  </ItemGroup>
+
+  <!--
+    Analyzers and build-time tooling consumed by the production projects. Live
+    as PrivateAssets="all" PackageReferences in Directory.Build.props so they
+    never flow into customer NuGet packages.
+
+    Consumers:
+      Directory.Build.props (scoped to src/ projects via MSBuildProjectName)
+  -->
+  <ItemGroup Label="Production analyzers">
+    <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" />
+  </ItemGroup>
+
+  <!--
+    Test packages. Spec-suite + integration + unit tests; never shipped.
+
+    Consumers:
+      tests/Doka.EntityFrameworkCore.MySql.FunctionalTests
+      tests/Doka.EntityFrameworkCore.MySql.IntegrationTests
+      tests/Doka.EntityFrameworkCore.MySql.Tests
+      tests/Doka.EntityFrameworkCore.MySql.TestUtilities
+      tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke
+  -->
+  <ItemGroup Label="Tests">
     <PackageVersion Include="coverlet.collector" Version="10.0.0" />
     <PackageVersion Include="FsCheck.Xunit" Version="3.3.3" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
-    <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
-    <!--
-      EF Core packages float across patch releases on the 10.0.x line so downstream
-      consumers can pick up Microsoft patch updates without waiting for a provider bump.
-      The next minor (10.1.0) requires a deliberate provider response per ADR D-009;
-      the EfCorePatchMatrixCI workflow validates every published 10.0.x patch against
-      the provider's full test surface.
-    -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="[10.0.4, 10.1.0)" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="[10.0.4, 10.1.0)" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational.Specification.Tests" Version="[10.0.4, 10.1.0)" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
-    <PackageVersion Include="MySqlConnector" Version="2.5.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.15.0" />
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational.Specification.Tests" Version="[10.0.8, 10.1.0)" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
+  <!--
+    Benchmark harness. Single-project consumer; never shipped.
+
+    Consumers:
+      benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks
+  -->
+  <ItemGroup Label="Benchmarks">
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+
+  <!--
+    Example host packages. Demonstration apps for end-to-end scenarios
+    (OpenTelemetry tracing, Serilog sinks, Generic Host integration). Never
+    shipped; example projects are documentation, not customer surface.
+
+    Consumers:
+      examples/Doka.EntityFrameworkCore.MySql.HostExamples
+  -->
+  <ItemGroup Label="Example hosts">
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
-    <PackageVersion Include="System.IO.Hashing" Version="10.0.0" />
-    <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.3" />
   </ItemGroup>
 </Project>
