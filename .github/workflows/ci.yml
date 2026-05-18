@@ -269,8 +269,11 @@ jobs:
 
       - name: Enforce coverage threshold
         env:
-          DOKA_COVERAGE_LINE_THRESHOLD: "47"
-          DOKA_COVERAGE_BRANCH_THRESHOLD: "38"
+          # Calibrated against the merged-union baseline measured 2026-05-18
+          # (82.46% lines / 69.91% branches). 2-5 pp regression buffer below
+          # current; raise per ADR D-018 trigger when measured + buffer > gate.
+          DOKA_COVERAGE_LINE_THRESHOLD: "80"
+          DOKA_COVERAGE_BRANCH_THRESHOLD: "65"
         run: bash ./eng/check-coverage-threshold.sh artifacts/coverage-merged
 
   integration-smoke:
