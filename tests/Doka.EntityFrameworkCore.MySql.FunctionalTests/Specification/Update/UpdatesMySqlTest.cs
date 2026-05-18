@@ -59,6 +59,16 @@ public class UpdatesMySqlTest : UpdatesRelationalTestBase<UpdatesMySqlTest.Updat
         {
             base.OnModelCreating(modelBuilder, context);
 
+            // Map Product / ProductWithBytes into a single ProductBase table (TPH) so the
+            // Save_with_shared_foreign_key spec test's ProductCategory.ProductId shared FK
+            // resolves to a single physical FK constraint instead of two competing constraints
+            // (one to Products and one to ProductWithBytes) that cannot both be satisfied for
+            // any single row. The base fixture leaves the inheritance unconfigured; EF Core's
+            // convention then materializes each concrete type as its own table because both
+            // Product and ProductWithBytes carry a DbSet. Forcing TPH on the abstract base
+            // mirrors the SqlServer spec-test schema (which emits INSERT INTO [ProductBase]).
+            modelBuilder.Entity<ProductBase>().UseTphMappingStrategy();
+
             modelBuilder
                 .Entity<LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectly>(eb =>
                 {
