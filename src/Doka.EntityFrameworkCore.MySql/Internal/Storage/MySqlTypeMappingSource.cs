@@ -304,7 +304,8 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
                 return ResolveTinyIntMapping(mappingInfo);
             }
 
-            if (s_storeTypeMappings.TryGetValue(normalizedStoreType, out var storeTypeMapping))
+            if (s_storeTypeMappings.TryGetValue(normalizedStoreType, out var storeTypeMapping)
+                && (clrType is null || clrType == storeTypeMapping.ClrType))
             {
                 return AdjustMappingForFacets(storeTypeMapping, mappingInfo, normalizedStoreType);
             }
