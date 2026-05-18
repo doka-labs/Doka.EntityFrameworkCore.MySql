@@ -78,4 +78,61 @@ public sealed class MySqlTransientExceptionDetectorTests
     [Fact]
     public void Arbitrary_exception_is_not_retryable() =>
         Assert.False(_detector.ShouldRetryOn(new ArgumentException()));
+
+    // -- MySqlException retryable error codes --
+
+    /// <summary>Each known-retryable MySqlErrorCode triggers a retry verdict.</summary>
+    [Theory]
+    [InlineData(MySqlErrorCode.ConnectionCountError)]
+    [InlineData(MySqlErrorCode.TooManyUserConnections)]
+    [InlineData(MySqlErrorCode.UnableToConnectToHost)]
+    [InlineData(MySqlErrorCode.ServerShutdown)]
+    [InlineData(MySqlErrorCode.LockWaitTimeout)]
+    [InlineData(MySqlErrorCode.LockDeadlock)]
+    [InlineData(MySqlErrorCode.XARBDeadlock)]
+    [InlineData(MySqlErrorCode.UserLockDeadlock)]
+    public void MySqlException_with_known_retryable_error_code_is_retryable(MySqlErrorCode code) =>
+        Assert.True(_detector.ShouldRetryOn(CreateMySqlException(code)));
+
+    /// <summary>MySqlExceptions whose ErrorCode is not on the known-retryable list and not transient are not retryable.</summary>
+    [Theory]
+    [InlineData(MySqlErrorCode.AccessDenied)]
+    [InlineData(MySqlErrorCode.NoSuchTable)]
+    [InlineData(MySqlErrorCode.SyntaxError)]
+    public void MySqlException_with_unknown_error_code_is_not_retryable(MySqlErrorCode code) =>
+        Assert.False(_detector.ShouldRetryOn(CreateMySqlException(code)));
+
+    /// <summary>MySqlException with CommandTimeoutExpired is recognized as command timeout.</summary>
+    [Fact]
+    public void MySqlException_with_command_timeout_error_code_is_command_timeout() =>
+        Assert.True(_detector.IsCommandTimeout(CreateMySqlException(MySqlErrorCode.CommandTimeoutExpired)));
+
+    /// <summary>MySqlException with CommandTimeoutExpired is not retryable (timeout short-circuits ShouldRetryOn).</summary>
+    [Fact]
+    public void MySqlException_with_command_timeout_error_code_is_not_retryable() =>
+        Assert.False(_detector.ShouldRetryOn(CreateMySqlException(MySqlErrorCode.CommandTimeoutExpired)));
+
+    /// <summary>Nested MySqlException with retryable code is detected via inner-exception traversal.</summary>
+    [Fact]
+    public void Nested_mysql_exception_with_retryable_code_is_retryable()
+    {
+        var inner = CreateMySqlException(MySqlErrorCode.LockDeadlock);
+        var outer = new InvalidOperationException("wrapper", inner);
+        Assert.True(_detector.ShouldRetryOn(outer));
+    }
+
+    private static MySqlException CreateMySqlException(MySqlErrorCode code)
+    {
+        // MySqlConnector exposes ctor(MySqlErrorCode, string) as internal; reflection is the
+        // only test-time path that lets us drive every IsKnownRetryableErrorCode arm without
+        // a real server round-trip.
+        var ctor = typeof(MySqlException).GetConstructor(
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            binder: null,
+            types: [typeof(MySqlErrorCode), typeof(string)],
+            modifiers: null);
+
+        Assert.NotNull(ctor);
+        return (MySqlException)ctor.Invoke([code, $"test:{code}"]);
+    }
 }
