@@ -262,6 +262,10 @@ jobs:
             -reports:"artifacts/coverage/**/coverage.cobertura.xml" \
             -targetdir:artifacts/coverage-merged \
             -reporttypes:Cobertura
+          # ReportGenerator emits Cobertura.xml; rename so the threshold
+          # script's `find -name 'coverage.cobertura.xml'` finds it.
+          mv artifacts/coverage-merged/Cobertura.xml \
+            artifacts/coverage-merged/coverage.cobertura.xml
 
       - name: Enforce coverage threshold
         env:
