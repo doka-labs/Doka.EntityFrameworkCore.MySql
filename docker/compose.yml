@@ -1,3 +1,9 @@
+# Explicit project name overrides the default folder-derived "docker", so the
+# stack lands under the doka-docker_* prefix in `docker compose ls`, `docker
+# network ls`, and `docker volume ls` -- one grep target for the entire
+# Doka provider test infrastructure.
+name: doka-docker
+
 services:
   mysql80:
     image: mysql:8.0
@@ -12,6 +18,8 @@ services:
       MYSQL_PASSWORD: doka_password
     ports:
       - "33066:3306"
+    volumes:
+      - doka-mysql80-data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"]
       interval: 10s
@@ -32,6 +40,8 @@ services:
       MYSQL_PASSWORD: doka_password
     ports:
       - "33068:3306"
+    volumes:
+      - doka-mysql84-data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"]
       interval: 10s
@@ -52,6 +62,8 @@ services:
       MARIADB_PASSWORD: doka_password
     ports:
       - "33069:3306"
+    volumes:
+      - doka-mariadb118-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -72,9 +84,28 @@ services:
       MARIADB_PASSWORD: doka_password
     ports:
       - "33067:3306"
+    volumes:
+      - doka-mariadb114-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 30s
+
+# Named volumes keep the database data dir on disk across container restarts
+# and make cleanup a one-grep operation: `docker volume ls | grep doka-` lists
+# every volume the stack owns; `docker compose -f docker/compose.yml down -v`
+# removes them all in one call. The YAML keys and the explicit `name:`
+# entries match the doka-* container naming scheme one-to-one, so the
+# resulting docker volume names land at `doka-mysql80-data` (and friends)
+# instead of the compose-prefixed `doka-docker_doka-mysql80-data` shape.
+volumes:
+  doka-mysql80-data:
+    name: doka-mysql80-data
+  doka-mysql84-data:
+    name: doka-mysql84-data
+  doka-mariadb118-data:
+    name: doka-mariadb118-data
+  doka-mariadb114-data:
+    name: doka-mariadb114-data
