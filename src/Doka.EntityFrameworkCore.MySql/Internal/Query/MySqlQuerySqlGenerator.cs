@@ -216,7 +216,7 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
             }
             else
             {
-                AppendStaticJsonPath(rowPath);
+                AppendStaticJsonPathForRowSource(rowPath);
             }
         }
         else
@@ -538,6 +538,33 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         foreach (var segment in path)
         {
             AppendPathSegmentLiteral(segment);
+        }
+
+        Sql.Append("'");
+    }
+
+    /// <summary>
+    /// Emits a static JSON path for a <c>JSON_TABLE</c> row-source argument. Differs from
+    /// <see cref="AppendStaticJsonPath"/> by appending an <c>[*]</c> wildcard suffix when
+    /// the path's last segment is a property name (e.g. <c>$.OwnedCollectionBranch</c>
+    /// becomes <c>$.OwnedCollectionBranch[*]</c>) so JSON_TABLE iterates the elements of
+    /// the array AT the path rather than treating the array as a single row. A trailing
+    /// array-index segment (e.g. <c>$.Coll[0]</c>) targets one specific element and
+    /// already produces a single-row source; no wildcard is appended.
+    /// </summary>
+    private void AppendStaticJsonPathForRowSource(
+        IReadOnlyList<PathSegment> path
+    )
+    {
+        Sql.Append("'$");
+        foreach (var segment in path)
+        {
+            AppendPathSegmentLiteral(segment);
+        }
+
+        if (path[^1].PropertyName is not null)
+        {
+            Sql.Append("[*]");
         }
 
         Sql.Append("'");
