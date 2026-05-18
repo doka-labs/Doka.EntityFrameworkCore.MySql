@@ -244,14 +244,30 @@ jobs:
           path: artifacts/coverage/spec-mariadb118
         continue-on-error: true
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install ReportGenerator
+        run: dotnet tool install --global dotnet-reportgenerator-globaltool
+
+      - name: Merge cobertura reports into a single union report
+        # check-coverage-threshold.sh sums lines-valid / lines-covered across
+        # input files, which double-counts when N cobertura files describe the
+        # SAME source package. ReportGenerator merges into one Cobertura.xml
+        # with per-line dedup so the gate measures the true union.
+        run: |
+          reportgenerator \
+            -reports:"artifacts/coverage/**/coverage.cobertura.xml" \
+            -targetdir:artifacts/coverage-merged \
+            -reporttypes:Cobertura
+
       - name: Enforce coverage threshold
         env:
-          # Pinned at the current measured baseline of the combined corpus
-          # (repo-tests + cross-engine spec-tests); long-term target is 75%
-          # lines / 70% branches and the gate is raised quarterly until met.
           DOKA_COVERAGE_LINE_THRESHOLD: "47"
           DOKA_COVERAGE_BRANCH_THRESHOLD: "38"
-        run: bash ./eng/check-coverage-threshold.sh artifacts/coverage
+        run: bash ./eng/check-coverage-threshold.sh artifacts/coverage-merged
 
   integration-smoke:
     runs-on: ubuntu-latest
