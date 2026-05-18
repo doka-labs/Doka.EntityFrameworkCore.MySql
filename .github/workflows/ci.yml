@@ -93,15 +93,6 @@ jobs:
       - name: Run repo-local test path
         run: bash ./eng/test.sh
 
-      - name: Enforce coverage threshold
-        env:
-          # Pinned at the current measured baseline of the test suite; the long-term
-          # target is 75% lines / 70% branches and the gate is raised quarterly
-          # until that target is met.
-          DOKA_COVERAGE_LINE_THRESHOLD: "47"
-          DOKA_COVERAGE_BRANCH_THRESHOLD: "38"
-        run: bash ./eng/check-coverage-threshold.sh artifacts/coverage
-
       - name: Upload coverage and test-result artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -213,8 +204,54 @@ jobs:
           dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
             --configuration Release --no-build --no-restore --tl:off \
             --filter "Category=Spec" \
+            --collect:"XPlat Code Coverage" \
             --logger trx \
             --results-directory artifacts/spec-tests/${{ matrix.engine.name }}
+
+      - name: Upload spec coverage and test-result artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: spec-tests-coverage-${{ matrix.engine.name }}
+          path: artifacts/spec-tests/${{ matrix.engine.name }}
+
+  coverage-gate:
+    runs-on: ubuntu-latest
+    needs: [repo-tests, spec-test-suite]
+    if: always()
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download repo-tests coverage
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: repo-tests-coverage
+          path: artifacts/coverage/repo-tests
+
+      - name: Download mysql84 spec coverage
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: spec-tests-coverage-mysql84
+          path: artifacts/coverage/spec-mysql84
+        continue-on-error: true
+
+      - name: Download mariadb118 spec coverage
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: spec-tests-coverage-mariadb118
+          path: artifacts/coverage/spec-mariadb118
+        continue-on-error: true
+
+      - name: Enforce coverage threshold
+        env:
+          # Pinned at the current measured baseline of the combined corpus
+          # (repo-tests + cross-engine spec-tests); long-term target is 75%
+          # lines / 70% branches and the gate is raised quarterly until met.
+          DOKA_COVERAGE_LINE_THRESHOLD: "47"
+          DOKA_COVERAGE_BRANCH_THRESHOLD: "38"
+        run: bash ./eng/check-coverage-threshold.sh artifacts/coverage
 
   integration-smoke:
     runs-on: ubuntu-latest
