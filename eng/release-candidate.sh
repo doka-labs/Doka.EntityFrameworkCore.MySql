@@ -160,6 +160,25 @@ write_summary() {
     } > "${summary_file}"
 }
 
+run_benchmark_and_gate() {
+    local skip="${DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS:-0}"
+
+    if [[ "${skip}" == "1" ]]; then
+        echo "Benchmark + ratio gate skipped via DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1."
+        echo "This bypass is for dev-loop iteration only; the resulting evidence is not release-eligible." >&2
+        return 0
+    fi
+
+    local engines=("mysql84" "mariadb118")
+    for engine in "${engines[@]}"; do
+        echo "Running benchmark smoke against ${engine}..."
+        DOKA_BENCHMARK_TARGET="${engine}" "${repo_root}/eng/benchmark.sh" --up-smoke-down
+    done
+
+    echo "Asserting performance ratio gate (strict mode)..."
+    DOKA_BENCHMARK_GATE_STRICT=1 bash "${repo_root}/eng/check-benchmark-ratios.sh" "${repo_root}/artifacts/benchmarks"
+}
+
 write_evidence() {
     local release_version="$1"
     local package_count="$2"
@@ -192,6 +211,8 @@ run_vulnerability_audit "${spatial_project}" "${audit_dir}/Doka.EntityFrameworkC
 release_version="$(package_version_from_file "Doka.EntityFrameworkCore.MySql")"
 run_sbom "${release_version}"
 write_changelog "${release_version}"
+
+run_benchmark_and_gate
 
 package_count="$(find "${packages_dir}" -maxdepth 1 -type f -name '*.nupkg' ! -name '*.symbols.nupkg' | wc -l | tr -d ' ')"
 sbom_file_count="$(find "${sbom_dir}" -type f | wc -l | tr -d ' ')"

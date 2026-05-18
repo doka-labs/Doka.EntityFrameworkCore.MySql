@@ -51,10 +51,21 @@ DOKA_INTEGRATION_TARGETS=mysql84,mariadb118 ./eng/test-integration.sh --up-test-
 DOKA_BENCHMARK_TARGET=mysql84 ./eng/benchmark.sh --up-smoke-down
 ```
 
-**Release-candidate evidence path** (pack + vulnerability audit + SBOM):
+**Release-candidate evidence path** (pack + vulnerability audit + SBOM + benchmark + performance ratio gate):
 
 ```bash
 ./eng/release-candidate.sh
+```
+
+The script is the single deterministic pre-tag checkpoint while the CI benchmark workflow is disabled per ADR D-019. Exit `0` signals "safe to tag"; exit non-zero stops the release. The benchmark + ratio gate asserts IdentifierQuoting >= 2x throughput vs. the naive baseline, BulkInsert1000Rows >= 3x throughput vs. per-row SaveChanges, and JsonComparer >= 80% allocation reduction vs. a string-round-trip baseline; these run against both `mysql84` and `mariadb118` via `--up-smoke-down`, so Docker must be available.
+
+Dev-loop bypass (only for iteration that does not aim to ship): `DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1 ./eng/release-candidate.sh` skips the benchmark + gate step. The resulting evidence is explicitly not release-eligible.
+
+Once the script returns `0`, tag manually:
+
+```bash
+git tag v<version>
+git push --tags
 ```
 
 ## Code Style
