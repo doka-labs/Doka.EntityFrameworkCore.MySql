@@ -30,6 +30,28 @@ public class JsonComparerBenchmark
         _nodeB = JsonNode.Parse(payload)!;
     }
 
+    /// <summary>
+    /// Naive reference for JSON deep-equality: per-call <see cref="JsonElement.GetRawText"/>
+    /// allocation plus string-compare. The fast-path under test
+    /// (<see cref="JsonElementEqualsLoop"/>) folds both sides through a pooled UTF-8 buffer
+    /// and a token-by-token compare; BDN reports Ratio = Mean[fast]/Mean[naive] and
+    /// Allocated-ratio. The DoD gate is alloc-reduction >= 80% (Allocated ratio &lt;= 0.2).
+    /// </summary>
+    [Benchmark(Baseline = true)]
+    public bool NaiveJsonElementEqualsLoop()
+    {
+        var result = true;
+
+        for (var i = 0; i < PayloadCount; i++)
+        {
+            var leftText = _documentA.RootElement.GetRawText();
+            var rightText = _documentB.RootElement.GetRawText();
+            result &= string.Equals(leftText, rightText, StringComparison.Ordinal);
+        }
+
+        return result;
+    }
+
     [Benchmark]
     public bool JsonElementEqualsLoop()
     {
