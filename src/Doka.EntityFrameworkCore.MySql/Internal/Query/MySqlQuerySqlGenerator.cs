@@ -348,40 +348,88 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         // -- enum/bool/etc with int storage all want CAST AS SIGNED regardless of the
         // model-side type. The CAST target maps the MySQL column type into the narrower
         // CAST grammar accepted by both engines (SIGNED, UNSIGNED, DECIMAL(p,s), DOUBLE).
+        // Engine-conditional reader choice: MariaDB uses JSON_VALUE which gives both
+        // NULL-safety (JSON null -> SQL NULL) and correct bool coercion (CAST of
+        // MariaDB's JSON_VALUE(true)=1; CAST of JSON_EXTRACT(true) returns 0 on MariaDB
+        // because JSON_EXTRACT preserves the JSON-text form). MySQL has the opposite
+        // shape: CAST(JSON_VALUE(true)) returns 0 (text "true" coerced to int), while
+        // CAST(JSON_EXTRACT(true)) returns 1 (preserves JSON-bool primitive). Keeping
+        // both branches per engine empirically converges to correct results across the
+        // bool-via-int-converter cluster + the nullable-predicate cluster.
         if (typeMapping?.ElementTypeMapping is null
             && typeMapping is not null
             && JsonScalarCastTarget(typeMapping.StoreType) is { } cast)
         {
+            var isMariaDb = _singletonOptions.ServerVersion?.IsMariaDb == true;
+
             Sql.Append("CAST(");
-
-            if (cast.NeedsUnquote)
+            if (isMariaDb)
             {
-                Sql.Append("JSON_UNQUOTE(");
+                EmitJsonScalarRead(jsonScalarExpression);
             }
-
-            EmitJsonExtract(jsonScalarExpression);
-
-            if (cast.NeedsUnquote)
+            else
             {
-                Sql.Append(")");
+                if (cast.NeedsUnquote)
+                {
+                    Sql.Append("JSON_UNQUOTE(");
+                }
+
+                EmitJsonExtract(jsonScalarExpression);
+
+                if (cast.NeedsUnquote)
+                {
+                    Sql.Append(")");
+                }
             }
 
             Sql.Append(" AS ").Append(cast.Target).Append(")");
             return jsonScalarExpression;
         }
 
-        // Default path: always JSON_UNQUOTE. The earlier branches (bool wrapper +
-        // CAST path) cover every CLR type whose JSON representation is a non-string
-        // primitive (boolean, number). Everything that reaches here was serialized into
-        // JSON as a string and the .NET shaper needs the unquoted text form: string,
-        // Guid (e.g. `"12345678-..."`), DateTimeOffset (e.g.
-        // `"2000-01-01 12:34:56-08:00"`), byte[] (base64), char, custom-converter types
-        // with string provider mapping.
+        // Default path: always JSON_UNQUOTE. The earlier branches (bool wrapper + CAST
+        // path) cover every CLR type whose JSON representation is a non-string primitive
+        // (boolean, number). Everything that reaches here was serialized into JSON as a
+        // string and the .NET shaper needs the unquoted text form: string, Guid (e.g.
+        // `"12345678-..."`), DateTimeOffset (e.g. `"2000-01-01 12:34:56-08:00"`), byte[]
+        // (base64), char, custom-converter types with string provider mapping. NOTE:
+        // JSON_VALUE would give NULL-safe semantics for JSON null (vs JSON_UNQUOTE's
+        // returning the string "null") but it returns SQL NULL on non-scalar JSON values
+        // (objects, arrays) -- and the EF Core shaper for JSON-owned-entity projections
+        // routes through JsonScalarExpression too, expecting the raw JSON-text of the
+        // owned object/array. Keep JSON_UNQUOTE+JSON_EXTRACT here so owned-entity
+        // projections continue to receive the JSON-text payload they need.
         Sql.Append("JSON_UNQUOTE(");
         EmitJsonExtract(jsonScalarExpression);
         Sql.Append(")");
-
         return jsonScalarExpression;
+    }
+
+    /// <summary>
+    /// Reads a JSON scalar with NULL-safe semantics: emits <c>JSON_VALUE(json, '$.path')</c>
+    /// when the path is a literal string (returns SQL NULL for JSON null), or falls back
+    /// to <c>JSON_UNQUOTE(JSON_EXTRACT(json, CONCAT(...)))</c> when the path carries a
+    /// non-constant array index (MySQL rejects <c>JSON_VALUE</c> with a <c>CONCAT</c>
+    /// path argument; MariaDB accepts both). Both forms produce the unquoted text value
+    /// of a JSON primitive at the path, which the surrounding context (raw projection,
+    /// CAST) consumes uniformly.
+    /// </summary>
+    private void EmitJsonScalarRead(
+        JsonScalarExpression jsonScalarExpression
+    )
+    {
+        if (HasDynamicArrayIndex(jsonScalarExpression.Path))
+        {
+            Sql.Append("JSON_UNQUOTE(");
+            EmitJsonExtract(jsonScalarExpression);
+            Sql.Append(")");
+            return;
+        }
+
+        Sql.Append("JSON_VALUE(");
+        Visit(jsonScalarExpression.Json);
+        Sql.Append(", ");
+        AppendStaticJsonPath(jsonScalarExpression.Path);
+        Sql.Append(")");
     }
 
     /// <summary>
