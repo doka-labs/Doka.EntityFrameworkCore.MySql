@@ -22,6 +22,19 @@ public class BuiltInDataTypesMySqlTest : BuiltInDataTypesTestBase<
     {
         protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
+        /// <summary>
+        /// Force a fresh test store on every test-class init. The spec test corpus inserts
+        /// entities with fixed primary keys (Id=11 on BuiltInNullableDataTypes, Id=799 on
+        /// MaxLengthDataTypes, ...) and never cleans up after itself. Without
+        /// <c>RecreateStore=true</c> the prior run's data leaks into the next, surfacing as
+        /// <c>MySqlException: Duplicate entry</c> on every insert-based test. The framework
+        /// reads this flag and routes the test-store request through
+        /// <see cref="MySqlTestStoreFactory.Create(string)"/>, which produces a non-shared
+        /// store; <see cref="MySqlTestStore.InitializeAsync"/> then drops any existing
+        /// database before creating the schema afresh.
+        /// </summary>
+        protected override bool RecreateStore => true;
+
         public override bool StrictEquality => false;
 
         public override bool SupportsAnsi => false;

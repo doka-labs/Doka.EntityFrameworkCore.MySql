@@ -55,6 +55,16 @@ public class MySqlTestStore : RelationalTestStore
         Func<DbContext, Task>? clean
     )
     {
+        // Fixtures that opt into SharedStoreFixtureBase.RecreateStore=true route the framework
+        // call through the non-Shared factory path; honor that intent by dropping any leftover
+        // database so the test class starts with a verifiably empty store. Without this drop
+        // the prior run's data persists, surfacing as 'Duplicate entry' on tests that insert
+        // entities with fixed primary keys (BuiltInDataTypes, MaxLengthDataTypes, ...).
+        if (!Shared)
+        {
+            await DropDatabaseAsync();
+        }
+
         var databaseFreshlyCreated = await EnsureDatabaseCreatedIfMissingAsync();
 
         await using var context = createContext();
