@@ -12,6 +12,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// the literal-emission side or the parameter-binding side surfaces here rather than at
 /// the spec-suite-only failure surface.
 /// </summary>
+[Trait("Category", "Live")]
 public sealed class MySqlGuidFormatTests
 {
     private static readonly Guid s_seededGuid = Guid.Parse("00003803-ce08-4029-b639-200564ae1dd2");
