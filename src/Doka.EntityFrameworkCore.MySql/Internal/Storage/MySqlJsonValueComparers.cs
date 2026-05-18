@@ -54,13 +54,35 @@ internal static class MySqlJsonValueComparers
 
     /// <summary>
     /// A <see cref="ValueComparer{T}"/> for <see cref="JsonNode"/> that compares via streaming
-    /// token walk and hashes via XxHash64 over the node's serialized form.
+    /// token walk and hashes via XxHash64 over the node's serialized form. The backing field
+    /// carries the trim / AOT suppressions because the analyzer flags the field's initializer
+    /// chain (which reaches <c>JsonNode.ReplaceWith&lt;T&gt;</c> inside the BCL JsonValue
+    /// constructor path) at the field declaration site, not at the property accessor; the
+    /// per-method suppressions further down the chain do not propagate up to silence the
+    /// field-level warning.
     /// </summary>
-    [field: System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
         "Trimming",
         "IL2026",
         Justification = "Delegates to CreateJsonNodeComparer which uses well-known JSON types that are preserved.")]
-    public static ValueComparer<JsonNode?> JsonNodeComparer { get; } = CreateJsonNodeComparer();
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "AOT",
+        "IL3050",
+        Justification = "CreateJsonNodeComparer's JsonNode write / clone paths do not trigger runtime code generation for the JSON primitives this comparer handles.")]
+    private static readonly ValueComparer<JsonNode?> s_jsonNodeComparer = CreateJsonNodeComparer();
+
+    public static ValueComparer<JsonNode?> JsonNodeComparer
+    {
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+            "Trimming",
+            "IL2026",
+            Justification = "Returns the s_jsonNodeComparer backing field whose initializer is suppression-covered at the field declaration.")]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+            "AOT",
+            "IL3050",
+            Justification = "Returns the s_jsonNodeComparer backing field whose initializer is suppression-covered at the field declaration.")]
+        get => s_jsonNodeComparer;
+    }
 
     [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
         "Trimming",
