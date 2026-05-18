@@ -130,6 +130,10 @@ public static class MySqlPropertyBuilderExtensions
     /// <param name="name">The sequence name (defaults to a convention-based name if <c>null</c>).</param>
     /// <param name="schema">The sequence schema (unused on MySQL; included for API compatibility).</param>
     /// <returns>The same <see cref="PropertyBuilder"/> instance.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "ApiDesign",
+        "RS0026:Do not add multiple overloads with optional parameters",
+        Justification = "EF Core community standard: HiLo sequence name and schema are optional and default to convention. See ADR D-008.")]
     public static PropertyBuilder UseHiLo(
         this PropertyBuilder propertyBuilder,
         string? name = null,
@@ -163,6 +167,10 @@ public static class MySqlPropertyBuilderExtensions
     /// <param name="name">The sequence name.</param>
     /// <param name="schema">The sequence schema (unused on MySQL).</param>
     /// <returns>The same <see cref="PropertyBuilder{TProperty}"/> instance.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "ApiDesign",
+        "RS0026:Do not add multiple overloads with optional parameters",
+        Justification = "EF Core community standard: HiLo sequence name and schema are optional and default to convention. See ADR D-008.")]
     public static PropertyBuilder<TProperty> UseHiLo<TProperty>(
         this PropertyBuilder<TProperty> propertyBuilder,
         string? name = null,
@@ -245,6 +253,10 @@ public static class MySqlPropertyBuilderExtensions
     /// <param name="propertyBuilder">The property builder.</param>
     /// <param name="invisible">Whether the column should be invisible.</param>
     /// <returns>The same <see cref="PropertyBuilder"/> instance.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "ApiDesign",
+        "RS0026:Do not add multiple overloads with optional parameters",
+        Justification = "MariaDB INVISIBLE fluent API: the toggle defaults to true so the no-argument call site reads naturally. See ADR D-008.")]
     public static PropertyBuilder IsInvisible(
         this PropertyBuilder propertyBuilder,
         bool invisible = true
@@ -264,6 +276,10 @@ public static class MySqlPropertyBuilderExtensions
     /// <param name="propertyBuilder">The property builder.</param>
     /// <param name="invisible">Whether the column should be invisible.</param>
     /// <returns>The same <see cref="PropertyBuilder{TProperty}"/> instance.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "ApiDesign",
+        "RS0026:Do not add multiple overloads with optional parameters",
+        Justification = "MariaDB INVISIBLE fluent API: the toggle defaults to true so the no-argument call site reads naturally. See ADR D-008.")]
     public static PropertyBuilder<TProperty> IsInvisible<TProperty>(
         this PropertyBuilder<TProperty> propertyBuilder,
         bool invisible = true

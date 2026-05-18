@@ -41,15 +41,16 @@
       and would surface unrelated false positives on every Environment.NewLine call.
     -->
     <!--
-      RS0026 fires on UseMySql / UseMySql<TContext> overloads because they all carry the
-      optional mySqlOptionsAction = null parameter. The pattern is the EF Core community
-      standard (every provider declares UseXxx with that optional shape) and the optional
-      parameter is part of the documented public API. We accept the SemVer fragility
-      (adding a second optional parameter later would be a breaking-change) as a known
-      design trade-off; the analyzer continues to surface the diagnostic as a warning so
-      a future overload addition still demands explicit reviewer attention.
+      RS0026 ("Do not add multiple overloads with optional parameters") fires on the
+      UseMySql / UseHiLo / IsInvisible extension overloads because they all carry an
+      optional default (`mySqlOptionsAction = null`, `name = null`, `invisible = true`).
+      The pattern is the EF Core community standard and the optional parameter is part
+      of the documented public API. We accept the SemVer fragility (adding a second
+      optional parameter later would be a breaking-change) as a known design trade-off;
+      the suppression is scoped per-method via [SuppressMessage("ApiDesign", "RS0026")]
+      so a NEW overload without the explicit attribute still triggers the analyzer and
+      demands reviewer attention. See ADR D-008.
     -->
-    <WarningsNotAsErrors>$(WarningsNotAsErrors);RS0026</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'Doka.EntityFrameworkCore.MySql' OR '$(MSBuildProjectName)' == 'Doka.EntityFrameworkCore.MySql.NetTopologySuite'">
