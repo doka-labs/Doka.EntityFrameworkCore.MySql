@@ -4,8 +4,8 @@ Contributions are welcome. Please read this document before opening a pull reque
 
 ## Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (version `10.0.201` or later — pinned in `global.json`)
-- [Docker](https://docs.docker.com/get-docker/) — required for the MySQL / MariaDB integration test suites
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (version `10.0.300` or later -- pinned in `global.json`)
+- [Docker](https://docs.docker.com/get-docker/) -- required for the MySQL / MariaDB integration test suites
 
 ## Building
 
@@ -39,7 +39,7 @@ For a representative subset, scope the target selection:
 DOKA_INTEGRATION_TARGETS=mysql84,mariadb118 ./eng/test-integration.sh --up-test-down
 ```
 
-**Runtime-posture smoke** (trim + NativeAOT smoke tests):
+**Runtime-posture smoke** (JIT + trim smoke tests; the NativeAOT pass is deferred per ADR D-017 while upstream EF Core NativeAOT support remains experimental):
 
 ```bash
 ./eng/test-runtime-posture.sh --up-test-down

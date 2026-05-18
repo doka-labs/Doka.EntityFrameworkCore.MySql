@@ -38,7 +38,7 @@ Initial release line preparing the first publishable `10.0.x` package.
 - Transient-exception detection with depth-limited inner-exception traversal for retrying execution strategies
 - Connection-string redaction for safe diagnostic logging
 - Stable `MySqlEventId` catalog and seven logger categories (`Configuration`, `Query`, `Update`, `Migrations`, `Scaffolding`, `Resilience`, `Spatial`)
-- Trim- and AOT-aware runtime surface
+- Trim-aware runtime surface; NativeAOT readiness deferred until upstream EF Core stabilizes the precompiled-query workflow (see ADR D-017)
 
 **Optional spatial package (`Doka.EntityFrameworkCore.MySql.NetTopologySuite`)**
 
@@ -49,8 +49,8 @@ Initial release line preparing the first publishable `10.0.x` package.
 
 ### Tested
 
-- 146 unit tests, 275 functional tests, 81 live integration tests
-- Live integration coverage against Dockerized MySQL 8.4 LTS, MariaDB 11.4 LTS, and MariaDB 11.8 LTS
+- 321 unit tests, 1224 functional tests (296 in-memory + 928 spec-suite subclasses run cross-engine), 107 live integration test methods
+- Live integration coverage against Dockerized MySQL 8.0, MySQL 8.4 LTS, MariaDB 11.4 LTS, and MariaDB 11.8 LTS
 - Representative dual-engine benchmark smoke and scorecard runs
 
 [Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/HEAD

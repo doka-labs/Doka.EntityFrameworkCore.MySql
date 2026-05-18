@@ -7,7 +7,7 @@
 
 `Doka.EntityFrameworkCore.MySql` is an Entity Framework Core 10 provider for MySQL-compatible databases. It targets MySQL 8.4 LTS and MariaDB 11.4 / 11.8 LTS on top of the [`MySqlConnector`](https://mysqlconnector.net) ADO.NET driver.
 
-The main goal is release responsiveness for `.NET 10` and `EF Core 10` together with a maintainability- and performance-first architecture: a single capability model drives engine differences, the runtime is trim- and AOT-aware, and every feature is test-backed against the supported engine matrix.
+The main goal is release responsiveness for `.NET 10` and `EF Core 10` together with a maintainability- and performance-first architecture: a single capability model drives engine differences, the runtime is trim-aware with NativeAOT readiness deferred until upstream EF Core stabilizes its precompiled-query story (see ADR D-017), and every feature is test-backed against the supported engine matrix.
 
 ## What This Project Solves
 
@@ -16,7 +16,7 @@ This provider is designed for teams that need:
 - an EF Core provider aligned with the Microsoft release cadence for `.NET 10` / `EF Core 10`
 - dual MySQL and MariaDB support without provider-specific code branches in the application
 - a small, reviewable public API surface with opt-in features rather than implicit magic
-- trim- and AOT-safe defaults from day one
+- trim-safe defaults from day one (NativeAOT readiness deferred per ADR D-017)
 - production-grade diagnostics, retry semantics, savepoint support, and advisory-lock-protected migrations
 
 ## Requirements
@@ -32,7 +32,7 @@ This provider is designed for teams that need:
 
 ### Building From Source
 
-- .NET 10 SDK (version `10.0.201` or later)
+- .NET 10 SDK (version `10.0.300` or later)
 - Docker -- only required to run the live integration and benchmark suites
 
 ## Installation
@@ -241,7 +241,7 @@ The provider ships with:
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests`
   EF-pipeline tests: model validation, SQL generation, type mapping, migrations, scaffolding.
 - `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests`
-  Live-database tests against MySQL 8.4 and MariaDB 11.4 / 11.8.
+  Live-database tests against MySQL 8.0, MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
 - `tests/Doka.EntityFrameworkCore.MySql.TestUtilities`
   Shared test helpers and log sinks.
 - `benchmarks/`
@@ -249,7 +249,7 @@ The provider ships with:
 - `examples/`
   Runnable samples for CRUD, inheritance patterns, JSON columns, generated columns, GUID formats, relationships, retry / resilience, spatial queries, migrations workflow, multi-tenancy, bulk operations, character sets, and Docker integration.
 - `docker/compose.yml`
-  Bundled MySQL 8.4 and MariaDB 11.4 / 11.8 services for local integration testing.
+  Bundled MySQL 8.0, MySQL 8.4, MariaDB 11.4, and MariaDB 11.8 services for local integration testing. Compose project is named `doka-docker` with `doka-*-data` named volumes so `docker volume ls | grep doka-` enumerates every stack-owned resource for cleanup.
 - `eng/`
   Developer scripts: `test.sh`, `test-integration.sh`, `test-runtime-posture.sh`, `benchmark.sh`, `release-candidate.sh`.
 - `docs/`
