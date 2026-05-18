@@ -36,10 +36,10 @@ project_filter="${DOKA_COVERAGE_PROJECT_FILTER:-^Doka\.EntityFrameworkCore\.MySq
 
 # Resolve cobertura reports without depending on bash 4 features (mapfile);
 # macOS ships bash 3.2 by default. The newline-delimited list is consumed
-# below via the IFS-controlled for-loop.
-reports="$(rg --files --no-ignore --hidden --type-add 'xml:*.xml' --type xml "${coverage_root}" \
-    | rg '/coverage\.cobertura\.xml$' \
-    | sort -u)"
+# below via the IFS-controlled for-loop. POSIX `find` is used over `rg`
+# because the GitHub Actions ubuntu runner does not preinstall ripgrep; find
+# is part of coreutils and always available across the target host matrix.
+reports="$(find "${coverage_root}" -type f -name 'coverage.cobertura.xml' | sort -u)"
 
 if [[ -z "${reports}" ]]; then
     echo "No coverage.cobertura.xml report found below '${coverage_root}'." >&2
