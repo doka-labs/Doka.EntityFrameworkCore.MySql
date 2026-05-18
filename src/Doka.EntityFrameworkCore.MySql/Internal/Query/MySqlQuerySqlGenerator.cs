@@ -205,17 +205,26 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     )
     {
         Sql.Append("JSON_TABLE(");
-        Visit(jsonTableExpression.JsonExpression);
-        Sql.Append(", ");
 
         if (jsonTableExpression.Path is { Count: > 0 } rowPath)
         {
             if (HasDynamicArrayIndex(rowPath))
             {
+                // JSON_TABLE's path argument must be a literal SQL string, so a path that
+                // splices a runtime expression cannot live there. Pre-extract the dynamic
+                // subtree via JSON_EXTRACT(col, CONCAT('$...')) and let JSON_TABLE iterate
+                // the resulting array via the literal '$[*]' row-source path. Both MySQL 8.x
+                // and MariaDB 10.6+ accept this composition.
+                Sql.Append("JSON_EXTRACT(");
+                Visit(jsonTableExpression.JsonExpression);
+                Sql.Append(", ");
                 AppendDynamicJsonPath(rowPath);
+                Sql.Append("), '$[*]'");
             }
             else
             {
+                Visit(jsonTableExpression.JsonExpression);
+                Sql.Append(", ");
                 AppendStaticJsonPathForRowSource(rowPath);
             }
         }
@@ -223,7 +232,8 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         {
             // No row-source path means "iterate over the top-level array elements" --
             // the standard expansion for a primitive collection without nested access.
-            Sql.Append("'$[*]'");
+            Visit(jsonTableExpression.JsonExpression);
+            Sql.Append(", '$[*]'");
         }
 
         if (jsonTableExpression.ColumnInfos is { Count: > 0 } columnInfos)

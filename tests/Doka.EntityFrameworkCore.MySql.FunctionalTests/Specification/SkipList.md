@@ -297,6 +297,25 @@ do not provide.
   (e.g., correlated scalar subqueries inside SELECT projection, or stream-only
   per-row materialization).
 
+- JsonQueryMySqlTest JSON_TABLE-EXISTS-correlated-COUNT cluster (mysql:8.4 ONLY;
+  2 tests) -- `Json_collection_within_collection_Count` (async + sync). MySQL
+  bug #114897 "json_table and exists make a bug"
+  (https://bugs.mysql.com/bug.php?id=114897, retrieved 2026-05-18) describes
+  the optimizer picking the wrong hash-join order when a JSON_TABLE sits
+  inside an EXISTS subquery whose inner WHERE references another correlated
+  JSON_TABLE COUNT. The optimizer reports `Impossible WHERE` in EXPLAIN and
+  the query returns zero rows. Bug-status: Closed (Fixed) in MySQL 9.3.0;
+  workaround per the upstream report is the `JOIN_ORDER` optimizer hint, which
+  EF Core's translator does not emit. Empirical probe 2026-05-18 on
+  doka-mysql84 (8.4.9) reproduced the bug verbatim against
+  `JsonEntitiesBasic`; the same SQL on doka-mariadb118 returned the expected
+  rows (MariaDB does not share the optimizer defect). The provider's per-test
+  override silently passes the test on MySQL (engine-bug isolation) and runs
+  the base assertion on MariaDB. Re-evaluation trigger: remove when Doka
+  consumes a MySQL minor >= 9.3.0 in the CI matrix; verify empirically by
+  re-running the base test against the upgraded engine. Engine-bug skip per
+  ADR D-011 bucket 3.
+
 <!--
 Entry shape:
 - BuiltInDataTypesMySqlTest.Can_perform_query_with_max_length (mariadb:11.8) -- MariaDB rejects

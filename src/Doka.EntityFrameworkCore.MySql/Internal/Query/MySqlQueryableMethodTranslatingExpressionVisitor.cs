@@ -173,16 +173,11 @@ internal sealed class
         JsonQueryExpression jsonQueryExpression
     )
     {
-        // JSON_TABLE's row-source path must be a literal SQL string. When the LINQ path carries
-        // a non-constant array index (parameter ElementAt, dynamic expression), the path would
-        // need to splice the value through CONCAT(...) which JSON_TABLE rejects. Bail out so
-        // EF Core's standard "LINQ expression could not be translated" error surfaces in place
-        // of an invalid-SQL MySqlException.
-        if (HasDynamicArrayIndex(jsonQueryExpression.Path))
-        {
-            return null;
-        }
-
+        // JSON_TABLE's row-source path must be a literal SQL string, so non-constant array
+        // indices (parameter ElementAt, dynamic expression) cannot be spliced through CONCAT
+        // there. The dynamic case is handled in MySqlQuerySqlGenerator.VisitJsonTableExpression
+        // by wrapping the JSON source in JSON_EXTRACT(col, CONCAT('$...')) and using '$[*]' as
+        // the static row-source path; both engines accept this composition.
         var structuralType = jsonQueryExpression.StructuralType;
         var lastNamedSegment = jsonQueryExpression.Path.LastOrDefault(static segment => segment.PropertyName is not null);
         var aliasHint = lastNamedSegment.PropertyName ?? jsonQueryExpression.JsonColumn.Name;
@@ -343,19 +338,4 @@ internal sealed class
     private static Type MakeNullable(
         Type type
     ) => type.IsValueType && Nullable.GetUnderlyingType(type) is null ? typeof(Nullable<>).MakeGenericType(type) : type;
-
-    private static bool HasDynamicArrayIndex(
-        IReadOnlyList<PathSegment> path
-    )
-    {
-        foreach (var segment in path)
-        {
-            if (segment.ArrayIndex is not null and not SqlConstantExpression)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 }
