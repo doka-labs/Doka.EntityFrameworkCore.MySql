@@ -26,6 +26,40 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         JsonQueryMySqlFixture fixture
     ) : base(fixture) { }
 
+    /// <summary>
+    /// The base spec test projects through a non-translatable C# helper
+    /// (<c>MyMethod(x.Id)</c>) inside a JSON-collection indexer; EF Core 10 rejects
+    /// the LINQ with <c>InvalidOperationException</c> carrying
+    /// <c>CoreStrings.QueryUnableToTranslateMethod(...)</c>. The override mirrors
+    /// SqlServer's <c>JsonQuerySqlServerTest</c> shape: invoke the base test,
+    /// assert the expected throw, and assert the message contains the canonical
+    /// "MyMethod" cannot-be-translated token.
+    /// </summary>
+    public override async Task Json_collection_index_in_projection_using_untranslatable_client_method(
+        bool async
+    )
+    {
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => base.Json_collection_index_in_projection_using_untranslatable_client_method(async));
+        Assert.Contains("MyMethod", ex.Message);
+        Assert.Contains("could not be translated", ex.Message);
+    }
+
+    /// <summary>
+    /// Sibling test of <see cref="Json_collection_index_in_projection_using_untranslatable_client_method"/>;
+    /// projects through a nested-collection indexer that also calls <c>MyMethod</c>.
+    /// Same disposition rationale.
+    /// </summary>
+    public override async Task Json_collection_index_in_projection_using_untranslatable_client_method2(
+        bool async
+    )
+    {
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => base.Json_collection_index_in_projection_using_untranslatable_client_method2(async));
+        Assert.Contains("MyMethod", ex.Message);
+        Assert.Contains("could not be translated", ex.Message);
+    }
+
     public class JsonQueryMySqlFixture : JsonQueryRelationalFixture
     {
         protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
