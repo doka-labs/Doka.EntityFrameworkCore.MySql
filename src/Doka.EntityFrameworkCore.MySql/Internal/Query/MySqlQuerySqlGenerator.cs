@@ -395,18 +395,33 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
             return jsonScalarExpression;
         }
 
+        // byte[] case: JSON storage is a base64-encoded string ("AQID" for new byte[]
+        // {1,2,3}). The .NET reader expects binary bytes and EF Core's predicate
+        // translator emits binary literals (`X'010203'`) for byte[] constants -- those
+        // do not compare against a base64 text result. Wrap with FROM_BASE64 to decode
+        // the JSON string into the binary form both engines compare against the
+        // X'HEX' literal correctly. Cross-engine: FROM_BASE64 works on MySQL 8.4 and
+        // MariaDB 11.8.
+        if (modelNonNullable == typeof(byte[]))
+        {
+            Sql.Append("FROM_BASE64(JSON_UNQUOTE(");
+            EmitJsonExtract(jsonScalarExpression);
+            Sql.Append("))");
+            return jsonScalarExpression;
+        }
+
         // Default path: always JSON_UNQUOTE. The earlier branches (bool wrapper + CAST
         // path) cover every CLR type whose JSON representation is a non-string primitive
         // (boolean, number). Everything that reaches here was serialized into JSON as a
         // string and the .NET shaper needs the unquoted text form: string, Guid (e.g.
-        // `"12345678-..."`), DateTimeOffset (e.g. `"2000-01-01 12:34:56-08:00"`), byte[]
-        // (base64), char, custom-converter types with string provider mapping. NOTE:
-        // JSON_VALUE would give NULL-safe semantics for JSON null (vs JSON_UNQUOTE's
-        // returning the string "null") but it returns SQL NULL on non-scalar JSON values
-        // (objects, arrays) -- and the EF Core shaper for JSON-owned-entity projections
-        // routes through JsonScalarExpression too, expecting the raw JSON-text of the
-        // owned object/array. Keep JSON_UNQUOTE+JSON_EXTRACT here so owned-entity
-        // projections continue to receive the JSON-text payload they need.
+        // `"12345678-..."`), DateTimeOffset (e.g. `"2000-01-01 12:34:56-08:00"`), char,
+        // custom-converter types with string provider mapping. NOTE: JSON_VALUE would
+        // give NULL-safe semantics for JSON null (vs JSON_UNQUOTE's returning the string
+        // "null") but it returns SQL NULL on non-scalar JSON values (objects, arrays) --
+        // and the EF Core shaper for JSON-owned-entity projections routes through
+        // JsonScalarExpression too, expecting the raw JSON-text of the owned object/array.
+        // Keep JSON_UNQUOTE+JSON_EXTRACT here so owned-entity projections continue to
+        // receive the JSON-text payload they need.
         Sql.Append("JSON_UNQUOTE(");
         EmitJsonExtract(jsonScalarExpression);
         Sql.Append(")");
