@@ -34,7 +34,22 @@ public class MySqlTestStore : RelationalTestStore
 
     public override DbContextOptionsBuilder AddProviderOptions(
         DbContextOptionsBuilder builder
-    ) => builder.UseMySql(Connection, ServerVersion);
+    ) => UseSharedConnectionInProviderOptions
+        ? builder.UseMySql(Connection, ServerVersion)
+        : builder.UseMySql(Connection.ConnectionString, ServerVersion);
+
+    /// <summary>
+    /// Default <see langword="true"/>: the test-store's owned <see cref="DbConnection"/> is
+    /// reused across every context the fixture hands out. Tests that bracket each scenario in
+    /// a single shared transaction (Updates, NorthwindWhereQuery, BIDT, JsonQuery) rely on
+    /// the shared-connection identity so the transaction enrolls correctly.
+    /// Override to <see langword="false"/> for fixtures whose tests spawn concurrent contexts
+    /// against the same store (Migrations <c>Can_apply_*_in_parallel*</c> patterns); without
+    /// per-context connections the parallel <see cref="DbConnection.OpenAsync"/> calls race
+    /// on the single shared connection and surface as
+    /// <c>InvalidOperationException: Cannot Open when State is Connecting</c>.
+    /// </summary>
+    public virtual bool UseSharedConnectionInProviderOptions => true;
 
     /// <summary>
     /// MySQL and MariaDB delimit identifiers with backticks by default; the SQL-standard

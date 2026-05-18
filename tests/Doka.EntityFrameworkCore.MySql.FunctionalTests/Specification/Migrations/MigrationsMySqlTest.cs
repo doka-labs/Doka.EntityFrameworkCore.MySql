@@ -69,6 +69,37 @@ public class MigrationsMySqlTest : MigrationsInfrastructureTestBase<MigrationsMy
 
     public class MigrationsMySqlFixture : MigrationsInfrastructureFixtureBase
     {
-        protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+        protected override ITestStoreFactory TestStoreFactory => PerContextConnectionFactory.Instance;
+    }
+
+    /// <summary>
+    /// Test-store factory variant that produces a <see cref="MySqlTestStore"/> with
+    /// <see cref="MySqlTestStore.UseSharedConnectionInProviderOptions"/> set to
+    /// <see langword="false"/>. The Migrations spec tests spawn
+    /// <c>Parallel.For(0, Environment.ProcessorCount, ...)</c> across freshly created contexts
+    /// and call <c>Migrate</c> on each; the shared-connection default would race them on a
+    /// single <see cref="DbConnection"/> and surface as <c>Cannot Open when State is Connecting</c>.
+    /// </summary>
+    private sealed class PerContextConnectionFactory : MySqlTestStoreFactory
+    {
+        public static new PerContextConnectionFactory Instance { get; } = new();
+
+        public override TestStore Create(
+            string storeName
+        ) => new PerContextConnectionTestStore(storeName, shared: false);
+
+        public override TestStore GetOrCreate(
+            string storeName
+        ) => new PerContextConnectionTestStore(storeName, shared: true);
+    }
+
+    private sealed class PerContextConnectionTestStore : MySqlTestStore
+    {
+        public PerContextConnectionTestStore(
+            string name,
+            bool shared
+        ) : base(name, shared) { }
+
+        public override bool UseSharedConnectionInProviderOptions => false;
     }
 }
