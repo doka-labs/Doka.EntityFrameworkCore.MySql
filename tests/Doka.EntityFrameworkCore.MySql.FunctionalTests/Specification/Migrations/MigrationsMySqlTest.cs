@@ -1,5 +1,7 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Storage;
 using MySqlConnector;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Migrations;
@@ -65,6 +67,46 @@ public class MigrationsMySqlTest : MigrationsInfrastructureTestBase<MigrationsMy
     public override void Can_diff_against_3_0_ASP_NET_Identity_model()
     {
         // Skipped per attribute.
+    }
+
+    /// <summary>
+    /// The base spec test opens the user transaction via
+    /// <c>using var transaction = db.Database.BeginTransactionAsync();</c> -- without
+    /// <c>await</c>. The result is a <see cref="Task{T}"/> that is disposed as if it were the
+    /// transaction itself; the actual <see cref="IDbContextTransaction"/> never enters scope.
+    /// On providers whose <c>BeginTransactionAsync</c> completes synchronously the transaction
+    /// is open by the time the migrator runs, so <c>MigrationsUserTransactionWarning</c> fires
+    /// and the migration proceeds inside the user transaction. MySqlConnector's
+    /// <c>BeginTransactionAsync</c> is truly async; the pending task races the migrator's
+    /// <c>CurrentTransaction is null</c> check and the migrator's own
+    /// <c>BeginTransactionAsync</c> then throws <c>TransactionAlreadyStarted</c>. Awaiting the
+    /// task explicitly removes the race and matches what the test author almost certainly meant.
+    /// </summary>
+    public override async Task Can_apply_two_migrations_in_transaction_async()
+    {
+        using var db = Fixture.CreateContext();
+        await db.Database.EnsureDeletedAsync();
+        await db.GetService<IRelationalDatabaseCreator>().CreateAsync();
+
+        var strategy = db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync();
+            var migrator = db.GetService<IMigrator>();
+            await migrator.MigrateAsync("Migration1");
+            await migrator.MigrateAsync("Migration2");
+
+            var history = db.GetService<IHistoryRepository>();
+            Assert.Collection(
+                await history.GetAppliedMigrationsAsync(),
+                x => Assert.Equal("00000000000001_Migration1", x.MigrationId),
+                x => Assert.Equal("00000000000002_Migration2", x.MigrationId));
+        });
+
+        Assert.Equal(
+            LogLevel.Warning,
+            Fixture.TestSqlLoggerFactory.Log.First(
+                l => l.Id == RelationalEventId.MigrationsUserTransactionWarning).Level);
     }
 
     public class MigrationsMySqlFixture : MigrationsInfrastructureFixtureBase
