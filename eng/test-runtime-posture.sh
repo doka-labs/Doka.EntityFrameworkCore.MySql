@@ -152,15 +152,11 @@ runtime_smoke_executable_path() {
 run_runtime_posture() {
     local runtime_identifier
     local trimmed_output_dir
-    local aot_output_dir
     local trimmed_executable
-    local aot_executable
 
     runtime_identifier="$(resolve_runtime_identifier)"
     trimmed_output_dir="${repo_root}/artifacts/runtime-smoke/trimmed"
-    aot_output_dir="${repo_root}/artifacts/runtime-smoke/aot"
     trimmed_executable="$(runtime_smoke_executable_path "${trimmed_output_dir}")"
-    aot_executable="$(runtime_smoke_executable_path "${aot_output_dir}")"
 
     "${repo_root}/eng/verify-dotnet.sh"
 
@@ -179,14 +175,13 @@ run_runtime_posture() {
 
     "${trimmed_executable}"
 
-    dotnet publish "${runtime_smoke_project}" \
-        --configuration Release \
-        --runtime "${runtime_identifier}" \
-        -p:PublishAot=true \
-        -o "${aot_output_dir}" \
-        --disable-build-servers
-
-    "${aot_executable}"
+    # NativeAOT publish + smoke is intentionally not run. EF Core 10 NativeAOT
+    # is upstream-experimental (Microsoft Learn); the provider's Design.Internal
+    # assembly reference forces the AOT publish to load Microsoft.EntityFrameworkCore.Design
+    # which is not AOT-friendly (heavy reflection, [RequiresUnreferencedCode]
+    # everywhere). The ecosystem-wide fix sits with EF Core's precompiled-
+    # queries + provider-AOT story, not with a provider-side assembly split.
+    # See ADR D-017 for the full record + re-evaluation trigger.
 }
 
 if (( $# > 1 )); then
