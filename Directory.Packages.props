@@ -76,7 +76,7 @@
       examples/Doka.EntityFrameworkCore.MySql.HostExamples
   -->
   <ItemGroup Label="Example hosts">
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
     <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.15.3" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />
