@@ -4,7 +4,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// Provides MySQL-specific sequence value generation at runtime.
 ///
 /// On MySQL (no native sequences): Uses table-based emulation via
-/// <c>UPDATE __efsequence_{name} SET value = LAST_INSERT_ID(value + increment); SELECT LAST_INSERT_ID();</c>
+/// a singleton table whose first call returns the configured start value and whose
+/// subsequent calls atomically advance by the configured increment.
 ///
 /// On MariaDB 10.3+ (native sequences): Uses
 /// <c>SELECT NEXT VALUE FOR {name};</c>
@@ -29,34 +30,14 @@ internal static class MySqlSequenceValueGenerator
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentException.ThrowIfNullOrWhiteSpace(sequenceName);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(increment);
 
         using var command = connection.CreateCommand();
-
-        if (supportsNativeSequences)
-        {
-            // MariaDB 10.3+: native sequence support.
-            command.CommandText = $"SELECT NEXT VALUE FOR {MySqlIdentifierEscaping.DelimitIdentifier(sequenceName)};";
-        }
-        else
-        {
-            // MySQL: table-based sequence emulation.
-            // The LAST_INSERT_ID(expr) function sets the session's LAST_INSERT_ID to expr
-            // and returns it. This makes the UPDATE + SELECT atomic within the session.
-            var tableName = MySqlIdentifierEscaping.DelimitIdentifier(MySqlSequenceNaming.EmulationTableName(sequenceName));
-            command.CommandText = $"UPDATE {tableName} SET `value` = LAST_INSERT_ID(`value` + {increment});\n"
-                + "SELECT LAST_INSERT_ID();";
-        }
+        command.CommandText = GenerateNextValueSql(sequenceName, increment, supportsNativeSequences);
 
         var result = command.ExecuteScalar();
 
-        return result switch
-        {
-            long longValue => longValue,
-            int intValue => intValue,
-            decimal decimalValue => (long)decimalValue,
-            ulong ulongValue => (long)ulongValue,
-            _ => Convert.ToInt64(result, CultureInfo.InvariantCulture),
-        };
+        return ConvertResult(result);
     }
 
     /// <summary>
@@ -72,31 +53,61 @@ internal static class MySqlSequenceValueGenerator
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentException.ThrowIfNullOrWhiteSpace(sequenceName);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(increment);
 
         await using var command = connection.CreateCommand();
-
-        if (supportsNativeSequences)
-        {
-            command.CommandText = $"SELECT NEXT VALUE FOR {MySqlIdentifierEscaping.DelimitIdentifier(sequenceName)};";
-        }
-        else
-        {
-            var tableName = MySqlIdentifierEscaping.DelimitIdentifier(MySqlSequenceNaming.EmulationTableName(sequenceName));
-            command.CommandText = $"UPDATE {tableName} SET `value` = LAST_INSERT_ID(`value` + {increment});\n"
-                + "SELECT LAST_INSERT_ID();";
-        }
+        command.CommandText = GenerateNextValueSql(sequenceName, increment, supportsNativeSequences);
 
         var result = await command
             .ExecuteScalarAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return result switch
-        {
-            long longValue => longValue,
-            int intValue => intValue,
-            decimal decimalValue => (long)decimalValue,
-            ulong ulongValue => (long)ulongValue,
-            _ => Convert.ToInt64(result, CultureInfo.InvariantCulture),
-        };
+        return ConvertResult(result);
     }
+
+    /// <summary>
+    /// Generates the scalar SQL used by both direct test coverage and EF's relational
+    /// command path. Keeping it here prevents migration DDL and runtime fetch logic
+    /// from evolving independently.
+    /// </summary>
+    internal static string GenerateNextValueSql(
+        string sequenceName,
+        int increment,
+        bool supportsNativeSequences
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sequenceName);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(increment);
+
+        if (supportsNativeSequences)
+        {
+            return $"SELECT NEXT VALUE FOR {MySqlIdentifierEscaping.DelimitIdentifier(sequenceName)};";
+        }
+
+        var tableName = MySqlIdentifierEscaping.DelimitIdentifier(MySqlSequenceNaming.EmulationTableName(sequenceName));
+
+        // LAST_INSERT_ID(expr) is session-scoped and returns expr. The singleton row
+        // plus is_called flag makes the first fetch return StartValue and every later
+        // fetch advance atomically without a preceding SELECT.
+        return $"UPDATE {tableName}\n"
+            + $"SET `value` = LAST_INSERT_ID(IF(`is_called`, `value` + {increment}, `value`)),\n"
+            + "    `is_called` = TRUE\n"
+            + "WHERE `id` = 1;\n"
+            + "SELECT LAST_INSERT_ID();";
+    }
+
+    /// <summary>
+    /// Converts connector scalar representations to the signed 64-bit sequence
+    /// contract used by EF Core's Hi/Lo generator.
+    /// </summary>
+    internal static long ConvertResult(
+        object? result
+    ) => result switch
+    {
+        long longValue => longValue,
+        int intValue => intValue,
+        decimal decimalValue => (long)decimalValue,
+        ulong ulongValue => checked((long)ulongValue),
+        _ => Convert.ToInt64(result, CultureInfo.InvariantCulture),
+    };
 }

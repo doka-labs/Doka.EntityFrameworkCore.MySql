@@ -4,13 +4,13 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Provides <see cref="ValueComparer"/> instances for JSON CLR types used in MySQL column mappings.
-/// The comparers use streaming deep-equality so EF Core's change tracker detects mutations inside
-/// JSON documents without allocating an intermediate string copy per comparison.
+/// The comparers use pooled canonical UTF-8 buffers so EF Core's change tracker detects mutations
+/// inside JSON documents without allocating an intermediate string copy per comparison.
 ///
 /// Hot-path mechanics:
 /// <list type="bullet">
-/// <item>Equals walks both inputs through <see cref="Utf8JsonReader"/> token-by-token so payloads
-/// shorter than 4 kilobytes (the streaming chunk size) avoid the
+/// <item>Equals writes both inputs directly as canonical UTF-8 and compares the resulting bytes,
+/// avoiding the
 /// <see cref="JsonNode.ToJsonString"/> + <see cref="JsonNode.Parse(string,JsonNodeOptions?,JsonDocumentOptions)"/>
 /// round-trip the previous implementation paid per comparison.</item>
 /// <item>GetHashCode writes the canonical UTF-8 form into a pooled buffer via
@@ -108,24 +108,13 @@ internal static class MySqlJsonValueComparers
         JsonElement b
     )
     {
-        var bufferA = ArrayPool<byte>.Shared.Rent(InitialHashBufferSize);
-        var bufferB = ArrayPool<byte>.Shared.Rent(InitialHashBufferSize);
+        using var bufferA = new PooledByteBufferStream(ArrayPool<byte>.Shared, InitialHashBufferSize);
+        using var bufferB = new PooledByteBufferStream(ArrayPool<byte>.Shared, InitialHashBufferSize);
 
-        try
-        {
-            var lengthA = WriteCanonicalJson(a, ref bufferA);
-            var lengthB = WriteCanonicalJson(b, ref bufferB);
+        WriteCanonicalJson(a, bufferA);
+        WriteCanonicalJson(b, bufferB);
 
-            return lengthA == lengthB
-                && bufferA
-                    .AsSpan(0, lengthA)
-                    .SequenceEqual(bufferB.AsSpan(0, lengthB));
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(bufferA);
-            ArrayPool<byte>.Shared.Return(bufferB);
-        }
+        return bufferA.WrittenLength == bufferB.WrittenLength && bufferA.WrittenSpan.SequenceEqual(bufferB.WrittenSpan);
     }
 
     private static bool JsonDocumentEquals(
@@ -171,43 +160,24 @@ internal static class MySqlJsonValueComparers
             return false;
         }
 
-        var bufferA = ArrayPool<byte>.Shared.Rent(InitialHashBufferSize);
-        var bufferB = ArrayPool<byte>.Shared.Rent(InitialHashBufferSize);
+        using var bufferA = new PooledByteBufferStream(ArrayPool<byte>.Shared, InitialHashBufferSize);
+        using var bufferB = new PooledByteBufferStream(ArrayPool<byte>.Shared, InitialHashBufferSize);
 
-        try
-        {
-            var lengthA = WriteCanonicalJson(a, ref bufferA);
-            var lengthB = WriteCanonicalJson(b, ref bufferB);
+        WriteCanonicalJson(a, bufferA);
+        WriteCanonicalJson(b, bufferB);
 
-            return lengthA == lengthB
-                && bufferA
-                    .AsSpan(0, lengthA)
-                    .SequenceEqual(bufferB.AsSpan(0, lengthB));
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(bufferA);
-            ArrayPool<byte>.Shared.Return(bufferB);
-        }
+        return bufferA.WrittenLength == bufferB.WrittenLength && bufferA.WrittenSpan.SequenceEqual(bufferB.WrittenSpan);
     }
 
     private static int HashJsonElement(
         JsonElement element
     )
     {
-        var buffer = ArrayPool<byte>.Shared.Rent(InitialHashBufferSize);
+        using var buffer = new PooledByteBufferStream(ArrayPool<byte>.Shared, InitialHashBufferSize);
+        WriteCanonicalJson(element, buffer);
+        var hash = XxHash64.HashToUInt64(buffer.WrittenSpan);
 
-        try
-        {
-            var length = WriteCanonicalJson(element, ref buffer);
-            var hash = XxHash64.HashToUInt64(buffer.AsSpan(0, length));
-
-            return unchecked((int)hash) ^ unchecked((int)(hash >> 32));
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
+        return unchecked((int)hash) ^ unchecked((int)(hash >> 32));
     }
 
     [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
@@ -222,19 +192,11 @@ internal static class MySqlJsonValueComparers
         JsonNode node
     )
     {
-        var buffer = ArrayPool<byte>.Shared.Rent(InitialHashBufferSize);
+        using var buffer = new PooledByteBufferStream(ArrayPool<byte>.Shared, InitialHashBufferSize);
+        WriteCanonicalJson(node, buffer);
+        var hash = XxHash64.HashToUInt64(buffer.WrittenSpan);
 
-        try
-        {
-            var length = WriteCanonicalJson(node, ref buffer);
-            var hash = XxHash64.HashToUInt64(buffer.AsSpan(0, length));
-
-            return unchecked((int)hash) ^ unchecked((int)(hash >> 32));
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
+        return unchecked((int)hash) ^ unchecked((int)(hash >> 32));
     }
 
     [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
@@ -258,34 +220,19 @@ internal static class MySqlJsonValueComparers
             return null;
         }
 
-        var buffer = ArrayPool<byte>.Shared.Rent(InitialHashBufferSize);
+        using var buffer = new PooledByteBufferStream(ArrayPool<byte>.Shared, InitialHashBufferSize);
+        WriteCanonicalJson(source.RootElement, buffer);
 
-        try
-        {
-            var length = WriteCanonicalJson(source.RootElement, ref buffer);
-
-            return JsonDocument.Parse(buffer.AsMemory(0, length));
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
+        return JsonDocument.Parse(buffer.WrittenMemory);
     }
 
-    private static int WriteCanonicalJson(
+    private static void WriteCanonicalJson(
         JsonElement element,
-        ref byte[] buffer
+        PooledByteBufferStream buffer
     )
     {
-        using var stream = new PooledByteBufferStream(buffer);
-        using (var writer = new Utf8JsonWriter(stream))
-        {
-            element.WriteTo(writer);
-        }
-
-        buffer = stream.Buffer;
-
-        return stream.WrittenLength;
+        using var writer = new Utf8JsonWriter(buffer);
+        element.WriteTo(writer);
     }
 
     [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
@@ -296,40 +243,44 @@ internal static class MySqlJsonValueComparers
         "AOT",
         "IL3050",
         Justification = "JsonNode.WriteTo does not trigger runtime code generation for the JSON primitives this comparer handles.")]
-    private static int WriteCanonicalJson(
+    private static void WriteCanonicalJson(
         JsonNode node,
-        ref byte[] buffer
+        PooledByteBufferStream buffer
     )
     {
-        using var stream = new PooledByteBufferStream(buffer);
-        using (var writer = new Utf8JsonWriter(stream))
-        {
-            node.WriteTo(writer);
-        }
-
-        buffer = stream.Buffer;
-
-        return stream.WrittenLength;
+        using var writer = new Utf8JsonWriter(buffer);
+        node.WriteTo(writer);
     }
 
     /// <summary>
-    /// Backing stream over a rented byte array. Grows by reallocating from
-    /// <see cref="ArrayPool{T}.Shared"/> when the initial buffer is exhausted. The current
-    /// buffer is exposed via <see cref="Buffer"/> so the caller can swap its rented array
-    /// reference to the grown one before returning it to the pool.
+    /// Backing stream with exclusive ownership of one rented byte array. Growth
+    /// returns the previous array only after the replacement is installed, and
+    /// disposal returns the current array exactly once even when JSON writing fails.
     /// </summary>
-    private sealed class PooledByteBufferStream : Stream
+    internal sealed class PooledByteBufferStream : Stream
     {
+        private readonly ArrayPool<byte> _pool;
+        private byte[]? _buffer;
+
         public PooledByteBufferStream(
-            byte[] initialBuffer
+            ArrayPool<byte> pool,
+            int initialCapacity
         )
         {
-            Buffer = initialBuffer;
+            ArgumentNullException.ThrowIfNull(pool);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(initialCapacity);
+
+            _pool = pool;
+            _buffer = pool.Rent(initialCapacity);
         }
 
-        public byte[] Buffer { get; private set; }
-
         public int WrittenLength { get; private set; }
+
+        internal ReadOnlySpan<byte> WrittenSpan => Buffer.AsSpan(0, WrittenLength);
+
+        internal ReadOnlyMemory<byte> WrittenMemory => Buffer.AsMemory(0, WrittenLength);
+
+        private byte[] Buffer => _buffer ?? throw new ObjectDisposedException(nameof(PooledByteBufferStream));
 
         public override bool CanRead => false;
 
@@ -395,12 +346,29 @@ internal static class MySqlJsonValueComparers
             }
 
             var newCapacity = Math.Max(Buffer.Length * 2, requiredLength);
-            var newBuffer = ArrayPool<byte>.Shared.Rent(newCapacity);
+            var oldBuffer = Buffer;
+            var newBuffer = _pool.Rent(newCapacity);
             Buffer
                 .AsSpan(0, WrittenLength)
                 .CopyTo(newBuffer);
-            ArrayPool<byte>.Shared.Return(Buffer);
-            Buffer = newBuffer;
+            _buffer = newBuffer;
+            _pool.Return(oldBuffer);
+        }
+
+        protected override void Dispose(
+            bool disposing
+        )
+        {
+            if (disposing)
+            {
+                var buffer = Interlocked.Exchange(ref _buffer, null);
+                if (buffer is not null)
+                {
+                    _pool.Return(buffer);
+                }
+            }
+
+            base.Dispose(disposing);
         }
     }
 }

@@ -14,18 +14,22 @@ public class HiLoStateCacheBenchmarks
     private const string SequenceName = "bench_hilo_seq";
     private const int BlockSize = 10;
 
+    private static readonly MySqlDatabaseIdentity s_databaseIdentity = new(
+        "benchmark-server",
+        3306,
+        "benchmark-database",
+        "benchmark-user");
+
     [GlobalSetup]
     public void GlobalSetup()
     {
         // Prime the cache so the benchmark only measures hit-path cost.
-        _ = MySqlHiLoStateCache.GetOrCreate(SequenceName, BlockSize);
+        _ = MySqlHiLoStateCache.GetOrCreate(s_databaseIdentity, SequenceName, BlockSize);
     }
 
     [Benchmark]
-    public object ResolveCachedHiLoState()
-    {
-        return MySqlHiLoStateCache.GetOrCreate(SequenceName, BlockSize);
-    }
+    public object ResolveCachedHiLoState() =>
+        MySqlHiLoStateCache.GetOrCreate(s_databaseIdentity, SequenceName, BlockSize);
 }
 
 /// <summary>
@@ -109,8 +113,14 @@ public class HiLoBulkInsertBenchmarks
         command.CommandText =
             $"DROP TABLE IF EXISTS `{TableName}`;"
             + $"DROP TABLE IF EXISTS `__efsequence_{SequenceName}`;"
-            + $"CREATE TABLE `__efsequence_{SequenceName}` (`value` BIGINT NOT NULL) ENGINE=InnoDB;"
-            + $"INSERT INTO `__efsequence_{SequenceName}` (`value`) VALUES (0);"
+            + $"CREATE TABLE `__efsequence_{SequenceName}` ("
+            + "  `id` TINYINT UNSIGNED NOT NULL,"
+            + "  `value` BIGINT NOT NULL,"
+            + "  `is_called` BOOLEAN NOT NULL,"
+            + "  PRIMARY KEY (`id`),"
+            + "  CHECK (`id` = 1)"
+            + ") ENGINE=InnoDB;"
+            + $"INSERT INTO `__efsequence_{SequenceName}` (`id`, `value`, `is_called`) VALUES (1, 1, FALSE);"
             + $"CREATE TABLE `{TableName}` ("
             + "  `Id` INT NOT NULL,"
             + "  `Name` VARCHAR(64) NOT NULL,"
@@ -128,9 +138,8 @@ public class HiLoBulkInsertBenchmarks
             .OpenAsync()
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
-        command.CommandText =
-            $"TRUNCATE TABLE `{TableName}`;"
-            + $"UPDATE `__efsequence_{SequenceName}` SET `value` = 0;";
+        command.CommandText = $"TRUNCATE TABLE `{TableName}`;"
+            + $"UPDATE `__efsequence_{SequenceName}` SET `value` = 1, `is_called` = FALSE WHERE `id` = 1;";
         await command
             .ExecuteNonQueryAsync()
             .ConfigureAwait(false);

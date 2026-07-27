@@ -379,8 +379,18 @@ public sealed class MySqlComprehensiveCoverageTests
 
         await ExecuteRawAsync(conn, "DROP TABLE IF EXISTS `HiLoE2EItems`;");
         await ExecuteRawAsync(conn, $"DROP TABLE IF EXISTS `__efsequence_{seqName}`;");
-        await ExecuteRawAsync(conn, $"CREATE TABLE `__efsequence_{seqName}` (`value` BIGINT NOT NULL) ENGINE=InnoDB;");
-        await ExecuteRawAsync(conn, $"INSERT INTO `__efsequence_{seqName}` (`value`) VALUES (0);");
+        await ExecuteRawAsync(
+            conn,
+            $"CREATE TABLE `__efsequence_{seqName}` ("
+            + "`id` TINYINT UNSIGNED NOT NULL,"
+            + "`value` BIGINT NOT NULL,"
+            + "`is_called` BOOLEAN NOT NULL,"
+            + "PRIMARY KEY (`id`),"
+            + "CHECK (`id` = 1)"
+            + ") ENGINE=InnoDB;");
+        await ExecuteRawAsync(
+            conn,
+            $"INSERT INTO `__efsequence_{seqName}` (`id`, `value`, `is_called`) VALUES (1, 1, FALSE);");
         await ExecuteRawAsync(
             conn,
             "CREATE TABLE `HiLoE2EItems` (`Id` int NOT NULL, `Name` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");

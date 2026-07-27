@@ -196,46 +196,110 @@ public sealed class MySqlDatabaseLifecycleTests
     // -- Sequence Value Generation: Table-Based Emulation --
 
     /// <summary>
-    /// Verifies that the table-based sequence emulation creates the sequence table and fetches values.
+    /// Verifies the synchronous table-emulation API, including its first-value,
+    /// increment, and singleton-row contracts.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Sequence_table_emulation_creates_table_and_fetches_values()
+    public void Sequence_table_emulation_sync_fetch_returns_start_then_increment()
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         var seqName = $"test_seq_{Guid.NewGuid():N}"[..30];
 
-        await using var connection = new MySqlConnector.MySqlConnection(connectionString);
+        using var connection = new MySqlConnection(connectionString);
+        connection.Open();
+
+        try
+        {
+            using (var createCmd = connection.CreateCommand())
+            {
+                createCmd.CommandText = $"CREATE TABLE IF NOT EXISTS `__efsequence_{seqName}` ("
+                    + "  `id` TINYINT UNSIGNED NOT NULL,"
+                    + "  `value` BIGINT NOT NULL,"
+                    + "  `is_called` BOOLEAN NOT NULL,"
+                    + "  PRIMARY KEY (`id`),"
+                    + "  CHECK (`id` = 1)"
+                    + ") ENGINE=InnoDB;"
+                    + $"INSERT INTO `__efsequence_{seqName}` (`id`, `value`, `is_called`) VALUES (1, 42, FALSE);";
+                createCmd.ExecuteNonQuery();
+            }
+
+            var value1 = MySqlSequenceValueGenerator.GetNextValue(
+                connection,
+                seqName,
+                7,
+                supportsNativeSequences: false);
+            var value2 = MySqlSequenceValueGenerator.GetNextValue(
+                connection,
+                seqName,
+                7,
+                supportsNativeSequences: false);
+
+            Assert.Equal(42, value1);
+            Assert.Equal(49, value2);
+            Assert.True(value2 > value1);
+
+            using var duplicateRowCommand = connection.CreateCommand();
+            duplicateRowCommand.CommandText =
+                $"INSERT INTO `__efsequence_{seqName}` (`id`, `value`, `is_called`) VALUES (2, 100, FALSE);";
+            Assert.Throws<MySqlException>(() => duplicateRowCommand.ExecuteNonQuery());
+        }
+        finally
+        {
+            using var dropCmd = connection.CreateCommand();
+            dropCmd.CommandText = $"DROP TABLE IF EXISTS `__efsequence_{seqName}`;";
+            dropCmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>
+    /// Verifies that the asynchronous table-emulation API returns the same first
+    /// value and increment semantics without falling back to synchronous I/O.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
+    public async Task Sequence_table_emulation_async_fetch_returns_start_then_increment()
+    {
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+        var seqName = $"test_seq_{Guid.NewGuid():N}"[..30];
+
+        await using var connection = new MySqlConnection(connectionString);
         await connection
             .OpenAsync()
             .ConfigureAwait(false);
 
         try
         {
-            // Create the emulated sequence table.
             await using (var createCmd = connection.CreateCommand())
             {
-                createCmd.CommandText =
-                    $"CREATE TABLE IF NOT EXISTS `__efsequence_{seqName}` (`value` BIGINT NOT NULL) ENGINE=InnoDB;"
-                    + $"INSERT INTO `__efsequence_{seqName}` (`value`) VALUES (0);";
+                createCmd.CommandText = $"CREATE TABLE IF NOT EXISTS `__efsequence_{seqName}` ("
+                    + "  `id` TINYINT UNSIGNED NOT NULL,"
+                    + "  `value` BIGINT NOT NULL,"
+                    + "  `is_called` BOOLEAN NOT NULL,"
+                    + "  PRIMARY KEY (`id`),"
+                    + "  CHECK (`id` = 1)"
+                    + ") ENGINE=InnoDB;"
+                    + $"INSERT INTO `__efsequence_{seqName}` (`id`, `value`, `is_called`) VALUES (1, 42, FALSE);";
                 await createCmd
                     .ExecuteNonQueryAsync()
                     .ConfigureAwait(false);
             }
 
-            // Fetch values via the sequence generator.
-            var value1 = MySqlSequenceValueGenerator.GetNextValue(
-                connection,
-                seqName,
-                1,
-                supportsNativeSequences: false);
-            var value2 = MySqlSequenceValueGenerator.GetNextValue(
-                connection,
-                seqName,
-                1,
-                supportsNativeSequences: false);
+            var value1 = await MySqlSequenceValueGenerator
+                .GetNextValueAsync(
+                    connection,
+                    seqName,
+                    7,
+                    supportsNativeSequences: false)
+                .ConfigureAwait(false);
+            var value2 = await MySqlSequenceValueGenerator
+                .GetNextValueAsync(
+                    connection,
+                    seqName,
+                    7,
+                    supportsNativeSequences: false)
+                .ConfigureAwait(false);
 
-            Assert.Equal(1, value1);
-            Assert.Equal(2, value2);
+            Assert.Equal(42, value1);
+            Assert.Equal(49, value2);
             Assert.True(value2 > value1);
         }
         finally
@@ -251,15 +315,58 @@ public sealed class MySqlDatabaseLifecycleTests
     // -- MariaDB Native Sequence --
 
     /// <summary>
-    /// Verifies that native MariaDB sequences create and fetch values.
+    /// Verifies the synchronous native MariaDB sequence API.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task Mariadb_native_sequence_creates_and_fetches_values()
+    public void Mariadb_native_sequence_sync_fetch_returns_start_then_increment()
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         var seqName = $"test_seq_{Guid.NewGuid():N}"[..30];
 
-        await using var connection = new MySqlConnector.MySqlConnection(connectionString);
+        using var connection = new MySqlConnection(connectionString);
+        connection.Open();
+
+        try
+        {
+            using (var createCmd = connection.CreateCommand())
+            {
+                createCmd.CommandText = $"CREATE SEQUENCE `{seqName}` START WITH 1 INCREMENT BY 1;";
+                createCmd.ExecuteNonQuery();
+            }
+
+            var value1 = MySqlSequenceValueGenerator.GetNextValue(
+                connection,
+                seqName,
+                1,
+                supportsNativeSequences: true);
+            var value2 = MySqlSequenceValueGenerator.GetNextValue(
+                connection,
+                seqName,
+                1,
+                supportsNativeSequences: true);
+
+            Assert.Equal(1, value1);
+            Assert.Equal(2, value2);
+        }
+        finally
+        {
+            using var dropCmd = connection.CreateCommand();
+            dropCmd.CommandText = $"DROP SEQUENCE IF EXISTS `{seqName}`;";
+            dropCmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>
+    /// Verifies the asynchronous native MariaDB sequence API without synchronous
+    /// database calls inside the asynchronous test.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
+    public async Task Mariadb_native_sequence_async_fetch_returns_start_then_increment()
+    {
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
+        var seqName = $"test_seq_{Guid.NewGuid():N}"[..30];
+
+        await using var connection = new MySqlConnection(connectionString);
         await connection
             .OpenAsync()
             .ConfigureAwait(false);
@@ -274,16 +381,20 @@ public sealed class MySqlDatabaseLifecycleTests
                     .ConfigureAwait(false);
             }
 
-            var value1 = MySqlSequenceValueGenerator.GetNextValue(
-                connection,
-                seqName,
-                1,
-                supportsNativeSequences: true);
-            var value2 = MySqlSequenceValueGenerator.GetNextValue(
-                connection,
-                seqName,
-                1,
-                supportsNativeSequences: true);
+            var value1 = await MySqlSequenceValueGenerator
+                .GetNextValueAsync(
+                    connection,
+                    seqName,
+                    1,
+                    supportsNativeSequences: true)
+                .ConfigureAwait(false);
+            var value2 = await MySqlSequenceValueGenerator
+                .GetNextValueAsync(
+                    connection,
+                    seqName,
+                    1,
+                    supportsNativeSequences: true)
+                .ConfigureAwait(false);
 
             Assert.Equal(1, value1);
             Assert.Equal(2, value2);

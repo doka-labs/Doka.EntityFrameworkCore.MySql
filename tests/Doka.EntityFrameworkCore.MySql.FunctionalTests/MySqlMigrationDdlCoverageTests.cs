@@ -107,9 +107,13 @@ public sealed class MySqlMigrationDdlCoverageTests
         var sql = JoinSql(generator.Generate([operation], context.Model));
 
         Assert.Contains("CREATE TABLE `__efsequence_OrderSeq`", sql, StringComparison.Ordinal);
+        Assert.Contains("`id` TINYINT UNSIGNED NOT NULL", sql, StringComparison.Ordinal);
         Assert.Contains("`value` BIGINT NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("`is_called` BOOLEAN NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("PRIMARY KEY (`id`)", sql, StringComparison.Ordinal);
+        Assert.Contains("CHECK (`id` = 1)", sql, StringComparison.Ordinal);
         Assert.Contains("INSERT INTO `__efsequence_OrderSeq`", sql, StringComparison.Ordinal);
-        Assert.Contains("VALUES (1)", sql, StringComparison.Ordinal);
+        Assert.Contains("VALUES (1, 1, FALSE)", sql, StringComparison.Ordinal);
     }
 
     [Fact]

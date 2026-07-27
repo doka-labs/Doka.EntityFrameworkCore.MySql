@@ -5,11 +5,9 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// lock class lives inside <see cref="MySqlHistoryRepository"/> as an internal
 /// nested type; the surface under test is the visible behavior: Dispose is
 /// idempotent across concurrent callers, ReacquireIfNeeded releases the old
-/// connection before the next acquire, and a thousand iterations of interleaved
-/// Dispose / Reacquire calls do not deadlock or corrupt the internal
-/// connection-slot state. The test points the DbContext at an unreachable port so
-/// every AcquireLock call fails fast on Open -- the cleanup-on-failure path
-/// (Interlocked-detach + Dispose) is the portion under stress.
+/// connection before the next acquire, and disposal is a terminal lifecycle state.
+/// The test points the DbContext at an unreachable port so every attempted acquire
+/// fails fast while still exercising the serialized cleanup transitions.
 /// </summary>
 public sealed class MySqlAdvisoryLockLifecycleStressTests
 {
@@ -51,6 +49,34 @@ public sealed class MySqlAdvisoryLockLifecycleStressTests
         // idempotency on a now-empty slot.
         lockInstance.Dispose();
         lockInstance.Dispose();
+    }
+
+    [Fact]
+    public void Reacquire_after_dispose_cannot_resurrect_lock()
+    {
+        using var context = new StubContext(BuildOptions());
+        var historyRepository = (MySqlHistoryRepository)context.GetService<IHistoryRepository>();
+        var lockInstance = new MySqlHistoryRepository.MySqlMigrationsDatabaseLock(historyRepository);
+
+        lockInstance.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() =>
+            lockInstance.ReacquireIfNeeded(connectionReopened: true, transactionRestarted: null));
+        Assert.Throws<ObjectDisposedException>(() => lockInstance.AcquireLock());
+    }
+
+    [Fact]
+    public async Task Async_reacquire_after_dispose_cannot_resurrect_lock()
+    {
+        await using var context = new StubContext(BuildOptions());
+        var historyRepository = (MySqlHistoryRepository)context.GetService<IHistoryRepository>();
+        var lockInstance = new MySqlHistoryRepository.MySqlMigrationsDatabaseLock(historyRepository);
+
+        await lockInstance.DisposeAsync();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() =>
+            lockInstance.ReacquireIfNeededAsync(connectionReopened: true, transactionRestarted: null));
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => lockInstance.AcquireLockAsync());
     }
 
     [Fact]

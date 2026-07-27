@@ -603,8 +603,20 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append(delimitedTableName)
             .AppendLine(" (")
             .Append("    ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("id"))
+            .AppendLine(" TINYINT UNSIGNED NOT NULL,")
+            .Append("    ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("value"))
-            .AppendLine(" BIGINT NOT NULL")
+            .AppendLine(" BIGINT NOT NULL,")
+            .Append("    ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("is_called"))
+            .AppendLine(" BOOLEAN NOT NULL,")
+            .Append("    PRIMARY KEY (")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("id"))
+            .AppendLine("),")
+            .Append("    CHECK (")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("id"))
+            .AppendLine(" = 1)")
             .Append(") ENGINE=InnoDB")
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
 
@@ -614,10 +626,14 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append("INSERT INTO ")
             .Append(delimitedTableName)
             .Append(" (")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("id"))
+            .Append(", ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("value"))
-            .Append(") VALUES (")
+            .Append(", ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("is_called"))
+            .Append(") VALUES (1, ")
             .Append(operation.StartValue.ToString(CultureInfo.InvariantCulture))
-            .Append(")")
+            .Append(", FALSE)")
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
 
         builder.EndCommand();

@@ -67,8 +67,8 @@ public sealed class MySqlHiLoConcurrencyTests
     /// drained block rather than once per insert. The default Hi/Lo block size is 10, so
     /// 50 parallel inserts must produce ceil(50 / 10) = 5 sequence round-trips, not 50.
     /// Roundtrips are counted via a server-side AFTER UPDATE trigger on the emulation
-    /// table because <c>MySqlSequenceValueGenerator</c> issues its UPDATE directly through
-    /// the raw <see cref="DbConnection"/> and bypasses the EF Core interceptor pipeline.
+    /// table so the assertion measures server-side block leases independently from
+    /// diagnostic or interceptor implementation details.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Fifty_parallel_savechanges_use_block_caching_to_minimize_sequence_roundtrips()
@@ -121,12 +121,113 @@ public sealed class MySqlHiLoConcurrencyTests
         }
     }
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
+    public async Task HiLo_uses_configured_data_source_and_leaves_it_usable()
+    {
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+
+        await PrepareSchemaAsync(connectionString)
+            .ConfigureAwait(false);
+        MySqlHiLoStateCache.ResetForTesting();
+
+        try
+        {
+            await using var dataSource = new MySqlDataSourceBuilder(connectionString).Build();
+            await using (var context = new HiLoContext(BuildOptions(dataSource)))
+            {
+                var entity = new HiLoEntity { Name = "data-source" };
+                context.Items.Add(entity);
+                await context
+                    .SaveChangesAsync()
+                    .ConfigureAwait(false);
+
+                Assert.Equal(1, entity.Id);
+            }
+
+            await using var verificationConnection = await dataSource
+                .OpenConnectionAsync()
+                .ConfigureAwait(false);
+
+            Assert.Equal(ConnectionState.Open, verificationConnection.State);
+        }
+        finally
+        {
+            await TearDownSchemaAsync(connectionString)
+                .ConfigureAwait(false);
+            MySqlHiLoStateCache.ResetForTesting();
+        }
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
+    public async Task HiLo_uses_external_connection_without_taking_ownership()
+    {
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+
+        await PrepareSchemaAsync(connectionString)
+            .ConfigureAwait(false);
+        MySqlHiLoStateCache.ResetForTesting();
+
+        try
+        {
+            await using var connection = new MySqlConnection(connectionString);
+            await connection
+                .OpenAsync()
+                .ConfigureAwait(false);
+
+            await using (var context = new HiLoContext(BuildOptions(connection)))
+            {
+                var entity = new HiLoEntity { Name = "external-connection" };
+                context.Items.Add(entity);
+                await context
+                    .SaveChangesAsync()
+                    .ConfigureAwait(false);
+
+                Assert.Equal(1, entity.Id);
+            }
+
+            Assert.Equal(ConnectionState.Open, connection.State);
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT COUNT(*) FROM `{TableName}`;";
+            Assert.Equal(
+                1L,
+                Convert.ToInt64(
+                    await command
+                        .ExecuteScalarAsync()
+                        .ConfigureAwait(false),
+                    CultureInfo.InvariantCulture));
+        }
+        finally
+        {
+            await TearDownSchemaAsync(connectionString)
+                .ConfigureAwait(false);
+            MySqlHiLoStateCache.ResetForTesting();
+        }
+    }
+
     private static DbContextOptions<HiLoContext> BuildOptions(
         string connectionString
     )
     {
         var builder = new DbContextOptionsBuilder<HiLoContext>();
         builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+        return builder.Options;
+    }
+
+    private static DbContextOptions<HiLoContext> BuildOptions(
+        MySqlDataSource dataSource
+    )
+    {
+        var builder = new DbContextOptionsBuilder<HiLoContext>();
+        builder.UseMySql(dataSource, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+        return builder.Options;
+    }
+
+    private static DbContextOptions<HiLoContext> BuildOptions(
+        DbConnection connection
+    )
+    {
+        var builder = new DbContextOptionsBuilder<HiLoContext>();
+        builder.UseMySql(connection, MySqlServerVersion.MySql(new Version(8, 4, 0)));
         return builder.Options;
     }
 
@@ -199,8 +300,14 @@ public sealed class MySqlHiLoConcurrencyTests
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
             + $"DROP TABLE IF EXISTS `__efsequence_{SequenceName}`;"
-            + $"CREATE TABLE `__efsequence_{SequenceName}` (`value` BIGINT NOT NULL) ENGINE=InnoDB;"
-            + $"INSERT INTO `__efsequence_{SequenceName}` (`value`) VALUES (0);"
+            + $"CREATE TABLE `__efsequence_{SequenceName}` ("
+            + "  `id` TINYINT UNSIGNED NOT NULL,"
+            + "  `value` BIGINT NOT NULL,"
+            + "  `is_called` BOOLEAN NOT NULL,"
+            + "  PRIMARY KEY (`id`),"
+            + "  CHECK (`id` = 1)"
+            + ") ENGINE=InnoDB;"
+            + $"INSERT INTO `__efsequence_{SequenceName}` (`id`, `value`, `is_called`) VALUES (1, 1, FALSE);"
             + $"CREATE TABLE `{TableName}` ("
             + "  `Id` INT NOT NULL,"
             + "  `Name` VARCHAR(64) NOT NULL,"

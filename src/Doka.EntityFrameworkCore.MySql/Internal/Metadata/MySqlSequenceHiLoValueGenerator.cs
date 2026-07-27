@@ -4,17 +4,17 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// A Hi/Lo value generator backed by a MySQL/MariaDB sequence. Claims a block of
 /// <c>blockSize</c> values per round-trip; <see cref="HiLoValueGeneratorState"/>
 /// hands them out client-side until the block is exhausted, then asks for the next
-/// LOW via <see cref="GetNewLowValue"/>. The emulation path advances the sequence
-/// table by <c>blockSize</c> in one statement and the LOW is computed from the
-/// returned HIGH; the native MariaDB path relies on the sequence DDL being created
-/// with <c>INCREMENT BY blockSize</c> so each <c>NEXT VALUE FOR</c> already returns
-/// the block start.
+/// LOW via <see cref="GetNewLowValue"/>. Both the MySQL emulation and native MariaDB
+/// paths return the start of the newly leased block. Commands execute through EF's
+/// configured relational connection so data sources, interceptors, execution
+/// strategy integration, diagnostics, and connection ownership remain intact.
 /// </summary>
 /// <typeparam name="TValue">The generated value type (int, long, etc.).</typeparam>
 internal sealed class MySqlSequenceHiLoValueGenerator<TValue> : HiLoValueGenerator<TValue>
 {
     private readonly IRawSqlCommandBuilder _rawSqlCommandBuilder;
     private readonly IRelationalConnection _connection;
+    private readonly IRelationalCommandDiagnosticsLogger _commandLogger;
     private readonly string _sequenceName;
     private readonly bool _supportsNativeSequences;
     private readonly int _blockSize;
@@ -23,6 +23,7 @@ internal sealed class MySqlSequenceHiLoValueGenerator<TValue> : HiLoValueGenerat
         HiLoValueGeneratorState generatorState,
         IRawSqlCommandBuilder rawSqlCommandBuilder,
         IRelationalConnection connection,
+        IRelationalCommandDiagnosticsLogger commandLogger,
         string sequenceName,
         bool supportsNativeSequences,
         int blockSize
@@ -32,6 +33,7 @@ internal sealed class MySqlSequenceHiLoValueGenerator<TValue> : HiLoValueGenerat
 
         _rawSqlCommandBuilder = rawSqlCommandBuilder ?? throw new ArgumentNullException(nameof(rawSqlCommandBuilder));
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
+        _commandLogger = commandLogger ?? throw new ArgumentNullException(nameof(commandLogger));
         _sequenceName = sequenceName ?? throw new ArgumentNullException(nameof(sequenceName));
         _supportsNativeSequences = supportsNativeSequences;
         _blockSize = blockSize;
@@ -43,16 +45,19 @@ internal sealed class MySqlSequenceHiLoValueGenerator<TValue> : HiLoValueGenerat
     /// <inheritdoc />
     protected override long GetNewLowValue()
     {
-        using var connection = new MySqlConnection(_connection.ConnectionString);
-        connection.Open();
+        var result = _rawSqlCommandBuilder
+            .Build(
+                MySqlSequenceValueGenerator.GenerateNextValueSql(_sequenceName, _blockSize, _supportsNativeSequences))
+            .ExecuteScalar(
+                new RelationalCommandParameterObject(
+                    _connection,
+                    parameterValues: null,
+                    readerColumns: null,
+                    context: null,
+                    _commandLogger,
+                    CommandSource.ValueGenerator));
 
-        var serverValue = MySqlSequenceValueGenerator.GetNextValue(
-            connection,
-            _sequenceName,
-            _blockSize,
-            _supportsNativeSequences);
-
-        return ToBlockLow(serverValue);
+        return MySqlSequenceValueGenerator.ConvertResult(result);
     }
 
     /// <inheritdoc />
@@ -60,31 +65,20 @@ internal sealed class MySqlSequenceHiLoValueGenerator<TValue> : HiLoValueGenerat
         CancellationToken cancellationToken = default
     )
     {
-        await using var connection = new MySqlConnection(_connection.ConnectionString);
-        await connection
-            .OpenAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        var serverValue = await MySqlSequenceValueGenerator
-            .GetNextValueAsync(
-                connection,
-                _sequenceName,
-                _blockSize,
-                _supportsNativeSequences,
+        var result = await _rawSqlCommandBuilder
+            .Build(
+                MySqlSequenceValueGenerator.GenerateNextValueSql(_sequenceName, _blockSize, _supportsNativeSequences))
+            .ExecuteScalarAsync(
+                new RelationalCommandParameterObject(
+                    _connection,
+                    parameterValues: null,
+                    readerColumns: null,
+                    context: null,
+                    _commandLogger,
+                    CommandSource.ValueGenerator),
                 cancellationToken)
             .ConfigureAwait(false);
 
-        return ToBlockLow(serverValue);
+        return MySqlSequenceValueGenerator.ConvertResult(result);
     }
-
-    /// <summary>
-    /// Converts the server-returned sequence value into the LOW of the freshly
-    /// claimed block. The emulation path returns the post-increment HIGH (the
-    /// table column was advanced by <c>blockSize</c>); the native path returns the
-    /// block start directly because the underlying sequence is created with
-    /// <c>INCREMENT BY blockSize</c>.
-    /// </summary>
-    private long ToBlockLow(
-        long serverValue
-    ) => _supportsNativeSequences ? serverValue : serverValue - _blockSize + 1;
 }

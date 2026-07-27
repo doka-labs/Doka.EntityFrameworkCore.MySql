@@ -238,6 +238,147 @@ public sealed class MySqlMigrationConcurrencyTests
         }
     }
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
+    public async Task Provider_lock_timeout_honors_configured_command_timeout()
+    {
+        var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+        var dbName = $"doka_lock_t_{Guid.NewGuid():N}"[..30];
+
+        await CreateDatabaseAsync(baseConnectionString, dbName)
+            .ConfigureAwait(false);
+        var scopedConnectionString = BuildConnectionString(baseConnectionString, dbName);
+
+        try
+        {
+            await using var holderContext = new LockContext(CreateOptions(scopedConnectionString));
+            await using var contenderContext = new LockContext(
+                CreateOptions(scopedConnectionString, commandTimeout: 1));
+            var holderHistory = holderContext.GetService<IHistoryRepository>();
+            var contenderHistory = contenderContext.GetService<IHistoryRepository>();
+
+            await using var heldLock = await holderHistory
+                .AcquireDatabaseLockAsync()
+                .ConfigureAwait(false);
+
+            var stopwatch = Stopwatch.StartNew();
+            await Assert.ThrowsAsync<TimeoutException>(
+                () => contenderHistory.AcquireDatabaseLockAsync());
+            stopwatch.Stop();
+
+            Assert.InRange(
+                stopwatch.Elapsed,
+                TimeSpan.FromMilliseconds(750),
+                TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            await DropDatabaseAsync(baseConnectionString, dbName)
+                .ConfigureAwait(false);
+        }
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
+    public async Task Provider_lock_acquire_honors_cancellation_and_cleans_up()
+    {
+        var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+        var dbName = $"doka_lock_c_{Guid.NewGuid():N}"[..30];
+
+        await CreateDatabaseAsync(baseConnectionString, dbName)
+            .ConfigureAwait(false);
+        var scopedConnectionString = BuildConnectionString(baseConnectionString, dbName);
+
+        try
+        {
+            await using var holderContext = new LockContext(CreateOptions(scopedConnectionString));
+            await using var contenderContext = new LockContext(
+                CreateOptions(scopedConnectionString, commandTimeout: 30));
+            var holderHistory = holderContext.GetService<IHistoryRepository>();
+            var contenderHistory = contenderContext.GetService<IHistoryRepository>();
+
+            await using (var heldLock = await holderHistory
+                             .AcquireDatabaseLockAsync()
+                             .ConfigureAwait(false))
+            {
+                using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                    () => contenderHistory.AcquireDatabaseLockAsync(cancellation.Token));
+            }
+
+            await using var verifierContext = new LockContext(CreateOptions(scopedConnectionString));
+            await using var verifierLock = await verifierContext
+                .GetService<IHistoryRepository>()
+                .AcquireDatabaseLockAsync()
+                .WaitAsync(TimeSpan.FromSeconds(5))
+                .ConfigureAwait(false);
+
+            Assert.NotNull(verifierLock);
+        }
+        finally
+        {
+            await DropDatabaseAsync(baseConnectionString, dbName)
+                .ConfigureAwait(false);
+        }
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
+    public async Task Data_source_lock_dispose_race_cannot_resurrect_server_lock()
+    {
+        var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+        var dbName = $"doka_lock_d_{Guid.NewGuid():N}"[..30];
+
+        await CreateDatabaseAsync(baseConnectionString, dbName)
+            .ConfigureAwait(false);
+        var scopedConnectionString = BuildConnectionString(baseConnectionString, dbName);
+        var lockName = MySqlAdvisoryLockNaming.BuildLockName(scopedConnectionString);
+
+        try
+        {
+            await using var dataSource = new MySqlDataSourceBuilder(scopedConnectionString).Build();
+            await using var context = new LockContext(CreateOptions(dataSource));
+            var lockInstance = await context
+                .GetService<IHistoryRepository>()
+                .AcquireDatabaseLockAsync()
+                .ConfigureAwait(false);
+
+            var reacquireTask = Task.Run(async () =>
+            {
+                try
+                {
+                    _ = await lockInstance
+                        .ReacquireIfNeededAsync(connectionReopened: true, transactionRestarted: null)
+                        .ConfigureAwait(false);
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Disposal won the lifecycle gate; terminal disposal is expected.
+                }
+            });
+            var disposeTask = Task.Run(
+                async () => await lockInstance
+                    .DisposeAsync()
+                    .ConfigureAwait(false));
+
+            await Task
+                .WhenAll(reacquireTask, disposeTask)
+                .WaitAsync(TimeSpan.FromSeconds(10))
+                .ConfigureAwait(false);
+
+            await AssertLockIsFreeAsync(scopedConnectionString, lockName)
+                .ConfigureAwait(false);
+
+            await using var verificationConnection = await dataSource
+                .OpenConnectionAsync()
+                .ConfigureAwait(false);
+            Assert.Equal(ConnectionState.Open, verificationConnection.State);
+        }
+        finally
+        {
+            await DropDatabaseAsync(baseConnectionString, dbName)
+                .ConfigureAwait(false);
+        }
+    }
+
     private static string BuildConnectionString(
         string baseConnectionString,
         string databaseName
@@ -295,12 +436,53 @@ public sealed class MySqlMigrationConcurrencyTests
     }
 
     private static DbContextOptions<LockContext> CreateOptions(
-        string connectionString
+        string connectionString,
+        int? commandTimeout = null
     )
     {
         var builder = new DbContextOptionsBuilder<LockContext>();
-        builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+        builder.UseMySql(
+            connectionString,
+            MySqlServerVersion.MySql(new Version(8, 4, 0)),
+            options =>
+            {
+                if (commandTimeout.HasValue)
+                {
+                    options.CommandTimeout(commandTimeout.Value);
+                }
+            });
         return builder.Options;
+    }
+
+    private static DbContextOptions<LockContext> CreateOptions(
+        MySqlDataSource dataSource
+    )
+    {
+        var builder = new DbContextOptionsBuilder<LockContext>();
+        builder.UseMySql(dataSource, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+        return builder.Options;
+    }
+
+    private static async Task AssertLockIsFreeAsync(
+        string connectionString,
+        string lockName
+    )
+    {
+        await using var connection = new MySqlConnection(connectionString);
+        await connection
+            .OpenAsync()
+            .ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT IS_FREE_LOCK(@name);";
+        command.Parameters.AddWithValue("@name", lockName);
+
+        Assert.Equal(
+            1L,
+            Convert.ToInt64(
+                await command
+                    .ExecuteScalarAsync()
+                    .ConfigureAwait(false),
+                CultureInfo.InvariantCulture));
     }
 
     private sealed class LockContext : DbContext

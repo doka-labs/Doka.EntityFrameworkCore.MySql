@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -172,5 +173,95 @@ public sealed class MySqlJsonValueComparersTests
         var snapshot = MySqlJsonValueComparers.JsonNodeComparer.Snapshot(source);
         Assert.NotSame(source, snapshot);
         Assert.True(MySqlJsonValueComparers.JsonNodeComparer.Equals(source, snapshot));
+    }
+
+    [Fact]
+    public void Pooled_stream_returns_every_rented_buffer_exactly_once_after_growth()
+    {
+        var pool = new TrackingArrayPool();
+        var stream = new MySqlJsonValueComparers.PooledByteBufferStream(pool, initialCapacity: 8);
+
+        stream.Write(new byte[4096]);
+        stream.Dispose();
+        stream.Dispose();
+
+        Assert.Equal(pool.RentCount, pool.ReturnCount);
+        Assert.Equal(2, pool.RentCount);
+        Assert.Equal(0, pool.OutstandingCount);
+    }
+
+    [Fact]
+    public void Pooled_stream_releases_current_buffer_when_caller_fails()
+    {
+        var pool = new TrackingArrayPool();
+
+        Assert.Throws<InvalidOperationException>((Action)FailAfterGrowth);
+
+        Assert.Equal(pool.RentCount, pool.ReturnCount);
+        Assert.Equal(0, pool.OutstandingCount);
+        return;
+
+        void FailAfterGrowth()
+        {
+            using var stream = new MySqlJsonValueComparers.PooledByteBufferStream(pool, initialCapacity: 8);
+            stream.Write(new byte[4096]);
+            throw new InvalidOperationException("Simulated writer failure.");
+        }
+    }
+
+    [Fact]
+    public void Json_comparison_and_hashing_are_thread_safe_for_large_payloads()
+    {
+        var json = "["
+            + string.Join(
+                ",",
+                Enumerable
+                    .Range(0, 500)
+                    .Select(index => $"{{\"id\":{index},\"value\":\"item-{index:D6}\"}}"))
+            + "]";
+        using var first = JsonDocument.Parse(json);
+        using var second = JsonDocument.Parse(json);
+        var expectedHash = MySqlJsonValueComparers.JsonElementComparer.GetHashCode(first.RootElement);
+
+        Parallel.For(
+            0,
+            1000,
+            _ =>
+            {
+                Assert.True(MySqlJsonValueComparers.JsonElementComparer.Equals(first.RootElement, second.RootElement));
+                Assert.Equal(expectedHash, MySqlJsonValueComparers.JsonElementComparer.GetHashCode(second.RootElement));
+            });
+    }
+
+    private sealed class TrackingArrayPool : ArrayPool<byte>
+    {
+        private readonly List<byte[]> _outstanding = [];
+
+        public int RentCount { get; private set; }
+
+        public int ReturnCount { get; private set; }
+
+        public int OutstandingCount => _outstanding.Count;
+
+        public override byte[] Rent(
+            int minimumLength
+        )
+        {
+            var buffer = new byte[Math.Max(minimumLength, 1)];
+            _outstanding.Add(buffer);
+            RentCount++;
+            return buffer;
+        }
+
+        public override void Return(
+            byte[] array,
+            bool clearArray = false
+        )
+        {
+            var index = _outstanding.FindIndex(candidate => ReferenceEquals(candidate, array));
+            Assert.True(index >= 0, "A buffer was returned more than once or did not originate from this pool.");
+            _outstanding.RemoveAt(index);
+            ReturnCount++;
+        }
     }
 }

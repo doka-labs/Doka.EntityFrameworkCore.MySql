@@ -9,17 +9,20 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
 {
     private readonly IRawSqlCommandBuilder _rawSqlCommandBuilder;
     private readonly IRelationalConnection _connection;
+    private readonly IRelationalCommandDiagnosticsLogger _commandLogger;
     private readonly MySqlSingletonOptions _singletonOptions;
 
     public MySqlValueGeneratorSelector(
         ValueGeneratorSelectorDependencies dependencies,
         IRawSqlCommandBuilder rawSqlCommandBuilder,
         IRelationalConnection connection,
+        IRelationalCommandDiagnosticsLogger commandLogger,
         IEnumerable<ISingletonOptions> singletonOptions
     ) : base(dependencies)
     {
         _rawSqlCommandBuilder = rawSqlCommandBuilder ?? throw new ArgumentNullException(nameof(rawSqlCommandBuilder));
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
+        _commandLogger = commandLogger ?? throw new ArgumentNullException(nameof(commandLogger));
         _singletonOptions = singletonOptions
                 .OfType<MySqlSingletonOptions>()
                 .Single()
@@ -27,23 +30,52 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
     }
 
     /// <inheritdoc />
-    protected override ValueGenerator? FindForType(
+    public override bool TrySelect(
         IProperty property,
         ITypeBase typeBase,
-        Type clrType
+        out ValueGenerator? valueGenerator
     )
     {
         ArgumentNullException.ThrowIfNull(property);
 
-        if (property.GetMySqlValueGenerationStrategy() == MySqlValueGenerationStrategy.HiLo)
+        if (property.GetMySqlValueGenerationStrategy() != MySqlValueGenerationStrategy.HiLo)
         {
-            return CreateHiLoGenerator(property, clrType);
+            return base.TrySelect(property, typeBase, out valueGenerator);
         }
 
-        return base.FindForType(property, typeBase, clrType);
+        // Do not route HiLo through ValueGeneratorSelector's generator-instance
+        // cache. A generator captures the scoped relational connection and must
+        // therefore remain DbContext-scoped. Only HiLoValueGeneratorState is shared.
+        var propertyType = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
+        if (propertyType.IsEnum)
+        {
+            propertyType = Enum.GetUnderlyingType(propertyType);
+        }
+
+        valueGenerator = CreateHiLoGenerator(property, propertyType);
+        if (valueGenerator is not null)
+        {
+            return true;
+        }
+
+        var converter = property.GetTypeMapping()
+            .Converter;
+        if (converter is not null
+            && converter.ProviderClrType != propertyType)
+        {
+            valueGenerator = CreateHiLoGenerator(property, converter.ProviderClrType);
+            if (valueGenerator is not null)
+            {
+                valueGenerator = valueGenerator.WithConverter(converter);
+                return true;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Hi/Lo value generation is not supported for properties of type '{property.ClrType.Name}'.");
     }
 
-    private ValueGenerator CreateHiLoGenerator(
+    private ValueGenerator? CreateHiLoGenerator(
         IProperty property,
         Type clrType
     )
@@ -56,7 +88,12 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
         var blockSize = sequence?.IncrementBy ?? 10;
         var supportsNative = _singletonOptions.Profile?.Has(Capability.SupportsNativeSequences) ?? false;
 
-        var generatorState = MySqlHiLoStateCache.GetOrCreate(sequenceName, blockSize);
+        // RelationalConnection.ConnectionString is null for the MySqlDataSource path.
+        // The provider-created DbConnection still exposes the canonical string while
+        // retaining the data source as its owner.
+        var connectionString = _connection.DbConnection.ConnectionString;
+        var databaseIdentity = MySqlDatabaseIdentity.FromConnectionString(connectionString);
+        var generatorState = MySqlHiLoStateCache.GetOrCreate(databaseIdentity, sequenceName, blockSize);
 
         var unwrappedType = Nullable.GetUnderlyingType(clrType) ?? clrType;
 
@@ -66,6 +103,7 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
                 generatorState,
                 _rawSqlCommandBuilder,
                 _connection,
+                _commandLogger,
                 sequenceName,
                 supportsNative,
                 blockSize);
@@ -77,6 +115,7 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
                 generatorState,
                 _rawSqlCommandBuilder,
                 _connection,
+                _commandLogger,
                 sequenceName,
                 supportsNative,
                 blockSize);
@@ -88,6 +127,7 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
                 generatorState,
                 _rawSqlCommandBuilder,
                 _connection,
+                _commandLogger,
                 sequenceName,
                 supportsNative,
                 blockSize);
@@ -99,12 +139,12 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
                 generatorState,
                 _rawSqlCommandBuilder,
                 _connection,
+                _commandLogger,
                 sequenceName,
                 supportsNative,
                 blockSize);
         }
 
-        throw new InvalidOperationException(
-            $"Hi/Lo value generation is not supported for properties of type '{clrType.Name}'.");
+        return null;
     }
 }
