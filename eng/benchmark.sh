@@ -23,7 +23,6 @@ benchmark_target_server_version=""
 benchmark_target_host=""
 benchmark_target_port=""
 benchmark_compose_service=""
-benchmark_container_name=""
 
 print_usage() {
     cat <<'EOF'
@@ -97,7 +96,6 @@ configure_benchmark_target() {
             benchmark_target_host="127.0.0.1"
             benchmark_target_port="33068"
             benchmark_compose_service="mysql84"
-            benchmark_container_name="doka-mysql84"
             ;;
         mariadb118)
             benchmark_target_display_name="MariaDB 11.8"
@@ -106,7 +104,6 @@ configure_benchmark_target() {
             benchmark_target_host="127.0.0.1"
             benchmark_target_port="33069"
             benchmark_compose_service="mariadb118"
-            benchmark_container_name="doka-mariadb118"
             ;;
         *)
             echo "Unsupported benchmark target '${benchmark_target}'. Set DOKA_BENCHMARK_TARGET to 'mysql84' or 'mariadb118'." >&2
@@ -120,12 +117,19 @@ wait_for_benchmark_target() {
     local current_time
     local elapsed_seconds
     local health_status
+    local container_id
 
     echo "Waiting for ${benchmark_target_display_name} benchmark target on ${benchmark_target_host}:${benchmark_target_port}..."
     start_time="$(date +%s)"
 
     while true; do
-        health_status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${benchmark_container_name}" 2>/dev/null || true)"
+        # Compose service identity is stable across checkout-directory and
+        # project-name changes; generated container names are not.
+        container_id="$("${compose_command[@]}" ps -q "${benchmark_compose_service}" 2>/dev/null || true)"
+        health_status=""
+        if [[ -n "${container_id}" ]]; then
+            health_status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${container_id}" 2>/dev/null || true)"
+        fi
 
         if [[ "${health_status}" == "healthy" ]] && can_connect "${benchmark_target_host}" "${benchmark_target_port}"; then
             echo "${benchmark_target_display_name} benchmark target is reachable."

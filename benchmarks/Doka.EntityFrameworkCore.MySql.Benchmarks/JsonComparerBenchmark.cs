@@ -6,9 +6,9 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 /// <summary>
 /// Measures the change-tracking hot path for JSON-shaped properties. The previous
 /// implementation produced a fresh string per equals comparison and per hash; the
-/// streaming refactor folds both paths through a pooled UTF-8 buffer and XxHash64.
-/// Run with MemoryDiagnoser to surface both the allocation drop and the
-/// per-comparison throughput against a representative payload size.
+/// optimized equality path delegates to the .NET JSON DOM's structural comparison.
+/// Run with MemoryDiagnoser to surface both the allocation drop and the per-comparison
+/// throughput against a representative payload size.
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob(launchCount: 1, warmupCount: 3, iterationCount: 5)]
@@ -33,9 +33,10 @@ public class JsonComparerBenchmark
     /// <summary>
     /// Naive reference for JSON deep-equality: per-call <see cref="JsonElement.GetRawText"/>
     /// allocation plus string-compare. The fast-path under test
-    /// (<see cref="JsonElementEqualsLoop"/>) folds both sides through a pooled UTF-8 buffer
-    /// and a token-by-token compare; BDN reports Ratio = Mean[fast]/Mean[naive] and
-    /// Allocated-ratio. The DoD gate is alloc-reduction >= 80% (Allocated ratio &lt;= 0.2).
+    /// (<see cref="JsonElementEqualsLoop"/>) walks the existing DOM through
+    /// <see cref="JsonElement.DeepEquals"/>; BDN reports Ratio = Mean[fast]/Mean[naive]
+    /// and Allocated-ratio. The DoD gate is alloc-reduction >= 80%
+    /// (Allocated ratio &lt;= 0.2).
     /// </summary>
     [Benchmark(Baseline = true)]
     public bool NaiveJsonElementEqualsLoop()

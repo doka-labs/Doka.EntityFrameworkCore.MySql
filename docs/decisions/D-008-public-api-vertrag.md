@@ -1,31 +1,22 @@
-# D-008 -- Public-API-Vertrag via PublicApiAnalyzers
+---
+id: D-008
+status: implemented
+date: 2026-05-16
+decision-makers: [Dominic Kalkbrenner]
+consulted: []
+informed: [Provider contributors]
+scope: "Provider and spatial package public API governance"
+supersedes: []
+superseded-by: []
+amends: []
+amended-by: []
+madr-version: "4.0.0"
+doka-profile-version: "1.0"
+---
 
-- **Status:** Implemented
-- **Date:** 2026-05-16
-- **Scope:** `src/Doka.EntityFrameworkCore.MySql/` + `src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/` public surface
-- **Implementation:** `Microsoft.CodeAnalysis.PublicApiAnalyzers` 3.3.4 wired through `Directory.Build.props`; `PublicAPI.Shipped.txt` (empty) and `PublicAPI.Unshipped.txt` (current surface) per src project; CONTRIBUTING.md documents the contributor workflow.
+# D-008 -- Gate the public API with PublicApiAnalyzers
 
-## Implementation notes
-
-- `Microsoft.CodeAnalysis.PublicApiAnalyzers` 3.3.4 is referenced as a build-time analyzer (`PrivateAssets=all`) on both src projects via a conditional `ItemGroup` in `Directory.Build.props`. The same `ItemGroup` registers the two `AdditionalFiles` entries so the analyzer sees the per-project `PublicAPI.{Shipped,Unshipped}.txt` pair.
-- `EnforceExtendedAnalyzerRules` is **not** set: that property activates the RS1xxx rules meant for analyzer authors (we ship a library, not an analyzer) and would surface unrelated false positives on every `Environment.NewLine` call inside the provider. The global `TreatWarningsAsErrors=true` from `Directory.Build.props` already promotes RS0016 / RS0017 / RS0036 to errors, which is the structurally relevant gate.
-- `RS0026` ("Do not add multiple overloads with optional parameters") fires on the `UseMySql` extension family because each overload carries the optional `mySqlOptionsAction = null` parameter. The pattern is the EF Core community standard; the rule is demoted to a warning via `WarningsNotAsErrors` with an explicit rationale comment. A future overload addition still surfaces as a warning and demands explicit reviewer attention.
-- Initial surface population ran via `dotnet format analyzers <csproj> --diagnostics RS0016 --severity info`, which applies the analyzer's auto-fix and writes the exact PublicApiAnalyzer-formatted lines into `PublicAPI.Unshipped.txt`.
-
-## Post-v1.0 follow-up: PackageValidation
-
-Per operator decision (belt-and-suspenders): after the first NuGet release of `Doka.EntityFrameworkCore.MySql` v1.0, the project additionally activates `PackageValidation` (built into the .NET 8+ SDK) so the released `.nupkg` is compared against the previous baseline at every `dotnet pack` time. This complements PublicApiAnalyzers (which guards pre-release surface drift commit-by-commit) with a package-level baseline check that catches assembly-binary-compat regressions PublicApiAnalyzers cannot see (for example, attribute-only changes that affect runtime binding).
-
-The activation is a `Directory.Build.props` edit at release time:
-
-```xml
-<EnablePackageValidation>true</EnablePackageValidation>
-<PackageValidationBaselineVersion>10.0.0</PackageValidationBaselineVersion>
-```
-
-Until the first release publishes a baseline `.nupkg` on nuget.org, PackageValidation has nothing to compare against; PublicApiAnalyzers carries the entire SemVer-discipline load during the pre-v1.0 phase.
-
-## Context
+## Context and Problem Statement
 
 v1.0 is the starting point for long-term SemVer discipline on this
 provider. Today the project has:
@@ -42,7 +33,21 @@ change. The change lands, downstream consumers break on the patch
 upgrade, and the project is reduced to a manual changelog discipline
 nobody enforces consistently.
 
-## Decision
+## Decision Drivers
+
+- Unintentional public API changes must fail before release.
+- Shipped and unshipped surfaces need a reviewable baseline.
+- SemVer decisions must be independent of reviewer memory.
+
+## Considered Options
+
+- PublicApiAnalyzers baselines
+- Manual API review
+- Custom reflection snapshot tests
+
+## Decision Outcome
+
+Chosen option: "PublicApiAnalyzers baselines", because compiler-enforced baselines provide the strongest low-friction SemVer guard.
 
 Adopt `Microsoft.CodeAnalysis.PublicApiAnalyzers` (3.3.4) project-wide.
 Each source project gains two text files:
@@ -67,9 +72,12 @@ The release process gains one step: at tag time, the contents of
 unshipped file is reset to empty. The move is mechanical and
 review-visible.
 
-## Consequences
+### Consequences
 
-### Positive
+- Good, because public API additions and removals are explicit review events.
+- Bad, because intentional API work includes baseline maintenance and package-validation review.
+
+#### Positive
 
 - Public-API changes become impossible to land silently. Every PR that
   touches the public surface either has a corresponding
@@ -82,7 +90,7 @@ review-visible.
 - v1.0 is the right moment to start the discipline; pre-v1.0 the
   surface was explicitly unstable.
 
-### Negative
+#### Negative
 
 - Adds a NuGet-level dependency on `PublicApiAnalyzers`. The package is
   Microsoft-published, MIT-licensed, and exposed only at build time, so
@@ -93,25 +101,60 @@ review-visible.
   produce large diffs that are hard to read. This provider's surface is
   small enough that the trade-off is acceptable.
 
-### Neutral
+#### Neutral
 
 - The analyzer files are committed alongside the source; they are part
   of the source distribution but not part of the runtime distribution.
 
-## Re-evaluation triggers
+### Confirmation
 
-- A future EF Core or .NET release introduces a richer first-party
-  drift-detection mechanism (for example, `Microsoft.DotNet.ApiCompat`
-  becomes standard); the project would migrate to the upstream choice.
-- An operator report from the v1.0 release cycle documents a SemVer
-  break that PublicApiAnalyzers did not catch (for example, a behavioral
-  break that has no API-surface signal); the discipline would extend to
-  include a behavior-snapshot complement.
-- The shipped/unshipped split becomes unmanageable at a larger surface
-  size; the project would adopt a per-public-namespace split or move to
-  a generated baseline file.
+- Build both source projects with warnings treated as errors.
+- Run package validation before a release candidate is tagged.
 
-## Naming choice vs the Pomelo MySQL provider
+## Pros and Cons of the Options
+
+### PublicApiAnalyzers baselines
+
+- Good, because the compiler enforces exact public-surface drift in normal builds.
+- Bad, because baseline files require disciplined updates for intentional changes.
+
+### Manual API review
+
+- Good, because there is no analyzer or baseline maintenance.
+- Bad, because overload and signature drift can escape review.
+
+### Custom reflection snapshot tests
+
+- Good, because the repository would own the complete format.
+- Bad, because the project would reimplement mature analyzer behavior and diagnostics.
+
+## More Information
+
+### Implementation Snapshot
+
+- `Microsoft.CodeAnalysis.PublicApiAnalyzers` 3.3.4 wired through `Directory.Build.props`; `PublicAPI.Shipped.txt` (empty) and `PublicAPI.Unshipped.txt` (current surface) per src project; CONTRIBUTING.md documents the contributor workflow.
+
+### Implementation Notes
+
+- `Microsoft.CodeAnalysis.PublicApiAnalyzers` 3.3.4 is referenced as a build-time analyzer (`PrivateAssets=all`) on both src projects via a conditional `ItemGroup` in `Directory.Build.props`. The same `ItemGroup` registers the two `AdditionalFiles` entries so the analyzer sees the per-project `PublicAPI.{Shipped,Unshipped}.txt` pair.
+- `EnforceExtendedAnalyzerRules` is **not** set: that property activates the RS1xxx rules meant for analyzer authors (we ship a library, not an analyzer) and would surface unrelated false positives on every `Environment.NewLine` call inside the provider. The global `TreatWarningsAsErrors=true` from `Directory.Build.props` already promotes RS0016 / RS0017 / RS0036 to errors, which is the structurally relevant gate.
+- `RS0026` ("Do not add multiple overloads with optional parameters") fires on the `UseMySql` extension family because each overload carries the optional `mySqlOptionsAction = null` parameter. The pattern is the EF Core community standard; the rule is demoted to a warning via `WarningsNotAsErrors` with an explicit rationale comment. A future overload addition still surfaces as a warning and demands explicit reviewer attention.
+- Initial surface population ran via `dotnet format analyzers <csproj> --diagnostics RS0016 --severity info`, which applies the analyzer's auto-fix and writes the exact PublicApiAnalyzer-formatted lines into `PublicAPI.Unshipped.txt`.
+
+### Post-v1.0 follow-up: PackageValidation
+
+Per operator decision (belt-and-suspenders): after the first NuGet release of `Doka.EntityFrameworkCore.MySql` v1.0, the project additionally activates `PackageValidation` (built into the .NET 8+ SDK) so the released `.nupkg` is compared against the previous baseline at every `dotnet pack` time. This complements PublicApiAnalyzers (which guards pre-release surface drift commit-by-commit) with a package-level baseline check that catches assembly-binary-compat regressions PublicApiAnalyzers cannot see (for example, attribute-only changes that affect runtime binding).
+
+The activation is a `Directory.Build.props` edit at release time:
+
+```xml
+<EnablePackageValidation>true</EnablePackageValidation>
+<PackageValidationBaselineVersion>10.0.0</PackageValidationBaselineVersion>
+```
+
+Until the first release publishes a baseline `.nupkg` on nuget.org, PackageValidation has nothing to compare against; PublicApiAnalyzers carries the entire SemVer-discipline load during the pre-v1.0 phase.
+
+### Naming choice vs the Pomelo MySQL provider
 
 The Pomelo MySQL provider has historically been the reference EF Core MySQL provider; consumers migrating to Doka have established muscle-memory around Pomelo's fluent-API names. This raised the question whether Doka should mimic Pomelo's names for source-compatibility on options-builder calls, or align with the EF Core relational base API contract.
 
@@ -132,7 +175,7 @@ Pomelo-consumers migrating to Doka adjust their `UseMySql(...)` lambda once at m
 
 The `EnableRetryOnFailure(int, TimeSpan?)` signature matches Pomelo by coincidence -- it also matches the EF Core SqlServer provider, which set the relational community convention years before Pomelo adopted it.
 
-## Alternatives considered
+### Additional Alternative Rationale
 
 - **Status quo (manual `CHANGELOG.md` plus reviewer attention).**
   Rejected: reviewer attention does not scale and is not auditable.
@@ -143,3 +186,33 @@ The `EnableRetryOnFailure(int, TimeSpan?)` signature matches Pomelo by coinciden
 - **Hand-written API-surface tests via reflection.** Rejected: brittle,
   test-time enforcement (not build-time), and reproduces a fraction of
   what PublicApiAnalyzers gets for free.
+
+### Re-evaluation Triggers
+
+- A future EF Core or .NET release introduces a richer first-party
+  drift-detection mechanism (for example, `Microsoft.DotNet.ApiCompat`
+  becomes standard); the project would migrate to the upstream choice.
+- An operator report from the v1.0 release cycle documents a SemVer
+  break that PublicApiAnalyzers did not catch (for example, a behavioral
+  break that has no API-surface signal); the discipline would extend to
+  include a behavior-snapshot complement.
+- The shipped/unshipped split becomes unmanageable at a larger surface
+  size; the project would adopt a per-public-namespace split or move to
+  a generated baseline file.
+- The analyzer no longer supports the active .NET or compiler version.
+- A new shipped package adds a public surface outside the current baseline gate.
+
+### Decision History
+
+- 2026-05-16: Decision recorded with status implemented.
+- 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+
+### Implementation References
+
+- `Directory.Build.props`
+- `src/Doka.EntityFrameworkCore.MySql/PublicAPI.Unshipped.txt`
+- `src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/PublicAPI.Unshipped.txt`
+
+### Sources
+
+- No external sources; repository evidence only.

@@ -4,18 +4,18 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Provides <see cref="ValueComparer"/> instances for JSON CLR types used in MySQL column mappings.
-/// The comparers use pooled canonical UTF-8 buffers so EF Core's change tracker detects mutations
-/// inside JSON documents without allocating an intermediate string copy per comparison.
+/// The comparers use the .NET JSON DOM's structural equality and allocation-conscious hashing so
+/// EF Core's change tracker detects mutations inside JSON documents without a serialization
+/// round-trip per comparison.
 ///
 /// Hot-path mechanics:
 /// <list type="bullet">
-/// <item>Equals writes both inputs directly as canonical UTF-8 and compares the resulting bytes,
-/// avoiding the
-/// <see cref="JsonNode.ToJsonString"/> + <see cref="JsonNode.Parse(string,JsonNodeOptions?,JsonDocumentOptions)"/>
-/// round-trip the previous implementation paid per comparison.</item>
-/// <item>GetHashCode writes the canonical UTF-8 form into a pooled buffer via
-/// <see cref="Utf8JsonWriter"/> and folds it through XxHash64 so the per-hash allocation
-/// collapses to one rented buffer instead of one .NET string per call.</item>
+/// <item><see cref="JsonElement"/> equality delegates to <see cref="JsonElement.DeepEquals"/>,
+/// which walks the existing DOM instead of allocating writers and intermediate buffers.</item>
+/// <item><see cref="JsonElement"/> hashing follows the same structural semantics, including
+/// order-independent JSON objects and equivalent numeric representations.</item>
+/// <item><see cref="JsonNode"/> hashing writes the normalized UTF-8 form into a pooled buffer
+/// and folds it through XxHash64, avoiding an intermediate .NET string.</item>
 /// <item>Snapshot uses <see cref="JsonNode.DeepClone"/> for the node-shaped CLR types so the
 /// cloned tree carries the same metadata without an intermediate text round-trip.</item>
 /// </list>
@@ -29,8 +29,8 @@ internal static class MySqlJsonValueComparers
     private const int InitialHashBufferSize = 1024;
 
     /// <summary>
-    /// A <see cref="ValueComparer{T}"/> for <see cref="JsonElement"/> that compares via streaming
-    /// token walk and hashes via XxHash64 over the canonical UTF-8 representation.
+    /// A <see cref="ValueComparer{T}"/> for <see cref="JsonElement"/> that compares and hashes
+    /// using structural JSON semantics.
     /// </summary>
     public static ValueComparer<JsonElement> JsonElementComparer { get; } = new(
         (
@@ -41,8 +41,8 @@ internal static class MySqlJsonValueComparers
         v => v.Clone());
 
     /// <summary>
-    /// A <see cref="ValueComparer{T}"/> for <see cref="JsonDocument"/> that compares via streaming
-    /// token walk and hashes via XxHash64 over the document's root element.
+    /// A <see cref="ValueComparer{T}"/> for <see cref="JsonDocument"/> that compares and hashes
+    /// the document's root element using structural JSON semantics.
     /// </summary>
     public static ValueComparer<JsonDocument?> JsonDocumentComparer { get; } = new(
         (
@@ -106,16 +106,7 @@ internal static class MySqlJsonValueComparers
     private static bool JsonElementEquals(
         JsonElement a,
         JsonElement b
-    )
-    {
-        using var bufferA = new PooledByteBufferStream(ArrayPool<byte>.Shared, InitialHashBufferSize);
-        using var bufferB = new PooledByteBufferStream(ArrayPool<byte>.Shared, InitialHashBufferSize);
-
-        WriteCanonicalJson(a, bufferA);
-        WriteCanonicalJson(b, bufferB);
-
-        return bufferA.WrittenLength == bufferB.WrittenLength && bufferA.WrittenSpan.SequenceEqual(bufferB.WrittenSpan);
-    }
+    ) => JsonElement.DeepEquals(a, b);
 
     private static bool JsonDocumentEquals(
         JsonDocument? a,
@@ -173,11 +164,75 @@ internal static class MySqlJsonValueComparers
         JsonElement element
     )
     {
-        using var buffer = new PooledByteBufferStream(ArrayPool<byte>.Shared, InitialHashBufferSize);
-        WriteCanonicalJson(element, buffer);
-        var hash = XxHash64.HashToUInt64(buffer.WrittenSpan);
+        var hash = new HashCode();
+        hash.Add(element.ValueKind);
 
-        return unchecked((int)hash) ^ unchecked((int)(hash >> 32));
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Undefined:
+            case JsonValueKind.Null:
+            case JsonValueKind.False:
+            case JsonValueKind.True:
+                break;
+
+            case JsonValueKind.Number:
+                AddNumberHash(element, ref hash);
+                break;
+
+            case JsonValueKind.String:
+                hash.Add(element.GetString(), StringComparer.Ordinal);
+                break;
+
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                {
+                    hash.Add(HashJsonElement(item));
+                }
+
+                break;
+
+            case JsonValueKind.Object:
+                var propertyCount = 0;
+                var unorderedPropertiesHash = 0;
+
+                foreach (var property in element.EnumerateObject())
+                {
+                    var propertyHash = new HashCode();
+                    propertyHash.Add(property.Name, StringComparer.Ordinal);
+                    propertyHash.Add(HashJsonElement(property.Value));
+                    unorderedPropertiesHash = unchecked(unorderedPropertiesHash + propertyHash.ToHashCode());
+                    propertyCount++;
+                }
+
+                hash.Add(propertyCount);
+                hash.Add(unorderedPropertiesHash);
+                break;
+
+            default:
+                throw new UnreachableException();
+        }
+
+        return hash.ToHashCode();
+    }
+
+    private static void AddNumberHash(
+        JsonElement element,
+        ref HashCode hash
+    )
+    {
+        // DeepEquals compares mathematical JSON numbers rather than their lexical
+        // spellings. Decimal preserves exact values where possible; double extends
+        // the useful hash distribution for the remaining exponent range. Collisions
+        // are valid for values outside both representations, while equal values must
+        // always reach the same branch and hash.
+        if (element.TryGetDecimal(out var decimalValue))
+        {
+            hash.Add(decimalValue);
+        }
+        else if (element.TryGetDouble(out var doubleValue))
+        {
+            hash.Add(doubleValue);
+        }
     }
 
     [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(

@@ -10,6 +10,7 @@ functional_test_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.Funct
 integration_test_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Doka.EntityFrameworkCore.MySql.IntegrationTests.csproj"
 
 "${repo_root}/eng/verify-dotnet.sh"
+"${repo_root}/eng/validate-adrs.sh"
 dotnet restore "${runtime_project}"
 dotnet restore "${spatial_project}"
 dotnet restore "${unit_test_project}"

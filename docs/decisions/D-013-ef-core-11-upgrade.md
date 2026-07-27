@@ -1,11 +1,22 @@
-# D-013 -- EF-Core-11 / .NET 11 Major-Upgrade-Vorgehen
+---
+id: D-013
+status: accepted
+date: 2026-05-16
+decision-makers: [Dominic Kalkbrenner]
+consulted: []
+informed: [Provider contributors]
+scope: "EF Core 11 and .NET 11 major-version strategy"
+supersedes: []
+superseded-by: []
+amends: []
+amended-by: []
+madr-version: "4.0.0"
+doka-profile-version: "1.0"
+---
 
-- **Status:** Accepted
-- **Date:** 2026-05-16
-- **Scope:** repository-wide major-version upgrade strategy
-- **Implementation:** deferred to a follow-up commit (trigger-driven)
+# D-013 -- Trigger the EF Core 11 upgrade as a new major line
 
-## Context
+## Context and Problem Statement
 
 EF Core 11 preview builds are already available (the pre-plan probe
 recorded `11.0.0-preview.4` at retrieval time). The Microsoft .NET 11
@@ -31,7 +42,21 @@ The provider's foundation has explicit EF Core 10 commitments:
 The premortem ranked the EF Core 11 / .NET 11 jump as the highest
 medium-term risk to the provider's continuity.
 
-## Decision
+## Decision Drivers
+
+- EF1001 dependencies make a major upgrade compatibility-sensitive.
+- .NET 10 consumers need a stable supported line.
+- Preview churn must not destabilize the v1.0 release.
+
+## Considered Options
+
+- Trigger-driven EF Core 11 major line
+- Multi-target EF Core 10 and 11 immediately
+- Remain on EF Core 10 until support ends
+
+## Decision Outcome
+
+Chosen option: "Trigger-driven EF Core 11 major line", because a major-line trigger protects current consumers while defining the complete upgrade scope.
 
 Adopt a trigger-driven multi-target strategy rather than a default
 multi-target. The v1.0 line targets `net10.0` only. When the trigger
@@ -80,9 +105,12 @@ forks: the existing v1.0.x line continues on net10.0; a new v2.0.0
 release ships the multi-target. Consumers on net10.0 stay on v1.0.x
 indefinitely; consumers on net11.0 (or who consume both) adopt v2.0.
 
-## Consequences
+### Consequences
 
-### Positive
+- Good, because the provider enters EF Core 11 with deliberate compatibility and SemVer evidence.
+- Bad, because backports and forward ports require explicit dual-line discipline.
+
+#### Positive
 
 - The v1.0 line stays focused; the EF Core 11 work does not destabilize
   v1.0 releases.
@@ -91,7 +119,7 @@ indefinitely; consumers on net11.0 (or who consume both) adopt v2.0.
 - The branch-work scope is fully enumerated in advance, so the actual
   branch work is execution rather than planning.
 
-### Negative
+#### Negative
 
 - The provider carries two release lines during the overlap window.
   Backports for v1.0.x patches need explicit forward-port discipline.
@@ -99,23 +127,47 @@ indefinitely; consumers on net11.0 (or who consume both) adopt v2.0.
   EF Core 11 preview does not get a supported path. The premortem
   accepts this trade-off as the cost of v1.0 stability.
 
-### Neutral
+#### Neutral
 
 - The `next/ef-core-11` branch is a planning artifact today; it does
   not exist in the repository until the trigger fires.
 
-## Re-evaluation triggers
+### Confirmation
 
-- EF Core 11 RC ships and the public API surface deltas land before
-  the GA trigger fires; the branch-work scope may need to extend to
-  cover an API change not yet anticipated.
-- Microsoft announces a deferral of EF Core 11 beyond the .NET 11 LTS
-  window; the trigger reverts to a calendar-driven shape.
-- A different MySQL/MariaDB-protocol fork (Aurora, TiDB, Vitess)
-  ships a release that requires EF Core 11 features; the trigger
-  fires on consumer demand rather than upstream GA.
+- Check the official .NET release index and EF Core NuGet status before each release.
+- When a trigger fires, open the EF Core 11 phase before changing target frameworks.
 
-## Alternatives considered
+## Pros and Cons of the Options
+
+### Trigger-driven EF Core 11 major line
+
+- Good, because work begins from observable GA or consumer-demand predicates.
+- Bad, because the provider will maintain overlapping major release lines.
+
+### Multi-target EF Core 10 and 11 immediately
+
+- Good, because compatibility work starts before GA and consumers see one package line.
+- Bad, because preview churn doubles matrix cost during v1.0 stabilization.
+
+### Remain on EF Core 10 until support ends
+
+- Good, because the current line avoids near-term upgrade work.
+- Bad, because EF Core 11 consumers would have no supported provider path.
+
+## More Information
+
+### Implementation Snapshot
+
+- deferred to a follow-up commit (trigger-driven)
+
+### Current source snapshot
+
+As retrieved on 2026-07-27, .NET 11 is still a preview and its final release
+is expected in November 2026. The GA trigger has therefore not fired. The
+official sources below replace the time-sensitive preview number recorded in
+the historical text.
+
+### Additional Alternative Rationale
 
 - **EF Core 11 in a v1.1 minor release.** Rejected: the EF Core major
   jump touches EF1001 internals (D-001 service decorator), the public
@@ -128,3 +180,32 @@ indefinitely; consumers on net11.0 (or who consume both) adopt v2.0.
 - **Drop .NET 10 support when EF Core 11 ships.** Rejected: .NET 10 is
   an LTS release; consumers staying on .NET 10 deserve a continuing
   support line. The fork-at-trigger approach delivers both lines.
+
+### Re-evaluation Triggers
+
+- EF Core 11 RC ships and the public API surface deltas land before
+  the GA trigger fires; the branch-work scope may need to extend to
+  cover an API change not yet anticipated.
+- Microsoft announces a deferral of EF Core 11 beyond the .NET 11 LTS
+  window; the trigger reverts to a calendar-driven shape.
+- A different MySQL/MariaDB-protocol fork (Aurora, TiDB, Vitess)
+  ships a release that requires EF Core 11 features; the trigger
+  fires on consumer demand rather than upstream GA.
+- Microsoft publishes EF Core 11 GA.
+- A documented consumer requirement needs .NET 11 before GA.
+- The .NET 10 support end enters the eighteen-month notice horizon.
+
+### Decision History
+
+- 2026-05-16: Decision recorded with status accepted.
+- 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+
+### Implementation References
+
+- `Directory.Packages.props`
+- `.github/workflows/ci.yml`
+
+### Sources
+
+- [.NET release index](https://github.com/dotnet/core) (primary source; retrieved 2026-07-27)
+- [What's new in .NET 11](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-11/overview) (primary source; retrieved 2026-07-27)

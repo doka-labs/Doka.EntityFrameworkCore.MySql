@@ -86,7 +86,29 @@ git push --tags
 - All code comments must be in English.
 - `<Nullable>enable</Nullable>`, `TreatWarningsAsErrors`, trim analysis, AOT analysis, and build-enforced code-style analyzers are configured solution-wide via `Directory.Build.props`.
 - Do not add third-party library dependencies without first opening an issue to discuss the rationale.
-- Engine differences must flow through the internal `ServerCapabilities` model; avoid ad-hoc version checks across unrelated subsystems.
+- Engine differences must flow through the internal `EngineProfile` model; avoid ad-hoc version checks across unrelated subsystems.
+
+## Architecture Decisions
+
+Architecture decisions follow MADR 4.0.0 with the Doka enterprise profile
+defined in `docs/decisions/MADR-PROFILE.md`.
+
+Workflow for a new or changed decision:
+
+1. Copy `docs/decisions/adr-template.md` to the next contiguous
+   `D-NNN-lowercase-slug.md` filename.
+2. Complete every metadata field and required section. Each considered option
+   needs at least one `Good, because` and one `Bad, because` entry.
+3. Put external URLs only under Sources and record authoritative primary
+   sources with retrieval dates.
+4. Record both sides of every supersedes or amends relationship.
+5. Run `./eng/validate-adrs.sh --write-index` to regenerate the decision index
+   and relationship graph.
+6. Run `./eng/validate-adrs.sh` before requesting review.
+
+The validator has no third-party package dependency and runs from the local
+build, repository tests, CI quality gate, and release-candidate path. Manual
+changes to `docs/decisions/README.md` or `decision-index.json` are rejected.
 
 ## Test Conventions
 

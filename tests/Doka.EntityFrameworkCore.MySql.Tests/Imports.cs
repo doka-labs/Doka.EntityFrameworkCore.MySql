@@ -10,6 +10,7 @@ global using System.Linq;
 global using System.Net.Sockets;
 global using System.Threading;
 global using System.Threading.Tasks;
+global using Doka.EntityFrameworkCore.MySql.AdrValidator;
 global using Doka.EntityFrameworkCore.MySql.TestUtilities;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.Diagnostics;

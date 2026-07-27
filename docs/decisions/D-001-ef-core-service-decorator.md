@@ -1,16 +1,22 @@
-# D-001 -- EF-Core-Service-Decorator-Coupling
+---
+id: D-001
+status: implemented
+date: 2026-05-16
+decision-makers: [Dominic Kalkbrenner]
+consulted: []
+informed: [Provider contributors]
+scope: "Runtime and design-time EF Core service composition"
+supersedes: []
+superseded-by: []
+amends: []
+amended-by: []
+madr-version: "4.0.0"
+doka-profile-version: "1.0"
+---
 
-- **Status:** Implemented
-- **Date:** 2026-05-16
-- **Scope:** `MySqlServiceCollectionExtensions` runtime + design-time service composition
-- **Implementation:** `src/Doka.EntityFrameworkCore.MySql/Internal/Infrastructure/EfCoreServiceDecorator.cs`; design-time bootstrap fix in `MySqlServiceCollectionExtensions.AddEntityFrameworkDokaMySqlDesignTime`.
+# D-001 -- Centralize EF Core service decoration
 
-## Implementation notes
-
-- `EntityFrameworkRelationalDesignServicesBuilder.TryAddCoreServices` in EF Core 10.0.4 registers only `IAnnotationCodeGenerator` + `ICSharpRuntimeAnnotationCodeGenerator` + the relational annotation dependencies. The remaining design-time core (`IModelCodeGenerator`, `IModelCodeGeneratorSelector`, `ICompiledModelCodeGenerator`, `IMigrationsCodeGenerator`, `ICSharpHelper`, ...) lives in `IServiceCollection.AddEntityFrameworkDesignTimeServices`. The `dotnet ef` tooling pipeline calls that helper through `DesignTimeServicesBuilder` BEFORE invoking provider-specific design services; stand-alone consumers (integration tests, custom scaffolders that build the service collection themselves) skip the tooling path and previously caused `EfCoreServiceDecorator.Decorate<IModelCodeGenerator, MySqlModelCodeGenerator>` to fail with `No inner 'IModelCodeGenerator' registration was found to decorate`. Fix: `AddEntityFrameworkDokaMySqlDesignTime` now invokes `serviceCollection.AddEntityFrameworkDesignTimeServices()` before the decorator runs, making the entry point self-contained without breaking the `dotnet ef` flow (the inner `TryAddSingletonEnumerable` calls are idempotent).
-- Live integration test `MySqlComprehensiveCoverageTests.Scaffolding_roundtrip_on_mysql84` + `Scaffolding_roundtrip_on_mariadb118` pin the fix: both build the service collection via `services.AddEntityFrameworkDokaMySqlDesignTime()` and resolve `IDatabaseModelFactory` + `IModelCodeGenerator` directly, which is the structural shape the previous setup could not satisfy.
-
-## Context
+## Context and Problem Statement
 
 `MySqlServiceCollectionExtensions.AddEntityFrameworkDokaMySql` and
 `AddEntityFrameworkDokaMySqlDesignTime` wrap two EF Core internal services so
@@ -36,7 +42,21 @@ silently leave the decorators inert because `ActivatorUtilities.CreateInstance`
 would fall back to a no-arg instantiation that no longer carries the original
 service graph.
 
-## Decision
+## Decision Drivers
+
+- Fail explicitly when an expected EF Core service is absent.
+- Keep EF1001 coupling in one reviewable implementation boundary.
+- Preserve runtime and design-time registration order.
+
+## Considered Options
+
+- Centralized service decorator
+- Inline decoration at each registration site
+- Replace provider services without preserving the inner service
+
+## Decision Outcome
+
+Chosen option: "Centralized service decorator", because the provider needs one fail-fast and testable boundary around unstable EF Core internals.
 
 Consolidate the inline `LastOrDefault` + `ActivatorUtilities.CreateInstance`
 pattern behind a single helper:
@@ -66,9 +86,12 @@ The helper:
 
 `MySqlServiceCollectionExtensions` then reduces to two `Decorate<...>(...)` calls.
 
-## Consequences
+### Consequences
 
-### Positive
+- Good, because service composition and diagnostics stay consistent across runtime and design time.
+- Bad, because major EF Core upgrades require explicit revalidation of the decorator boundary.
+
+#### Positive
 
 - Single point of EF1001 contact -- every patch-coupled call site lives in one
   helper that the EF-Core-Patch-Matrix-CI exercises explicitly.
@@ -79,7 +102,7 @@ The helper:
   (see D-013): the validation that the wrap is still active becomes one test,
   not several.
 
-### Negative
+#### Negative
 
 - Adds one indirection between the registration call site and the actual
   `services.Replace(...)` invocation. Stack traces during DI resolution include
@@ -88,23 +111,45 @@ The helper:
   invalidate the helper just as easily as the inline pattern. The
   `efcore-patch-matrix-ci` foundation (id=9) is the structural mitigation.
 
-### Neutral
+#### Neutral
 
 - The helper is `internal` and exposed to tests only through
   `InternalsVisibleTo`; it is not part of the public API contract.
 
-## Re-evaluation triggers
+### Confirmation
 
-- The EF-Core-Patch-Matrix-CI (Backbone 9) reports a build or runtime failure
-  for either decorator on any tested patch version.
-- A new EF Core internal service surfaces in the provider that needs the same
-  wrap pattern, and either grows the helper API or warrants its own decorator
-  variant.
-- EF Core 11 changes the internal-service registration order or constructor
-  signatures in a way that requires a fundamentally different wrap strategy.
-  In that case this ADR is superseded by D-013.
+- Run `eng/test.sh` and the design-time scaffolding integration tests.
+- Build against the floor and latest supported EF Core patch matrix.
 
-## Alternatives considered
+## Pros and Cons of the Options
+
+### Centralized service decorator
+
+- Good, because it gives all EF1001 service replacement one tested implementation path.
+- Bad, because it remains coupled to EF Core internal registration details.
+
+### Inline decoration at each registration site
+
+- Good, because each call site can be changed independently.
+- Bad, because registration behavior and failure handling would drift across services.
+
+### Replace provider services without preserving the inner service
+
+- Good, because the implementation would contain less composition code.
+- Bad, because provider wrappers would lose required EF Core base behavior.
+
+## More Information
+
+### Implementation Snapshot
+
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Infrastructure/EfCoreServiceDecorator.cs`; design-time bootstrap fix in `MySqlServiceCollectionExtensions.AddEntityFrameworkDokaMySqlDesignTime`.
+
+### Implementation Notes
+
+- `EntityFrameworkRelationalDesignServicesBuilder.TryAddCoreServices` in EF Core 10.0.4 registers only `IAnnotationCodeGenerator` + `ICSharpRuntimeAnnotationCodeGenerator` + the relational annotation dependencies. The remaining design-time core (`IModelCodeGenerator`, `IModelCodeGeneratorSelector`, `ICompiledModelCodeGenerator`, `IMigrationsCodeGenerator`, `ICSharpHelper`, ...) lives in `IServiceCollection.AddEntityFrameworkDesignTimeServices`. The `dotnet ef` tooling pipeline calls that helper through `DesignTimeServicesBuilder` BEFORE invoking provider-specific design services; stand-alone consumers (integration tests, custom scaffolders that build the service collection themselves) skip the tooling path and previously caused `EfCoreServiceDecorator.Decorate<IModelCodeGenerator, MySqlModelCodeGenerator>` to fail with `No inner 'IModelCodeGenerator' registration was found to decorate`. Fix: `AddEntityFrameworkDokaMySqlDesignTime` now invokes `serviceCollection.AddEntityFrameworkDesignTimeServices()` before the decorator runs, making the entry point self-contained without breaking the `dotnet ef` flow (the inner `TryAddSingletonEnumerable` calls are idempotent).
+- Live integration test `MySqlComprehensiveCoverageTests.Scaffolding_roundtrip_on_mysql84` + `Scaffolding_roundtrip_on_mariadb118` pin the fix: both build the service collection via `services.AddEntityFrameworkDokaMySqlDesignTime()` and resolve `IDatabaseModelFactory` + `IModelCodeGenerator` directly, which is the structural shape the previous setup could not satisfy.
+
+### Additional Alternative Rationale
 
 - **Status quo (inline `LastOrDefault` + `ActivatorUtilities.CreateInstance`
   in both extension methods).** Rejected: drift risk on each EF Core patch
@@ -117,3 +162,30 @@ The helper:
 - **Reflection-based late binding without `ActivatorUtilities`.** Rejected:
   same `EF1001` surface, less informative diagnostics, slower cold path on the
   first resolve.
+
+### Re-evaluation Triggers
+
+- The EF-Core-Patch-Matrix-CI (Backbone 9) reports a build or runtime failure
+  for either decorator on any tested patch version.
+- A new EF Core internal service surfaces in the provider that needs the same
+  wrap pattern, and either grows the helper API or warrants its own decorator
+  variant.
+- EF Core 11 changes the internal-service registration order or constructor
+  signatures in a way that requires a fundamentally different wrap strategy.
+  In that case this ADR is superseded by D-013.
+- An EF Core patch or major changes the decorated service registration shape.
+- A provider service can move from EF1001 internals to a stable public extension point.
+
+### Decision History
+
+- 2026-05-16: Decision recorded with status implemented.
+- 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+
+### Implementation References
+
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Infrastructure/EfCoreServiceDecorator.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Extensions/MySqlServiceCollectionExtensions.cs`
+
+### Sources
+
+- No external sources; repository evidence only.

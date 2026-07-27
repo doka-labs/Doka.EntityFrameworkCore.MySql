@@ -27,6 +27,9 @@ jobs:
       - name: Restore
         run: dotnet restore Doka.EntityFrameworkCore.MySql.slnx --tl:off
 
+      - name: Validate architecture decisions
+        run: bash eng/validate-adrs.sh
+
       - name: Verify formatting
         run: dotnet format Doka.EntityFrameworkCore.MySql.slnx --verify-no-changes --no-restore
 

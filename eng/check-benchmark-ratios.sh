@@ -15,6 +15,8 @@
 #   $1                                Benchmark artifacts root (default artifacts/benchmarks).
 #   DOKA_BENCHMARK_GATE_STRICT        When set to 1, missing benchmark data for any gate
 #                                     fails the script. Default 0 (warn, skip missing).
+#   DOKA_BENCHMARK_GATE_RUN_ID        When set, only reports below a matching
+#                                     reports/<run-id>/results directory are evaluated.
 #
 # Exit codes:
 #   0   All gates met OR all gates skipped with strict=0.
@@ -25,19 +27,39 @@ set -euo pipefail
 
 benchmarks_root="${1:-artifacts/benchmarks}"
 strict="${DOKA_BENCHMARK_GATE_STRICT:-0}"
+gate_run_id="${DOKA_BENCHMARK_GATE_RUN_ID:-}"
 
 if [[ ! -d "${benchmarks_root}" ]]; then
     echo "Benchmark artifacts root '${benchmarks_root}' does not exist or is not a directory." >&2
     exit 2
 fi
 
+if [[ -n "${gate_run_id}" && ! "${gate_run_id}" =~ ^[0-9A-Za-z._-]+$ ]]; then
+    echo "Benchmark gate run ID '${gate_run_id}' contains unsupported characters." >&2
+    exit 2
+fi
+
 # POSIX find is used over rg / fd because the GitHub Actions ubuntu runner does not
 # preinstall either; find is part of coreutils and always available. The same rationale
 # applies in eng/check-coverage-threshold.sh.
-reports="$(find "${benchmarks_root}" -type f -name '*-report-full.json' | sort -u)"
+if [[ -n "${gate_run_id}" ]]; then
+    reports="$(
+        find "${benchmarks_root}" \
+            -type f \
+            -path "*/reports/${gate_run_id}/results/*-report-full.json" \
+            | sort -u
+    )"
+else
+    reports="$(find "${benchmarks_root}" -type f -name '*-report-full.json' | sort -u)"
+fi
 
 if [[ -z "${reports}" ]]; then
-    echo "No BenchmarkDotNet -report-full.json files found below '${benchmarks_root}'." >&2
+    if [[ -n "${gate_run_id}" ]]; then
+        echo "No BenchmarkDotNet -report-full.json files found for run '${gate_run_id}' below '${benchmarks_root}'." >&2
+    else
+        echo "No BenchmarkDotNet -report-full.json files found below '${benchmarks_root}'." >&2
+    fi
+
     exit 2
 fi
 

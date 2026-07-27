@@ -54,12 +54,12 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'Doka.EntityFrameworkCore.MySql' OR '$(MSBuildProjectName)' == 'Doka.EntityFrameworkCore.MySql.NetTopologySuite'">
+    <!-- The package targets discover PublicAPI.*.txt automatically; duplicate
+         AdditionalFiles entries make Roslyn workspaces report loader warnings. -->
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <AdditionalFiles Include="$(MSBuildProjectDirectory)/PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="$(MSBuildProjectDirectory)/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
 </Project>

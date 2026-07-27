@@ -13,6 +13,7 @@ functional_core_ref_assets_file="${repo_root}/artifacts/obj/Doka.EntityFramework
 functional_spatial_ref_assets_file="${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.FunctionalTests/refs/Doka.EntityFrameworkCore.MySql.NetTopologySuite/project.assets.json"
 
 "${repo_root}/eng/verify-dotnet.sh"
+"${repo_root}/eng/validate-adrs.sh"
 if [[ ! -f "${unit_assets_file}" ]] \
     || [[ ! -f "${unit_core_ref_assets_file}" ]] \
     || [[ ! -f "${unit_spatial_ref_assets_file}" ]] \

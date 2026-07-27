@@ -40,6 +40,32 @@ public sealed class MySqlJsonValueComparersTests
         Assert.False(MySqlJsonValueComparers.JsonElementComparer.Equals(docA.RootElement, docB.RootElement));
     }
 
+    /// <summary>JsonElement object equality follows JSON semantics rather than property order.</summary>
+    [Fact]
+    public void JsonElement_reordered_properties_are_equal_and_have_equal_hashes()
+    {
+        using var docA = JsonDocument.Parse("""{"a":1,"b":{"c":2,"d":3}}""");
+        using var docB = JsonDocument.Parse("""{"b":{"d":3,"c":2},"a":1}""");
+
+        Assert.True(MySqlJsonValueComparers.JsonElementComparer.Equals(docA.RootElement, docB.RootElement));
+        Assert.Equal(
+            MySqlJsonValueComparers.JsonElementComparer.GetHashCode(docA.RootElement),
+            MySqlJsonValueComparers.JsonElementComparer.GetHashCode(docB.RootElement));
+    }
+
+    /// <summary>Equivalent JSON number spellings remain equal and hash-compatible.</summary>
+    [Fact]
+    public void JsonElement_equivalent_number_representations_are_equal_and_have_equal_hashes()
+    {
+        using var docA = JsonDocument.Parse("""{"value":10e-3}""");
+        using var docB = JsonDocument.Parse("""{"value":0.01}""");
+
+        Assert.True(MySqlJsonValueComparers.JsonElementComparer.Equals(docA.RootElement, docB.RootElement));
+        Assert.Equal(
+            MySqlJsonValueComparers.JsonElementComparer.GetHashCode(docA.RootElement),
+            MySqlJsonValueComparers.JsonElementComparer.GetHashCode(docB.RootElement));
+    }
+
     /// <summary>JsonElement equals on a payload larger than the initial 1 KB buffer triggers the grow path.</summary>
     [Fact]
     public void JsonElement_large_payload_triggers_buffer_grow()

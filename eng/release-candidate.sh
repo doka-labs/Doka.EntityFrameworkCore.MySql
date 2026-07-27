@@ -12,6 +12,7 @@ release_candidate_dir="${repo_root}/artifacts/release-candidate/${release_candid
 packages_dir="${release_candidate_dir}/packages"
 audit_dir="${release_candidate_dir}/audit"
 sbom_dir="${release_candidate_dir}/sbom"
+sbom_components_dir="${release_candidate_dir}/sbom-components"
 summary_file="${release_candidate_dir}/release-candidate-summary.md"
 evidence_file="${release_candidate_dir}/release-candidate-evidence.json"
 changelog_file="${release_candidate_dir}/release-candidate-changelog.md"
@@ -112,16 +113,33 @@ run_vulnerability_audit() {
 run_sbom() {
     local release_version="$1"
     local sbom_timeout="${DOKA_SBOM_TIMEOUT:-300}"
+    local runtime_assets="${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql/project.assets.json"
+    local spatial_assets="${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.NetTopologySuite/project.assets.json"
     local timeout_cmd
     timeout_cmd="$(resolve_timeout_cmd)"
 
     mkdir -p "${sbom_dir}"
+    mkdir -p "${sbom_components_dir}/runtime" "${sbom_components_dir}/spatial"
+
+    if [[ ! -f "${runtime_assets}" || ! -f "${spatial_assets}" ]]; then
+        echo "Release package dependency assets are missing; run_pack must complete before SBOM generation." >&2
+        exit 1
+    fi
+
+    # Component detection consumes the exact restored graphs of the two
+    # released packages. This excludes stale, test, and benchmark graphs while
+    # retaining all direct and transitive package dependencies.
+    cp "${runtime_assets}" "${sbom_components_dir}/runtime/project.assets.json"
+    cp "${spatial_assets}" "${sbom_components_dir}/spatial/project.assets.json"
 
     dotnet tool restore
 
-    local sbom_cmd=(dotnet tool run sbom-tool Generate \
+    # The pinned SBOM tool targets an older supported .NET runtime. The CLI
+    # switch keeps the local tool executable when only a newer runtime is
+    # installed, without weakening the repository's SDK pin.
+    local sbom_cmd=(dotnet tool run sbom-tool --allow-roll-forward -- Generate \
         -b "${packages_dir}" \
-        -bc "${repo_root}" \
+        -bc "${sbom_components_dir}" \
         -m "${sbom_dir}" \
         -pn "Doka.EntityFrameworkCore.MySql.ReleaseCandidate" \
         -pv "${release_version}" \
@@ -201,11 +219,15 @@ run_benchmark_and_gate() {
     local engines=("mysql84" "mariadb118")
     for engine in "${engines[@]}"; do
         echo "Running benchmark smoke against ${engine}..."
-        DOKA_BENCHMARK_TARGET="${engine}" "${repo_root}/eng/benchmark.sh" --up-smoke-down
+        DOKA_BENCHMARK_TARGET="${engine}" \
+            DOKA_BENCHMARK_RUN_ID="${release_candidate_run_id}" \
+            "${repo_root}/eng/benchmark.sh" --up-smoke-down
     done
 
     echo "Asserting performance ratio gate (strict mode)..."
-    DOKA_BENCHMARK_GATE_STRICT=1 bash "${repo_root}/eng/check-benchmark-ratios.sh" "${repo_root}/artifacts/benchmarks"
+    DOKA_BENCHMARK_GATE_STRICT=1 \
+        DOKA_BENCHMARK_GATE_RUN_ID="${release_candidate_run_id}" \
+        bash "${repo_root}/eng/check-benchmark-ratios.sh" "${repo_root}/artifacts/benchmarks"
 }
 
 write_evidence() {
@@ -233,6 +255,7 @@ require_command jq
 cd "${repo_root}"
 
 "${repo_root}/eng/verify-dotnet.sh"
+"${repo_root}/eng/validate-adrs.sh"
 run_specification_gate
 run_pack
 

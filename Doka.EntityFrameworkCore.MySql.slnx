@@ -13,6 +13,9 @@
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks.csproj" />
   </Folder>
+  <Folder Name="/eng/">
+    <Project Path="eng/Doka.EntityFrameworkCore.MySql.AdrValidator/Doka.EntityFrameworkCore.MySql.AdrValidator.csproj" />
+  </Folder>
   <Folder Name="/config/">
     <File Path=".editorconfig" />
     <File Path=".gitignore" />

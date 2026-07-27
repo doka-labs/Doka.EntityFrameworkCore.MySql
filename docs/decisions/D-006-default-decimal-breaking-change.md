@@ -1,17 +1,22 @@
-# D-006 -- Default-Decimal `decimal(18,2)` als Breaking-Change
+---
+id: D-006
+status: implemented
+date: 2026-05-16
+decision-makers: [Dominic Kalkbrenner]
+consulted: []
+informed: [Provider contributors]
+scope: "Default decimal type mapping and upgrade diagnostics"
+supersedes: []
+superseded-by: []
+amends: []
+amended-by: []
+madr-version: "4.0.0"
+doka-profile-version: "1.0"
+---
 
-- **Status:** Implemented
-- **Date:** 2026-05-16
-- **Scope:** `Internal/Storage/MySqlTypeMappingSource` default-decimal mapping
-- **Implementation:** `DefaultDecimalPrecision = 18`, `DefaultDecimalScale = 2`; `s_decimalMapping` and `CreateDecimalStoreType` derive their store-type strings from the two constants. `MySqlModelValidator` warning message updated to surface the new default.
+# D-006 -- Use decimal(18,2) as the default mapping
 
-## Implementation notes
-
-- The default-decimal change lands as a single-line constant flip in `MySqlTypeMappingSource` plus a warning-message update in `MySqlModelValidator`. The `ImplicitDecimalPrecisionDefaulted` event continues to fire on the first unannotated decimal property per `DbContext` build so upgrading consumers see the new default before a migration is generated against it.
-- The CHANGELOG ships the breaking-change entry under the v1.0 section with the migration recipe (no change required for currency / `(18,2)` consumers; add `HasPrecision(p, s)` or `[Precision(p, s)]` for higher precision; run a `SELECT MAX(ABS(x))` audit before generating the post-upgrade migration on existing schemata that had relied on the `(65,30)` default).
-- The new mapping is verified by `MySqlTypeMappingBaselineTests.Default_decimal_resolves_to_18_2_when_unannotated` and the diagnostics-side `MySqlDiagnosticsTests` warning assertion was rewired to expect the new message text.
-
-## Context
+## Context and Problem Statement
 
 `MySqlTypeMappingSource` currently maps an unattributed CLR `decimal`
 property to MySQL `decimal(65,30)`, which is the MySQL maximum precision
@@ -36,7 +41,21 @@ warning when the default applies; the warning is rarely observed in
 practice because it is logged at `Warning` level once per column per
 model build, easily lost in noisy startup logs.
 
-## Decision
+## Decision Drivers
+
+- The default should fit common financial values without excessive storage.
+- Higher precision must remain explicitly configurable.
+- A breaking default needs visible migration guidance.
+
+## Considered Options
+
+- Default to decimal(18,2)
+- Keep decimal(65,30)
+- Require explicit precision for every decimal
+
+## Decision Outcome
+
+Chosen option: "Default to decimal(18,2)", because decimal(18,2) is a practical default while explicit precision remains authoritative.
 
 Change the default mapping for unattributed `decimal` to
 `decimal(18,2)`. This is a deliberate breaking change at v1.0; the
@@ -54,9 +73,12 @@ short migration recipe:
   `HasPrecision(...)` annotation is now mandatory; without it the next
   migration would attempt to narrow the column.
 
-## Consequences
+### Consequences
 
-### Positive
+- Good, because common models get predictable storage and migration output.
+- Bad, because some upgrades require an explicit precision annotation and data-range audit.
+
+#### Positive
 
 - Storage footprint of decimal columns shrinks by roughly the ratio of
   declared maximum precision to actual used precision for the typical
@@ -68,7 +90,7 @@ short migration recipe:
   provider: the unattributed case is the common case, not the maximum
   case.
 
-### Negative
+#### Negative
 
 - It is a breaking change. Any consumer who genuinely relied on the
   `(65,30)` default (we have not found one in the wild, but the case is
@@ -80,23 +102,46 @@ short migration recipe:
   the upgrade procedure: run a precision audit (`SELECT MAX(ABS(x))` per
   decimal column) before generating the post-upgrade migration.
 
-### Neutral
+#### Neutral
 
 - The change is one-line in `MySqlTypeMappingSource`. The visible behavior
   change carries the weight.
 
-## Re-evaluation triggers
+### Confirmation
 
-- An operator report from the v1.0 beta cycle documents a real-world
-  scenario where `(18,2)` is the wrong default; for example, a currency
-  the provider serves predominantly that uses three fractional digits.
-- A future EF Core change exposes default-decimal as a convention-bound
-  knob that respects per-`DbContext` configuration; the default could
-  then move from "type-mapping baked in" to "convention-configurable".
-- A future MySQL release changes the on-disk layout for high-precision
-  decimals in a way that makes the storage-waste argument weaker.
+- Run default-decimal mapping and diagnostics tests.
+- Verify the breaking-change migration guidance remains in the changelog.
 
-## Alternatives considered
+## Pros and Cons of the Options
+
+### Default to decimal(18,2)
+
+- Good, because it matches common application and financial precision requirements.
+- Bad, because existing consumers relying on wider implicit precision must opt in explicitly.
+
+### Keep decimal(65,30)
+
+- Good, because it preserves the widest engine-supported implicit range.
+- Bad, because it over-allocates storage and hides domain precision decisions.
+
+### Require explicit precision for every decimal
+
+- Good, because every model would state its exact domain contract.
+- Bad, because ordinary models become noisy and upgrades become unnecessarily disruptive.
+
+## More Information
+
+### Implementation Snapshot
+
+- `DefaultDecimalPrecision = 18`, `DefaultDecimalScale = 2`; `s_decimalMapping` and `CreateDecimalStoreType` derive their store-type strings from the two constants. `MySqlModelValidator` warning message updated to surface the new default.
+
+### Implementation Notes
+
+- The default-decimal change lands as a single-line constant flip in `MySqlTypeMappingSource` plus a warning-message update in `MySqlModelValidator`. The `ImplicitDecimalPrecisionDefaulted` event continues to fire on the first unannotated decimal property per `DbContext` build so upgrading consumers see the new default before a migration is generated against it.
+- The CHANGELOG ships the breaking-change entry under the v1.0 section with the migration recipe (no change required for currency / `(18,2)` consumers; add `HasPrecision(p, s)` or `[Precision(p, s)]` for higher precision; run a `SELECT MAX(ABS(x))` audit before generating the post-upgrade migration on existing schemata that had relied on the `(65,30)` default).
+- The new mapping is verified by `MySqlTypeMappingBaselineTests.Default_decimal_resolves_to_18_2_when_unannotated` and the diagnostics-side `MySqlDiagnosticsTests` warning assertion was rewired to expect the new message text.
+
+### Additional Alternative Rationale
 
 - **Status quo (`decimal(65,30)` default).** Rejected: real-world cost
   documented above; the warning is too easy to miss.
@@ -108,3 +153,30 @@ short migration recipe:
   Rejected: the provider does not own a MySQL `money` type; the right
   granularity is per-property annotation, not a fictitious column-type
   alias.
+
+### Re-evaluation Triggers
+
+- An operator report from the v1.0 beta cycle documents a real-world
+  scenario where `(18,2)` is the wrong default; for example, a currency
+  the provider serves predominantly that uses three fractional digits.
+- A future EF Core change exposes default-decimal as a convention-bound
+  knob that respects per-`DbContext` configuration; the default could
+  then move from "type-mapping baked in" to "convention-configurable".
+- A future MySQL release changes the on-disk layout for high-precision
+  decimals in a way that makes the storage-waste argument weaker.
+- Consumer evidence shows decimal(18,2) is not a safe majority default.
+- EF Core introduces a provider-independent precision default contract.
+
+### Decision History
+
+- 2026-05-16: Decision recorded with status implemented.
+- 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+
+### Implementation References
+
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Storage/MySqlTypeMappingSource.cs`
+- `CHANGELOG.md`
+
+### Sources
+
+- No external sources; repository evidence only.

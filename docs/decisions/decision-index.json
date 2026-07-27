@@ -1,0 +1,253 @@
+{
+  "schemaVersion": 1,
+  "madrVersion": "4.0.0",
+  "dokaProfileVersion": "1.0",
+  "decisions": [
+    {
+      "id": "D-001",
+      "title": "Centralize EF Core service decoration",
+      "status": "implemented",
+      "date": "2026-05-16",
+      "path": "docs/decisions/D-001-ef-core-service-decorator.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-002",
+      "title": "Scope migration advisory locks by database",
+      "status": "implemented",
+      "date": "2026-05-16",
+      "path": "docs/decisions/D-002-database-scoped-advisory-lock.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-003",
+      "title": "Bound and isolate shared HiLo state",
+      "status": "implemented",
+      "date": "2026-05-16",
+      "path": "docs/decisions/D-003-hilo-state-cache-lifetime.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-004",
+      "title": "Route engine behavior through EngineProfile",
+      "status": "implemented",
+      "date": "2026-05-16",
+      "path": "docs/decisions/D-004-engineprofile-modell.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-005",
+      "title": "Split reverse engineering into aspect loaders",
+      "status": "implemented",
+      "date": "2026-05-16",
+      "path": "docs/decisions/D-005-scaffolding-loader-hierarchy.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-006",
+      "title": "Use decimal(18,2) as the default mapping",
+      "status": "implemented",
+      "date": "2026-05-16",
+      "path": "docs/decisions/D-006-default-decimal-breaking-change.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-007",
+      "title": "Use shape-aware multi-row INSERT and RETURNING",
+      "status": "implemented",
+      "date": "2026-05-16",
+      "path": "docs/decisions/D-007-multirow-insert-returning.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-008",
+      "title": "Gate the public API with PublicApiAnalyzers",
+      "status": "implemented",
+      "date": "2026-05-16",
+      "path": "docs/decisions/D-008-public-api-vertrag.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-009",
+      "title": "Support an EF Core patch range with a floor/latest matrix",
+      "status": "implemented",
+      "date": "2026-05-16",
+      "path": "docs/decisions/D-009-efcore-patch-coupling.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-010",
+      "title": "Emit a diagnostic triple for significant operations",
+      "status": "implemented",
+      "date": "2026-05-16",
+      "path": "docs/decisions/D-010-activity-meter-surface.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-011",
+      "title": "Adopt the official EF Core relational specification corpus",
+      "status": "implemented",
+      "date": "2026-05-16",
+      "path": "docs/decisions/D-011-spec-test-subklassen-strategie.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": [
+        "D-021"
+      ]
+    },
+    {
+      "id": "D-012",
+      "title": "Adapt spatial materialization per engine",
+      "status": "implemented",
+      "date": "2026-05-16",
+      "path": "docs/decisions/D-012-spatial-engine-detail.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-013",
+      "title": "Trigger the EF Core 11 upgrade as a new major line",
+      "status": "accepted",
+      "date": "2026-05-16",
+      "path": "docs/decisions/D-013-ef-core-11-upgrade.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-014",
+      "title": "Exclude MySQL 8.0 from the supported release matrix",
+      "status": "accepted",
+      "date": "2026-05-16",
+      "path": "docs/decisions/D-014-mysql-8.0-support.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-015",
+      "title": "Scope JSON query warning behavior to its fixture",
+      "status": "implemented",
+      "date": "2026-05-17",
+      "path": "docs/decisions/D-015-json-query-warning-suppression.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-016",
+      "title": "Keep scalar boolean parsing aligned with the BCL",
+      "status": "implemented",
+      "date": "2026-05-18",
+      "path": "docs/decisions/D-016-scalar-convert-to-boolean-vocabulary.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-017",
+      "title": "Defer NativeAOT until the EF Core path is supportable",
+      "status": "implemented",
+      "date": "2026-05-18",
+      "path": "docs/decisions/D-017-nativeaot-smoke-deferred.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-018",
+      "title": "Calibrate coverage against the merged test union",
+      "status": "implemented",
+      "date": "2026-05-18",
+      "path": "docs/decisions/D-018-coverage-gate-calibration.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-019",
+      "title": "Gate performance in the release-candidate path",
+      "status": "implemented",
+      "date": "2026-05-18",
+      "path": "docs/decisions/D-019-performance-gate-architecture.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-020",
+      "title": "Make live tests own their database lifecycle",
+      "status": "accepted",
+      "date": "2026-07-27",
+      "path": "docs/decisions/D-020-test-owned-database-lifecycle.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-021",
+      "title": "Enforce a zero provider-gap specification ledger",
+      "status": "implemented",
+      "date": "2026-07-27",
+      "path": "docs/decisions/D-021-provider-completeness-and-spec-dispositions.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [
+        "D-011"
+      ],
+      "amendedBy": []
+    },
+    {
+      "id": "D-022",
+      "title": "Adopt MADR 4.0.0 with the Doka enterprise profile",
+      "status": "implemented",
+      "date": "2026-07-27",
+      "path": "docs/decisions/D-022-madr-enterprise-profile.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
+    }
+  ]
+}
