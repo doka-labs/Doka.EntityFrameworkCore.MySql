@@ -1,0 +1,14 @@
+global using System;
+global using System.Collections.Generic;
+global using System.Globalization;
+global using System.IO;
+global using System.Linq;
+global using System.Reflection;
+global using System.Runtime.Loader;
+global using System.Security.Cryptography;
+global using System.Text;
+global using System.Text.Encodings.Web;
+global using System.Text.Json;
+global using System.Text.Json.Serialization;
+global using System.Xml.Linq;
+global using Microsoft.EntityFrameworkCore;

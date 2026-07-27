@@ -194,7 +194,7 @@
     },
     {
       "id": "D-018",
-      "title": "Calibrate coverage against the merged test union",
+      "title": "Enforce coverage by shipped assembly and risk-critical class",
       "status": "implemented",
       "date": "2026-05-18",
       "path": "docs/decisions/D-018-coverage-gate-calibration.md",

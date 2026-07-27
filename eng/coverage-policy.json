@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-07-27",
+  "evidenceMaxAgeSeconds": 21600,
+  "assemblies": [
+    {
+      "name": "Doka.EntityFrameworkCore.MySql",
+      "minimumLinePercent": 84,
+      "minimumBranchPercent": 70
+    },
+    {
+      "name": "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
+      "minimumLinePercent": 77,
+      "minimumBranchPercent": 58
+    }
+  ],
+  "criticalClasses": [
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlConnectionStringRedactor",
+      "minimumLinePercent": 98,
+      "minimumBranchPercent": 98
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlDatabaseModelFactory",
+      "minimumLinePercent": 94,
+      "minimumBranchPercent": 78
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlExecutionStrategy",
+      "minimumLinePercent": 98,
+      "minimumBranchPercent": 73
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlJsonValueComparers",
+      "minimumLinePercent": 86,
+      "minimumBranchPercent": 85
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlMigrationsSqlGenerator",
+      "minimumLinePercent": 89,
+      "minimumBranchPercent": 72
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlQuerySqlGenerator",
+      "minimumLinePercent": 95,
+      "minimumBranchPercent": 68
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlSequenceValueGenerator",
+      "minimumLinePercent": 89,
+      "minimumBranchPercent": 68
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlTransientExceptionDetector",
+      "minimumLinePercent": 98,
+      "minimumBranchPercent": 90
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlUpdateSqlGenerator",
+      "minimumLinePercent": 98,
+      "minimumBranchPercent": 93
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteMethodCallTranslator",
+      "minimumLinePercent": 81,
+      "minimumBranchPercent": 73
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteTypeMappingSourcePlugin",
+      "minimumLinePercent": 74,
+      "minimumBranchPercent": 52
+    }
+  ]
+}

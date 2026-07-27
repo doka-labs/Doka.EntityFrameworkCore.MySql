@@ -1,6 +1,7 @@
 # Release Governance
 
-`Doka.EntityFrameworkCore.MySql` treats Phase 4 as repo-local release hardening, not as external launch closure.
+`Doka.EntityFrameworkCore.MySql` treats release hardening as a repo-local
+engineering concern, not as external launch closure.
 
 This document freezes the reviewable governance baseline for:
 
@@ -11,7 +12,7 @@ This document freezes the reviewable governance baseline for:
 
 ## Repo-Local Evidence Paths
 
-The Phase 4 evidence model is intentionally explicit and repeatable:
+The release-hardening evidence model is intentionally explicit and repeatable:
 
 - PR workflow:
   - workflow: `.github/workflows/ci.yml`
@@ -77,7 +78,7 @@ These category names are documentation-safe and test-backed. Renaming or repurpo
 - `1500-1599`: resilience
 - `1600-1699`: spatial
 
-The current Phase 4 baseline uses these exact IDs:
+The current baseline uses these exact IDs:
 
 - Configuration:
   - `1000` `ServerVersionResolved`
@@ -103,7 +104,7 @@ New provider events must stay inside an approved subsystem range, update this do
 
 ## Review Expectations
 
-Phase 4 keeps review obligations explicit:
+Release hardening keeps review obligations explicit:
 
 - every PR that changes provider options, public API shape, engine-difference handling, or supported-engine policy must describe the contract impact in the PR summary
 - diagnostics changes must call out:
@@ -153,10 +154,10 @@ The cadence above is considered operational only when the repository captures ex
 
 The repository issue templates are the review seam for these outputs. They intentionally stay repo-local and do not rely on GitHub organization labels, automations, or protected metadata outside the repository itself.
 
-## Phase Boundaries
+## Scope Boundaries
 
-This governance baseline is Phase 4-only:
+This governance baseline:
 
 - it supports repo-local hardening and reviewability
 - it does not imply signing, provenance, publication, or hosted managed-service launch evidence
-- Azure Database for MySQL live validation (when credentials become available), signing, provenance, and publication remain Phase 6 work; Aurora MySQL is out of scope
+- Azure Database for MySQL live validation (when credentials become available), signing, provenance, and publication remain pre-publication work tracked by the internal delivery workflow; Aurora MySQL is out of scope

@@ -135,7 +135,8 @@ indefinitely; consumers on net11.0 (or who consume both) adopt v2.0.
 ### Confirmation
 
 - Check the official .NET release index and EF Core NuGet status before each release.
-- When a trigger fires, open the EF Core 11 phase before changing target frameworks.
+- When a trigger fires, establish the EF Core 11 release line before changing target
+  frameworks.
 
 ## Pros and Cons of the Options
 
@@ -158,7 +159,7 @@ indefinitely; consumers on net11.0 (or who consume both) adopt v2.0.
 
 ### Implementation Snapshot
 
-- deferred to a follow-up commit (trigger-driven)
+The trigger has not fired, so no EF Core 11 implementation is active.
 
 ### Current source snapshot
 

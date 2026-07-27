@@ -23,7 +23,7 @@ test count is not sufficient evidence for that role when an inherited specificat
 return without invoking the base assertion, or when a provider gap is labeled as an engine
 limitation without vendor evidence.
 
-The previous `SkipList.md` process was descriptive rather than enforcing. It allowed three
+The previous prose-only skip catalog was descriptive rather than enforcing. It allowed three
 failure modes:
 
 1. an engine-conditional method could return `Task.CompletedTask` and be reported as passed;
@@ -40,7 +40,7 @@ failure modes:
 ## Considered Options
 
 - Zero provider-gap ledger with executable dispositions
-- Descriptive SkipList prose
+- Descriptive skip-catalog prose
 - Forbid every skip without classification
 
 ## Decision Outcome
@@ -100,7 +100,7 @@ infrastructure, the provider is changed and the inherited assertion continues to
 - Good, because every skip is typed, source-backed, target-aware, and reconciled to source.
 - Bad, because vendor and upstream evidence require continuing maintenance.
 
-### Descriptive SkipList prose
+### Descriptive skip-catalog prose
 
 - Good, because contributors can record exceptions with little infrastructure.
 - Bad, because silent passes, stale entries, and unsupported claims cannot fail CI.
@@ -144,6 +144,23 @@ The contract test reconciles source annotations against
 - a framework limitation is not reproduced on every supported target;
 - an active provider-gap entry exists;
 - a silent-pass pattern is reintroduced.
+
+The disposition ledger is only one layer of the executable contract. The
+version-bound files below `Specification/Contracts/` additionally enforce:
+
+- the exact official `ComplianceTestBase` and
+  `RelationalComplianceTestBase` inventory for every supported EF Core patch;
+- a monotonic provider mapping baseline in which provider-owned debt may only
+  decrease and can never be reclassified as an engine disposition;
+- exact target-specific xUnit discovery IDs, including every Theory row;
+- exact TRX reconciliation, so missing, duplicate, failed, unexpected, or
+  undeclared `NotExecuted` results fail the gate;
+- the official relational compliance assertion and zero provider debt before
+  publication.
+
+The current nonzero provider baseline is development bookkeeping, not an
+exception policy and not publication readiness. Internal scheduling metadata
+does not create or amend an architecture decision.
 
 ### Active engine limitations
 
@@ -241,11 +258,18 @@ specification corpus; D-021 governs how exceptions are classified and enforced.
 - 2026-07-27: Executable zero provider-gap disposition contract implemented.
 - 2026-07-27: D-011 amended so this decision governs specification exceptions.
 - 2026-07-27: Migrated to Doka MADR profile 1.0.
+- 2026-07-27: Added version-bound inventory, exact discovery/TRX reconciliation,
+  monotonic provider-debt enforcement, and the zero-debt publication gate.
 
 ### Implementation References
 
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/SpecDispositions.json`
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/SpecDispositionContractTests.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts/`
+- `eng/check-spec-contract.sh`
+- `eng/check-spec-discovery.sh`
+- `eng/check-spec-results.sh`
+- `eng/check-publication-readiness.sh`
 
 ### Sources
 

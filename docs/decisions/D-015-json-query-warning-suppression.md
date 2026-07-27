@@ -124,7 +124,7 @@ Comparison matrix:
 | Criterion | Suppression (chosen) | Skip + ADR (rejected) |
 |---|---|---|
 | Tests run and verify SQL correctness | Yes (445/445 surface covered) | No (16 verification points lost) |
-| Audit trail | This ADR + fixture comment + SkipList entry pointer | ADR + 16 SkipList entries |
+| Audit trail | This ADR + fixture comment + executable disposition contract | ADR + 16 prose-only skip entries |
 | Production impact | Zero -- per-DbContext fixture config only | Zero -- skip is test-only |
 | EF Core upstream fix path | Suppression becomes silently redundant when #29665 closes | Skips need manual removal post-fix |
 | Re-evaluation trigger | "When #29665 closes in a consumed EF Core minor/major" | Same trigger plus manual un-skip |

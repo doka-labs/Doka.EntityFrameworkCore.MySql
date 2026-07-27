@@ -51,6 +51,27 @@ DOKA_SPEC_TEST_TARGET=mysql84 dotnet test \
 
 Accepted specification targets are `mysql84`, `mariadb114`, and `mariadb118`. Set `DOKA_SPEC_TEST_CONNECTION_STRING` together with `DOKA_SPEC_TEST_SERVER_VERSION` only when validating an external database.
 
+The specification contract is stricter than a passing aggregate test count:
+
+```bash
+bash eng/check-spec-contract.sh
+bash eng/check-spec-discovery.sh
+bash eng/check-spec-results.sh mysql84 artifacts/spec-tests/mysql84
+```
+
+The first two commands validate the exact EF Core patch inventory, monotonic
+provider mapping baseline, fixtures, and discovered test IDs. The TRX command
+rejects missing, duplicate, failed, unexpected, or undeclared skipped results.
+
+Coverage is measured across unit, functional, specification, and integration
+tests. Both shipped assemblies and risk-critical classes have independent
+line and branch floors:
+
+```bash
+bash eng/merge-coverage.sh artifacts/coverage artifacts/coverage-merged
+bash eng/check-coverage-threshold.sh artifacts/coverage-merged
+```
+
 **Runtime-posture smoke** (JIT + trim smoke tests; the NativeAOT pass is deferred per ADR D-017 while upstream EF Core NativeAOT support remains experimental):
 
 ```bash
@@ -63,13 +84,24 @@ Accepted specification targets are `mysql84`, `mariadb114`, and `mariadb118`. Se
 DOKA_BENCHMARK_TARGET=mysql84 ./eng/benchmark.sh --up-smoke-down
 ```
 
-**Release-candidate evidence path** (pack + vulnerability audit + SBOM + benchmark + performance ratio gate):
+**Release-candidate evidence path** (repository, specification, integration,
+coverage, package, vulnerability, SBOM, benchmark, performance, and
+publication-readiness gates):
 
 ```bash
 ./eng/release-candidate.sh
 ```
 
-The script is the single deterministic pre-tag checkpoint while the CI benchmark workflow is disabled per ADR D-019. Exit `0` signals "safe to tag"; exit non-zero stops the release. The benchmark + ratio gate asserts IdentifierQuoting >= 2x throughput vs. the naive baseline, BulkInsert1000Rows >= 3x throughput vs. per-row SaveChanges, and JsonComparer >= 80% allocation reduction vs. a string-round-trip baseline; these run against both `mysql84` and `mariadb118` via `--up-smoke-down`, so Docker must be available.
+The script is the single deterministic pre-tag checkpoint while the CI
+benchmark workflow is disabled per ADR D-019. Exit `0` signals "safe to tag";
+exit non-zero stops the release. The final publication-readiness check invokes
+the official EF Core relational compliance assertions and requires zero
+provider-owned specification debt. The benchmark + ratio gate asserts
+IdentifierQuoting >= 2x throughput vs. the naive baseline,
+BulkInsert1000Rows >= 3x throughput vs. per-row SaveChanges, and JsonComparer
+>= 80% allocation reduction vs. a string-round-trip baseline; these run
+against both `mysql84` and `mariadb118` via `--up-smoke-down`, so Docker must
+be available.
 
 Dev-loop bypass (only for iteration that does not aim to ship): `DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1 ./eng/release-candidate.sh` skips the benchmark + gate step. The resulting evidence is explicitly not release-eligible.
 

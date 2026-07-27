@@ -14,6 +14,9 @@ functional_spatial_ref_assets_file="${repo_root}/artifacts/obj/Doka.EntityFramew
 
 "${repo_root}/eng/verify-dotnet.sh"
 "${repo_root}/eng/validate-adrs.sh"
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+    --start-directory "${repo_root}/eng/tests" \
+    --pattern "test_*.py"
 if [[ ! -f "${unit_assets_file}" ]] \
     || [[ ! -f "${unit_core_ref_assets_file}" ]] \
     || [[ ! -f "${unit_spatial_ref_assets_file}" ]] \
@@ -24,11 +27,13 @@ if [[ ! -f "${unit_assets_file}" ]] \
     dotnet restore "${functional_test_project}" --tl:off --ignore-failed-sources --disable-parallel
 fi
 
-coverage_results_dir="${repo_root}/artifacts/coverage"
+coverage_results_dir="${DOKA_COVERAGE_RESULTS_DIR:-${repo_root}/artifacts/coverage}"
 mkdir -p "${coverage_results_dir}"
 
 dotnet build "${unit_test_project}" --configuration Release --no-restore --tl:off -m:1
 dotnet build "${functional_test_project}" --configuration Release --no-restore --tl:off -m:1
+bash "${repo_root}/eng/check-spec-contract.sh"
+bash "${repo_root}/eng/check-spec-discovery.sh"
 dotnet test "${unit_test_project}" --configuration Release --no-build --no-restore --tl:off \
     --collect:"XPlat Code Coverage" \
     --results-directory "${coverage_results_dir}" \

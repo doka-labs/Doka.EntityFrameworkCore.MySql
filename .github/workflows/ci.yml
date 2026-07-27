@@ -96,9 +96,6 @@ jobs:
       - name: Run repo-local test path
         run: bash ./eng/test.sh
 
-      - name: Verify specification test discovery
-        run: bash ./eng/check-spec-discovery.sh
-
       - name: Upload coverage and test-result artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -187,6 +184,9 @@ jobs:
             --filter "Category=Spec|Category=Live" \
             --logger trx \
             --results-directory artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mysql84
+          bash ./eng/check-spec-results.sh \
+            mysql84 \
+            artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mysql84
 
       - name: Run specification and live suite against MariaDB 11.8
         env:
@@ -198,6 +198,9 @@ jobs:
             --filter "Category=Spec|Category=Live" \
             --logger trx \
             --results-directory artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mariadb118
+          bash ./eng/check-spec-results.sh \
+            mariadb118 \
+            artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mariadb118
 
       - name: Run representative live integration matrix
         env:
@@ -235,11 +238,14 @@ jobs:
 
       - name: Restore + build FunctionalTests
         run: |
+          dotnet restore eng/Doka.EntityFrameworkCore.MySql.SpecificationContract/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj --tl:off
           dotnet restore tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --tl:off
+          dotnet build eng/Doka.EntityFrameworkCore.MySql.SpecificationContract/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj --configuration Release --no-restore --tl:off
           dotnet build tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --configuration Release --no-restore --tl:off
 
       - name: Verify specification disposition contract and discovery
         run: |
+          bash ./eng/check-spec-contract.sh
           dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
             --configuration Release --no-build --no-restore --tl:off \
             --filter FullyQualifiedName~SpecDispositionContractTests
@@ -256,6 +262,9 @@ jobs:
             --collect:"XPlat Code Coverage" \
             --logger trx \
             --results-directory artifacts/spec-tests/${{ matrix.engine.name }}
+          bash ./eng/check-spec-results.sh \
+            ${{ matrix.engine.target }} \
+            artifacts/spec-tests/${{ matrix.engine.name }}
 
       - name: Upload spec coverage and test-result artifacts
         if: always()
@@ -266,7 +275,7 @@ jobs:
 
   coverage-gate:
     runs-on: ubuntu-latest
-    needs: [repo-tests, spec-test-suite]
+    needs: [repo-tests, spec-test-suite, integration-smoke]
     if: always()
 
     steps:
@@ -284,52 +293,34 @@ jobs:
         with:
           name: spec-tests-coverage-mysql84
           path: artifacts/coverage/spec-mysql84
-        continue-on-error: true
 
       - name: Download mariadb118 spec coverage
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: spec-tests-coverage-mariadb118
           path: artifacts/coverage/spec-mariadb118
-        continue-on-error: true
 
       - name: Download mariadb114 spec coverage
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: spec-tests-coverage-mariadb114
           path: artifacts/coverage/spec-mariadb114
-        continue-on-error: true
+
+      - name: Download integration coverage
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: integration-smoke-coverage
+          path: artifacts/coverage/integration
 
       - name: Setup .NET
         uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
         with:
           dotnet-version: 10.0.x
 
-      - name: Install ReportGenerator
-        run: dotnet tool install --global dotnet-reportgenerator-globaltool
-
       - name: Merge cobertura reports into a single union report
-        # check-coverage-threshold.sh sums lines-valid / lines-covered across
-        # input files, which double-counts when N cobertura files describe the
-        # SAME source package. ReportGenerator merges into one Cobertura.xml
-        # with per-line dedup so the gate measures the true union.
-        run: |
-          reportgenerator \
-            -reports:"artifacts/coverage/**/coverage.cobertura.xml" \
-            -targetdir:artifacts/coverage-merged \
-            -reporttypes:Cobertura
-          # ReportGenerator emits Cobertura.xml; rename so the threshold
-          # script's `find -name 'coverage.cobertura.xml'` finds it.
-          mv artifacts/coverage-merged/Cobertura.xml \
-            artifacts/coverage-merged/coverage.cobertura.xml
+        run: bash ./eng/merge-coverage.sh artifacts/coverage artifacts/coverage-merged
 
       - name: Enforce coverage threshold
-        env:
-          # Calibrated against the merged-union baseline measured 2026-05-18
-          # (82.46% lines / 69.91% branches). 2-5 pp regression buffer below
-          # current; raise per ADR D-018 trigger when measured + buffer > gate.
-          DOKA_COVERAGE_LINE_THRESHOLD: "80"
-          DOKA_COVERAGE_BRANCH_THRESHOLD: "65"
         run: bash ./eng/check-coverage-threshold.sh artifacts/coverage-merged
 
   integration-smoke:
@@ -348,6 +339,13 @@ jobs:
         env:
           DOKA_INTEGRATION_TARGETS: mysql84,mariadb118
         run: bash ./eng/test-integration.sh
+
+      - name: Upload integration coverage
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-smoke-coverage
+          path: artifacts/coverage/integration
 
   runtime-posture:
     runs-on: ubuntu-latest

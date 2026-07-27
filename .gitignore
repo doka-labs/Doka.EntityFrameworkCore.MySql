@@ -1,6 +1,8 @@
 # Build outputs
 **/bin/
 **/obj/
+**/__pycache__/
+**/*.pyc
 
 # NuGet packages and local pack output
 **/*.nupkg

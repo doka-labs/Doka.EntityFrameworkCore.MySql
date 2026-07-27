@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Doka.EntityFrameworkCore.MySql.SpecificationContract</AssemblyName>
+    <RootNamespace>Doka.EntityFrameworkCore.MySql.SpecificationContract</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational.Specification.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Doka.EntityFrameworkCore.MySql.Tests" />
+  </ItemGroup>
+</Project>

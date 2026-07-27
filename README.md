@@ -251,7 +251,9 @@ The provider ships with:
 - `docker/compose.yml`
   Optional, explicitly selected MySQL 8.4, MariaDB 11.4, and MariaDB 11.8 debugging stack. The canonical integration and specification tests own short-lived containers through Testcontainers.
 - `eng/`
-  Developer scripts: `test.sh`, `test-integration.sh`, `test-runtime-posture.sh`, `benchmark.sh`, `release-candidate.sh`.
+  Developer scripts and executable quality contracts, including exact
+  specification discovery/TRX reconciliation, assembly-aware coverage,
+  runtime posture, benchmarks, and release readiness.
 - `docs/`
   In-repo governance and host-integration documentation.
 
@@ -261,6 +263,7 @@ The provider ships with:
 dotnet build Doka.EntityFrameworkCore.MySql.slnx
 ./eng/test.sh
 ./eng/test-integration.sh   # requires Docker; owns and cleans up its databases
+bash eng/check-publication-readiness.sh   # must pass before tag or publication
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full test commands, integration-target selection, benchmark profiles, and code-style requirements.

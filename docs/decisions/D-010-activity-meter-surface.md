@@ -115,8 +115,8 @@ no-listener case stays effectively zero-cost.
   `System.Diagnostics.DiagnosticSource` (already present transitively
   via EF Core, but now a direct dependency).
 - Hot-path cost is gated by `HasListeners()` but the gate check itself
-  is a non-zero cost; a benchmark sweep is required as part of the
-  follow-up commit to confirm no regression on the no-listener path.
+  is a non-zero cost; the release gate requires a benchmark sweep that
+  confirms no regression on the no-listener path.
 - The metric and span names become part of the operational contract;
   renaming them later is a breaking change for dashboards and alert
   rules.
@@ -152,7 +152,7 @@ no-listener case stays effectively zero-cost.
 
 ### Implementation Snapshot
 
-- Backbone-4 diagnostic-triple shipped in PR 4.2 (Phase 29). The provider exposes an `ActivitySource` and a `Meter` named `Doka.EntityFrameworkCore.MySql` (the canonical `MySqlDiagnostics.SourceName` constant); three spans (`db.migration.lock`, `db.retry.attempt`, `db.serverversion.resolve`) and five instruments (`doka_mysql_migration_lock_acquire_duration_seconds` histogram + `doka_mysql_retry_attempts_total` / `doka_mysql_cancellation_total` / `doka_mysql_command_timeout_total` / `doka_mysql_commit_unknown_total` counters) are wired across the migration-lock, execution-strategy, logging-execution-strategy, server-version-resolution, and commit paths. The hot-path `HasListeners()` guard inside `MySqlActivitySource.Start*` keeps the no-subscriber case allocation-free; the `Meter` counter and histogram writes are unconditional because `System.Diagnostics.Metrics.Meter` short-circuits internally on no-listener. In-process smoke coverage (`MySqlActivityAndMeterSmokeTests`) pins each span + counter / histogram via the dotnet `ActivityListener` and `MeterListener` surfaces, asserting both that emission happens when a listener is subscribed and that `Start*` returns `null` when no listener is attached.
+- The provider exposes an `ActivitySource` and a `Meter` named `Doka.EntityFrameworkCore.MySql` (the canonical `MySqlDiagnostics.SourceName` constant); three spans (`db.migration.lock`, `db.retry.attempt`, `db.serverversion.resolve`) and five instruments (`doka_mysql_migration_lock_acquire_duration_seconds` histogram + `doka_mysql_retry_attempts_total` / `doka_mysql_cancellation_total` / `doka_mysql_command_timeout_total` / `doka_mysql_commit_unknown_total` counters) are wired across the migration-lock, execution-strategy, logging-execution-strategy, server-version-resolution, and commit paths. The hot-path `HasListeners()` guard inside `MySqlActivitySource.Start*` keeps the no-subscriber case allocation-free; the `Meter` counter and histogram writes are unconditional because `System.Diagnostics.Metrics.Meter` short-circuits internally on no-listener. In-process smoke coverage (`MySqlActivityAndMeterSmokeTests`) pins each span + counter / histogram via the dotnet `ActivityListener` and `MeterListener` surfaces, asserting both that emission happens when a listener is subscribed and that `Start*` returns `null` when no listener is attached.
 
 ### Implementation Notes
 

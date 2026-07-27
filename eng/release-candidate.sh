@@ -6,6 +6,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 runtime_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj"
 spatial_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj"
 functional_test_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj"
+specification_contract_project="${repo_root}/eng/Doka.EntityFrameworkCore.MySql.SpecificationContract/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj"
 audit_parser="${repo_root}/eng/check-vulnerability-audit.sh"
 release_candidate_run_id="${DOKA_RELEASE_CANDIDATE_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 release_candidate_dir="${repo_root}/artifacts/release-candidate/${release_candidate_run_id}"
@@ -17,6 +18,8 @@ summary_file="${release_candidate_dir}/release-candidate-summary.md"
 evidence_file="${release_candidate_dir}/release-candidate-evidence.json"
 changelog_file="${release_candidate_dir}/release-candidate-changelog.md"
 specification_dir="${release_candidate_dir}/specification"
+coverage_input_dir="${release_candidate_dir}/coverage-input"
+coverage_merged_dir="${release_candidate_dir}/coverage-merged"
 
 require_command() {
     local command_name="$1"
@@ -69,8 +72,11 @@ run_pack() {
 run_specification_gate() {
     mkdir -p "${specification_dir}"
 
+    dotnet restore "${specification_contract_project}" --tl:off
     dotnet restore "${functional_test_project}" --tl:off
+    dotnet build "${specification_contract_project}" --configuration Release --no-restore --tl:off -m:1
     dotnet build "${functional_test_project}" --configuration Release --no-restore --tl:off -m:1
+    bash "${repo_root}/eng/check-spec-contract.sh"
     dotnet test "${functional_test_project}" \
         --configuration Release --no-build --no-restore --tl:off \
         --filter "FullyQualifiedName~SpecDispositionContractTests" \
@@ -87,9 +93,32 @@ run_specification_gate() {
             dotnet test "${functional_test_project}" \
                 --configuration Release --no-build --no-restore --tl:off \
                 --filter "Category=Spec" \
+                --collect:"XPlat Code Coverage" \
                 --logger trx \
                 --results-directory "${specification_dir}/${target}"
+        bash "${repo_root}/eng/check-spec-results.sh" \
+            "${target}" \
+            "${specification_dir}/${target}"
     done
+}
+
+run_repository_test_gate() {
+    DOKA_COVERAGE_RESULTS_DIR="${coverage_input_dir}/repo-tests" \
+        bash "${repo_root}/eng/test.sh"
+}
+
+run_integration_gate() {
+    DOKA_COVERAGE_RESULTS_DIR="${coverage_input_dir}/integration" \
+    DOKA_INTEGRATION_RUN_ID="${release_candidate_run_id}" \
+    DOKA_INTEGRATION_TARGETS="mysql84,mariadb118" \
+        bash "${repo_root}/eng/test-integration.sh"
+}
+
+run_coverage_gate() {
+    bash "${repo_root}/eng/merge-coverage.sh" \
+        "${release_candidate_dir}" \
+        "${coverage_merged_dir}"
+    bash "${repo_root}/eng/check-coverage-threshold.sh" "${coverage_merged_dir}"
 }
 
 run_vulnerability_audit() {
@@ -200,6 +229,7 @@ write_summary() {
         echo "- auditDirectory: ${audit_dir}"
         echo "- sbomDirectory: ${sbom_dir}"
         echo "- specificationDirectory: ${specification_dir}"
+        echo "- coverageDirectory: ${coverage_merged_dir}"
         echo "- changelogFile: ${changelog_file}"
         echo "- packageCount: ${package_count}"
         echo
@@ -244,6 +274,7 @@ write_evidence() {
   "auditDirectory": "${audit_dir}",
   "sbomDirectory": "${sbom_dir}",
   "specificationDirectory": "${specification_dir}",
+  "coverageDirectory": "${coverage_merged_dir}",
   "changelogFile": "${changelog_file}",
   "packageCount": ${package_count},
   "sbomFileCount": ${sbom_file_count}
@@ -256,7 +287,10 @@ cd "${repo_root}"
 
 "${repo_root}/eng/verify-dotnet.sh"
 "${repo_root}/eng/validate-adrs.sh"
+run_repository_test_gate
 run_specification_gate
+run_integration_gate
+run_coverage_gate
 run_pack
 
 run_vulnerability_audit "${runtime_project}" "${audit_dir}/Doka.EntityFrameworkCore.MySql.vulnerabilities.json"
@@ -283,3 +317,4 @@ fi
 
 write_summary "${release_version}" "${package_count}"
 write_evidence "${release_version}" "${package_count}" "${sbom_file_count}"
+bash "${repo_root}/eng/check-publication-readiness.sh"

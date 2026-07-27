@@ -75,17 +75,11 @@ Shared infrastructure:
   the MariaDB 11.x LTS line) via an xUnit theory data source; failures
   are reported per-engine.
 
-Triage discipline:
-
-- A failing spec test belongs in one of three buckets: (1) fixable in
-  the current PR, (2) fixable in a follow-up commit (with a referenced
-  issue), or (3) a permanent skip with an explicit reason. A central
-  `tests/.../Specification/SkipList.md` records every skip, the engine
-  it applies to, and the structural reason.
-- Bulk-failure handling: if more than 10% of a freshly subclassed
-  suite fails, the suite enters quarantine (excluded from the gating
-  CI run) until the failure is triaged. Quarantine is logged in the
-  same `SkipList.md`.
+Disposition discipline is defined by D-021. Provider-owned gaps are never
+skips and never enter quarantine. Engine and upstream-framework limitations
+must be visible xUnit outcomes backed by the machine-readable disposition
+ledger, exact discovery IDs, primary sources, retrieval dates, reproducible
+probes, and re-evaluation triggers.
 
 ### Consequences
 
@@ -110,9 +104,8 @@ Triage discipline:
   size but is non-trivial; the disposition discipline keeps it from
   ballooning.
 - CI runtime increases substantially. The specification suites are
-  large; the matrix multiplier across two engines doubles the cost.
-  The release-gating CI lane runs the full suite; the PR-gating lane
-  runs a smoke subset.
+  large, and the dedicated matrix runs the exact contract against
+  MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
 - Specification-test fixtures depend on a real MySQL/MariaDB instance.
   The integration-test infrastructure (Docker Compose for local,
   containerized services for CI) becomes a hard requirement for any
@@ -150,7 +143,14 @@ Triage discipline:
 
 ### Implementation Snapshot
 
-- infrastructure (`MySqlTestEnvironment`, `MySqlTestStore`, factories) plus the first two subclasses (`NorthwindWhereQueryMySqlTest`, `BuiltInDataTypesMySqlTest`) ship in the same commit as this status update. The remaining Northwind variants (Aggregate, GroupBy, Join, ...) follow incrementally. Test classes carry `[Trait("Category", "Spec")]` so the repo-tests path excludes them and the dedicated CI `spec-test-suite` job runs them against MySQL 8.4 + MariaDB 11.8.
+- The provider test infrastructure owns isolated test databases and records
+  exact image and endpoint evidence.
+- Version-bound inventories enumerate all 327 official compliance bases for
+  EF Core 10.0.8 and 10.0.10.
+- Exact discovery contracts contain 945 MySQL 8.4 tests and 924 tests for
+  each supported MariaDB target.
+- D-021 defines the monotonic provider-debt baseline, permitted dispositions,
+  exact TRX reconciliation, and zero-debt publication boundary.
 
 ### Additional Alternative Rationale
 
@@ -170,12 +170,8 @@ Triage discipline:
 - Microsoft releases a new specification fixture (new EF Core feature
   with a corresponding suite); the first-wave list expands to cover
   it before the next release.
-- A persistent quarantine grows beyond a small handful of suites;
-  the structural reason for the quarantine surfaces as a separate
-  ADR.
-- The triage discipline drifts (skips without recorded reason
-  appear); the discipline rule shifts to a CI gate that enforces the
-  `SkipList.md` correspondence.
+- The machine-readable inventory, discovery set, or TRX result set diverges
+  from the exact restored EF Core patch.
 - EF Core adds, removes, or renames a relational specification base family.
 - A fixture cannot preserve the inherited assertion on a supported engine.
 
@@ -187,8 +183,11 @@ Triage discipline:
 ### Implementation References
 
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/`
+- `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts/`
 - `eng/check-spec-discovery.sh`
 
 ### Sources
 
-- No external sources; repository evidence only.
+- [EF Core ComplianceTestBase 10.0.10](https://github.com/dotnet/efcore/blob/v10.0.10/test/EFCore.Specification.Tests/ComplianceTestBase.cs) (primary source; retrieved 2026-07-27)
+- [EF Core RelationalComplianceTestBase 10.0.10](https://github.com/dotnet/efcore/blob/v10.0.10/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs) (primary source; retrieved 2026-07-27)
+- [Microsoft.EntityFrameworkCore.Relational.Specification.Tests versions](https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.relational.specification.tests/index.json) (primary source; retrieved 2026-07-27)

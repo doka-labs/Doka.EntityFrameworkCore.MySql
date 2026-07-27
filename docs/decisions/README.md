@@ -24,7 +24,7 @@ validated ADR metadata. Manual edits are rejected by the governance gate.
 | [D-015](D-015-json-query-warning-suppression.md) | implemented | 2026-05-17 | Scope JSON query warning behavior to its fixture | - |
 | [D-016](D-016-scalar-convert-to-boolean-vocabulary.md) | implemented | 2026-05-18 | Keep scalar boolean parsing aligned with the BCL | - |
 | [D-017](D-017-nativeaot-smoke-deferred.md) | implemented | 2026-05-18 | Defer NativeAOT until the EF Core path is supportable | - |
-| [D-018](D-018-coverage-gate-calibration.md) | implemented | 2026-05-18 | Calibrate coverage against the merged test union | - |
+| [D-018](D-018-coverage-gate-calibration.md) | implemented | 2026-05-18 | Enforce coverage by shipped assembly and risk-critical class | - |
 | [D-019](D-019-performance-gate-architecture.md) | implemented | 2026-05-18 | Gate performance in the release-candidate path | - |
 | [D-020](D-020-test-owned-database-lifecycle.md) | accepted | 2026-07-27 | Make live tests own their database lifecycle | - |
 | [D-021](D-021-provider-completeness-and-spec-dispositions.md) | implemented | 2026-07-27 | Enforce a zero provider-gap specification ledger | amends D-011 |

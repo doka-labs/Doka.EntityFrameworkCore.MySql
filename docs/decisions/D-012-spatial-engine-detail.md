@@ -136,7 +136,7 @@ Three structural improvements:
 
 ### Implementation Snapshot
 
-- SRID-mismatch warning + MariaDB byte[]-WKB read path + MariaDB spatial integration tests shipped in PR 3.6 (Phase 27).
+- SRID-mismatch warning, the MariaDB byte-array WKB read path, and MariaDB spatial integration tests are implemented.
 
 ### Implementation Notes
 

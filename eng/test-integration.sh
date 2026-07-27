@@ -177,7 +177,7 @@ configure_compose_overrides() {
 }
 
 run_integration_tests() {
-    local coverage_results_dir="${repo_root}/artifacts/coverage/integration"
+    local coverage_results_dir="${DOKA_COVERAGE_RESULTS_DIR:-${repo_root}/artifacts/coverage/integration}"
 
     mkdir -p "${coverage_results_dir}" "${integration_artifacts_dir}"
     export DOKA_TEST_DATABASE_EVIDENCE_FILE="${DOKA_TEST_DATABASE_EVIDENCE_FILE:-${database_evidence_file}}"

@@ -18,6 +18,12 @@ public class SpecDispositionContractTests
         "not-applicable",
     ];
 
+    private static readonly string[] s_supportedSuites =
+    [
+        "migrations",
+        "query-json",
+    ];
+
     private static readonly string[] s_officialDatabaseVendorHosts =
     [
         "bugs.mysql.com",
@@ -40,7 +46,7 @@ public class SpecDispositionContractTests
         using var document = LoadLedger();
         var root = document.RootElement;
 
-        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(2, root.GetProperty("schemaVersion").GetInt32());
         Assert.Equal(0, root.GetProperty("policy").GetProperty("providerGapBudget").GetInt32());
         Assert.False(root.GetProperty("policy").GetProperty("silentPassesPermitted").GetBoolean());
 
@@ -65,16 +71,38 @@ public class SpecDispositionContractTests
         Assert.Equal(
             documentedMethods.Length,
             documentedMethods.Distinct(StringComparer.Ordinal).Count());
+        var documentedTestIds = activeDispositions
+            .SelectMany(disposition => StringValues(disposition.GetProperty("discoveredTestIds")))
+            .ToArray();
+        Assert.Equal(
+            documentedTestIds.Length,
+            documentedTestIds.Distinct(StringComparer.Ordinal).Count());
 
         foreach (var disposition in activeDispositions)
         {
             var classification = RequiredString(disposition, "classification");
             Assert.Contains(classification, s_activeClassifications);
+            Assert.Contains(
+                RequiredString(disposition, "suite"),
+                s_supportedSuites);
+            var fixture = RequiredString(disposition, "fixture");
 
             var targets = StringValues(disposition.GetProperty("targets"));
             Assert.NotEmpty(targets);
             Assert.All(targets, target => Assert.Contains(target, supportedTargets));
             Assert.NotEmpty(StringValues(disposition.GetProperty("testMethods")));
+            var discoveredTestIds = StringValues(
+                disposition.GetProperty("discoveredTestIds"));
+            Assert.NotEmpty(discoveredTestIds);
+            Assert.Equal(
+                discoveredTestIds.Length,
+                discoveredTestIds.Distinct(StringComparer.Ordinal).Count());
+            Assert.All(
+                discoveredTestIds,
+                testId => Assert.StartsWith(
+                    $"{fixture}.",
+                    testId,
+                    StringComparison.Ordinal));
             Assert.False(string.IsNullOrWhiteSpace(RequiredString(disposition, "reevaluateWhen")));
 
             if (classification == "not-applicable")
@@ -122,6 +150,64 @@ public class SpecDispositionContractTests
             Assert.False(string.IsNullOrWhiteSpace(RequiredString(workaround, "implementation")));
             Assert.False(string.IsNullOrWhiteSpace(RequiredString(workaround, "verification")));
             ValidatePrimarySources(workaround, s_officialDatabaseVendorHosts);
+        }
+    }
+
+    /// <summary>
+    /// Reconciles every disposition with every supported target in both patch-bound
+    /// discovery contracts so a new Theory row or renamed test cannot inherit an old waiver.
+    /// </summary>
+    [Fact]
+    public void Disposition_ids_match_every_version_bound_discovery_contract()
+    {
+        using var ledger = LoadLedger();
+        var dispositions = ledger.RootElement
+            .GetProperty("activeDispositions")
+            .EnumerateArray()
+            .ToArray();
+        var contractsDirectory = Path.Combine(
+            FindRepositoryRoot(),
+            "tests",
+            "Doka.EntityFrameworkCore.MySql.FunctionalTests",
+            "Specification",
+            "Contracts");
+        var contractPaths = Directory
+            .EnumerateFiles(contractsDirectory, "SpecDiscovery.*.json")
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+        Assert.NotEmpty(contractPaths);
+
+        foreach (var contractPath in contractPaths)
+        {
+            using var contract = JsonDocument.Parse(File.ReadAllText(contractPath));
+            foreach (var target in contract.RootElement
+                         .GetProperty("targets")
+                         .EnumerateArray())
+            {
+                var targetName = RequiredString(target, "target");
+                var targetTestIds = StringValues(target.GetProperty("testIds"));
+                foreach (var disposition in dispositions.Where(
+                             item => StringValues(item.GetProperty("targets")).Contains(
+                                 targetName,
+                                 StringComparer.Ordinal)))
+                {
+                    var fixture = RequiredString(disposition, "fixture");
+                    var methodNames = StringValues(disposition.GetProperty("testMethods"))
+                        .Select(MethodName)
+                        .ToArray();
+                    var expected = targetTestIds
+                        .Where(testId =>
+                            testId.StartsWith($"{fixture}.", StringComparison.Ordinal)
+                            && methodNames.Any(method => IsMethodDisplayId(testId, method)))
+                        .OrderBy(value => value, StringComparer.Ordinal)
+                        .ToArray();
+                    var actual = StringValues(disposition.GetProperty("discoveredTestIds"))
+                        .OrderBy(value => value, StringComparer.Ordinal)
+                        .ToArray();
+
+                    Assert.Equal(expected, actual);
+                }
+            }
         }
     }
 
@@ -321,6 +407,26 @@ public class SpecDispositionContractTests
     private static string LedgerMethodName(
         MethodInfo method
     ) => $"{method.DeclaringType!.Name}.{method.Name}";
+
+    private static string MethodName(
+        string ledgerMethodName
+    ) => ledgerMethodName[(ledgerMethodName.IndexOf('.', StringComparison.Ordinal) + 1)..];
+
+    private static bool IsMethodDisplayId(
+        string testId,
+        string methodName
+    )
+    {
+        var marker = $".{methodName}";
+        var methodStart = testId.LastIndexOf(marker, StringComparison.Ordinal);
+        if (methodStart < 0)
+        {
+            return false;
+        }
+
+        var suffix = methodStart + marker.Length;
+        return suffix == testId.Length || testId[suffix] == '(';
+    }
 
     private static string[] StringValues(
         JsonElement array
