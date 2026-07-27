@@ -93,6 +93,9 @@ jobs:
       - name: Run repo-local test path
         run: bash ./eng/test.sh
 
+      - name: Verify specification test discovery
+        run: bash ./eng/check-spec-discovery.sh
+
       - name: Upload coverage and test-result artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -231,6 +234,13 @@ jobs:
         run: |
           dotnet restore tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --tl:off
           dotnet build tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --configuration Release --no-restore --tl:off
+
+      - name: Verify specification disposition contract and discovery
+        run: |
+          dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
+            --configuration Release --no-build --no-restore --tl:off \
+            --filter FullyQualifiedName~SpecDispositionContractTests
+          bash ./eng/check-spec-discovery.sh
 
       - name: Run specification suite against ${{ matrix.engine.name }}
         env:

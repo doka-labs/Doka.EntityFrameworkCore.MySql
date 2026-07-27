@@ -21,11 +21,12 @@ public class MigrationsMySqlTest : MigrationsInfrastructureTestBase<MigrationsMy
     // that prior EF Core version and produced a real-world snapshot artifact. Doka's first
     // release is on EF Core 10; no prior-version Doka-MySQL snapshot exists in the wild, so
     // a hand-fabricated snapshot would only verify symmetry with the fabrication itself
-    // (round-tripping our own assumptions). Listed under "Permanent skips" in SkipList.md
-    // per ADR D-011 bucket 3 ("structural reason makes the upstream test inapplicable").
+    // (round-tripping our own assumptions). Recorded as structurally inapplicable in the
+    // machine-readable specification disposition ledger per ADR D-021.
     private const string SnapshotInapplicableReason =
-        "Doka first ships on EF Core 10; no prior-EF-Core-version model snapshots exist for this provider. "
-        + "See ADR D-011 and SkipList.md.";
+        "[spec-not-applicable:DOKA-HISTORICAL-SNAPSHOT-NOT-APPLICABLE] "
+        + "Doka first ships on EF Core 10; no prior-EF-Core-version model snapshots exist for this provider. "
+        + "See ADR D-021 and SpecDispositions.json.";
 
     public MigrationsMySqlTest(
         MigrationsMySqlFixture fixture

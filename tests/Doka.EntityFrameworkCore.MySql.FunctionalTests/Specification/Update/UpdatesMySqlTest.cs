@@ -20,20 +20,46 @@ public class UpdatesMySqlTest : UpdatesRelationalTestBase<UpdatesMySqlTest.Updat
     {
     }
 
-    // The upstream test asserts that the spec's deliberately-long entity-type name flows through
-    // the provider's identifier pipeline UNTRUNCATED into table / key / constraint / index names.
-    // Doka's MySqlModelValidator.ValidateConstraintNameLengths rejects any FK or index name above
-    // MySQL's 64-character limit at model-build time rather than silently truncating; the design
-    // choice favors explicit error over silent name collision. The upstream assertion shape does
-    // not apply: Doka throws at CreateContext() before the assertion runs. Listed under
-    // "Permanent skips" in SkipList.md per ADR D-011 bucket 3.
-    [Fact(Skip =
-        "Doka rejects identifiers above the MySQL 64-character limit at model-build time; "
-        + "the upstream assertion assumes silent truncation, which is not the provider's design. "
-        + "See ADR D-011 and SkipList.md.")]
     public override void Identifiers_are_generated_correctly()
     {
-        // Skipped per attribute.
+        using var context = CreateContext();
+        var firstEntityType = context.Model.FindEntityType(
+            typeof(
+                LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectly
+            ))!;
+        var secondEntityType = context.Model.FindEntityType(
+            typeof(
+                LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectlyDetails
+            ))!;
+
+        AssertIdentifier(firstEntityType.GetTableName());
+        AssertIdentifier(firstEntityType.GetKeys().Single().GetName());
+        AssertIdentifier(firstEntityType.GetForeignKeys().Single().GetConstraintName());
+        AssertIdentifier(firstEntityType.GetIndexes().Single().GetDatabaseName());
+
+        AssertIdentifier(secondEntityType.GetTableName());
+        AssertIdentifier(secondEntityType.GetKeys().Single().GetName());
+        AssertIdentifier(secondEntityType.GetIndexes().Single().GetDatabaseName());
+        Assert.NotEqual(firstEntityType.GetTableName(), secondEntityType.GetTableName());
+
+        var table = StoreObjectIdentifier.Table(secondEntityType.GetTableName()!);
+        var longPropertyColumnNames = secondEntityType
+            .GetProperties()
+            .Where(p => p.Name.StartsWith("ExtraPropertyWithAnExtremelyLong", StringComparison.Ordinal))
+            .Select(p => p.GetColumnName(table))
+            .ToArray();
+
+        Assert.Equal(2, longPropertyColumnNames.Length);
+        Assert.All(longPropertyColumnNames, AssertIdentifier);
+        Assert.NotEqual(longPropertyColumnNames[0], longPropertyColumnNames[1]);
+    }
+
+    private static void AssertIdentifier(
+        string? identifier
+    )
+    {
+        Assert.NotNull(identifier);
+        Assert.InRange(identifier.Length, 1, MySqlConventionSetBuilder.MaxIdentifierLength);
     }
 
     public class UpdatesMySqlFixture : UpdatesRelationalFixture
@@ -49,10 +75,6 @@ public class UpdatesMySqlTest : UpdatesRelationalTestBase<UpdatesMySqlTest.Updat
         // below cover the keyed surface while leaving unkeyed strings on the provider's
         // longtext default.
 
-        // The spec model's deliberately-long LoginEntityType... entity name (105 chars) drives
-        // every key / FK / index name above MySQL's 64-character limit. The Login + LoginDetails
-        // table-name overrides remap the two entities to short table names so EF Core's auto-
-        // generated constraint names stay within budget.
         protected override void OnModelCreating(
             ModelBuilder modelBuilder,
             DbContext context
@@ -73,69 +95,18 @@ public class UpdatesMySqlTest : UpdatesRelationalTestBase<UpdatesMySqlTest.Updat
             modelBuilder
                 .Entity<LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectly>(eb =>
                 {
-                    eb.ToTable("Login");
                     eb.Property(l => l.ProfileId1).HasMaxLength(64);
                 });
 
             modelBuilder
                 .Entity<LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectlyDetails>(eb =>
                 {
-                    eb.ToTable("LoginDetails");
                     eb.Property(l => l.ProfileId1).HasMaxLength(64);
                 });
 
             modelBuilder.Entity<Profile>().Property(p => p.Id1).HasMaxLength(64);
             modelBuilder.Entity<Product>().Property(p => p.Name).HasMaxLength(255);
             modelBuilder.Entity<Rodney>().Property(r => r.Id).HasMaxLength(64);
-
-            // The Login -> Profile FK is a composite of 15+ ProfileId* properties; the
-            // auto-generated constraint and index names ("FK_Login_Profile_ProfileId_..."
-            // and "IX_Login_ProfileId_...") run > 180 chars and trip
-            // MySqlModelValidator.ValidateConstraintNameLengths. Rename the FK and any
-            // index on either Login or LoginDetails whose name overflows the 64-char limit
-            // via metadata access (a fresh HasOne / WithOne would create a shadow
-            // relationship in parallel to the base configuration).
-            var loginEntityType = modelBuilder
-                .Entity<LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectly>()
-                .Metadata;
-
-            foreach (var foreignKey in loginEntityType.GetForeignKeys())
-            {
-                if (foreignKey.PrincipalEntityType.ClrType == typeof(Profile))
-                {
-                    foreignKey.SetConstraintName("FK_Login_Profile");
-                }
-            }
-
-            ShortenLongIndexNames(loginEntityType, "Login");
-
-            var detailsBuilder = modelBuilder
-                .Entity<LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectlyDetails>();
-
-            // The Details entity carries two deliberately-long property names (139 and 174
-            // chars) to exercise the spec's identifier-truncation tests. MySQL columns cap at
-            // 64 chars; map the two columns to short explicit names so EnsureCreated emits
-            // valid CREATE TABLE DDL.
-            detailsBuilder
-                .Property(d => d.ExtraPropertyWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectly)
-                .HasColumnName("ExtraProperty");
-            detailsBuilder
-                .Property(d => d.ExtraPropertyWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectlyWhenTruncatedNamesCollide)
-                .HasColumnName("ExtraPropertyCollide");
-
-            ShortenLongIndexNames(detailsBuilder.Metadata, "LoginDetails");
-        }
-
-        private static void ShortenLongIndexNames(
-            IMutableEntityType entityType,
-            string entityShortName
-        )
-        {
-            var ordinal = 0;
-            foreach (var index in entityType.GetIndexes())
-            {
-                index.SetDatabaseName($"IX_{entityShortName}_{ordinal++}");
-            }
         }
     }
 }

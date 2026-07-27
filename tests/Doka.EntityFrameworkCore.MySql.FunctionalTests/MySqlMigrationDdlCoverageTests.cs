@@ -2,7 +2,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
 /// Coverage tests for migration DDL operations: Rename Table/Column, AlterSequence,
-/// Spatial Index, INVISIBLE, and argument validation.
+/// Spatial Index, INVISIBLE, identifier normalization, and argument validation.
 /// </summary>
 public sealed class MySqlMigrationDdlCoverageTests
 {
@@ -276,26 +276,28 @@ public sealed class MySqlMigrationDdlCoverageTests
         Assert.Contains("MINUTE", sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    // -- ModelValidator: constraint name length --
-
+    /// <summary>
+    /// Verifies that convention-generated foreign-key names are normalized to the
+    /// cross-engine 64-character identifier limit before model validation.
+    /// </summary>
     [Fact]
-    public void Model_with_long_fk_name_builds_and_validator_rejects()
+    public void Model_with_long_fk_name_builds_with_normalized_constraint_name()
     {
         var builder = new DbContextOptionsBuilder<ConstraintTestContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
-        // Context construction triggers model finalization and validation.
-        // The FK constraint name exceeds 64 chars.
-        var exception = Assert.ThrowsAny<Exception>(() =>
-        {
-            using var context = new ConstraintTestContext(builder.Options);
-            // Force model build by accessing it.
-            _ = context.Model;
-        });
+        using var context = new ConstraintTestContext(builder.Options);
+        var childEntity = context.Model.FindEntityType(typeof(ChildEntity))
+            ?? throw new InvalidOperationException("ChildEntity metadata was not created.");
+        var foreignKey = Assert.Single(childEntity.GetForeignKeys());
+        var constraintName = foreignKey.GetConstraintName()
+            ?? throw new InvalidOperationException("Foreign-key constraint name was not generated.");
 
-        Assert.Contains("64", exception.Message, StringComparison.Ordinal);
+        Assert.True(
+            constraintName.Length <= 64,
+            $"Convention-generated constraint name '{constraintName}' exceeds 64 characters.");
     }
 
     // -- HiLo for short type --
@@ -433,7 +435,8 @@ public sealed class MySqlMigrationDdlCoverageTests
                 e.HasKey(x => x.Id);
             });
 
-            // Create a FK with a very long constraint name (>64 chars).
+            // The long table name makes the convention-generated foreign-key name exceed
+            // the shared MySQL/MariaDB identifier limit before normalization.
             modelBuilder.Entity<ChildEntity>(e =>
             {
                 e.ToTable("ChildrenWithVeryLongTableNameThatExceedsTheSixtyFourCharacterLimit");

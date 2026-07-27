@@ -1,0 +1,493 @@
+{
+  "schemaVersion": 1,
+  "lastReviewedAt": "2026-07-27",
+  "policy": {
+    "providerGapBudget": 0,
+    "statement": "Every applicable EF Core relational specification behavior must run. A skip is permitted only for a primary-source-backed database-engine limitation, an upstream EF Core limitation reached before provider-owned translation can solve it, or a structurally inapplicable historical test.",
+    "engineLimitationRequirements": [
+      "At least one official database-vendor primary source",
+      "A retrieval date for every source",
+      "A reproducible probe against every affected supported target",
+      "A provider-workaround assessment",
+      "A concrete re-evaluation trigger"
+    ],
+    "frameworkLimitationRequirements": [
+      "The upstream EF Core specification test is itself skipped with a linked dotnet/efcore issue",
+      "The failure is reproduced with the upstream skip disabled",
+      "The failure is attributable to framework-owned translation or semantics rather than provider SQL capability",
+      "A retrieval date and concrete re-evaluation trigger"
+    ],
+    "silentPassesPermitted": false
+  },
+  "supportedTargets": [
+    "mysql84",
+    "mariadb114",
+    "mariadb118"
+  ],
+  "activeDispositions": [
+    {
+      "id": "MDB-CORRELATED-DERIVED-TABLE",
+      "classification": "engine-limitation",
+      "targets": [
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "MariaDB cannot express a correlated derived table because FROM-subqueries cannot be correlated and the JOIN grammar has no LATERAL derived-table form.",
+      "testMethods": [
+        "JsonQueryMySqlTest.Json_collection_Distinct_Count_with_predicate",
+        "JsonQueryMySqlTest.Json_collection_OrderByDescending_Skip_ElementAt",
+        "JsonQueryMySqlTest.Json_collection_Skip",
+        "JsonQueryMySqlTest.Json_collection_Select_entity_in_anonymous_object_ElementAt",
+        "JsonQueryMySqlTest.Json_collection_Select_entity_with_initializer_ElementAt",
+        "JsonQueryMySqlTest.Json_collection_skip_take_in_projection",
+        "JsonQueryMySqlTest.Json_collection_skip_take_in_projection_project_into_anonymous_type",
+        "JsonQueryMySqlTest.Json_collection_skip_take_in_projection_with_json_reference_access_as_final_operation",
+        "JsonQueryMySqlTest.Json_collection_distinct_in_projection",
+        "JsonQueryMySqlTest.Json_branch_collection_distinct_and_other_collection",
+        "JsonQueryMySqlTest.Json_leaf_collection_distinct_and_other_collection",
+        "JsonQueryMySqlTest.Json_collection_filter_in_projection",
+        "JsonQueryMySqlTest.Json_collection_leaf_filter_in_projection",
+        "JsonQueryMySqlTest.Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_primitive_arrays",
+        "JsonQueryMySqlTest.Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_scalars",
+        "JsonQueryMySqlTest.Json_multiple_collection_projections",
+        "JsonQueryMySqlTest.Json_nested_collection_anonymous_projection_in_projection",
+        "JsonQueryMySqlTest.Json_nested_collection_anonymous_projection_of_primitives_in_projection_NoTrackingWithIdentityResolution",
+        "JsonQueryMySqlTest.Json_nested_collection_filter_in_projection"
+      ],
+      "primarySources": [
+        {
+          "publisher": "MariaDB",
+          "title": "Subquery Limitations",
+          "url": "https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/subqueries/subquery-limitations",
+          "retrievedAt": "2026-07-27",
+          "supports": "The Correlated Subqueries section states that subqueries in the FROM clause cannot be correlated."
+        },
+        {
+          "publisher": "MariaDB",
+          "title": "JOIN Syntax",
+          "url": "https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/joins/join-syntax",
+          "retrievedAt": "2026-07-27",
+          "supports": "The complete table_reference and join_table grammar for MariaDB 11.4 through 11.8 has no LATERAL production."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-27",
+        "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~JsonQueryMySqlTest",
+        "observations": [
+          {
+            "target": "mariadb114",
+            "result": "38 affected invocations fail; representative failures are ERROR 1054 for an outer column referenced inside JSON_TABLE below a derived-table boundary and syntax errors at LEFT JOIN LATERAL."
+          },
+          {
+            "target": "mariadb118",
+            "result": "38 affected invocations fail with the same name-resolution and JOIN LATERAL errors as MariaDB 11.4."
+          }
+        ]
+      },
+      "providerWorkaroundAssessment": "JSON_TABLE itself can reference a preceding outer table and the provider uses that form where the relational tree permits it. These tests require per-outer-row composition after DISTINCT, ordering, filtering, pagination, or nested collection shaping. That composition introduces a correlated derived-table boundary. MariaDB provides neither correlation in FROM nor an equivalent LATERAL join operator, so the general relational operation cannot be emitted as server-side SQL. Client evaluation would change the specification contract and is not accepted as a provider workaround.",
+      "reevaluateWhen": "Re-run the probe when MariaDB documents either correlated FROM-subqueries or a LATERAL/APPLY join production for every supported MariaDB target."
+    },
+    {
+      "id": "MDB-JSON-TABLE-SUBDOCUMENT",
+      "classification": "engine-limitation",
+      "targets": [
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "MariaDB JSON_TABLE cannot extract a JSON object or array into a JSON-typed result column.",
+      "testMethods": [
+        "JsonQueryMySqlTest.Custom_naming_projection_everything",
+        "JsonQueryMySqlTest.Custom_naming_projection_owned_scalar"
+      ],
+      "primarySources": [
+        {
+          "publisher": "MariaDB",
+          "title": "JSON_TABLE",
+          "url": "https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_table",
+          "retrievedAt": "2026-07-27",
+          "supports": "The Extracting a Subdocument into a Column section states that JSON_TABLE does not allow extraction of a JSON subdocument into a JSON column."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-27",
+        "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~JsonQueryMySqlTest.Custom_naming_projection\"",
+        "observations": [
+          {
+            "target": "mariadb114",
+            "result": "Both methods fail for sync and async data rows because the required owned JSON subdocument is returned as NULL; the materializer reports Nullable object must have a value."
+          },
+          {
+            "target": "mariadb118",
+            "result": "Both methods fail for sync and async data rows with the same NULL subdocument materialization failure as MariaDB 11.4."
+          }
+        ]
+      },
+      "providerWorkaroundAssessment": "The projection requires the complete owned JSON subdocument as a value so EF Core can materialize the owned graph. Extracting individual scalar members would not preserve arbitrary nested content or the specification's JSON materialization semantics. MariaDB's documented JSON_TABLE result-column restriction therefore removes the required server-side rowset operation.",
+      "reevaluateWhen": "Re-run the probe when MariaDB documents JSON_TABLE support for extracting a JSON subdocument into a JSON result column on every supported MariaDB target."
+    },
+    {
+      "id": "EFCORE-31397",
+      "classification": "framework-limitation",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "EF Core cannot identify a stable collection identifier for a JSON collection property projection followed by Distinct.",
+      "testMethods": [
+        "JsonQueryMySqlTest.Json_collection_anonymous_projection_distinct_in_projection"
+      ],
+      "primarySources": [
+        {
+          "publisher": "Microsoft EF Core",
+          "title": "Query/Json: projecting individual properties of JSON collection with Distinct fails due to insufficient information",
+          "url": "https://github.com/dotnet/efcore/issues/31397",
+          "retrievedAt": "2026-07-27",
+          "supports": "The open EF Core backlog issue contains this exact specification query and explains that EF Core lacks sufficient identifier information for the projected JSON collection."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-27",
+        "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Json_collection_anonymous_projection_distinct_in_projection",
+        "observations": [
+          {
+            "target": "mysql84",
+            "result": "Both async modes fail in EF Core collection-shaping translation before provider SQL execution."
+          },
+          {
+            "target": "mariadb114",
+            "result": "Both async modes fail at the same EF Core collection-shaping boundary as MySQL 8.4."
+          },
+          {
+            "target": "mariadb118",
+            "result": "Both async modes fail at the same EF Core collection-shaping boundary as MySQL 8.4."
+          }
+        ]
+      },
+      "frameworkBoundaryAssessment": "The failure is raised while EF Core assigns identifiers to the shaped JSON collection. No database-specific SQL operation can add the missing framework projection metadata.",
+      "reevaluateWhen": "The probe passes after dotnet/efcore issue 31397 is fixed in the consumed EF Core line."
+    },
+    {
+      "id": "EFCORE-29287",
+      "classification": "framework-limitation",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "EF Core cannot translate GroupBy followed by ordering on a JSON scalar and FirstOrDefault.",
+      "testMethods": [
+        "JsonQueryMySqlTest.Group_by_json_scalar_Orderby_json_scalar_FirstOrDefault"
+      ],
+      "primarySources": [
+        {
+          "publisher": "Microsoft EF Core",
+          "title": "JSON/Query: translate groupby followed by orderby json scalar + FirstOrDefault",
+          "url": "https://github.com/dotnet/efcore/issues/29287",
+          "retrievedAt": "2026-07-27",
+          "supports": "The open EF Core backlog issue contains the exact GroupBy, JSON scalar OrderBy, and FirstOrDefault shape."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-27",
+        "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Group_by_json_scalar_Orderby_json_scalar_FirstOrDefault",
+        "observations": [
+          {
+            "target": "mysql84",
+            "result": "Both async modes fail in RelationalSqlTranslatingExpressionVisitor while binding the owned JSON property."
+          },
+          {
+            "target": "mariadb114",
+            "result": "Both async modes fail at the same EF Core property-binding boundary as MySQL 8.4."
+          },
+          {
+            "target": "mariadb118",
+            "result": "Both async modes fail at the same EF Core property-binding boundary as MySQL 8.4."
+          }
+        ]
+      },
+      "frameworkBoundaryAssessment": "The framework rejects the expression before a provider SQL tree exists. The provider cannot compensate with engine-specific SQL generation.",
+      "reevaluateWhen": "The probe passes after dotnet/efcore issue 29287 is fixed in the consumed EF Core line."
+    },
+    {
+      "id": "EFCORE-28733",
+      "classification": "framework-limitation",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "EF Core cannot bind a JSON owned property above a FirstOrDefault subquery for structural comparison.",
+      "testMethods": [
+        "JsonQueryMySqlTest.Project_json_entity_FirstOrDefault_subquery_with_entity_comparison_on_top"
+      ],
+      "primarySources": [
+        {
+          "publisher": "Microsoft EF Core",
+          "title": "Json/Query: support subquery FirstOrDefault scenario with binding to property on top of that",
+          "url": "https://github.com/dotnet/efcore/issues/28733",
+          "retrievedAt": "2026-07-27",
+          "supports": "The open EF Core backlog issue contains the exact JSON FirstOrDefault property-binding and comparison query."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-27",
+        "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Project_json_entity_FirstOrDefault_subquery_with_entity_comparison_on_top",
+        "observations": [
+          {
+            "target": "mysql84",
+            "result": "Both async modes fail inside EF Core with an invalid cast from JsonQueryExpression to StructuralTypeProjectionExpression."
+          },
+          {
+            "target": "mariadb114",
+            "result": "Both async modes fail with the same EF Core internal expression-type cast as MySQL 8.4."
+          },
+          {
+            "target": "mariadb118",
+            "result": "Both async modes fail with the same EF Core internal expression-type cast as MySQL 8.4."
+          }
+        ]
+      },
+      "frameworkBoundaryAssessment": "The invalid cast occurs in EF Core structural equality rewriting before provider SQL generation. A database-provider SQL rewrite cannot intercept that framework-internal type mismatch.",
+      "reevaluateWhen": "The probe passes after dotnet/efcore issue 28733 is fixed in the consumed EF Core line."
+    },
+    {
+      "id": "EFCORE-28645",
+      "classification": "framework-limitation",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "EF Core cannot backtrack from a nested JSON owned entity to its parent during query translation.",
+      "testMethods": [
+        "JsonQueryMySqlTest.Json_entity_backtracking"
+      ],
+      "primarySources": [
+        {
+          "publisher": "Microsoft EF Core",
+          "title": "Json/Query: allow backtracking into parent json entities",
+          "url": "https://github.com/dotnet/efcore/issues/28645",
+          "retrievedAt": "2026-07-27",
+          "supports": "The open EF Core issue tracks parent backtracking for JSON-owned entities and is the issue referenced by the upstream skipped specification test."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-27",
+        "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Json_entity_backtracking",
+        "observations": [
+          {
+            "target": "mysql84",
+            "result": "Both async modes fail during EF Core owned-navigation expansion before provider SQL execution."
+          },
+          {
+            "target": "mariadb114",
+            "result": "Both async modes fail at the same EF Core navigation-expansion boundary as MySQL 8.4."
+          },
+          {
+            "target": "mariadb118",
+            "result": "Both async modes fail at the same EF Core navigation-expansion boundary as MySQL 8.4."
+          }
+        ]
+      },
+      "frameworkBoundaryAssessment": "Parent backtracking is absent from EF Core's JSON navigation model. The provider receives no translatable expression on which an engine-specific implementation could operate.",
+      "reevaluateWhen": "The probe passes after dotnet/efcore issue 28645 is fixed in the consumed EF Core line."
+    },
+    {
+      "id": "EFCORE-24263",
+      "classification": "framework-limitation",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "EF Core cannot preserve a nested JSON collection projection through two subquery pushdowns.",
+      "testMethods": [
+        "JsonQueryMySqlTest.Json_subquery_reference_pushdown_reference_pushdown_anonymous_projection"
+      ],
+      "primarySources": [
+        {
+          "publisher": "Microsoft EF Core",
+          "title": "Select + Distinct + Select Collection results in incorrect SQL and results",
+          "url": "https://github.com/dotnet/efcore/issues/24263",
+          "retrievedAt": "2026-07-27",
+          "supports": "The open EF Core issue tracks collection projection loss through composed select and pushdown shapes and is referenced by the upstream specification test."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-27",
+        "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Json_subquery_reference_pushdown_reference_pushdown_anonymous_projection",
+        "observations": [
+          {
+            "target": "mysql84",
+            "result": "Both async modes fail in RelationalProjectionBindingExpressionVisitor because the nested owned JSON collection cannot be translated after the second pushdown."
+          },
+          {
+            "target": "mariadb114",
+            "result": "Both async modes fail at the same EF Core projection-binding boundary as MySQL 8.4."
+          },
+          {
+            "target": "mariadb118",
+            "result": "Both async modes fail at the same EF Core projection-binding boundary as MySQL 8.4."
+          }
+        ]
+      },
+      "frameworkBoundaryAssessment": "The adjacent single-pushdown test is explicitly enabled and passes on Doka. Only the second framework pushdown loses the nested collection expression before provider SQL generation.",
+      "reevaluateWhen": "The double-pushdown probe passes after dotnet/efcore issue 24263 is fixed in the consumed EF Core line."
+    },
+    {
+      "id": "EFCORE-29416",
+      "classification": "framework-limitation",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "EF Core null comparison semantics are incorrect for a property converter that handles nulls.",
+      "testMethods": [
+        "JsonQueryMySqlTest.Json_predicate_on_nullableenumwithconverterthathandlesnulls2"
+      ],
+      "primarySources": [
+        {
+          "publisher": "Microsoft EF Core",
+          "title": "Query: property with converter which handles nulls, can/will give wrong results when compared to null",
+          "url": "https://github.com/dotnet/efcore/issues/29416",
+          "retrievedAt": "2026-07-27",
+          "supports": "The open EF Core issue tracks wrong null-comparison results for converters that handle nulls and is referenced by the upstream specification test."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-27",
+        "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Json_predicate_on_nullableenumwithconverterthathandlesnulls2",
+        "observations": [
+          {
+            "target": "mysql84",
+            "result": "Both async modes return two rows instead of the one row required by converter-aware null semantics."
+          },
+          {
+            "target": "mariadb114",
+            "result": "Both async modes reproduce the same two-versus-one framework null-semantics mismatch as MySQL 8.4."
+          },
+          {
+            "target": "mariadb118",
+            "result": "Both async modes reproduce the same two-versus-one framework null-semantics mismatch as MySQL 8.4."
+          }
+        ]
+      },
+      "frameworkBoundaryAssessment": "EF Core performs null-semantics rewriting around value conversion before provider-specific SQL generation. The identical upstream skipped test and issue isolate this as framework behavior rather than an engine capability.",
+      "reevaluateWhen": "The probe passes after dotnet/efcore issue 29416 is fixed in the consumed EF Core line."
+    },
+    {
+      "id": "DOKA-HISTORICAL-SNAPSHOT-NOT-APPLICABLE",
+      "classification": "not-applicable",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "Doka first ships on EF Core 10 and cannot possess provider-generated EF Core 2.1, 2.2, or 3.0 snapshots from an earlier public release.",
+      "testMethods": [
+        "MigrationsMySqlTest.Can_diff_against_2_2_model",
+        "MigrationsMySqlTest.Can_diff_against_2_1_ASP_NET_Identity_model",
+        "MigrationsMySqlTest.Can_diff_against_2_2_ASP_NET_Identity_model",
+        "MigrationsMySqlTest.Can_diff_against_3_0_ASP_NET_Identity_model"
+      ],
+      "rationale": "Fabricating historical provider snapshots now would only test symmetry with newly invented fixtures. The upstream compatibility premise is structurally absent rather than unsupported by either database engine.",
+      "reevaluateWhen": "Never for these pre-release versions. Add real compatibility snapshots only after Doka has published a version whose snapshots must remain readable by a later release."
+    }
+  ],
+  "providerWorkarounds": [
+    {
+      "id": "MYSQL-MARIADB-LIMITED-IN-SUBQUERY",
+      "status": "implemented",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "testMethods": [
+        "NorthwindWhereQueryMySqlTest.Where_multiple_contains_in_subquery_with_or",
+        "NorthwindWhereQueryMySqlTest.Where_multiple_contains_in_subquery_with_and"
+      ],
+      "engineRestriction": "Both database families reject LIMIT directly inside an IN, ALL, ANY, or SOME subquery.",
+      "implementation": "MySqlQuerySqlGenerator.GenerateIn preserves the LINQ behavior by placing the limited single-column query behind a derived-table boundary.",
+      "primarySources": [
+        {
+          "publisher": "MySQL",
+          "title": "Restrictions on Subqueries",
+          "url": "https://dev.mysql.com/doc/refman/8.4/en/subquery-restrictions.html",
+          "retrievedAt": "2026-07-27",
+          "supports": "The manual documents ERROR 1235 for LIMIT within IN, ALL, ANY, or SOME subqueries."
+        },
+        {
+          "publisher": "MariaDB",
+          "title": "Subquery Limitations",
+          "url": "https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/subqueries/subquery-limitations",
+          "retrievedAt": "2026-07-27",
+          "supports": "The manual documents ERROR 1235 for the same LIMIT and IN, ALL, ANY, or SOME combination."
+        }
+      ],
+      "verification": "Verified 2026-07-27 against EF Core 10.0.8 and 10.0.10 in the full functional suite with both specification methods active. For each EF Core version, MySQL 8.4 passed 1234, failed 0, skipped 10; MariaDB 11.4 and 11.8 each passed 1192, failed 0, skipped 31."
+    },
+    {
+      "id": "MYSQL-JSON-TABLE-EXISTS-114897",
+      "status": "implemented",
+      "targets": [
+        "mysql84"
+      ],
+      "testMethods": [
+        "JsonQueryMySqlTest.Json_collection_within_collection_Count"
+      ],
+      "engineRestriction": "MySQL 8.4 may return the wrong result for EXISTS over JSON_TABLE because of optimizer bug 114897.",
+      "implementation": "MySqlQuerySqlGenerator.GenerateExists emits a limited scalar subquery for the affected MySQL JSON_TABLE shape, avoiding the faulty semijoin transformation while preserving EXISTS and NOT EXISTS semantics.",
+      "primarySources": [
+        {
+          "publisher": "MySQL",
+          "title": "Bug #114897: json_table and exists make a bug",
+          "url": "https://bugs.mysql.com/bug.php?id=114897",
+          "retrievedAt": "2026-07-27",
+          "supports": "The verified bug report reproduces an incorrect result for WHERE EXISTS over JSON_TABLE."
+        },
+        {
+          "publisher": "MySQL",
+          "title": "Changes in MySQL 9.3.0",
+          "url": "https://dev.mysql.com/doc/relnotes/mysql/9.7/en/news-9-3-0.html",
+          "retrievedAt": "2026-07-27",
+          "supports": "The JSON Notes record the fix for a WHERE EXISTS query over JSON_TABLE returning the wrong result and reference bug 114897."
+        }
+      ],
+      "verification": "Verified 2026-07-27 against EF Core 10.0.8 and 10.0.10. The sync and async specification invocations pass on MySQL 8.4 after the rewrite, and each complete MySQL suite passed 1234, failed 0, skipped 10."
+    },
+    {
+      "id": "MYSQL-MARIADB-IDENTIFIER-LENGTH",
+      "status": "implemented",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "testMethods": [
+        "UpdatesMySqlTest.Identifiers_are_generated_correctly"
+      ],
+      "engineRestriction": "Both database families cap the relevant schema identifiers at 64 characters.",
+      "implementation": "MySqlConventionSetBuilder registers RelationalMaxIdentifierLengthConvention with a limit of 64 so EF Core truncates names deterministically and adds collision suffixes before DDL generation.",
+      "primarySources": [
+        {
+          "publisher": "MySQL",
+          "title": "Identifier Length Limits",
+          "url": "https://dev.mysql.com/doc/refman/8.4/en/identifier-length.html",
+          "retrievedAt": "2026-07-27",
+          "supports": "The manual lists 64 characters for database, table, column, index, constraint, stored program, and related identifiers."
+        },
+        {
+          "publisher": "MariaDB",
+          "title": "Identifier Names",
+          "url": "https://mariadb.com/docs/server/reference/sql-structure/sql-language-structure/identifier-names",
+          "retrievedAt": "2026-07-27",
+          "supports": "The Maximum Length section lists 64 characters for databases, tables, columns, indexes, constraints, and the other relevant schema identifiers."
+        }
+      ],
+      "verification": "Verified 2026-07-27 against EF Core 10.0.8 and 10.0.10 in the full functional suite with identifier assertions active, plus the DDL coverage regression for convention-generated foreign-key names. For each EF Core version, MySQL 8.4 passed 1234, failed 0, skipped 10; MariaDB 11.4 and 11.8 each passed 1192, failed 0, skipped 31."
+    }
+  ]
+}

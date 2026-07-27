@@ -130,14 +130,11 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
 
     /// <summary>
     /// Translates the EF Core T-SQL idiom <c>CROSS APPLY &lt;table&gt;</c> into the
-    /// cross-engine standard <c>JOIN LATERAL &lt;table&gt; ON TRUE</c>. MySQL 8.0.14+ and
-    /// MariaDB 10.3+ both implement LATERAL derived tables with the same semantics as APPLY
-    /// (the right-hand subquery sees columns from the left-hand source); the provider targets
-    /// versions newer than both engines' first-supporting release.
-    /// JSON_TABLE is already inherently lateral and both engines REJECT the LATERAL keyword
-    /// in front of a table-valued function call -- LATERAL is reserved for derived-table
-    /// subqueries. The <see cref="MySqlJsonTableExpression"/> branch emits plain <c>JOIN</c>
-    /// instead.
+    /// MySQL form <c>JOIN LATERAL &lt;table&gt; ON TRUE</c>. JSON_TABLE is already inherently
+    /// lateral, and both engines reject the LATERAL keyword in front of a table-valued
+    /// function call, so <see cref="MySqlJsonTableExpression"/> uses plain <c>JOIN</c>.
+    /// MariaDB has no LATERAL derived-table grammar and therefore receives a precise
+    /// engine-capability exception instead of syntactically invalid SQL.
     /// </summary>
     protected override Expression VisitCrossApply(
         CrossApplyExpression crossApplyExpression
@@ -145,20 +142,27 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     {
         ArgumentNullException.ThrowIfNull(crossApplyExpression);
 
-        Sql.Append(crossApplyExpression.Table is MySqlJsonTableExpression
-            ? "JOIN "
-            : "JOIN LATERAL ");
+        if (crossApplyExpression.Table is MySqlJsonTableExpression)
+        {
+            Sql.Append("JOIN ");
+        }
+        else
+        {
+            ThrowIfMariaDbLateralDerivedTableIsRequired();
+            Sql.Append("JOIN LATERAL ");
+        }
+
         Visit(crossApplyExpression.Table);
         Sql.Append(" ON TRUE");
         return crossApplyExpression;
     }
 
     /// <summary>
-    /// Translates <c>OUTER APPLY &lt;table&gt;</c> into <c>LEFT JOIN LATERAL &lt;table&gt; ON TRUE</c>.
-    /// Same LATERAL-derived-table mechanism as <see cref="VisitCrossApply"/>; the outer variant
-    /// preserves the left-hand rows whose lateral subquery produces no match. JSON_TABLE
-    /// branch emits <c>LEFT JOIN</c> without the LATERAL keyword for the same reason as
-    /// <see cref="VisitCrossApply"/>.
+    /// Translates <c>OUTER APPLY &lt;table&gt;</c> into the MySQL form
+    /// <c>LEFT JOIN LATERAL &lt;table&gt; ON TRUE</c>. The outer variant preserves left-hand
+    /// rows whose lateral subquery produces no match. JSON_TABLE uses <c>LEFT JOIN</c>
+    /// without LATERAL; MariaDB receives the same explicit capability exception as
+    /// <see cref="VisitCrossApply"/> for an ordinary correlated derived table.
     /// </summary>
     protected override Expression VisitOuterApply(
         OuterApplyExpression outerApplyExpression
@@ -166,12 +170,124 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     {
         ArgumentNullException.ThrowIfNull(outerApplyExpression);
 
-        Sql.Append(outerApplyExpression.Table is MySqlJsonTableExpression
-            ? "LEFT JOIN "
-            : "LEFT JOIN LATERAL ");
+        if (outerApplyExpression.Table is MySqlJsonTableExpression)
+        {
+            Sql.Append("LEFT JOIN ");
+        }
+        else
+        {
+            ThrowIfMariaDbLateralDerivedTableIsRequired();
+            Sql.Append("LEFT JOIN LATERAL ");
+        }
+
         Visit(outerApplyExpression.Table);
         Sql.Append(" ON TRUE");
         return outerApplyExpression;
+    }
+
+    /// <summary>
+    /// Prevents MariaDB from receiving a LATERAL derived-table construct that its SQL
+    /// grammar cannot parse. The disposition ID links the runtime boundary to the
+    /// primary-source evidence and re-evaluation trigger in the specification ledger.
+    /// </summary>
+    private void ThrowIfMariaDbLateralDerivedTableIsRequired()
+    {
+        if (_singletonOptions.ServerVersion?.IsMariaDb == true)
+        {
+            throw new InvalidOperationException(
+                "MariaDB cannot execute a correlated derived table because its JOIN grammar "
+                + "does not support LATERAL. See disposition MDB-CORRELATED-DERIVED-TABLE.");
+        }
+    }
+
+    /// <summary>
+    /// Wraps a limited <c>IN</c> subquery in a derived table. MySQL and MariaDB reject
+    /// <c>LIMIT</c> directly below <c>IN</c>, <c>ALL</c>, <c>ANY</c>, or <c>SOME</c>, while
+    /// accepting the same limited query through a materialized derived-table boundary.
+    /// The outer <c>SELECT *</c> preserves the single-column and NULL semantics of the
+    /// original <see cref="InExpression"/>.
+    /// </summary>
+    protected override void GenerateIn(
+        InExpression inExpression,
+        bool negated
+    )
+    {
+        ArgumentNullException.ThrowIfNull(inExpression);
+
+        if (inExpression.Subquery is not { Limit: not null } limitedSubquery)
+        {
+            base.GenerateIn(inExpression, negated);
+            return;
+        }
+
+        Visit(inExpression.Item);
+        Sql.Append(negated ? " NOT IN (" : " IN (");
+        Sql.AppendLine();
+
+        using (Sql.Indent())
+        {
+            Sql.AppendLine("SELECT *");
+            Sql.AppendLine("FROM (");
+
+            using (Sql.Indent())
+            {
+                Visit(limitedSubquery);
+            }
+
+            Sql.AppendLine();
+            Sql.Append(") AS ");
+            Sql.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("__doka_limited_subquery"));
+        }
+
+        Sql.AppendLine();
+        Sql.Append(")");
+    }
+
+    /// <summary>
+    /// Emits JSON_TABLE-backed existence checks as a limited scalar subquery on MySQL.
+    /// MySQL bug #114897 can reorder the correlated table function ahead of its source
+    /// during EXISTS-to-semijoin optimization and silently return no rows. A scalar
+    /// <c>SELECT 1 ... LIMIT 1</c> preserves EXISTS / NOT EXISTS semantics while avoiding
+    /// the faulty semijoin transformation.
+    /// </summary>
+    protected override void GenerateExists(
+        ExistsExpression existsExpression,
+        bool negated
+    )
+    {
+        ArgumentNullException.ThrowIfNull(existsExpression);
+
+        var subquery = existsExpression.Subquery;
+        if (_singletonOptions.ServerVersion?.IsMariaDb != false
+            || subquery.Tables is not [MySqlJsonTableExpression, ..]
+            || subquery.GroupBy.Count > 0
+            || subquery.Having is not null
+            || subquery.Limit is not null
+            || subquery.Offset is not null)
+        {
+            base.GenerateExists(existsExpression, negated);
+            return;
+        }
+
+        Sql.AppendLine("(");
+        using (Sql.Indent())
+        {
+            Sql.Append("SELECT 1");
+            GenerateFrom(subquery);
+
+            if (subquery.Predicate is not null)
+            {
+                Sql.AppendLine();
+                Sql.Append("WHERE ");
+                Visit(subquery.Predicate);
+            }
+
+            Sql.AppendLine();
+            Sql.Append("LIMIT 1");
+        }
+
+        Sql.AppendLine();
+        Sql.Append(negated ? ") IS NULL" : ") IS NOT NULL");
     }
 
     /// <summary>
@@ -302,10 +418,11 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     /// <item><see cref="bool"/> -> <c>(JSON_EXTRACT(...) = TRUE)</c>; MySQL and MariaDB
     /// have no <c>CAST ... AS BOOL</c> / <c>BIT</c> grammar, so a boolean comparison
     /// produces a TINYINT 0/1 that <c>reader.GetBoolean</c> reads natively.</item>
+    /// <item>Numeric and temporal mappings -> an engine-aware <c>CAST</c> that preserves
+    /// SQL <c>NULL</c> and matches the data-reader type expected by EF Core.</item>
+    /// <item><see cref="byte"/> arrays -> <c>FROM_BASE64</c> because JSON stores the value
+    /// as Base64 text while relational comparisons use binary literals.</item>
     /// </list>
-    /// Numeric and temporal types are routed through <see cref="VisitJsonScalar"/>'s
-    /// follow-up CAST shapes in subsequent commits; the current commit ships only the
-    /// bool branch to verify the regression-free path before extending.
     ///
     /// When the path contains a non-constant array index (a SQL expression rather than a
     /// literal integer), the path is emitted via <c>CONCAT</c> so the dynamic expression
@@ -481,7 +598,7 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     /// store types where no CAST is needed -- string-shaped types fall through to
     /// <c>JSON_UNQUOTE</c>; <c>json</c> stays raw; <c>tinyint(1)</c>/<c>bit(1)</c> are the
     /// boolean shape handled by the earlier <c>(= TRUE)</c> branch; binary store types are
-    /// handled by a later commit.
+    /// handled by the <c>FROM_BASE64</c> branch.
     /// </summary>
     private static JsonScalarCast? JsonScalarCastTarget(
         string storeType

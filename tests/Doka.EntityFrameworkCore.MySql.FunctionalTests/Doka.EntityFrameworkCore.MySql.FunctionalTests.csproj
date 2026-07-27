@@ -24,4 +24,10 @@
     <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj" />
     <ProjectReference Include="../../tests/Doka.EntityFrameworkCore.MySql.TestUtilities/Doka.EntityFrameworkCore.MySql.TestUtilities.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Specification/SpecDispositions.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

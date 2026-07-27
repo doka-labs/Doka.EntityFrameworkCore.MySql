@@ -5,6 +5,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 runtime_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj"
 spatial_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj"
+functional_test_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj"
 audit_parser="${repo_root}/eng/check-vulnerability-audit.sh"
 release_candidate_run_id="${DOKA_RELEASE_CANDIDATE_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 release_candidate_dir="${repo_root}/artifacts/release-candidate/${release_candidate_run_id}"
@@ -14,6 +15,7 @@ sbom_dir="${release_candidate_dir}/sbom"
 summary_file="${release_candidate_dir}/release-candidate-summary.md"
 evidence_file="${release_candidate_dir}/release-candidate-evidence.json"
 changelog_file="${release_candidate_dir}/release-candidate-changelog.md"
+specification_dir="${release_candidate_dir}/specification"
 
 require_command() {
     local command_name="$1"
@@ -63,6 +65,32 @@ run_pack() {
     dotnet pack "${spatial_project}" --configuration Release --no-build --no-restore --output "${packages_dir}" --tl:off
 }
 
+run_specification_gate() {
+    mkdir -p "${specification_dir}"
+
+    dotnet restore "${functional_test_project}" --tl:off
+    dotnet build "${functional_test_project}" --configuration Release --no-restore --tl:off -m:1
+    dotnet test "${functional_test_project}" \
+        --configuration Release --no-build --no-restore --tl:off \
+        --filter "FullyQualifiedName~SpecDispositionContractTests" \
+        --logger trx \
+        --results-directory "${specification_dir}/contract"
+    bash "${repo_root}/eng/check-spec-discovery.sh"
+
+    local targets=("mysql84" "mariadb114" "mariadb118")
+    local target
+    for target in "${targets[@]}"; do
+        echo "Running release specification suite against ${target}..."
+        DOKA_SPEC_TEST_TARGET="${target}" \
+        DOKA_TEST_DATABASE_EVIDENCE_FILE="${specification_dir}/${target}/test-database-evidence.json" \
+            dotnet test "${functional_test_project}" \
+                --configuration Release --no-build --no-restore --tl:off \
+                --filter "Category=Spec" \
+                --logger trx \
+                --results-directory "${specification_dir}/${target}"
+    done
+}
+
 run_vulnerability_audit() {
     local project_path="$1"
     local output_file="$2"
@@ -108,7 +136,7 @@ run_sbom() {
             exit 1
         fi
     else
-        echo "Running SBOM generation (no timeout command available — running without watchdog)..."
+        echo "Running SBOM generation (no timeout command available -- running without watchdog)..."
         if ! "${sbom_cmd[@]}"; then
             echo "SBOM generation failed." >&2
             exit 1
@@ -135,7 +163,7 @@ write_changelog() {
         echo
         echo "## Repo-local release-hardening note"
         echo
-        echo "This changelog is the repo-local release-candidate record for Phase 4 pack, audit, and SBOM evidence only."
+        echo "This changelog records the specification gate, package build, vulnerability audit, benchmark gate, and SBOM evidence."
         echo "It does not imply signing, provenance, publication, or externally hosted compatibility closure."
     } > "${changelog_file}"
 }
@@ -153,6 +181,7 @@ write_summary() {
         echo "- packagesDirectory: ${packages_dir}"
         echo "- auditDirectory: ${audit_dir}"
         echo "- sbomDirectory: ${sbom_dir}"
+        echo "- specificationDirectory: ${specification_dir}"
         echo "- changelogFile: ${changelog_file}"
         echo "- packageCount: ${package_count}"
         echo
@@ -192,6 +221,7 @@ write_evidence() {
   "packagesDirectory": "${packages_dir}",
   "auditDirectory": "${audit_dir}",
   "sbomDirectory": "${sbom_dir}",
+  "specificationDirectory": "${specification_dir}",
   "changelogFile": "${changelog_file}",
   "packageCount": ${package_count},
   "sbomFileCount": ${sbom_file_count}
@@ -203,6 +233,7 @@ require_command jq
 cd "${repo_root}"
 
 "${repo_root}/eng/verify-dotnet.sh"
+run_specification_gate
 run_pack
 
 run_vulnerability_audit "${runtime_project}" "${audit_dir}/Doka.EntityFrameworkCore.MySql.vulnerabilities.json"

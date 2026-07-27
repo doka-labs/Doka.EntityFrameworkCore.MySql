@@ -29,106 +29,332 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
 
     /// <summary>
     /// MySQL bug #114897: JSON_TABLE inside EXISTS with a nested correlated JSON_TABLE
-    /// COUNT subquery returns zero rows on MySQL 8.x. Cataloged engine-bug skip.
+    /// COUNT subquery returns zero rows on MySQL 8.x. The provider rewrites the EXISTS
+    /// expression as a limited scalar subquery, which preserves the test semantics without
+    /// entering the affected semijoin optimizer path.
     /// </summary>
     public override Task Json_collection_within_collection_Count(
         bool async
-    ) => MySqlTestEnvironment.ServerVersion.IsMariaDb
-        ? base.Json_collection_within_collection_Count(async)
-        : Task.CompletedTask;
+    ) => base.Json_collection_within_collection_Count(async);
 
-    // Engine-conditional overrides for MariaDB-only JSON-query engine-limits. Each method
-    // runs the base test on MySQL 8.4+ and silently passes on MariaDB 11.8+ because the
-    // engine rejects or mis-evaluates the generated SQL. SkipList.md catalogs each cluster
-    // with the corresponding MariaDB Jira ticket and the re-evaluation trigger.
+    /// <summary>
+    /// Executes the relational base assertion with directly declared async data. EF Core
+    /// redeclares inheritable test data on two base levels for this method; direct discovery
+    /// prevents duplicate IDs without changing the assertion.
+    /// </summary>
+    [DirectTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task Project_json_reference_in_tracking_query_fails(
+        bool async
+    ) => base.Project_json_reference_in_tracking_query_fails(async);
 
+    /// <summary>
+    /// Executes the relational collection-tracking assertion once per async mode while
+    /// excluding duplicate inherited data rows.
+    /// </summary>
+    [DirectTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task Project_json_collection_in_tracking_query_fails(
+        bool async
+    ) => base.Project_json_collection_in_tracking_query_fails(async);
+
+    /// <summary>
+    /// Executes the relational owner-present tracking assertion once per async mode while
+    /// excluding duplicate inherited data rows.
+    /// </summary>
+    [DirectTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task Project_json_entity_in_tracking_query_fails_even_when_owner_is_present(
+        bool async
+    ) => base.Project_json_entity_in_tracking_query_fails_even_when_owner_is_present(async);
+
+    /// <summary>
+    /// Activates the upstream-skipped distinct anonymous JSON projection so provider support
+    /// is verified rather than inferred from the referenced EF Core issue.
+    /// </summary>
+    [SpecFrameworkLimitationTheory("EFCORE-31397")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task Json_collection_anonymous_projection_distinct_in_projection(
+        bool async
+    ) => base.Json_collection_anonymous_projection_distinct_in_projection(async);
+
+    /// <summary>
+    /// Activates the upstream-skipped JSON scalar grouping and ordered FirstOrDefault shape.
+    /// </summary>
+    [SpecFrameworkLimitationTheory("EFCORE-29287")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task Group_by_json_scalar_Orderby_json_scalar_FirstOrDefault(
+        bool async
+    ) => base.Group_by_json_scalar_Orderby_json_scalar_FirstOrDefault(async);
+
+    /// <summary>
+    /// Activates the upstream-skipped JSON FirstOrDefault entity comparison shape.
+    /// </summary>
+    [SpecFrameworkLimitationTheory("EFCORE-28733")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task Project_json_entity_FirstOrDefault_subquery_with_entity_comparison_on_top(
+        bool async
+    ) => base.Project_json_entity_FirstOrDefault_subquery_with_entity_comparison_on_top(async);
+
+    /// <summary>
+    /// Activates the upstream-skipped JSON parent backtracking projection.
+    /// </summary>
+    [SpecFrameworkLimitationTheory("EFCORE-28645")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task Json_entity_backtracking(
+        bool async
+    ) => base.Json_entity_backtracking(async);
+
+    /// <summary>
+    /// Activates the upstream-skipped single-pushdown JSON anonymous projection.
+    /// </summary>
+    [DirectTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task Json_subquery_reference_pushdown_reference_anonymous_projection(
+        bool async
+    ) => base.Json_subquery_reference_pushdown_reference_anonymous_projection(async);
+
+    /// <summary>
+    /// Activates the upstream-skipped double-pushdown JSON anonymous projection.
+    /// </summary>
+    [SpecFrameworkLimitationTheory("EFCORE-24263")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task Json_subquery_reference_pushdown_reference_pushdown_anonymous_projection(
+        bool async
+    ) => base.Json_subquery_reference_pushdown_reference_pushdown_anonymous_projection(async);
+
+    /// <summary>
+    /// Activates the upstream-skipped nullable enum converter predicate with null handling.
+    /// </summary>
+    [SpecFrameworkLimitationTheory("EFCORE-29416")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task Json_predicate_on_nullableenumwithconverterthathandlesnulls2(
+        bool async
+    ) => base.Json_predicate_on_nullableenumwithconverterthathandlesnulls2(async);
+
+    // MariaDB cannot correlate a FROM-subquery with an outer query and its JOIN grammar
+    // has no LATERAL derived-table form. The attributes below turn that engine boundary
+    // into visible xUnit skips linked to the primary-source-backed disposition ledger.
+
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_collection_Distinct_Count_with_predicate(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_collection_Distinct_Count_with_predicate(async));
+    ) => base.Json_collection_Distinct_Count_with_predicate(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_collection_OrderByDescending_Skip_ElementAt(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_collection_OrderByDescending_Skip_ElementAt(async));
+    ) => base.Json_collection_OrderByDescending_Skip_ElementAt(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_collection_Skip(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_collection_Skip(async));
+    ) => base.Json_collection_Skip(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_collection_Select_entity_in_anonymous_object_ElementAt(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_collection_Select_entity_in_anonymous_object_ElementAt(async));
+    ) => base.Json_collection_Select_entity_in_anonymous_object_ElementAt(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_collection_Select_entity_with_initializer_ElementAt(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_collection_Select_entity_with_initializer_ElementAt(async));
+    ) => base.Json_collection_Select_entity_with_initializer_ElementAt(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_collection_skip_take_in_projection(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_collection_skip_take_in_projection(async));
+    ) => base.Json_collection_skip_take_in_projection(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_collection_skip_take_in_projection_project_into_anonymous_type(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_collection_skip_take_in_projection_project_into_anonymous_type(async));
+    ) => base.Json_collection_skip_take_in_projection_project_into_anonymous_type(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_collection_skip_take_in_projection_with_json_reference_access_as_final_operation(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_collection_skip_take_in_projection_with_json_reference_access_as_final_operation(async));
+    ) => base.Json_collection_skip_take_in_projection_with_json_reference_access_as_final_operation(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_collection_distinct_in_projection(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_collection_distinct_in_projection(async));
+    ) => base.Json_collection_distinct_in_projection(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_branch_collection_distinct_and_other_collection(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_branch_collection_distinct_and_other_collection(async));
+    ) => base.Json_branch_collection_distinct_and_other_collection(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_leaf_collection_distinct_and_other_collection(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_leaf_collection_distinct_and_other_collection(async));
+    ) => base.Json_leaf_collection_distinct_and_other_collection(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_collection_filter_in_projection(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_collection_filter_in_projection(async));
+    ) => base.Json_collection_filter_in_projection(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_collection_leaf_filter_in_projection(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_collection_leaf_filter_in_projection(async));
+    ) => base.Json_collection_leaf_filter_in_projection(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_primitive_arrays(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_primitive_arrays(async));
+    ) => base.Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_primitive_arrays(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_scalars(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_scalars(async));
+    ) => base.Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_scalars(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_multiple_collection_projections(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_multiple_collection_projections(async));
+    ) => base.Json_multiple_collection_projections(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_nested_collection_anonymous_projection_in_projection(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_nested_collection_anonymous_projection_in_projection(async));
+    ) => base.Json_nested_collection_anonymous_projection_in_projection(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_nested_collection_anonymous_projection_of_primitives_in_projection_NoTrackingWithIdentityResolution(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_nested_collection_anonymous_projection_of_primitives_in_projection_NoTrackingWithIdentityResolution(async));
+    ) => base.Json_nested_collection_anonymous_projection_of_primitives_in_projection_NoTrackingWithIdentityResolution(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Json_nested_collection_filter_in_projection(
         bool async
-    ) => SkipOnMariaDb(() => base.Json_nested_collection_filter_in_projection(async));
+    ) => base.Json_nested_collection_filter_in_projection(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-JSON-TABLE-SUBDOCUMENT",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Custom_naming_projection_everything(
         bool async
-    ) => SkipOnMariaDb(() => base.Custom_naming_projection_everything(async));
+    ) => base.Custom_naming_projection_everything(async);
 
+    [SpecEngineLimitationTheory(
+        "MDB-JSON-TABLE-SUBDOCUMENT",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
     public override Task Custom_naming_projection_owned_scalar(
         bool async
-    ) => SkipOnMariaDb(() => base.Custom_naming_projection_owned_scalar(async));
-
-    private static Task SkipOnMariaDb(
-        Func<Task> runOnMySql
-    ) => MySqlTestEnvironment.ServerVersion.IsMariaDb ? Task.CompletedTask : runOnMySql();
+    ) => base.Custom_naming_projection_owned_scalar(async);
 
     /// <summary>
     /// The base spec test projects through a non-translatable C# helper

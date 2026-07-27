@@ -2,6 +2,12 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlConventionSetBuilder : RelationalConventionSetBuilder
 {
+    /// <summary>
+    /// Maximum identifier length accepted by both supported database families. EF Core
+    /// applies deterministic truncation and collision suffixes before sending DDL.
+    /// </summary>
+    internal const int MaxIdentifierLength = 64;
+
     private readonly IEnumerable<ISingletonOptions> _singletonOptions;
 
     public MySqlConventionSetBuilder(
@@ -17,6 +23,11 @@ internal sealed class MySqlConventionSetBuilder : RelationalConventionSetBuilder
     {
         var conventionSet = base.CreateConventionSet();
 
+        conventionSet.Add(
+            new RelationalMaxIdentifierLengthConvention(
+                MaxIdentifierLength,
+                Dependencies,
+                RelationalDependencies));
         conventionSet.ModelFinalizingConventions.Add(new MySqlValueGenerationConvention(_singletonOptions));
 
         return conventionSet;
