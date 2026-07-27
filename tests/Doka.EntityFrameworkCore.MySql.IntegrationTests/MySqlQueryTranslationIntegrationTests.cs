@@ -5,6 +5,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Covers string methods, DateTime/DateOnly/TimeOnly arithmetic, Math, GROUP_CONCAT,
 /// REGEXP, JSON functions.
 /// </summary>
+[Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlQueryTranslationIntegrationTests
 {
     private const string TableName = "IntQueryItems";

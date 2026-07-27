@@ -3,6 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Verifies the transaction-operability live baseline against representative live targets.
 /// </summary>
+[Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlTransactionOperabilityTests
 {
     private const string TransactionTableName = "Phase3TransactionEntities";

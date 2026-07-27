@@ -9,6 +9,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// loader hierarchy binds the filter as SQL parameters, so this test pins both the
 /// filtered and unfiltered shapes against a real engine.
 /// </summary>
+[Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlScaffoldingFilterTests
 {
     private const string TablePrefix = "scaffolding_filter_t";

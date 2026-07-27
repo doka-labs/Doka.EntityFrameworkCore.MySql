@@ -16,52 +16,6 @@ jobs:
       contents: read
       actions: read
 
-    services:
-      mysql84:
-        image: mysql:8.4
-        env:
-          MYSQL_ROOT_PASSWORD: root_password
-          MYSQL_DATABASE: doka_provider
-          MYSQL_USER: doka
-          MYSQL_PASSWORD: doka_password
-        ports:
-          - 33068:3306
-        options: >-
-          --health-cmd="MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
-      mariadb118:
-        image: mariadb:11.8
-        env:
-          MARIADB_ROOT_PASSWORD: root_password
-          MARIADB_DATABASE: doka_provider
-          MARIADB_USER: doka
-          MARIADB_PASSWORD: doka_password
-        ports:
-          - 33069:3306
-        options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
-      mariadb114:
-        image: mariadb:11.4
-        env:
-          MARIADB_ROOT_PASSWORD: root_password
-          MARIADB_DATABASE: doka_provider
-          MARIADB_USER: doka
-          MARIADB_PASSWORD: doka_password
-        ports:
-          - 33067:3306
-        options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -74,14 +28,7 @@ jobs:
       - name: Run scheduled container compatibility path
         env:
           DOKA_INTEGRATION_TARGETS: mysql84,mariadb114,mariadb118
-          # Root credentials for throwaway CI containers. Matches the documented
-          # IntegrationTestEnvironment default so tests that need CREATE/DROP DATABASE
-          # (EnsureCreatedAsync/EnsureDeletedAsync round-trips) succeed without
-          # per-test privilege gymnastics.
-          DOKA_MYSQL84_CONNECTION_STRING: Server=127.0.0.1;Port=33068;Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;
-          DOKA_MARIADB114_CONNECTION_STRING: Server=127.0.0.1;Port=33067;Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;
-          DOKA_MARIADB118_CONNECTION_STRING: Server=127.0.0.1;Port=33069;Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;
-        run: bash ./eng/test-integration.sh --test-only
+        run: bash ./eng/test-integration.sh
 
       - name: Upload compatibility artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

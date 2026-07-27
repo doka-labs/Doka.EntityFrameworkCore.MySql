@@ -21,15 +21,5 @@ internal sealed class RequiresDatabaseTargetFactAttribute : FactAttribute
             Skip = IntegrationTestEnvironment.GetTargetSelectionSkipReason(targets);
             return;
         }
-
-        foreach (var target in selectedTargets)
-        {
-            if (IntegrationTestEnvironment.IsAvailable(target))
-            {
-                return;
-            }
-        }
-
-        Skip = string.Join(" ", selectedTargets.Select(IntegrationTestEnvironment.GetSkipReason));
     }
 }

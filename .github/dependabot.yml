@@ -44,7 +44,7 @@ updates:
           - "Microsoft.NET.Test.Sdk"
           - "coverlet.*"
     ignore:
-      # Microsoft.EntityFrameworkCore.* floats inside the [10.0.4, 10.1.0) range
+      # Microsoft.EntityFrameworkCore.* floats inside the [10.0.8, 10.1.0) range
       # per ADR D-009; a deliberate provider response is required for 10.1.0+.
       - dependency-name: "Microsoft.EntityFrameworkCore.*"
         update-types:

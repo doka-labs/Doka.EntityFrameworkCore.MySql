@@ -9,6 +9,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// - MySQL 8.4: multi-row INSERT with auto-increment (falls back to per-row loop)
 /// Plus the shape-mismatch case where two distinct write-column sets force a batch split.
 /// </summary>
+[Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlBulkInsertReturningTests
 {
     // -- MariaDB 11.8: multi-row INSERT + RETURNING with auto-increment --

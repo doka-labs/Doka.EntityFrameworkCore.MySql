@@ -8,6 +8,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// - CRUD baseline on both 11.4 and 11.8
 /// - Query translations verified with real MariaDB data
 /// </summary>
+[Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MariaDbFeatureIntegrationTests
 {
     // -- Database Lifecycle (with root access) --

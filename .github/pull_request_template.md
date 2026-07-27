@@ -24,7 +24,7 @@ Evidence notes:
 ## Validation
 
 - [ ] `./eng/test.sh`
-- [ ] `./eng/test-integration.sh --up-test-down`
+- [ ] `./eng/test-integration.sh`
 - [ ] `./eng/test-runtime-posture.sh --up-test-down`
 - [ ] `./eng/benchmark.sh --up-smoke-down`
 - [ ] `./eng/release-candidate.sh`

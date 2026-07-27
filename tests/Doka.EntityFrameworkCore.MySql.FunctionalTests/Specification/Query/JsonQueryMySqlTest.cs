@@ -20,6 +20,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 /// (see https://github.com/dotnet/efcore/issues/30713).
 /// </summary>
 [Trait("Category", "Spec")]
+[Collection(FunctionalDatabaseTestGroup.Name)]
 public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest.JsonQueryMySqlFixture>
 {
     public JsonQueryMySqlTest(

@@ -241,7 +241,7 @@ The provider ships with:
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests`
   EF-pipeline tests: model validation, SQL generation, type mapping, migrations, scaffolding.
 - `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests`
-  Live-database tests against MySQL 8.0, MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
+  Self-provisioning live-database tests against MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
 - `tests/Doka.EntityFrameworkCore.MySql.TestUtilities`
   Shared test helpers and log sinks.
 - `benchmarks/`
@@ -249,7 +249,7 @@ The provider ships with:
 - `examples/`
   Runnable samples for CRUD, inheritance patterns, JSON columns, generated columns, GUID formats, relationships, retry / resilience, spatial queries, migrations workflow, multi-tenancy, bulk operations, character sets, and Docker integration.
 - `docker/compose.yml`
-  Bundled MySQL 8.0, MySQL 8.4, MariaDB 11.4, and MariaDB 11.8 services for local integration testing. Compose project is named `doka-docker` with `doka-*-data` named volumes so `docker volume ls | grep doka-` enumerates every stack-owned resource for cleanup.
+  Optional, explicitly selected MySQL 8.4, MariaDB 11.4, and MariaDB 11.8 debugging stack. The canonical integration and specification tests own short-lived containers through Testcontainers.
 - `eng/`
   Developer scripts: `test.sh`, `test-integration.sh`, `test-runtime-posture.sh`, `benchmark.sh`, `release-candidate.sh`.
 - `docs/`
@@ -260,7 +260,7 @@ The provider ships with:
 ```bash
 dotnet build Doka.EntityFrameworkCore.MySql.slnx
 ./eng/test.sh
-./eng/test-integration.sh --up-test-down   # requires Docker
+./eng/test-integration.sh   # requires Docker; owns and cleans up its databases
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full test commands, integration-target selection, benchmark profiles, and code-style requirements.

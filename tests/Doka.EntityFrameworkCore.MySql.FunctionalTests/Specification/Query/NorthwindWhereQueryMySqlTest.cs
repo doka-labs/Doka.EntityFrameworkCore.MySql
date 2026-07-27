@@ -9,6 +9,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 /// variants (Aggregate, GroupBy, Join, ...) follow incrementally on the same fixture surface.
 /// </summary>
 [Trait("Category", "Spec")]
+[Collection(FunctionalDatabaseTestGroup.Name)]
 public class NorthwindWhereQueryMySqlTest : NorthwindWhereQueryRelationalTestBase<
     NorthwindQueryMySqlFixture<NoopModelCustomizer>>
 {
@@ -50,7 +51,7 @@ public class NorthwindWhereQueryMySqlTest : NorthwindWhereQueryRelationalTestBas
 
     // Anonymous-type / Tuple structural-equality comparisons (new { x = c.City } == new { x = "London" },
     // Tuple.Create(c.City) == Tuple.Create("London"), etc.) are not translated by the EF Core 10
-    // RelationalSqlTranslatingExpressionVisitor — the TryRewriteStructuralTypeEquality switch covers
+    // RelationalSqlTranslatingExpressionVisitor -- the TryRewriteStructuralTypeEquality switch covers
     // IEntityType, IComplexType, and IComplexProperty operands only, and falls through to "not translated"
     // for anonymous-type / Tuple operands. The spec-test base class captures the limitation; every
     // relational provider (SqlServer, Sqlite, PostgreSQL) overrides each test with AssertTranslationFailed

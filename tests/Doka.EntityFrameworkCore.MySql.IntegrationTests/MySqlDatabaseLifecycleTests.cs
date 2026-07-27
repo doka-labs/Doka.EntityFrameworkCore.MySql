@@ -5,6 +5,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// advisory lock mechanism (GET_LOCK/RELEASE_LOCK), sequence value generation,
 /// and HiLo runtime against live MySQL 8.4.
 /// </summary>
+[Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlDatabaseLifecycleTests
 {
     // -- Database Creator: Exists returns true for existing database --

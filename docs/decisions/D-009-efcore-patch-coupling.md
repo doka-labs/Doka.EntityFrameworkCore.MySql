@@ -1,17 +1,18 @@
 # D-009 -- EF-Core-Patch-Coupling-Politik (Range vs. Pin)
 
 - **Status:** Implemented
-- **Date:** 2026-05-16 (floor raised 10.0.4 -> 10.0.8 on 2026-05-18)
+- **Date:** 2026-05-16 (floor raised 10.0.4 -> 10.0.8 on 2026-05-18; matrix hardened on 2026-07-27)
 - **Scope:** `Directory.Packages.props` -- Microsoft.EntityFrameworkCore.* package pinning
-- **Implementation:** `Directory.Packages.props` pins the three Microsoft.EntityFrameworkCore.* packages to the range `[10.0.8, 10.1.0)`; `.github/workflows/ci.yml` carries the `efcore-patch-matrix` job that runs the repo-local test path against `10.0.8` (lower bound) and `10.0.*` (latest 10.0.x patch) on every push.
+- **Implementation:** `Directory.Packages.props` applies the `DokaEfCoreVersion` property to the three Microsoft.EntityFrameworkCore.* packages and defaults it to `[10.0.8, 10.1.0)`. `.github/workflows/ci.yml` overrides that property with `10.0.8` and `10.0.*`, asserts the resolved package graph, and runs non-live, specification, live, and integration coverage for both matrix entries.
 
 ## Implementation notes
 
 - Range chosen: `[10.0.8, 10.1.0)` per operator decision -- the conservative patch-only variant. The minor-tolerance variant `[10.0.8, 11.0.0)` from the alternatives section was rejected because the EF1001 surface drift across 10.x minors cannot be covered by a CI matrix without doubling the per-push CI minutes.
-- The `efcore-patch-matrix` job rewrites the central `PackageVersion` entries via `sed` before restore so the matrix axis maps cleanly to the canonical NuGet version syntax (an exact version like `10.0.8` replaces the range; the floating `10.0.*` resolves to the latest 10.0.x patch at restore time).
-- Scope is intentionally narrow: only the repo-local test path (`./eng/test.sh`, which runs Unit + Functional) is exercised per matrix entry. Integration tests stay on a single pin to keep CI minutes manageable; an EF Core patch that breaks the integration-only surface is caught in the nightly `container-matrix` workflow.
+- The `efcore-patch-matrix` job overrides `DokaEfCoreVersion` at MSBuild evaluation time. It does not edit source files. Central Package Management floating versions remain disabled by default and are enabled only inside this matrix job, as documented by [NuGet error NU1011](https://learn.microsoft.com/nuget/reference/errors-and-warnings/nu1011).
+- Every matrix restore is followed by a machine-readable `dotnet package list` readback. The job fails unless Design, Relational, and Relational.Specification.Tests resolve to one version matching the matrix contract. The JSON readback is retained as an artifact.
+- Each entry runs `eng/test.sh`, specification plus live functional tests against MySQL 8.4 and MariaDB 11.8, and the representative MySQL 8.4 plus MariaDB 11.8 integration matrix. Test-owned containers make the live paths identical locally and in CI.
 - The next minor (10.1.0) requires a deliberate provider response -- either a range widening (`[10.0.8, 10.2.0)` with the matrix gaining a `10.1.x` axis) or the EF Core 11 jump (ADR D-013). The decision is deferred until 10.1.0 is published.
-- **Floor-raise log:** 2026-05-18 -- lower bound moved from `10.0.4` to `10.0.8` to absorb four published patches in one step (consumers on `10.0.4..10.0.7` are still inside the range when they pull this provider through transitive resolution; the floor-raise only affects fresh restores). The change closes the diamond-dependency exposure on downstream graphs that already pin `>= 10.0.8`.
+- **Floor-raise log:** 2026-05-18 -- lower bound moved from `10.0.4` to `10.0.8` to absorb four published patches in one step. Consumers pinned to `10.0.4..10.0.7` fall outside the provider range and must upgrade. The change closes the diamond-dependency exposure on downstream graphs that already pin `>= 10.0.8`.
 
 ## Context
 
@@ -40,16 +41,18 @@ scenarios that the consumer would hit at runtime.
 Pin `Microsoft.EntityFrameworkCore.*` packages to the range
 `[10.0.8, 10.1.0)` in `Directory.Packages.props`. The range covers the
 current known-good floor (10.0.8, raised from the original 10.0.4
-baseline) and floats upward across patches without crossing into the
-next minor.
+baseline) and accepts a consumer-selected later patch without crossing
+into the next minor. A standalone repository restore remains
+deterministic at the lower bound; the matrix uses an explicit floating
+override only to discover and validate the latest patch.
 
 The risk that `EF1001` patch-drift breaks the decorator is structurally
-mitigated by the `EfCorePatchMatrixCI` (foundation backbone 9): a
-scheduled GitHub Actions workflow that runs the provider's full test
-suite against every published `10.0.x` version, plus the floating
-"latest 10.0.x" tag. The CI matrix catches a patch-induced break within
-24 hours of the patch publication; the provider's response is either a
-minimum-version bump in the range or a hot-fix release.
+mitigated by the `EfCorePatchMatrixCI` (foundation backbone 9). Every
+repository CI run validates both the supported floor and the floating
+"latest 10.0.x" tag against non-live tests, two-engine specification and
+live tests, and a representative two-engine integration matrix. The
+provider's response to a detected break is either a minimum-version bump
+in the range or a hot-fix release.
 
 ## Consequences
 
@@ -61,14 +64,13 @@ minimum-version bump in the range or a hot-fix release.
   provider releases on its own schedule plus reactive hot-fixes when CI
   catches a patch break.
 - The CI matrix's structural mitigation makes the loose-range choice
-  auditable: any reported break has a matching CI failure in the
-  scheduled runs.
+  auditable through resolved-package JSON, test reports, and database
+  lifecycle evidence.
 
 ### Negative
 
-- The provider takes on the operational cost of monitoring the CI
-  matrix; a break that lands during a non-business-hour window can be
-  open for the matrix's poll interval (currently nightly).
+- The provider takes on the operational cost of the wider matrix on
+  every repository CI run.
 - A patch-induced silent semantic change (no compile-time break, no
   test-time break, but a behavioral drift) can slip past the matrix.
   This risk is shared with every loose-pinning choice anywhere in the

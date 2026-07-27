@@ -3,12 +3,13 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Validates the contract for externally supplied integration-test connection strings.
 /// </summary>
+[Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class IntegrationConnectionStringTests
 {
     /// <summary>
     /// Verifies that the resolved MySQL 8.0 integration-test connection string is parseable.
     /// </summary>
-    [Fact]
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
     public void Resolved_mysql80_connection_string_is_parseable()
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql80);
@@ -19,7 +20,7 @@ public sealed class IntegrationConnectionStringTests
     /// <summary>
     /// Verifies that the resolved MySQL 8.4 integration-test connection string is parseable.
     /// </summary>
-    [Fact]
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public void Resolved_mysql84_connection_string_is_parseable()
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
@@ -30,7 +31,7 @@ public sealed class IntegrationConnectionStringTests
     /// <summary>
     /// Verifies that the resolved MariaDB 11.8 integration-test connection string is parseable.
     /// </summary>
-    [Fact]
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public void Resolved_mariadb118_connection_string_is_parseable()
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
@@ -41,7 +42,7 @@ public sealed class IntegrationConnectionStringTests
     /// <summary>
     /// Verifies that the resolved MariaDB 11.4 integration-test connection string is parseable.
     /// </summary>
-    [Fact]
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public void Resolved_mariadb114_connection_string_is_parseable()
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb114);

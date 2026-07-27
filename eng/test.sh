@@ -34,8 +34,8 @@ dotnet test "${unit_test_project}" --configuration Release --no-build --no-resto
     --logger trx
 # Specification-suite tests (Category=Spec) and any standalone live-database tests
 # (Category=Live, e.g. MySqlGuidFormatTests) require a live MySQL / MariaDB and run
-# in the spec-test / container-matrix CI jobs against the docker-compose stack; they
-# are excluded from the repo-tests path which has no database available.
+# in the spec-test / container-matrix CI jobs against test-owned containers; they
+# are excluded from the repo-tests path, which intentionally does not start Docker.
 dotnet test "${functional_test_project}" --configuration Release --no-build --no-restore --tl:off \
     --filter "Category!=Spec&Category!=Live" \
     --collect:"XPlat Code Coverage" \

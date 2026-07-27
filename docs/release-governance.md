@@ -16,17 +16,18 @@ The Phase 4 evidence model is intentionally explicit and repeatable:
 - PR workflow:
   - workflow: `.github/workflows/ci.yml`
   - local path: `./eng/test.sh`
-  - representative live DB path: `DOKA_INTEGRATION_TARGETS=mysql84,mariadb118 ./eng/test-integration.sh --test-only`
+  - representative live DB path: `DOKA_INTEGRATION_TARGETS=mysql84,mariadb118 ./eng/test-integration.sh`
   - runtime smoke: `./eng/test-runtime-posture.sh --test-only`
   - benchmark smoke:
     - `DOKA_BENCHMARK_TARGET=mysql84 ./eng/benchmark.sh --test-only`
     - `DOKA_BENCHMARK_TARGET=mariadb118 ./eng/benchmark.sh --test-only`
 - Scheduled container matrix:
   - workflow: `.github/workflows/container-matrix.yml`
-  - local path: `./eng/test-integration.sh --up-test-down`
+  - local path: `./eng/test-integration.sh`
   - retained evidence:
     - `artifacts/integration/<run-id>/compatibility-matrix-summary.md`
     - `artifacts/integration/<run-id>/compatibility-matrix-evidence.json`
+    - `artifacts/integration/<run-id>/test-database-evidence.json`
 - Dedicated benchmark scorecard:
   - workflow: `.github/workflows/benchmark.yml`
   - local path:
@@ -145,7 +146,7 @@ The cadence above is considered operational only when the repository captures ex
 - Monthly compatibility review issue:
   - review month
   - owner
-  - repo-local matrix status for MySQL `8.0`, MySQL `8.4`, MariaDB `11.4`, and MariaDB `11.8`
+  - repo-local matrix status for MySQL `8.4`, MariaDB `11.4`, and MariaDB `11.8`
   - lifecycle change notes for supported engines
   - SLA risk notes
   - resulting actions or explicit no-op

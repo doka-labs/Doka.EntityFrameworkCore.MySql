@@ -5,6 +5,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Verifies representative spatial runtime queries against live local servers.
 /// </summary>
+[Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlNetTopologySuiteIntegrationTests
 {
     private const string PointTableName = "Phase3SpatialPointEntities";

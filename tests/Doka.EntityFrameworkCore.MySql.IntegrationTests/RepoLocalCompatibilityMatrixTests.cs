@@ -3,10 +3,11 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Makes the approved repo-local compatibility matrix explicit and version-sensitive in live tests.
 /// </summary>
+[Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class RepoLocalCompatibilityMatrixTests
 {
     /// <summary>
-    /// Verifies the explicit matrix contract for MySQL 8.0.
+    /// Verifies the external-only legacy contract for MySQL 8.0.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
     public Task MySql80_matrix_contract_is_visible()

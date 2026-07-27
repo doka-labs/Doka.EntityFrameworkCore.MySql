@@ -28,16 +28,28 @@ This runs unit and functional tests with `--no-build --no-restore` after a singl
 **Integration tests** (requires Docker):
 
 ```bash
-./eng/test-integration.sh --up-test-down
+./eng/test-integration.sh
 ```
 
-This starts the bundled Docker Compose stack, runs live integration tests against MySQL 8.0, MySQL 8.4, MariaDB 11.4, and MariaDB 11.8, and stops the stack.
+The test assembly starts isolated containers on dynamic ports for MySQL 8.4, MariaDB 11.4, and MariaDB 11.8, waits for database readiness, runs the live tests, and removes every owned container. No database service needs to be running before the command starts.
 
 For a representative subset, scope the target selection:
 
 ```bash
-DOKA_INTEGRATION_TARGETS=mysql84,mariadb118 ./eng/test-integration.sh --up-test-down
+DOKA_INTEGRATION_TARGETS=mysql84,mariadb118 ./eng/test-integration.sh
 ```
+
+Use `./eng/test-integration.sh --up-test-down` only when an explicit Compose stack is useful for debugging. That mode exposes the documented host ports and removes the stack plus its volumes after the run. External targets remain available through the `DOKA_<TARGET>_CONNECTION_STRING` variables. MySQL 8.0 is not part of the supported release matrix; its retained legacy tests require both an explicit `mysql80` selection and an external connection string.
+
+Specification tests use the same lifecycle:
+
+```bash
+DOKA_SPEC_TEST_TARGET=mysql84 dotnet test \
+  tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
+  --filter "Category=Spec"
+```
+
+Accepted specification targets are `mysql84`, `mariadb114`, and `mariadb118`. Set `DOKA_SPEC_TEST_CONNECTION_STRING` together with `DOKA_SPEC_TEST_SERVER_VERSION` only when validating an external database.
 
 **Runtime-posture smoke** (JIT + trim smoke tests; the NativeAOT pass is deferred per ADR D-017 while upstream EF Core NativeAOT support remains experimental):
 
@@ -78,7 +90,7 @@ git push --tags
 
 ## Test Conventions
 
-- Every test method in `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/**` that hits a live database MUST use `[RequiresDatabaseTargetFact(IntegrationDatabaseTarget.X)]`, not `[Fact]`. Plain `[Fact]` in this project silently runs the test even when the required database is unavailable, producing a hard failure instead of a graceful skip. Method-name suffix `_on_<target>` is the usual but not mandatory cue; the attribute is the source of truth.
+- Every integration test class that uses a live database MUST belong to `IntegrationDatabaseTestGroup`. Every target-specific method MUST use `[RequiresDatabaseTargetFact(IntegrationDatabaseTarget.X)]`, not `[Fact]`, so a scoped matrix run only executes tests for provisioned targets. Method-name suffix `_on_<target>` is the usual but not mandatory cue; the attribute is the source of truth.
 - Any raw-SQL helper that interpolates an identifier into backticked DDL (e.g. `` $"DROP TABLE IF EXISTS `{name}`;" ``) must backtick-escape the interpolated value with `name.Replace("`", "``", StringComparison.Ordinal)` so the helper is safe-by-construction, regardless of caller-supplied input. The `EF1002` analyzer is enforced in unit and functional tests; it is suppressed only under `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/**` where fixture-controlled DDL is expected.
 - Culture-sensitive string comparison analyzers (`CA1304/1307/1309/1311`) are enforced in all test projects. When a test deliberately uses `string.ToUpper()` / `ToLower()` / `Equals` inside an `IQueryable` expression tree (where EF translates the call server-side and the CLR culture never applies), suppress the warnings per-line with `#pragma warning disable CA1304, CA1311` + `#pragma warning restore CA1304, CA1311` plus a short rationale comment.
 

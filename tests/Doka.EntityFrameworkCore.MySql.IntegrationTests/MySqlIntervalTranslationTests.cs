@@ -11,6 +11,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// EXPLAIN-style behavior: when the query enumerates only the matching row, the WHERE
 /// clause must have evaluated on the server.
 /// </summary>
+[Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlIntervalTranslationTests
 {
     private const string TableName = "IntervalQueryItems";

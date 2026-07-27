@@ -12,6 +12,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Migration
 /// <see cref="MySqlHistoryRepository"/> + <c>__EFMigrationsHistory</c> table contract.
 /// </summary>
 [Trait("Category", "Spec")]
+[Collection(FunctionalDatabaseTestGroup.Name)]
 public class MigrationsMySqlTest : MigrationsInfrastructureTestBase<MigrationsMySqlTest.MigrationsMySqlFixture>
 {
     // Structural-skip rationale for the four Can_diff_against_X_X(_Identity)_model overrides

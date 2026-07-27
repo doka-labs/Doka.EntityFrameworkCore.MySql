@@ -3,6 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Anchors an official EF relational specification test to the supported Phase 1 MySQL 8.4 baseline.
 /// </summary>
+[Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlSpecTestAnchorTests
 {
     /// <summary>

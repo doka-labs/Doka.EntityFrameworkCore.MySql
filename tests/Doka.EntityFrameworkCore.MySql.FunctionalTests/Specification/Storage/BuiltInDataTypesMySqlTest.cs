@@ -9,6 +9,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Storage;
 /// observation that the official Microsoft providers are held to.
 /// </summary>
 [Trait("Category", "Spec")]
+[Collection(FunctionalDatabaseTestGroup.Name)]
 public class BuiltInDataTypesMySqlTest : BuiltInDataTypesTestBase<
     BuiltInDataTypesMySqlTest.BuiltInDataTypesMySqlFixture>
 {

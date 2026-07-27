@@ -14,7 +14,6 @@ assignees: []
 
 ## Repo-local matrix status
 
-- MySQL 8.0:
 - MySQL 8.4:
 - MariaDB 11.4:
 - MariaDB 11.8:

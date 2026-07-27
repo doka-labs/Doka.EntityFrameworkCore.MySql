@@ -110,9 +110,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ef-core-version:
-          - "10.0.4"
-          - "10.0.*"
+        include:
+          - ef-core-version: "10.0.8"
+            resolved-version-pattern: '^10[.]0[.]8$'
+            artifact-suffix: minimum-10-0-8
+          - ef-core-version: "10.0.*"
+            resolved-version-pattern: '^10[.]0[.][0-9]+$'
+            artifact-suffix: latest-10-0
+
+    env:
+      DokaEfCoreVersion: ${{ matrix.ef-core-version }}
+      CentralPackageFloatingVersionsEnabled: true
+      DOKA_EF_CORE_RESOLVED_PATTERN: ${{ matrix.resolved-version-pattern }}
+      DOKA_EF_CORE_ARTIFACT_SUFFIX: ${{ matrix.artifact-suffix }}
 
     steps:
       - name: Checkout
@@ -123,60 +133,90 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Override EF Core version
-        env:
-          EF_CORE_VERSION: ${{ matrix.ef-core-version }}
+      - name: Restore against requested EF Core patch
+        run: dotnet restore Doka.EntityFrameworkCore.MySql.slnx --tl:off
+
+      - name: Assert and record resolved EF Core patch
         run: |
-          sed -i.bak \
-            -e "s|<PackageVersion Include=\"Microsoft.EntityFrameworkCore.Design\" Version=\"\[10.0.4, 10.1.0)\" />|<PackageVersion Include=\"Microsoft.EntityFrameworkCore.Design\" Version=\"${EF_CORE_VERSION}\" />|" \
-            -e "s|<PackageVersion Include=\"Microsoft.EntityFrameworkCore.Relational\" Version=\"\[10.0.4, 10.1.0)\" />|<PackageVersion Include=\"Microsoft.EntityFrameworkCore.Relational\" Version=\"${EF_CORE_VERSION}\" />|" \
-            -e "s|<PackageVersion Include=\"Microsoft.EntityFrameworkCore.Relational.Specification.Tests\" Version=\"\[10.0.4, 10.1.0)\" />|<PackageVersion Include=\"Microsoft.EntityFrameworkCore.Relational.Specification.Tests\" Version=\"${EF_CORE_VERSION}\" />|" \
-            Directory.Packages.props
-          rm -f Directory.Packages.props.bak
+          evidence_dir="artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}"
+          mkdir -p "${evidence_dir}"
+          dotnet package list \
+            --project Doka.EntityFrameworkCore.MySql.slnx \
+            --include-transitive \
+            --format json \
+            --no-restore > "${evidence_dir}/resolved-packages.json"
+          jq -e --arg pattern "${DOKA_EF_CORE_RESOLVED_PATTERN}" '
+            [
+              .projects[].frameworks[].topLevelPackages[]?
+              | select(
+                  .id == "Microsoft.EntityFrameworkCore.Design"
+                  or .id == "Microsoft.EntityFrameworkCore.Relational"
+                  or .id == "Microsoft.EntityFrameworkCore.Relational.Specification.Tests"
+                )
+            ] as $packages
+            | ($packages | length) >= 3
+              and ($packages | map(.resolvedVersion) | unique | length) == 1
+              and ($packages | all(.resolvedVersion | test($pattern)))
+          ' "${evidence_dir}/resolved-packages.json"
+          jq -r '
+            .projects[].frameworks[].topLevelPackages[]?
+            | select(
+                .id == "Microsoft.EntityFrameworkCore.Design"
+                or .id == "Microsoft.EntityFrameworkCore.Relational"
+                or .id == "Microsoft.EntityFrameworkCore.Relational.Specification.Tests"
+              )
+            | "\(.id) requested=\(.requestedVersion) resolved=\(.resolvedVersion)"
+          ' "${evidence_dir}/resolved-packages.json" | sort -u
 
       - name: Run repo-local test path against pinned EF Core
         run: bash ./eng/test.sh
 
+      - name: Run specification and live suite against MySQL 8.4
+        env:
+          DOKA_SPEC_TEST_TARGET: mysql84
+          DOKA_TEST_DATABASE_EVIDENCE_FILE: ${{ github.workspace }}/artifacts/efcore-patch-matrix/${{ matrix.artifact-suffix }}/mysql84/test-database-evidence.json
+        run: |
+          dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
+            --configuration Release --no-build --no-restore --tl:off \
+            --filter "Category=Spec|Category=Live" \
+            --logger trx \
+            --results-directory artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mysql84
+
+      - name: Run specification and live suite against MariaDB 11.8
+        env:
+          DOKA_SPEC_TEST_TARGET: mariadb118
+          DOKA_TEST_DATABASE_EVIDENCE_FILE: ${{ github.workspace }}/artifacts/efcore-patch-matrix/${{ matrix.artifact-suffix }}/mariadb118/test-database-evidence.json
+        run: |
+          dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
+            --configuration Release --no-build --no-restore --tl:off \
+            --filter "Category=Spec|Category=Live" \
+            --logger trx \
+            --results-directory artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mariadb118
+
+      - name: Run representative live integration matrix
+        env:
+          DOKA_INTEGRATION_TARGETS: mysql84,mariadb118
+        run: bash ./eng/test-integration.sh
+
+      - name: Upload EF Core patch evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: efcore-patch-${{ matrix.artifact-suffix }}
+          path: |
+            artifacts/efcore-patch-matrix/${{ matrix.artifact-suffix }}
+            artifacts/integration
+
   spec-test-suite:
     runs-on: ubuntu-latest
-
-    services:
-      mysql84:
-        image: mysql:8.4
-        env:
-          MYSQL_ROOT_PASSWORD: root_password
-          MYSQL_DATABASE: doka_provider
-          MYSQL_USER: doka
-          MYSQL_PASSWORD: doka_password
-        ports:
-          - 33068:3306
-        options: >-
-          --health-cmd="MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
-      mariadb118:
-        image: mariadb:11.8
-        env:
-          MARIADB_ROOT_PASSWORD: root_password
-          MARIADB_DATABASE: doka_provider
-          MARIADB_USER: doka
-          MARIADB_PASSWORD: doka_password
-        ports:
-          - 33069:3306
-        options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
 
     strategy:
       fail-fast: false
       matrix:
         engine:
-          - { name: mysql84, token: "mysql:8.4", port: "33068" }
-          - { name: mariadb118, token: "mariadb:11.8", port: "33069" }
+          - { name: mysql84, target: "mysql84" }
+          - { name: mariadb114, target: "mariadb114" }
+          - { name: mariadb118, target: "mariadb118" }
 
     steps:
       - name: Checkout
@@ -194,12 +234,8 @@ jobs:
 
       - name: Run specification suite against ${{ matrix.engine.name }}
         env:
-          DOKA_SPEC_TEST_CONNECTION_STRING: "Server=127.0.0.1;Port=${{ matrix.engine.port }};User ID=root;Password=root_password;Persist Security Info=True;"
-          DOKA_SPEC_TEST_SERVER_VERSION: ${{ matrix.engine.token }}
-        # The first specification runs ship with infrastructure only; the failing-test triage is
-        # tracked in tests/.../Specification/SkipList.md per ADR D-011. Allow continue-on-error so
-        # the suite surfaces every failure for triage instead of stopping at the first one.
-        continue-on-error: true
+          DOKA_SPEC_TEST_TARGET: ${{ matrix.engine.target }}
+          DOKA_TEST_DATABASE_EVIDENCE_FILE: ${{ github.workspace }}/artifacts/spec-tests/${{ matrix.engine.name }}/test-database-evidence.json
         run: |
           dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
             --configuration Release --no-build --no-restore --tl:off \
@@ -244,6 +280,13 @@ jobs:
           path: artifacts/coverage/spec-mariadb118
         continue-on-error: true
 
+      - name: Download mariadb114 spec coverage
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: spec-tests-coverage-mariadb114
+          path: artifacts/coverage/spec-mariadb114
+        continue-on-error: true
+
       - name: Setup .NET
         uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
         with:
@@ -279,37 +322,6 @@ jobs:
   integration-smoke:
     runs-on: ubuntu-latest
 
-    services:
-      mysql84:
-        image: mysql:8.4
-        env:
-          MYSQL_ROOT_PASSWORD: root_password
-          MYSQL_DATABASE: doka_provider
-          MYSQL_USER: doka
-          MYSQL_PASSWORD: doka_password
-        ports:
-          - 33068:3306
-        options: >-
-          --health-cmd="MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
-      mariadb118:
-        image: mariadb:11.8
-        env:
-          MARIADB_ROOT_PASSWORD: root_password
-          MARIADB_DATABASE: doka_provider
-          MARIADB_USER: doka
-          MARIADB_PASSWORD: doka_password
-        ports:
-          - 33069:3306
-        options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -322,20 +334,14 @@ jobs:
       - name: Run representative dual-engine live integration path
         env:
           DOKA_INTEGRATION_TARGETS: mysql84,mariadb118
-          # Root credentials for throwaway CI containers. Matches the documented
-          # IntegrationTestEnvironment default so tests that need CREATE/DROP DATABASE
-          # (EnsureCreatedAsync/EnsureDeletedAsync round-trips) succeed without
-          # per-test privilege gymnastics.
-          DOKA_MYSQL84_CONNECTION_STRING: Server=127.0.0.1;Port=33068;Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;
-          DOKA_MARIADB118_CONNECTION_STRING: Server=127.0.0.1;Port=33069;Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;
-        run: bash ./eng/test-integration.sh --test-only
+        run: bash ./eng/test-integration.sh
 
   runtime-posture:
     runs-on: ubuntu-latest
 
     services:
       mysql84:
-        image: mysql:8.4
+        image: mysql:8.4.10@sha256:8dbcf531a03aade657e181b9cf2f1d1803ce621a1d55610cb44cb531ab7d7db6
         env:
           MYSQL_ROOT_PASSWORD: root_password
           MYSQL_DATABASE: doka_provider
@@ -377,7 +383,7 @@ jobs:
 
     services:
       mysql84:
-        image: mysql:8.4
+        image: mysql:8.4.10@sha256:8dbcf531a03aade657e181b9cf2f1d1803ce621a1d55610cb44cb531ab7d7db6
         env:
           MYSQL_ROOT_PASSWORD: root_password
           MYSQL_DATABASE: benchmark_suite
@@ -392,7 +398,7 @@ jobs:
           --health-retries=10
 
       mariadb118:
-        image: mariadb:11.8
+        image: mariadb:11.8.8@sha256:efb4959ef2c835cd735dbc388eb9ad6aab0c78dd64febcd51bc17481111890c4
         env:
           MARIADB_ROOT_PASSWORD: root_password
           MARIADB_DATABASE: benchmark_suite

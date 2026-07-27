@@ -11,6 +11,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update;
 /// batching at the MySQL <c>max_allowed_packet</c> + 65535-placeholder cap.
 /// </summary>
 [Trait("Category", "Spec")]
+[Collection(FunctionalDatabaseTestGroup.Name)]
 public class UpdatesMySqlTest : UpdatesRelationalTestBase<UpdatesMySqlTest.UpdatesMySqlFixture>
 {
     public UpdatesMySqlTest(

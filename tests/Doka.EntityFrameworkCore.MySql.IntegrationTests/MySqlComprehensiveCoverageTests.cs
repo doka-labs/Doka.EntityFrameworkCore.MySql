@@ -3,12 +3,13 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Comprehensive integration tests to close all remaining coverage gaps:
 /// - Scaffolding live round-trip (MySQL + MariaDB)
-/// - MySQL 8.0 parity (CRUD, modeling, queries)
+/// - external-only MySQL 8.0 legacy checks (CRUD, modeling, queries)
 /// - MariaDB 11.4 parity (CRUD, modeling, queries)
 /// - HiLo end-to-end through EF SaveChanges
 /// - Idempotent migration script on live DB
 /// - EnsureCreated / EnsureDeleted round-trip
 /// </summary>
+[Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlComprehensiveCoverageTests
 {
     // ======================================================================
@@ -118,7 +119,7 @@ public sealed class MySqlComprehensiveCoverageTests
     }
 
     // ======================================================================
-    // -- MySQL 8.0 Parity --
+    // -- External-only MySQL 8.0 legacy checks --
     // ======================================================================
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]

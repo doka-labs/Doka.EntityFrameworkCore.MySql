@@ -12,6 +12,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// MySQL 8.4 + MariaDB 11.4 share the modern path; the snapshot DDL test pins both
 /// paths against the live server to keep the fallback honest.
 /// </summary>
+[Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlMigrationRenameColumnTests
 {
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
