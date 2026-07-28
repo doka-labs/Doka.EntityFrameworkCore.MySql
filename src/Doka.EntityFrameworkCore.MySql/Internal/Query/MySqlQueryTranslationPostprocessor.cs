@@ -19,6 +19,21 @@ internal sealed class MySqlQueryTranslationPostprocessor : RelationalQueryTransl
     }
 
     /// <summary>
+    /// Normalizes only unambiguous fallback-versus-model string mappings before EF Core
+    /// applies its standard relational type-inference and validation pass.
+    /// </summary>
+    protected override Expression ProcessTypeMappings(
+        Expression expression
+    )
+    {
+        var normalized = MySqlValuesTypeMappingNormalizingExpressionVisitor.Normalize(
+            expression,
+            RelationalDependencies.TypeMappingSource);
+
+        return base.ProcessTypeMappings(normalized);
+    }
+
+    /// <summary>
     /// Rewrites only MariaDB trees. MySQL supports the original LATERAL form and
     /// therefore retains EF Core's relational tree unchanged.
     /// </summary>
@@ -30,6 +45,6 @@ internal sealed class MySqlQueryTranslationPostprocessor : RelationalQueryTransl
 
         return _singletonOptions.ServerVersion?.IsMariaDb == true
             ? new MySqlMariaDbApplyRewritingExpressionVisitor(RelationalDependencies.SqlExpressionFactory).Visit(pruned)
-            : pruned;
+            : new MySqlLateralProjectionDecorrelationExpressionVisitor().Visit(pruned);
     }
 }

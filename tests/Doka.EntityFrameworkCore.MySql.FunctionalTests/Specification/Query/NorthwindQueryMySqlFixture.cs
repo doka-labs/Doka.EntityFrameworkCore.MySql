@@ -1,4 +1,5 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 
@@ -21,6 +22,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
         DbContextOptionsBuilder builder
     ) => base
         .AddOptions(builder)
+        .ConfigureWarnings(warnings => warnings.Log(RelationalEventId.MultipleCollectionIncludeWarning))
         .EnableDetailedErrors();
 
     protected override bool ShouldLogCategory(
@@ -58,12 +60,6 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
         modelBuilder.Entity<Order>(b =>
         {
             b.Property(o => o.CustomerID).HasMaxLength(5);
-            b.Property(o => o.ShipCity).HasMaxLength(15);
-            b.Property(o => o.ShipCountry).HasMaxLength(15);
-            b.Property(o => o.ShipName).HasMaxLength(40);
-            b.Property(o => o.ShipPostalCode).HasMaxLength(10);
-            b.Property(o => o.ShipRegion).HasMaxLength(15);
-            b.Property(o => o.ShipAddress).HasMaxLength(60);
             b.Property(o => o.OrderDate).HasColumnType("datetime");
         });
 
@@ -79,6 +75,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
 
         modelBuilder.Entity<Product>(b =>
         {
+            b.Property(p => p.CategoryID);
             b.Property(p => p.ProductName).HasMaxLength(40);
             b.Property(p => p.UnitPrice).HasColumnType("decimal(19,4)");
         });
@@ -114,5 +111,47 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
             b.ToSqlQuery("SELECT * FROM `Orders`");
             b.Property(o => o.CustomerID).HasMaxLength(5);
         });
+
+        modelBuilder.Entity<ProductView>()
+            .ToView("Alphabetical list of products");
+
+        modelBuilder.Entity<CustomerQueryWithQueryFilter>()
+            .ToSqlQuery(
+                """
+                SELECT `c`.`CompanyName`, COUNT(`o`.`OrderID`) AS `OrderCount`, 'A' AS `SearchTerm`
+                FROM `Customers` AS `c`
+                LEFT JOIN `Orders` AS `o` ON `c`.`CustomerID` = `o`.`CustomerID`
+                GROUP BY `c`.`CustomerID`, `c`.`CompanyName`
+                """);
+    }
+
+    protected override async Task SeedAsync(
+        NorthwindContext context
+    )
+    {
+        await base.SeedAsync(context);
+
+        // EnsureCreated deliberately does not create objects mapped with ToView. Build the
+        // Northwind projection after seeding so the database-view contract exercises an actual
+        // server view instead of an empty keyless table.
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            CREATE VIEW `Alphabetical list of products` AS
+            SELECT
+                `ProductID`,
+                `ProductName`,
+                CASE `CategoryID`
+                    WHEN 1 THEN 'Beverages'
+                    WHEN 2 THEN 'Condiments'
+                    WHEN 3 THEN 'Confections'
+                    WHEN 4 THEN 'Dairy Products'
+                    WHEN 5 THEN 'Grains/Cereals'
+                    WHEN 6 THEN 'Meat/Poultry'
+                    WHEN 7 THEN 'Produce'
+                    WHEN 8 THEN 'Seafood'
+                END AS `CategoryName`
+            FROM `Products`
+            WHERE NOT `Discontinued`;
+            """);
     }
 }

@@ -130,6 +130,22 @@ public sealed class MySqlQueryTranslationExtendedTests
         Assert.Contains("UTC_TIMESTAMP()", sql, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// DateTime subtraction uses range-preserving integer ticks rather than the
+    /// database engine's range-limited TIME result.
+    /// </summary>
+    [Fact]
+    public void Datetime_subtraction_translates_to_timestampdiff_ticks()
+    {
+        using var context = CreateContext();
+        var sql = context
+            .Items.Select(entity => entity.CreatedAt - new DateTime(2000, 1, 1))
+            .ToQueryString();
+
+        Assert.Contains("TIMESTAMPDIFF(MICROSECOND", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(") * 10)", sql, StringComparison.Ordinal);
+    }
+
     // -- Math Function Translations --------------------------------
 
     /// <summary>
@@ -186,6 +202,59 @@ public sealed class MySqlQueryTranslationExtendedTests
             .ToQueryString();
 
         Assert.Contains("SIGN", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// EF.Functions.Least translates its inline value list to native MySQL SQL.
+    /// </summary>
+    [Fact]
+    public void Ef_functions_least_translates_to_native_function()
+    {
+        using var context = CreateContext();
+        var sql = context
+            .Items.Where(entity => EF.Functions.Least(entity.Id, 100) == entity.Id)
+            .ToQueryString();
+
+        Assert.Contains("LEAST(`t`.`Id`, 100)", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// EF.Functions.Greatest translates its nullable inline value list to native
+    /// MySQL SQL without losing its result type.
+    /// </summary>
+    [Fact]
+    public void Ef_functions_greatest_translates_nullable_values_to_native_function()
+    {
+        using var context = CreateContext();
+        var sql = context
+            .Items.Where(
+                entity => EF.Functions.Greatest(
+                    (int?)entity.Id,
+                    100) == entity.Id)
+            .ToQueryString();
+
+        Assert.Contains("GREATEST(`t`.`Id`, 100)", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Consecutive parameterized Take operators are evaluated before SQL
+    /// generation because MySQL LIMIT does not accept scalar functions.
+    /// </summary>
+    [Fact]
+    public void Consecutive_parameterized_take_uses_an_integral_limit()
+    {
+        using var context = CreateContext();
+        var firstLimit = 5;
+        var secondLimit = 3;
+        var sql = context
+            .Items
+            .OrderBy(entity => entity.Id)
+            .Take(firstLimit)
+            .Take(secondLimit)
+            .ToQueryString();
+
+        Assert.Contains("LIMIT 3", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("LIMIT LEAST", sql, StringComparison.OrdinalIgnoreCase);
     }
 
     // -- Like, Distinct, Query Tags, Subqueries ----------------
@@ -461,6 +530,53 @@ public sealed class MySqlQueryTranslationExtendedTests
 
         // The Key column must be in both SELECT and GROUP BY.
         Assert.Contains("GROUP BY", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Integer averages retain EF Core's double conversion instead of narrowing through DECIMAL.
+    /// </summary>
+    [Fact]
+    public void Integer_average_casts_to_double()
+    {
+        using var context = CreateContext();
+        var sql = context
+            .Items.GroupBy(e => e.Name)
+            .Select(g => g.Average(e => e.Id))
+            .ToQueryString();
+
+        Assert.Contains("AVG(CAST(", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(" AS DOUBLE)", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Float aggregate results retain single-precision conversion instead of scale-zero DECIMAL.
+    /// </summary>
+    [Fact]
+    public void Float_sum_casts_to_float()
+    {
+        using var context = CreateContext();
+        var sql = context
+            .Items.GroupBy(e => e.Name)
+            .Select(g => g.Sum(e => e.SingleValue))
+            .ToQueryString();
+
+        Assert.Contains("SUM(", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(" AS FLOAT)", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Floating-point to decimal query casts preserve the CLR decimal range and scale
+    /// instead of inheriting the provider's schema-column default.
+    /// </summary>
+    [Fact]
+    public void Double_to_decimal_cast_uses_lossless_query_precision()
+    {
+        using var context = CreateContext();
+        var sql = context
+            .Items.Select(e => (decimal)e.Value)
+            .ToQueryString();
+
+        Assert.Contains(" AS DECIMAL(65,30))", sql, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -876,6 +992,7 @@ public sealed class MySqlQueryTranslationExtendedTests
         public string Name { get; set; } = string.Empty;
         public string? NullableName { get; set; }
         public double Value { get; set; }
+        public float SingleValue { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 }

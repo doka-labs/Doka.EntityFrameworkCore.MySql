@@ -381,6 +381,33 @@ public sealed class MySqlQueryTranslationCoverageTests
         Assert.Contains("MINUTE(", sql, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void DateTime_Microsecond_translates_to_engine_component()
+    {
+        using var context = CreateContext();
+        var sql = context
+            .Set<CoverageEntity>()
+            .Select(entity => entity.CreatedAt.Microsecond)
+            .ToQueryString();
+
+        Assert.Contains("MICROSECOND", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("% 1000", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DateTime_Nanosecond_preserves_engine_precision_boundary()
+    {
+        using var context = CreateContext();
+        var sql = context
+            .Set<CoverageEntity>()
+            .Select(entity => entity.CreatedAt.Nanosecond)
+            .ToQueryString();
+
+        Assert.Contains("MICROSECOND", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("* 1000", sql, StringComparison.Ordinal);
+        Assert.Contains("% 1000", sql, StringComparison.Ordinal);
+    }
+
     // DateTime.Now and DateTime.UtcNow already tested in MySqlQueryTranslationExtendedTests.
 
     // -- Helpers --

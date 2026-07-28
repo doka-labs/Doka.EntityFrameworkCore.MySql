@@ -36,10 +36,14 @@ public static class MySqlServiceCollectionExtensions
             .TryAdd<IMemberTranslatorProvider, MySqlMemberTranslatorProvider>()
             .TryAdd<IAggregateMethodCallTranslatorPlugin, MySqlAggregateMethodCallTranslatorPlugin>()
             .TryAdd<IProviderConventionSetBuilder, MySqlConventionSetBuilder>()
+            .TryAdd<IQueryCompilationContextFactory, MySqlQueryCompilationContextFactory>()
             .TryAdd<IQuerySqlGeneratorFactory, MySqlQuerySqlGeneratorFactory>()
             .TryAdd<IQueryableMethodTranslatingExpressionVisitorFactory,
                 MySqlQueryableMethodTranslatingExpressionVisitorFactory>()
+            .TryAdd<IRelationalSqlTranslatingExpressionVisitorFactory,
+                MySqlSqlTranslatingExpressionVisitorFactory>()
             .TryAdd<IQueryTranslationPostprocessorFactory, MySqlQueryTranslationPostprocessorFactory>()
+            .TryAdd<IRelationalParameterBasedSqlProcessorFactory, MySqlParameterBasedSqlProcessorFactory>()
             .TryAdd<ISqlGenerationHelper, MySqlSqlGenerationHelper>()
             .TryAdd<IModelValidator, MySqlModelValidator>()
             .TryAdd<IMigrationsAnnotationProvider, MySqlMigrationsAnnotationProvider>()

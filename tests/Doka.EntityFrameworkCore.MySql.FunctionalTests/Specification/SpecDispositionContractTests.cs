@@ -23,6 +23,7 @@ public class SpecDispositionContractTests
         "bulk-updates",
         "migrations",
         "model-building",
+        "query",
         "query-json",
     ];
 

@@ -70,6 +70,30 @@ public sealed class MySqlTypeMappingBaselineTests
     }
 
     /// <summary>
+    /// Verifies that CLR floating-point constants retain approximate-value semantics
+    /// when MySQL parses their SQL literals.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(double), 1.0, "1.0E0")]
+    [InlineData(typeof(double), 1.5, "1.5E0")]
+    [InlineData(typeof(float), 1.0f, "1.0E0")]
+    [InlineData(typeof(float), 1.5f, "1.5E0")]
+    public void Floating_point_literals_use_approximate_value_notation(
+        Type clrType,
+        object value,
+        string expectedLiteral
+    )
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var typeMapping = context
+            .GetService<IRelationalTypeMappingSource>()
+            .FindMapping(clrType);
+
+        Assert.NotNull(typeMapping);
+        Assert.Equal(expectedLiteral, typeMapping.GenerateSqlLiteral(value));
+    }
+
+    /// <summary>
     /// Verifies that explicit model/property collation metadata remains intact through model building.
     /// </summary>
     [Fact]

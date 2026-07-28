@@ -85,6 +85,12 @@ internal sealed class MySqlMemberTranslator : IMemberTranslator
                 instance.TypeMapping);
         }
 
+        if (member.DeclaringType == typeof(DateTime)
+            && member.Name is nameof(DateTime.Microsecond) or nameof(DateTime.Nanosecond))
+        {
+            return TranslateSubMillisecondPart(member.Name, instance);
+        }
+
         if (s_datePartFunctionNames.TryGetValue(member.Name, out var functionName))
         {
             return TranslateDatePart(functionName, instance, returnType);
@@ -139,4 +145,40 @@ internal sealed class MySqlMemberTranslator : IMemberTranslator
         argumentsPropagateNullability: s_singleArgumentNullPropagation,
         returnType,
         s_intTypeMapping);
+
+    /// <summary>
+    /// Derives the .NET sub-millisecond component from the engines' full
+    /// microseconds-within-second value.
+    /// </summary>
+    /// <remarks>
+    /// MySQL and MariaDB temporal values expose at most six fractional digits.
+    /// Sources retrieved 2026-07-28:
+    /// <see href="https://dev.mysql.com/doc/refman/8.4/en/fractional-seconds.html">
+    /// MySQL fractional seconds</see> and
+    /// <see href="https://mariadb.com/docs/server/reference/sql-functions/date-time-functions/microseconds-in-mariadb">
+    /// MariaDB microseconds</see>.
+    /// </remarks>
+    private SqlExpression TranslateSubMillisecondPart(
+        string memberName,
+        SqlExpression instance
+    )
+    {
+        var microseconds = _sqlExpressionFactory.Function(
+            "MICROSECOND",
+            new[] { instance },
+            nullable: true,
+            argumentsPropagateNullability: s_singleArgumentNullPropagation,
+            typeof(int),
+            s_intTypeMapping);
+
+        var enginePrecisionValue = memberName == nameof(DateTime.Nanosecond)
+            ? _sqlExpressionFactory.Multiply(
+                microseconds,
+                _sqlExpressionFactory.Constant(1000, s_intTypeMapping))
+            : microseconds;
+
+        return _sqlExpressionFactory.Modulo(
+            enginePrecisionValue,
+            _sqlExpressionFactory.Constant(1000, s_intTypeMapping));
+    }
 }

@@ -55,6 +55,11 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor : ExpressionVi
         return rewritten;
     }
 
+    /// <summary>
+    /// Flattens only projection-preserving APPLY shapes. DISTINCT, grouping,
+    /// ordering, pagination, and unmappable projections retain APPLY because
+    /// moving those operations across the join would change query semantics.
+    /// </summary>
     private SelectExpression? TryFlattenApply(
         SelectExpression outer,
         int tableIndex
@@ -95,8 +100,11 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor : ExpressionVi
         }
 
         var remapper = new ApplyProjectionRemappingExpressionVisitor(
+            _sqlExpressionFactory,
             inner.Alias,
             projectionMap,
+            inner.Predicate,
+            GetTableAliases(inner.Tables),
             makeNullable: table is OuterApplyExpression);
         var predicate = (SqlExpression?)remapper.Visit(outer.Predicate);
         var having = (SqlExpression?)remapper.Visit(outer.Having);
@@ -162,6 +170,37 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor : ExpressionVi
         }
 
         return projections;
+    }
+
+    private static HashSet<string> GetTableAliases(
+        IReadOnlyList<TableExpressionBase> tables
+    )
+    {
+        var aliases = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var table in tables)
+        {
+            AddTableAlias(table, aliases);
+        }
+
+        return aliases;
+    }
+
+    private static void AddTableAlias(
+        TableExpressionBase table,
+        ISet<string> aliases
+    )
+    {
+        if (table is JoinExpressionBase join)
+        {
+            AddTableAlias(join.Table, aliases);
+            return;
+        }
+
+        if (table.Alias is not null)
+        {
+            aliases.Add(table.Alias);
+        }
     }
 
     /// <summary>
@@ -336,18 +375,27 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor : ExpressionVi
 
     private sealed class ApplyProjectionRemappingExpressionVisitor : ExpressionVisitor
     {
+        private readonly IReadOnlySet<string> _innerTableAliases;
         private readonly bool _makeNullable;
+        private readonly SqlExpression? _matchPredicate;
         private readonly IReadOnlyDictionary<string, SqlExpression> _projectionMap;
+        private readonly ISqlExpressionFactory _sqlExpressionFactory;
         private readonly string _tableAlias;
 
         public ApplyProjectionRemappingExpressionVisitor(
+            ISqlExpressionFactory sqlExpressionFactory,
             string tableAlias,
             IReadOnlyDictionary<string, SqlExpression> projectionMap,
+            SqlExpression? matchPredicate,
+            IReadOnlySet<string> innerTableAliases,
             bool makeNullable
         )
         {
+            _sqlExpressionFactory = sqlExpressionFactory;
             _tableAlias = tableAlias;
             _projectionMap = projectionMap;
+            _matchPredicate = matchPredicate;
+            _innerTableAliases = innerTableAliases;
             _makeNullable = makeNullable;
         }
 
@@ -370,7 +418,33 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor : ExpressionVi
                 return node;
             }
 
-            return _makeNullable ? replacementColumn.MakeNullable() : replacementColumn;
+            if (!_makeNullable)
+            {
+                return replacementColumn;
+            }
+
+            if (_innerTableAliases.Contains(replacementColumn.TableAlias))
+            {
+                return replacementColumn.MakeNullable();
+            }
+
+            // LEFT JOIN makes inner columns nullable automatically. An outer column
+            // stays populated on an unmatched row, so CASE preserves OUTER APPLY's
+            // required null-extended projection.
+            if (_matchPredicate is null)
+            {
+                HasUnmappedReference = true;
+                return node;
+            }
+
+            return _sqlExpressionFactory.Case(
+                [
+                    new CaseWhenClause(_matchPredicate, replacementColumn),
+                ],
+                _sqlExpressionFactory.Constant(
+                    null,
+                    replacementColumn.Type,
+                    replacementColumn.TypeMapping));
         }
     }
 

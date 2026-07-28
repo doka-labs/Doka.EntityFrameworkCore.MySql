@@ -36,8 +36,8 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         DbType.UInt64);
 
     private static readonly RelationalTypeMapping s_boolMapping = new BoolTypeMapping("tinyint(1)", DbType.Boolean);
-    private static readonly RelationalTypeMapping s_doubleMapping = new DoubleTypeMapping("double", DbType.Double);
-    private static readonly RelationalTypeMapping s_floatMapping = new FloatTypeMapping("float", DbType.Single);
+    private static readonly RelationalTypeMapping s_doubleMapping = MySqlDoubleTypeMapping.Default;
+    private static readonly RelationalTypeMapping s_floatMapping = MySqlFloatTypeMapping.Default;
 
     private static readonly RelationalTypeMapping s_decimalMapping = new DecimalTypeMapping(
         $"decimal({DefaultDecimalPrecision},{DefaultDecimalScale})",
@@ -335,13 +335,13 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
             if (normalizedStoreType == "double"
                 && mappingInfo.StoreTypeName.Contains("unsigned", StringComparison.OrdinalIgnoreCase))
             {
-                return new DoubleTypeMapping(mappingInfo.StoreTypeName, DbType.Double);
+                return new MySqlDoubleTypeMapping(mappingInfo.StoreTypeName, DbType.Double);
             }
 
             if (normalizedStoreType == "float"
                 && mappingInfo.StoreTypeName.Contains("unsigned", StringComparison.OrdinalIgnoreCase))
             {
-                return new FloatTypeMapping(mappingInfo.StoreTypeName, DbType.Single);
+                return new MySqlFloatTypeMapping(mappingInfo.StoreTypeName, DbType.Single);
             }
 
             if (s_storeTypeMappings.TryGetValue(normalizedStoreType, out var storeTypeMapping)

@@ -90,6 +90,12 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
                     return sqlFunctionExpression;
                 }
 
+            case { Name: "__mysql_datetime_diff_ticks", Arguments.Count: 2 }:
+                {
+                    EmitDateTimeDifferenceTicks(sqlFunctionExpression);
+                    return sqlFunctionExpression;
+                }
+
             case { Name: var name, Arguments.Count: 2 }
                 when name.StartsWith(DateAddSentinelPrefix, StringComparison.Ordinal):
                 {
@@ -398,6 +404,34 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     private const string TimeAddSentinelPrefix = "__mysql_time_add_";
 
     /// <summary>
+    /// Emits a signed, range-preserving <see cref="TimeSpan"/> value as
+    /// 100-nanosecond ticks.
+    /// </summary>
+    /// <remarks>
+    /// <c>TIMESTAMPDIFF(MICROSECOND, start, end)</c> returns <c>end - start</c>
+    /// as an integer on both engines. Multiplying by ten converts microseconds
+    /// to .NET ticks. Sources retrieved 2026-07-28:
+    /// <see href="https://dev.mysql.com/doc/refman/8.4/en/date-and-time-functions.html#function_timestampdiff">
+    /// MySQL TIMESTAMPDIFF</see> and
+    /// <see href="https://mariadb.com/docs/server/reference/sql-functions/date-time-functions/timestampdiff">
+    /// MariaDB TIMESTAMPDIFF</see>.
+    /// </remarks>
+    private void EmitDateTimeDifferenceTicks(
+        SqlFunctionExpression expression
+    )
+    {
+        var arguments = expression.Arguments
+            ?? throw new InvalidOperationException(
+                "The __mysql_datetime_diff_ticks sentinel requires two arguments.");
+
+        Sql.Append("(TIMESTAMPDIFF(MICROSECOND, ");
+        Visit(arguments[0]);
+        Sql.Append(", ");
+        Visit(arguments[1]);
+        Sql.Append(") * 10)");
+    }
+
+    /// <summary>
     /// Emits <c>DATE_ADD(arg0, INTERVAL arg1 UNIT)</c> for the parametrized-interval
     /// translation path. The interval keyword sits between the comma and the value, so
     /// the standard function-arguments comma-separator path cannot express the shape;
@@ -423,11 +457,11 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
 
     /// <summary>
     /// Translates the EF Core T-SQL idiom <c>CROSS APPLY &lt;table&gt;</c> into the
-    /// MySQL form <c>JOIN LATERAL &lt;table&gt; ON TRUE</c>. JSON_TABLE is already inherently
-    /// lateral, and both engines reject the LATERAL keyword in front of a table-valued
-    /// function call, so <see cref="MySqlJsonTableExpression"/> uses plain <c>JOIN</c>.
-    /// MariaDB has no LATERAL derived-table grammar and therefore receives a precise
-    /// engine-capability exception instead of syntactically invalid SQL.
+    /// MySQL form <c>JOIN LATERAL &lt;derived-table&gt; ON TRUE</c>. MySQL permits the
+    /// <c>LATERAL</c> modifier only on derived tables; ordinary tables need a plain join,
+    /// while table functions such as JSON_TABLE are already inherently lateral. MariaDB
+    /// has no LATERAL derived-table grammar and therefore receives a precise engine-capability
+    /// exception instead of syntactically invalid SQL.
     /// </summary>
     protected override Expression VisitCrossApply(
         CrossApplyExpression crossApplyExpression
@@ -435,14 +469,14 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     {
         ArgumentNullException.ThrowIfNull(crossApplyExpression);
 
-        if (crossApplyExpression.Table is MySqlJsonTableExpression)
-        {
-            Sql.Append("JOIN ");
-        }
-        else
+        if (RequiresLateralModifier(crossApplyExpression.Table))
         {
             ThrowIfMariaDbLateralDerivedTableIsRequired();
             Sql.Append("JOIN LATERAL ");
+        }
+        else
+        {
+            Sql.Append("JOIN ");
         }
 
         Visit(crossApplyExpression.Table);
@@ -452,10 +486,11 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
 
     /// <summary>
     /// Translates <c>OUTER APPLY &lt;table&gt;</c> into the MySQL form
-    /// <c>LEFT JOIN LATERAL &lt;table&gt; ON TRUE</c>. The outer variant preserves left-hand
-    /// rows whose lateral subquery produces no match. JSON_TABLE uses <c>LEFT JOIN</c>
-    /// without LATERAL; MariaDB receives the same explicit capability exception as
-    /// <see cref="VisitCrossApply"/> for an ordinary correlated derived table.
+    /// <c>LEFT JOIN LATERAL &lt;derived-table&gt; ON TRUE</c>. The outer variant preserves
+    /// left-hand rows whose lateral subquery produces no match. Ordinary tables and
+    /// inherently lateral table functions use <c>LEFT JOIN</c> without the modifier;
+    /// MariaDB receives the same explicit capability exception as
+    /// <see cref="VisitCrossApply"/> for a correlated derived table.
     /// </summary>
     protected override Expression VisitOuterApply(
         OuterApplyExpression outerApplyExpression
@@ -463,20 +498,28 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     {
         ArgumentNullException.ThrowIfNull(outerApplyExpression);
 
-        if (outerApplyExpression.Table is MySqlJsonTableExpression)
-        {
-            Sql.Append("LEFT JOIN ");
-        }
-        else
+        if (RequiresLateralModifier(outerApplyExpression.Table))
         {
             ThrowIfMariaDbLateralDerivedTableIsRequired();
             Sql.Append("LEFT JOIN LATERAL ");
+        }
+        else
+        {
+            Sql.Append("LEFT JOIN ");
         }
 
         Visit(outerApplyExpression.Table);
         Sql.Append(" ON TRUE");
         return outerApplyExpression;
     }
+
+    /// <summary>
+    /// Identifies derived-table shapes which require MySQL's explicit
+    /// <c>LATERAL</c> modifier when they reference a preceding table.
+    /// </summary>
+    private static bool RequiresLateralModifier(
+        TableExpressionBase tableExpression
+    ) => tableExpression is SelectExpression or SetOperationBase;
 
     /// <summary>
     /// Prevents MariaDB from receiving a LATERAL derived-table construct that its SQL
@@ -490,6 +533,61 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
             throw new InvalidOperationException(
                 "MariaDB cannot execute a correlated derived table because its JOIN grammar "
                 + "does not support LATERAL. See disposition MDB-CORRELATED-DERIVED-TABLE.");
+        }
+    }
+
+    /// <summary>
+    /// Emits an inline rowset as a sequence of <c>SELECT</c> branches.
+    /// </summary>
+    /// <remarks>
+    /// EF Core's relational default emits the first row as <c>SELECT</c> and later rows as
+    /// <c>UNION ALL VALUES</c>. MySQL and MariaDB diverge on that table-value-constructor
+    /// grammar, while <c>UNION ALL SELECT</c> preserves the same values, duplicates, and order
+    /// on every supported target.
+    /// </remarks>
+    protected override void GenerateValues(
+        ValuesExpression valuesExpression
+    )
+    {
+        ArgumentNullException.ThrowIfNull(valuesExpression);
+
+        var rowValues = valuesExpression.RowValues
+            ?? throw new InvalidOperationException(
+                "Parameterized inline rowsets must be expanded before SQL generation.");
+
+        if (rowValues.Count == 0)
+        {
+            throw new InvalidOperationException(RelationalStrings.EmptyCollectionNotSupportedAsInlineQueryRoot);
+        }
+
+        for (var rowIndex = 0; rowIndex < rowValues.Count; rowIndex++)
+        {
+            if (rowIndex > 0)
+            {
+                Sql.AppendLine();
+                Sql.AppendLine("UNION ALL");
+            }
+
+            Sql.Append("SELECT ");
+
+            var values = rowValues[rowIndex].Values;
+
+            for (var columnIndex = 0; columnIndex < values.Count; columnIndex++)
+            {
+                if (columnIndex > 0)
+                {
+                    Sql.Append(", ");
+                }
+
+                Visit(values[columnIndex]);
+
+                if (rowIndex == 0)
+                {
+                    Sql.Append(" AS ");
+                    Sql.Append(
+                        Dependencies.SqlGenerationHelper.DelimitIdentifier(valuesExpression.ColumnNames[columnIndex]));
+                }
+            }
         }
     }
 
@@ -1142,19 +1240,37 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     /// <c>StoreType</c> verbatim, which produces MySQL-invalid syntax: <c>CAST(x AS int)</c>,
     /// <c>CAST(x AS bigint)</c>, <c>CAST(x AS longtext)</c> all fail to parse. MySQL's CAST
     /// grammar accepts only a narrow vocabulary -- <c>SIGNED</c>, <c>UNSIGNED</c>,
-    /// <c>CHAR</c>, <c>BINARY</c>, <c>DECIMAL</c>, <c>DATE</c>, <c>DATETIME</c>, <c>TIME</c>,
-    /// <c>JSON</c>, <c>NCHAR</c>. This override translates the column-level store-type into
-    /// the cast-context-valid keyword for the Convert path; all other operators fall
-    /// through to the base implementation.
+    /// <c>CHAR</c>, <c>BINARY</c>, <c>DECIMAL</c>, <c>FLOAT</c>, <c>DOUBLE</c>, <c>DATE</c>,
+    /// <c>DATETIME</c>, <c>TIME</c>, <c>JSON</c>, <c>NCHAR</c>. This override translates
+    /// the column-level store-type into the cast-context-valid keyword for the Convert
+    /// path; all other operators fall through to the base implementation.
     /// </summary>
+    /// <remarks>
+    /// Floating-point to decimal query casts use the engines' common <c>DECIMAL(65,30)</c>
+    /// maximum instead of the schema-column default. Sources retrieved 2026-07-28:
+    /// <see href="https://dev.mysql.com/doc/refman/8.4/en/precision-math-decimal-characteristics.html">
+    /// MySQL 8.4 DECIMAL characteristics</see> and
+    /// <see href="https://mariadb.com/docs/server/reference/data-types/numeric-data-types/decimal">
+    /// MariaDB DECIMAL</see>.
+    /// </remarks>
     protected override Expression VisitSqlUnary(
         SqlUnaryExpression sqlUnaryExpression
     )
     {
         ArgumentNullException.ThrowIfNull(sqlUnaryExpression);
 
-        if (sqlUnaryExpression is not { OperatorType: ExpressionType.Convert, TypeMapping: { } typeMapping }
-            || TranslateStoreTypeToCastTarget(typeMapping.StoreType) is not { } castTarget)
+        if (sqlUnaryExpression is not { OperatorType: ExpressionType.Convert, TypeMapping: { } typeMapping })
+        {
+            return base.VisitSqlUnary(sqlUnaryExpression);
+        }
+
+        var operandType = sqlUnaryExpression.Operand.Type;
+        var castTarget = sqlUnaryExpression.Type == typeof(decimal)
+            && (operandType == typeof(double) || operandType == typeof(float))
+                ? "DECIMAL(65,30)"
+                : TranslateStoreTypeToCastTarget(typeMapping.StoreType);
+
+        if (castTarget is null)
         {
             return base.VisitSqlUnary(sqlUnaryExpression);
         }
@@ -1226,7 +1342,8 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
             "char" or "varchar" or "text" or "tinytext" or "mediumtext" or "longtext" or "nchar" or "nvarchar" =>
                 "CHAR" + trailing,
             "binary" or "varbinary" or "blob" or "tinyblob" or "mediumblob" or "longblob" => "BINARY" + trailing,
-            "float" or "double" or "real" => "DECIMAL",
+            "float" => "FLOAT",
+            "double" or "real" => "DOUBLE",
             _ => null,
         };
     }

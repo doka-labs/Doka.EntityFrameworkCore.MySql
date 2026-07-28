@@ -266,10 +266,11 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_collection_filter_in_projection(async);
 
-    [SpecEngineLimitationTheory(
-        "MDB-CORRELATED-DERIVED-TABLE",
-        "mariadb114",
-        "mariadb118")]
+    /// <summary>
+    /// Keeps the leaf-filter projection active on every supported target. The current
+    /// relational tree no longer requires a correlated derived-table boundary.
+    /// </summary>
+    [DirectTheory]
     [InlineData(false)]
     [InlineData(true)]
     public override Task Json_collection_leaf_filter_in_projection(

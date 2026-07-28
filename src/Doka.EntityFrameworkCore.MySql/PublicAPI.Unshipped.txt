@@ -26,8 +26,14 @@ Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions
 Doka.EntityFrameworkCore.MySql.MySqlDesignTimeServices
 Doka.EntityFrameworkCore.MySql.MySqlDesignTimeServices.ConfigureDesignTimeServices(Microsoft.Extensions.DependencyInjection.IServiceCollection! serviceCollection) -> void
 Doka.EntityFrameworkCore.MySql.MySqlDesignTimeServices.MySqlDesignTimeServices() -> void
+Doka.EntityFrameworkCore.MySql.MySqlDoubleTypeMapping
+static Doka.EntityFrameworkCore.MySql.MySqlDoubleTypeMapping.Default.get -> Doka.EntityFrameworkCore.MySql.MySqlDoubleTypeMapping!
+Doka.EntityFrameworkCore.MySql.MySqlDoubleTypeMapping.MySqlDoubleTypeMapping(string! storeType, System.Data.DbType? dbType = System.Data.DbType.Double) -> void
 Doka.EntityFrameworkCore.MySql.MySqlEntityTypeBuilderExtensions
 Doka.EntityFrameworkCore.MySql.MySqlEventId
+Doka.EntityFrameworkCore.MySql.MySqlFloatTypeMapping
+static Doka.EntityFrameworkCore.MySql.MySqlFloatTypeMapping.Default.get -> Doka.EntityFrameworkCore.MySql.MySqlFloatTypeMapping!
+Doka.EntityFrameworkCore.MySql.MySqlFloatTypeMapping.MySqlFloatTypeMapping(string! storeType, System.Data.DbType? dbType = System.Data.DbType.Single) -> void
 Doka.EntityFrameworkCore.MySql.MySqlGuidFormat
 Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Binary16 = 0 -> Doka.EntityFrameworkCore.MySql.MySqlGuidFormat
 Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Char36 = 1 -> Doka.EntityFrameworkCore.MySql.MySqlGuidFormat
