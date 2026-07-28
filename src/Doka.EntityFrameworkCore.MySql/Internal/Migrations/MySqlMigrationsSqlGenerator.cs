@@ -141,7 +141,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("CREATE TABLE ")
-            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema))
+            .Append(DelimitMigrationIdentifier(operation.Name))
             .AppendLine(" (");
 
         using (builder.Indent())
@@ -173,7 +173,34 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         if (!IsSpatialIndex(operation))
         {
-            base.Generate(operation, model, builder, terminate);
+            builder.Append("CREATE ");
+
+            if (operation.IsUnique)
+            {
+                builder.Append("UNIQUE ");
+            }
+
+            IndexTraits(operation, model, builder);
+
+            builder
+                .Append("INDEX ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+                .Append(" ON ")
+                .Append(DelimitMigrationIdentifier(operation.Table))
+                .Append(" (");
+
+            GenerateIndexColumnList(operation, model, builder);
+
+            builder.Append(")");
+
+            IndexOptions(operation, model, builder);
+
+            if (terminate)
+            {
+                builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+                EndStatement(builder);
+            }
+
             return;
         }
 
@@ -183,7 +210,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append("CREATE SPATIAL INDEX ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
             .Append(" ON ")
-            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+            .Append(DelimitMigrationIdentifier(operation.Table))
             .Append(" (")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Columns[0]))
             .Append(")");
@@ -208,7 +235,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         {
             builder
                 .Append("ALTER TABLE ")
-                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+                .Append(DelimitMigrationIdentifier(operation.Table))
                 .Append(" DROP COLUMN ")
                 .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
@@ -216,7 +243,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
             builder
                 .Append("ALTER TABLE ")
-                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+                .Append(DelimitMigrationIdentifier(operation.Table))
                 .Append(" ADD COLUMN ");
 
             ColumnDefinition(operation.Schema, operation.Table, operation.Name, operation, model, builder);
@@ -230,7 +257,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("ALTER TABLE ")
-            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+            .Append(DelimitMigrationIdentifier(operation.Table))
             .Append(" MODIFY COLUMN ");
 
         ColumnDefinition(operation.Schema, operation.Table, operation.Name, operation, model, builder);
@@ -255,7 +282,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("ALTER TABLE ")
-            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema))
+            .Append(DelimitMigrationIdentifier(operation.Name))
             .Append(" COMMENT = ")
             .Append(MySqlSqlLiteralEscaper.EscapeAndQuote(operation.Comment ?? string.Empty))
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
@@ -291,7 +318,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("ALTER TABLE ")
-            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(table, operation.Schema))
+            .Append(DelimitMigrationIdentifier(table))
             .Append(" DROP INDEX ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name));
 
@@ -316,7 +343,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("ALTER TABLE ")
-            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(table, operation.Schema))
+            .Append(DelimitMigrationIdentifier(table))
             .Append(" RENAME INDEX ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
             .Append(" TO ")
@@ -337,7 +364,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("ALTER TABLE ")
-            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+            .Append(DelimitMigrationIdentifier(operation.Table))
             .Append(" DROP FOREIGN KEY ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name));
 
@@ -360,13 +387,55 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("ALTER TABLE ")
-            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+            .Append(DelimitMigrationIdentifier(operation.Table))
             .Append(" DROP PRIMARY KEY");
 
         if (terminate)
         {
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
             EndStatement(builder);
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void ForeignKeyConstraint(
+        AddForeignKeyOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder
+    )
+    {
+        if (operation.Name is not null)
+        {
+            builder
+                .Append("CONSTRAINT ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+                .Append(" ");
+        }
+
+        builder
+            .Append("FOREIGN KEY (")
+            .Append(ColumnList(operation.Columns))
+            .Append(") REFERENCES ")
+            .Append(DelimitMigrationIdentifier(operation.PrincipalTable));
+
+        if (operation.PrincipalColumns is not null)
+        {
+            builder
+                .Append(" (")
+                .Append(ColumnList(operation.PrincipalColumns))
+                .Append(")");
+        }
+
+        if (operation.OnUpdate != ReferentialAction.NoAction)
+        {
+            builder.Append(" ON UPDATE ");
+            ForeignKeyAction(operation.OnUpdate, builder);
+        }
+
+        if (operation.OnDelete != ReferentialAction.NoAction)
+        {
+            builder.Append(" ON DELETE ");
+            ForeignKeyAction(operation.OnDelete, builder);
         }
     }
 
@@ -681,7 +750,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("UPDATE ")
-            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+            .Append(DelimitMigrationIdentifier(operation.Table))
             .Append(" SET ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
             .Append(" = ");
@@ -803,9 +872,9 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("RENAME TABLE ")
-            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema))
+            .Append(DelimitMigrationIdentifier(operation.Name))
             .Append(" TO ")
-            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(newName, operation.NewSchema))
+            .Append(DelimitMigrationIdentifier(newName))
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
 
         builder.EndCommand();
@@ -835,7 +904,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         {
             builder
                 .Append("ALTER TABLE ")
-                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+                .Append(DelimitMigrationIdentifier(operation.Table))
                 .Append(" RENAME COLUMN ")
                 .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
                 .Append(" TO ")
@@ -899,7 +968,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("ALTER TABLE ")
-            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+            .Append(DelimitMigrationIdentifier(operation.Table))
             .Append(" CHANGE COLUMN ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
             .Append(" ");
@@ -932,7 +1001,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         {
             builder
                 .Append("CREATE SEQUENCE ")
-                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema));
+                .Append(DelimitMigrationIdentifier(operation.Name));
 
             if (_mySqlSingletonOptions.Profile.Version.CompareTo(new Version(11, 5, 0)) >= 0)
             {
@@ -1077,7 +1146,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         {
             builder
                 .Append("DROP SEQUENCE IF EXISTS ")
-                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema))
+                .Append(DelimitMigrationIdentifier(operation.Name))
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
             builder.EndCommand();
             return;
@@ -1109,7 +1178,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         {
             builder
                 .Append("ALTER SEQUENCE ")
-                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema))
+                .Append(DelimitMigrationIdentifier(operation.Name))
                 .Append(" INCREMENT BY ")
                 .Append(operation.IncrementBy.ToString(CultureInfo.InvariantCulture));
 
@@ -1191,9 +1260,9 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         {
             builder
                 .Append("RENAME TABLE ")
-                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema))
+                .Append(DelimitMigrationIdentifier(operation.Name))
                 .Append(" TO ")
-                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(newName, operation.NewSchema))
+                .Append(DelimitMigrationIdentifier(newName))
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
             builder.EndCommand();
             return;
@@ -1228,7 +1297,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         {
             builder
                 .Append("ALTER SEQUENCE ")
-                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema))
+                .Append(DelimitMigrationIdentifier(operation.Name))
                 .Append(" ");
 
             if (operation.StartValue.HasValue)
@@ -1280,11 +1349,20 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         EndStatement(builder);
     }
 
+    private string DelimitMigrationIdentifier(
+        string identifier
+    ) =>
+        // EF schemas have no same-database namespace equivalent on MySQL-family
+        // engines. Migration SQL therefore keeps the active database boundary.
+        Dependencies.SqlGenerationHelper.DelimitIdentifier(identifier);
+
     private static SequenceTypeInfo GetSequenceTypeInfo(
-        Type clrType
+        Type? clrType
     )
     {
-        ArgumentNullException.ThrowIfNull(clrType);
+        // EF Core's non-generic CreateSequence API defaults to Int64. Operations
+        // constructed directly can omit ClrType and must retain the same contract.
+        clrType ??= typeof(long);
 
         clrType = Nullable.GetUnderlyingType(clrType) ?? clrType;
 

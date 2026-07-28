@@ -106,6 +106,24 @@ public sealed class FullMigrationsMySqlTest
             "JSON_ARRAY()");
 
     /// <summary>
+    /// Activates the upstream-skipped custom-converter migration fact because
+    /// the provider preserves the converted required-column default correctly.
+    /// </summary>
+    [Fact]
+    public override Task
+        Add_required_primitive_collection_with_custom_converter_to_existing_table() =>
+        base.Add_required_primitive_collection_with_custom_converter_to_existing_table();
+
+    /// <summary>
+    /// Activates the legacy misspelled variant of the same passing migration
+    /// contract so it cannot remain hidden by the upstream skip.
+    /// </summary>
+    [Fact]
+    public override Task
+        Add_required_primitve_collection_with_custom_converter_to_existing_table() =>
+        base.Add_required_primitve_collection_with_custom_converter_to_existing_table();
+
+    /// <summary>
     /// Verifies every sequence option while adapting the relational schema assertion to
     /// the MySQL-family database boundary.
     /// </summary>

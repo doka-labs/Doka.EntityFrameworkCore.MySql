@@ -12,7 +12,6 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public sealed class SpecEngineLimitationFactAttribute : FactAttribute
 {
-    private const string TargetEnvironmentVariable = "DOKA_SPEC_TEST_TARGET";
     private const string ProbeEnvironmentVariable = "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS";
 
     /// <summary>
@@ -35,9 +34,8 @@ public sealed class SpecEngineLimitationFactAttribute : FactAttribute
         DispositionId = dispositionId;
         UnsupportedTargets = unsupportedTargets;
 
-        var target = Environment.GetEnvironmentVariable(TargetEnvironmentVariable);
-        if (target is not null
-            && unsupportedTargets.Contains(target, StringComparer.OrdinalIgnoreCase)
+        var target = SpecTestTarget.Resolve();
+        if (unsupportedTargets.Contains(target, StringComparer.OrdinalIgnoreCase)
             && !string.Equals(
                 Environment.GetEnvironmentVariable(ProbeEnvironmentVariable),
                 "true",

@@ -693,11 +693,41 @@ internal static partial class AdrParser
             }
         }
 
-        var sourceLines = lines[(sourcesIndex + 1)..]
-            .Where(static line => line.Length > 0)
-            .ToArray();
+        var sourceEntries = new List<(string Text, int LineNumber)>();
+        var references = new Dictionary<string, (string Url, int LineNumber)>(StringComparer.OrdinalIgnoreCase);
 
-        if (sourceLines.Length == 0)
+        for (var index = sourcesIndex + 1; index < lines.Length; index++)
+        {
+            var line = lines[index];
+
+            if (line.Length == 0)
+            {
+                continue;
+            }
+
+            if (line.StartsWith("- ", StringComparison.Ordinal))
+            {
+                sourceEntries.Add((line, index + 1));
+                continue;
+            }
+
+            if (TryReadSourceReference(lines, ref index, relativePath, references, errors))
+            {
+                continue;
+            }
+
+            if (line.StartsWith("  ", StringComparison.Ordinal)
+                && sourceEntries.Count > 0)
+            {
+                var entry = sourceEntries[^1];
+                sourceEntries[^1] = ($"{entry.Text} {line.Trim()}", entry.LineNumber);
+                continue;
+            }
+
+            errors.Add(new AdrValidationError(relativePath, index + 1, $"Invalid source section line '{line}'."));
+        }
+
+        if (sourceEntries.Count == 0)
         {
             errors.Add(
                 new AdrValidationError(
@@ -707,8 +737,8 @@ internal static partial class AdrParser
             return;
         }
 
-        if (sourceLines.Length > 1
-            && sourceLines.Contains(RepositoryEvidenceSource, StringComparer.Ordinal))
+        if (sourceEntries.Count > 1
+            && sourceEntries.Any(entry => entry.Text == RepositoryEvidenceSource))
         {
             errors.Add(
                 new AdrValidationError(
@@ -717,7 +747,9 @@ internal static partial class AdrParser
                     "The repository-only evidence marker cannot be combined with external sources."));
         }
 
-        foreach (var sourceLine in sourceLines)
+        var usedReferences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (sourceLine, lineNumber) in sourceEntries)
         {
             if (sourceLine == RepositoryEvidenceSource)
             {
@@ -725,11 +757,31 @@ internal static partial class AdrParser
             }
 
             var match = PrimarySourceRegex().Match(sourceLine);
+            if (!match.Success)
+            {
+                match = ReferencedPrimarySourceRegex().Match(sourceLine);
+
+                if (match.Success)
+                {
+                    var reference = match.Groups["reference"].Value;
+                    if (!references.ContainsKey(reference))
+                    {
+                        errors.Add(
+                            new AdrValidationError(
+                                relativePath,
+                                lineNumber,
+                                $"Source entry references undefined link '{reference}'."));
+                        continue;
+                    }
+
+                    usedReferences.Add(reference);
+                }
+            }
 
             if (!match.Success)
             {
                 errors.Add(
-                    new AdrValidationError(relativePath, sourcesIndex + 1, $"Invalid source entry '{sourceLine}'."));
+                    new AdrValidationError(relativePath, lineNumber, $"Invalid source entry '{sourceLine}'."));
                 continue;
             }
 
@@ -743,10 +795,71 @@ internal static partial class AdrParser
                 errors.Add(
                     new AdrValidationError(
                         relativePath,
-                        sourcesIndex + 1,
+                        lineNumber,
                         $"Source entry has an invalid retrieval date: '{sourceLine}'."));
             }
         }
+
+        foreach (var reference in references)
+        {
+            if (!usedReferences.Contains(reference.Key))
+            {
+                errors.Add(
+                    new AdrValidationError(
+                        relativePath,
+                        reference.Value.LineNumber,
+                        $"Source link definition '{reference.Key}' is not used."));
+            }
+        }
+    }
+
+    private static bool TryReadSourceReference(
+        string[] lines,
+        ref int index,
+        string relativePath,
+        Dictionary<string, (string Url, int LineNumber)> references,
+        List<AdrValidationError> errors
+    )
+    {
+        var match = SourceReferenceDefinitionRegex()
+            .Match(lines[index]);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        var lineNumber = index + 1;
+        var reference = match.Groups["reference"].Value;
+        var url = match.Groups["url"].Value;
+
+        if (url.Length == 0
+            && index + 1 < lines.Length
+            && lines[index + 1]
+                .StartsWith("  ", StringComparison.Ordinal))
+        {
+            index++;
+            url = lines[index].Trim();
+        }
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || uri.Scheme != Uri.UriSchemeHttps)
+        {
+            errors.Add(
+                new AdrValidationError(
+                    relativePath,
+                    lineNumber,
+                    $"Source link definition '{reference}' must resolve to an HTTPS URL."));
+
+            return true;
+        }
+
+        if (!references.TryAdd(reference, (url, lineNumber)))
+        {
+            errors.Add(
+                new AdrValidationError(relativePath, lineNumber, $"Duplicate source link definition '{reference}'."));
+        }
+
+        return true;
     }
 
     private static bool TryBuildDocument(
@@ -921,6 +1034,16 @@ internal static partial class AdrParser
         @"^- \[[^\]]+\]\(https://[^)]+\) \(primary source; retrieved (?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\)$",
         RegexOptions.CultureInvariant)]
     private static partial Regex PrimarySourceRegex();
+
+    [GeneratedRegex(
+        @"^- \[[^\]]+\]\[(?<reference>[^\]]+)\] \(primary source; retrieved (?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\)$",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex ReferencedPrimarySourceRegex();
+
+    [GeneratedRegex(
+        @"^\[(?<reference>[^\]]+)\]:[ ]*(?<url>.*)$",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex SourceReferenceDefinitionRegex();
 
     [GeneratedRegex(
         "^- [0-9]{4}-[0-9]{2}-[0-9]{2}: Decision recorded with status (?<status>[a-z]+)[.]$",

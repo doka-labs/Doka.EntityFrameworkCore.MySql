@@ -31,6 +31,16 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// MySQL-family engines use the active database as the provider schema
+    /// boundary, so an EF schema must not become a database qualifier.
+    /// </remarks>
+    public override string GenerateNextSequenceValueOperation(
+        string name,
+        string? schema
+    ) => base.GenerateNextSequenceValueOperation(name, schema: null);
+
+    /// <inheritdoc />
     public override ResultSetMapping AppendInsertOperation(
         StringBuilder commandStringBuilder,
         IReadOnlyModificationCommand command,

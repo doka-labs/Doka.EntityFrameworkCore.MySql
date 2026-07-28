@@ -141,6 +141,51 @@ public sealed class MySqlMigrationBaselineTests
     }
 
     /// <summary>
+    /// Verifies that EF schemas do not become cross-database foreign-key references.
+    /// </summary>
+    [Fact]
+    public void Create_table_foreign_key_ignores_relational_schemas()
+    {
+        using var context = new BaselineContext(CreateOptions());
+        var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new CreateTableOperation
+        {
+            Name = "Child",
+            Schema = "dbo2",
+            Columns =
+            {
+                new AddColumnOperation
+                {
+                    Name = "ParentId",
+                    ClrType = typeof(int),
+                    ColumnType = "int",
+                    IsNullable = false,
+                },
+            },
+            ForeignKeys =
+            {
+                new AddForeignKeyOperation
+                {
+                    Name = "FK_Child_Parent",
+                    Table = "Child",
+                    Schema = "dbo2",
+                    Columns = ["ParentId"],
+                    PrincipalTable = "Parent",
+                    PrincipalSchema = "dbo2",
+                    PrincipalColumns = ["Id"],
+                },
+            },
+        };
+
+        var command = Assert.Single(
+            migrationsSqlGenerator.Generate([operation], context.Model));
+
+        Assert.Contains("CREATE TABLE `Child`", command.CommandText, StringComparison.Ordinal);
+        Assert.Contains("REFERENCES `Parent` (`Id`)", command.CommandText, StringComparison.Ordinal);
+        Assert.DoesNotContain("`dbo2`.", command.CommandText, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies that the provider migrations pipeline preserves the auto-increment contract for integer keys.
     /// </summary>
     [Fact]
@@ -268,6 +313,33 @@ public sealed class MySqlMigrationBaselineTests
     }
 
     /// <summary>
+    /// Verifies that an EF schema does not turn an index target into another database.
+    /// </summary>
+    [Fact]
+    public void Create_index_ignores_relational_schema()
+    {
+        using var context = new BaselineContext(CreateOptions());
+        var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
+        var commands = migrationsSqlGenerator.Generate(
+            new MigrationOperation[]
+            {
+                new CreateIndexOperation
+                {
+                    Name = "IX_SchemaProbe_Code",
+                    Table = "SchemaProbe",
+                    Schema = "dbo2",
+                    Columns = ["Code"],
+                },
+            },
+            context.Model);
+
+        var command = Assert.Single(commands);
+
+        Assert.Contains("ON `SchemaProbe` (`Code`)", command.CommandText, StringComparison.Ordinal);
+        Assert.DoesNotContain("`dbo2`.", command.CommandText, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// RENAME TABLE produces MySQL-specific syntax.
     /// </summary>
     [Fact]
@@ -341,6 +413,7 @@ public sealed class MySqlMigrationBaselineTests
         // MySQL path: should create an emulation table.
         var sql = string.Join(Environment.NewLine, commands.Select(c => c.CommandText));
         Assert.Contains("__efsequence_TestSequence", sql, StringComparison.Ordinal);
+        Assert.Contains("`value` BIGINT NOT NULL", sql, StringComparison.Ordinal);
     }
 
     private static DbContextOptions<TContext> CreateOptions<TContext>(

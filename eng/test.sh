@@ -5,24 +5,31 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 unit_test_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.Tests/Doka.EntityFrameworkCore.MySql.Tests.csproj"
 functional_test_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj"
-unit_assets_file="${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.Tests/project.assets.json"
-unit_core_ref_assets_file="${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.Tests/refs/Doka.EntityFrameworkCore.MySql/project.assets.json"
-unit_spatial_ref_assets_file="${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.Tests/refs/Doka.EntityFrameworkCore.MySql.NetTopologySuite/project.assets.json"
-functional_assets_file="${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.FunctionalTests/project.assets.json"
-functional_core_ref_assets_file="${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.FunctionalTests/refs/Doka.EntityFrameworkCore.MySql/project.assets.json"
-functional_spatial_ref_assets_file="${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.FunctionalTests/refs/Doka.EntityFrameworkCore.MySql.NetTopologySuite/project.assets.json"
+required_assets=(
+    "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.Tests/project.assets.json"
+    "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.FunctionalTests/project.assets.json"
+    "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql/project.assets.json"
+    "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.NetTopologySuite/project.assets.json"
+    "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.AdrValidator/project.assets.json"
+    "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.SpecificationContract/project.assets.json"
+    "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.TestUtilities/project.assets.json"
+    "${repo_root}/artifacts/obj/SpecificationAdapters/project.assets.json"
+)
 
 "${repo_root}/eng/verify-dotnet.sh"
 "${repo_root}/eng/validate-adrs.sh"
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
     --start-directory "${repo_root}/eng/tests" \
     --pattern "test_*.py"
-if [[ ! -f "${unit_assets_file}" ]] \
-    || [[ ! -f "${unit_core_ref_assets_file}" ]] \
-    || [[ ! -f "${unit_spatial_ref_assets_file}" ]] \
-    || [[ ! -f "${functional_assets_file}" ]] \
-    || [[ ! -f "${functional_core_ref_assets_file}" ]] \
-    || [[ ! -f "${functional_spatial_ref_assets_file}" ]]; then
+restore_required=0
+for assets_file in "${required_assets[@]}"; do
+    if [[ ! -f "${assets_file}" ]]; then
+        restore_required=1
+        break
+    fi
+done
+
+if [[ "${restore_required}" -eq 1 ]]; then
     dotnet restore "${unit_test_project}" --tl:off --ignore-failed-sources --disable-parallel
     dotnet restore "${functional_test_project}" --tl:off --ignore-failed-sources --disable-parallel
 fi

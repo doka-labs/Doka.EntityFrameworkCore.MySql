@@ -38,6 +38,15 @@ public class SpecDispositionContractTests
     ];
 
     /// <summary>
+    /// Verifies that IDE discovery and fixture execution share the same local target.
+    /// </summary>
+    [Fact]
+    public void Missing_specification_target_defaults_to_mysql84()
+    {
+        Assert.Equal("mysql84", SpecTestTarget.Resolve(configuredTarget: null));
+    }
+
+    /// <summary>
     /// Verifies schema invariants, a zero provider-gap budget, and complete primary-source
     /// evidence for every engine or upstream-framework restriction recorded in the ledger.
     /// </summary>

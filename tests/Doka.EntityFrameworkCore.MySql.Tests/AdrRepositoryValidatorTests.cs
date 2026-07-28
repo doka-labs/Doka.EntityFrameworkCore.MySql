@@ -217,6 +217,51 @@ public sealed class AdrRepositoryValidatorTests
     }
 
     [Fact]
+    public void Wrapped_external_sources_and_reference_links_are_accepted()
+    {
+        using var repository = TestRepository.Create();
+        repository.WriteDecision(
+            id: "D-001",
+            slug: "first-decision",
+            title: "First decision",
+            source:
+            """
+            - [Vendor documentation](https://example.com/reference)
+              (primary source; retrieved 2026-07-27)
+            - [Vendor reference documentation][vendor-reference]
+              (primary source; retrieved 2026-07-27)
+
+            [vendor-reference]:
+              https://example.com/reference-link
+            """);
+
+        var report = repository.Validate(validateGeneratedArtifacts: false);
+
+        Assert.True(report.IsValid, FormatErrors(report));
+    }
+
+    [Fact]
+    public void Undefined_source_reference_is_rejected()
+    {
+        using var repository = TestRepository.Create();
+        repository.WriteDecision(
+            id: "D-001",
+            slug: "first-decision",
+            title: "First decision",
+            source:
+            """
+            - [Vendor documentation][missing-reference]
+              (primary source; retrieved 2026-07-27)
+            """);
+
+        var report = repository.Validate(validateGeneratedArtifacts: false);
+
+        Assert.Contains(
+            report.Errors,
+            static error => error.Message.Contains("undefined link", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Non_primary_source_declaration_is_rejected()
     {
         using var repository = TestRepository.Create();

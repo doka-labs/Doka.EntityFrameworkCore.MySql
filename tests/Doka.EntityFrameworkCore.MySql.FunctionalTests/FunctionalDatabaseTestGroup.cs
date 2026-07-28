@@ -10,7 +10,6 @@ public sealed class FunctionalDatabaseTestGroup : ICollectionFixture<FunctionalD
 
 public sealed class FunctionalDatabaseFixture : IAsyncLifetime
 {
-    private const string TargetEnvironmentVariable = "DOKA_SPEC_TEST_TARGET";
     private const string ConnectionStringEnvironmentVariable = "DOKA_SPEC_TEST_CONNECTION_STRING";
     private const string ServerVersionEnvironmentVariable = "DOKA_SPEC_TEST_SERVER_VERSION";
 
@@ -77,7 +76,8 @@ public sealed class FunctionalDatabaseFixture : IAsyncLifetime
                 || string.IsNullOrWhiteSpace(externalServerVersion))
             {
                 throw new InvalidOperationException(
-                    $"{ConnectionStringEnvironmentVariable} and {ServerVersionEnvironmentVariable} must be configured together.");
+                    $"{ConnectionStringEnvironmentVariable} and "
+                    + $"{ServerVersionEnvironmentVariable} must be configured together.");
             }
 
             var engine = ParseEngine(externalServerVersion);
@@ -89,7 +89,7 @@ public sealed class FunctionalDatabaseFixture : IAsyncLifetime
                 ConnectionStringEnvironmentVariable);
         }
 
-        var targetId = Environment.GetEnvironmentVariable(TargetEnvironmentVariable) ?? "mysql84";
+        var targetId = SpecTestTarget.Resolve();
 
         return targetId.ToLowerInvariant() switch
         {
@@ -112,7 +112,7 @@ public sealed class FunctionalDatabaseFixture : IAsyncLifetime
                 TestDatabaseImages.MariaDb118,
                 ConnectionStringEnvironmentVariable),
             _ => throw new InvalidOperationException(
-                $"Unsupported functional-test target '{targetId}' in {TargetEnvironmentVariable}. "
+                $"Unsupported functional-test target '{targetId}' in {SpecTestTarget.EnvironmentVariableName}. "
                 + "Supported values are: mysql84, mariadb114, mariadb118."),
         };
     }
