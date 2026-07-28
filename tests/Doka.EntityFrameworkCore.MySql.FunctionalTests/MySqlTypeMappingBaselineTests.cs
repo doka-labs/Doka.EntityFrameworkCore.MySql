@@ -127,31 +127,35 @@ public sealed class MySqlTypeMappingBaselineTests
     }
 
     /// <summary>
-    /// Verifies that keyed string properties without explicit max length fail model validation.
+    /// Verifies that keyed strings without an explicit length receive the
+    /// provider's index-safe bounded default.
     /// </summary>
     [Fact]
-    public void Keyed_text_without_explicit_max_length_fails_fast()
+    public void Keyed_text_without_explicit_max_length_uses_bounded_default()
     {
-        using var context = new InvalidKeyedTextContext(CreateOptions<InvalidKeyedTextContext>());
+        using var context = new ImplicitKeyedTextContext(
+            CreateOptions<ImplicitKeyedTextContext>());
+        var property = context.Model
+            .FindEntityType(typeof(ImplicitKeyedTextEntity))!
+            .FindProperty(nameof(ImplicitKeyedTextEntity.Code))!;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
-
-        Assert.Contains("must declare an explicit max length", exception.Message, StringComparison.Ordinal);
-        Assert.Contains(nameof(InvalidKeyedTextEntity.Code), exception.Message, StringComparison.Ordinal);
+        Assert.Equal("varchar(255)", property.GetColumnType());
     }
 
     /// <summary>
-    /// Verifies that indexed binary properties without explicit max length fail model validation.
+    /// Verifies that indexed binary properties without an explicit length
+    /// receive the same index-safe bounded default.
     /// </summary>
     [Fact]
-    public void Indexed_binary_without_explicit_max_length_fails_fast()
+    public void Indexed_binary_without_explicit_max_length_uses_bounded_default()
     {
-        using var context = new InvalidIndexedBinaryContext(CreateOptions<InvalidIndexedBinaryContext>());
+        using var context = new ImplicitIndexedBinaryContext(
+            CreateOptions<ImplicitIndexedBinaryContext>());
+        var property = context.Model
+            .FindEntityType(typeof(ImplicitIndexedBinaryEntity))!
+            .FindProperty(nameof(ImplicitIndexedBinaryEntity.Token))!;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
-
-        Assert.Contains("must declare an explicit max length", exception.Message, StringComparison.Ordinal);
-        Assert.Contains(nameof(InvalidIndexedBinaryEntity.Token), exception.Message, StringComparison.Ordinal);
+        Assert.Equal("varbinary(255)", property.GetColumnType());
     }
 
     private static DbContextOptions<TContext> CreateOptions<TContext>()
@@ -214,37 +218,37 @@ public sealed class MySqlTypeMappingBaselineTests
         }
     }
 
-    private sealed class InvalidKeyedTextContext : DbContext
+    private sealed class ImplicitKeyedTextContext : DbContext
     {
-        public InvalidKeyedTextContext(
-            DbContextOptions<InvalidKeyedTextContext> options
+        public ImplicitKeyedTextContext(
+            DbContextOptions<ImplicitKeyedTextContext> options
         ) : base(options) { }
 
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.Entity<InvalidKeyedTextEntity>(entity =>
+            modelBuilder.Entity<ImplicitKeyedTextEntity>(entity =>
             {
-                entity.ToTable("Phase2InvalidKeyedTextEntities");
+                entity.ToTable("Phase2ImplicitKeyedTextEntities");
                 entity.HasKey(item => item.Code);
             });
         }
     }
 
-    private sealed class InvalidIndexedBinaryContext : DbContext
+    private sealed class ImplicitIndexedBinaryContext : DbContext
     {
-        public InvalidIndexedBinaryContext(
-            DbContextOptions<InvalidIndexedBinaryContext> options
+        public ImplicitIndexedBinaryContext(
+            DbContextOptions<ImplicitIndexedBinaryContext> options
         ) : base(options) { }
 
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.Entity<InvalidIndexedBinaryEntity>(entity =>
+            modelBuilder.Entity<ImplicitIndexedBinaryEntity>(entity =>
             {
-                entity.ToTable("Phase2InvalidIndexedBinaryEntities");
+                entity.ToTable("Phase2ImplicitIndexedBinaryEntities");
                 entity.HasKey(item => item.Id);
                 entity.HasIndex(item => item.Token);
             });
@@ -284,12 +288,12 @@ public sealed class MySqlTypeMappingBaselineTests
         public string CollatedText { get; set; } = string.Empty;
     }
 
-    private sealed class InvalidKeyedTextEntity
+    private sealed class ImplicitKeyedTextEntity
     {
         public string Code { get; set; } = string.Empty;
     }
 
-    private sealed class InvalidIndexedBinaryEntity
+    private sealed class ImplicitIndexedBinaryEntity
     {
         public int Id { get; set; }
 

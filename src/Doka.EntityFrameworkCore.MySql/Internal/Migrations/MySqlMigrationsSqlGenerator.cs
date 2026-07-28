@@ -47,6 +47,17 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         base.ColumnDefinition(schema, table, name, operation, model, builder);
 
+        if (operation.IsRowVersion)
+        {
+            if (operation.DefaultValue is null
+                && string.IsNullOrWhiteSpace(operation.DefaultValueSql))
+            {
+                builder.Append(" DEFAULT CURRENT_TIMESTAMP(6)");
+            }
+
+            builder.Append(" ON UPDATE CURRENT_TIMESTAMP(6)");
+        }
+
         if (IsAutoIncrementColumn(operation))
         {
             builder.Append(" AUTO_INCREMENT");
@@ -56,6 +67,40 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         {
             builder.Append(" INVISIBLE");
         }
+
+        if (operation.Comment is not null
+            || operation is AlterColumnOperation { OldColumn.Comment: not null, })
+        {
+            builder
+                .Append(" COMMENT ")
+                .Append(MySqlSqlLiteralEscaper.EscapeAndQuote(operation.Comment ?? string.Empty));
+        }
+    }
+
+    protected override void DefaultValue(
+        object? defaultValue,
+        string? defaultValueSql,
+        string? columnType,
+        MigrationCommandListBuilder builder
+    )
+    {
+        if (defaultValue is not null
+            && defaultValueSql is null
+            && RequiresParenthesizedDefault(columnType))
+        {
+            var mapping = columnType is null
+                ? Dependencies.TypeMappingSource.GetMappingForValue(defaultValue)
+                : Dependencies.TypeMappingSource.FindMapping(defaultValue.GetType(), columnType)
+                ?? Dependencies.TypeMappingSource.GetMappingForValue(defaultValue);
+
+            builder
+                .Append(" DEFAULT (")
+                .Append(mapping.GenerateSqlLiteral(defaultValue))
+                .Append(")");
+            return;
+        }
+
+        base.DefaultValue(defaultValue, defaultValueSql, columnType, builder);
     }
 
     protected override void Generate(
@@ -150,6 +195,181 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         }
     }
 
+    protected override void Generate(
+        AlterColumnOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder
+    )
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(builder);
+
+        if (RequiresGeneratedColumnRecreation(operation))
+        {
+            builder
+                .Append("ALTER TABLE ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+                .Append(" DROP COLUMN ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+                .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+            EndStatement(builder);
+
+            builder
+                .Append("ALTER TABLE ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+                .Append(" ADD COLUMN ");
+
+            ColumnDefinition(operation.Schema, operation.Table, operation.Name, operation, model, builder);
+
+            builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+            EndStatement(builder);
+            return;
+        }
+
+        GenerateNullValueUpdate(operation, model, builder);
+
+        builder
+            .Append("ALTER TABLE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+            .Append(" MODIFY COLUMN ");
+
+        ColumnDefinition(operation.Schema, operation.Table, operation.Name, operation, model, builder);
+
+        builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+        EndStatement(builder);
+    }
+
+    protected override void Generate(
+        AlterTableOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder
+    )
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(builder);
+
+        if (string.Equals(operation.Comment, operation.OldTable.Comment, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        builder
+            .Append("ALTER TABLE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema))
+            .Append(" COMMENT = ")
+            .Append(MySqlSqlLiteralEscaper.EscapeAndQuote(operation.Comment ?? string.Empty))
+            .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
+        EndStatement(builder);
+    }
+
+    protected override void Generate(
+        EnsureSchemaOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder
+    )
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(builder);
+
+        // MySQL-family databases are the schema boundary. EF schema annotations
+        // are intentionally ignored while table and sequence names remain usable.
+    }
+
+    protected override void Generate(
+        DropIndexOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder,
+        bool terminate = true
+    )
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var table = operation.Table
+            ?? throw new InvalidOperationException($"The index '{operation.Name}' does not identify its table.");
+
+        builder
+            .Append("ALTER TABLE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(table, operation.Schema))
+            .Append(" DROP INDEX ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name));
+
+        if (terminate)
+        {
+            builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+            EndStatement(builder);
+        }
+    }
+
+    protected override void Generate(
+        RenameIndexOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder
+    )
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var table = operation.Table
+            ?? throw new InvalidOperationException($"The index '{operation.Name}' does not identify its table.");
+
+        builder
+            .Append("ALTER TABLE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(table, operation.Schema))
+            .Append(" RENAME INDEX ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+            .Append(" TO ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.NewName))
+            .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+        EndStatement(builder);
+    }
+
+    protected override void Generate(
+        DropForeignKeyOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder,
+        bool terminate = true
+    )
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder
+            .Append("ALTER TABLE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+            .Append(" DROP FOREIGN KEY ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name));
+
+        if (terminate)
+        {
+            builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+            EndStatement(builder);
+        }
+    }
+
+    protected override void Generate(
+        DropPrimaryKeyOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder,
+        bool terminate = true
+    )
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder
+            .Append("ALTER TABLE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+            .Append(" DROP PRIMARY KEY");
+
+        if (terminate)
+        {
+            builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+            EndStatement(builder);
+        }
+    }
+
     protected override void ComputedColumnDefinition(
         string? schema,
         string table,
@@ -180,7 +400,16 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         builder
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(name))
             .Append(" ")
-            .Append(columnType)
+            .Append(columnType);
+
+        if (!string.IsNullOrWhiteSpace(operation.Collation))
+        {
+            builder
+                .Append(" COLLATE ")
+                .Append(operation.Collation);
+        }
+
+        builder
             .Append(" GENERATED ALWAYS AS (")
             .Append(computedColumnSql)
             .Append(") ")
@@ -246,7 +475,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         var charSet = operation.FindAnnotation(MySqlAnnotationNames.CharSet)?.Value as string;
         var collation = operation.FindAnnotation(MySqlAnnotationNames.Collation)?.Value as string;
         var storageEngine = operation.FindAnnotation(MySqlAnnotationNames.StorageEngine)?.Value as string;
-        var comment = operation.FindAnnotation(MySqlAnnotationNames.Comment)?.Value as string;
+        var comment = operation.Comment;
 
         if (!string.IsNullOrWhiteSpace(charSet))
         {
@@ -335,13 +564,12 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             return;
         }
 
-        if (operation.IsStored is null)
-        {
-            throw new InvalidOperationException(
-                "Generated columns must explicitly choose either the virtual or stored variant.");
-        }
-
-        var supportsGeneratedColumns = operation.IsStored.Value
+        // EF Core uses null when the application leaves the storage variant to
+        // the provider. Both MySQL and MariaDB define virtual generated columns
+        // as the native default, so null follows the same capability path as
+        // an explicitly configured virtual column.
+        var isStored = operation.IsStored == true;
+        var supportsGeneratedColumns = isStored
             ? _mySqlSingletonOptions.Profile?.Has(Capability.SupportsStoredGeneratedColumns) == true
             : _mySqlSingletonOptions.Profile?.Has(Capability.SupportsVirtualGeneratedColumns) == true;
 
@@ -351,7 +579,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         }
 
         throw new InvalidOperationException(
-            $"The configured server version does not support {(operation.IsStored.Value ? "stored" : "virtual")} generated columns.");
+            $"The configured server version does not support {(isStored ? "stored" : "virtual")} generated columns.");
     }
 
     private static void ValidateSpatialColumnSupport(
@@ -423,6 +651,136 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         return NormalizeStoreTypeName(operation.ColumnType) == "json";
     }
 
+    private static bool RequiresGeneratedColumnRecreation(
+        AlterColumnOperation operation
+    )
+    {
+        var hadComputedExpression = !string.IsNullOrWhiteSpace(operation.OldColumn.ComputedColumnSql);
+        var hasComputedExpression = !string.IsNullOrWhiteSpace(operation.ComputedColumnSql);
+
+        return hadComputedExpression != hasComputedExpression
+            || (hadComputedExpression && operation.OldColumn.IsStored != operation.IsStored);
+    }
+
+    private void GenerateNullValueUpdate(
+        AlterColumnOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder
+    )
+    {
+        if (!operation.OldColumn.IsNullable
+            || operation.IsNullable
+            || !string.IsNullOrWhiteSpace(operation.ComputedColumnSql))
+        {
+            return;
+        }
+
+        var columnType = operation.ColumnType
+            ?? GetColumnType(operation.Schema, operation.Table, operation.Name, operation, model);
+        var defaultValue = operation.DefaultValue ?? GetClrDefaultValue(operation.ClrType);
+
+        builder
+            .Append("UPDATE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table, operation.Schema))
+            .Append(" SET ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+            .Append(" = ");
+
+        if (!string.IsNullOrWhiteSpace(operation.DefaultValueSql))
+        {
+            builder.Append(operation.DefaultValueSql);
+        }
+        else
+        {
+            var mapping = Dependencies.TypeMappingSource.FindMapping(defaultValue.GetType(), columnType)
+                ?? Dependencies.TypeMappingSource.GetMappingForValue(defaultValue);
+            builder.Append(mapping.GenerateSqlLiteral(defaultValue));
+        }
+
+        builder
+            .Append(" WHERE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+            .Append(" IS NULL")
+            .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
+        EndStatement(builder);
+    }
+
+    private static object GetClrDefaultValue(
+        Type clrType
+    )
+    {
+        var valueType = Nullable.GetUnderlyingType(clrType) ?? clrType;
+
+        if (valueType.IsEnum)
+        {
+            valueType = Enum.GetUnderlyingType(valueType);
+        }
+
+        if (valueType == typeof(string))
+        {
+            return string.Empty;
+        }
+
+        if (valueType == typeof(Guid))
+        {
+            return Guid.Empty;
+        }
+
+        if (valueType == typeof(DateOnly))
+        {
+            return DateOnly.MinValue;
+        }
+
+        if (valueType == typeof(TimeOnly))
+        {
+            return TimeOnly.MinValue;
+        }
+
+        if (valueType == typeof(TimeSpan))
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (valueType == typeof(byte[]))
+        {
+            return Array.Empty<byte>();
+        }
+
+        return Type.GetTypeCode(valueType) switch
+        {
+            TypeCode.Boolean => false,
+            TypeCode.Byte => (byte)0,
+            TypeCode.Char => '\0',
+            TypeCode.DateTime => default(DateTime),
+            TypeCode.Decimal => 0m,
+            TypeCode.Double => 0d,
+            TypeCode.Int16 => (short)0,
+            TypeCode.Int32 => 0,
+            TypeCode.Int64 => 0L,
+            TypeCode.SByte => (sbyte)0,
+            TypeCode.Single => 0f,
+            TypeCode.UInt16 => (ushort)0,
+            TypeCode.UInt32 => 0U,
+            TypeCode.UInt64 => 0UL,
+            _ => throw new InvalidOperationException(
+                $"No non-null store default is available for " + $"'{clrType.FullName ?? clrType.Name}'."),
+        };
+    }
+
+    private static bool RequiresParenthesizedDefault(
+        string? columnType
+    ) => NormalizeStoreTypeName(columnType) is "blob"
+        or "tinyblob"
+        or "mediumblob"
+        or "longblob"
+        or "text"
+        or "tinytext"
+        or "mediumtext"
+        or "longtext"
+        or "json"
+        or "geometry";
+
     /// <summary>
     /// Generates MySQL-specific RENAME TABLE syntax.
     /// MySQL uses <c>RENAME TABLE old TO new</c> instead of <c>ALTER TABLE ... RENAME TO</c>.
@@ -437,6 +795,11 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(builder);
 
         var newName = operation.NewName ?? operation.Name;
+
+        if (string.Equals(operation.Name, newName, StringComparison.Ordinal))
+        {
+            return;
+        }
 
         builder
             .Append("RENAME TABLE ")
@@ -569,7 +932,16 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         {
             builder
                 .Append("CREATE SEQUENCE ")
-                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema))
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema));
+
+            if (_mySqlSingletonOptions.Profile.Version.CompareTo(new Version(11, 5, 0)) >= 0)
+            {
+                builder
+                    .Append(" AS ")
+                    .Append(GetSequenceTypeInfo(operation.ClrType).StoreType);
+            }
+
+            builder
                 .Append(" START WITH ")
                 .Append(operation.StartValue.ToString(CultureInfo.InvariantCulture))
                 .Append(" INCREMENT BY ")
@@ -589,12 +961,19 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
                     .Append(operation.MaxValue.Value.ToString(CultureInfo.InvariantCulture));
             }
 
+            builder.Append(operation.IsCyclic ? " CYCLE" : " NOCYCLE");
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
             builder.EndCommand();
             return;
         }
 
-        // MySQL table-based sequence emulation.
+        var typeInfo = GetSequenceTypeInfo(operation.ClrType);
+        ValidateSequenceIncrement(typeInfo, operation.IncrementBy);
+
+        var minimumValue = operation.MinValue
+            ?? GetDefaultSequenceMinimum(typeInfo, operation.IncrementBy);
+        var maximumValue = operation.MaxValue
+            ?? GetDefaultSequenceMaximum(typeInfo, operation.IncrementBy);
         var tableName = MySqlSequenceNaming.EmulationTableName(operation.Name);
         var delimitedTableName = Dependencies.SqlGenerationHelper.DelimitIdentifier(tableName);
 
@@ -607,7 +986,30 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             .AppendLine(" TINYINT UNSIGNED NOT NULL,")
             .Append("    ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("value"))
-            .AppendLine(" BIGINT NOT NULL,")
+            .Append(" ")
+            .Append(typeInfo.StoreType)
+            .AppendLine(" NOT NULL,")
+            .Append("    ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("start_value"))
+            .Append(" ")
+            .Append(typeInfo.StoreType)
+            .AppendLine(" NOT NULL,")
+            .Append("    ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("increment_by"))
+            .AppendLine(" INT NOT NULL,")
+            .Append("    ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("min_value"))
+            .Append(" ")
+            .Append(typeInfo.StoreType)
+            .AppendLine(" NOT NULL,")
+            .Append("    ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("max_value"))
+            .Append(" ")
+            .Append(typeInfo.StoreType)
+            .AppendLine(" NOT NULL,")
+            .Append("    ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("is_cyclic"))
+            .AppendLine(" BOOLEAN NOT NULL,")
             .Append("    ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("is_called"))
             .AppendLine(" BOOLEAN NOT NULL,")
@@ -630,9 +1032,29 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append(", ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("value"))
             .Append(", ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("start_value"))
+            .Append(", ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("increment_by"))
+            .Append(", ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("min_value"))
+            .Append(", ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("max_value"))
+            .Append(", ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("is_cyclic"))
+            .Append(", ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("is_called"))
             .Append(") VALUES (1, ")
             .Append(operation.StartValue.ToString(CultureInfo.InvariantCulture))
+            .Append(", ")
+            .Append(operation.StartValue.ToString(CultureInfo.InvariantCulture))
+            .Append(", ")
+            .Append(operation.IncrementBy.ToString(CultureInfo.InvariantCulture))
+            .Append(", ")
+            .Append(minimumValue.ToString(CultureInfo.InvariantCulture))
+            .Append(", ")
+            .Append(maximumValue.ToString(CultureInfo.InvariantCulture))
+            .Append(", ")
+            .Append(operation.IsCyclic ? "TRUE" : "FALSE")
             .Append(", FALSE)")
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
 
@@ -691,35 +1113,63 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
                 .Append(" INCREMENT BY ")
                 .Append(operation.IncrementBy.ToString(CultureInfo.InvariantCulture));
 
-            if (operation.MinValue.HasValue)
-            {
-                builder
-                    .Append(" MINVALUE ")
-                    .Append(operation.MinValue.Value.ToString(CultureInfo.InvariantCulture));
-            }
-
-            if (operation.MaxValue.HasValue)
-            {
-                builder
-                    .Append(" MAXVALUE ")
-                    .Append(operation.MaxValue.Value.ToString(CultureInfo.InvariantCulture));
-            }
+            builder.Append(
+                operation.MinValue.HasValue
+                    ? " MINVALUE " + operation.MinValue.Value.ToString(CultureInfo.InvariantCulture)
+                    : " NO MINVALUE");
+            builder.Append(
+                operation.MaxValue.HasValue
+                    ? " MAXVALUE " + operation.MaxValue.Value.ToString(CultureInfo.InvariantCulture)
+                    : " NO MAXVALUE");
+            builder.Append(operation.IsCyclic ? " CYCLE" : " NOCYCLE");
 
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
             builder.EndCommand();
             return;
         }
 
-        // For MySQL emulation, ALTER means updating the increment behavior -- the emulation
-        // table stores only the current value; increment is applied at fetch time.
-        // No DDL action needed for the emulation table itself.
-        builder.AppendLine(
-            "-- Sequence alter: increment changes are applied at value-fetch time in table-based emulation.");
+        var clrType = model
+                ?.FindSequence(operation.Name, operation.Schema)
+                ?.Type
+            ?? (operation.OldSequence as CreateSequenceOperation)?.ClrType
+            ?? typeof(long);
+        var typeInfo = GetSequenceTypeInfo(clrType);
+        ValidateSequenceIncrement(typeInfo, operation.IncrementBy);
+
+        var minimumValue = operation.MinValue
+            ?? GetDefaultSequenceMinimum(typeInfo, operation.IncrementBy);
+        var maximumValue = operation.MaxValue
+            ?? GetDefaultSequenceMaximum(typeInfo, operation.IncrementBy);
+        var tableName = MySqlSequenceNaming.EmulationTableName(operation.Name);
+
+        builder
+            .Append("UPDATE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(tableName))
+            .Append(" SET ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("increment_by"))
+            .Append(" = ")
+            .Append(operation.IncrementBy.ToString(CultureInfo.InvariantCulture))
+            .Append(", ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("min_value"))
+            .Append(" = ")
+            .Append(minimumValue.ToString(CultureInfo.InvariantCulture))
+            .Append(", ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("max_value"))
+            .Append(" = ")
+            .Append(maximumValue.ToString(CultureInfo.InvariantCulture))
+            .Append(", ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("is_cyclic"))
+            .Append(" = ")
+            .Append(operation.IsCyclic ? "TRUE" : "FALSE")
+            .Append(" WHERE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("id"))
+            .Append(" = 1")
+            .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
         builder.EndCommand();
     }
 
     /// <summary>
-    /// Generates RENAME SEQUENCE DDL -- renames emulation table on MySQL, not natively supported on MariaDB.
+    /// Renames a native MariaDB sequence or the MySQL emulation table.
     /// </summary>
     protected override void Generate(
         RenameSequenceOperation operation,
@@ -730,18 +1180,27 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
-        var oldTableName = MySqlSequenceNaming.EmulationTableName(operation.Name);
-        var newTableName = MySqlSequenceNaming.EmulationTableName(operation.NewName ?? operation.Name);
+        var newName = operation.NewName ?? operation.Name;
+
+        if (string.Equals(operation.Name, newName, StringComparison.Ordinal))
+        {
+            return;
+        }
 
         if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsNativeSequences) == true)
         {
-            // MariaDB does not support RENAME SEQUENCE -- drop and recreate.
             builder
-                .Append("-- MariaDB does not support RENAME SEQUENCE; manual migration required.")
+                .Append("RENAME TABLE ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema))
+                .Append(" TO ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(newName, operation.NewSchema))
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
             builder.EndCommand();
             return;
         }
+
+        var oldTableName = MySqlSequenceNaming.EmulationTableName(operation.Name);
+        var newTableName = MySqlSequenceNaming.EmulationTableName(newName);
 
         builder
             .Append("RENAME TABLE ")
@@ -751,6 +1210,154 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
 
         builder.EndCommand();
+    }
+
+    /// <summary>
+    /// Restarts a native MariaDB sequence or the MySQL emulation row.
+    /// </summary>
+    protected override void Generate(
+        RestartSequenceOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder
+    )
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(builder);
+
+        if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsNativeSequences) == true)
+        {
+            builder
+                .Append("ALTER SEQUENCE ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema))
+                .Append(" ");
+
+            if (operation.StartValue.HasValue)
+            {
+                builder
+                    .Append("START WITH ")
+                    .Append(operation.StartValue.Value.ToString(CultureInfo.InvariantCulture))
+                    .Append(" RESTART WITH ")
+                    .Append(operation.StartValue.Value.ToString(CultureInfo.InvariantCulture));
+            }
+            else
+            {
+                builder.Append("RESTART");
+            }
+
+            builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+            EndStatement(builder);
+            return;
+        }
+
+        var tableName = MySqlSequenceNaming.EmulationTableName(operation.Name);
+
+        builder
+            .Append("UPDATE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(tableName))
+            .Append(" SET ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("value"))
+            .Append(" = ")
+            .Append(
+                operation.StartValue?.ToString(CultureInfo.InvariantCulture)
+                ?? Dependencies.SqlGenerationHelper.DelimitIdentifier("start_value"));
+
+        if (operation.StartValue.HasValue)
+        {
+            builder
+                .Append(", ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("start_value"))
+                .Append(" = ")
+                .Append(operation.StartValue.Value.ToString(CultureInfo.InvariantCulture));
+        }
+
+        builder
+            .Append(", ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("is_called"))
+            .Append(" = FALSE WHERE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("id"))
+            .Append(" = 1")
+            .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+        EndStatement(builder);
+    }
+
+    private static SequenceTypeInfo GetSequenceTypeInfo(
+        Type clrType
+    )
+    {
+        ArgumentNullException.ThrowIfNull(clrType);
+
+        clrType = Nullable.GetUnderlyingType(clrType) ?? clrType;
+
+        if (clrType == typeof(sbyte))
+        {
+            return new SequenceTypeInfo("TINYINT", sbyte.MinValue, sbyte.MaxValue, false);
+        }
+
+        if (clrType == typeof(byte))
+        {
+            return new SequenceTypeInfo("TINYINT UNSIGNED", byte.MinValue, byte.MaxValue, true);
+        }
+
+        if (clrType == typeof(short))
+        {
+            return new SequenceTypeInfo("SMALLINT", short.MinValue, short.MaxValue, false);
+        }
+
+        if (clrType == typeof(ushort))
+        {
+            return new SequenceTypeInfo("SMALLINT UNSIGNED", ushort.MinValue, ushort.MaxValue, true);
+        }
+
+        if (clrType == typeof(int))
+        {
+            return new SequenceTypeInfo("INT", int.MinValue, int.MaxValue, false);
+        }
+
+        if (clrType == typeof(uint))
+        {
+            return new SequenceTypeInfo("INT UNSIGNED", uint.MinValue, uint.MaxValue, true);
+        }
+
+        if (clrType == typeof(long))
+        {
+            return new SequenceTypeInfo("BIGINT", long.MinValue, long.MaxValue, false);
+        }
+
+        if (clrType == typeof(ulong))
+        {
+            return new SequenceTypeInfo("BIGINT UNSIGNED", 0, long.MaxValue, true);
+        }
+
+        throw new InvalidOperationException(
+            $"The CLR type '{clrType.ShortDisplayName()}' cannot back a MySQL-family sequence.");
+    }
+
+    private static long GetDefaultSequenceMinimum(
+        SequenceTypeInfo typeInfo,
+        int increment
+    ) => increment > 0 ? 1 : checked(typeInfo.MinimumValue + 1);
+
+    private static long GetDefaultSequenceMaximum(
+        SequenceTypeInfo typeInfo,
+        int increment
+    ) => increment > 0 ? checked(typeInfo.MaximumValue - 1) : -1;
+
+    private static void ValidateSequenceIncrement(
+        SequenceTypeInfo typeInfo,
+        int increment
+    )
+    {
+        if (increment == 0)
+        {
+            throw new InvalidOperationException("A sequence increment cannot be zero.");
+        }
+
+        if (increment < 0
+            && typeInfo.IsUnsigned)
+        {
+            throw new InvalidOperationException(
+                $"The unsigned sequence store type '{typeInfo.StoreType}' cannot use a negative increment.");
+        }
     }
 
     private static string? NormalizeStoreTypeName(
@@ -768,4 +1375,11 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             .Trim()
             .ToLowerInvariant();
     }
+
+    private readonly record struct SequenceTypeInfo(
+        string StoreType,
+        long MinimumValue,
+        long MaximumValue,
+        bool IsUnsigned
+    );
 }

@@ -105,6 +105,7 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
 
             TableLoader.Load(pipelineContext);
             ColumnLoader.Load(pipelineContext);
+            SequenceLoader.Load(pipelineContext);
             PrimaryKeyLoader.Load(pipelineContext);
             UniqueConstraintLoader.Load(pipelineContext);
             IndexLoader.Load(pipelineContext);

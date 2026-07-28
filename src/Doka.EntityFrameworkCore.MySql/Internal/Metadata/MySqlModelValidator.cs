@@ -107,7 +107,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                     continue;
                 }
 
-                if (property.GetMaxLength() is not null)
+                if (!HasUnboundedStoreType(property))
                 {
                     continue;
                 }
@@ -121,9 +121,34 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                     propertyKind);
                 throw new InvalidOperationException(
                     $"The keyed or indexed {propertyKind} property "
-                    + $"'{entityType.DisplayName()}.{property.Name}' must declare an explicit max length.");
+                    + $"'{entityType.DisplayName()}.{property.Name}' must map to a bounded store type.");
             }
         }
+    }
+
+    private static bool HasUnboundedStoreType(
+        IProperty property
+    )
+    {
+        // Size is not populated by every bounded mapping. Guid converters, for
+        // example, can expose binary(16) through a GuidTypeMapping whose Size is
+        // null. The normalized store-type family is therefore the authoritative
+        // signal for whether the engine can build a complete key or index.
+        var storeType = property.GetRelationalTypeMapping()
+            .StoreType;
+        var facetStart = storeType.IndexOf('(');
+        var storeTypeName = facetStart >= 0 ? storeType[..facetStart] : storeType;
+
+        return storeTypeName
+                .Trim()
+                .ToLowerInvariant() is "tinytext"
+            or "text"
+            or "mediumtext"
+            or "longtext"
+            or "tinyblob"
+            or "blob"
+            or "mediumblob"
+            or "longblob";
     }
 
     private static void ValidateDecimalPrecision(

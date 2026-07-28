@@ -5,6 +5,8 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     private const string OffsetWithoutLimitSentinel = "18446744073709551615";
 
     private readonly MySqlSingletonOptions _singletonOptions;
+    private TableExpression? _mutationTargetTable;
+    private string? _unqualifiedTableAlias;
 
     public MySqlQuerySqlGenerator(
         QuerySqlGeneratorDependencies dependencies,
@@ -26,6 +28,12 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
 
         switch (sqlFunctionExpression)
         {
+            case { Name: "__mysql_json_set", Arguments.Count: 3 }:
+                {
+                    EmitJsonSet(sqlFunctionExpression);
+                    return sqlFunctionExpression;
+                }
+
             case { Name: "__mysql_regexp", Arguments.Count: 2 }:
                 {
                     // MySQL 8.0+: REGEXP_LIKE(input, pattern) -- scalar function
@@ -98,6 +106,291 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
 
             default:
                 return base.VisitSqlFunction(sqlFunctionExpression);
+        }
+    }
+
+    /// <summary>
+    /// Emits a composable <c>JSON_SET(document, path, value)</c> call for ExecuteUpdate.
+    /// The path stays in the SQL expression tree so constant and parameterized array
+    /// indices use the same escaping rules as JSON query translation.
+    /// </summary>
+    private void EmitJsonSet(
+        SqlFunctionExpression expression
+    )
+    {
+        var arguments = expression.Arguments
+            ?? throw new InvalidOperationException("The __mysql_json_set sentinel requires three arguments.");
+
+        if (arguments[1] is not SqlConstantExpression { Value: IReadOnlyList<PathSegment> path, })
+        {
+            throw new InvalidOperationException(
+                "The __mysql_json_set sentinel requires an IReadOnlyList<PathSegment> path.");
+        }
+
+        Sql.Append("JSON_SET(");
+        Visit(arguments[0]);
+        Sql.Append(", ");
+
+        if (HasDynamicArrayIndex(path))
+        {
+            AppendDynamicJsonPath(path);
+        }
+        else
+        {
+            AppendStaticJsonPath(path);
+        }
+
+        Sql.Append(", ");
+        Visit(arguments[2]);
+        Sql.Append(")");
+    }
+
+    /// <summary>
+    /// Emits MySQL's multi-table delete syntax. The target alias must precede
+    /// <c>FROM</c> whenever the source query keeps an alias or joins other tables.
+    /// Single-table deletes with ordering or a limit omit the alias because MySQL
+    /// permits those clauses only in the single-table form.
+    /// </summary>
+    protected override Expression VisitDelete(
+        DeleteExpression deleteExpression
+    )
+    {
+        ArgumentNullException.ThrowIfNull(deleteExpression);
+
+        var previousTargetTable = _mutationTargetTable;
+        _mutationTargetTable = deleteExpression.Table;
+
+        try
+        {
+            return VisitDeleteCore(deleteExpression);
+        }
+        finally
+        {
+            _mutationTargetTable = previousTargetTable;
+            _unqualifiedTableAlias = null;
+        }
+    }
+
+    private DeleteExpression VisitDeleteCore(
+        DeleteExpression deleteExpression
+    )
+    {
+        var selectExpression = deleteExpression.SelectExpression;
+
+        if (selectExpression.Offset is not null
+            || selectExpression.Having is not null
+            || selectExpression.GroupBy.Count > 0
+            || selectExpression.Projection.Count > 0
+            || (selectExpression.Tables.Count > 1
+                && (selectExpression.Orderings.Count > 0 || selectExpression.Limit is not null)))
+        {
+            throw new InvalidOperationException(
+                RelationalStrings.ExecuteOperationWithUnsupportedOperatorInSqlGeneration(
+                    nameof(EntityFrameworkQueryableExtensions.ExecuteDelete)));
+        }
+
+        var useSingleTableSyntax = selectExpression.Tables.Count == 1
+            && (selectExpression.Orderings.Count > 0 || selectExpression.Limit is not null);
+
+        Sql.Append("DELETE");
+
+        if (!useSingleTableSyntax)
+        {
+            Sql.Append(" ");
+            Sql.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(deleteExpression.Table.Alias));
+        }
+
+        Sql.AppendLine();
+        Sql.Append("FROM ");
+
+        if (useSingleTableSyntax)
+        {
+            _unqualifiedTableAlias = selectExpression.Tables[0].Alias;
+        }
+
+        VisitTableSources(selectExpression.Tables);
+
+        if (selectExpression.Predicate is not null)
+        {
+            Sql.AppendLine();
+            Sql.Append("WHERE ");
+            Visit(selectExpression.Predicate);
+        }
+
+        GenerateOrderings(selectExpression);
+        GenerateLimitOffset(selectExpression);
+
+        return deleteExpression;
+    }
+
+    /// <summary>
+    /// Emits table sources before <c>SET</c>, as required by MySQL and MariaDB.
+    /// EF Core's relational default uses an <c>UPDATE ... SET ... FROM ...</c>
+    /// shape which is not part of either engine's grammar.
+    /// </summary>
+    protected override Expression VisitUpdate(
+        UpdateExpression updateExpression
+    )
+    {
+        ArgumentNullException.ThrowIfNull(updateExpression);
+
+        var previousTargetTable = _mutationTargetTable;
+        _mutationTargetTable = updateExpression.Table;
+
+        try
+        {
+            return VisitUpdateCore(updateExpression);
+        }
+        finally
+        {
+            _mutationTargetTable = previousTargetTable;
+        }
+    }
+
+    private UpdateExpression VisitUpdateCore(
+        UpdateExpression updateExpression
+    )
+    {
+        var selectExpression = updateExpression.SelectExpression;
+
+        if (selectExpression.Offset is not null
+            || selectExpression.Having is not null
+            || selectExpression.Orderings.Count > 0
+            || selectExpression.GroupBy.Count > 0
+            || selectExpression.Projection.Count > 0)
+        {
+            throw new InvalidOperationException(
+                RelationalStrings.ExecuteOperationWithUnsupportedOperatorInSqlGeneration(
+                    nameof(EntityFrameworkQueryableExtensions.ExecuteUpdate)));
+        }
+
+        Sql.Append("UPDATE ");
+
+        if (selectExpression.Tables.Count > 1)
+        {
+            var tables = selectExpression.Tables;
+            var targetOccursInSource = tables.Any(table =>
+                updateExpression.Table.Equals(table is JoinExpressionBase join ? join.Table : table));
+
+            if (!targetOccursInSource)
+            {
+                Visit(updateExpression.Table);
+                Sql.AppendLine(",");
+
+                if (tables[0] is not JoinExpressionBase)
+                {
+                    tables = tables
+                        .Skip(1)
+                        .Prepend(new CrossJoinExpression(tables[0]))
+                        .ToArray();
+                }
+            }
+
+            VisitTableSources(tables);
+        }
+        else
+        {
+            Visit(updateExpression.Table);
+        }
+
+        Sql.AppendLine();
+        Sql.Append("SET ");
+
+        for (var index = 0; index < updateExpression.ColumnValueSetters.Count; index++)
+        {
+            if (index > 0)
+            {
+                Sql.AppendLine(",");
+            }
+
+            var setter = updateExpression.ColumnValueSetters[index];
+            Visit(setter.Column);
+            Sql.Append(" = ");
+            Visit(setter.Value);
+        }
+
+        if (selectExpression.Predicate is not null)
+        {
+            Sql.AppendLine();
+            Sql.Append("WHERE ");
+            Visit(selectExpression.Predicate);
+        }
+
+        GenerateLimitOffset(selectExpression);
+
+        return updateExpression;
+    }
+
+    private void VisitTableSources(
+        IReadOnlyList<TableExpressionBase> tables
+    )
+    {
+        for (var index = 0; index < tables.Count; index++)
+        {
+            if (index > 0)
+            {
+                Sql.AppendLine();
+            }
+
+            Visit(tables[index]);
+        }
+    }
+
+    protected override Expression VisitColumn(
+        ColumnExpression columnExpression
+    )
+    {
+        if (columnExpression.TableAlias != _unqualifiedTableAlias)
+        {
+            return base.VisitColumn(columnExpression);
+        }
+
+        Sql.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(columnExpression.Name));
+
+        return columnExpression;
+    }
+
+    protected override Expression VisitTable(
+        TableExpression tableExpression
+    )
+    {
+        if (tableExpression.Alias != _unqualifiedTableAlias)
+        {
+            return base.VisitTable(tableExpression);
+        }
+
+        Sql.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(tableExpression.Name));
+
+        return tableExpression;
+    }
+
+    /// <summary>
+    /// Gives an unordered offset subquery a stable key order while it selects
+    /// rows for a mutation. EF Core's mutation fallback projects the target key
+    /// first, so the ordering does not add columns or alter the selected range.
+    /// </summary>
+    protected override Expression VisitSelect(
+        SelectExpression selectExpression
+    )
+    {
+        if (_mutationTargetTable is null
+            || selectExpression.Offset is null
+            || selectExpression.Orderings.Count > 0
+            || selectExpression.Projection.Count == 0)
+        {
+            return base.VisitSelect(selectExpression);
+        }
+
+        selectExpression.AppendOrdering(
+            new OrderingExpression(selectExpression.Projection[0].Expression, ascending: true));
+
+        try
+        {
+            return base.VisitSelect(selectExpression);
+        }
+        finally
+        {
+            selectExpression.ClearOrdering();
         }
     }
 
@@ -201,9 +494,10 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     }
 
     /// <summary>
-    /// Wraps a limited <c>IN</c> subquery in a derived table. MySQL and MariaDB reject
-    /// <c>LIMIT</c> directly below <c>IN</c>, <c>ALL</c>, <c>ANY</c>, or <c>SOME</c>, while
-    /// accepting the same limited query through a materialized derived-table boundary.
+    /// Wraps a restricted <c>IN</c> subquery in a derived table. MySQL and
+    /// MariaDB reject <c>LIMIT</c> directly below <c>IN</c>, <c>ALL</c>,
+    /// <c>ANY</c>, or <c>SOME</c>. MySQL also rejects a mutation that reads its
+    /// target table without an intervening derived-table boundary.
     /// The outer <c>SELECT *</c> preserves the single-column and NULL semantics of the
     /// original <see cref="InExpression"/>.
     /// </summary>
@@ -214,7 +508,11 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     {
         ArgumentNullException.ThrowIfNull(inExpression);
 
-        if (inExpression.Subquery is not { Limit: not null } limitedSubquery)
+        var subquery = inExpression.Subquery;
+        var requiresLimitIsolation = subquery is { Limit: not null, } or { Offset: not null, };
+        var requiresTargetIsolation = subquery is not null && RequiresMutationTargetIsolation(subquery);
+
+        if (!requiresLimitIsolation && !requiresTargetIsolation)
         {
             base.GenerateIn(inExpression, negated);
             return;
@@ -231,16 +529,60 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
 
             using (Sql.Indent())
             {
-                Visit(limitedSubquery);
+                Visit(subquery!);
             }
 
             Sql.AppendLine();
             Sql.Append(") AS ");
-            Sql.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("__doka_limited_subquery"));
+            Sql.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("__doka_isolated_subquery"));
         }
 
         Sql.AppendLine();
         Sql.Append(")");
+    }
+
+    private bool RequiresMutationTargetIsolation(
+        SelectExpression subquery
+    )
+    {
+        if (_singletonOptions.ServerVersion?.IsMariaDb != false
+            || _mutationTargetTable is null)
+        {
+            return false;
+        }
+
+        var visitor = new TargetTableFindingExpressionVisitor(_mutationTargetTable);
+        visitor.Visit(subquery);
+        return visitor.Found;
+    }
+
+    private sealed class TargetTableFindingExpressionVisitor : ExpressionVisitor
+    {
+        private readonly TableExpression _targetTable;
+
+        public TargetTableFindingExpressionVisitor(
+            TableExpression targetTable
+        )
+        {
+            _targetTable = targetTable;
+        }
+
+        public bool Found { get; private set; }
+
+        protected override Expression VisitExtension(
+            Expression node
+        )
+        {
+            if (node is TableExpression table
+                && table.Name == _targetTable.Name
+                && table.Schema == _targetTable.Schema)
+            {
+                Found = true;
+                return node;
+            }
+
+            return Found ? node : base.VisitExtension(node);
+        }
     }
 
     /// <summary>
@@ -311,7 +653,7 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
 
     /// <summary>
     /// Emits the cross-engine JSON_TABLE grammar both MySQL 8.0+ and MariaDB 10.6+ accept:
-    /// <c>JSON_TABLE(json, '$[*]' COLUMNS (col TYPE PATH '$.x', key FOR ORDINALITY, nested JSON PATH '$.n')) AS alias</c>.
+    /// <c>JSON_TABLE(json, '$[*]' COLUMNS (...)) AS alias</c>.
     /// Path strings reuse <see cref="AppendStaticJsonPath"/> / <see cref="AppendDynamicJsonPath"/>
     /// so dynamic array indices (non-constant SqlExpressions) splice in through CONCAT the same
     /// way <see cref="VisitJsonScalar"/> handles them.

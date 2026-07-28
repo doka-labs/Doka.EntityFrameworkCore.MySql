@@ -51,6 +51,7 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
     private readonly List<IReadOnlyModificationCommand> _pendingBulkInsertCommands = new();
     private readonly ILogger _logger;
     private int _currentParameterCount;
+    private int _pendingProviderParameters;
     private bool _parameterCountWarningEmitted;
     private bool _packetSizeWarningEmitted;
 
@@ -76,6 +77,8 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
         {
             return false;
         }
+
+        _pendingProviderParameters = 0;
 
         var commandParameterCount = CountCommandParameters(modificationCommand);
         var projectedParameterCount = _currentParameterCount + commandParameterCount;
@@ -127,6 +130,27 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
         return added;
     }
 
+    protected override void RollbackLastCommand(
+        IReadOnlyModificationCommand modificationCommand
+    )
+    {
+        if (_pendingBulkInsertCommands.Count > 0)
+        {
+            _pendingBulkInsertCommands.RemoveAt(_pendingBulkInsertCommands.Count - 1);
+        }
+
+        for (var index = 0; index < _pendingProviderParameters; index++)
+        {
+            var parameterIndex = RelationalCommandBuilder.Parameters.Count - 1;
+            var parameter = RelationalCommandBuilder.Parameters[parameterIndex];
+
+            RelationalCommandBuilder.RemoveParameterAt(parameterIndex);
+            ParameterValues.Remove(parameter.InvariantName);
+        }
+
+        base.RollbackLastCommand(modificationCommand);
+    }
+
     protected override void AddCommand(
         IReadOnlyModificationCommand modificationCommand
     )
@@ -168,6 +192,180 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
         }
 
         base.Complete(moreBatchesExpected);
+    }
+
+    protected override void AddParameter(
+        IColumnModification columnModification
+    )
+    {
+        if (columnModification.Column is not IStoreStoredProcedureParameter storedProcedureParameter
+            || !storedProcedureParameter.Direction.HasFlag(ParameterDirection.Output))
+        {
+            base.AddParameter(columnModification);
+            return;
+        }
+
+        // CommandType.Text rejects Output and InputOutput DbParameters in
+        // MySqlConnector. OUT values are carried by server session variables;
+        // INOUT keeps only its input half as a regular command parameter.
+        if (storedProcedureParameter.Direction == ParameterDirection.Output)
+        {
+            return;
+        }
+
+        var useOriginalValue = columnModification.UseOriginalValueParameter;
+        var parameterName = useOriginalValue
+            ? columnModification.OriginalParameterName!
+            : columnModification.ParameterName!;
+        var value = useOriginalValue ? columnModification.OriginalValue : columnModification.Value;
+
+        if (value is null)
+        {
+            // With AllowUserVariables enabled, an unbound @p variable evaluates
+            // to NULL and preserves INOUT's input semantics without registering
+            // an unsupported InputOutput DbParameter.
+            return;
+        }
+
+        RelationalCommandBuilder.AddParameter(
+            parameterName,
+            Dependencies.SqlGenerationHelper.GenerateParameterName(parameterName),
+            columnModification.TypeMapping!,
+            columnModification.IsNullable,
+            ParameterDirection.Input);
+        ParameterValues.Add(parameterName, value);
+        _pendingProviderParameters++;
+    }
+
+    protected override void Consume(
+        RelationalDataReader reader
+    )
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+
+        var commandIndex = 0;
+
+        try
+        {
+            bool? onResultSet = null;
+            while (commandIndex < ResultSetMappings.Count)
+            {
+                var command = ModificationCommands[commandIndex];
+                if (command.StoreStoredProcedure is not null)
+                {
+                    ConsumeStoredProcedure(commandIndex, command, reader, ref onResultSet);
+                    commandIndex++;
+                    continue;
+                }
+
+                var resultSetMapping = ResultSetMappings[commandIndex];
+                if (resultSetMapping.HasFlag(ResultSetMapping.HasResultRow))
+                {
+                    if (onResultSet == false)
+                    {
+                        throw new InvalidOperationException(RelationalStrings.MissingResultSetWhenSaving);
+                    }
+
+                    var lastHandledCommandIndex =
+                        resultSetMapping.HasFlag(ResultSetMapping.ResultSetWithRowsAffectedOnly)
+                            ? ConsumeResultSetWithRowsAffectedOnly(commandIndex, reader)
+                            : ConsumeResultSet(commandIndex, reader);
+
+                    commandIndex = lastHandledCommandIndex + 1;
+                    onResultSet = reader.DbDataReader.NextResult();
+                }
+                else
+                {
+                    commandIndex++;
+                }
+            }
+
+            if (onResultSet == true)
+            {
+                Dependencies.UpdateLogger.UnexpectedTrailingResultSetWhenSaving();
+            }
+
+            reader.Close();
+        }
+        catch (Exception exception) when (exception is not DbUpdateException and not OperationCanceledException)
+        {
+            throw new DbUpdateException(
+                RelationalStrings.UpdateStoreException,
+                exception,
+                ModificationCommands[Math.Min(commandIndex, ModificationCommands.Count - 1)].Entries);
+        }
+    }
+
+    protected override async Task ConsumeAsync(
+        RelationalDataReader reader,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+
+        var commandIndex = 0;
+
+        try
+        {
+            bool? onResultSet = null;
+            while (commandIndex < ResultSetMappings.Count)
+            {
+                var command = ModificationCommands[commandIndex];
+                if (command.StoreStoredProcedure is not null)
+                {
+                    onResultSet = await ConsumeStoredProcedureAsync(
+                            commandIndex,
+                            command,
+                            reader,
+                            onResultSet,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    commandIndex++;
+                    continue;
+                }
+
+                var resultSetMapping = ResultSetMappings[commandIndex];
+                if (resultSetMapping.HasFlag(ResultSetMapping.HasResultRow))
+                {
+                    if (onResultSet == false)
+                    {
+                        throw new InvalidOperationException(RelationalStrings.MissingResultSetWhenSaving);
+                    }
+
+                    var lastHandledCommandIndex =
+                        resultSetMapping.HasFlag(ResultSetMapping.ResultSetWithRowsAffectedOnly)
+                            ? await ConsumeResultSetWithRowsAffectedOnlyAsync(commandIndex, reader, cancellationToken)
+                                .ConfigureAwait(false)
+                            : await ConsumeResultSetAsync(commandIndex, reader, cancellationToken)
+                                .ConfigureAwait(false);
+
+                    commandIndex = lastHandledCommandIndex + 1;
+                    onResultSet = await reader
+                        .DbDataReader.NextResultAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                else
+                {
+                    commandIndex++;
+                }
+            }
+
+            if (onResultSet == true)
+            {
+                Dependencies.UpdateLogger.UnexpectedTrailingResultSetWhenSaving();
+            }
+
+            await reader
+                .CloseAsync()
+                .ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not DbUpdateException and not OperationCanceledException)
+        {
+            throw new DbUpdateException(
+                RelationalStrings.UpdateStoreException,
+                exception,
+                ModificationCommands[Math.Min(commandIndex, ModificationCommands.Count - 1)].Entries);
+        }
     }
 
     /// <summary>
@@ -217,6 +415,234 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
         }
 
         return count;
+    }
+
+    private void ConsumeStoredProcedure(
+        int commandIndex,
+        IReadOnlyModificationCommand command,
+        RelationalDataReader reader,
+        ref bool? onResultSet
+    )
+    {
+        var storedProcedure = command.StoreStoredProcedure!;
+        if (storedProcedure.ResultColumns.Any())
+        {
+            if (onResultSet == false)
+            {
+                throw new InvalidOperationException(RelationalStrings.MissingResultSetWhenSaving);
+            }
+
+            var resultSetMapping = ResultSetMappings[commandIndex];
+            if (resultSetMapping.HasFlag(ResultSetMapping.ResultSetWithRowsAffectedOnly))
+            {
+                ConsumeResultSetWithRowsAffectedOnly(commandIndex, reader);
+            }
+            else
+            {
+                ConsumeResultSet(commandIndex, reader);
+            }
+
+            onResultSet = reader.DbDataReader.NextResult();
+        }
+
+        if (!HasOutputParameters(command))
+        {
+            return;
+        }
+
+        MoveToReadableResultSet(reader, ref onResultSet);
+        if (onResultSet == false
+            || !reader.Read())
+        {
+            throw new InvalidOperationException(RelationalStrings.MissingResultSetWhenSaving);
+        }
+
+        ConsumeOutputParameterRow(commandIndex, command, reader);
+        onResultSet = reader.DbDataReader.NextResult();
+    }
+
+    private async Task<bool?> ConsumeStoredProcedureAsync(
+        int commandIndex,
+        IReadOnlyModificationCommand command,
+        RelationalDataReader reader,
+        bool? onResultSet,
+        CancellationToken cancellationToken
+    )
+    {
+        var storedProcedure = command.StoreStoredProcedure!;
+        if (storedProcedure.ResultColumns.Any())
+        {
+            if (onResultSet == false)
+            {
+                throw new InvalidOperationException(RelationalStrings.MissingResultSetWhenSaving);
+            }
+
+            var resultSetMapping = ResultSetMappings[commandIndex];
+            if (resultSetMapping.HasFlag(ResultSetMapping.ResultSetWithRowsAffectedOnly))
+            {
+                await ConsumeResultSetWithRowsAffectedOnlyAsync(commandIndex, reader, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                await ConsumeResultSetAsync(commandIndex, reader, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            onResultSet = await reader
+                .DbDataReader.NextResultAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (!HasOutputParameters(command))
+        {
+            return onResultSet;
+        }
+
+        onResultSet = await MoveToReadableResultSetAsync(reader, onResultSet, cancellationToken).ConfigureAwait(false);
+        if (onResultSet == false
+            || !await reader
+                .ReadAsync(cancellationToken)
+                .ConfigureAwait(false))
+        {
+            throw new InvalidOperationException(RelationalStrings.MissingResultSetWhenSaving);
+        }
+
+        await ConsumeOutputParameterRowAsync(commandIndex, command, reader, cancellationToken)
+            .ConfigureAwait(false);
+
+        return await reader
+            .DbDataReader.NextResultAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private void ConsumeOutputParameterRow(
+        int commandIndex,
+        IReadOnlyModificationCommand command,
+        RelationalDataReader reader
+    )
+    {
+        ValidateRowsAffectedOutputParameter(commandIndex, command, reader);
+        GetMySqlModificationCommand(command)
+            .PropagateStoredProcedureOutputParameters(reader);
+    }
+
+    private async Task ConsumeOutputParameterRowAsync(
+        int commandIndex,
+        IReadOnlyModificationCommand command,
+        RelationalDataReader reader,
+        CancellationToken cancellationToken
+    )
+    {
+        var rowsAffected = GetRowsAffectedOutputParameter(command, reader);
+        if (rowsAffected is not null and not 1)
+        {
+            await ThrowAggregateUpdateConcurrencyExceptionAsync(
+                    reader,
+                    commandIndex + 1,
+                    expectedRowsAffected: 1,
+                    rowsAffected: 0,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        GetMySqlModificationCommand(command)
+            .PropagateStoredProcedureOutputParameters(reader);
+    }
+
+    private void ValidateRowsAffectedOutputParameter(
+        int commandIndex,
+        IReadOnlyModificationCommand command,
+        RelationalDataReader reader
+    )
+    {
+        var rowsAffected = GetRowsAffectedOutputParameter(command, reader);
+        if (rowsAffected is not null
+            and not 1)
+        {
+            ThrowAggregateUpdateConcurrencyException(
+                reader,
+                commandIndex + 1,
+                expectedRowsAffected: 1,
+                rowsAffected: 0);
+        }
+    }
+
+    private static int? GetRowsAffectedOutputParameter(
+        IReadOnlyModificationCommand command,
+        RelationalDataReader reader
+    )
+    {
+        var readerIndex = 0;
+        foreach (var modification in command.ColumnModifications)
+        {
+            if (modification.Column is not IStoreStoredProcedureParameter
+                {
+                    Direction: ParameterDirection.Output or ParameterDirection.InputOutput,
+                })
+            {
+                continue;
+            }
+
+            if (ReferenceEquals(modification.Column, command.RowsAffectedColumn))
+            {
+                var value = reader.DbDataReader.GetValue(readerIndex);
+                if (value is DBNull)
+                {
+                    throw new InvalidOperationException(
+                        RelationalStrings.StoredProcedureRowsAffectedNotPopulated(
+                            command.StoreStoredProcedure!.SchemaQualifiedName));
+                }
+
+                return Convert.ToInt32(value, CultureInfo.InvariantCulture);
+            }
+
+            readerIndex++;
+        }
+
+        return null;
+    }
+
+    private static bool HasOutputParameters(
+        IReadOnlyModificationCommand command
+    ) => command.ColumnModifications.Any(static modification => modification.Column is IStoreStoredProcedureParameter
+    {
+        Direction: ParameterDirection.Output or ParameterDirection.InputOutput,
+    });
+
+    private static MySqlModificationCommand GetMySqlModificationCommand(
+        IReadOnlyModificationCommand command
+    ) => command as MySqlModificationCommand
+        ?? throw new InvalidOperationException(
+            "Stored-procedure result propagation requires " + nameof(MySqlModificationCommand) + ".");
+
+    private static void MoveToReadableResultSet(
+        RelationalDataReader reader,
+        ref bool? onResultSet
+    )
+    {
+        while (onResultSet != false
+               && reader.DbDataReader.FieldCount == 0)
+        {
+            onResultSet = reader.DbDataReader.NextResult();
+        }
+    }
+
+    private static async Task<bool?> MoveToReadableResultSetAsync(
+        RelationalDataReader reader,
+        bool? onResultSet,
+        CancellationToken cancellationToken
+    )
+    {
+        while (onResultSet != false
+               && reader.DbDataReader.FieldCount == 0)
+        {
+            onResultSet = await reader
+                .DbDataReader.NextResultAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return onResultSet;
     }
 
     private void ApplyPendingBulkInsertCommands()

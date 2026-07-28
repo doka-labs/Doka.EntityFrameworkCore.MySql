@@ -11,6 +11,7 @@ internal sealed class MySqlMethodCallTranslatorProvider : RelationalMethodCallTr
         AddTranslators(
             new IMethodCallTranslator[]
             {
+                new MySqlObjectToStringTranslator(sqlExpressionFactory, dependencies.RelationalTypeMappingSource),
                 new MySqlMethodCallTranslator(sqlExpressionFactory),
             });
     }

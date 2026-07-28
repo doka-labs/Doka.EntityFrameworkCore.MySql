@@ -53,6 +53,28 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     }
 
     /// <summary>
+    /// Explicit EF Core OnAdd configuration for a Guid key selects the
+    /// provider's client Guid generator because neither target engine has a
+    /// native AUTO_INCREMENT equivalent for Guid values.
+    /// </summary>
+    [Fact]
+    public void Explicit_OnAdd_guid_generation_uses_client_generator()
+    {
+        using var context = new ValueGenerationContext(CreateOptions());
+        var entity = new ExplicitGeneratedGuidEntity();
+        var property = context.Model
+            .FindEntityType(typeof(ExplicitGeneratedGuidEntity))!
+            .FindProperty(nameof(ExplicitGeneratedGuidEntity.Id))!;
+
+        context.Add(entity);
+
+        Assert.Equal(
+            MySqlValueGenerationStrategy.ClientGuid,
+            property.GetMySqlValueGenerationStrategy());
+        Assert.NotEqual(Guid.Empty, entity.Id);
+    }
+
+    /// <summary>
     /// Verifies that explicit property-level CHAR(36) compatibility configuration remains available.
     /// </summary>
     [Fact]
@@ -66,6 +88,40 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
         Assert.Equal("char(36)", property.GetColumnType());
         Assert.Equal(MySqlValueGenerationStrategy.ClientGuid, property.GetMySqlValueGenerationStrategy());
         Assert.Equal(ValueGenerated.OnAdd, property.ValueGenerated);
+    }
+
+    /// <summary>
+    /// Verifies that a user-configured Guid converter takes precedence over the
+    /// provider's default binary Guid representation.
+    /// </summary>
+    [Fact]
+    public void Explicit_guid_to_string_converter_is_preserved()
+    {
+        using var context = new ValueGenerationContext(CreateOptions());
+        var property = context.Model
+            .FindEntityType(typeof(ConvertedGuidEntity))!
+            .FindProperty(nameof(ConvertedGuidEntity.Id))!;
+
+        Assert.Equal(typeof(string), property.GetProviderClrType());
+        Assert.Equal("varchar(36)", property.GetColumnType());
+        Assert.Null(property.GetMySqlGuidFormat());
+    }
+
+    /// <summary>
+    /// Verifies that an implicit Guid-to-byte converter avoids the driver's
+    /// Binary16 Guid materialization path and remains readable as byte[].
+    /// </summary>
+    [Fact]
+    public void Explicit_guid_to_bytes_converter_uses_driver_safe_store_type()
+    {
+        using var context = new ValueGenerationContext(CreateOptions());
+        var property = context.Model
+            .FindEntityType(typeof(ConvertedGuidBytesEntity))!
+            .FindProperty(nameof(ConvertedGuidBytesEntity.Id))!;
+
+        Assert.Equal(typeof(byte[]), property.GetProviderClrType());
+        Assert.Equal("varbinary(17)", property.GetColumnType());
+        Assert.Null(property.GetMySqlGuidFormat());
     }
 
     /// <summary>
@@ -135,6 +191,13 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
                     .UseMySqlClientGuidValueGeneration();
             });
 
+            modelBuilder.Entity<ExplicitGeneratedGuidEntity>(entity =>
+            {
+                entity.ToTable("Phase2ExplicitGeneratedGuidEntities");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).ValueGeneratedOnAdd();
+            });
+
             modelBuilder.Entity<ExplicitChar36Entity>(entity =>
             {
                 entity.ToTable("Phase2ExplicitChar36Entities");
@@ -143,6 +206,20 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
                     .Property(item => item.Id)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36)
                     .UseMySqlClientGuidValueGeneration();
+            });
+
+            modelBuilder.Entity<ConvertedGuidEntity>(entity =>
+            {
+                entity.ToTable("Phase2ConvertedGuidEntities");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasConversion<string>();
+            });
+
+            modelBuilder.Entity<ConvertedGuidBytesEntity>(entity =>
+            {
+                entity.ToTable("Phase2ConvertedGuidBytesEntities");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasConversion<byte[]>();
             });
         }
     }
@@ -182,7 +259,22 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
         public Guid Id { get; set; }
     }
 
+    private sealed class ExplicitGeneratedGuidEntity
+    {
+        public Guid Id { get; set; }
+    }
+
     private sealed class ExplicitChar36Entity
+    {
+        public Guid Id { get; set; }
+    }
+
+    private sealed class ConvertedGuidEntity
+    {
+        public Guid Id { get; set; }
+    }
+
+    private sealed class ConvertedGuidBytesEntity
     {
         public Guid Id { get; set; }
     }

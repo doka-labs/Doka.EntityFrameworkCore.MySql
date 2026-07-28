@@ -19,6 +19,26 @@ public class BuiltInDataTypesMySqlTest : BuiltInDataTypesTestBase<
     {
     }
 
+    /// <summary>
+    /// Executes the upstream server-side conversion contract under a deterministic culture.
+    /// SQL numeric text is locale-independent, and query plans must not capture a request
+    /// thread's transient decimal separator during translation.
+    /// </summary>
+    public override async Task Object_to_string_conversion()
+    {
+        var previousCulture = CultureInfo.CurrentCulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+            await base.Object_to_string_conversion();
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+        }
+    }
+
     public class BuiltInDataTypesMySqlFixture : BuiltInDataTypesFixtureBase
     {
         protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;

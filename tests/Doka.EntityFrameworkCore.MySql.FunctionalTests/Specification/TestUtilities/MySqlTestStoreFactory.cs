@@ -23,5 +23,7 @@ public class MySqlTestStoreFactory : RelationalTestStoreFactory
 
     public override IServiceCollection AddProviderServices(
         IServiceCollection serviceCollection
-    ) => serviceCollection.AddEntityFrameworkDokaMySql();
+    ) => serviceCollection
+        .AddEntityFrameworkDokaMySql()
+        .AddEntityFrameworkDokaMySqlNetTopologySuite();
 }

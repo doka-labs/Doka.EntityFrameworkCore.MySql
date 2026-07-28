@@ -160,6 +160,108 @@ public sealed class MySqlMigrationDslTests
                 && Equals(fragment.Arguments.Single(), MySqlGuidFormat.Char36));
     }
 
+    /// <summary>
+    /// Verifies that a new auto-increment primary key exists before the column gains
+    /// AUTO_INCREMENT.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_adds_primary_key_before_enabling_auto_increment()
+    {
+        using var source = new KeylessPeopleContext(CreateOptions<KeylessPeopleContext>());
+        using var target = new KeyedPeopleContext(CreateOptions<KeyedPeopleContext>());
+        var operations = GetDifferences(source, target);
+        var addPrimaryKey = Assert.Single(operations.OfType<AddPrimaryKeyOperation>());
+        var alterColumn = Assert.Single(operations.OfType<AlterColumnOperation>());
+
+        Assert.True(operations.IndexOf(addPrimaryKey) < operations.IndexOf(alterColumn));
+        Assert.Equal(
+            MySqlValueGenerationStrategy.AutoIncrement,
+            alterColumn[MySqlAnnotationNames.ValueGenerationStrategy]);
+    }
+
+    /// <summary>
+    /// Verifies that AUTO_INCREMENT is removed while the old primary key still exists.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_disables_auto_increment_before_dropping_primary_key()
+    {
+        using var source = new KeyedPeopleContext(CreateOptions<KeyedPeopleContext>());
+        using var target = new KeylessPeopleContext(CreateOptions<KeylessPeopleContext>());
+        var operations = GetDifferences(source, target);
+        var alterColumn = Assert.Single(operations.OfType<AlterColumnOperation>());
+        var dropPrimaryKey = Assert.Single(operations.OfType<DropPrimaryKeyOperation>());
+
+        Assert.True(operations.IndexOf(alterColumn) < operations.IndexOf(dropPrimaryKey));
+        Assert.Equal(MySqlValueGenerationStrategy.None, alterColumn[MySqlAnnotationNames.ValueGenerationStrategy]);
+        Assert.Equal(
+            MySqlValueGenerationStrategy.AutoIncrement,
+            alterColumn.OldColumn[MySqlAnnotationNames.ValueGenerationStrategy]);
+    }
+
+    /// <summary>
+    /// Verifies that a table rename does not recreate MySQL's fixed-name PRIMARY key.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_removes_primary_key_churn_for_table_rename()
+    {
+        using var source = new KeyedPeopleContext(CreateOptions<KeyedPeopleContext>());
+        using var target = new KeyedPersonsContext(CreateOptions<KeyedPersonsContext>());
+        var operations = GetDifferences(source, target);
+
+        Assert.Single(operations.OfType<RenameTableOperation>());
+        Assert.Empty(operations.OfType<DropPrimaryKeyOperation>());
+        Assert.Empty(operations.OfType<AddPrimaryKeyOperation>());
+    }
+
+    /// <summary>
+    /// Verifies that dropping every primary-key column does not first leave an
+    /// AUTO_INCREMENT column temporarily unkeyed.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_lets_primary_key_column_drop_remove_the_key()
+    {
+        using var source = new KeyedPeopleWithReplacementContext(CreateOptions<KeyedPeopleWithReplacementContext>());
+        using var target = new ReplacementPeopleContext(CreateOptions<ReplacementPeopleContext>());
+        var operations = GetDifferences(source, target);
+
+        Assert.Contains(operations.OfType<DropColumnOperation>(), operation => operation.Name == "SomeField");
+        Assert.Empty(operations.OfType<DropPrimaryKeyOperation>());
+    }
+
+    /// <summary>
+    /// Verifies that EF mappings with different non-SQL metadata do not produce duplicate,
+    /// locking DDL for the same physical JSON column transition.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_deduplicates_mysql_equivalent_json_column_alters()
+    {
+        using var target = new MigrationDslContext(CreateOptions<MigrationDslContext>());
+        var firstAlter = CreateJsonAlterColumn(typeof(string), isUnicode: true, maxLength: 255);
+        var secondAlter = CreateJsonAlterColumn(typeof(JsonDocument), isUnicode: null, maxLength: null);
+        var differ = new MySqlMigrationsModelDiffer(new FixedMigrationsModelDiffer(firstAlter, secondAlter));
+        var operations = differ.GetDifferences(
+            null,
+            target
+                .GetService<IDesignTimeModel>()
+                .Model.GetRelationalModel());
+        var alterColumn = Assert.Single(operations.OfType<AlterColumnOperation>());
+
+        Assert.Equal("Entity", alterColumn.Table);
+        Assert.Equal("Name", alterColumn.Name);
+        Assert.Equal("json", alterColumn.ColumnType);
+        Assert.Equal("longtext", alterColumn.OldColumn.ColumnType);
+    }
+
+    private static List<MigrationOperation> GetDifferences(
+        DbContext source,
+        DbContext target
+    ) => target
+        .GetService<IMigrationsModelDiffer>()
+        .GetDifferences(
+            source.GetService<IDesignTimeModel>().Model.GetRelationalModel(),
+            target.GetService<IDesignTimeModel>().Model.GetRelationalModel())
+        .ToList();
+
     private static DbContextOptions<TContext> CreateOptions<TContext>()
         where TContext : DbContext
     {
@@ -215,6 +317,138 @@ public sealed class MySqlMigrationDslTests
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
             });
         }
+    }
+
+    private sealed class KeylessPeopleContext : DbContext
+    {
+        public KeylessPeopleContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigurePeople(modelBuilder, "People", hasKey: false, propertyName: "SomeField");
+    }
+
+    private sealed class KeyedPeopleContext : DbContext
+    {
+        public KeyedPeopleContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigurePeople(modelBuilder, "People", hasKey: true, propertyName: "SomeField");
+    }
+
+    private sealed class KeyedPersonsContext : DbContext
+    {
+        public KeyedPersonsContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigurePeople(modelBuilder, "Persons", hasKey: true, propertyName: "SomeField");
+    }
+
+    private sealed class KeyedPeopleWithReplacementContext : DbContext
+    {
+        public KeyedPeopleWithReplacementContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            ConfigurePeople(modelBuilder, "People", hasKey: true, propertyName: "SomeField");
+            modelBuilder
+                .Entity("Person")
+                .Property<int>("ReplacementField");
+        }
+    }
+
+    private sealed class ReplacementPeopleContext : DbContext
+    {
+        public ReplacementPeopleContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigurePeople(modelBuilder, "People", hasKey: false, propertyName: "ReplacementField");
+    }
+
+    private static AlterColumnOperation CreateJsonAlterColumn(
+        Type clrType,
+        bool? isUnicode,
+        int? maxLength
+    ) => new()
+    {
+        Name = "Name",
+        Table = "Entity",
+        ClrType = clrType,
+        ColumnType = "json",
+        IsUnicode = isUnicode,
+        MaxLength = maxLength,
+        IsNullable = true,
+        OldColumn = new AddColumnOperation
+        {
+            Name = "Name",
+            Table = "Entity",
+            ClrType = typeof(string),
+            ColumnType = "longtext",
+            IsUnicode = true,
+            IsNullable = true,
+        },
+    };
+
+    private sealed class FixedMigrationsModelDiffer : IMigrationsModelDiffer
+    {
+        private readonly MigrationOperation[] _operations;
+
+        public FixedMigrationsModelDiffer(
+            params MigrationOperation[] operations
+        )
+        {
+            _operations = operations;
+        }
+
+        public bool HasDifferences(
+            IRelationalModel? source,
+            IRelationalModel? target
+        ) => _operations.Length > 0;
+
+        public IReadOnlyList<MigrationOperation> GetDifferences(
+            IRelationalModel? source,
+            IRelationalModel? target
+        ) => _operations;
+    }
+
+    private static void ConfigurePeople(
+        ModelBuilder modelBuilder,
+        string tableName,
+        bool hasKey,
+        string propertyName
+    )
+    {
+        modelBuilder.Entity(
+            "Person",
+            entity =>
+            {
+                entity.ToTable(tableName);
+                entity.Property<int>(propertyName);
+
+                if (hasKey)
+                {
+                    entity.HasKey(propertyName);
+                }
+                else
+                {
+                    entity.HasNoKey();
+                }
+            });
     }
 
     private sealed class MigrationDslEntity

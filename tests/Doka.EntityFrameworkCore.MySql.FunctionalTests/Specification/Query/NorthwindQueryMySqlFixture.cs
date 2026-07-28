@@ -15,6 +15,8 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
 {
     protected override ITestStoreFactory TestStoreFactory => MySqlNorthwindTestStoreFactory.Instance;
 
+    protected override bool RecreateStore => true;
+
     public override DbContextOptionsBuilder AddOptions(
         DbContextOptionsBuilder builder
     ) => base

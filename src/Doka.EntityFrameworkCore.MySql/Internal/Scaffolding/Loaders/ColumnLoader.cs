@@ -62,7 +62,21 @@ internal static class ColumnLoader
             var dataType = reader.GetString(4);
             var extra = reader.IsDBNull(6) ? null : reader.GetString(6);
             var computedColumnSql = reader.IsDBNull(7) ? null : reader.GetString(7);
-            var collation = reader.IsDBNull(9) ? null : reader.GetString(9);
+            var rawCollation = reader.IsDBNull(9) ? null : reader.GetString(9);
+            var collation = rawCollation;
+            var tableCollation = table.FindAnnotation(RelationalAnnotationNames.Collation)
+                ?.Value as string;
+            var comment = reader.IsDBNull(8) ? null : reader.GetString(8);
+
+            if (string.Equals(collation, tableCollation, StringComparison.OrdinalIgnoreCase))
+            {
+                collation = null;
+            }
+
+            if (string.IsNullOrEmpty(comment))
+            {
+                comment = null;
+            }
 
             var column = new DatabaseColumn
             {
@@ -73,13 +87,13 @@ internal static class ColumnLoader
                     storeType,
                     tableName,
                     columnName,
-                    collation,
+                    rawCollation,
                     context.MariaDbJsonColumns),
                 IsNullable = string.Equals(reader.GetString(2), "YES", StringComparison.OrdinalIgnoreCase),
                 DefaultValueSql = reader.IsDBNull(5) ? null : reader.GetString(5),
                 ComputedColumnSql = string.IsNullOrWhiteSpace(computedColumnSql) ? null : computedColumnSql,
                 IsStored = ScaffoldingHelpers.ResolveIsStored(extra),
-                Comment = reader.IsDBNull(8) ? null : reader.GetString(8),
+                Comment = comment,
                 Collation = collation,
                 ValueGenerated = ScaffoldingHelpers.ResolveValueGenerated(extra),
             };
@@ -98,6 +112,8 @@ internal static class ColumnLoader
         HashSet<(string TableName, string ColumnName)> mariaDbJsonColumns
     )
     {
+        storeType = NormalizeIntegerDisplayWidth(dataType, storeType);
+
         if (!string.Equals(dataType, "longtext", StringComparison.OrdinalIgnoreCase)
             || !string.Equals(collation, DefaultMariaDbJsonCollation, StringComparison.OrdinalIgnoreCase))
         {
@@ -105,5 +121,76 @@ internal static class ColumnLoader
         }
 
         return mariaDbJsonColumns.Contains((tableName, columnName)) ? "json" : storeType;
+    }
+
+    /// <summary>
+    /// Removes legacy integer display widths that do not affect storage or range while
+    /// preserving boolean inference through <c>tinyint(1)</c> and visible ZEROFILL padding.
+    /// </summary>
+    internal static string NormalizeIntegerDisplayWidth(
+        string dataType,
+        string storeType
+    )
+    {
+        var canonicalDataType = CanonicalIntegerDataType(dataType);
+
+        if (canonicalDataType is null
+            || !storeType.StartsWith(canonicalDataType, StringComparison.OrdinalIgnoreCase)
+            || storeType.Length <= canonicalDataType.Length + 2
+            || storeType[canonicalDataType.Length] != '(')
+        {
+            return storeType;
+        }
+
+        var closingParenthesis = storeType.IndexOf(')', canonicalDataType.Length + 1);
+
+        if (closingParenthesis < 0)
+        {
+            return storeType;
+        }
+
+        var width = storeType.AsSpan(canonicalDataType.Length + 1, closingParenthesis - canonicalDataType.Length - 1);
+        var suffix = storeType[(closingParenthesis + 1)..];
+
+        if (width.IsEmpty
+            || width.IndexOfAnyExceptInRange('0', '9') >= 0
+            || (!string.IsNullOrEmpty(suffix)
+                && !string.Equals(suffix, " unsigned", StringComparison.OrdinalIgnoreCase))
+            || (canonicalDataType == "tinyint" && width is "1"))
+        {
+            return storeType;
+        }
+
+        return canonicalDataType + suffix.ToLowerInvariant();
+    }
+
+    private static string? CanonicalIntegerDataType(
+        string dataType
+    )
+    {
+        if (string.Equals(dataType, "tinyint", StringComparison.OrdinalIgnoreCase))
+        {
+            return "tinyint";
+        }
+
+        if (string.Equals(dataType, "smallint", StringComparison.OrdinalIgnoreCase))
+        {
+            return "smallint";
+        }
+
+        if (string.Equals(dataType, "mediumint", StringComparison.OrdinalIgnoreCase))
+        {
+            return "mediumint";
+        }
+
+        if (string.Equals(dataType, "int", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(dataType, "integer", StringComparison.OrdinalIgnoreCase))
+        {
+            return "int";
+        }
+
+        return string.Equals(dataType, "bigint", StringComparison.OrdinalIgnoreCase)
+            ? "bigint"
+            : null;
     }
 }

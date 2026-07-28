@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 /// Marks an inherited EF Core specification theory that the consumed EF Core version skips
 /// because framework-owned translation or query semantics cannot currently produce a
 /// provider-solvable SQL tree. The disposition ID links the executable skip to the
-/// upstream-issue-backed ledger entry.
+/// upstream-primary-source-backed ledger entry.
 /// </summary>
 /// <remarks>
 /// Setting <c>DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true</c> disables the skip so an EF Core

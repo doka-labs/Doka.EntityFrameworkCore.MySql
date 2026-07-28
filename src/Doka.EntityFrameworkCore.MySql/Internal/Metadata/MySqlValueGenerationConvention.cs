@@ -37,7 +37,10 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         IConventionProperty property
     )
     {
-        if (property.ClrType != typeof(Guid))
+        var clrType = Nullable.GetUnderlyingType(property.ClrType)
+            ?? property.ClrType;
+
+        if (clrType != typeof(Guid))
         {
             return;
         }
@@ -45,6 +48,16 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         var mutableProperty = (IMutableProperty)property;
         var explicitStoreType = property.GetColumnType();
         var format = property.GetMySqlGuidFormat();
+
+        // A converter or provider CLR type is an application-level storage
+        // contract. Replacing it would let nullable and non-nullable members of
+        // the same FK resolve to different physical representations.
+        if (format is null
+            && (property.GetValueConverter() is not null
+                || property.GetProviderClrType() is not null))
+        {
+            return;
+        }
 
         if (format is null
             && TryApplyExplicitTextGuidMapping(mutableProperty, explicitStoreType))
@@ -167,8 +180,19 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
 
         if (property.ClrType == typeof(Guid))
         {
-            mutableProperty.SetMySqlValueGenerationStrategy(MySqlValueGenerationStrategy.None);
-            mutableProperty.ValueGenerated = ValueGenerated.Never;
+            var explicitlyGeneratedOnAdd =
+                property.ValueGenerated == ValueGenerated.OnAdd
+                && property.GetValueGeneratedConfigurationSource()
+                    is ConfigurationSource.Explicit
+                    or ConfigurationSource.DataAnnotation;
+
+            mutableProperty.SetMySqlValueGenerationStrategy(
+                explicitlyGeneratedOnAdd
+                    ? MySqlValueGenerationStrategy.ClientGuid
+                    : MySqlValueGenerationStrategy.None);
+            mutableProperty.ValueGenerated = explicitlyGeneratedOnAdd
+                ? ValueGenerated.OnAdd
+                : ValueGenerated.Never;
             return;
         }
 
@@ -205,9 +229,24 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
             return false;
         }
 
-        return property.ClrType == typeof(byte)
-            || property.ClrType == typeof(short)
-            || property.ClrType == typeof(int)
-            || property.ClrType == typeof(long);
+        // AUTO_INCREMENT applies to the store representation, not necessarily
+        // the model CLR type. An integer key converted to string or byte[] must
+        // not inherit the integer convention and produce invalid MySQL DDL.
+        var providerClrType = property.GetValueConverter()
+                ?.ProviderClrType
+            ?? property.GetProviderClrType()
+            ?? property.ClrType;
+
+        providerClrType = Nullable.GetUnderlyingType(providerClrType) ?? providerClrType;
+
+        if (providerClrType.IsEnum)
+        {
+            providerClrType = Enum.GetUnderlyingType(providerClrType);
+        }
+
+        return providerClrType == typeof(byte)
+            || providerClrType == typeof(short)
+            || providerClrType == typeof(int)
+            || providerClrType == typeof(long);
     }
 }

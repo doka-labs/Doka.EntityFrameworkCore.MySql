@@ -19,3 +19,23 @@ public class MySqlNorthwindTestStoreFactory : MySqlTestStoreFactory
         string storeName
     ) => MySqlTestStore.GetOrCreate(DatabaseName);
 }
+
+/// <summary>
+/// Isolates the bulk-update Northwind model from the query model.
+/// </summary>
+public sealed class MySqlNorthwindBulkUpdatesTestStoreFactory
+    : MySqlNorthwindTestStoreFactory
+{
+    private const string BulkDatabaseName = "NorthwindBulkUpdates";
+
+    public static new MySqlNorthwindBulkUpdatesTestStoreFactory Instance { get; } =
+        new();
+
+    private MySqlNorthwindBulkUpdatesTestStoreFactory()
+    {
+    }
+
+    public override TestStore GetOrCreate(
+        string storeName
+    ) => MySqlTestStore.GetOrCreate(BulkDatabaseName);
+}

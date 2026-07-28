@@ -29,15 +29,14 @@ issues one INSERT statement per row plus a follow-up `SELECT LAST_INSERT_ID()`
    which is the canonical bulk-insert form. The provider does not use it.
    Bulk-insert benchmarks against 10000 rows show a 3-10x throughput delta
    vs. the multi-row path that other community providers ship.
-2. **`SupportsReturningClause` is declared but unused.** MariaDB 10.5+ and
-   MySQL 8.0.21+ both support `INSERT ... RETURNING`, which collapses the
-   two-round-trip pattern (`INSERT` + `SELECT LAST_INSERT_ID`) into a
-   single round-trip. The current code path always pays the second
-   round-trip even on servers that could elide it. Trigger-modified column
-   values (computed defaults, audit-stamp triggers) are unavailable to EF
-   without the `RETURNING` path; the premortem flagged this as a
-   high-impact silent-wrong-result risk for consumers who rely on
-   server-side defaults.
+2. **`SupportsReturningClause` is declared but unused.** MariaDB 10.5+
+   supports `INSERT ... RETURNING`, which collapses the two-round-trip
+   pattern (`INSERT` + `SELECT LAST_INSERT_ID`) into a single round trip.
+   MySQL 8.4 does not include a `RETURNING` clause in its `INSERT`
+   grammar. The current code path always pays the second round trip even
+   on MariaDB servers that could elide it. Trigger-modified column values
+   (computed defaults, audit-stamp triggers) are unavailable to EF
+   without the `RETURNING` path.
 
 ## Decision Drivers
 
@@ -53,7 +52,9 @@ issues one INSERT statement per row plus a follow-up `SELECT LAST_INSERT_ID()`
 
 ## Decision Outcome
 
-Chosen option: "Shape-aware batching with engine-routed RETURNING", because batch shape and engine capability must select the fastest semantics-preserving path.
+Chosen option: "Shape-aware batching with engine-routed RETURNING",
+because batch shape and engine capability must select the fastest
+semantics-preserving path.
 
 Implement multi-row-INSERT batching plus engine-aware RETURNING routing:
 
@@ -69,16 +70,18 @@ Implement multi-row-INSERT batching plus engine-aware RETURNING routing:
 2. **RETURNING routing.** When the active `EngineProfile` (per D-004)
    declares `SupportsReturningClause`, the INSERT command appends
    `RETURNING <id-column>` and reads the generated value from the
-   single round-trip's result set. The fallback path (older MySQL, older
-   MariaDB) continues to use `LAST_INSERT_ID`. Trigger-modified columns
-   the consumer declared via `ValueGeneratedOnAddOrUpdate(...)` are
-   included in the RETURNING list automatically.
+   single round-trip's result set. The fallback path (MySQL and MariaDB
+   before 10.5) continues to use `LAST_INSERT_ID`. Trigger-modified
+   columns the consumer declared via
+   `ValueGeneratedOnAddOrUpdate(...)` are included in the RETURNING list
+   automatically.
 
 The test suite covers four edge cases the premortem flagged: rows of
 different column sets (forces batch boundary), batches that exceed the
 parameter-count cap, batches that exceed the `max_allowed_packet`
 estimate, and trigger-modified columns whose RETURNING value differs
-from the inserted value.
+from the inserted value. The inherited non-shared update suite also
+verifies exception-entry attribution for a failed multi-row insert.
 
 ### Consequences
 
@@ -108,6 +111,11 @@ from the inserted value.
 - Trigger-modified columns can carry side effects the consumer did not
   anticipate; the change makes those values visible, which is correct but
   may surface dormant bugs in consumer code.
+- MariaDB error 1062 identifies the duplicate value and key but not the
+  failing row's ordinal in a multi-row `VALUES` statement. If the
+  statement fails before `RETURNING` produces rows, the provider retains
+  every entry from that statement in `DbUpdateException.Entries` instead
+  of guessing from the error text.
 
 #### Neutral
 
@@ -118,6 +126,9 @@ from the inserted value.
 ### Confirmation
 
 - Run `MySqlBulkInsertReturningTests` on MySQL and MariaDB.
+- Run
+  `NonSharedModelUpdatesMySqlTest.DbUpdateException_Entries_is_correct_with_multiple_inserts`
+  on MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
 - Run `BulkInsertBenchmark` and the strict benchmark-ratio gate.
 
 ## Pros and Cons of the Options
@@ -141,15 +152,47 @@ from the inserted value.
 
 ### Implementation Snapshot
 
-- `MySqlUpdateSqlGenerator.AppendBulkInsertOperation` routes between three paths -- single-row (delegates to `AppendInsertOperation`), multi-row write-only (`AppendInsertMultipleRowsInSingleStatementOperation`), and multi-row read-back. On MariaDB 10.5+ the read-back path collapses into a single `INSERT ... VALUES (..),(..) RETURNING ...` statement via `AppendBulkInsertReturningOperation`; on MySQL the read-back path falls back to a per-row INSERT loop because `LAST_INSERT_ID()` only reports the first auto-increment value of a multi-row batch. `MySqlModificationCommandBatch` buffers consecutive `EntityState.Added` commands that pass `CanBeInsertedInSameStatement` (same table + schema + write-column list + read-column list) into `_pendingBulkInsertCommands` and flushes them via `ApplyPendingBulkInsertCommands` on shape change, non-INSERT command, or `Complete`. The integration test `MySqlBulkInsertReturningTests` covers auto-increment, trigger-modified columns, write-only, MySQL per-row fallback, and shape-split. `BulkInsertBenchmark` measures throughput against the per-row baseline for regression detection.
+- `MySqlUpdateSqlGenerator.AppendBulkInsertOperation` routes between
+  single-row, multi-row write-only, and multi-row read-back paths.
+  MariaDB 10.5+ uses one
+  `INSERT ... VALUES (..),(..) RETURNING ...` statement. MySQL uses
+  per-row inserts for generated-value read-back because
+  `LAST_INSERT_ID()` reports only the first generated value.
+- `MySqlModificationCommandBatch` buffers consecutive added commands
+  when table, schema, write columns, and read columns have the same
+  shape. Shape changes, non-insert commands, and `Complete` flush the
+  buffer.
+- `MySqlBulkInsertReturningTests` covers auto-increment values,
+  trigger-modified columns, write-only inserts, the MySQL fallback, and
+  shape splits. `BulkInsertBenchmark` measures throughput against the
+  per-row baseline.
 
 ### Implementation Notes
 
-- The buffered `_pendingBulkInsertCommands` list grows up to the user's `MaxBatchSize` (capped at the existing `DefaultMaxBatchSize = 1000`), then closes early when either of two server-side safety caps would be crossed: the prepared-statement placeholder count (65535, MySQL/MariaDB hard limit) and a conservative `max_allowed_packet` budget (4 MB wire-size estimate at 256 bytes per parameter, under the smallest commonly seen server configuration). The cap event logs once per batch via `MySqlEventId.BulkInsertParameterCountCapped` / `MySqlEventId.BulkInsertPacketSizeCapped` with the effective batch size and the projected count / byte estimate; the first command is always accepted so an oversized single row surfaces with the clean server error instead of silently dropping commands.
-- `CanBeInsertedInSameStatement` compares write- and read-column ColumnName sequences in declaration order. Tables with the same columns in a different order force a shape-split; this is intentional and matches Pomelo's behavior.
-- The shadow property `MySqlModificationCommandBatch.UpdateSqlGenerator` re-types the inherited `IUpdateSqlGenerator` slot to the provider's concrete `MySqlUpdateSqlGenerator` so the bulk-insert entry point is callable without a per-call cast.
-- `AppendBulkInsertReturningOperation` reads the column list from the first command's `ColumnModifications.Where(IsRead)`; the shape check above guarantees the rest of the buffer agrees.
-- The MariaDB fallback path on engines that do not support RETURNING delegates to a `foreach` over `AppendInsertOperation`; on those engines the multi-row read-back batch becomes a series of single-row statements within the same `ModificationCommandBatch`. The result is correctness over throughput on legacy engines, which matches the secure-defaults principle the ADR named.
+- `_pendingBulkInsertCommands` grows to the user's `MaxBatchSize`,
+  subject to the current `DefaultMaxBatchSize = 1000` cap. It closes
+  earlier at the 65535-placeholder limit or the current 4 MB
+  `max_allowed_packet` estimate.
+- Cap events log once per batch with the effective size and projected
+  placeholder or byte count. The first command is always accepted so an
+  oversized row surfaces a server error instead of disappearing.
+- `CanBeInsertedInSameStatement` compares write- and read-column names in
+  declaration order. A different order forces a shape split.
+- The provider-typed `UpdateSqlGenerator` property exposes the bulk
+  insert entry point without a repeated cast.
+- `AppendBulkInsertReturningOperation` reads result columns from the
+  first command. The shape check guarantees that every buffered command
+  has the same result shape.
+- MariaDB versions without `RETURNING` emit a series of single-row
+  statements inside one modification batch. Correct generated-value
+  mapping takes precedence over throughput on those versions.
+- MariaDB 11.4 and 11.8 return error 1062 before a failed multi-row
+  `INSERT ... RETURNING` produces a result set. The official error
+  contract contains the duplicate value and key, but no input-row
+  ordinal. The provider therefore returns all statement entries from
+  `DbUpdateException.Entries`. Parsing a possibly sensitive duplicate
+  value and matching it against entity state would be ambiguous and
+  would couple correctness to error-message text.
 
 ### Additional Alternative Rationale
 
@@ -175,12 +218,16 @@ from the inserted value.
   heuristics misjudged; the parameter-count or packet-size estimator
   would need refinement.
 - MySQL adds a RETURNING contract suitable for multi-row generated-value mapping.
+- MariaDB adds a stable input-row ordinal to errors raised by multi-row
+  `INSERT ... RETURNING`.
 - Packet or placeholder limits change on a supported engine.
 
 ### Decision History
 
 - 2026-05-16: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-07-27: Corrected MySQL RETURNING support and documented MariaDB
+  multi-row error attribution.
 
 ### Implementation References
 
@@ -189,4 +236,14 @@ from the inserted value.
 
 ### Sources
 
-- No external sources; repository evidence only.
+- [MySQL 8.4 INSERT Statement](https://dev.mysql.com/doc/refman/8.4/en/insert.html)
+  (primary source; retrieved 2026-07-27)
+- [MySQL 8.4 Information Functions](https://dev.mysql.com/doc/refman/8.4/en/information-functions.html)
+  (primary source; retrieved 2026-07-27)
+- [MariaDB INSERT...RETURNING][mariadb-insert-returning]
+  (primary source; retrieved 2026-07-27)
+- [MariaDB error 1062](https://mariadb.com/docs/server/reference/error-codes/mariadb-error-codes-1000-to-1099/e1062)
+  (primary source; retrieved 2026-07-27)
+
+[mariadb-insert-returning]:
+  https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/inserting-loading-data/insertreturning

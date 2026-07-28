@@ -3,6 +3,7 @@
     <AssemblyName>Doka.EntityFrameworkCore.MySql.FunctionalTests</AssemblyName>
     <RootNamespace>Doka.EntityFrameworkCore.MySql.FunctionalTests</RootNamespace>
     <IsTestProject>true</IsTestProject>
+    <PreserveCompilationContext>true</PreserveCompilationContext>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj" />
     <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj" />
+    <ProjectReference Include="../Doka.EntityFrameworkCore.MySql.SpecificationAdapters/SpecificationAdapters.csproj" />
     <ProjectReference Include="../../tests/Doka.EntityFrameworkCore.MySql.TestUtilities/Doka.EntityFrameworkCore.MySql.TestUtilities.csproj" />
   </ItemGroup>
 

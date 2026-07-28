@@ -13,4 +13,11 @@ internal sealed class MySqlJsonStringTypeMapping : JsonTypeMapping
     protected override RelationalTypeMapping Clone(
         RelationalTypeMappingParameters parameters
     ) => new MySqlJsonStringTypeMapping(parameters);
+
+    protected override string GenerateNonNullSqlLiteral(
+        object value
+    ) => value is string json
+        ? MySqlSqlLiteralEscaper.EscapeAndQuote(json)
+        : throw new InvalidOperationException(
+            $"Cannot generate a JSON SQL literal from '{value.GetType().FullName}'.");
 }

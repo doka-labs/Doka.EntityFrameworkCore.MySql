@@ -76,16 +76,9 @@ internal sealed class MySqlSqlGenerationHelper : RelationalSqlGenerationHelper
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        if (string.IsNullOrWhiteSpace(schema))
-        {
-            return DelimitIdentifier(name);
-        }
-
-        var builder = new StringBuilder(name.Length + schema.Length + 5);
-        DelimitIdentifier(builder, schema);
-        builder.Append('.');
-        DelimitIdentifier(builder, name);
-        return builder.ToString();
+        // MySQL databases are the physical schema boundary. EF relational
+        // schemas are logical metadata and must not become cross-database names.
+        return DelimitIdentifier(name);
     }
 
     public override void DelimitIdentifier(
@@ -96,12 +89,6 @@ internal sealed class MySqlSqlGenerationHelper : RelationalSqlGenerationHelper
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-
-        if (!string.IsNullOrWhiteSpace(schema))
-        {
-            DelimitIdentifier(builder, schema);
-            builder.Append('.');
-        }
 
         DelimitIdentifier(builder, name);
     }

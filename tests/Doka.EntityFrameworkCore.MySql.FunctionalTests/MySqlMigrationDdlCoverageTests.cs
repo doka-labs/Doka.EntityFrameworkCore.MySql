@@ -53,7 +53,7 @@ public sealed class MySqlMigrationDdlCoverageTests
     // -- ALTER SEQUENCE --
 
     [Fact]
-    public void AlterSequence_mysql_generates_comment()
+    public void AlterSequence_mysql_updates_persisted_metadata()
     {
         using var context = CreateMySqlContext();
         var generator = context.GetService<IMigrationsSqlGenerator>();
@@ -66,8 +66,9 @@ public sealed class MySqlMigrationDdlCoverageTests
         var commands = generator.Generate([operation], context.Model);
         var sql = JoinSql(commands);
 
-        // MySQL emulation: increment changes are applied at fetch time.
-        Assert.Contains("--", sql, StringComparison.Ordinal);
+        Assert.Contains("UPDATE `__efsequence_TestSeq`", sql, StringComparison.Ordinal);
+        Assert.Contains("`increment_by` = 5", sql, StringComparison.Ordinal);
+        Assert.Contains("`is_cyclic` = FALSE", sql, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -109,11 +110,19 @@ public sealed class MySqlMigrationDdlCoverageTests
         Assert.Contains("CREATE TABLE `__efsequence_OrderSeq`", sql, StringComparison.Ordinal);
         Assert.Contains("`id` TINYINT UNSIGNED NOT NULL", sql, StringComparison.Ordinal);
         Assert.Contains("`value` BIGINT NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("`start_value` BIGINT NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("`increment_by` INT NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("`min_value` BIGINT NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("`max_value` BIGINT NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("`is_cyclic` BOOLEAN NOT NULL", sql, StringComparison.Ordinal);
         Assert.Contains("`is_called` BOOLEAN NOT NULL", sql, StringComparison.Ordinal);
         Assert.Contains("PRIMARY KEY (`id`)", sql, StringComparison.Ordinal);
         Assert.Contains("CHECK (`id` = 1)", sql, StringComparison.Ordinal);
         Assert.Contains("INSERT INTO `__efsequence_OrderSeq`", sql, StringComparison.Ordinal);
-        Assert.Contains("VALUES (1, 1, FALSE)", sql, StringComparison.Ordinal);
+        Assert.Contains(
+            "VALUES (1, 1, 1, 10, 1, 9223372036854775806, FALSE, FALSE)",
+            sql,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -214,7 +223,42 @@ public sealed class MySqlMigrationDdlCoverageTests
 
         var sql = JoinSql(generator.Generate([operation], context.Model));
 
-        Assert.Contains("RENAME TABLE `__efsequence_OldSeq` TO `__efsequence_evil``new`", sql, StringComparison.Ordinal);
+        Assert.Contains(
+            "RENAME TABLE `__efsequence_OldSeq` TO `__efsequence_evil``new`",
+            sql,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenameSequence_native_renames_the_sequence_table()
+    {
+        using var context = CreateMariaDbContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new RenameSequenceOperation
+        {
+            Name = "OldSeq",
+            NewName = "NewSeq",
+        };
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains("RENAME TABLE `OldSeq` TO `NewSeq`", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RestartSequence_native_updates_start_metadata_and_next_value()
+    {
+        using var context = CreateMariaDbContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new RestartSequenceOperation
+        {
+            Name = "TestSeq",
+            StartValue = 3,
+        };
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains("START WITH 3 RESTART WITH 3", sql, StringComparison.Ordinal);
     }
 
     // -- SPATIAL INDEX --

@@ -37,13 +37,16 @@ public static class MySqlServiceCollectionExtensions
             .TryAdd<IAggregateMethodCallTranslatorPlugin, MySqlAggregateMethodCallTranslatorPlugin>()
             .TryAdd<IProviderConventionSetBuilder, MySqlConventionSetBuilder>()
             .TryAdd<IQuerySqlGeneratorFactory, MySqlQuerySqlGeneratorFactory>()
-            .TryAdd<IQueryableMethodTranslatingExpressionVisitorFactory, MySqlQueryableMethodTranslatingExpressionVisitorFactory>()
+            .TryAdd<IQueryableMethodTranslatingExpressionVisitorFactory,
+                MySqlQueryableMethodTranslatingExpressionVisitorFactory>()
+            .TryAdd<IQueryTranslationPostprocessorFactory, MySqlQueryTranslationPostprocessorFactory>()
             .TryAdd<ISqlGenerationHelper, MySqlSqlGenerationHelper>()
             .TryAdd<IModelValidator, MySqlModelValidator>()
             .TryAdd<IMigrationsAnnotationProvider, MySqlMigrationsAnnotationProvider>()
             .TryAdd<IMigrationsSqlGenerator, MySqlMigrationsSqlGenerator>()
             .TryAdd<IHistoryRepository, MySqlHistoryRepository>()
             .TryAdd<IUpdateSqlGenerator, MySqlUpdateSqlGenerator>()
+            .TryAdd<IModificationCommandFactory, MySqlModificationCommandFactory>()
             .TryAdd<IModificationCommandBatchFactory, MySqlModificationCommandBatchFactory>()
             .TryAdd<IValueGeneratorSelector, MySqlValueGeneratorSelector>()
             .TryAddProviderSpecificServices(serviceCollectionMap => serviceCollectionMap

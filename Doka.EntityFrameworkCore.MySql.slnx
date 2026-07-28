@@ -6,6 +6,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj" />
     <Project Path="tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Doka.EntityFrameworkCore.MySql.IntegrationTests.csproj" />
+    <Project Path="tests/Doka.EntityFrameworkCore.MySql.SpecificationAdapters/SpecificationAdapters.csproj" />
     <Project Path="tests/Doka.EntityFrameworkCore.MySql.Tests/Doka.EntityFrameworkCore.MySql.Tests.csproj" />
     <Project Path="tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke/Doka.EntityFrameworkCore.MySql.RuntimeSmoke.csproj" />
     <Project Path="tests/Doka.EntityFrameworkCore.MySql.TestUtilities/Doka.EntityFrameworkCore.MySql.TestUtilities.csproj" />

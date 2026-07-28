@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore.Design.Internal;
-using Microsoft.EntityFrameworkCore.Scaffolding.Metadata;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
@@ -114,6 +113,30 @@ public sealed class MySqlReverseEngineeringBaselineTests
             scaffoldedModel.AdditionalFiles.Single()
                 .Code,
             StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that reverse engineering removes only semantically irrelevant integer
+    /// display widths while retaining unsigned, boolean, and ZEROFILL behavior.
+    /// </summary>
+    [Theory]
+    [InlineData("int", "int(11)", "int")]
+    [InlineData("integer", "int(11)", "int")]
+    [InlineData("bigint", "bigint(20)", "bigint")]
+    [InlineData("smallint", "smallint(6) unsigned", "smallint unsigned")]
+    [InlineData("tinyint", "tinyint(4)", "tinyint")]
+    [InlineData("tinyint", "tinyint(1)", "tinyint(1)")]
+    [InlineData("int", "int(6) zerofill", "int(6) zerofill")]
+    [InlineData("varchar", "varchar(11)", "varchar(11)")]
+    public void Reverse_engineering_normalizes_integer_display_widths(
+        string dataType,
+        string storeType,
+        string expected
+    )
+    {
+        Assert.Equal(
+            expected,
+            ColumnLoader.NormalizeIntegerDisplayWidth(dataType, storeType));
     }
 
     private static ScaffoldedModel ScaffoldModel(

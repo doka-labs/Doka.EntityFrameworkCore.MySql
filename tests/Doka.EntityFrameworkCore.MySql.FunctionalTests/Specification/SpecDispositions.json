@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "lastReviewedAt": "2026-07-27",
+  "lastReviewedAt": "2026-07-28",
   "policy": {
     "providerGapBudget": 0,
     "statement": "Every applicable EF Core relational specification behavior must run. A skip is permitted only for a primary-source-backed database-engine limitation, an upstream EF Core limitation reached before provider-owned translation can solve it, or a structurally inapplicable historical test.",
@@ -12,7 +12,7 @@
       "A concrete re-evaluation trigger"
     ],
     "frameworkLimitationRequirements": [
-      "The upstream EF Core specification test is itself skipped with a linked dotnet/efcore issue",
+      "The upstream EF Core specification test is itself skipped and is backed by either its linked dotnet/efcore issue or both the exact upstream skip source and the framework enforcement source",
       "The failure is reproduced with the upstream skip disabled",
       "The failure is attributable to framework-owned translation or semantics rather than provider SQL capability",
       "A retrieval date and concrete re-evaluation trigger"
@@ -25,6 +25,284 @@
     "mariadb118"
   ],
   "activeDispositions": [
+    {
+      "id": "MYSQL-MARIADB-IMMEDIATE-SELF-FK-DELETE",
+      "classification": "engine-limitation",
+      "suite": "bulk-updates",
+      "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TphInheritanceBulkUpdatesMySqlTest",
+      "targets": [
+        "mysql84",
+        "mariadb114"
+      ],
+      "summary": "MySQL 8.4 and MariaDB 11.4 immediately enforce a self-referencing NO ACTION foreign key while deleting a set that contains both the dependent and principal rows.",
+      "testMethods": [
+        "TphInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_3"
+      ],
+      "discoveredTestIds": [
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TphInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_3"
+      ],
+      "primarySources": [
+        {
+          "publisher": "MySQL",
+          "title": "FOREIGN KEY Constraints",
+          "url": "https://dev.mysql.com/doc/refman/8.4/en/create-table-foreign-keys.html",
+          "retrievedAt": "2026-07-27",
+          "supports": "The Referential Actions section states that InnoDB treats NO ACTION as RESTRICT and immediately rejects a parent delete while a related foreign-key value exists. The same page explicitly permits self-referential foreign keys."
+        },
+        {
+          "publisher": "MariaDB",
+          "title": "Foreign Keys",
+          "url": "https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/optimization-and-indexes/foreign-keys",
+          "retrievedAt": "2026-07-27",
+          "supports": "The Constraints section states that RESTRICT is the default ON DELETE behavior, NO ACTION is its synonym, and the change fails with error 1451 when a child row exists."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-27",
+        "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~TphInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_3",
+        "observations": [
+          {
+            "target": "mysql84",
+            "result": "Both sync and async invocations fail with error 1451 because Animals.EagleId still references the selected principal row when InnoDB checks the delete."
+          },
+          {
+            "target": "mariadb114",
+            "result": "Both sync and async invocations fail with the same error 1451 and self-referencing Animals.EagleId constraint."
+          }
+        ]
+      },
+      "providerWorkaroundAssessment": "The provider already isolates the target-table subquery, so the statement reaches execution. Nulling or deleting dependent rows first would require extra DML, would change the configured NO ACTION relationship semantics when a dependent is outside the query result, and would change ExecuteDelete's affected-row contract. Disabling foreign_key_checks would weaken integrity for the whole session. No general single-statement rewrite can preserve the query, relationship, and row-count semantics under immediate RESTRICT enforcement.",
+      "reevaluateWhen": "Re-run the probe when MySQL or MariaDB documents statement-end NO ACTION checks for InnoDB, or when a supported target replaces MariaDB 11.4. MariaDB 11.8 remains active because this exact specification case passes there."
+    },
+    {
+      "id": "MYSQL-MARIADB-FILTERED-INDEXES",
+      "classification": "engine-limitation",
+      "suite": "migrations",
+      "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Migrations.FullMigrationsMySqlTest",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "MySQL 8.4 and MariaDB 11.4/11.8 do not provide a predicate clause for partial or filtered indexes.",
+      "testMethods": [
+        "FullMigrationsMySqlTest.Create_index_with_filter",
+        "FullMigrationsMySqlTest.Create_unique_index_with_filter"
+      ],
+      "discoveredTestIds": [
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Migrations.FullMigrationsMySqlTest.Create_index_with_filter",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Migrations.FullMigrationsMySqlTest.Create_unique_index_with_filter"
+      ],
+      "primarySources": [
+        {
+          "publisher": "MySQL",
+          "title": "MySQL 8.4 Reference Manual: CREATE INDEX Statement",
+          "url": "https://dev.mysql.com/doc/refman/8.4/en/create-index.html",
+          "retrievedAt": "2026-07-28",
+          "supports": "The complete CREATE INDEX grammar permits column, prefix, or functional key parts followed by index, algorithm, and lock options; it defines no WHERE predicate or partial-index clause."
+        },
+        {
+          "publisher": "MariaDB",
+          "title": "CREATE INDEX",
+          "url": "https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/create-index",
+          "retrievedAt": "2026-07-28",
+          "supports": "The complete CREATE INDEX grammar for the supported MariaDB lines permits column key parts and documented index options but defines no WHERE predicate or partial-index clause."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-28",
+        "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~FullMigrationsMySqlTest.Create_index_with_filter|FullyQualifiedName~FullMigrationsMySqlTest.Create_unique_index_with_filter",
+        "observations": [
+          {
+            "target": "mysql84",
+            "result": "Both the non-unique and unique CREATE INDEX statements fail with a syntax error at their WHERE predicate."
+          },
+          {
+            "target": "mariadb114",
+            "result": "Both statements fail with the MariaDB syntax error at WHERE; the unique case includes the compound Name predicate."
+          },
+          {
+            "target": "mariadb118",
+            "result": "Both statements fail with the same syntax error at WHERE, confirming that MariaDB 11.8 has not added filtered-index grammar."
+          }
+        ]
+      },
+      "providerWorkaroundAssessment": "Ignoring the predicate would silently change index storage and, for unique indexes, constraint semantics. MySQL functional key parts and generated columns can emulate only predicates accepted by generated-expression restrictions; MariaDB requires a different generated-column shape. Both approaches add synthetic schema state, change the index column identity, and cannot preserve the general relational filter contract for arbitrary predicates. There is no general semantics-preserving provider rewrite across all supported targets.",
+      "reevaluateWhen": "Re-run the probe when a supported MySQL or MariaDB release adds a native predicate clause for CREATE INDEX or another native index form that preserves arbitrary relational filter semantics and reverse-engineered index identity."
+    },
+    {
+      "id": "EFCORE-28525-BULK-ENTITY-PROJECTION",
+      "classification": "framework-limitation",
+      "suite": "bulk-updates",
+      "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "EF Core rejects ExecuteDelete directly over a grouped projection whose shaper is an entity.",
+      "testMethods": [
+        "NorthwindBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select",
+        "TpcFiltersInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First",
+        "TpcInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First",
+        "TphInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First",
+        "TptFiltersInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First",
+        "TptInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First"
+      ],
+      "discoveredTestIds": [
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.NorthwindBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TpcFiltersInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TpcInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TphInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TptFiltersInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TptInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First"
+      ],
+      "primarySources": [
+        {
+          "publisher": "EF Core",
+          "title": "Issue 28525: Bulk Delete on result of First family in projection",
+          "url": "https://github.com/dotnet/efcore/issues/28525",
+          "retrievedAt": "2026-07-27",
+          "supports": "The open backlog issue contains the same official specification shape and states that EF Core's entity projection shaper and delete structure cannot currently represent it."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-27",
+        "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Specification.BulkUpdates",
+        "observations": [
+          {
+            "target": "mysql84",
+            "result": "All 12 sync and async invocations fail before provider SQL generation with ExecuteDeleteOnNonEntityType."
+          },
+          {
+            "target": "mariadb114",
+            "result": "All 12 invocations fail at the same EF Core non-entity-projection boundary before provider SQL generation."
+          },
+          {
+            "target": "mariadb118",
+            "result": "All 12 invocations fail at the same EF Core non-entity-projection boundary before provider SQL generation."
+          }
+        ]
+      },
+      "frameworkBoundaryAssessment": "RelationalQueryableMethodTranslatingExpressionVisitor.TranslateExecuteDelete rejects the shaped query before IsValidSelectExpressionForExecuteDelete or the provider SQL generator is invoked. A provider cannot recover the discarded entity projection through SQL translation hooks.",
+      "reevaluateWhen": "Re-run the probe when dotnet/efcore issue 28525 closes or the consumed EF Core patch changes its grouped entity projection or ExecuteDelete translation."
+    },
+    {
+      "id": "EFCORE-26753-GROUPING-FIRST-PROPERTY",
+      "classification": "framework-limitation",
+      "suite": "bulk-updates",
+      "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "EF Core cannot bind entity key properties from a GroupBy projection followed by First or FirstOrDefault.",
+      "testMethods": [
+        "NorthwindBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_2",
+        "NorthwindBulkUpdatesMySqlTest.Update_Where_GroupBy_First_set_constant_2",
+        "TpcFiltersInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_2",
+        "TpcInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_2",
+        "TphInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_2",
+        "TptFiltersInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_2",
+        "TptInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_2"
+      ],
+      "discoveredTestIds": [
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.NorthwindBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_2",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.NorthwindBulkUpdatesMySqlTest.Update_Where_GroupBy_First_set_constant_2",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TpcFiltersInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_2",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TpcInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_2",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TphInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_2",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TptFiltersInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_2",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TptInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_2"
+      ],
+      "primarySources": [
+        {
+          "publisher": "EF Core",
+          "title": "Issue 26753: Property binding on the result entity from grouping.First",
+          "url": "https://github.com/dotnet/efcore/issues/26753",
+          "retrievedAt": "2026-07-27",
+          "supports": "The open backlog issue states that the shaped query produced by GroupBy followed by First is not an entity reference, so mapped property binding fails."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-27",
+        "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Specification.BulkUpdates",
+        "observations": [
+          {
+            "target": "mysql84",
+            "result": "All 14 sync and async invocations fail while EF Core binds EF.Property for the grouped First or FirstOrDefault entity, before provider SQL generation."
+          },
+          {
+            "target": "mariadb114",
+            "result": "All 14 invocations fail at the same EF Core property-binding boundary before provider SQL generation."
+          },
+          {
+            "target": "mariadb118",
+            "result": "All 14 invocations fail at the same EF Core property-binding boundary before provider SQL generation."
+          }
+        ]
+      },
+      "frameworkBoundaryAssessment": "RelationalSqlTranslatingExpressionVisitor fails to rewrite entity equality because the GroupBy/First shaper no longer exposes an entity reference. The provider receives neither a SqlExpression nor an update/delete tree, so a method translator or SQL generator cannot intervene.",
+      "reevaluateWhen": "Re-run the probe when dotnet/efcore issue 26753 closes or the consumed EF Core patch changes grouped First entity property binding."
+    },
+    {
+      "id": "EFCORE-TPC-NONLEAF-BULK-UPDATE",
+      "classification": "framework-limitation",
+      "evidenceKind": "source-contract",
+      "suite": "bulk-updates",
+      "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "EF Core rejects ExecuteUpdate on a non-leaf TPC entity before provider-owned update validation.",
+      "testMethods": [
+        "TpcFiltersInheritanceBulkUpdatesMySqlTest.Update_where_hierarchy_subquery",
+        "TpcInheritanceBulkUpdatesMySqlTest.Update_where_hierarchy_subquery"
+      ],
+      "discoveredTestIds": [
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TpcFiltersInheritanceBulkUpdatesMySqlTest.Update_where_hierarchy_subquery",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TpcInheritanceBulkUpdatesMySqlTest.Update_where_hierarchy_subquery"
+      ],
+      "primarySources": [
+        {
+          "publisher": "EF Core",
+          "title": "Inheritance bulk-update specification skip",
+          "url": "https://github.com/dotnet/efcore/blob/v10.0.8/test/EFCore.Specification.Tests/BulkUpdates/InheritanceBulkUpdatesTestBase.cs",
+          "retrievedAt": "2026-07-27",
+          "supports": "The official EF Core 10.0.8 specification marks Update_where_hierarchy_subquery skipped before provider subclasses run it."
+        },
+        {
+          "publisher": "EF Core",
+          "title": "Relational ExecuteUpdate translation",
+          "url": "https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Query/RelationalQueryableMethodTranslatingExpressionVisitor.ExecuteUpdate.cs",
+          "retrievedAt": "2026-07-27",
+          "supports": "TranslateExecuteUpdate rejects TpcTablesExpression before calling the provider-overridable IsValidSelectExpressionForExecuteUpdate method."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-27",
+        "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Update_where_hierarchy_subquery",
+        "observations": [
+          {
+            "target": "mysql84",
+            "result": "Both TPC fixture variants fail in sync and async mode with ExecuteOperationOnTPC before provider update validation."
+          },
+          {
+            "target": "mariadb114",
+            "result": "Both TPC fixture variants fail at the same EF Core TpcTablesExpression guard before provider update validation."
+          },
+          {
+            "target": "mariadb118",
+            "result": "Both TPC fixture variants fail at the same EF Core TpcTablesExpression guard before provider update validation."
+          }
+        ]
+      },
+      "frameworkBoundaryAssessment": "The TPC base entity spans multiple concrete tables. EF Core deliberately rejects its TpcTablesExpression before the provider's native update-shape hook is called, so no provider extension point receives a translatable update tree.",
+      "reevaluateWhen": "Re-run the probe when the consumed EF Core patch removes the TpcTablesExpression guard or documents multi-table ExecuteUpdate support for non-leaf TPC entities."
+    },
     {
       "id": "MDB-CORRELATED-DERIVED-TABLE",
       "classification": "engine-limitation",

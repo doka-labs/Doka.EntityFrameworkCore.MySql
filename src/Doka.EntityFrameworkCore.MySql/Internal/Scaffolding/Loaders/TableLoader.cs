@@ -45,19 +45,27 @@ internal static class TableLoader
 
             var tableType = reader.IsDBNull(4) ? "BASE TABLE" : reader.GetString(4);
             var isView = string.Equals(tableType, "VIEW", StringComparison.OrdinalIgnoreCase);
+            var comment = reader.IsDBNull(2)
+                ? null
+                : reader.GetString(2);
+
+            if (string.IsNullOrEmpty(comment))
+            {
+                comment = null;
+            }
 
             var table = isView
                 ? new DatabaseView
                 {
                     Database = context.DatabaseModel,
                     Name = tableName,
-                    Comment = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    Comment = comment,
                 }
                 : new DatabaseTable
                 {
                     Database = context.DatabaseModel,
                     Name = tableName,
-                    Comment = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    Comment = comment,
                 };
 
             var tableCollation = reader.IsDBNull(1) ? null : reader.GetString(1);

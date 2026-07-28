@@ -20,6 +20,7 @@ public class SpecDispositionContractTests
 
     private static readonly string[] s_supportedSuites =
     [
+        "bulk-updates",
         "migrations",
         "query-json",
     ];
@@ -31,7 +32,7 @@ public class SpecDispositionContractTests
         "mariadb.com",
     ];
 
-    private static readonly string[] s_officialEfCoreIssueHosts =
+    private static readonly string[] s_officialEfCoreHosts =
     [
         "github.com",
     ];
@@ -124,13 +125,8 @@ public class SpecDispositionContractTests
             }
 
             Assert.Equal("framework-limitation", classification);
-            ValidatePrimarySources(disposition, s_officialEfCoreIssueHosts);
-            Assert.All(
-                disposition.GetProperty("primarySources").EnumerateArray(),
-                source => Assert.StartsWith(
-                    "/dotnet/efcore/issues/",
-                    new Uri(RequiredString(source, "url"), UriKind.Absolute).AbsolutePath,
-                    StringComparison.Ordinal));
+            ValidatePrimarySources(disposition, s_officialEfCoreHosts);
+            ValidateFrameworkEvidence(disposition);
             Assert.False(string.IsNullOrWhiteSpace(
                 RequiredString(disposition, "frameworkBoundaryAssessment")));
             Assert.Equal(
@@ -192,13 +188,14 @@ public class SpecDispositionContractTests
                                  StringComparer.Ordinal)))
                 {
                     var fixture = RequiredString(disposition, "fixture");
-                    var methodNames = StringValues(disposition.GetProperty("testMethods"))
-                        .Select(MethodName)
-                        .ToArray();
+                    var methodIdentifiers = StringValues(disposition.GetProperty("testMethods"));
                     var expected = targetTestIds
                         .Where(testId =>
                             testId.StartsWith($"{fixture}.", StringComparison.Ordinal)
-                            && methodNames.Any(method => IsMethodDisplayId(testId, method)))
+                            && methodIdentifiers.Any(
+                                methodIdentifier => IsMethodDisplayId(
+                                    testId,
+                                    methodIdentifier)))
                         .OrderBy(value => value, StringComparer.Ordinal)
                         .ToArray();
                     var actual = StringValues(disposition.GetProperty("discoveredTestIds"))
@@ -242,30 +239,51 @@ public class SpecDispositionContractTests
             .ToArray();
 
         var methods = SpecificationMethods();
-        var executableEngineSkips = methods
+        var executableEngineTheorySkips = methods
             .Select(method => new
             {
                 Method = method,
-                Attribute = method.GetCustomAttribute<SpecEngineLimitationTheoryAttribute>(
+                Disposition = method.GetCustomAttribute<SpecEngineLimitationTheoryAttribute>(
                     inherit: false),
             })
-            .Where(item => item.Attribute is not null)
+            .Where(item => item.Disposition is not null)
+            .Select(item => new
+            {
+                item.Method,
+                DispositionId = item.Disposition!.DispositionId,
+                UnsupportedTargets = (IReadOnlyList<string>)item.Disposition.UnsupportedTargets,
+            });
+        var executableEngineFactSkips = methods
+            .Select(method => new
+            {
+                Method = method,
+                Disposition = method.GetCustomAttribute<SpecEngineLimitationFactAttribute>(
+                    inherit: false),
+            })
+            .Where(item => item.Disposition is not null)
+            .Select(item => new
+            {
+                item.Method,
+                DispositionId = item.Disposition!.DispositionId,
+                UnsupportedTargets = (IReadOnlyList<string>)item.Disposition.UnsupportedTargets,
+            });
+        var executableEngineSkips = executableEngineTheorySkips
+            .Concat(executableEngineFactSkips)
             .ToArray();
 
         var actualEngineMethods = new List<string>();
         foreach (var item in executableEngineSkips)
         {
-            var attribute = item.Attribute!;
             Assert.True(
-                engineDispositions.TryGetValue(attribute.DispositionId, out var disposition),
-                $"Engine disposition '{attribute.DispositionId}' is absent from the ledger.");
+                engineDispositions.TryGetValue(item.DispositionId, out var disposition),
+                $"Engine disposition '{item.DispositionId}' is absent from the ledger.");
 
             var methodName = LedgerMethodName(item.Method);
             actualEngineMethods.Add(methodName);
             Assert.Contains(methodName, StringValues(disposition.GetProperty("testMethods")));
             Assert.Equal(
                 StringValues(disposition.GetProperty("targets")).OrderBy(value => value),
-                attribute.UnsupportedTargets.OrderBy(value => value));
+                item.UnsupportedTargets.OrderBy(value => value));
         }
 
         var documentedEngineMethods = engineDispositions.Values
@@ -408,16 +426,12 @@ public class SpecDispositionContractTests
         MethodInfo method
     ) => $"{method.DeclaringType!.Name}.{method.Name}";
 
-    private static string MethodName(
-        string ledgerMethodName
-    ) => ledgerMethodName[(ledgerMethodName.IndexOf('.', StringComparison.Ordinal) + 1)..];
-
     private static bool IsMethodDisplayId(
         string testId,
-        string methodName
+        string methodIdentifier
     )
     {
-        var marker = $".{methodName}";
+        var marker = $".{methodIdentifier}";
         var methodStart = testId.LastIndexOf(marker, StringComparison.Ordinal);
         if (methodStart < 0)
         {
@@ -479,6 +493,53 @@ public class SpecDispositionContractTests
                 retrievedAt <= DateOnly.FromDateTime(DateTime.UtcNow),
                 $"Disposition '{dispositionId}' has a future retrieval date.");
         }
+    }
+
+    private static void ValidateFrameworkEvidence(
+        JsonElement disposition
+    )
+    {
+        var sources = disposition
+            .GetProperty("primarySources")
+            .EnumerateArray()
+            .Select(source => new Uri(
+                RequiredString(source, "url"),
+                UriKind.Absolute).AbsolutePath)
+            .ToArray();
+        var evidenceKind = disposition.TryGetProperty(
+            "evidenceKind",
+            out var evidenceKindProperty)
+                ? evidenceKindProperty.GetString()
+                : "issue";
+
+        if (evidenceKind == "issue")
+        {
+            Assert.All(
+                sources,
+                source => Assert.StartsWith(
+                    "/dotnet/efcore/issues/",
+                    source,
+                    StringComparison.Ordinal));
+            return;
+        }
+
+        Assert.Equal("source-contract", evidenceKind);
+        Assert.Contains(
+            sources,
+            source => source.StartsWith(
+                "/dotnet/efcore/blob/v",
+                StringComparison.Ordinal)
+                && source.Contains(
+                    "/test/",
+                    StringComparison.Ordinal));
+        Assert.Contains(
+            sources,
+            source => source.StartsWith(
+                "/dotnet/efcore/blob/v",
+                StringComparison.Ordinal)
+                && source.Contains(
+                    "/src/",
+                    StringComparison.Ordinal));
     }
 
     private static void ValidateProbe(

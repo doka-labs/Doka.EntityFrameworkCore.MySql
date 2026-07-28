@@ -2,6 +2,11 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
 {
+    // utf8mb4 uses at most four bytes per character. A 255-character key part
+    // therefore occupies at most 1,020 bytes and lets three conventional parts
+    // fit below the 3,072-byte index limit of every supported engine.
+    private const int DefaultKeyOrIndexLength = 255;
+
     private const int DefaultDateTimePrecision = 6;
     private const int DefaultTimePrecision = 6;
 
@@ -41,10 +46,13 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         DefaultDecimalScale);
 
     private static readonly RelationalTypeMapping s_dateTimeMapping =
-        new DateTimeTypeMapping("datetime(6)", DbType.DateTime);
+        new MySqlDateTimeTypeMapping("datetime(6)");
 
     private static readonly RelationalTypeMapping s_timestampMapping =
-        new DateTimeTypeMapping("timestamp(6)", DbType.DateTime);
+        new MySqlDateTimeTypeMapping("timestamp(6)");
+
+    private static readonly RelationalTypeMapping s_rowVersionMapping =
+        new MySqlRowVersionTypeMapping();
 
     private static readonly RelationalTypeMapping s_dateOnlyMapping = new DateOnlyTypeMapping("date", DbType.Date);
     private static readonly RelationalTypeMapping s_timeOnlyMapping = new TimeOnlyTypeMapping("time(6)", DbType.Time);
@@ -254,6 +262,12 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
             return s_jsonContainerColumnMapping;
         }
 
+        if (clrType == typeof(byte[])
+            && mappingInfo.IsRowVersion == true)
+        {
+            return s_rowVersionMapping;
+        }
+
         if (clrType is not null)
         {
             if (clrType == typeof(decimal))
@@ -367,7 +381,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         return normalizedStoreType == "tinyint(1)" || normalizedStoreType == "tinyint(1) unsigned";
     }
 
-    private static RelationalTypeMapping AdjustMappingForFacets(
+    private RelationalTypeMapping AdjustMappingForFacets(
         RelationalTypeMapping mapping,
         RelationalTypeMappingInfo mappingInfo,
         string? normalizedStoreType
@@ -449,18 +463,19 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         string? normalizedStoreType
     )
     {
-        var isFixedLength = mappingInfo.IsFixedLength == true || normalizedStoreType == "char";
-        var size = mappingInfo.Size;
+        var size = mappingInfo.Size
+            ?? (mappingInfo.IsKeyOrIndex ? DefaultKeyOrIndexLength : null);
+        var isFixedLength =
+            (mappingInfo.IsFixedLength == true || normalizedStoreType == "char")
+            && size is > 0;
 
         if (isFixedLength)
         {
-            var resolvedSize = size.GetValueOrDefault(1);
-
             return new StringTypeMapping(
-                $"char({resolvedSize})",
+                $"char({size})",
                 DbType.StringFixedLength,
                 unicode: true,
-                resolvedSize);
+                size);
         }
 
         return size is > 0
@@ -468,16 +483,27 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
             : new StringTypeMapping("longtext", DbType.String, unicode: true);
     }
 
-    private static ByteArrayTypeMapping CreateByteArrayMapping(
+    private ByteArrayTypeMapping CreateByteArrayMapping(
         RelationalTypeMappingInfo mappingInfo,
         string? normalizedStoreType
     )
     {
-        var size = mappingInfo.Size;
-        var storeType = normalizedStoreType == "binary" && size == 16 ? "binary(16)" :
-            size is > 0 ? $"varbinary({size.Value})" : "longblob";
+        var size = mappingInfo.Size ?? (mappingInfo.IsKeyOrIndex ? DefaultKeyOrIndexLength : null);
+        var storeSize =
+            size == 16
+            && normalizedStoreType is null
+            && _mySqlSingletonOptions.DefaultGuidFormat == MySqlGuidFormat.Binary16
+                ? 17
+                : size;
 
-        return new ByteArrayTypeMapping(storeType, DbType.Binary, size);
+        // MySqlConnector's Binary16 mode materializes every implicit 16-byte
+        // binary column as Guid. VARBINARY(17) still stores a 16-byte payload
+        // without padding or extra data, while keeping ordinary byte[] and
+        // Guid-to-byte converters on the driver's binary-reader path.
+        var storeType = normalizedStoreType == "binary" && size == 16 ? "binary(16)" :
+            storeSize is > 0 ? $"varbinary({storeSize.Value})" : "longblob";
+
+        return new ByteArrayTypeMapping(storeType, DbType.Binary, storeSize is > 0 ? storeSize : null);
     }
 
     private static RelationalTypeMapping CreateEnumMapping(
@@ -539,20 +565,20 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
             : $"decimal({DefaultDecimalPrecision},{scale!.Value})";
     }
 
-    private static DateTimeTypeMapping CreateDateTimeMapping(
+    private static MySqlDateTimeTypeMapping CreateDateTimeMapping(
         RelationalTypeMappingInfo mappingInfo,
         string? normalizedStoreType = null
     )
     {
         if (!string.IsNullOrWhiteSpace(mappingInfo.StoreTypeName))
         {
-            return new DateTimeTypeMapping(mappingInfo.StoreTypeName, DbType.DateTime);
+            return new MySqlDateTimeTypeMapping(mappingInfo.StoreTypeName);
         }
 
         var precision = mappingInfo.Precision ?? DefaultDateTimePrecision;
         var storeTypeBase = normalizedStoreType == "timestamp" ? "timestamp" : "datetime";
 
-        return new DateTimeTypeMapping($"{storeTypeBase}({precision})", DbType.DateTime);
+        return new MySqlDateTimeTypeMapping($"{storeTypeBase}({precision})");
     }
 
     private static TimeOnlyTypeMapping CreateTimeOnlyMapping(

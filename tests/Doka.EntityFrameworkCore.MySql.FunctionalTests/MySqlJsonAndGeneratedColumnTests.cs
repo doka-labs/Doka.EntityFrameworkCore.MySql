@@ -113,10 +113,11 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     }
 
     /// <summary>
-    /// Verifies that generated columns must choose the virtual or stored variant explicitly.
+    /// Verifies that an unspecified generated-column variant uses the native
+    /// virtual default instead of introducing a provider-only restriction.
     /// </summary>
     [Fact]
-    public void Generated_columns_require_an_explicit_variant()
+    public void Generated_columns_without_an_explicit_variant_are_virtual()
     {
         using var context = new MySqlJsonContext(
             CreateOptions<MySqlJsonContext>(MySqlServerVersion.MySql(new Version(8, 4, 0))));
@@ -125,11 +126,12 @@ public sealed class MySqlJsonAndGeneratedColumnTests
 
         operation.Columns[1].IsStored = null;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
+        var command = Assert.Single(generator.Generate([operation], context.Model));
 
         Assert.Contains(
-            "explicitly choose either the virtual or stored variant",
-            exception.Message,
+            "`VirtualKind` varchar(64) GENERATED ALWAYS AS "
+                + "(JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))) VIRTUAL NOT NULL",
+            command.CommandText,
             StringComparison.OrdinalIgnoreCase);
     }
 

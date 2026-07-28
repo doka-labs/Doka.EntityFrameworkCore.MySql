@@ -13,6 +13,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
 {
     private readonly MySqlSingletonOptions _singletonOptions;
+    private readonly RelationalTypeMapping _stringTypeMapping;
 
     public MySqlUpdateSqlGenerator(
         UpdateSqlGeneratorDependencies dependencies,
@@ -24,6 +25,9 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
         _singletonOptions = singletonOptions
             .OfType<MySqlSingletonOptions>()
             .Single();
+        _stringTypeMapping = dependencies.TypeMappingSource.FindMapping(typeof(string))
+            ?? throw new InvalidOperationException(
+                "The MySQL update SQL generator requires a string type mapping.");
     }
 
     /// <inheritdoc />
@@ -37,9 +41,222 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
         ArgumentNullException.ThrowIfNull(commandStringBuilder);
         ArgumentNullException.ThrowIfNull(command);
 
+        if (!command.ColumnModifications.Any(c => c.IsRead))
+        {
+            AppendInsertCommand(
+                commandStringBuilder,
+                command.TableName,
+                command.Schema,
+                command
+                    .ColumnModifications.Where(c => c.IsWrite)
+                    .ToList(),
+                []);
+
+            requiresTransaction = false;
+            return ResultSetMapping.NoResults;
+        }
+
         return _singletonOptions.Profile?.Has(Capability.SupportsReturningClause) == true
             ? AppendInsertReturningOperation(commandStringBuilder, command, out requiresTransaction)
             : base.AppendInsertOperation(commandStringBuilder, command, commandPosition, out requiresTransaction);
+    }
+
+    /// <inheritdoc />
+    public override ResultSetMapping AppendStoredProcedureCall(
+        StringBuilder commandStringBuilder,
+        IReadOnlyModificationCommand command,
+        int commandPosition,
+        out bool requiresTransaction
+    )
+    {
+        ArgumentNullException.ThrowIfNull(commandStringBuilder);
+        ArgumentNullException.ThrowIfNull(command);
+
+        var storedProcedure = command.StoreStoredProcedure
+            ?? throw new InvalidOperationException("A stored-procedure call requires stored-procedure metadata.");
+
+        if (storedProcedure.ReturnValue is not null)
+        {
+            throw new InvalidOperationException(
+                "MySQL-family stored procedures do not expose a return-value "
+                + "channel compatible with EF Core's stored-procedure mapping.");
+        }
+
+        var outputModifications = command
+            .ColumnModifications.Where(static modification => modification.Column is IStoreStoredProcedureParameter
+            {
+                Direction: ParameterDirection.Output or ParameterDirection.InputOutput,
+            })
+            .ToArray();
+
+        foreach (var modification in outputModifications)
+        {
+            var parameter = (IStoreStoredProcedureParameter)modification.Column!;
+            var commandParameterName = GetCommandParameterName(modification);
+
+            commandStringBuilder.Append("SET ");
+            SqlGenerationHelper.GenerateParameterNamePlaceholder(
+                commandStringBuilder,
+                GetOutputVariableName(commandParameterName));
+            commandStringBuilder.Append(" = ");
+
+            if (parameter.Direction == ParameterDirection.InputOutput)
+            {
+                SqlGenerationHelper.GenerateParameterNamePlaceholder(commandStringBuilder, commandParameterName);
+            }
+            else
+            {
+                commandStringBuilder.Append("NULL");
+            }
+
+            commandStringBuilder.AppendLine(SqlGenerationHelper.StatementTerminator);
+        }
+
+        commandStringBuilder.Append("CALL ");
+        SqlGenerationHelper.DelimitIdentifier(commandStringBuilder, storedProcedure.Name, storedProcedure.Schema);
+        commandStringBuilder.Append('(');
+
+        var first = true;
+        foreach (var modification in command.ColumnModifications)
+        {
+            if (modification.Column is not IStoreStoredProcedureParameter parameter)
+            {
+                continue;
+            }
+
+            if (!first)
+            {
+                commandStringBuilder.Append(", ");
+            }
+
+            first = false;
+            var commandParameterName = GetCommandParameterName(modification);
+            SqlGenerationHelper.GenerateParameterNamePlaceholder(
+                commandStringBuilder,
+                parameter.Direction.HasFlag(ParameterDirection.Output)
+                    ? GetOutputVariableName(commandParameterName)
+                    : commandParameterName);
+        }
+
+        commandStringBuilder
+            .Append(')')
+            .AppendLine(SqlGenerationHelper.StatementTerminator);
+
+        if (outputModifications.Length > 0)
+        {
+            commandStringBuilder.Append("SELECT ");
+            for (var index = 0; index < outputModifications.Length; index++)
+            {
+                if (index > 0)
+                {
+                    commandStringBuilder.Append(", ");
+                }
+
+                SqlGenerationHelper.GenerateParameterNamePlaceholder(
+                    commandStringBuilder,
+                    GetOutputVariableName(GetCommandParameterName(outputModifications[index])));
+            }
+
+            commandStringBuilder.AppendLine(SqlGenerationHelper.StatementTerminator);
+        }
+
+        requiresTransaction = true;
+        return GetStoredProcedureResultSetMapping(command, outputModifications);
+    }
+
+    /// <inheritdoc />
+    protected override void AppendInsertCommandHeader(
+        StringBuilder commandStringBuilder,
+        string name,
+        string? schema,
+        IReadOnlyList<IColumnModification> operations
+    )
+    {
+        base.AppendInsertCommandHeader(commandStringBuilder, name, schema, operations);
+
+        // MySQL-family engines represent an insert containing only generated
+        // columns with an explicit empty column list and an empty value tuple.
+        // The relational default, `DEFAULT VALUES`, is not valid MySQL syntax.
+        if (operations.Count == 0)
+        {
+            commandStringBuilder.Append(" ()");
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void AppendValuesHeader(
+        StringBuilder commandStringBuilder,
+        IReadOnlyList<IColumnModification> operations
+    )
+    {
+        if (operations.Count == 0)
+        {
+            commandStringBuilder
+                .AppendLine()
+                .Append("VALUES ");
+            return;
+        }
+
+        base.AppendValuesHeader(commandStringBuilder, operations);
+    }
+
+    /// <inheritdoc />
+    protected override void AppendValues(
+        StringBuilder commandStringBuilder,
+        string name,
+        string? schema,
+        IReadOnlyList<IColumnModification> operations
+    )
+    {
+        if (operations.Count == 0)
+        {
+            commandStringBuilder.Append("()");
+            return;
+        }
+
+        base.AppendValues(commandStringBuilder, name, schema, operations);
+    }
+
+    /// <summary>
+    /// Emits a partial JSON document update when EF supplies a non-root
+    /// <see cref="IColumnModification.JsonPath"/>. Scalar properties remain
+    /// relational values so MySQL-family engines preserve their JSON scalar
+    /// type. Serialized objects and collections pass through
+    /// <c>JSON_EXTRACT(value, '$')</c> so <c>JSON_SET</c> inserts JSON instead
+    /// of quoting the serialized document as a string.
+    /// </summary>
+    protected override void AppendUpdateColumnValue(
+        ISqlGenerationHelper updateSqlGeneratorHelper,
+        IColumnModification columnModification,
+        StringBuilder stringBuilder,
+        string name,
+        string? schema
+    )
+    {
+        if (columnModification.JsonPath is null or "$")
+        {
+            base.AppendUpdateColumnValue(updateSqlGeneratorHelper, columnModification, stringBuilder, name, schema);
+            return;
+        }
+
+        stringBuilder.Append("JSON_SET(");
+        updateSqlGeneratorHelper.DelimitIdentifier(stringBuilder, columnModification.ColumnName);
+        stringBuilder.Append(", ");
+        stringBuilder.Append(_stringTypeMapping.GenerateSqlLiteral(columnModification.JsonPath));
+        stringBuilder.Append(", ");
+
+        if (columnModification.Property is { IsPrimitiveCollection: false, })
+        {
+            base.AppendUpdateColumnValue(updateSqlGeneratorHelper, columnModification, stringBuilder, name, schema);
+        }
+        else
+        {
+            stringBuilder.Append("JSON_EXTRACT(");
+            base.AppendUpdateColumnValue(updateSqlGeneratorHelper, columnModification, stringBuilder, name, schema);
+            stringBuilder.Append(", '$')");
+        }
+
+        stringBuilder.Append(')');
     }
 
     /// <summary>
@@ -287,11 +504,51 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
             break;
         }
 
-        if (commandStringBuilder.Length >= terminator.Length
-            && commandStringBuilder.ToString(commandStringBuilder.Length - terminator.Length, terminator.Length) == terminator)
+        if (commandStringBuilder.Length < terminator.Length)
+        {
+            return;
+        }
+
+        var existingTerminator = commandStringBuilder.ToString(
+            commandStringBuilder.Length - terminator.Length,
+            terminator.Length);
+
+        if (existingTerminator == terminator)
         {
             commandStringBuilder.Length -= terminator.Length;
         }
+    }
+
+    private static string GetCommandParameterName(
+        IColumnModification modification
+    ) => modification.UseOriginalValueParameter
+        ? modification.OriginalParameterName!
+        : modification.ParameterName!;
+
+    private static string GetOutputVariableName(
+        string commandParameterName
+    ) => "_out_" + commandParameterName;
+
+    private static ResultSetMapping GetStoredProcedureResultSetMapping(
+        IReadOnlyModificationCommand command,
+        IColumnModification[] outputModifications
+    )
+    {
+        var storedProcedure = command.StoreStoredProcedure!;
+        if (!storedProcedure.ResultColumns.Any()
+            && outputModifications.Length == 0)
+        {
+            return ResultSetMapping.NoResults;
+        }
+
+        var onlyRowsAffected = storedProcedure.ResultColumns.Any()
+            ? storedProcedure.ResultColumns.All(resultColumn => ReferenceEquals(
+                resultColumn,
+                command.RowsAffectedColumn))
+            : outputModifications.All(modification => ReferenceEquals(modification.Column, command.RowsAffectedColumn));
+
+        return ResultSetMapping.LastInResultSet
+            | (onlyRowsAffected ? ResultSetMapping.ResultSetWithRowsAffectedOnly : ResultSetMapping.NoResults);
     }
 
     protected override void AppendIdentityWhereCondition(
@@ -328,8 +585,21 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
 
         commandStringBuilder
             .Append("SELECT ROW_COUNT()")
-            .AppendLine(SqlGenerationHelper.StatementTerminator);
+            .AppendLine(SqlGenerationHelper.StatementTerminator)
+            .AppendLine();
 
         return ResultSetMapping.LastInResultSet | ResultSetMapping.ResultSetWithRowsAffectedOnly;
+    }
+
+    /// <inheritdoc />
+    public override void PrependEnsureAutocommit(
+        StringBuilder commandStringBuilder
+    )
+    {
+        ArgumentNullException.ThrowIfNull(commandStringBuilder);
+
+        commandStringBuilder.Insert(
+            0,
+            $"SET AUTOCOMMIT = 1{SqlGenerationHelper.StatementTerminator}" + Environment.NewLine);
     }
 }

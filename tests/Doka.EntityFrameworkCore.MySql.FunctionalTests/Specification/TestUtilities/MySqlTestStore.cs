@@ -35,8 +35,14 @@ public class MySqlTestStore : RelationalTestStore
     public override DbContextOptionsBuilder AddProviderOptions(
         DbContextOptionsBuilder builder
     ) => UseSharedConnectionInProviderOptions
-        ? builder.UseMySql(Connection, ServerVersion)
-        : builder.UseMySql(Connection.ConnectionString, ServerVersion);
+        ? builder.UseMySql(
+            Connection,
+            ServerVersion,
+            provider => provider.UseNetTopologySuite())
+        : builder.UseMySql(
+            Connection.ConnectionString,
+            ServerVersion,
+            provider => provider.UseNetTopologySuite());
 
     /// <summary>
     /// Default <see langword="true"/>: the test-store's owned <see cref="DbConnection"/> is
@@ -183,6 +189,11 @@ public class MySqlTestStore : RelationalTestStore
         DefaultCommandTimeout = (uint)DefaultCommandTimeout,
         AllowUserVariables = true,
         UseAffectedRows = false,
+        // Non-shared EF specification fixtures repeatedly create contexts from the
+        // same DbConnection. MySqlConnector redacts the password after the first
+        // open unless this flag is set, leaving later database-lifecycle operations
+        // unable to create their server-level connection.
+        PersistSecurityInfo = true,
         // Match what the provider's MySqlRelationalConnection.CreateDbConnection() sets
         // on connections built from UseMySql(connectionString); the test infrastructure
         // bypasses that path by constructing the MySqlConnection directly and passing it

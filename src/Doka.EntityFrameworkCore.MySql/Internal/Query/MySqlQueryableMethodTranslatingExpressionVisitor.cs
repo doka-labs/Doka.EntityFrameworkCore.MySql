@@ -41,6 +41,185 @@ internal sealed class
         new MySqlQueryableMethodTranslatingExpressionVisitor(this);
 
     /// <summary>
+    /// Keeps join-based query shapes as native multi-table deletes. Falling back to
+    /// EF Core's key-subquery rewrite would make MySQL read the target table from a
+    /// nested query and trigger error 1093 even though the native delete grammar can
+    /// express the operation directly.
+    /// </summary>
+    protected override bool IsValidSelectExpressionForExecuteDelete(
+        SelectExpression selectExpression
+    ) => selectExpression.Offset is null
+        && selectExpression.GroupBy.Count == 0
+        && selectExpression.Having is null
+        && (selectExpression.Tables.Count == 1
+            || (selectExpression.Orderings.Count == 0 && selectExpression.Limit is null));
+
+    /// <summary>
+    /// Accepts MySQL's native join-based update shape and single-table
+    /// <c>LIMIT</c>. Offsets and ordered multi-table updates still use EF Core's
+    /// primary-key join rewrite.
+    /// </summary>
+    protected override bool IsValidSelectExpressionForExecuteUpdate(
+        SelectExpression selectExpression,
+        TableExpressionBase targetTable,
+        [NotNullWhen(true)] out TableExpression? tableExpression
+    )
+    {
+        tableExpression = null;
+
+        if (selectExpression.Offset is not null
+            || selectExpression.IsDistinct
+            || selectExpression.GroupBy.Count > 0
+            || selectExpression.Having is not null
+            || selectExpression.Orderings.Count > 0
+            || selectExpression.Tables.Count == 0
+            || (selectExpression.Tables.Count > 1 && selectExpression.Limit is not null))
+        {
+            return false;
+        }
+
+        if (targetTable is JoinExpressionBase join)
+        {
+            targetTable = join.Table;
+        }
+
+        tableExpression = targetTable as TableExpression;
+        return tableExpression is not null;
+    }
+
+    /// <summary>
+    /// Collapses indexing into a naturally ordered <c>JSON_TABLE</c> rowset back
+    /// into one <see cref="JsonScalarExpression"/>. EF Core's ExecuteUpdate setter
+    /// recognizer requires that scalar path form for updates such as
+    /// <c>SetProperty(entity => entity.Values.ElementAt(1), value)</c>.
+    /// </summary>
+    protected override ShapedQueryExpression? TranslateElementAtOrDefault(
+        ShapedQueryExpression source,
+        Expression index,
+        bool returnDefault
+    )
+    {
+        if (returnDefault
+            || source.QueryExpression is not SelectExpression
+            {
+                Tables: [MySqlJsonTableExpression jsonTable],
+                Predicate: null,
+                GroupBy: [],
+                Having: null,
+                IsDistinct: false,
+                Orderings: [{ IsAscending: true, Expression: ColumnExpression { Name: "key" } orderingColumn }],
+                Limit: null,
+                Offset: null,
+            } selectExpression
+            || orderingColumn.TableAlias != jsonTable.Alias
+            || TranslateExpression(index) is not { } translatedIndex)
+        {
+            return base.TranslateElementAtOrDefault(source, index, returnDefault);
+        }
+
+        var shaper = source.ShaperExpression;
+        if (shaper is UnaryExpression { NodeType: ExpressionType.Convert } conversion
+            && Nullable.GetUnderlyingType(conversion.Operand.Type) == conversion.Type)
+        {
+            shaper = conversion.Operand;
+        }
+
+        if (shaper is not ProjectionBindingExpression projectionBinding
+            || selectExpression.GetProjection(projectionBinding) is not ColumnExpression projection)
+        {
+            return base.TranslateElementAtOrDefault(source, index, returnDefault);
+        }
+
+        var path = jsonTable.Path?.ToList() ?? [];
+        var json = jsonTable.JsonExpression;
+
+        if (json is JsonScalarExpression innerScalar)
+        {
+            json = innerScalar.Json;
+            path.InsertRange(0, innerScalar.Path);
+        }
+
+        path.Add(new PathSegment(translatedIndex));
+
+        var scalar = new JsonScalarExpression(
+            json,
+            path,
+            projection.Type,
+            projection.TypeMapping,
+            projection.IsNullable);
+
+        // EF's JSON setter recognizer requires this provider-constructed internal scalar SelectExpression.
+#pragma warning disable EF1001
+        var scalarSelect = new SelectExpression(scalar, _queryCompilationContext.SqlAliasManager);
+#pragma warning restore EF1001
+
+        return source.UpdateQueryExpression(scalarSelect);
+    }
+
+    /// <summary>
+    /// Composes partial JSON ExecuteUpdate setters as nested <c>JSON_SET</c> calls.
+    /// Scalar values remain typed SQL values; objects and collections are parsed as
+    /// JSON fragments so the engine does not store their serialized text as a string.
+    /// </summary>
+    protected override SqlExpression? GenerateJsonPartialUpdateSetter(
+        Expression target,
+        SqlExpression value,
+        ref SqlExpression? existingSetterValue
+    )
+    {
+        var (jsonColumn, path, isJsonScalar) = target switch
+        {
+            JsonScalarExpression { TypeMapping.ElementTypeMapping: null } scalar =>
+                ((ColumnExpression)scalar.Json, scalar.Path, true),
+            JsonScalarExpression scalar => ((ColumnExpression)scalar.Json, scalar.Path, false),
+            JsonQueryExpression query => (query.JsonColumn, query.Path, false),
+            _ => throw new UnreachableException(),
+        };
+
+        var jsonValue = isJsonScalar
+            ? value
+            : _sqlExpressionFactory.Function(
+                "JSON_EXTRACT",
+                [
+                    value,
+                    _sqlExpressionFactory.Constant("$"),
+                ],
+                nullable: true,
+                argumentsPropagateNullability:
+                [
+                    true,
+                    false
+                ],
+                typeof(string),
+                jsonColumn.TypeMapping);
+
+        var jsonSet = _sqlExpressionFactory.Function(
+            "__mysql_json_set",
+            [
+                existingSetterValue ?? jsonColumn,
+                _sqlExpressionFactory.Constant(path, RelationalTypeMapping.NullMapping),
+                jsonValue,
+            ],
+            nullable: true,
+            argumentsPropagateNullability:
+            [
+                true,
+                false,
+                false
+            ],
+            typeof(string),
+            jsonColumn.TypeMapping);
+
+        if (existingSetterValue is null)
+        {
+            return jsonSet;
+        }
+
+        existingSetterValue = jsonSet;
+        return null;
+    }
+
+    /// <summary>
     /// Tells EF Core's translator that a <see cref="SelectExpression"/> whose row source is a
     /// <see cref="MySqlJsonTableExpression"/> ordered by its synthetic <c>key</c> ordinality
     /// column is "naturally ordered" -- the ordering reflects the inherent row order JSON_TABLE
