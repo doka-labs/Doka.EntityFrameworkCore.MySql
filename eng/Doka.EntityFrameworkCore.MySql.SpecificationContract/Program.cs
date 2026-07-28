@@ -24,6 +24,7 @@ internal static class Program
             {
                 "inventory" => WriteInventory(options),
                 "baseline" => WriteBaseline(options),
+                "debt" => WriteDebt(options),
                 "validate" => Validate(options, publication: false),
                 "publication" => Validate(options, publication: true),
                 "discovery-update" => UpdateDiscovery(options),
@@ -84,6 +85,33 @@ internal static class Program
         Console.WriteLine(
             $"Wrote specification baseline with {baseline.Entries.Count} bases and "
             + $"{baseline.InitialProviderGapCount} provider-debt entries to {output}.");
+        return 0;
+    }
+
+    private static int WriteDebt(
+        CommandOptions options
+    )
+    {
+        var root = Path.GetFullPath(options.RequiredSingle("--root"));
+        var provider = options.RequiredSingle("--provider");
+        var report = SpecificationContractValidator.ValidateRepository(root, provider);
+
+        foreach (var error in report.Errors)
+        {
+            Console.Error.WriteLine(error);
+        }
+
+        if (!report.IsValid)
+        {
+            return 1;
+        }
+
+        var output = options.RequiredSingle("--output");
+        SpecificationDebtReport.Write(output, report);
+        Console.WriteLine(
+            $"Wrote {report.CurrentProviderGapCount} current EF Core {report.EfCoreVersion} "
+            + $"provider-debt IDs to {output}.");
+
         return 0;
     }
 
@@ -222,6 +250,7 @@ internal static class Program
 
           inventory          --retrieved-at yyyy-MM-dd --output <json>
           baseline           --inventory <json> [--inventory <json>] --provider <dll> --output <json>
+          debt               --root <repository> --provider <dll> --output <json>
           validate           --root <repository> --provider <dll>
           publication        --root <repository> --provider <dll>
           discovery-update   --contract <json> --actual <list-output> --provider <dll> --target <target>

@@ -28,6 +28,7 @@ internal static class SpecificationContractValidator
                 currentVersion,
                 0,
                 0,
+                [],
                 [$"No committed inventory exists for EF Core {currentVersion}: {inventoryPath}"]);
         }
 
@@ -37,6 +38,7 @@ internal static class SpecificationContractValidator
                 currentVersion,
                 0,
                 0,
+                [],
                 [$"Specification baseline not found: {baselinePath}"]);
         }
 
@@ -52,6 +54,7 @@ internal static class SpecificationContractValidator
             currentVersion,
             baseline.InitialProviderGapCount,
             state.CurrentProviderGapCount,
+            state.CurrentProviderGaps,
             errors);
     }
 
@@ -410,6 +413,7 @@ internal sealed record SpecificationContractReport(
     string EfCoreVersion,
     int InitialProviderGapCount,
     int CurrentProviderGapCount,
+    IReadOnlyList<string> CurrentProviderGaps,
     IReadOnlyList<string> Errors
 )
 {

@@ -106,12 +106,53 @@ public class SpecificationContractTests
     public void Publication_gate_rejects_nonzero_provider_debt()
     {
         var report = SpecificationContractValidator.EnforceZeroProviderDebt(
-            new SpecificationContractReport(EfCoreVersion, 1, 1, []));
+            new SpecificationContractReport(EfCoreVersion, 1, 1, [UpstreamBaseId], []));
 
         Assert.False(report.IsValid);
         Assert.Contains(
             report.Errors,
             error => error.Contains("Publication requires zero provider suite debt", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Debt_report_sorts_and_preserves_exact_current_gap_ids()
+    {
+        var report = new SpecificationContractReport(
+            EfCoreVersion,
+            2,
+            2,
+            ["Specification.Tests:ZuluTestBase", UpstreamBaseId],
+            []);
+
+        var document = SpecificationDebtReport.Create(report);
+
+        Assert.Equal(SpecificationDebtReport.SchemaVersion, document.SchemaVersion);
+        Assert.Equal(EfCoreVersion, document.EfCoreVersion);
+        Assert.Equal(2, document.InitialProviderGapCount);
+        Assert.Equal(2, document.CurrentProviderGapCount);
+        Assert.Equal(
+            [UpstreamBaseId, "Specification.Tests:ZuluTestBase"],
+            document.CurrentProviderGaps);
+    }
+
+    [Fact]
+    public void Debt_report_rejects_duplicate_ids_and_invalid_contracts()
+    {
+        var duplicateIds = new SpecificationContractReport(
+            EfCoreVersion,
+            2,
+            2,
+            [UpstreamBaseId, UpstreamBaseId],
+            []);
+        var invalidContract = new SpecificationContractReport(
+            EfCoreVersion,
+            1,
+            1,
+            [UpstreamBaseId],
+            ["Contract validation failed."]);
+
+        Assert.Throws<InvalidDataException>(() => SpecificationDebtReport.Create(duplicateIds));
+        Assert.Throws<InvalidOperationException>(() => SpecificationDebtReport.Create(invalidContract));
     }
 
     [Fact]
