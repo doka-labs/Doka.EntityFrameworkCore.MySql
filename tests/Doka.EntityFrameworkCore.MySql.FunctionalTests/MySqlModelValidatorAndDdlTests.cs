@@ -1,11 +1,50 @@
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
-/// Tests for model validation (constraint name lengths, schema rejection),
+/// Tests for model validation (constraint name lengths, schema qualification),
 /// sequence DDL generation (Drop, Alter, Rename), and ServerCapabilities boundaries.
 /// </summary>
 public sealed class MySqlModelValidatorAndDdlTests
 {
+    /// <summary>
+    /// Verifies that native full-text indexes can target the unbounded text types
+    /// supported by MySQL and MariaDB.
+    /// </summary>
+    [Fact]
+    public void Full_text_index_accepts_unbounded_text_property()
+    {
+        using var context = new FullTextIndexContext(CreateOptions<FullTextIndexContext>());
+
+        Assert.NotNull(context.Model.FindEntityType(typeof(FullTextIndexEntity)));
+    }
+
+    /// <summary>
+    /// Verifies that ordinary indexes still reject an unbounded text key part.
+    /// </summary>
+    [Fact]
+    public void Ordinary_index_rejects_unbounded_text_property()
+    {
+        using var context = new OrdinaryTextIndexContext(CreateOptions<OrdinaryTextIndexContext>());
+
+        Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+    }
+
+    [Fact]
+    public void Default_table_and_view_schemas_are_preserved_as_database_qualifiers()
+    {
+        using var context = CreateSchemaContext();
+
+        Assert.Equal("default_database", context.Model.GetDefaultSchema());
+
+        var tableEntity = context.Model.FindEntityType(typeof(DdlTestEntity));
+        Assert.NotNull(tableEntity);
+        Assert.Equal("table_database", tableEntity.GetSchema());
+
+        var viewEntity = context.Model.FindEntityType(typeof(DdlTestView));
+        Assert.NotNull(viewEntity);
+        Assert.Equal("view_database", viewEntity.GetViewSchema());
+    }
+
     // -- Sequence DDL: Drop --
 
     [Fact]
@@ -220,6 +259,26 @@ public sealed class MySqlModelValidatorAndDdlTests
         return new DdlTestContext(builder.Options);
     }
 
+    private static SchemaDdlTestContext CreateSchemaContext()
+    {
+        var builder = new DbContextOptionsBuilder<SchemaDdlTestContext>();
+        builder.UseMySql(
+            "Server=localhost;Database=doka;User ID=root;Password=password;",
+            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+        return new SchemaDdlTestContext(builder.Options);
+    }
+
+    private static DbContextOptions<TContext> CreateOptions<TContext>()
+        where TContext : DbContext
+    {
+        var builder = new DbContextOptionsBuilder<TContext>();
+        builder.UseMySql(
+            "Server=localhost;Database=doka;User ID=root;Password=password;",
+            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        return builder.Options;
+    }
+
     private sealed class DdlTestContext : DbContext
     {
         public DdlTestContext(
@@ -231,7 +290,87 @@ public sealed class MySqlModelValidatorAndDdlTests
         ) => modelBuilder.Entity<DdlTestEntity>(e => { e.HasKey(x => x.Id); });
     }
 
+    private sealed class SchemaDdlTestContext : DbContext
+    {
+        public SchemaDdlTestContext(
+            DbContextOptions<SchemaDdlTestContext> options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.HasDefaultSchema("default_database");
+
+            modelBuilder.Entity<DdlTestEntity>(entity =>
+            {
+                entity.HasKey(item => item.Id);
+                entity.ToTable("DdlTestEntities", "table_database");
+            });
+
+            modelBuilder.Entity<DdlTestView>(entity =>
+            {
+                entity.HasNoKey();
+                entity.ToView("DdlTestView", "view_database");
+            });
+        }
+    }
+
+    private sealed class FullTextIndexContext : DbContext
+    {
+        public FullTextIndexContext(
+            DbContextOptions<FullTextIndexContext> options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<FullTextIndexEntity>(entity =>
+            {
+                entity
+                    .Property(item => item.Body)
+                    .HasColumnType("text");
+                entity
+                    .HasIndex(item => item.Body)
+                    .IsFullText();
+            });
+        }
+    }
+
+    private sealed class OrdinaryTextIndexContext : DbContext
+    {
+        public OrdinaryTextIndexContext(
+            DbContextOptions<OrdinaryTextIndexContext> options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<FullTextIndexEntity>(entity =>
+            {
+                entity
+                    .Property(item => item.Body)
+                    .HasColumnType("text");
+                entity.HasIndex(item => item.Body);
+            });
+        }
+    }
+
+    private sealed class FullTextIndexEntity
+    {
+        public int Id { get; set; }
+
+        public string Body { get; set; } = string.Empty;
+    }
+
     private sealed class DdlTestEntity
+    {
+        public int Id { get; set; }
+    }
+
+    private sealed class DdlTestView
     {
         public int Id { get; set; }
     }

@@ -17,6 +17,10 @@ Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MaxBatchSize(int max
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MigrationsHistoryTable(string! tableName, string? schema = null) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MinBatchSize(int minBatchSize) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.UseQuerySplittingBehavior(Microsoft.EntityFrameworkCore.QuerySplittingBehavior querySplittingBehavior) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
+Doka.EntityFrameworkCore.MySql.MySqlBytesToDateTimeConverter
+Doka.EntityFrameworkCore.MySql.MySqlBytesToDateTimeConverter.MySqlBytesToDateTimeConverter() -> void
+static Doka.EntityFrameworkCore.MySql.MySqlBytesToDateTimeConverter.FromBytes(byte[]! bytes) -> System.DateTime
+static Doka.EntityFrameworkCore.MySql.MySqlBytesToDateTimeConverter.ToBytes(System.DateTime value) -> byte[]!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilderExtensions
 Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions
 Doka.EntityFrameworkCore.MySql.MySqlDesignTimeServices
@@ -27,14 +31,24 @@ Doka.EntityFrameworkCore.MySql.MySqlEventId
 Doka.EntityFrameworkCore.MySql.MySqlGuidFormat
 Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Binary16 = 0 -> Doka.EntityFrameworkCore.MySql.MySqlGuidFormat
 Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Char36 = 1 -> Doka.EntityFrameworkCore.MySql.MySqlGuidFormat
+Doka.EntityFrameworkCore.MySql.MySqlGuidBinaryTypeMapping
+static Doka.EntityFrameworkCore.MySql.MySqlGuidBinaryTypeMapping.Default.get -> Doka.EntityFrameworkCore.MySql.MySqlGuidBinaryTypeMapping!
+Doka.EntityFrameworkCore.MySql.MySqlGuidBinaryTypeMapping.MySqlGuidBinaryTypeMapping(string! storeType = "binary(16)") -> void
+Doka.EntityFrameworkCore.MySql.MySqlIndexBuilderExtensions
 Doka.EntityFrameworkCore.MySql.MySqlModelBuilderExtensions
 Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions
 Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder
 Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder.ScaffoldTextGuidsAsGuids() -> Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder!
+Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping
+static Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping.Default.get -> Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping!
+Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping.MySqlRowVersionTypeMapping() -> void
 Doka.EntityFrameworkCore.MySql.MySqlServerVersion
 Doka.EntityFrameworkCore.MySql.MySqlServerVersion.IsMariaDb.get -> bool
 Doka.EntityFrameworkCore.MySql.MySqlServerVersion.Version.get -> System.Version!
 Doka.EntityFrameworkCore.MySql.MySqlServiceCollectionExtensions
+Doka.EntityFrameworkCore.MySql.MySqlDateTimeTypeMapping
+static Doka.EntityFrameworkCore.MySql.MySqlDateTimeTypeMapping.Default.get -> Doka.EntityFrameworkCore.MySql.MySqlDateTimeTypeMapping!
+Doka.EntityFrameworkCore.MySql.MySqlDateTimeTypeMapping.MySqlDateTimeTypeMapping(string! storeType, System.Data.DbType? dbType = System.Data.DbType.DateTime) -> void
 Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy
 Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy.AutoIncrement = 1 -> Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy
 Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy.ClientGuid = 2 -> Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy
@@ -64,6 +78,10 @@ static Doka.EntityFrameworkCore.MySql.MySqlEntityTypeBuilderExtensions.HasCharSe
 static Doka.EntityFrameworkCore.MySql.MySqlEntityTypeBuilderExtensions.HasCharSet<TEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity!>! entityTypeBuilder, string! charSet) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity!>!
 static Doka.EntityFrameworkCore.MySql.MySqlEntityTypeBuilderExtensions.UseStorageEngine(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder! entityTypeBuilder, string! engine) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder!
 static Doka.EntityFrameworkCore.MySql.MySqlEntityTypeBuilderExtensions.UseStorageEngine<TEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity!>! entityTypeBuilder, string! engine) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity!>!
+static Doka.EntityFrameworkCore.MySql.MySqlIndexBuilderExtensions.HasPrefixLength(this Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder! indexBuilder, params int[]! prefixLengths) -> Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlIndexBuilderExtensions.HasPrefixLength<TEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder<TEntity!>! indexBuilder, params int[]! prefixLengths) -> Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder<TEntity!>!
+static Doka.EntityFrameworkCore.MySql.MySqlIndexBuilderExtensions.IsFullText(this Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder! indexBuilder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlIndexBuilderExtensions.IsFullText<TEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder<TEntity!>! indexBuilder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder<TEntity!>!
 static Doka.EntityFrameworkCore.MySql.MySqlModelBuilderExtensions.HasCharSet(this Microsoft.EntityFrameworkCore.ModelBuilder! modelBuilder, string! charSet) -> Microsoft.EntityFrameworkCore.ModelBuilder!
 static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.HasMySqlGuidFormat(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder! propertyBuilder, Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder!
 static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.HasMySqlGuidFormat<TProperty>(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>! propertyBuilder, Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>!

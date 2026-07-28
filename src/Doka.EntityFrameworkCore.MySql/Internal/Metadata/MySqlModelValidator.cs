@@ -27,55 +27,19 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
         base.Validate(model, logger);
         var providerLogger = _mySqlSingletonOptions.ProviderLogger ?? logger.Logger;
 
-        ValidateNoSchemas(model, providerLogger);
+        ValidateSequenceSchema(model, providerLogger);
         ValidateKeyedAndIndexedPropertyLengths(model, providerLogger);
         ValidateDecimalPrecision(model, providerLogger);
         ValidateConstraintNameLengths(model, providerLogger);
         ValidateSpatialIndexes(model, providerLogger);
     }
 
-    private static void ValidateNoSchemas(
+    private static void ValidateSequenceSchema(
         IModel model,
         ILogger logger
     )
     {
         const string remediation = "Remove the configured schema; MySQL treats schema and database as synonyms.";
-
-        if (!string.IsNullOrWhiteSpace(model.GetDefaultSchema()))
-        {
-            MySqlLoggerMessages.SchemaUnsupported(logger, "Model", "<default>", "default schema declared", remediation);
-            throw new InvalidOperationException(
-                "MySQL schema configuration is not supported. Remove the configured default schema.");
-        }
-
-        foreach (var entityType in model.GetEntityTypes())
-        {
-            if (!string.IsNullOrWhiteSpace(entityType.GetSchema()))
-            {
-                MySqlLoggerMessages.SchemaUnsupported(
-                    logger,
-                    "Entity",
-                    entityType.DisplayName(),
-                    "table schema declared",
-                    remediation);
-                throw new InvalidOperationException(
-                    "MySQL schema configuration is not supported. Remove the schema from entity "
-                    + $"'{entityType.DisplayName()}'.");
-            }
-
-            if (!string.IsNullOrWhiteSpace(entityType.GetViewSchema()))
-            {
-                MySqlLoggerMessages.SchemaUnsupported(
-                    logger,
-                    "View",
-                    entityType.DisplayName(),
-                    "view schema declared",
-                    remediation);
-                throw new InvalidOperationException(
-                    "MySQL schema configuration is not supported. Remove the view schema from entity "
-                    + $"'{entityType.DisplayName()}'.");
-            }
-        }
 
         foreach (var sequence in model.GetSequences())
         {
@@ -201,7 +165,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
             == true
             || property
                 .GetContainingIndexes()
-                .Any();
+                .Any(index => !index.GetMySqlFullTextIndex());
     }
 
     private static bool HasExplicitDecimalPrecision(

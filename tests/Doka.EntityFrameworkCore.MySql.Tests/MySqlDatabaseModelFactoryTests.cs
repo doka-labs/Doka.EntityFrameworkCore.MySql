@@ -60,6 +60,77 @@ public sealed class MySqlDatabaseModelFactoryTests
                 ?.Value as bool?);
     }
 
+    /// <summary>
+    /// Verifies that EF schema filters select the equivalent MySQL database,
+    /// qualify the returned metadata, and restore the caller's active database.
+    /// </summary>
+    [Fact]
+    public void Reverse_engineering_schema_filter_selects_and_qualifies_database()
+    {
+        using var connection = new ScaffoldingDbConnection();
+        var factory = new MySqlDatabaseModelFactory(new StubDriverFacade(), new MySqlScaffoldingContext());
+
+        var databaseModel = factory.Create(
+            connection,
+            new DatabaseModelFactoryOptions(["mixed_index_table"], ["tenant_database"]));
+        var table = Assert.Single(databaseModel.Tables);
+
+        Assert.Equal("tenant_database", table.Schema);
+        Assert.Equal("phase2", connection.Database);
+        Assert.Equal(
+            [
+                "tenant_database",
+                "phase2"
+            ],
+            connection.DatabaseChanges);
+    }
+
+    /// <summary>
+    /// Verifies that a foreign key spanning two selected MySQL databases resolves
+    /// after both database-qualified table and column sets have been loaded.
+    /// </summary>
+    [Fact]
+    public void Reverse_engineering_resolves_cross_database_foreign_key()
+    {
+        using var connection = new ScaffoldingDbConnection();
+        var factory = new MySqlDatabaseModelFactory(new StubDriverFacade(), new MySqlScaffoldingContext());
+
+        var databaseModel = factory.Create(
+            connection,
+            new DatabaseModelFactoryOptions(
+                [],
+                [
+                    "principal_database",
+                    "dependent_database"
+                ]));
+        var principalTable = Assert.Single(
+            databaseModel.Tables,
+            table => table.Schema == "principal_database");
+        var dependentTable = Assert.Single(
+            databaseModel.Tables,
+            table => table.Schema == "dependent_database");
+        var foreignKey = Assert.Single(dependentTable.ForeignKeys);
+
+        Assert.Same(principalTable, foreignKey.PrincipalTable);
+        Assert.Same(
+            dependentTable.Columns.Single(column => column.Name == "PrincipalId"),
+            Assert.Single(foreignKey.Columns));
+        Assert.Same(
+            principalTable.Columns.Single(column => column.Name == "Id"),
+            Assert.Single(foreignKey.PrincipalColumns));
+        Assert.Equal(ReferentialAction.Cascade, foreignKey.OnDelete);
+        Assert.Equal("phase2", connection.Database);
+        Assert.Equal(
+            [
+                "principal_database",
+                "dependent_database",
+                "principal_database",
+                "dependent_database",
+                "phase2"
+            ],
+            connection.DatabaseChanges);
+    }
+
     private sealed class StubDriverFacade : IMySqlDriverFacade
     {
         public string DriverName => "Stub";
@@ -71,12 +142,15 @@ public sealed class MySqlDatabaseModelFactoryTests
 
     private sealed class ScaffoldingDbConnection : DbConnection
     {
+        private string _database = "phase2";
         private ConnectionState _state = ConnectionState.Closed;
 
         [AllowNull]
         public override string ConnectionString { get; set; } = "Server=localhost;Database=phase2;";
 
-        public override string Database => "phase2";
+        public override string Database => _database;
+
+        public List<string> DatabaseChanges { get; } = [];
 
         public override string DataSource => "localhost";
 
@@ -86,7 +160,11 @@ public sealed class MySqlDatabaseModelFactoryTests
 
         public override void ChangeDatabase(
             string databaseName
-        ) => throw new NotSupportedException();
+        )
+        {
+            _database = databaseName;
+            DatabaseChanges.Add(databaseName);
+        }
 
         public override void Close() => _state = ConnectionState.Closed;
 
@@ -142,7 +220,7 @@ public sealed class MySqlDatabaseModelFactoryTests
             {
                 var sql when sql.Contains("SELECT VERSION()", StringComparison.Ordinal) => "8.4.6",
                 var sql when sql.Contains("SELECT DATABASE()", StringComparison.Ordinal)
-                    && !sql.Contains("SCHEMATA", StringComparison.Ordinal) => "phase2",
+                    && !sql.Contains("SCHEMATA", StringComparison.Ordinal) => _connection.Database,
                 var sql when sql.Contains("FROM information_schema.SCHEMATA", StringComparison.Ordinal) =>
                     "utf8mb4_0900_ai_ci",
                 _ => throw new InvalidOperationException($"Unexpected scalar command: {CommandText}"),
@@ -160,25 +238,29 @@ public sealed class MySqlDatabaseModelFactoryTests
             return CommandText switch
             {
                 var sql when sql.Contains("FROM information_schema.TABLES", StringComparison.Ordinal) =>
-                    CreateTablesReader(),
+                    CreateTablesReader(_connection.Database),
                 var sql when sql.Contains("FROM information_schema.COLUMNS", StringComparison.Ordinal) =>
-                    CreateColumnsReader(),
+                    CreateColumnsReader(_connection.Database),
                 var sql when sql.Contains("CONSTRAINT_NAME = 'PRIMARY'", StringComparison.Ordinal) =>
-                    CreatePrimaryKeysReader(),
-                var sql when sql.Contains("NON_UNIQUE = 0", StringComparison.Ordinal) =>
+                    CreatePrimaryKeysReader(_connection.Database),
+                var sql when sql.Contains("CONSTRAINT_TYPE = 'UNIQUE'", StringComparison.Ordinal) =>
                     CreateUniqueConstraintsReader(),
+                var sql when sql.Contains("CONSTRAINT_TYPE = 'CHECK'", StringComparison.Ordinal) =>
+                    CreateCheckConstraintsReader(),
                 var sql when sql.Contains("FROM information_schema.ST_GEOMETRY_COLUMNS", StringComparison.Ordinal) =>
                     CreateSpatialGeometryColumnsReader(),
                 var sql when sql.Contains("FROM information_schema.STATISTICS", StringComparison.Ordinal) =>
                     CreateIndexesReader(),
                 var sql when sql.Contains(
                     "FROM information_schema.KEY_COLUMN_USAGE AS source",
-                    StringComparison.Ordinal) => CreateForeignKeysReader(),
+                    StringComparison.Ordinal) => CreateForeignKeysReader(_connection.Database),
                 _ => throw new InvalidOperationException($"Unexpected reader command: {CommandText}"),
             };
         }
 
-        private static DataTableReader CreateTablesReader()
+        private static DataTableReader CreateTablesReader(
+            string databaseName
+        )
         {
             var table = new DataTable();
             table.Columns.Add("TABLE_NAME", typeof(string));
@@ -186,13 +268,47 @@ public sealed class MySqlDatabaseModelFactoryTests
             table.Columns.Add("TABLE_COMMENT", typeof(string));
             table.Columns.Add("ENGINE", typeof(string));
             table.Columns.Add("TABLE_TYPE", typeof(string));
-            table.Rows.Add("mixed_index_table", "utf8mb4_0900_ai_ci", DBNull.Value, "InnoDB", "BASE TABLE");
-            table.Rows.Add("spatial_feature_table", "utf8mb4_0900_ai_ci", DBNull.Value, "InnoDB", "BASE TABLE");
+
+            if (databaseName == "principal_database")
+            {
+                table.Rows.Add(
+                    "principal_table",
+                    "utf8mb4_0900_ai_ci",
+                    DBNull.Value,
+                    "InnoDB",
+                    "BASE TABLE");
+            }
+            else if (databaseName == "dependent_database")
+            {
+                table.Rows.Add(
+                    "dependent_table",
+                    "utf8mb4_0900_ai_ci",
+                    DBNull.Value,
+                    "InnoDB",
+                    "BASE TABLE");
+            }
+            else
+            {
+                table.Rows.Add(
+                    "mixed_index_table",
+                    "utf8mb4_0900_ai_ci",
+                    DBNull.Value,
+                    "InnoDB",
+                    "BASE TABLE");
+                table.Rows.Add(
+                    "spatial_feature_table",
+                    "utf8mb4_0900_ai_ci",
+                    DBNull.Value,
+                    "InnoDB",
+                    "BASE TABLE");
+            }
 
             return table.CreateDataReader();
         }
 
-        private static DataTableReader CreateColumnsReader()
+        private static DataTableReader CreateColumnsReader(
+            string databaseName
+        )
         {
             var table = new DataTable();
             table.Columns.Add("TABLE_NAME", typeof(string));
@@ -205,6 +321,21 @@ public sealed class MySqlDatabaseModelFactoryTests
             table.Columns.Add("GENERATION_EXPRESSION", typeof(string));
             table.Columns.Add("COLUMN_COMMENT", typeof(string));
             table.Columns.Add("COLLATION_NAME", typeof(string));
+
+            if (databaseName == "principal_database")
+            {
+                AddColumn(table, "principal_table", "Id");
+
+                return table.CreateDataReader();
+            }
+
+            if (databaseName == "dependent_database")
+            {
+                AddColumn(table, "dependent_table", "Id");
+                AddColumn(table, "dependent_table", "PrincipalId");
+
+                return table.CreateDataReader();
+            }
 
             table.Rows.Add(
                 "mixed_index_table",
@@ -254,13 +385,24 @@ public sealed class MySqlDatabaseModelFactoryTests
             return table.CreateDataReader();
         }
 
-        private static DataTableReader CreatePrimaryKeysReader()
+        private static DataTableReader CreatePrimaryKeysReader(
+            string databaseName
+        )
         {
             var table = new DataTable();
             table.Columns.Add("TABLE_NAME", typeof(string));
             table.Columns.Add("COLUMN_NAME", typeof(string));
             table.Columns.Add("CONSTRAINT_NAME", typeof(string));
             table.Columns.Add("ORDINAL_POSITION", typeof(long));
+
+            if (databaseName == "principal_database")
+            {
+                table.Rows.Add("principal_table", "Id", "PRIMARY", 1L);
+            }
+            else if (databaseName == "dependent_database")
+            {
+                table.Rows.Add("dependent_table", "Id", "PRIMARY", 1L);
+            }
 
             return table.CreateDataReader();
         }
@@ -269,9 +411,19 @@ public sealed class MySqlDatabaseModelFactoryTests
         {
             var table = new DataTable();
             table.Columns.Add("TABLE_NAME", typeof(string));
-            table.Columns.Add("INDEX_NAME", typeof(string));
+            table.Columns.Add("CONSTRAINT_NAME", typeof(string));
             table.Columns.Add("COLUMN_NAME", typeof(string));
-            table.Columns.Add("SEQ_IN_INDEX", typeof(long));
+            table.Columns.Add("ORDINAL_POSITION", typeof(long));
+
+            return table.CreateDataReader();
+        }
+
+        private static DataTableReader CreateCheckConstraintsReader()
+        {
+            var table = new DataTable();
+            table.Columns.Add("TABLE_NAME", typeof(string));
+            table.Columns.Add("CONSTRAINT_NAME", typeof(string));
+            table.Columns.Add("CHECK_CLAUSE", typeof(string));
 
             return table.CreateDataReader();
         }
@@ -287,6 +439,7 @@ public sealed class MySqlDatabaseModelFactoryTests
             table.Columns.Add("SEQ_IN_INDEX", typeof(long));
             table.Columns.Add("INDEX_TYPE", typeof(string));
             table.Columns.Add("SUB_PART", typeof(long));
+            table.Columns.Add("EXPRESSION", typeof(string));
 
             table.Rows.Add(
                 "mixed_index_table",
@@ -296,6 +449,7 @@ public sealed class MySqlDatabaseModelFactoryTests
                 "A",
                 1L,
                 "BTREE",
+                DBNull.Value,
                 DBNull.Value);
             table.Rows.Add(
                 "mixed_index_table",
@@ -305,6 +459,7 @@ public sealed class MySqlDatabaseModelFactoryTests
                 "D",
                 2L,
                 "BTREE",
+                DBNull.Value,
                 DBNull.Value);
             table.Rows.Add(
                 "spatial_feature_table",
@@ -314,6 +469,7 @@ public sealed class MySqlDatabaseModelFactoryTests
                 "A",
                 1L,
                 "SPATIAL",
+                DBNull.Value,
                 DBNull.Value);
 
             return table.CreateDataReader();
@@ -331,18 +487,55 @@ public sealed class MySqlDatabaseModelFactoryTests
             return table.CreateDataReader();
         }
 
-        private static DataTableReader CreateForeignKeysReader()
+        private static DataTableReader CreateForeignKeysReader(
+            string databaseName
+        )
         {
             var table = new DataTable();
+            table.Columns.Add("TABLE_SCHEMA", typeof(string));
             table.Columns.Add("TABLE_NAME", typeof(string));
             table.Columns.Add("CONSTRAINT_NAME", typeof(string));
             table.Columns.Add("COLUMN_NAME", typeof(string));
             table.Columns.Add("ORDINAL_POSITION", typeof(long));
+            table.Columns.Add("REFERENCED_TABLE_SCHEMA", typeof(string));
             table.Columns.Add("REFERENCED_TABLE_NAME", typeof(string));
             table.Columns.Add("REFERENCED_COLUMN_NAME", typeof(string));
             table.Columns.Add("DELETE_RULE", typeof(string));
 
+            if (databaseName == "dependent_database")
+            {
+                table.Rows.Add(
+                    "dependent_database",
+                    "dependent_table",
+                    "FK_Dependent_Principal",
+                    "PrincipalId",
+                    1L,
+                    "principal_database",
+                    "principal_table",
+                    "Id",
+                    "CASCADE");
+            }
+
             return table.CreateDataReader();
+        }
+
+        private static void AddColumn(
+            DataTable table,
+            string tableName,
+            string columnName
+        )
+        {
+            table.Rows.Add(
+                tableName,
+                columnName,
+                "NO",
+                "int",
+                "int",
+                DBNull.Value,
+                DBNull.Value,
+                DBNull.Value,
+                DBNull.Value,
+                DBNull.Value);
         }
     }
 

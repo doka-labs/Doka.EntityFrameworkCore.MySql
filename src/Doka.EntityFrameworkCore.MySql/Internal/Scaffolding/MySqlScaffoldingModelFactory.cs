@@ -5,21 +5,26 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
     private readonly MySqlReverseEngineeringOptions _reverseEngineeringOptions;
     private readonly MySqlScaffoldingContext _scaffoldingContext;
     private readonly IMySqlSpatialTypeProvider? _spatialTypeProvider;
+    private readonly IRelationalTypeMappingSource _typeMappingSource;
     private readonly ILogger _logger;
 
     public MySqlScaffoldingModelFactory(
         MySqlReverseEngineeringOptions reverseEngineeringOptions,
         MySqlScaffoldingContext scaffoldingContext,
         IEnumerable<IMySqlSpatialTypeProvider> spatialTypeProviders,
+        IRelationalTypeMappingSource typeMappingSource,
         ILoggerFactory loggerFactory
     )
     {
         ArgumentNullException.ThrowIfNull(spatialTypeProviders);
         ArgumentNullException.ThrowIfNull(loggerFactory);
 
-        _reverseEngineeringOptions = reverseEngineeringOptions ?? throw new ArgumentNullException(nameof(reverseEngineeringOptions));
+        _reverseEngineeringOptions = reverseEngineeringOptions
+            ?? throw new ArgumentNullException(nameof(reverseEngineeringOptions));
         _scaffoldingContext = scaffoldingContext ?? throw new ArgumentNullException(nameof(scaffoldingContext));
         _spatialTypeProvider = spatialTypeProviders.SingleOrDefault();
+        _typeMappingSource = typeMappingSource
+            ?? throw new ArgumentNullException(nameof(typeMappingSource));
         _logger = loggerFactory.CreateLogger(MySqlLoggerCategory.Scaffolding);
     }
 
@@ -62,15 +67,28 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
             var storageEngine = table.FindAnnotation(MySqlAnnotationNames.StorageEngine)
                 ?.Value as string;
 
-            entityBuilder.ToTable(
-                table.Name,
-                tableBuilder =>
-                {
-                    if (!string.IsNullOrWhiteSpace(table.Comment))
+            if (table is DatabaseView)
+            {
+                entityBuilder.HasNoKey();
+                entityBuilder.ToView(table.Name);
+            }
+            else
+            {
+                entityBuilder.ToTable(
+                    table.Name,
+                    tableBuilder =>
                     {
-                        tableBuilder.HasComment(table.Comment);
-                    }
-                });
+                        if (!string.IsNullOrWhiteSpace(table.Comment))
+                        {
+                            tableBuilder.HasComment(table.Comment);
+                        }
+
+                        foreach (var checkConstraint in GetCheckConstraints(table))
+                        {
+                            tableBuilder.HasCheckConstraint(checkConstraint.Name, checkConstraint.Sql);
+                        }
+                    });
+            }
 
             if (!string.IsNullOrWhiteSpace(tableCollation))
             {
@@ -111,7 +129,9 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
 
                 var mapping = ResolveColumnMapping(column);
                 var propertyName = CreateUniqueClrIdentifier(column.Name, usedPropertyNames, "Value");
-                var propertyBuilder = entityBuilder.Property(mapping.ClrType, propertyName);
+                var propertyBuilder = entityBuilder.Property(
+                    GetPropertyClrType(mapping.ClrType, column.IsNullable),
+                    propertyName);
 
                 ApplyColumnConfiguration(propertyBuilder, column, mapping);
 
@@ -128,7 +148,13 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
             {
                 if (!ContainsSkippedColumn(table.PrimaryKey.Columns, skippedColumns, table))
                 {
-                    entityBuilder.HasKey(GetPropertyNames(table.PrimaryKey.Columns, entityPropertyBuilders, table));
+                    var primaryKeyBuilder = entityBuilder.HasKey(
+                        GetPropertyNames(table.PrimaryKey.Columns, entityPropertyBuilders, table));
+
+                    if (!string.IsNullOrWhiteSpace(table.PrimaryKey.Name))
+                    {
+                        primaryKeyBuilder.HasName(table.PrimaryKey.Name);
+                    }
                 }
             }
 
@@ -137,14 +163,40 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
                 if (uniqueConstraint.Columns.Count > 0
                     && !ContainsSkippedColumn(uniqueConstraint.Columns, skippedColumns, table))
                 {
-                    entityBuilder.HasAlternateKey(
+                    var alternateKeyBuilder = entityBuilder.HasAlternateKey(
                         GetPropertyNames(uniqueConstraint.Columns, entityPropertyBuilders, table));
+
+                    if (!string.IsNullOrWhiteSpace(uniqueConstraint.Name))
+                    {
+                        alternateKeyBuilder.HasName(uniqueConstraint.Name);
+                    }
                 }
             }
 
+            var uniqueConstraintNames = table
+                .UniqueConstraints.Select(constraint => constraint.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToHashSet(StringComparer.Ordinal);
+
             foreach (var index in table.Indexes)
             {
+                var scaffoldedParts = GetScaffoldedIndexParts(index);
+
+                // EF Core requires every IIndex part to reference an IProperty. Retaining only
+                // the column-backed subset would silently change a functional index, so its
+                // exact parts remain on the DatabaseIndex for database-model consumers.
+                if (scaffoldedParts.Any(part => part.Expression is not null))
+                {
+                    continue;
+                }
+
                 if (index.Columns.Count == 0)
+                {
+                    continue;
+                }
+
+                if (index.Name is not null
+                    && uniqueConstraintNames.Contains(index.Name))
                 {
                     continue;
                 }
@@ -165,6 +217,23 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
                 if (index.IsUnique)
                 {
                     indexBuilder.IsUnique();
+                }
+
+                if (index.IsDescending is { Count: > 0 }
+                    && index.IsDescending.Any(isDescending => isDescending))
+                {
+                    indexBuilder.IsDescending(index.IsDescending.ToArray());
+                }
+
+                if (index.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength)
+                        ?.Value is int[] prefixLengths)
+                {
+                    indexBuilder.Metadata.SetMySqlIndexPrefixLengths(prefixLengths);
+                }
+
+                if ((index.FindAnnotation(MySqlAnnotationNames.FullTextIndex)?.Value as bool?) == true)
+                {
+                    indexBuilder.Metadata.SetMySqlFullTextIndex(true);
                 }
 
                 if ((index.FindAnnotation(MySqlAnnotationNames.SpatialIndex)?.Value as bool?) == true)
@@ -197,24 +266,76 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
                 }
 
                 var dependentEntityBuilder = entityBuilders[table];
-                var dependentPropertyNames = GetPropertyNames(foreignKey.Columns, entityPropertyBuilders, table);
-                var principalPropertyNames = GetPropertyNames(
-                    foreignKey.PrincipalColumns,
-                    entityPropertyBuilders,
-                    foreignKey.PrincipalTable);
-
-                var relationshipBuilder = dependentEntityBuilder
-                    .HasOne(principalEntityBuilder.Metadata.ClrType)
-                    .WithMany()
-                    .HasForeignKey(dependentPropertyNames)
-                    .HasPrincipalKey(principalPropertyNames);
+                var dependentProperties = foreignKey
+                    .Columns.Select(column => entityPropertyBuilders[(table, column)].Metadata)
+                    .ToArray();
+                var principalProperties = foreignKey
+                    .PrincipalColumns.Select(
+                        column => entityPropertyBuilders[(foreignKey.PrincipalTable, column)].Metadata)
+                    .ToArray();
+                var principalReadOnlyProperties = principalProperties
+                    .Cast<IReadOnlyProperty>()
+                    .ToArray();
+                var principalKey = principalEntityBuilder.Metadata.FindKey(principalReadOnlyProperties)
+                    ?? principalEntityBuilder.Metadata.AddKey(principalProperties);
+                var relationship = dependentEntityBuilder.Metadata.AddForeignKey(
+                    dependentProperties,
+                    principalKey,
+                    principalEntityBuilder.Metadata);
 
                 if (!string.IsNullOrWhiteSpace(foreignKey.Name))
                 {
-                    relationshipBuilder.HasConstraintName(foreignKey.Name);
+                    relationship.SetConstraintName(foreignKey.Name);
                 }
 
-                relationshipBuilder.OnDelete(ConvertDeleteBehavior(foreignKey.OnDelete));
+                relationship.DeleteBehavior = ConvertDeleteBehavior(foreignKey.OnDelete);
+                relationship.SetDependentToPrincipal(
+                    CreateUniqueClrIdentifier(
+                        principalEntityBuilder.Metadata.Name,
+                        propertyNamesByEntity[table],
+                        "Principal"));
+                relationship.SetPrincipalToDependent(
+                    CreateUniqueClrIdentifier(
+                        dependentEntityBuilder.Metadata.Name + "Collection",
+                        propertyNamesByEntity[foreignKey.PrincipalTable],
+                        "Dependents"));
+            }
+        }
+
+        foreach (var sequence in databaseModel.Sequences.OrderBy(sequence => sequence.Name, StringComparer.Ordinal))
+        {
+            var sequenceType = string.IsNullOrWhiteSpace(sequence.StoreType)
+                ? typeof(long)
+                : _typeMappingSource.FindMapping(sequence.StoreType)?.ClrType
+                    ?? typeof(long);
+            var sequenceBuilder = modelBuilder.HasSequence(
+                sequenceType,
+                sequence.Name,
+                sequence.Schema);
+
+            if (sequence.StartValue is long startValue)
+            {
+                sequenceBuilder.StartsAt(startValue);
+            }
+
+            if (sequence.IncrementBy is int incrementBy)
+            {
+                sequenceBuilder.IncrementsBy(incrementBy);
+            }
+
+            if (sequence.MinValue is long minValue)
+            {
+                sequenceBuilder.HasMin(minValue);
+            }
+
+            if (sequence.MaxValue is long maxValue)
+            {
+                sequenceBuilder.HasMax(maxValue);
+            }
+
+            if (sequence.IsCyclic is bool isCyclic)
+            {
+                sequenceBuilder.IsCyclic(isCyclic);
             }
         }
 
@@ -232,6 +353,7 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
 
         propertyBuilder.HasColumnName(column.Name);
         propertyBuilder.HasColumnType(column.StoreType);
+        propertyBuilder.Metadata.SetColumnOrder(column.Table.Columns.IndexOf(column));
 
         if (!column.IsNullable)
         {
@@ -263,9 +385,18 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
             propertyBuilder.UseCollation(column.Collation);
         }
 
+        if (!string.IsNullOrWhiteSpace(column.Comment))
+        {
+            propertyBuilder.HasComment(column.Comment);
+        }
+
         if (!string.IsNullOrWhiteSpace(column.ComputedColumnSql))
         {
             propertyBuilder.HasComputedColumnSql(column.ComputedColumnSql, column.IsStored);
+        }
+        else if (column.DefaultValueSql is not null)
+        {
+            propertyBuilder.HasDefaultValueSql(column.DefaultValueSql);
         }
 
         if (column.ValueGenerated == ValueGenerated.OnAdd)
@@ -284,6 +415,50 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
             propertyBuilder.Metadata.SetMySqlSpatialReferenceSystemId(spatialReferenceSystemId);
         }
     }
+
+    private static Type GetPropertyClrType(
+        Type clrType,
+        bool isNullable
+    )
+    {
+        if (!isNullable
+            || !clrType.IsValueType
+            || Nullable.GetUnderlyingType(clrType) is not null)
+        {
+            return clrType;
+        }
+
+        return clrType == typeof(bool) ? typeof(bool?)
+            : clrType == typeof(byte) ? typeof(byte?)
+            : clrType == typeof(sbyte) ? typeof(sbyte?)
+            : clrType == typeof(short) ? typeof(short?)
+            : clrType == typeof(ushort) ? typeof(ushort?)
+            : clrType == typeof(int) ? typeof(int?)
+            : clrType == typeof(uint) ? typeof(uint?)
+            : clrType == typeof(long) ? typeof(long?)
+            : clrType == typeof(ulong) ? typeof(ulong?)
+            : clrType == typeof(float) ? typeof(float?)
+            : clrType == typeof(double) ? typeof(double?)
+            : clrType == typeof(decimal) ? typeof(decimal?)
+            : clrType == typeof(Guid) ? typeof(Guid?)
+            : clrType == typeof(DateTime) ? typeof(DateTime?)
+            : clrType == typeof(DateOnly) ? typeof(DateOnly?)
+            : clrType == typeof(TimeOnly) ? typeof(TimeOnly?)
+            : throw new InvalidOperationException(
+                $"The scaffolded value type '{clrType}' has no AOT-safe nullable mapping.");
+    }
+
+    private static IReadOnlyList<MySqlScaffoldedCheckConstraint> GetCheckConstraints(
+        DatabaseTable table
+    ) => table.FindAnnotation(MySqlAnnotationNames.ScaffoldingCheckConstraints)
+        ?.Value as IReadOnlyList<MySqlScaffoldedCheckConstraint>
+        ?? [];
+
+    private static IReadOnlyList<MySqlScaffoldedIndexPart> GetScaffoldedIndexParts(
+        DatabaseIndex index
+    ) => index.FindAnnotation(MySqlAnnotationNames.ScaffoldingIndexParts)
+        ?.Value as IReadOnlyList<MySqlScaffoldedIndexPart>
+        ?? [];
 
     private bool TryHandleSpatialColumn(
         DatabaseTable table,
@@ -385,6 +560,18 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
                 GuidFormat: MySqlGuidFormat.Binary16);
         }
 
+        if (normalizedStoreType.StartsWith("binary(", StringComparison.Ordinal)
+            || normalizedStoreType == "binary")
+        {
+            return new ColumnMapping(
+                typeof(byte[]),
+                MaxLength: ParseSingleFacet(storeType),
+                IsFixedLength: true,
+                Precision: null,
+                Scale: null,
+                GuidFormat: null);
+        }
+
         if (normalizedStoreType.StartsWith("varchar(", StringComparison.Ordinal)
             || normalizedStoreType == "varchar")
         {
@@ -434,24 +621,54 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
                 GuidFormat: null);
         }
 
+        if (normalizedStoreType.StartsWith("enum(", StringComparison.Ordinal)
+            || normalizedStoreType.StartsWith("set(", StringComparison.Ordinal))
+        {
+            return ColumnMapping.Scalar(typeof(string));
+        }
+
+        if (normalizedStoreType.StartsWith("bit(", StringComparison.Ordinal))
+        {
+            return normalizedStoreType == "bit(1)"
+                ? ColumnMapping.Scalar(typeof(bool))
+                : ColumnMapping.Scalar(typeof(ulong));
+        }
+
+        if (normalizedStoreType.StartsWith("datetime(", StringComparison.Ordinal)
+            || normalizedStoreType.StartsWith("timestamp(", StringComparison.Ordinal))
+        {
+            return ColumnMapping.Scalar(typeof(DateTime));
+        }
+
+        if (normalizedStoreType.StartsWith("time(", StringComparison.Ordinal))
+        {
+            return ColumnMapping.Scalar(typeof(TimeOnly));
+        }
+
         return normalizedStoreType switch
         {
             "int" or "integer" => ColumnMapping.Scalar(typeof(int)),
             "bigint" => ColumnMapping.Scalar(typeof(long)),
             "smallint" => ColumnMapping.Scalar(typeof(short)),
+            "mediumint" => ColumnMapping.Scalar(typeof(int)),
             "tinyint" => ColumnMapping.Scalar(typeof(sbyte)),
             "tinyint(1)" => ColumnMapping.Scalar(typeof(bool)),
             "tinyint unsigned" => ColumnMapping.Scalar(typeof(byte)),
             "smallint unsigned" => ColumnMapping.Scalar(typeof(ushort)),
+            "mediumint unsigned" => ColumnMapping.Scalar(typeof(uint)),
             "int unsigned" => ColumnMapping.Scalar(typeof(uint)),
             "bigint unsigned" => ColumnMapping.Scalar(typeof(ulong)),
-            "double" => ColumnMapping.Scalar(typeof(double)),
-            "float" => ColumnMapping.Scalar(typeof(float)),
+            "double" or "double unsigned" => ColumnMapping.Scalar(typeof(double)),
+            "float" or "float unsigned" => ColumnMapping.Scalar(typeof(float)),
+            "year" => ColumnMapping.Scalar(typeof(short)),
+            "bit" => ColumnMapping.Scalar(typeof(bool)),
             "datetime" or "datetime(6)" or "timestamp" or "timestamp(6)" => ColumnMapping.Scalar(typeof(DateTime)),
             "date" => ColumnMapping.Scalar(typeof(DateOnly)),
             "time" or "time(6)" => ColumnMapping.Scalar(typeof(TimeOnly)),
-            "json" or "longtext" or "text" => ColumnMapping.Scalar(typeof(string)),
-            "longblob" or "blob" => ColumnMapping.Scalar(typeof(byte[])),
+            "json" or "longtext" or "mediumtext" or "text" or "tinytext" =>
+                ColumnMapping.Scalar(typeof(string)),
+            "longblob" or "mediumblob" or "blob" or "tinyblob" =>
+                ColumnMapping.Scalar(typeof(byte[])),
             _ => ColumnMapping.Scalar(typeof(string)),
         };
     }

@@ -19,23 +19,30 @@ public sealed class StoreGeneratedFixupMySqlTest
     {
     }
 
+    /// <summary>
+    /// Verifies that a temporary key can be promoted to a permanent value without
+    /// leaking its deterministic test value into subsequent specification runs.
+    /// </summary>
     [Fact]
-    public void Temp_values_can_be_made_permanent()
-    {
-        using var context = CreateContext();
-        var entry = context.Add(new TestTemp());
+    public Task Temp_values_can_be_made_permanent() =>
+        ExecuteWithStrategyInTransactionAsync(
+            async context =>
+            {
+                await context.Set<TestTemp>().ExecuteDeleteAsync();
 
-        Assert.True(entry.Property(e => e.Id).IsTemporary);
-        Assert.False(entry.Property(e => e.NotId).IsTemporary);
+                var entry = context.Add(new TestTemp());
 
-        var temporaryValue = entry.Property(e => e.Id).CurrentValue;
-        entry.Property(e => e.Id).IsTemporary = false;
+                Assert.True(entry.Property(e => e.Id).IsTemporary);
+                Assert.False(entry.Property(e => e.NotId).IsTemporary);
 
-        context.SaveChanges();
+                var temporaryValue = entry.Property(e => e.Id).CurrentValue;
+                entry.Property(e => e.Id).IsTemporary = false;
 
-        Assert.False(entry.Property(e => e.Id).IsTemporary);
-        Assert.Equal(temporaryValue, entry.Property(e => e.Id).CurrentValue);
-    }
+                await context.SaveChangesAsync();
+
+                Assert.False(entry.Property(e => e.Id).IsTemporary);
+                Assert.Equal(temporaryValue, entry.Property(e => e.Id).CurrentValue);
+            });
 
     protected override bool EnforcesFKs => true;
 

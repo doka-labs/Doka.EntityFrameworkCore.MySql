@@ -10,36 +10,64 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// string and an optional provider-options fragment. Until that contract surfaces a
 /// model parameter the cross-service hand-off lives here.
 ///
-/// The class is registered as a DI singleton because the dotnet-ef tooling resolves
-/// every design-time service from the same provider per scaffolding invocation.
-/// <see cref="Begin"/> is invoked once at the start of every reverse-engineering pass
-/// so the state from a prior invocation does not leak into the next one.
+/// The class is registered as a DI singleton because EF Core requires
+/// <see cref="IProviderConfigurationCodeGenerator"/> to be a thread-safe singleton.
+/// The ambient value is immutable and scoped to the current logical execution context,
+/// so concurrent reverse-engineering operations cannot overwrite each other's state.
+/// <see cref="Begin"/> starts a fresh state and <see cref="Consume"/> removes it after
+/// provider configuration generation. <see cref="Abort"/> provides idempotent cleanup
+/// when the enclosing operation exits before code generation.
 /// </summary>
 internal sealed class MySqlScaffoldingContext
 {
-    public string? DetectedServerVersionText { get; private set; }
-
-    public bool UsesNetTopologySuiteScaffolding { get; private set; }
+    private readonly AsyncLocal<MySqlScaffoldingState?> _current = new();
 
     /// <summary>
-    /// Begins a new scaffolding invocation. Clears all cross-service state so the
-    /// previous invocation cannot leak into the new one. Callers invoke this exactly
-    /// once at the start of every reverse-engineering pass before any writer touches
-    /// the context.
+    /// Begins a new scaffolding invocation in the current logical execution context.
     /// </summary>
-    public void Begin()
-    {
-        DetectedServerVersionText = null;
-        UsesNetTopologySuiteScaffolding = false;
-    }
+    public void Begin() => _current.Value = new MySqlScaffoldingState(null, false);
 
     public void SetDetectedServerVersionText(
         string? detectedServerVersionText
-    ) => DetectedServerVersionText = detectedServerVersionText;
+    ) => _current.Value = Current with
+    {
+        DetectedServerVersionText = detectedServerVersionText,
+    };
 
     public void SetUsesNetTopologySuiteScaffolding(
         bool usesNetTopologySuiteScaffolding
-    ) => UsesNetTopologySuiteScaffolding = usesNetTopologySuiteScaffolding;
+    ) => _current.Value = Current with
+    {
+        UsesNetTopologySuiteScaffolding = usesNetTopologySuiteScaffolding,
+    };
 
-    public void MarkUsesNetTopologySuiteScaffolding() => UsesNetTopologySuiteScaffolding = true;
+    public void MarkUsesNetTopologySuiteScaffolding() =>
+        SetUsesNetTopologySuiteScaffolding(true);
+
+    /// <summary>
+    /// Returns and removes the completed state for the current scaffolding operation.
+    /// Consuming the state prevents later code-generation calls on the same logical
+    /// execution context from reusing stale server or spatial metadata.
+    /// </summary>
+    public MySqlScaffoldingState Consume()
+    {
+        var state = Current;
+        _current.Value = null;
+        return state;
+    }
+
+    /// <summary>
+    /// Removes any in-flight state from the current logical execution context.
+    /// </summary>
+    public void Abort() => _current.Value = null;
+
+    private MySqlScaffoldingState Current =>
+        _current.Value
+        ?? throw new InvalidOperationException(
+            "No MySQL scaffolding operation is active in the current execution context.");
 }
+
+internal sealed record MySqlScaffoldingState(
+    string? DetectedServerVersionText,
+    bool UsesNetTopologySuiteScaffolding
+);

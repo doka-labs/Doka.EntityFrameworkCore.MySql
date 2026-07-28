@@ -90,6 +90,16 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
         {
             yield return spatialIndexAnnotation;
         }
+
+        if (index.FindAnnotation(MySqlAnnotationNames.FullTextIndex) is { } fullTextIndexAnnotation)
+        {
+            yield return fullTextIndexAnnotation;
+        }
+
+        if (index.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength) is { } prefixLengthAnnotation)
+        {
+            yield return prefixLengthAnnotation;
+        }
     }
 
     private static IAnnotation? FindTableAnnotation(
@@ -119,4 +129,5 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
                 .PropertyMappings.Select(mapping => mapping.Property.FindAnnotation(annotationName))
                 .FirstOrDefault(annotation => annotation is not null);
     }
+
 }

@@ -4,10 +4,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// Loads foreign keys from INFORMATION_SCHEMA.KEY_COLUMN_USAGE joined with
 /// INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS for the OnDelete action. Groups by
 /// (table, constraint) so composite-column FKs assemble their ordered column / referenced
-/// column pairs. Skips FKs that reference a table the
-/// <see cref="ScaffoldingPipelineContext.TableLookup"/> does not contain (the principal
-/// fell outside the filter) and emits a structured warning so the operator can re-run
-/// scaffolding with a wider filter when this matters.
+/// column pairs. Resolves principals through the database-qualified lookup populated
+/// across all selected MySQL databases. References outside that selection are skipped
+/// with a structured warning so the operator can re-run scaffolding with a wider filter.
 /// </summary>
 internal static class ForeignKeyLoader
 {
@@ -22,10 +21,12 @@ internal static class ForeignKeyLoader
         var sql = new StringBuilder(
             """
             SELECT
+                source.TABLE_SCHEMA,
                 source.TABLE_NAME,
                 source.CONSTRAINT_NAME,
                 source.COLUMN_NAME,
                 source.ORDINAL_POSITION,
+                source.REFERENCED_TABLE_SCHEMA,
                 source.REFERENCED_TABLE_NAME,
                 source.REFERENCED_COLUMN_NAME,
                 constraints.DELETE_RULE
@@ -47,7 +48,8 @@ internal static class ForeignKeyLoader
 
         while (reader.Read())
         {
-            var tableName = reader.GetString(0);
+            var sourceDatabaseName = reader.GetString(0);
+            var tableName = reader.GetString(1);
 
             if (!context.TableFilter.Matches(tableName)
                 || !context.TableLookup.TryGetValue(tableName, out var table))
@@ -55,14 +57,17 @@ internal static class ForeignKeyLoader
                 continue;
             }
 
-            var foreignKeyName = reader.GetString(1);
+            var foreignKeyName = reader.GetString(2);
             var key = (tableName, foreignKeyName);
 
             if (!foreignKeys.TryGetValue(key, out var foreignKey))
             {
-                var principalTableName = reader.GetString(4);
+                var principalDatabaseName = reader.GetString(5);
+                var principalTableName = reader.GetString(6);
 
-                if (!context.TableLookup.TryGetValue(principalTableName, out var principalTable))
+                if (!context.DatabaseTables.TryGetValue(
+                        (principalDatabaseName, principalTableName),
+                        out var principalTable))
                 {
                     if (logger is not null)
                     {
@@ -81,22 +86,28 @@ internal static class ForeignKeyLoader
                     Table = table,
                     Name = foreignKeyName,
                     PrincipalTable = principalTable,
-                    OnDelete = ScaffoldingHelpers.ResolveReferentialAction(reader.GetString(6)),
+                    OnDelete = ScaffoldingHelpers.ResolveReferentialAction(reader.GetString(8)),
                 };
 
                 table.ForeignKeys.Add(foreignKey);
                 foreignKeys[key] = foreignKey;
             }
 
-            var columnName = reader.GetString(2);
-            var principalColumnName = reader.GetString(5);
+            var columnName = reader.GetString(3);
+            var principalDatabaseNameForColumn = reader.GetString(5);
+            var principalTableNameForColumn = reader.GetString(6);
+            var principalColumnName = reader.GetString(7);
 
-            if (context.Columns.TryGetValue((tableName, columnName), out var column))
+            if (context.DatabaseColumns.TryGetValue(
+                    (sourceDatabaseName, tableName, columnName),
+                    out var column))
             {
                 foreignKey.Columns.Add(column);
             }
 
-            if (context.Columns.TryGetValue((foreignKey.PrincipalTable.Name, principalColumnName), out var principalColumn))
+            if (context.DatabaseColumns.TryGetValue(
+                    (principalDatabaseNameForColumn, principalTableNameForColumn, principalColumnName),
+                    out var principalColumn))
             {
                 foreignKey.PrincipalColumns.Add(principalColumn);
             }

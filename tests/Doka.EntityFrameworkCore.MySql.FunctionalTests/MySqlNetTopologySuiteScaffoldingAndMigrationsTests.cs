@@ -72,6 +72,76 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
     }
 
     /// <summary>
+    /// Verifies that a shared design-time service provider isolates all mutable scaffolding
+    /// metadata between concurrent operations and consumes that metadata after code generation.
+    /// </summary>
+    [Fact]
+    public async Task Concurrent_reverse_engineering_isolates_server_and_spatial_state()
+    {
+        using var databaseModelBoundary = new Barrier(2);
+        using var providerCodeBoundary = new Barrier(2);
+        await using var serviceProvider = CreateConcurrentDesignTimeServiceProvider(
+            databaseModelBoundary,
+            providerCodeBoundary);
+
+        var mySqlTask = Task.Run(() => ScaffoldAndAssertStateConsumed(
+            serviceProvider,
+            "Server=localhost;Database=spatial_mysql;User ID=root;Password=secret;"));
+        var mariaDbTask = Task.Run(() => ScaffoldAndAssertStateConsumed(
+            serviceProvider,
+            "Server=localhost;Database=plain_mariadb;User ID=root;Password=secret;"));
+
+        var results = await Task.WhenAll(mySqlTask, mariaDbTask);
+        var mySqlCode = results[0].ContextFile.Code;
+        var mariaDbCode = results[1].ContextFile.Code;
+
+        Assert.Contains(
+            "MySqlServerVersion.MySql(new System.Version(8, 4, 6))",
+            mySqlCode,
+            StringComparison.Ordinal);
+        Assert.Contains("UseNetTopologySuite()", mySqlCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("MariaDb(", mySqlCode, StringComparison.Ordinal);
+
+        Assert.Contains(
+            "MySqlServerVersion.MariaDb(new System.Version(11, 8, 2))",
+            mariaDbCode,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("UseNetTopologySuite()", mariaDbCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("MySqlServerVersion.MySql(", mariaDbCode, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that both ordinary failures and cancellation remove partially written
+    /// scaffolding state before control returns to the caller.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Failed_or_cancelled_reverse_engineering_releases_operation_state(
+        bool cancel
+    )
+    {
+        const string connectionString =
+            "Server=localhost;Database=failing_operation;User ID=root;Password=secret;";
+
+        using var serviceProvider = CreateFailingDesignTimeServiceProvider(cancel);
+
+        var exception = Record.Exception(
+            () => ScaffoldModel(serviceProvider, connectionString));
+
+        if (cancel)
+        {
+            Assert.IsType<OperationCanceledException>(exception);
+        }
+        else
+        {
+            Assert.IsType<InvalidOperationException>(exception);
+        }
+
+        AssertNoActiveScaffoldingState(serviceProvider, connectionString);
+    }
+
+    /// <summary>
     /// Verifies that the migrations pipeline emits the approved MySQL spatial SRID and SPATIAL INDEX SQL.
     /// </summary>
     [Fact]
@@ -186,11 +256,22 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             detectedServerVersionText,
             includeNetTopologySuite,
             loggerFactory);
+
+        return ScaffoldModel(
+            serviceProvider,
+            "Server=localhost;Database=phase3;User ID=root;Password=secret;");
+    }
+
+    private static ScaffoldedModel ScaffoldModel(
+        ServiceProvider serviceProvider,
+        string connectionString
+    )
+    {
         using var scope = serviceProvider.CreateScope();
         var scaffolder = scope.ServiceProvider.GetRequiredService<IReverseEngineerScaffolder>();
 
         return scaffolder.ScaffoldModel(
-            "Server=localhost;Database=phase3;User ID=root;Password=secret;",
+            connectionString,
             new DatabaseModelFactoryOptions(Array.Empty<string>(), Array.Empty<string>()),
             new ModelReverseEngineerOptions(),
             new ModelCodeGenerationOptions
@@ -202,10 +283,37 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
                 Language = "C#",
                 ContextDir = "Generated",
                 ProjectDir = "Generated",
-                ConnectionString = "Server=localhost;Database=phase3;User ID=root;Password=secret;",
+                ConnectionString = connectionString,
                 SuppressConnectionStringWarning = true,
                 UseNullableReferenceTypes = true,
             });
+    }
+
+    private static ScaffoldedModel ScaffoldAndAssertStateConsumed(
+        ServiceProvider serviceProvider,
+        string connectionString
+    )
+    {
+        var scaffoldedModel = ScaffoldModel(serviceProvider, connectionString);
+
+        AssertNoActiveScaffoldingState(serviceProvider, connectionString);
+
+        return scaffoldedModel;
+    }
+
+    private static void AssertNoActiveScaffoldingState(
+        ServiceProvider serviceProvider,
+        string connectionString
+    )
+    {
+        var codeGenerator = serviceProvider.GetRequiredService<IProviderConfigurationCodeGenerator>();
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => codeGenerator.GenerateUseProvider(connectionString));
+
+        Assert.Contains(
+            "No MySQL scaffolding operation is active",
+            exception.Message,
+            StringComparison.Ordinal);
     }
 
     private static ServiceProvider CreateDesignTimeServiceProvider(
@@ -237,6 +345,60 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             databaseModel,
             detectedServerVersionText,
             serviceProvider.GetRequiredService<MySqlScaffoldingContext>()));
+
+        return services.BuildServiceProvider(validateScopes: true);
+    }
+
+    private static ServiceProvider CreateFailingDesignTimeServiceProvider(
+        bool cancel
+    )
+    {
+        var services = new ServiceCollection();
+#pragma warning disable EF1001
+        var reporter = new OperationReporter(new OperationReportHandler(_ => { }, _ => { }, _ => { }, _ => { }));
+#pragma warning restore EF1001
+
+        services.AddEntityFrameworkDesignTimeServices(
+            reporter,
+            () => new ServiceCollection().BuildServiceProvider());
+        services.AddEntityFrameworkDokaMySqlDesignTime();
+        services.AddSingleton<IDatabaseModelFactory>(serviceProvider =>
+            new FailingStubDatabaseModelFactory(
+                serviceProvider.GetRequiredService<MySqlScaffoldingContext>(),
+                cancel));
+
+        return services.BuildServiceProvider(validateScopes: true);
+    }
+
+    private static ServiceProvider CreateConcurrentDesignTimeServiceProvider(
+        Barrier databaseModelBoundary,
+        Barrier providerCodeBoundary
+    )
+    {
+        var services = new ServiceCollection();
+#pragma warning disable EF1001
+        var reporter = new OperationReporter(new OperationReportHandler(_ => { }, _ => { }, _ => { }, _ => { }));
+#pragma warning restore EF1001
+
+        services.AddEntityFrameworkDesignTimeServices(
+            reporter,
+            () => new ServiceCollection().BuildServiceProvider());
+        services.AddEntityFrameworkDokaMySqlDesignTime();
+        services.AddEntityFrameworkDokaMySqlNetTopologySuite();
+        services.AddSingleton<IDatabaseModelFactory>(serviceProvider =>
+            new ConcurrentStubDatabaseModelFactory(
+                CreateSpatialDatabaseModel(),
+                CreateNonSpatialDatabaseModel(),
+                serviceProvider.GetRequiredService<MySqlScaffoldingContext>(),
+                databaseModelBoundary));
+
+        EfCoreServiceDecorator
+            .Decorate<IProviderConfigurationCodeGenerator, SynchronizingProviderConfigurationCodeGenerator>(
+                services,
+                (inner, serviceProvider) => new SynchronizingProviderConfigurationCodeGenerator(
+                    inner,
+                    serviceProvider.GetRequiredService<ProviderCodeGeneratorDependencies>(),
+                    providerCodeBoundary));
 
         return services.BuildServiceProvider(validateScopes: true);
     }
@@ -296,6 +458,51 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         table.Indexes.Add(spatialIndex);
 
         return databaseModel;
+    }
+
+    private static DatabaseModel CreateNonSpatialDatabaseModel()
+    {
+        var databaseModel = new DatabaseModel
+        {
+            DatabaseName = "plain_mariadb",
+            Collation = "utf8mb4_general_ci",
+        };
+        var table = new DatabaseTable
+        {
+            Database = databaseModel,
+            Name = "plain_feature",
+        };
+        var idColumn = new DatabaseColumn
+        {
+            Table = table,
+            Name = "Id",
+            StoreType = "int",
+            IsNullable = false,
+            ValueGenerated = ValueGenerated.OnAdd,
+        };
+
+        databaseModel.Tables.Add(table);
+        table.Columns.Add(idColumn);
+        table.PrimaryKey = new DatabasePrimaryKey
+        {
+            Table = table,
+            Name = "PK_plain_feature",
+            Columns = { idColumn },
+        };
+
+        return databaseModel;
+    }
+
+    private static void WaitAt(
+        Barrier boundary,
+        string boundaryName
+    )
+    {
+        if (!boundary.SignalAndWait(TimeSpan.FromSeconds(10)))
+        {
+            throw new TimeoutException(
+                $"Concurrent scaffolding did not reach the '{boundaryName}' boundary.");
+        }
     }
 
     private sealed class EmptySpatialContext : DbContext
@@ -412,6 +619,131 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             _scaffoldingContext.SetDetectedServerVersionText(_detectedServerVersionText);
 
             return _databaseModel;
+        }
+    }
+
+    private sealed class ConcurrentStubDatabaseModelFactory : IDatabaseModelFactory
+    {
+        private readonly DatabaseModel _spatialModel;
+        private readonly DatabaseModel _nonSpatialModel;
+        private readonly MySqlScaffoldingContext _scaffoldingContext;
+        private readonly Barrier _databaseModelBoundary;
+
+        public ConcurrentStubDatabaseModelFactory(
+            DatabaseModel spatialModel,
+            DatabaseModel nonSpatialModel,
+            MySqlScaffoldingContext scaffoldingContext,
+            Barrier databaseModelBoundary
+        )
+        {
+            _spatialModel = spatialModel ?? throw new ArgumentNullException(nameof(spatialModel));
+            _nonSpatialModel = nonSpatialModel ?? throw new ArgumentNullException(nameof(nonSpatialModel));
+            _scaffoldingContext = scaffoldingContext
+                ?? throw new ArgumentNullException(nameof(scaffoldingContext));
+            _databaseModelBoundary = databaseModelBoundary
+                ?? throw new ArgumentNullException(nameof(databaseModelBoundary));
+        }
+
+        public DatabaseModel Create(
+            string connectionString,
+            DatabaseModelFactoryOptions options
+        )
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+            ArgumentNullException.ThrowIfNull(options);
+
+            var databaseName = new MySqlConnectionStringBuilder(connectionString).Database;
+            var operation = databaseName switch
+            {
+                "spatial_mysql" => (_spatialModel, "8.4.6"),
+                "plain_mariadb" => (_nonSpatialModel, "11.8.2-MariaDB"),
+                _ => throw new InvalidOperationException(
+                    $"Unexpected concurrent scaffolding database '{databaseName}'."),
+            };
+
+            _scaffoldingContext.Begin();
+            _scaffoldingContext.SetDetectedServerVersionText(operation.Item2);
+            WaitAt(_databaseModelBoundary, "database-model");
+
+            return operation.Item1;
+        }
+
+        public DatabaseModel Create(
+            DbConnection connection,
+            DatabaseModelFactoryOptions options
+        )
+        {
+            ArgumentNullException.ThrowIfNull(connection);
+
+            return Create(connection.ConnectionString, options);
+        }
+    }
+
+    private sealed class FailingStubDatabaseModelFactory : IDatabaseModelFactory
+    {
+        private readonly MySqlScaffoldingContext _scaffoldingContext;
+        private readonly bool _cancel;
+
+        public FailingStubDatabaseModelFactory(
+            MySqlScaffoldingContext scaffoldingContext,
+            bool cancel
+        )
+        {
+            _scaffoldingContext = scaffoldingContext
+                ?? throw new ArgumentNullException(nameof(scaffoldingContext));
+            _cancel = cancel;
+        }
+
+        public DatabaseModel Create(
+            string connectionString,
+            DatabaseModelFactoryOptions options
+        )
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+            ArgumentNullException.ThrowIfNull(options);
+
+            _scaffoldingContext.Begin();
+            _scaffoldingContext.SetDetectedServerVersionText("8.4.6");
+
+            throw _cancel
+                ? new OperationCanceledException("Scaffolding was cancelled by the test operation.")
+                : new InvalidOperationException("Scaffolding failed in the test database-model factory.");
+        }
+
+        public DatabaseModel Create(
+            DbConnection connection,
+            DatabaseModelFactoryOptions options
+        )
+        {
+            ArgumentNullException.ThrowIfNull(connection);
+
+            return Create(connection.ConnectionString, options);
+        }
+    }
+
+    private sealed class SynchronizingProviderConfigurationCodeGenerator : ProviderCodeGenerator
+    {
+        private readonly IProviderConfigurationCodeGenerator _inner;
+        private readonly Barrier _providerCodeBoundary;
+
+        public SynchronizingProviderConfigurationCodeGenerator(
+            IProviderConfigurationCodeGenerator inner,
+            ProviderCodeGeneratorDependencies dependencies,
+            Barrier providerCodeBoundary
+        ) : base(dependencies)
+        {
+            _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+            _providerCodeBoundary = providerCodeBoundary
+                ?? throw new ArgumentNullException(nameof(providerCodeBoundary));
+        }
+
+        public override MethodCallCodeFragment GenerateUseProvider(
+            string connectionString,
+            MethodCallCodeFragment? providerOptions
+        )
+        {
+            WaitAt(_providerCodeBoundary, "provider-code");
+            return _inner.GenerateUseProvider(connectionString, providerOptions);
         }
     }
 }

@@ -115,6 +115,22 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
             fragments.Add(new MethodCallCodeFragment("IsSpatial"));
         }
 
+        if (annotations.Remove(MySqlAnnotationNames.FullTextIndex, out var fullTextIndexAnnotation)
+            && fullTextIndexAnnotation.Value is true)
+        {
+            fragments.Add(
+                new MethodCallCodeFragment(nameof(MySqlIndexBuilderExtensions.IsFullText)));
+        }
+
+        if (annotations.Remove(MySqlAnnotationNames.IndexPrefixLength, out var prefixLengthAnnotation)
+            && prefixLengthAnnotation.Value is int[] prefixLengths)
+        {
+            fragments.Add(
+                new MethodCallCodeFragment(
+                    nameof(MySqlIndexBuilderExtensions.HasPrefixLength),
+                    prefixLengths.Cast<object>().ToArray()));
+        }
+
         return fragments;
     }
 }

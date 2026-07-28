@@ -1,10 +1,9 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Loads unique constraints from INFORMATION_SCHEMA.STATISTICS where NON_UNIQUE = 0 and
-/// the index name is not the reserved PRIMARY. One row per (table, constraint, column)
-/// triple in composite order; the loader groups by (table, constraint) and assembles
-/// each <see cref="DatabaseUniqueConstraint"/> with its ordered columns.
+/// Loads declared unique constraints from INFORMATION_SCHEMA.TABLE_CONSTRAINTS and
+/// KEY_COLUMN_USAGE. The index loader reads the physical index representation separately;
+/// the model factory deduplicates matching names when it builds EF metadata.
 /// </summary>
 internal static class UniqueConstraintLoader
 {
@@ -18,18 +17,21 @@ internal static class UniqueConstraintLoader
         var sql = new StringBuilder(
             """
             SELECT
-                TABLE_NAME,
-                INDEX_NAME,
-                COLUMN_NAME,
-                SEQ_IN_INDEX
-            FROM information_schema.STATISTICS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND NON_UNIQUE = 0
-              AND INDEX_NAME <> 'PRIMARY'
+                constraints.TABLE_NAME,
+                constraints.CONSTRAINT_NAME,
+                columns.COLUMN_NAME,
+                columns.ORDINAL_POSITION
+            FROM information_schema.TABLE_CONSTRAINTS AS constraints
+            INNER JOIN information_schema.KEY_COLUMN_USAGE AS columns
+                ON columns.CONSTRAINT_SCHEMA = constraints.CONSTRAINT_SCHEMA
+                AND columns.TABLE_NAME = constraints.TABLE_NAME
+                AND columns.CONSTRAINT_NAME = constraints.CONSTRAINT_NAME
+            WHERE constraints.TABLE_SCHEMA = DATABASE()
+              AND constraints.CONSTRAINT_TYPE = 'UNIQUE'
             """);
 
-        ScaffoldingHelpers.AppendTableNameFilter(sql, command, context.TableFilter);
-        sql.Append(" ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX;");
+        ScaffoldingHelpers.AppendTableNameFilter(sql, command, context.TableFilter, "constraints.TABLE_NAME");
+        sql.Append(" ORDER BY constraints.TABLE_NAME, constraints.CONSTRAINT_NAME, columns.ORDINAL_POSITION;");
         command.CommandText = sql.ToString();
 
         using var reader = command.ExecuteReader();

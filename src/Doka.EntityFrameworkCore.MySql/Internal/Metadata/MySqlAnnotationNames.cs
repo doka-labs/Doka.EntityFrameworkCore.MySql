@@ -16,6 +16,8 @@ internal static class MySqlAnnotationNames
 
     public const string SpatialIndex = Prefix + nameof(SpatialIndex);
 
+    public const string FullTextIndex = Prefix + nameof(FullTextIndex);
+
     public const string HiLoSequenceName = Prefix + nameof(HiLoSequenceName);
 
     public const string Invisible = Prefix + nameof(Invisible);
@@ -25,4 +27,8 @@ internal static class MySqlAnnotationNames
     public const string Collation = Prefix + nameof(Collation);
 
     public const string Comment = Prefix + nameof(Comment);
+
+    public const string ScaffoldingCheckConstraints = Prefix + nameof(ScaffoldingCheckConstraints);
+
+    public const string ScaffoldingIndexParts = Prefix + nameof(ScaffoldingIndexParts);
 }

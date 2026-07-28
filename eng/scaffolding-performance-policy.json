@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "large-and-restricted-scaffolding-v1",
+  "tableCount": 128,
+  "columnsPerTable": 8,
+  "restrictedVisibleTableCount": 4,
+  "measuredRuns": 2,
+  "budgets": {
+    "maximumMetadataCommandsPerRun": 14,
+    "maximumElapsedMillisecondsPerRun": 15000,
+    "maximumAllocatedBytesPerRun": 268435456,
+    "maximumManagedHeapGrowthBytesPerRun": 201326592
+  },
+  "cleanupAndCancellationTests": [
+    "Failed_or_cancelled_reverse_engineering_releases_operation_state"
+  ]
+}

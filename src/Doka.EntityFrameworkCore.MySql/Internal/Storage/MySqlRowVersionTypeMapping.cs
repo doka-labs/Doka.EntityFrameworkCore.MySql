@@ -4,8 +4,16 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// Maps EF's conventional <c>byte[]</c> row-version property to a MySQL
 /// <c>timestamp(6)</c> value with structural snapshot comparison.
 /// </summary>
-internal sealed class MySqlRowVersionTypeMapping : DateTimeTypeMapping
+public sealed class MySqlRowVersionTypeMapping : DateTimeTypeMapping
 {
+    /// <summary>
+    /// Gets the canonical mapping used as the cloning source for generated compiled models.
+    /// </summary>
+    public static new MySqlRowVersionTypeMapping Default { get; } = new();
+
+    /// <summary>
+    /// Creates the conventional MySQL <c>byte[]</c> row-version mapping.
+    /// </summary>
     public MySqlRowVersionTypeMapping() : base(
         new RelationalTypeMappingParameters(
             new CoreTypeMappingParameters(
@@ -27,6 +35,7 @@ internal sealed class MySqlRowVersionTypeMapping : DateTimeTypeMapping
         RelationalTypeMappingParameters parameters
     ) : base(parameters) { }
 
+    /// <inheritdoc />
     protected override RelationalTypeMapping Clone(
         RelationalTypeMappingParameters parameters
     ) => new MySqlRowVersionTypeMapping(parameters);

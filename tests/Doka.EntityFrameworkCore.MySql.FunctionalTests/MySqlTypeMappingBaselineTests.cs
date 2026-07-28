@@ -320,6 +320,24 @@ public sealed class MySqlTypeMappingBaselineTests
     }
 
     /// <summary>
+    /// Verifies that explicit LOB store types override converter size hints in both
+    /// annotation metadata and the resolved relational type mapping.
+    /// </summary>
+    [Fact]
+    public void Explicit_lob_store_types_override_converter_size_hints()
+    {
+        using var context = new ValueConverterContext(CreateOptions<ValueConverterContext>());
+        var entityType = context.Model.FindEntityType(typeof(ValueConverterEntity))!;
+        var textProperty = entityType.FindProperty(nameof(ValueConverterEntity.ExplicitText))!;
+        var blobProperty = entityType.FindProperty(nameof(ValueConverterEntity.ExplicitBlob))!;
+
+        Assert.Equal("longtext", textProperty.GetColumnType());
+        Assert.Equal("longtext", textProperty.GetRelationalTypeMapping().StoreType);
+        Assert.Equal("longblob", blobProperty.GetColumnType());
+        Assert.Equal("longblob", blobProperty.GetRelationalTypeMapping().StoreType);
+    }
+
+    /// <summary>
     /// Verifies that a custom domain type converter (Money -> decimal) produces decimal column.
     /// </summary>
     [Fact]
@@ -420,6 +438,20 @@ public sealed class MySqlTypeMappingBaselineTests
                     .HasMaxLength(1);
 
                 entity
+                    .Property(item => item.ExplicitText)
+                    .HasConversion(v => v ? "Y" : "N", v => v == "Y")
+                    .HasMaxLength(1)
+                    .HasColumnType("longtext");
+
+                entity
+                    .Property(item => item.ExplicitBlob)
+                    .HasConversion(
+                        value => BitConverter.GetBytes(value.UtcTicks),
+                        bytes => new DateTimeOffset(BitConverter.ToInt64(bytes), TimeSpan.Zero))
+                    .HasMaxLength(12)
+                    .HasColumnType("longblob");
+
+                entity
                     .Property(item => item.Price)
                     .HasConversion(v => v.Amount, v => new Money(v))
                     .HasPrecision(18, 2);
@@ -449,6 +481,10 @@ public sealed class MySqlTypeMappingBaselineTests
         public int Id { get; set; }
 
         public bool IsActiveText { get; set; }
+
+        public bool ExplicitText { get; set; }
+
+        public DateTimeOffset ExplicitBlob { get; set; }
 
         public bool IsVerifiedInt { get; set; }
 

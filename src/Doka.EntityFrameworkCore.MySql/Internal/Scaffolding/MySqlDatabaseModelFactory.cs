@@ -47,18 +47,14 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(options);
 
-        if (options.Schemas.Any())
-        {
-            throw new InvalidOperationException(
-                "MySQL-family reverse engineering does not support schema filtering because schemas are unsupported.");
-        }
-
         var shouldCloseConnection = connection.State != ConnectionState.Open;
 
         if (shouldCloseConnection)
         {
             connection.Open();
         }
+
+        string? initialDatabaseName = null;
 
         try
         {
@@ -70,6 +66,14 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
             _scaffoldingContext.SetDetectedServerVersionText(rawServerVersion);
 
             var databaseName = ScaffoldingHelpers.ExecuteScalarString(connection, "SELECT DATABASE();");
+            initialDatabaseName = databaseName;
+            var requestedDatabaseNames = options
+                .Schemas.Where(schema => !string.IsNullOrWhiteSpace(schema))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            var databaseNames = requestedDatabaseNames.Length == 0
+                ? [databaseName]
+                : requestedDatabaseNames;
             var databaseCollation = ScaffoldingHelpers.ExecuteScalarString(
                 connection,
                 """
@@ -92,34 +96,74 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
             }
 
             var tableFilter = TableFilter.For(options.Tables);
-            var mariaDbJsonColumns = serverVersion.IsMariaDb
-                ? JsonCheckConstraintLoader.Load(connection, tableFilter)
-                : new HashSet<(string, string)>();
+            var databaseTables =
+                new Dictionary<(string DatabaseName, string TableName), DatabaseTable>();
+            var databaseColumns =
+                new Dictionary<(string DatabaseName, string TableName, string ColumnName), DatabaseColumn>();
+            var pipelineContexts = new List<ScaffoldingPipelineContext>(databaseNames.Length);
 
-            var pipelineContext = new ScaffoldingPipelineContext(
-                connection,
-                databaseModel,
-                tableFilter,
-                serverVersion.Profile,
-                mariaDbJsonColumns);
+            foreach (var selectedDatabaseName in databaseNames)
+            {
+                ChangeDatabase(connection, selectedDatabaseName);
 
-            TableLoader.Load(pipelineContext);
-            ColumnLoader.Load(pipelineContext);
-            SequenceLoader.Load(pipelineContext);
-            PrimaryKeyLoader.Load(pipelineContext);
-            UniqueConstraintLoader.Load(pipelineContext);
-            IndexLoader.Load(pipelineContext);
-            SpatialColumnLoader.Load(pipelineContext);
-            ForeignKeyLoader.Load(pipelineContext, _logger);
+                var mariaDbJsonColumns = serverVersion.IsMariaDb
+                    ? JsonCheckConstraintLoader.Load(connection, tableFilter)
+                    : new HashSet<(string, string)>();
+                var pipelineContext = new ScaffoldingPipelineContext(
+                    connection,
+                    databaseModel,
+                    tableFilter,
+                    serverVersion.Profile,
+                    mariaDbJsonColumns,
+                    selectedDatabaseName,
+                    requestedDatabaseNames.Length > 0,
+                    databaseTables,
+                    databaseColumns);
+
+                TableLoader.Load(pipelineContext);
+                ColumnLoader.Load(pipelineContext);
+                SequenceLoader.Load(pipelineContext);
+                PrimaryKeyLoader.Load(pipelineContext);
+                UniqueConstraintLoader.Load(pipelineContext);
+                IndexLoader.Load(pipelineContext);
+                CheckConstraintLoader.Load(pipelineContext);
+                SpatialColumnLoader.Load(pipelineContext);
+                pipelineContexts.Add(pipelineContext);
+            }
+
+            // Foreign keys are loaded after every selected database so references
+            // across MySQL database qualifiers resolve regardless of selection order.
+            foreach (var pipelineContext in pipelineContexts)
+            {
+                ChangeDatabase(connection, pipelineContext.DatabaseName);
+                ForeignKeyLoader.Load(pipelineContext, _logger);
+            }
 
             return databaseModel;
         }
         finally
         {
+            if (connection.State == ConnectionState.Open
+                && !string.IsNullOrWhiteSpace(initialDatabaseName))
+            {
+                ChangeDatabase(connection, initialDatabaseName);
+            }
+
             if (shouldCloseConnection)
             {
                 connection.Close();
             }
+        }
+    }
+
+    private static void ChangeDatabase(
+        DbConnection connection,
+        string databaseName
+    )
+    {
+        if (!string.Equals(connection.Database, databaseName, StringComparison.Ordinal))
+        {
+            connection.ChangeDatabase(databaseName);
         }
     }
 }

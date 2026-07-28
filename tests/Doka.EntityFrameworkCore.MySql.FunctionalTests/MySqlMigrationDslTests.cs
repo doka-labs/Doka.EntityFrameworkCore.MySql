@@ -8,17 +8,56 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// </summary>
 public sealed class MySqlMigrationDslTests
 {
+    private static readonly int[] s_indexPrefixLengths = [32, 0];
+    private static readonly int[] s_singlePrefixLength = [16];
+    private static readonly int[] s_negativePrefixLengths = [-1, 0];
+    private static readonly bool[] s_mixedIndexDirections = [false, true];
+
     [Fact]
     public void Public_mysql_specific_fluent_apis_stamp_expected_metadata_annotations()
     {
         using var context = new MigrationDslContext(CreateOptions<MigrationDslContext>());
         var entityType = context.Model.FindEntityType(typeof(MigrationDslEntity));
         var property = entityType?.FindProperty(nameof(MigrationDslEntity.ExternalId));
+        var prefixIndex = entityType
+            ?.GetIndexes()
+            .Single(index => index.GetDatabaseName() == "IX_MigrationDsl_Name_Code");
+        var fullTextIndex = entityType
+            ?.GetIndexes()
+            .Single(index => index.GetDatabaseName() == "IX_MigrationDsl_Body");
 
         Assert.Equal("utf8mb4", context.Model.GetMySqlCharSet());
         Assert.Equal("utf8mb4", entityType?.GetMySqlCharSet());
         Assert.Equal("InnoDB", entityType?.GetMySqlStorageEngine());
         Assert.Equal(MySqlGuidFormat.Char36, property?.GetMySqlGuidFormat());
+        Assert.Equal(
+            s_indexPrefixLengths,
+            prefixIndex?.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength)
+                ?.Value as int[]);
+        Assert.True(
+            fullTextIndex?.FindAnnotation(MySqlAnnotationNames.FullTextIndex)
+                ?.Value as bool?);
+    }
+
+    /// <summary>
+    /// Verifies that the public prefix-length API rejects incomplete and negative metadata.
+    /// </summary>
+    [Fact]
+    public void Public_index_fluent_api_rejects_invalid_prefix_lengths()
+    {
+        var modelBuilder = new ModelBuilder();
+        var indexBuilder = modelBuilder
+            .Entity<MigrationDslEntity>()
+            .HasIndex(entity => new
+            {
+                entity.Name,
+                entity.Code,
+            });
+
+        Assert.Throws<ArgumentException>(
+            () => indexBuilder.HasPrefixLength(s_singlePrefixLength));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => indexBuilder.HasPrefixLength(s_negativePrefixLengths));
     }
 
     /// <summary>
@@ -43,6 +82,15 @@ public sealed class MySqlMigrationDslTests
         var externalIdColumn = Assert.Single(
             createTable.Columns,
             column => column.Name == nameof(MigrationDslEntity.ExternalId));
+        var prefixIndex = Assert.Single(
+            operations.OfType<CreateIndexOperation>(),
+            operation => operation.Name == "IX_MigrationDsl_Name_Code");
+        var fullTextIndex = Assert.Single(
+            operations.OfType<CreateIndexOperation>(),
+            operation => operation.Name == "IX_MigrationDsl_Body");
+        var spatialIndex = Assert.Single(
+            operations.OfType<CreateIndexOperation>(),
+            operation => operation.Name == "IX_MigrationDsl_Location");
 
         Assert.Equal(
             "utf8mb4",
@@ -61,6 +109,22 @@ public sealed class MySqlMigrationDslTests
             externalIdColumn.FindAnnotation(MySqlAnnotationNames.GuidFormat)
                 ?.Value);
         Assert.Equal("char(36)", externalIdColumn.ColumnType);
+        Assert.Equal(
+            s_indexPrefixLengths,
+            prefixIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength)
+                ?.Value as int[]);
+        Assert.Equal(s_mixedIndexDirections, prefixIndex.IsDescending);
+        Assert.Null(prefixIndex.FindAnnotation(MySqlAnnotationNames.SpatialIndex));
+        Assert.Null(fullTextIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength));
+        Assert.Null(fullTextIndex.FindAnnotation(MySqlAnnotationNames.SpatialIndex));
+        Assert.True(
+            fullTextIndex.FindAnnotation(MySqlAnnotationNames.FullTextIndex)
+                ?.Value as bool?);
+        Assert.Null(spatialIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength));
+        Assert.Null(spatialIndex.FindAnnotation(MySqlAnnotationNames.FullTextIndex));
+        Assert.True(
+            spatialIndex.FindAnnotation(MySqlAnnotationNames.SpatialIndex)
+                ?.Value as bool?);
     }
 
     /// <summary>
@@ -115,6 +179,19 @@ public sealed class MySqlMigrationDslTests
         Assert.Contains("CHARACTER SET utf8mb4", sql, StringComparison.Ordinal);
         Assert.Contains("ENGINE = InnoDB", sql, StringComparison.Ordinal);
         Assert.Contains("`ExternalId` char(36) NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains(
+            "CREATE INDEX `IX_MigrationDsl_Name_Code` "
+            + "ON `MigrationDslEntities` (`Name`(32), `Code` DESC)",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "CREATE FULLTEXT INDEX `IX_MigrationDsl_Body` ON `MigrationDslEntities` (`Body`)",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "CREATE SPATIAL INDEX `IX_MigrationDsl_Location` ON `MigrationDslEntities` (`Location`)",
+            sql,
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -128,6 +205,12 @@ public sealed class MySqlMigrationDslTests
         var codeGenerator = serviceProvider.GetRequiredService<IAnnotationCodeGenerator>();
         var entityType = context.Model.FindEntityType(typeof(MigrationDslEntity))!;
         var property = entityType.FindProperty(nameof(MigrationDslEntity.ExternalId))!;
+        var prefixIndex = entityType
+            .GetIndexes()
+            .Single(index => index.GetDatabaseName() == "IX_MigrationDsl_Name_Code");
+        var fullTextIndex = entityType
+            .GetIndexes()
+            .Single(index => index.GetDatabaseName() == "IX_MigrationDsl_Body");
 
         var modelAnnotations = context
             .Model.GetAnnotations()
@@ -141,6 +224,12 @@ public sealed class MySqlMigrationDslTests
         var modelCalls = codeGenerator.GenerateFluentApiCalls(context.Model, modelAnnotations);
         var entityCalls = codeGenerator.GenerateFluentApiCalls(entityType, entityAnnotations);
         var propertyCalls = codeGenerator.GenerateFluentApiCalls(property, propertyAnnotations);
+        var prefixIndexCalls = codeGenerator.GenerateFluentApiCalls(
+            prefixIndex,
+            prefixIndex.GetAnnotations().ToDictionary(annotation => annotation.Name));
+        var fullTextIndexCalls = codeGenerator.GenerateFluentApiCalls(
+            fullTextIndex,
+            fullTextIndex.GetAnnotations().ToDictionary(annotation => annotation.Name));
 
         Assert.Contains(
             modelCalls,
@@ -158,6 +247,14 @@ public sealed class MySqlMigrationDslTests
             propertyCalls,
             fragment => fragment.Method == nameof(MySqlPropertyBuilderExtensions.HasMySqlGuidFormat)
                 && Equals(fragment.Arguments.Single(), MySqlGuidFormat.Char36));
+        Assert.Contains(
+            prefixIndexCalls,
+            fragment => fragment.Method == nameof(MySqlIndexBuilderExtensions.HasPrefixLength)
+                && fragment.Arguments.SequenceEqual(s_indexPrefixLengths.Cast<object>()));
+        Assert.Contains(
+            fullTextIndexCalls,
+            fragment => fragment.Method == nameof(MySqlIndexBuilderExtensions.IsFullText)
+                && fragment.Arguments.Count == 0);
     }
 
     /// <summary>
@@ -269,7 +366,8 @@ public sealed class MySqlMigrationDslTests
 
         builder.UseMySql(
             "Server=localhost;Database=phase2;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+            MySqlServerVersion.MySql(new Version(8, 4, 0)),
+            providerOptions => providerOptions.UseNetTopologySuite());
 
         return builder.Options;
     }
@@ -315,6 +413,26 @@ public sealed class MySqlMigrationDslTests
                 entity
                     .Property(item => item.ExternalId)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+                entity
+                    .HasIndex(item => new
+                    {
+                        item.Name,
+                        item.Code,
+                    })
+                    .HasDatabaseName("IX_MigrationDsl_Name_Code")
+                    .HasPrefixLength(s_indexPrefixLengths)
+                    .IsDescending(s_mixedIndexDirections);
+                entity
+                    .HasIndex(item => item.Body)
+                    .HasDatabaseName("IX_MigrationDsl_Body")
+                    .IsFullText();
+                entity
+                    .Property(item => item.Location)
+                    .HasColumnType("point");
+                entity
+                    .HasIndex(item => item.Location)
+                    .HasDatabaseName("IX_MigrationDsl_Location")
+                    .IsSpatial();
             });
         }
     }
@@ -456,5 +574,13 @@ public sealed class MySqlMigrationDslTests
         public int Id { get; set; }
 
         public Guid ExternalId { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public string Code { get; set; } = string.Empty;
+
+        public string Body { get; set; } = string.Empty;
+
+        public Point Location { get; set; } = new(0, 0);
     }
 }

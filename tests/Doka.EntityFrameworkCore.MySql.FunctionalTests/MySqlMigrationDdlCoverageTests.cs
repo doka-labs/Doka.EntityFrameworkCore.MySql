@@ -6,6 +6,11 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// </summary>
 public sealed class MySqlMigrationDdlCoverageTests
 {
+    private static readonly int[] s_mixedPrefixLengths = [32, 0];
+    private static readonly int[] s_singlePrefixLength = [16];
+    private static readonly int[] s_invalidPrefixLengths = [-1, 0];
+    private static readonly int[] s_fullTextPrefixLengths = [16, 0];
+
     // -- RENAME TABLE --
 
     [Fact]
@@ -48,6 +53,90 @@ public sealed class MySqlMigrationDdlCoverageTests
         Assert.Contains("RENAME COLUMN", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("`OldCol`", sql, StringComparison.Ordinal);
         Assert.Contains("`NewCol`", sql, StringComparison.Ordinal);
+    }
+
+    // -- ROW VERSION --
+
+    [Fact]
+    public void Temporal_row_version_generates_current_timestamp_clauses()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AddColumnOperation
+        {
+            Table = "AuditEntries",
+            Name = "Version",
+            ClrType = typeof(byte[]),
+            ColumnType = "timestamp(6)",
+            IsRowVersion = true,
+        };
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains("DEFAULT CURRENT_TIMESTAMP(6)", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ON UPDATE CURRENT_TIMESTAMP(6)", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Non_temporal_row_version_does_not_generate_current_timestamp_clauses()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AddColumnOperation
+        {
+            Table = "AuditEntries",
+            Name = "Version",
+            ClrType = typeof(string),
+            ColumnType = "varchar(64)",
+            IsRowVersion = true,
+        };
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.DoesNotContain("CURRENT_TIMESTAMP", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("`Version` varchar(64)", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Qualified_table_operations_preserve_database_name()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        MigrationOperation[] operations =
+        [
+            new DropIndexOperation
+            {
+                Name = "IX_Entries_Code",
+                Schema = "tenant_database",
+                Table = "Entries",
+            },
+            new RenameIndexOperation
+            {
+                Name = "IX_Entries_Old",
+                NewName = "IX_Entries_New",
+                Schema = "tenant_database",
+                Table = "Entries",
+            },
+            new DropForeignKeyOperation
+            {
+                Name = "FK_Entries_Parents",
+                Schema = "tenant_database",
+                Table = "Entries",
+            },
+            new RenameColumnOperation
+            {
+                Name = "OldCode",
+                NewName = "Code",
+                Schema = "tenant_database",
+                Table = "Entries",
+            },
+        ];
+
+        var sql = JoinSql(generator.Generate(operations, context.Model));
+
+        Assert.Equal(
+            4,
+            sql.Split("ALTER TABLE `tenant_database`.`Entries`", StringSplitOptions.None).Length - 1);
     }
 
     // -- ALTER SEQUENCE --
@@ -261,6 +350,111 @@ public sealed class MySqlMigrationDdlCoverageTests
         Assert.Contains("START WITH 3 RESTART WITH 3", sql, StringComparison.Ordinal);
     }
 
+    // -- INDEX METADATA --
+
+    /// <summary>
+    /// Verifies that prefix lengths and descending key parts retain their column order.
+    /// </summary>
+    [Fact]
+    public void CreateIndex_with_prefix_and_direction_generates_exact_key_parts()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new CreateIndexOperation
+        {
+            Name = "IX_Entries_Name_Code",
+            Table = "Entries",
+            Columns = ["Name", "Code"],
+            IsDescending = [false, true],
+        };
+        operation.SetAnnotation(MySqlAnnotationNames.IndexPrefixLength, s_mixedPrefixLengths);
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains(
+            "CREATE INDEX `IX_Entries_Name_Code` ON `Entries` (`Name`(32), `Code` DESC)",
+            sql,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies EF Core's empty direction array convention: every index key part
+    /// is descending when <c>IndexBuilder.IsDescending()</c> has no arguments.
+    /// </summary>
+    [Fact]
+    public void CreateIndex_with_empty_directions_marks_every_key_part_descending()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new CreateIndexOperation
+        {
+            Name = "IX_Entries_First_Second",
+            Table = "Entries",
+            Columns = ["First", "Second"],
+            IsDescending = [],
+        };
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains(
+            "CREATE INDEX `IX_Entries_First_Second` ON `Entries` (`First` DESC, `Second` DESC)",
+            sql,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that the full-text annotation selects the native FULLTEXT index grammar.
+    /// </summary>
+    [Fact]
+    public void CreateIndex_with_full_text_annotation_generates_full_text_index()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new CreateIndexOperation
+        {
+            Name = "IX_Entries_Body",
+            Table = "Entries",
+            Columns = ["Body"],
+        };
+        operation.SetAnnotation(MySqlAnnotationNames.FullTextIndex, true);
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains(
+            "CREATE FULLTEXT INDEX `IX_Entries_Body` ON `Entries` (`Body`)",
+            sql,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that invalid provider index metadata fails before incomplete SQL can be emitted.
+    /// </summary>
+    [Theory]
+    [InlineData("prefix-count")]
+    [InlineData("negative-prefix")]
+    [InlineData("unique-full-text")]
+    [InlineData("prefixed-full-text")]
+    [InlineData("spatial-full-text")]
+    [InlineData("prefixed-spatial")]
+    public void CreateIndex_with_invalid_provider_metadata_is_rejected(
+        string scenario
+    )
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new CreateIndexOperation
+        {
+            Name = "IX_Invalid",
+            Table = "Entries",
+            Columns = ["Name", "Code"],
+        };
+
+        ConfigureInvalidIndex(operation, scenario);
+
+        Assert.Throws<InvalidOperationException>(
+            () => generator.Generate([operation], context.Model));
+    }
+
     // -- SPATIAL INDEX --
 
     [Fact]
@@ -369,6 +563,42 @@ public sealed class MySqlMigrationDdlCoverageTests
     private static string JoinSql(
         IReadOnlyList<MigrationCommand> commands
     ) => string.Join("\n", commands.Select(c => c.CommandText));
+
+    private static void ConfigureInvalidIndex(
+        CreateIndexOperation operation,
+        string scenario
+    )
+    {
+        switch (scenario)
+        {
+            case "prefix-count":
+                operation.SetAnnotation(MySqlAnnotationNames.IndexPrefixLength, s_singlePrefixLength);
+                break;
+            case "negative-prefix":
+                operation.SetAnnotation(MySqlAnnotationNames.IndexPrefixLength, s_invalidPrefixLengths);
+                break;
+            case "unique-full-text":
+                operation.IsUnique = true;
+                operation.SetAnnotation(MySqlAnnotationNames.FullTextIndex, true);
+                break;
+            case "prefixed-full-text":
+                operation.SetAnnotation(MySqlAnnotationNames.FullTextIndex, true);
+                operation.SetAnnotation(MySqlAnnotationNames.IndexPrefixLength, s_fullTextPrefixLengths);
+                break;
+            case "spatial-full-text":
+                operation.Columns = ["Location"];
+                operation.SetAnnotation(MySqlAnnotationNames.SpatialIndex, true);
+                operation.SetAnnotation(MySqlAnnotationNames.FullTextIndex, true);
+                break;
+            case "prefixed-spatial":
+                operation.Columns = ["Location"];
+                operation.SetAnnotation(MySqlAnnotationNames.SpatialIndex, true);
+                operation.SetAnnotation(MySqlAnnotationNames.IndexPrefixLength, s_singlePrefixLength);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(scenario), scenario, "Unknown test scenario.");
+        }
+    }
 
     private static DdlCoverageContext CreateMySqlContext()
     {

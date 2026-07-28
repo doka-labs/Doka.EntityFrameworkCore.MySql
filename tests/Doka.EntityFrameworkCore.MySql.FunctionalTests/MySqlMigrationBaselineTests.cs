@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
-/// Verifies the migrations, schema-rejection, and identifier-quoting baseline.
+/// Verifies the migrations, schema-qualification, and identifier-quoting baseline.
 /// </summary>
 public sealed class MySqlMigrationBaselineTests
 {
@@ -71,7 +71,8 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void History_repository_uses_the_configured_history_table_name()
     {
-        var options = CreateOptions(extension => (MySqlOptionsExtension)extension.WithMigrationsHistoryTableName("__CustomHistory"));
+        var options = CreateOptions(extension =>
+            (MySqlOptionsExtension)extension.WithMigrationsHistoryTableName("__CustomHistory"));
         using var context = new BaselineContext(options);
         var historyRepository = context.GetService<IHistoryRepository>();
 
@@ -141,10 +142,11 @@ public sealed class MySqlMigrationBaselineTests
     }
 
     /// <summary>
-    /// Verifies that EF schemas do not become cross-database foreign-key references.
+    /// Verifies that EF schemas become MySQL database qualifiers for both tables
+    /// and foreign-key principals.
     /// </summary>
     [Fact]
-    public void Create_table_foreign_key_ignores_relational_schemas()
+    public void Create_table_foreign_key_preserves_relational_schemas()
     {
         using var context = new BaselineContext(CreateOptions());
         var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
@@ -180,9 +182,25 @@ public sealed class MySqlMigrationBaselineTests
         var command = Assert.Single(
             migrationsSqlGenerator.Generate([operation], context.Model));
 
-        Assert.Contains("CREATE TABLE `Child`", command.CommandText, StringComparison.Ordinal);
-        Assert.Contains("REFERENCES `Parent` (`Id`)", command.CommandText, StringComparison.Ordinal);
-        Assert.DoesNotContain("`dbo2`.", command.CommandText, StringComparison.Ordinal);
+        Assert.Contains("CREATE TABLE `dbo2`.`Child`", command.CommandText, StringComparison.Ordinal);
+        Assert.Contains("REFERENCES `dbo2`.`Parent` (`Id`)", command.CommandText, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that EnsureSchema creates the equivalent MySQL database.
+    /// </summary>
+    [Fact]
+    public void Ensure_schema_creates_database_if_missing()
+    {
+        using var context = new BaselineContext(CreateOptions());
+        var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
+
+        var command = Assert.Single(
+            migrationsSqlGenerator.Generate([new EnsureSchemaOperation { Name = "tenant_database" }], context.Model));
+
+        Assert.Equal(
+            "CREATE DATABASE IF NOT EXISTS `tenant_database`;" + Environment.NewLine,
+            command.CommandText);
     }
 
     /// <summary>
@@ -265,29 +283,27 @@ public sealed class MySqlMigrationBaselineTests
     }
 
     /// <summary>
-    /// Verifies that default-schema configuration fails fast for the baseline path.
+    /// Verifies that default-schema configuration is preserved as a database qualifier.
     /// </summary>
     [Fact]
-    public void Default_schema_configuration_fails_fast()
+    public void Default_schema_configuration_is_preserved()
     {
         using var context = new DefaultSchemaContext(CreateOptions());
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
-
-        Assert.Contains("default schema", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("dbo", context.Model.GetDefaultSchema());
     }
 
     /// <summary>
-    /// Verifies that entity-schema configuration fails fast for the baseline path.
+    /// Verifies that entity-schema configuration is preserved as a database qualifier.
     /// </summary>
     [Fact]
-    public void Entity_schema_configuration_fails_fast()
+    public void Entity_schema_configuration_is_preserved()
     {
         using var context = new EntitySchemaContext(CreateOptions());
+        var entityType = context.Model.FindEntityType(typeof(BaselineEntity));
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
-
-        Assert.Contains("schema from entity", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(entityType);
+        Assert.Equal("dbo", entityType.GetSchema());
     }
 
     [Fact]
@@ -313,10 +329,10 @@ public sealed class MySqlMigrationBaselineTests
     }
 
     /// <summary>
-    /// Verifies that an EF schema does not turn an index target into another database.
+    /// Verifies that an EF schema qualifies an index target with its MySQL database.
     /// </summary>
     [Fact]
-    public void Create_index_ignores_relational_schema()
+    public void Create_index_preserves_relational_schema()
     {
         using var context = new BaselineContext(CreateOptions());
         var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
@@ -335,8 +351,7 @@ public sealed class MySqlMigrationBaselineTests
 
         var command = Assert.Single(commands);
 
-        Assert.Contains("ON `SchemaProbe` (`Code`)", command.CommandText, StringComparison.Ordinal);
-        Assert.DoesNotContain("`dbo2`.", command.CommandText, StringComparison.Ordinal);
+        Assert.Contains("ON `dbo2`.`SchemaProbe` (`Code`)", command.CommandText, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -353,15 +368,17 @@ public sealed class MySqlMigrationBaselineTests
                 new RenameTableOperation
                 {
                     Name = "OldTable",
+                    Schema = "source_database",
                     NewName = "NewTable",
+                    NewSchema = "target_database",
                 },
             },
             context.Model);
 
         var command = Assert.Single(commands);
         Assert.Contains("RENAME TABLE", command.CommandText, StringComparison.Ordinal);
-        Assert.Contains("`OldTable`", command.CommandText, StringComparison.Ordinal);
-        Assert.Contains("`NewTable`", command.CommandText, StringComparison.Ordinal);
+        Assert.Contains("`source_database`.`OldTable`", command.CommandText, StringComparison.Ordinal);
+        Assert.Contains("`target_database`.`NewTable`", command.CommandText, StringComparison.Ordinal);
     }
 
     /// <summary>

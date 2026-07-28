@@ -41,7 +41,7 @@ internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
         }
 
         ApplyDatabaseCharSetAnnotations(operations, source, target);
-        ApplySpatialIndexAnnotations(operations, target);
+        ApplyIndexAnnotations(operations, target);
         RemoveDuplicateAlterColumnOperations(operations);
         NormalizeAutoIncrementPrimaryKeyOperations(operations, source, target);
 
@@ -352,7 +352,7 @@ internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
             ?? model.Model.GetMySqlCharSet();
     }
 
-    private static void ApplySpatialIndexAnnotations(
+    private static void ApplyIndexAnnotations(
         List<MigrationOperation> operations,
         IRelationalModel target
     )
@@ -360,8 +360,12 @@ internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(target);
 
-        // Pre-build lookup to avoid O(N x M) entity-type enumeration per index operation.
-        var spatialIndexLookup = new HashSet<(string? Schema, string Table, string IndexName)>();
+        // The model is authoritative here. Relational index mappings can be incomplete
+        // while EF constructs them, so using a first mapped annotation can leak metadata
+        // from a neighboring index into the operation.
+        var indexMetadata = new Dictionary<
+            (string? Schema, string Table, string IndexName),
+            (bool Spatial, bool FullText, int[]? PrefixLengths)>();
 
         foreach (var entityType in target.Model.GetEntityTypes())
         {
@@ -377,33 +381,60 @@ internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
             {
                 var indexName = index.GetDatabaseName();
 
-                if (indexName is not null
-                    && index.GetMySqlSpatialIndex())
+                if (indexName is null)
                 {
-                    spatialIndexLookup.Add((schema, tableName, indexName));
+                    continue;
                 }
-            }
-        }
 
-        foreach (var table in target.Tables)
-        {
-            foreach (var tableIndex in table.Indexes)
-            {
-                if ((tableIndex.FindAnnotation(MySqlAnnotationNames.SpatialIndex)
-                        ?.Value as bool?)
-                    == true)
+                var key = (schema, tableName, indexName);
+                var metadata = (
+                    Spatial: index.GetMySqlSpatialIndex(),
+                    FullText: index.GetMySqlFullTextIndex(),
+                    PrefixLengths: index
+                        .GetMySqlIndexPrefixLengths()
+                        ?.ToArray());
+
+                if (indexMetadata.TryGetValue(key, out var existingMetadata)
+                    && (existingMetadata.Spatial != metadata.Spatial
+                        || existingMetadata.FullText != metadata.FullText
+                        || !ValuesAreEquivalent(existingMetadata.PrefixLengths, metadata.PrefixLengths)))
                 {
-                    spatialIndexLookup.Add((table.Schema, table.Name, tableIndex.Name));
+                    throw new InvalidOperationException(
+                        $"Mapped indexes for '{tableName}.{indexName}' have conflicting MySQL metadata.");
                 }
+
+                indexMetadata[key] = metadata;
             }
         }
 
         foreach (var createIndexOperation in operations.OfType<CreateIndexOperation>())
         {
-            if (spatialIndexLookup.Contains(
-                    (createIndexOperation.Schema, createIndexOperation.Table, createIndexOperation.Name)))
+            createIndexOperation.RemoveAnnotation(MySqlAnnotationNames.SpatialIndex);
+            createIndexOperation.RemoveAnnotation(MySqlAnnotationNames.FullTextIndex);
+            createIndexOperation.RemoveAnnotation(MySqlAnnotationNames.IndexPrefixLength);
+
+            if (!indexMetadata.TryGetValue(
+                    (createIndexOperation.Schema, createIndexOperation.Table, createIndexOperation.Name),
+                    out var metadata))
+            {
+                continue;
+            }
+
+            if (metadata.Spatial)
             {
                 createIndexOperation.SetAnnotation(MySqlAnnotationNames.SpatialIndex, true);
+            }
+
+            if (metadata.FullText)
+            {
+                createIndexOperation.SetAnnotation(MySqlAnnotationNames.FullTextIndex, true);
+            }
+
+            if (metadata.PrefixLengths is not null)
+            {
+                createIndexOperation.SetAnnotation(
+                    MySqlAnnotationNames.IndexPrefixLength,
+                    metadata.PrefixLengths);
             }
         }
     }

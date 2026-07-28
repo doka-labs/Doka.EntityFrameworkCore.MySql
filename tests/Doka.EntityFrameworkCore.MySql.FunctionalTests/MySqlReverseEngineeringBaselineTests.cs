@@ -43,6 +43,107 @@ public sealed class MySqlReverseEngineeringBaselineTests
     }
 
     /// <summary>
+    /// Verifies that core relational metadata survives database-model to generated-code
+    /// conversion without turning views into tables or duplicating unique definitions.
+    /// </summary>
+    [Fact]
+    public void Reverse_engineering_preserves_core_schema_metadata()
+    {
+        var scaffoldedModel = ScaffoldModel(
+            CreateCoreMetadataDatabaseModel(),
+            detectedServerVersionText: "8.4.6");
+        var contextCode = scaffoldedModel.ContextFile.Code;
+        var recordCode = scaffoldedModel
+            .AdditionalFiles.Single(file => file.Code.Contains("class CoreRecord", StringComparison.Ordinal))
+            .Code;
+        var viewCode = scaffoldedModel
+            .AdditionalFiles.Single(file => file.Code.Contains("class CoreSummary", StringComparison.Ordinal))
+            .Code;
+
+        Assert.Contains("ToView(\"core_summary\"", contextCode, StringComparison.Ordinal);
+        Assert.Contains("HasNoKey()", contextCode, StringComparison.Ordinal);
+        Assert.Contains("HasDefaultValueSql(\"7\")", contextCode, StringComparison.Ordinal);
+        Assert.Contains("HasComment(\"optional count\")", contextCode, StringComparison.Ordinal);
+        Assert.Contains("HasComment(\"core table\")", contextCode, StringComparison.Ordinal);
+        Assert.Contains("HasCheckConstraint(\"CK_core_record_optional\"", contextCode, StringComparison.Ordinal);
+        Assert.Contains("HasComputedColumnSql(\"`OptionalCount` + 1\", true)", contextCode, StringComparison.Ordinal);
+        Assert.Contains("HasColumnOrder(2)", contextCode, StringComparison.Ordinal);
+        Assert.Contains("HasColumnOrder(3)", contextCode, StringComparison.Ordinal);
+        Assert.Contains("HasName(\"PK_core_record\")", contextCode, StringComparison.Ordinal);
+        Assert.Contains("HasAlternateKey(e => e.Code)", contextCode, StringComparison.Ordinal);
+        Assert.Contains("HasName(\"UQ_core_record_Code\")", contextCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("HasIndex(e => e.Code", contextCode, StringComparison.Ordinal);
+        Assert.Contains("HasConstraintName(\"FK_core_child_record\")", contextCode, StringComparison.Ordinal);
+        Assert.Contains("public int? OptionalCount", recordCode, StringComparison.Ordinal);
+        Assert.Contains("public int? OptionalCount", viewCode, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that provider-specific index and store metadata survives conversion to
+    /// generated C# without emitting a partial representation of a functional index.
+    /// </summary>
+    [Fact]
+    public void Reverse_engineering_preserves_index_store_type_and_sequence_metadata()
+    {
+        var scaffoldedModel = ScaffoldModel(
+            CreateIndexAndStoreTypeDatabaseModel(),
+            detectedServerVersionText: "8.4.6");
+        var contextCode = scaffoldedModel.ContextFile.Code;
+        var entityCode = scaffoldedModel
+            .AdditionalFiles.Single(file => file.Code.Contains("class StoreTypeRecord", StringComparison.Ordinal))
+            .Code;
+
+        Assert.Contains(
+            "using Doka.EntityFrameworkCore.MySql;",
+            contextCode,
+            StringComparison.Ordinal);
+        Assert.Contains(".HasPrefixLength(32, 0)", contextCode, StringComparison.Ordinal);
+        Assert.Contains(".IsDescending(false, true)", contextCode, StringComparison.Ordinal);
+        Assert.Contains(".IsFullText()", contextCode, StringComparison.Ordinal);
+        Assert.Contains(".IsUnique()", contextCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("IX_StoreType_Functional", contextCode, StringComparison.Ordinal);
+        Assert.Contains("HasSequence(\"store_sequence\")", contextCode, StringComparison.Ordinal);
+        Assert.Contains(".StartsAt(7L)", contextCode, StringComparison.Ordinal);
+        Assert.Contains(".IncrementsBy(3)", contextCode, StringComparison.Ordinal);
+        Assert.Contains(".HasMin(7L)", contextCode, StringComparison.Ordinal);
+        Assert.Contains(".HasMax(700L)", contextCode, StringComparison.Ordinal);
+        Assert.Contains(".IsCyclic()", contextCode, StringComparison.Ordinal);
+
+        Assert.Contains("public byte TinyUnsigned", entityCode, StringComparison.Ordinal);
+        Assert.Contains("public uint MediumUnsigned", entityCode, StringComparison.Ordinal);
+        Assert.Contains("public ulong UnsignedValue", entityCode, StringComparison.Ordinal);
+        Assert.Contains("public decimal Amount", entityCode, StringComparison.Ordinal);
+        Assert.Contains("public DateTime Moment", entityCode, StringComparison.Ordinal);
+        Assert.Contains("public TimeOnly Duration", entityCode, StringComparison.Ordinal);
+        Assert.Contains("public byte[] FixedBinary", entityCode, StringComparison.Ordinal);
+        Assert.Contains("public byte[] BlobValue", entityCode, StringComparison.Ordinal);
+        Assert.Contains("public ulong BitValue", entityCode, StringComparison.Ordinal);
+        Assert.Contains("public short YearValue", entityCode, StringComparison.Ordinal);
+
+        foreach (var storeType in new[]
+        {
+            "enum('new','done')",
+            "set('a','b')",
+            "tinyint unsigned",
+            "mediumint",
+            "mediumint unsigned",
+            "bigint unsigned",
+            "decimal(20,6) unsigned",
+            "datetime(3)",
+            "time(4)",
+            "binary(8)",
+            "mediumblob",
+            "mediumtext",
+            "bit(8)",
+            "year",
+            "json",
+        })
+        {
+            Assert.Contains($"HasColumnType(\"{storeType}\")", contextCode, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
     /// Verifies that textual GUID columns remain text properties unless the provider-specific
     /// reverse-engineering opt-in is enabled.
     /// </summary>
@@ -137,6 +238,26 @@ public sealed class MySqlReverseEngineeringBaselineTests
         Assert.Equal(
             expected,
             ColumnLoader.NormalizeIntegerDisplayWidth(dataType, storeType));
+    }
+
+    /// <summary>
+    /// Verifies that the optional four-digit YEAR width is canonicalized without
+    /// changing the deprecated two-digit YEAR semantics.
+    /// </summary>
+    [Theory]
+    [InlineData("year", "year", "year")]
+    [InlineData("year", "year(4)", "year")]
+    [InlineData("YEAR", "YEAR(4)", "year")]
+    [InlineData("year", "year(2)", "year(2)")]
+    public void Reverse_engineering_normalizes_year_display_width(
+        string dataType,
+        string storeType,
+        string expected
+    )
+    {
+        Assert.Equal(
+            expected,
+            ColumnLoader.NormalizeYearDisplayWidth(dataType, storeType));
     }
 
     private static ScaffoldedModel ScaffoldModel(
@@ -256,6 +377,269 @@ public sealed class MySqlReverseEngineeringBaselineTests
         string storeType
     ) => CreateSingleColumnDatabaseModel("legacy_guid_entry", "ExternalId", storeType);
 
+    private static DatabaseModel CreateCoreMetadataDatabaseModel()
+    {
+        var databaseModel = new DatabaseModel
+        {
+            DatabaseName = "core_metadata",
+            Collation = "utf8mb4_0900_ai_ci",
+        };
+        var table = new DatabaseTable
+        {
+            Database = databaseModel,
+            Name = "core_record",
+            Comment = "core table",
+        };
+        var idColumn = new DatabaseColumn
+        {
+            Table = table,
+            Name = "Id",
+            StoreType = "int",
+            IsNullable = false,
+            ValueGenerated = ValueGenerated.OnAdd,
+        };
+        var codeColumn = new DatabaseColumn
+        {
+            Table = table,
+            Name = "Code",
+            StoreType = "varchar(32)",
+            IsNullable = false,
+        };
+        var optionalCountColumn = new DatabaseColumn
+        {
+            Table = table,
+            Name = "OptionalCount",
+            StoreType = "int",
+            IsNullable = true,
+            DefaultValueSql = "7",
+            Comment = "optional count",
+        };
+        var computedCountColumn = new DatabaseColumn
+        {
+            Table = table,
+            Name = "ComputedCount",
+            StoreType = "int",
+            IsNullable = true,
+            ComputedColumnSql = "`OptionalCount` + 1",
+            IsStored = true,
+        };
+
+        table.Columns.Add(idColumn);
+        table.Columns.Add(codeColumn);
+        table.Columns.Add(optionalCountColumn);
+        table.Columns.Add(computedCountColumn);
+        table.PrimaryKey = new DatabasePrimaryKey
+        {
+            Table = table,
+            Name = "PK_core_record",
+            Columns = { idColumn },
+        };
+
+        var uniqueConstraint = new DatabaseUniqueConstraint
+        {
+            Table = table,
+            Name = "UQ_core_record_Code",
+            Columns = { codeColumn },
+        };
+        var duplicateUniqueIndex = new DatabaseIndex
+        {
+            Table = table,
+            Name = uniqueConstraint.Name,
+            IsUnique = true,
+            Columns = { codeColumn },
+        };
+
+        table.UniqueConstraints.Add(uniqueConstraint);
+        table.Indexes.Add(duplicateUniqueIndex);
+        table.SetAnnotation(
+            MySqlAnnotationNames.ScaffoldingCheckConstraints,
+            new MySqlScaffoldedCheckConstraint[]
+            {
+                new("CK_core_record_optional", "`OptionalCount` >= 0"),
+            });
+
+        var childTable = new DatabaseTable
+        {
+            Database = databaseModel,
+            Name = "core_child",
+        };
+        var childIdColumn = new DatabaseColumn
+        {
+            Table = childTable,
+            Name = "Id",
+            StoreType = "int",
+            IsNullable = false,
+        };
+        var parentIdColumn = new DatabaseColumn
+        {
+            Table = childTable,
+            Name = "RecordId",
+            StoreType = "int",
+            IsNullable = false,
+        };
+
+        childTable.Columns.Add(childIdColumn);
+        childTable.Columns.Add(parentIdColumn);
+        childTable.PrimaryKey = new DatabasePrimaryKey
+        {
+            Table = childTable,
+            Name = "PK_core_child",
+            Columns = { childIdColumn },
+        };
+
+        var foreignKey = new DatabaseForeignKey
+        {
+            Table = childTable,
+            PrincipalTable = table,
+            Name = "FK_core_child_record",
+            OnDelete = ReferentialAction.Cascade,
+            Columns = { parentIdColumn },
+            PrincipalColumns = { idColumn },
+        };
+
+        childTable.ForeignKeys.Add(foreignKey);
+
+        var view = new DatabaseView
+        {
+            Database = databaseModel,
+            Name = "core_summary",
+        };
+        var viewOptionalCountColumn = new DatabaseColumn
+        {
+            Table = view,
+            Name = "OptionalCount",
+            StoreType = "int",
+            IsNullable = true,
+        };
+
+        view.Columns.Add(viewOptionalCountColumn);
+        databaseModel.Tables.Add(table);
+        databaseModel.Tables.Add(childTable);
+        databaseModel.Tables.Add(view);
+
+        return databaseModel;
+    }
+
+    private static DatabaseModel CreateIndexAndStoreTypeDatabaseModel()
+    {
+        var databaseModel = new DatabaseModel
+        {
+            DatabaseName = "index_store_metadata",
+            Collation = "utf8mb4_0900_ai_ci",
+        };
+        var table = new DatabaseTable
+        {
+            Database = databaseModel,
+            Name = "store_type_record",
+        };
+
+        databaseModel.Tables.Add(table);
+
+        var idColumn = AddColumn(table, "Id", "int");
+        var nameColumn = AddColumn(table, "Name", "varchar(191)");
+        var codeColumn = AddColumn(table, "Code", "varchar(64)");
+        var bodyColumn = AddColumn(table, "Body", "text");
+
+        AddColumn(table, "EnumValue", "enum('new','done')");
+        AddColumn(table, "SetValue", "set('a','b')");
+        AddColumn(table, "TinyUnsigned", "tinyint unsigned");
+        AddColumn(table, "MediumSigned", "mediumint");
+        AddColumn(table, "MediumUnsigned", "mediumint unsigned");
+        AddColumn(table, "UnsignedValue", "bigint unsigned");
+        AddColumn(table, "Amount", "decimal(20,6) unsigned");
+        AddColumn(table, "Moment", "datetime(3)");
+        AddColumn(table, "Duration", "time(4)");
+        AddColumn(table, "FixedBinary", "binary(8)");
+        AddColumn(table, "BlobValue", "mediumblob");
+        AddColumn(table, "TextValue", "mediumtext");
+        AddColumn(table, "BitValue", "bit(8)");
+        AddColumn(table, "YearValue", "year");
+        AddColumn(table, "JsonValue", "json");
+
+        table.PrimaryKey = new DatabasePrimaryKey
+        {
+            Table = table,
+            Name = "PK_StoreTypeRecord",
+            Columns = { idColumn },
+        };
+
+        var prefixLengths = new[] { 32, 0 };
+        var prefixIndex = new DatabaseIndex
+        {
+            Table = table,
+            Name = "IX_StoreType_Name_Code",
+            Columns = { nameColumn, codeColumn },
+            IsDescending = { false, true },
+        };
+        prefixIndex.SetAnnotation(MySqlAnnotationNames.IndexPrefixLength, prefixLengths);
+
+        var fullTextIndex = new DatabaseIndex
+        {
+            Table = table,
+            Name = "IX_StoreType_Body",
+            Columns = { bodyColumn },
+        };
+        fullTextIndex.SetAnnotation(MySqlAnnotationNames.FullTextIndex, true);
+
+        var uniqueIndex = new DatabaseIndex
+        {
+            Table = table,
+            Name = "IX_StoreType_Code",
+            Columns = { codeColumn },
+            IsUnique = true,
+        };
+
+        var functionalIndex = new DatabaseIndex
+        {
+            Table = table,
+            Name = "IX_StoreType_Functional",
+        };
+        functionalIndex.SetAnnotation(
+            MySqlAnnotationNames.ScaffoldingIndexParts,
+            new MySqlScaffoldedIndexPart[]
+            {
+                new(null, "lower(`Name`)", false, null),
+            });
+
+        table.Indexes.Add(prefixIndex);
+        table.Indexes.Add(fullTextIndex);
+        table.Indexes.Add(uniqueIndex);
+        table.Indexes.Add(functionalIndex);
+        databaseModel.Sequences.Add(
+            new DatabaseSequence
+            {
+                Database = databaseModel,
+                Name = "store_sequence",
+                StoreType = "bigint",
+                StartValue = 7,
+                IncrementBy = 3,
+                MinValue = 7,
+                MaxValue = 700,
+                IsCyclic = true,
+            });
+
+        return databaseModel;
+    }
+
+    private static DatabaseColumn AddColumn(
+        DatabaseTable table,
+        string name,
+        string storeType
+    )
+    {
+        var column = new DatabaseColumn
+        {
+            Table = table,
+            Name = name,
+            StoreType = storeType,
+            IsNullable = false,
+        };
+
+        table.Columns.Add(column);
+
+        return column;
+    }
+
     private static DatabaseModel CreateSingleColumnDatabaseModel(
         string tableName,
         string columnName,
@@ -333,6 +717,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
             ArgumentNullException.ThrowIfNull(options);
 
+            _scaffoldingContext.Begin();
             _scaffoldingContext.SetDetectedServerVersionText(_detectedServerVersionText);
 
             return _databaseModel;
@@ -346,6 +731,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             ArgumentNullException.ThrowIfNull(connection);
             ArgumentNullException.ThrowIfNull(options);
 
+            _scaffoldingContext.Begin();
             _scaffoldingContext.SetDetectedServerVersionText(_detectedServerVersionText);
 
             return _databaseModel;

@@ -44,6 +44,108 @@ public sealed class FullMigrationsMySqlTest
     protected override string NonDefaultCollation => "utf8mb4_bin";
 
     /// <summary>
+    /// Verifies the full table-settings contract inside one explicitly selected MySQL
+    /// database. MySQL schemas are databases, so both sides of the foreign key must name
+    /// the same database when the principal is not in the active connection database.
+    /// </summary>
+    public override async Task Create_table_all_settings()
+    {
+        var intStoreType = TypeMappingSource.FindMapping(typeof(int))!.StoreType;
+        var char11StoreType = TypeMappingSource.FindMapping(typeof(string), storeTypeName: null, size: 11)!.StoreType;
+
+        await Test(
+            builder => builder.Entity(
+                "Employers",
+                entity =>
+                {
+                    entity.ToTable("Employers", "dbo2");
+                    entity.Property<int>("Id");
+                    entity.HasKey("Id");
+                }),
+            _ => { },
+            builder => builder.Entity(
+                "People",
+                entity =>
+                {
+                    entity.ToTable(
+                        "People",
+                        "dbo2",
+                        table =>
+                        {
+                            table.HasCheckConstraint("CK_People_EmployerId", $"{DelimitIdentifier("EmployerId")} > 0");
+                            table.HasComment("Table comment");
+                        });
+
+                    entity.Property<int>("CustomId");
+                    entity
+                        .Property<int>("EmployerId")
+                        .HasComment("Employer ID comment");
+                    entity
+                        .Property<string>("SSN")
+                        .HasColumnType(char11StoreType)
+                        .UseCollation(NonDefaultCollation)
+                        .IsRequired(false);
+
+                    entity.HasKey("CustomId");
+                    entity.HasAlternateKey("SSN");
+                    entity
+                        .HasOne("Employers")
+                        .WithMany("People")
+                        .HasForeignKey("EmployerId");
+                }),
+            model =>
+            {
+                var employersTable = Assert.Single(model.Tables, table => table.Name == "Employers");
+                var peopleTable = Assert.Single(model.Tables, table => table.Name == "People");
+
+                Assert.Equal("dbo2", employersTable.Schema);
+                Assert.Equal("dbo2", peopleTable.Schema);
+                Assert.Collection(
+                    peopleTable.Columns.OrderBy(column => column.Name),
+                    column =>
+                    {
+                        Assert.Equal("CustomId", column.Name);
+                        Assert.False(column.IsNullable);
+                        Assert.Equal(intStoreType, column.StoreType);
+                        Assert.Null(column.Comment);
+                    },
+                    column =>
+                    {
+                        Assert.Equal("EmployerId", column.Name);
+                        Assert.False(column.IsNullable);
+                        Assert.Equal(intStoreType, column.StoreType);
+                        Assert.Equal("Employer ID comment", column.Comment);
+                    },
+                    column =>
+                    {
+                        Assert.Equal("SSN", column.Name);
+                        Assert.False(column.IsNullable);
+                        Assert.Equal(char11StoreType, column.StoreType);
+                        Assert.Null(column.Comment);
+                    });
+
+                Assert.Same(
+                    peopleTable.Columns.Single(column => column.Name == "CustomId"),
+                    Assert.Single(peopleTable.PrimaryKey!.Columns));
+                Assert.Same(
+                    peopleTable.Columns.Single(column => column.Name == "SSN"),
+                    Assert.Single(
+                        Assert.Single(peopleTable.UniqueConstraints)
+                            .Columns));
+
+                var foreignKey = Assert.Single(peopleTable.ForeignKeys);
+
+                Assert.Same(peopleTable, foreignKey.Table);
+                Assert.Same(
+                    peopleTable.Columns.Single(column => column.Name == "EmployerId"),
+                    Assert.Single(foreignKey.Columns));
+                Assert.Same(employersTable, foreignKey.PrincipalTable);
+                Assert.Same(employersTable.Columns.Single(), Assert.Single(foreignKey.PrincipalColumns));
+                Assert.Equal("Table comment", peopleTable.Comment);
+            });
+    }
+
+    /// <summary>
     /// Keeps the official filtered-index fact discoverable while documenting the missing
     /// predicate grammar on every supported MySQL-family target.
     /// </summary>
@@ -172,6 +274,75 @@ public sealed class FullMigrationsMySqlTest
             });
 
     /// <summary>
+    /// Extends the official migration harness with MySQL's schema-as-database
+    /// semantics. Explicitly referenced databases are reverse engineered together
+    /// and test-owned secondary databases are dropped even when an assertion fails.
+    /// </summary>
+    protected override async Task Test(
+        IModel sourceModel,
+        IModel? targetModel,
+        IReadOnlyList<MigrationOperation> operations,
+        Action<DatabaseModel> asserter,
+        MigrationsSqlGenerationOptions migrationsSqlGenerationOptions = MigrationsSqlGenerationOptions.Default
+    )
+    {
+        using var context = CreateContext();
+        var serviceProvider = ((IInfrastructure<IServiceProvider>)context).Instance;
+        var migrationsSqlGenerator = serviceProvider.GetRequiredService<IMigrationsSqlGenerator>();
+        var modelDiffer = serviceProvider.GetRequiredService<IMigrationsModelDiffer>();
+        var migrationsCommandExecutor = serviceProvider.GetRequiredService<IMigrationCommandExecutor>();
+        var connection = serviceProvider.GetRequiredService<IRelationalConnection>();
+        var databaseModelFactory = serviceProvider.GetRequiredService<IDatabaseModelFactory>();
+        var selectedDatabases = GetSelectedDatabases(
+            connection.DbConnection.Database,
+            sourceModel,
+            targetModel);
+
+        try
+        {
+            using (Fixture.TestSqlLoggerFactory.SuspendRecordingEvents())
+            {
+                await migrationsCommandExecutor.ExecuteNonQueryAsync(
+                    migrationsSqlGenerator.Generate(
+                        modelDiffer.GetDifferences(null, sourceModel.GetRelationalModel()),
+                        sourceModel,
+                        migrationsSqlGenerationOptions),
+                    connection);
+            }
+
+            await migrationsCommandExecutor.ExecuteNonQueryAsync(
+                migrationsSqlGenerator.Generate(
+                    operations,
+                    targetModel,
+                    migrationsSqlGenerationOptions),
+                connection);
+
+            var schemaFilter = selectedDatabases.Length > 1
+                ? selectedDatabases
+                : [];
+            var scaffoldedModel = databaseModelFactory.Create(
+                context.Database.GetDbConnection(),
+                new DatabaseModelFactoryOptions([], schemaFilter));
+
+            asserter?.Invoke(scaffoldedModel);
+        }
+        finally
+        {
+            try
+            {
+                await DropSecondaryDatabasesAsync(
+                    context.Database.GetDbConnection(),
+                    selectedDatabases.Skip(1));
+            }
+            finally
+            {
+                using var _ = Fixture.TestSqlLoggerFactory.SuspendRecordingEvents();
+                await Fixture.TestStore.CleanAsync(context);
+            }
+        }
+    }
+
+    /// <summary>
     /// MySQL fixture for the official live migration suite.
     /// </summary>
     public sealed class FullMigrationsMySqlFixture : MigrationsFixtureBase
@@ -286,5 +457,64 @@ public sealed class FullMigrationsMySqlTest
             model.Tables.Single().Columns,
             column => Assert.Equal("Id", column.Name),
             column => Assert.Equal("Name", column.Name));
+    }
+
+    private static string[] GetSelectedDatabases(
+        string activeDatabase,
+        IModel sourceModel,
+        IModel? targetModel
+    )
+    {
+        var databases = new List<string>
+        {
+            activeDatabase,
+        };
+
+        databases.AddRange(
+            sourceModel
+                .GetRelationalModel()
+                .Tables.Select(table => table.Schema)
+                .Concat(
+                    targetModel
+                        ?.GetRelationalModel()
+                        .Tables.Select(table => table.Schema)
+                    ?? [])
+                .Where(schema => !string.IsNullOrWhiteSpace(schema))
+                .Select(schema => schema!));
+
+        return databases
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static async Task DropSecondaryDatabasesAsync(
+        DbConnection connection,
+        IEnumerable<string> databaseNames
+    )
+    {
+        var shouldCloseConnection = connection.State != System.Data.ConnectionState.Open;
+
+        if (shouldCloseConnection)
+        {
+            await connection.OpenAsync();
+        }
+
+        try
+        {
+            foreach (var databaseName in databaseNames)
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText =
+                    $"DROP DATABASE IF EXISTS {MySqlIdentifierEscaping.DelimitIdentifier(databaseName)};";
+                await command.ExecuteNonQueryAsync();
+            }
+        }
+        finally
+        {
+            if (shouldCloseConnection)
+            {
+                await connection.CloseAsync();
+            }
+        }
     }
 }

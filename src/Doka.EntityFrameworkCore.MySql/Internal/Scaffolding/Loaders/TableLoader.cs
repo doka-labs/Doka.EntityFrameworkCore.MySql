@@ -59,12 +59,14 @@ internal static class TableLoader
                 {
                     Database = context.DatabaseModel,
                     Name = tableName,
+                    Schema = context.QualifyNamesWithSchema ? context.DatabaseName : null,
                     Comment = comment,
                 }
                 : new DatabaseTable
                 {
                     Database = context.DatabaseModel,
                     Name = tableName,
+                    Schema = context.QualifyNamesWithSchema ? context.DatabaseName : null,
                     Comment = comment,
                 };
 
@@ -90,6 +92,7 @@ internal static class TableLoader
 
             context.DatabaseModel.Tables.Add(table);
             context.TableLookup[tableName] = table;
+            context.DatabaseTables[(context.DatabaseName, tableName)] = table;
         }
     }
 }

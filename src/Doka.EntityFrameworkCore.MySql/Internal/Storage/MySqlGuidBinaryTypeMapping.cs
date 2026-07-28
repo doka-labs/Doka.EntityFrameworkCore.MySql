@@ -15,8 +15,17 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// columns trip "Data too long for column"; with it set, the wire format matches the
 /// literal-emission path documented here.
 /// </summary>
-internal sealed class MySqlGuidBinaryTypeMapping : GuidTypeMapping
+public sealed class MySqlGuidBinaryTypeMapping : GuidTypeMapping
 {
+    /// <summary>
+    /// Gets the canonical mapping used as the cloning source for generated compiled models.
+    /// </summary>
+    public static new MySqlGuidBinaryTypeMapping Default { get; } = new();
+
+    /// <summary>
+    /// Creates a fixed-width binary GUID mapping.
+    /// </summary>
+    /// <param name="storeType">The MySQL binary store type.</param>
     public MySqlGuidBinaryTypeMapping(
         string storeType = "binary(16)"
     ) : base(storeType, System.Data.DbType.Guid) { }
@@ -25,10 +34,12 @@ internal sealed class MySqlGuidBinaryTypeMapping : GuidTypeMapping
         RelationalTypeMappingParameters parameters
     ) : base(parameters) { }
 
+    /// <inheritdoc />
     protected override RelationalTypeMapping Clone(
         RelationalTypeMappingParameters parameters
     ) => new MySqlGuidBinaryTypeMapping(parameters);
 
+    /// <inheritdoc />
     protected override string GenerateNonNullSqlLiteral(
         object value
     )

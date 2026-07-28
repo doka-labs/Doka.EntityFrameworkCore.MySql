@@ -47,7 +47,8 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         base.ColumnDefinition(schema, table, name, operation, model, builder);
 
-        if (operation.IsRowVersion)
+        if (operation.IsRowVersion
+            && IsTemporalRowVersionColumn(operation))
         {
             if (operation.DefaultValue is null
                 && string.IsNullOrWhiteSpace(operation.DefaultValueSql))
@@ -75,6 +76,28 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
                 .Append(" COMMENT ")
                 .Append(MySqlSqlLiteralEscaper.EscapeAndQuote(operation.Comment ?? string.Empty));
         }
+    }
+
+    private static bool IsTemporalRowVersionColumn(
+        ColumnOperation operation
+    )
+    {
+        if (!string.IsNullOrWhiteSpace(operation.ColumnType))
+        {
+            var storeType = operation
+                .ColumnType.AsSpan()
+                .TrimStart();
+
+            return storeType.StartsWith("timestamp", StringComparison.OrdinalIgnoreCase)
+                || storeType.StartsWith("datetime", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Migrations generated from a model carry ColumnType. The CLR fallback
+        // preserves hand-authored migration operations that rely on the provider's
+        // conventional byte[] row-version or temporal mappings.
+        var clrType = Nullable.GetUnderlyingType(operation.ClrType) ?? operation.ClrType;
+
+        return clrType == typeof(byte[]) || clrType == typeof(DateTime) || clrType == typeof(DateTimeOffset);
     }
 
     protected override void DefaultValue(
@@ -141,7 +164,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("CREATE TABLE ")
-            .Append(DelimitMigrationIdentifier(operation.Name))
+            .Append(DelimitMigrationIdentifier(operation.Name, operation.Schema))
             .AppendLine(" (");
 
         using (builder.Indent())
@@ -171,13 +194,22 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
+        ValidateIndexShape(operation);
+
         if (!IsSpatialIndex(operation))
         {
+            ValidateStandardIndex(operation);
+
             builder.Append("CREATE ");
 
             if (operation.IsUnique)
             {
                 builder.Append("UNIQUE ");
+            }
+
+            if (IsFullTextIndex(operation))
+            {
+                builder.Append("FULLTEXT ");
             }
 
             IndexTraits(operation, model, builder);
@@ -186,10 +218,10 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
                 .Append("INDEX ")
                 .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
                 .Append(" ON ")
-                .Append(DelimitMigrationIdentifier(operation.Table))
+                .Append(DelimitMigrationIdentifier(operation.Table, operation.Schema))
                 .Append(" (");
 
-            GenerateIndexColumnList(operation, model, builder);
+            GenerateMySqlIndexColumnList(operation, builder);
 
             builder.Append(")");
 
@@ -210,7 +242,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append("CREATE SPATIAL INDEX ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
             .Append(" ON ")
-            .Append(DelimitMigrationIdentifier(operation.Table))
+            .Append(DelimitMigrationIdentifier(operation.Table, operation.Schema))
             .Append(" (")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Columns[0]))
             .Append(")");
@@ -235,7 +267,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         {
             builder
                 .Append("ALTER TABLE ")
-                .Append(DelimitMigrationIdentifier(operation.Table))
+                .Append(DelimitMigrationIdentifier(operation.Table, operation.Schema))
                 .Append(" DROP COLUMN ")
                 .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
@@ -243,7 +275,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
             builder
                 .Append("ALTER TABLE ")
-                .Append(DelimitMigrationIdentifier(operation.Table))
+                .Append(DelimitMigrationIdentifier(operation.Table, operation.Schema))
                 .Append(" ADD COLUMN ");
 
             ColumnDefinition(operation.Schema, operation.Table, operation.Name, operation, model, builder);
@@ -257,7 +289,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("ALTER TABLE ")
-            .Append(DelimitMigrationIdentifier(operation.Table))
+            .Append(DelimitMigrationIdentifier(operation.Table, operation.Schema))
             .Append(" MODIFY COLUMN ");
 
         ColumnDefinition(operation.Schema, operation.Table, operation.Name, operation, model, builder);
@@ -282,7 +314,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("ALTER TABLE ")
-            .Append(DelimitMigrationIdentifier(operation.Name))
+            .Append(DelimitMigrationIdentifier(operation.Name, operation.Schema))
             .Append(" COMMENT = ")
             .Append(MySqlSqlLiteralEscaper.EscapeAndQuote(operation.Comment ?? string.Empty))
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
@@ -299,8 +331,12 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
-        // MySQL-family databases are the schema boundary. EF schema annotations
-        // are intentionally ignored while table and sequence names remain usable.
+        builder
+            .Append("CREATE DATABASE IF NOT EXISTS ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+            .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
+        EndStatement(builder);
     }
 
     protected override void Generate(
@@ -318,7 +354,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("ALTER TABLE ")
-            .Append(DelimitMigrationIdentifier(table))
+            .Append(DelimitMigrationIdentifier(table, operation.Schema))
             .Append(" DROP INDEX ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name));
 
@@ -343,7 +379,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("ALTER TABLE ")
-            .Append(DelimitMigrationIdentifier(table))
+            .Append(DelimitMigrationIdentifier(table, operation.Schema))
             .Append(" RENAME INDEX ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
             .Append(" TO ")
@@ -364,7 +400,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("ALTER TABLE ")
-            .Append(DelimitMigrationIdentifier(operation.Table))
+            .Append(DelimitMigrationIdentifier(operation.Table, operation.Schema))
             .Append(" DROP FOREIGN KEY ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name));
 
@@ -387,7 +423,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("ALTER TABLE ")
-            .Append(DelimitMigrationIdentifier(operation.Table))
+            .Append(DelimitMigrationIdentifier(operation.Table, operation.Schema))
             .Append(" DROP PRIMARY KEY");
 
         if (terminate)
@@ -416,7 +452,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append("FOREIGN KEY (")
             .Append(ColumnList(operation.Columns))
             .Append(") REFERENCES ")
-            .Append(DelimitMigrationIdentifier(operation.PrincipalTable));
+            .Append(DelimitMigrationIdentifier(operation.PrincipalTable, operation.PrincipalSchema));
 
         if (operation.PrincipalColumns is not null)
         {
@@ -596,7 +632,8 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
             {
                 throw new InvalidOperationException(
                     $"The value configured for '{annotationName}' ('{value}') contains invalid characters. "
-                    + "MySQL charset and storage-engine identifiers must use ASCII letters, digits, or underscores only.");
+                    + "MySQL charset and storage-engine identifiers must use ASCII letters, "
+                    + "digits, or underscores only.");
             }
         }
     }
@@ -683,6 +720,108 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         return (operation.FindAnnotation(MySqlAnnotationNames.SpatialIndex)?.Value as bool?) == true;
     }
 
+    private static bool IsFullTextIndex(
+        CreateIndexOperation operation
+    )
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        return (operation.FindAnnotation(MySqlAnnotationNames.FullTextIndex)
+                ?.Value as bool?)
+            == true;
+    }
+
+    private static int[]? GetIndexPrefixLengths(
+        CreateIndexOperation operation
+    )
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        return operation.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength)
+            ?.Value as int[];
+    }
+
+    private static void ValidateStandardIndex(
+        CreateIndexOperation operation
+    )
+    {
+        var prefixLengths = GetIndexPrefixLengths(operation);
+
+        if (!IsFullTextIndex(operation))
+        {
+            return;
+        }
+
+        if (operation.IsUnique)
+        {
+            throw new InvalidOperationException($"The full-text index '{operation.Name}' cannot be unique.");
+        }
+
+        if (prefixLengths?.Any(prefixLength => prefixLength > 0) == true)
+        {
+            throw new InvalidOperationException(
+                $"The full-text index '{operation.Name}' cannot declare prefix lengths.");
+        }
+    }
+
+    private static void ValidateIndexShape(
+        CreateIndexOperation operation
+    )
+    {
+        var prefixLengths = GetIndexPrefixLengths(operation);
+
+        if (prefixLengths is not null
+            && prefixLengths.Length != operation.Columns.Length)
+        {
+            throw new InvalidOperationException(
+                $"The index '{operation.Name}' must declare one prefix length per column.");
+        }
+
+        if (prefixLengths?.Any(prefixLength => prefixLength < 0) == true)
+        {
+            throw new InvalidOperationException($"The index '{operation.Name}' contains a negative prefix length.");
+        }
+
+        if (operation.IsDescending is { Length: > 0 } descending
+            && descending.Length != operation.Columns.Length)
+        {
+            throw new InvalidOperationException(
+                $"The index '{operation.Name}' must declare one sort direction per column.");
+        }
+    }
+
+    private void GenerateMySqlIndexColumnList(
+        CreateIndexOperation operation,
+        MigrationCommandListBuilder builder
+    )
+    {
+        var prefixLengths = GetIndexPrefixLengths(operation);
+
+        for (var index = 0; index < operation.Columns.Length; index++)
+        {
+            if (index > 0)
+            {
+                builder.Append(", ");
+            }
+
+            builder.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Columns[index]));
+
+            if (prefixLengths?[index] is > 0 and var prefixLength)
+            {
+                builder
+                    .Append("(")
+                    .Append(prefixLength.ToString(CultureInfo.InvariantCulture))
+                    .Append(")");
+            }
+
+            if (operation.IsDescending is { } descending
+                && (descending.Length == 0 || descending[index]))
+            {
+                builder.Append(" DESC");
+            }
+        }
+    }
+
     private static void ValidateSpatialIndex(
         CreateIndexOperation operation
     )
@@ -698,6 +837,18 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         if (operation.IsUnique)
         {
             throw new InvalidOperationException($"The spatial index '{operation.Name}' cannot be unique.");
+        }
+
+        if (IsFullTextIndex(operation))
+        {
+            throw new InvalidOperationException(
+                $"The spatial index '{operation.Name}' cannot also be a full-text index.");
+        }
+
+        if (GetIndexPrefixLengths(operation)?.Any(prefixLength => prefixLength > 0) == true)
+        {
+            throw new InvalidOperationException(
+                $"The spatial index '{operation.Name}' cannot declare prefix lengths.");
         }
     }
 
@@ -750,7 +901,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("UPDATE ")
-            .Append(DelimitMigrationIdentifier(operation.Table))
+            .Append(DelimitMigrationIdentifier(operation.Table, operation.Schema))
             .Append(" SET ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
             .Append(" = ");
@@ -865,16 +1016,19 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         var newName = operation.NewName ?? operation.Name;
 
-        if (string.Equals(operation.Name, newName, StringComparison.Ordinal))
+        var newSchema = operation.NewSchema ?? operation.Schema;
+
+        if (string.Equals(operation.Name, newName, StringComparison.Ordinal)
+            && string.Equals(operation.Schema, newSchema, StringComparison.Ordinal))
         {
             return;
         }
 
         builder
             .Append("RENAME TABLE ")
-            .Append(DelimitMigrationIdentifier(operation.Name))
+            .Append(DelimitMigrationIdentifier(operation.Name, operation.Schema))
             .Append(" TO ")
-            .Append(DelimitMigrationIdentifier(newName))
+            .Append(DelimitMigrationIdentifier(newName, newSchema))
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
 
         builder.EndCommand();
@@ -904,7 +1058,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         {
             builder
                 .Append("ALTER TABLE ")
-                .Append(DelimitMigrationIdentifier(operation.Table))
+                .Append(DelimitMigrationIdentifier(operation.Table, operation.Schema))
                 .Append(" RENAME COLUMN ")
                 .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
                 .Append(" TO ")
@@ -968,7 +1122,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         builder
             .Append("ALTER TABLE ")
-            .Append(DelimitMigrationIdentifier(operation.Table))
+            .Append(DelimitMigrationIdentifier(operation.Table, operation.Schema))
             .Append(" CHANGE COLUMN ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
             .Append(" ");
@@ -1351,10 +1505,12 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
     private string DelimitMigrationIdentifier(
         string identifier
-    ) =>
-        // EF schemas have no same-database namespace equivalent on MySQL-family
-        // engines. Migration SQL therefore keeps the active database boundary.
-        Dependencies.SqlGenerationHelper.DelimitIdentifier(identifier);
+    ) => Dependencies.SqlGenerationHelper.DelimitIdentifier(identifier);
+
+    private string DelimitMigrationIdentifier(
+        string identifier,
+        string? schema
+    ) => Dependencies.SqlGenerationHelper.DelimitIdentifier(identifier, schema);
 
     private static SequenceTypeInfo GetSequenceTypeInfo(
         Type? clrType

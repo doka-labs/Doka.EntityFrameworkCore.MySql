@@ -19,16 +19,18 @@ internal sealed class MySqlProviderConfigurationCodeGenerator : ProviderCodeGene
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
-        var detectedServerVersionText = _scaffoldingContext.DetectedServerVersionText;
+        var scaffoldingState = _scaffoldingContext.Consume();
+        var detectedServerVersionText = scaffoldingState.DetectedServerVersionText;
         var providerOptionsWithSpatial = providerOptions;
 
         if (string.IsNullOrWhiteSpace(detectedServerVersionText))
         {
             throw new InvalidOperationException(
-                "MySQL reverse engineering requires a detected server version before provider configuration code can be generated.");
+                "MySQL reverse engineering requires a detected server version "
+                + "before provider configuration code can be generated.");
         }
 
-        if (_scaffoldingContext.UsesNetTopologySuiteScaffolding)
+        if (scaffoldingState is { UsesNetTopologySuiteScaffolding: true })
         {
             providerOptionsWithSpatial = providerOptionsWithSpatial is null
                 ? new MethodCallCodeFragment("UseNetTopologySuite", Array.Empty<object>())

@@ -111,7 +111,15 @@ public static class MySqlServiceCollectionExtensions
 #pragma warning disable EF1001 // IModelCodeGenerator is EF Core internal; wrapping is documented in ADR D-001.
         EfCoreServiceDecorator.Decorate<IModelCodeGenerator, MySqlModelCodeGenerator>(
             serviceCollection,
-            (inner, _) => new MySqlModelCodeGenerator(inner));
+            (inner, serviceProvider) => new MySqlModelCodeGenerator(
+                inner,
+                serviceProvider.GetRequiredService<ICSharpHelper>()));
+
+        EfCoreServiceDecorator.Decorate<IReverseEngineerScaffolder, MySqlReverseEngineerScaffolder>(
+            serviceCollection,
+            (inner, serviceProvider) => new MySqlReverseEngineerScaffolder(
+                inner,
+                serviceProvider.GetRequiredService<MySqlScaffoldingContext>()));
 #pragma warning restore EF1001
 
         return serviceCollection;

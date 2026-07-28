@@ -4,7 +4,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// Per-call state bag passed across the scaffolding loader hierarchy. Holds the live
 /// connection, the in-flight DatabaseModel, the table-filter, the engine capabilities,
 /// the MariaDB JSON_VALID column set (empty on MySQL), and the lookup dictionaries the
-/// later loaders populate (tables, columns). Created once per
+/// later loaders populate (tables, columns). Database-qualified lookups are shared by
+/// every selected database so cross-database foreign keys can be assembled after all
+/// table and column metadata has been loaded. Created once per selected database in a
 /// <see cref="MySqlDatabaseModelFactory.Create(DbConnection, DatabaseModelFactoryOptions)"/>
 /// call and discarded when the call returns; do not cache references to it.
 /// </summary>
@@ -15,7 +17,11 @@ internal sealed class ScaffoldingPipelineContext
         DatabaseModel databaseModel,
         TableFilter tableFilter,
         EngineProfile profile,
-        HashSet<(string TableName, string ColumnName)> mariaDbJsonColumns
+        HashSet<(string TableName, string ColumnName)> mariaDbJsonColumns,
+        string databaseName,
+        bool qualifyNamesWithSchema,
+        Dictionary<(string DatabaseName, string TableName), DatabaseTable> databaseTables,
+        Dictionary<(string DatabaseName, string TableName, string ColumnName), DatabaseColumn> databaseColumns
     )
     {
         Connection = connection ?? throw new ArgumentNullException(nameof(connection));
@@ -23,6 +29,12 @@ internal sealed class ScaffoldingPipelineContext
         TableFilter = tableFilter;
         Profile = profile ?? throw new ArgumentNullException(nameof(profile));
         MariaDbJsonColumns = mariaDbJsonColumns ?? throw new ArgumentNullException(nameof(mariaDbJsonColumns));
+        DatabaseName = string.IsNullOrWhiteSpace(databaseName)
+            ? throw new ArgumentException("A scaffolding database name is required.", nameof(databaseName))
+            : databaseName;
+        QualifyNamesWithSchema = qualifyNamesWithSchema;
+        DatabaseTables = databaseTables ?? throw new ArgumentNullException(nameof(databaseTables));
+        DatabaseColumns = databaseColumns ?? throw new ArgumentNullException(nameof(databaseColumns));
     }
 
     public DbConnection Connection { get; }
@@ -35,7 +47,18 @@ internal sealed class ScaffoldingPipelineContext
 
     public HashSet<(string TableName, string ColumnName)> MariaDbJsonColumns { get; }
 
+    public string DatabaseName { get; }
+
+    public bool QualifyNamesWithSchema { get; }
+
     public Dictionary<string, DatabaseTable> TableLookup { get; } = new(StringComparer.Ordinal);
 
     public Dictionary<(string TableName, string ColumnName), DatabaseColumn> Columns { get; } = [];
+
+    public Dictionary<(string DatabaseName, string TableName), DatabaseTable> DatabaseTables { get; }
+
+    public Dictionary<(string DatabaseName, string TableName, string ColumnName), DatabaseColumn> DatabaseColumns
+    {
+        get;
+    }
 }

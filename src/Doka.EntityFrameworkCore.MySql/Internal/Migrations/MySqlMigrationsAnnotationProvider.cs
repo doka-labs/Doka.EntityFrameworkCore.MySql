@@ -131,7 +131,9 @@ internal sealed class MySqlMigrationsAnnotationProvider : IMigrationsAnnotationP
                 or MySqlAnnotationNames.GuidFormat
                 or MySqlAnnotationNames.ValueGenerationStrategy
                 or MySqlAnnotationNames.SpatialReferenceSystemId
-                or MySqlAnnotationNames.SpatialIndex);
+                or MySqlAnnotationNames.SpatialIndex
+                or MySqlAnnotationNames.FullTextIndex
+                or MySqlAnnotationNames.IndexPrefixLength);
     }
 
     private static List<IAnnotation> GetSupportedModelAnnotations(

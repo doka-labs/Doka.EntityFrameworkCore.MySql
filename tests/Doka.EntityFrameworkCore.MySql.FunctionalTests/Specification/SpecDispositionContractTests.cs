@@ -22,6 +22,7 @@ public class SpecDispositionContractTests
     [
         "bulk-updates",
         "migrations",
+        "model-building",
         "query-json",
     ];
 
@@ -301,23 +302,42 @@ public class SpecDispositionContractTests
             .ToArray();
         Assert.Equal(documentedEngineMethods, actualEngineMethods.OrderBy(value => value));
 
-        var executableFrameworkSkips = methods
+        var executableFrameworkTheorySkips = methods
             .Select(method => new
             {
                 Method = method,
-                Attribute = method.GetCustomAttribute<SpecFrameworkLimitationTheoryAttribute>(
+                Disposition = method.GetCustomAttribute<SpecFrameworkLimitationTheoryAttribute>(
                     inherit: false),
             })
-            .Where(item => item.Attribute is not null)
+            .Where(item => item.Disposition is not null)
+            .Select(item => new
+            {
+                item.Method,
+                item.Disposition!.DispositionId,
+            });
+        var executableFrameworkFactSkips = methods
+            .Select(method => new
+            {
+                Method = method,
+                Disposition = method.GetCustomAttribute<SpecFrameworkLimitationFactAttribute>(
+                    inherit: false),
+            })
+            .Where(item => item.Disposition is not null)
+            .Select(item => new
+            {
+                item.Method,
+                item.Disposition!.DispositionId,
+            });
+        var executableFrameworkSkips = executableFrameworkTheorySkips
+            .Concat(executableFrameworkFactSkips)
             .ToArray();
 
         var actualFrameworkMethods = new List<string>();
         foreach (var item in executableFrameworkSkips)
         {
-            var attribute = item.Attribute!;
             Assert.True(
-                frameworkDispositions.TryGetValue(attribute.DispositionId, out var disposition),
-                $"Framework disposition '{attribute.DispositionId}' is absent from the ledger.");
+                frameworkDispositions.TryGetValue(item.DispositionId, out var disposition),
+                $"Framework disposition '{item.DispositionId}' is absent from the ledger.");
 
             var methodName = LedgerMethodName(item.Method);
             actualFrameworkMethods.Add(methodName);
@@ -328,8 +348,22 @@ public class SpecDispositionContractTests
             .SelectMany(disposition => StringValues(disposition.GetProperty("testMethods")))
             .OrderBy(value => value)
             .ToArray();
+        var inheritedUpstreamFrameworkMethods = frameworkDispositions.Values
+            .SelectMany(disposition =>
+                disposition.TryGetProperty(
+                    "inheritedUpstreamTestMethods",
+                    out var inheritedMethods)
+                        ? StringValues(inheritedMethods)
+                        : [])
+            .OrderBy(value => value)
+            .ToArray();
+        Assert.All(
+            inheritedUpstreamFrameworkMethods,
+            method => Assert.Contains(method, documentedFrameworkMethods));
         Assert.Equal(
-            documentedFrameworkMethods,
+            documentedFrameworkMethods
+                .Except(inheritedUpstreamFrameworkMethods, StringComparer.Ordinal)
+                .OrderBy(value => value),
             actualFrameworkMethods.OrderBy(value => value));
 
         var explicitSkippedFacts = methods
@@ -440,7 +474,15 @@ public class SpecDispositionContractTests
         string methodIdentifier
     )
     {
-        var marker = $".{methodIdentifier}";
+        var declaringTypeSeparator = methodIdentifier.LastIndexOf('.');
+        if (declaringTypeSeparator < 0)
+        {
+            return false;
+        }
+
+        var declaringTypeName = methodIdentifier[..declaringTypeSeparator];
+        var methodName = methodIdentifier[(declaringTypeSeparator + 1)..];
+        var marker = $".{methodName}";
         var methodStart = testId.LastIndexOf(marker, StringComparison.Ordinal);
         if (methodStart < 0)
         {
@@ -448,7 +490,25 @@ public class SpecDispositionContractTests
         }
 
         var suffix = methodStart + marker.Length;
-        return suffix == testId.Length || testId[suffix] == '(';
+        if (suffix != testId.Length && testId[suffix] != '(')
+        {
+            return false;
+        }
+
+        var testType = typeof(SpecDispositionContractTests)
+            .Assembly
+            .GetType(testId[..methodStart]);
+        while (testType is not null)
+        {
+            if (testType.Name == declaringTypeName)
+            {
+                return true;
+            }
+
+            testType = testType.BaseType;
+        }
+
+        return false;
     }
 
     private static string[] StringValues(

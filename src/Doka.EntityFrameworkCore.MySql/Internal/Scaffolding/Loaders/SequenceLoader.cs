@@ -267,6 +267,7 @@ internal static class SequenceLoader
             {
                 Database = context.DatabaseModel,
                 Name = name,
+                Schema = context.QualifyNamesWithSchema ? context.DatabaseName : null,
                 StoreType = storeType,
                 StartValue = Convert.ToInt64(startValue, CultureInfo.InvariantCulture),
                 IncrementBy = Convert.ToInt32(incrementBy, CultureInfo.InvariantCulture),

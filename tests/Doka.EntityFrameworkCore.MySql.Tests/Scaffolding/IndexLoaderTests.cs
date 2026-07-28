@@ -15,8 +15,26 @@ public sealed class IndexLoaderTests
     public void Index_with_sub_part_annotates_IndexPrefixLength_array()
     {
         var context = BuildContext(
-            ("prefixed_index_table", "IX_Prefixed", "Name", 1L, "A", 1L, "BTREE", 64L),
-            ("prefixed_index_table", "IX_Prefixed", "Description", 1L, "A", 2L, "BTREE", 128L));
+            new IndexRow(
+                "prefixed_index_table",
+                "IX_Prefixed",
+                "Name",
+                1,
+                "A",
+                1,
+                "BTREE",
+                64,
+                null),
+            new IndexRow(
+                "prefixed_index_table",
+                "IX_Prefixed",
+                "Description",
+                1,
+                "A",
+                2,
+                "BTREE",
+                128,
+                null));
 
         IndexLoader.Load(context);
 
@@ -33,7 +51,16 @@ public sealed class IndexLoaderTests
     public void Index_without_sub_part_does_not_annotate_IndexPrefixLength()
     {
         var context = BuildContext(
-            ("plain_index_table", "IX_Plain", "Name", 1L, "A", 1L, "BTREE", (long?)null));
+            new IndexRow(
+                "plain_index_table",
+                "IX_Plain",
+                "Name",
+                1,
+                "A",
+                1,
+                "BTREE",
+                null,
+                null));
 
         IndexLoader.Load(context);
 
@@ -47,8 +74,26 @@ public sealed class IndexLoaderTests
     public void Mixed_sub_part_index_records_zero_for_null_positions()
     {
         var context = BuildContext(
-            ("mixed_index_table", "IX_Mixed", "First", 1L, "A", 1L, "BTREE", 32L),
-            ("mixed_index_table", "IX_Mixed", "Second", 1L, "A", 2L, "BTREE", (long?)null));
+            new IndexRow(
+                "mixed_index_table",
+                "IX_Mixed",
+                "First",
+                1,
+                "A",
+                1,
+                "BTREE",
+                32,
+                null),
+            new IndexRow(
+                "mixed_index_table",
+                "IX_Mixed",
+                "Second",
+                1,
+                "A",
+                2,
+                "BTREE",
+                null,
+                null));
 
         IndexLoader.Load(context);
 
@@ -60,8 +105,88 @@ public sealed class IndexLoaderTests
         Assert.Equal([32, 0], (int[])annotation!.Value!);
     }
 
+    [Fact]
+    public void Index_type_and_direction_metadata_are_preserved()
+    {
+        var context = BuildContext(
+            new IndexRow(
+                "index_type_table",
+                "IX_FullText",
+                "Body",
+                1,
+                null,
+                1,
+                "FULLTEXT",
+                16,
+                null),
+            new IndexRow(
+                "index_type_table",
+                "IX_Spatial",
+                "Location",
+                1,
+                "A",
+                1,
+                "RTREE",
+                32,
+                null),
+            new IndexRow(
+                "index_type_table",
+                "IX_Unique",
+                "Code",
+                0,
+                "D",
+                1,
+                "BTREE",
+                null,
+                null));
+
+        IndexLoader.Load(context);
+
+        var table = Assert.Single(context.DatabaseModel.Tables);
+        var fullTextIndex = table.Indexes.Single(index => index.Name == "IX_FullText");
+        var spatialIndex = table.Indexes.Single(index => index.Name == "IX_Spatial");
+        var uniqueIndex = table.Indexes.Single(index => index.Name == "IX_Unique");
+
+        Assert.True(fullTextIndex.FindAnnotation(MySqlAnnotationNames.FullTextIndex)?.Value as bool?);
+        Assert.True(spatialIndex.FindAnnotation(MySqlAnnotationNames.SpatialIndex)?.Value as bool?);
+        Assert.Null(fullTextIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength));
+        Assert.Null(spatialIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength));
+        Assert.True(uniqueIndex.IsUnique);
+        Assert.Equal([true], uniqueIndex.IsDescending);
+    }
+
+    [Fact]
+    public void Functional_key_part_remains_visible_without_an_invented_column()
+    {
+        var context = BuildContext(
+            new IndexRow(
+                "functional_index_table",
+                "IX_NormalizedName",
+                null,
+                1,
+                "A",
+                1,
+                "BTREE",
+                null,
+                "lower(`Name`)"));
+
+        IndexLoader.Load(context);
+
+        var table = Assert.Single(context.DatabaseModel.Tables);
+        var index = Assert.Single(table.Indexes);
+        var parts = Assert.IsType<MySqlScaffoldedIndexPart[]>(
+            index.FindAnnotation(MySqlAnnotationNames.ScaffoldingIndexParts)?.Value);
+        var part = Assert.Single(parts);
+
+        Assert.Empty(index.Columns);
+        Assert.Null(part.ColumnName);
+        Assert.Equal("lower(`Name`)", part.Expression);
+        Assert.False(part.IsDescending);
+        Assert.Null(part.PrefixLength);
+    }
+
     private static ScaffoldingPipelineContext BuildContext(
-        params (string TableName, string IndexName, string ColumnName, long NonUnique, string Collation, long SeqInIndex, string IndexType, long? SubPart)[] rows
+        params IndexRow[] rows
     )
     {
         var databaseModel = new DatabaseModel { DatabaseName = "test" };
@@ -75,6 +200,10 @@ public sealed class IndexLoaderTests
             databaseModel,
             TableFilter.MatchAll,
             capabilities,
+            [],
+            "test",
+            false,
+            [],
             []);
 
         foreach (var tableName in tableNames)
@@ -86,6 +215,8 @@ public sealed class IndexLoaderTests
             foreach (var columnName in rows
                          .Where(row => row.TableName == tableName)
                          .Select(row => row.ColumnName)
+                         .Where(columnName => columnName is not null)
+                         .Select(columnName => columnName!)
                          .Distinct(StringComparer.Ordinal))
             {
                 var column = new DatabaseColumn
@@ -105,11 +236,11 @@ public sealed class IndexLoaderTests
 
     private sealed class IndexStubConnection : DbConnection
     {
-        private readonly (string TableName, string IndexName, string ColumnName, long NonUnique, string Collation, long SeqInIndex, string IndexType, long? SubPart)[] _rows;
+        private readonly IndexRow[] _rows;
         private ConnectionState _state = ConnectionState.Open;
 
         public IndexStubConnection(
-            (string TableName, string IndexName, string ColumnName, long NonUnique, string Collation, long SeqInIndex, string IndexType, long? SubPart)[] rows
+            IndexRow[] rows
         )
         {
             _rows = rows;
@@ -144,12 +275,12 @@ public sealed class IndexLoaderTests
     private sealed class IndexStubCommand : DbCommand
     {
         private readonly IndexStubConnection _connection;
-        private readonly (string TableName, string IndexName, string ColumnName, long NonUnique, string Collation, long SeqInIndex, string IndexType, long? SubPart)[] _rows;
+        private readonly IndexRow[] _rows;
         private readonly IndexStubParameterCollection _parameters = new();
 
         public IndexStubCommand(
             IndexStubConnection connection,
-            (string TableName, string IndexName, string ColumnName, long NonUnique, string Collation, long SeqInIndex, string IndexType, long? SubPart)[] rows
+            IndexRow[] rows
         )
         {
             _connection = connection;
@@ -200,6 +331,7 @@ public sealed class IndexLoaderTests
             table.Columns.Add("SEQ_IN_INDEX", typeof(long));
             table.Columns.Add("INDEX_TYPE", typeof(string));
             table.Columns.Add("SUB_PART", typeof(long));
+            table.Columns.Add("EXPRESSION", typeof(string));
 
             foreach (var row in _rows)
             {
@@ -211,7 +343,8 @@ public sealed class IndexLoaderTests
                     row.Collation,
                     row.SeqInIndex,
                     row.IndexType,
-                    row.SubPart.HasValue ? row.SubPart.Value : DBNull.Value);
+                    row.SubPart.HasValue ? row.SubPart.Value : DBNull.Value,
+                    row.Expression is null ? DBNull.Value : row.Expression);
             }
 
             return table.CreateDataReader();
@@ -345,4 +478,16 @@ public sealed class IndexLoaderTests
             }
         }
     }
+
+    private sealed record IndexRow(
+        string TableName,
+        string IndexName,
+        string? ColumnName,
+        long NonUnique,
+        string? Collation,
+        long SeqInIndex,
+        string IndexType,
+        long? SubPart,
+        string? Expression
+    );
 }

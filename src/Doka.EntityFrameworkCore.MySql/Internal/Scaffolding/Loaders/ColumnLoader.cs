@@ -100,6 +100,7 @@ internal static class ColumnLoader
 
             table.Columns.Add(column);
             context.Columns[(tableName, columnName)] = column;
+            context.DatabaseColumns[(context.DatabaseName, tableName, columnName)] = column;
         }
     }
 
@@ -113,6 +114,7 @@ internal static class ColumnLoader
     )
     {
         storeType = NormalizeIntegerDisplayWidth(dataType, storeType);
+        storeType = NormalizeYearDisplayWidth(dataType, storeType);
 
         if (!string.Equals(dataType, "longtext", StringComparison.OrdinalIgnoreCase)
             || !string.Equals(collation, DefaultMariaDbJsonCollation, StringComparison.OrdinalIgnoreCase))
@@ -192,5 +194,20 @@ internal static class ColumnLoader
         return string.Equals(dataType, "bigint", StringComparison.OrdinalIgnoreCase)
             ? "bigint"
             : null;
+    }
+
+    /// <summary>
+    /// Removes the optional four-digit YEAR display width while preserving the
+    /// semantically different and deprecated two-digit form.
+    /// </summary>
+    internal static string NormalizeYearDisplayWidth(
+        string dataType,
+        string storeType
+    )
+    {
+        return string.Equals(dataType, "year", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(storeType, "year(4)", StringComparison.OrdinalIgnoreCase)
+                ? "year"
+                : storeType;
     }
 }

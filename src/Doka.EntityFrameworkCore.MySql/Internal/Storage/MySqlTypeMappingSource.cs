@@ -83,7 +83,8 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     // coercion that the base RelationalShapedQueryCompilingExpressionVisitor cannot
     // generate. See MySqlJsonContainerTypeMapping for the GetString -> MemoryStream
     // wrapping that keeps MySqlConnector's default json-as-string read path intact.
-    private static readonly RelationalTypeMapping s_jsonContainerColumnMapping = new MySqlJsonContainerTypeMapping("json");
+    private static readonly RelationalTypeMapping s_jsonContainerColumnMapping =
+        new MySqlJsonContainerTypeMapping("json");
 
     private static readonly RelationalTypeMapping
         s_jsonElementMapping = MySqlJsonTypeMapping.CreateJsonElementMapping();
@@ -318,6 +319,31 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
                 return ResolveTinyIntMapping(mappingInfo);
             }
 
+            if (normalizedStoreType == "bit")
+            {
+                return ResolveBitMapping(mappingInfo);
+            }
+
+            if (normalizedStoreType is "enum" or "set")
+            {
+                return new StringTypeMapping(
+                    mappingInfo.StoreTypeName,
+                    DbType.String,
+                    unicode: true);
+            }
+
+            if (normalizedStoreType == "double"
+                && mappingInfo.StoreTypeName.Contains("unsigned", StringComparison.OrdinalIgnoreCase))
+            {
+                return new DoubleTypeMapping(mappingInfo.StoreTypeName, DbType.Double);
+            }
+
+            if (normalizedStoreType == "float"
+                && mappingInfo.StoreTypeName.Contains("unsigned", StringComparison.OrdinalIgnoreCase))
+            {
+                return new FloatTypeMapping(mappingInfo.StoreTypeName, DbType.Single);
+            }
+
             if (s_storeTypeMappings.TryGetValue(normalizedStoreType, out var storeTypeMapping)
                 && (clrType is null || clrType == storeTypeMapping.ClrType))
             {
@@ -347,6 +373,22 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         }
 
         return s_sbyteMapping;
+    }
+
+    private static RelationalTypeMapping ResolveBitMapping(
+        RelationalTypeMappingInfo mappingInfo
+    )
+    {
+        var storeType = mappingInfo.StoreTypeName;
+
+        if (string.IsNullOrWhiteSpace(storeType)
+            || storeType.Trim().Equals("bit", StringComparison.OrdinalIgnoreCase)
+            || storeType.Trim().Equals("bit(1)", StringComparison.OrdinalIgnoreCase))
+        {
+            return s_bitMapping;
+        }
+
+        return new ULongTypeMapping(storeType, DbType.UInt64);
     }
 
     private string NormalizeStoreTypeName(
@@ -463,6 +505,20 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         string? normalizedStoreType
     )
     {
+        var explicitTextMapping = normalizedStoreType switch
+        {
+            "tinytext" => s_tinyTextMapping,
+            "text" => s_textMapping,
+            "mediumtext" => s_mediumTextMapping,
+            "longtext" => s_stringMapping,
+            _ => null,
+        };
+
+        if (explicitTextMapping is not null)
+        {
+            return (StringTypeMapping)explicitTextMapping;
+        }
+
         var size = mappingInfo.Size
             ?? (mappingInfo.IsKeyOrIndex ? DefaultKeyOrIndexLength : null);
         var isFixedLength =
@@ -488,7 +544,31 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         string? normalizedStoreType
     )
     {
+        var explicitBlobMapping = normalizedStoreType switch
+        {
+            "tinyblob" => s_tinyBlobMapping,
+            "blob" => s_blobMapping,
+            "mediumblob" => s_mediumBlobMapping,
+            "longblob" => s_byteArrayMapping,
+            _ => null,
+        };
+
+        if (explicitBlobMapping is not null)
+        {
+            return (ByteArrayTypeMapping)explicitBlobMapping;
+        }
+
         var size = mappingInfo.Size ?? (mappingInfo.IsKeyOrIndex ? DefaultKeyOrIndexLength : null);
+
+        if (normalizedStoreType == "binary"
+            && !string.IsNullOrWhiteSpace(mappingInfo.StoreTypeName))
+        {
+            return new ByteArrayTypeMapping(
+                mappingInfo.StoreTypeName,
+                DbType.Binary,
+                size);
+        }
+
         var storeSize =
             size == 16
             && normalizedStoreType is null
@@ -500,8 +580,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         // binary column as Guid. VARBINARY(17) still stores a 16-byte payload
         // without padding or extra data, while keeping ordinary byte[] and
         // Guid-to-byte converters on the driver's binary-reader path.
-        var storeType = normalizedStoreType == "binary" && size == 16 ? "binary(16)" :
-            storeSize is > 0 ? $"varbinary({storeSize.Value})" : "longblob";
+        var storeType = storeSize is > 0 ? $"varbinary({storeSize.Value})" : "longblob";
 
         return new ByteArrayTypeMapping(storeType, DbType.Binary, storeSize is > 0 ? storeSize : null);
     }
@@ -520,7 +599,8 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         }
 
         throw new InvalidOperationException(
-            $"The enum CLR type '{clrType.FullName ?? clrType.Name}' uses the unsupported underlying type '{underlyingType.FullName ?? underlyingType.Name}'.");
+            $"The enum CLR type '{clrType.FullName ?? clrType.Name}' uses the unsupported "
+            + $"underlying type '{underlyingType.FullName ?? underlyingType.Name}'.");
     }
 
     private static DecimalTypeMapping CreateDecimalMapping(
