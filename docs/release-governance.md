@@ -18,6 +18,8 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - workflow: `.github/workflows/ci.yml`
   - local path: `./eng/test.sh`
   - representative live DB path: `DOKA_INTEGRATION_TARGETS=mysql84,mariadb118 ./eng/test-integration.sh`
+  - migration model drift gate: `./eng/check-migration-model.sh`
+  - migration deployment lifecycle: `./eng/test-migration-deployment.sh`
   - runtime smoke: `./eng/test-runtime-posture.sh --test-only`
   - benchmark smoke:
     - `DOKA_BENCHMARK_TARGET=mysql84 ./eng/benchmark.sh --test-only`
@@ -46,7 +48,14 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/release-candidate/<run-id>/release-candidate-summary.md`
     - `artifacts/release-candidate/<run-id>/release-candidate-evidence.json`
     - `artifacts/release-candidate/<run-id>/audit/...`
+    - `artifacts/release-candidate/<run-id>/migration-deployment/...`
     - `artifacts/release-candidate/<run-id>/sbom/...`
+- Migration deployment:
+  - workflow: `.github/workflows/ci.yml`
+  - local path: `./eng/test-migration-deployment.sh`
+  - retained evidence:
+    - `artifacts/migration-deployment/<run-id>/migration-deployment-summary.md`
+    - `artifacts/migration-deployment/<run-id>/migration-deployment-evidence.json`
 
 ## Diagnostics Categories
 

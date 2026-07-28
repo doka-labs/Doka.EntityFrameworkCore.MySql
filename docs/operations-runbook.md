@@ -292,3 +292,116 @@ dotnet ef database update --project src/MyApp --startup-project src/MyApp
 ```
 
 Watch for `RetryAttempt` (EventId 1500) emissions during the run; on Galera, occasional `LockWaitTimeout` retries are normal as flow control pauses commit groups. Persistent `RetryLimitExceeded` (EventId 1501) or any `LockReleaseFailed` (EventId 1102) is a stop-the-line signal -- consult section 2 before retrying.
+
+## 7. Migration Deployment Modes and Safety Gates
+
+The provider supports every EF Core migration application path. The deployment
+owner chooses the path based on operational control, credential boundaries, and
+artifact policy; the provider must not silently redirect one path to a different
+database.
+
+### Repository gates
+
+Run the model-drift gate whenever the model or migration assembly changes:
+
+```bash
+./eng/check-migration-model.sh
+```
+
+The gate builds the executable migration example and runs
+`dotnet ef migrations has-pending-model-changes`. A non-zero result means the
+model snapshot and runtime model differ; release work stops until a deliberate
+migration is added or the unintended model change is reverted.
+
+Run the deployment lifecycle before a release candidate:
+
+```bash
+./eng/test-migration-deployment.sh
+```
+
+This gate uses isolated, dynamically published MySQL 8.4, MariaDB 11.4, and
+MariaDB 11.8 containers. For each engine it:
+
+1. generates an EF Core migration bundle
+2. applies the latest migration
+3. reapplies it to prove idempotence
+4. rolls back to migration `0`
+5. verifies that the application schema is absent
+6. reapplies and reads back the latest schema and seed data
+
+Evidence is retained under
+`artifacts/migration-deployment/<run-id>/migration-deployment-evidence.json`.
+The regular integration suite separately kills a real migrator process while
+the provider owns the advisory lock, then proves lock release and recovery.
+
+### Runtime `MigrateAsync`
+
+`Database.MigrateAsync()` is supported and uses the provider's database-scoped
+advisory lock. It is appropriate for controlled, single-purpose migrator jobs
+whose identity owns schema-change permissions. Do not grant schema-change
+permissions to every application replica merely to migrate during startup.
+Application startup also provides a weaker review and rollback boundary than a
+versioned deployment artifact.
+
+### Migration bundle
+
+The preferred automated production path is a bundle generated from the exact
+release source and dependency graph:
+
+```bash
+dotnet tool restore
+dotnet tool run dotnet-ef -- migrations bundle \
+    --project examples/MigrationsWorkflow/MigrationsWorkflow.csproj \
+    --startup-project examples/MigrationsWorkflow/MigrationsWorkflow.csproj \
+    --context Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow.MigrationWorkflowContext \
+    --configuration Release \
+    --output artifacts/migration-deployment/efbundle
+
+./artifacts/migration-deployment/efbundle \
+    --connection "<deployment-secret>"
+```
+
+The bundle honors `--connection` for database creation, migration history,
+advisory-lock naming, and DDL execution. Keep the connection string in the
+deployment platform's secret mechanism; do not persist it in logs or evidence.
+Retain the bundle, its checksum, the release identifier, and the gate evidence
+as one deployment record.
+
+To roll back deliberately, pass the exact previous migration identifier.
+Migration `0` removes every migration and is reserved for isolated rehearsal or
+full decommissioning:
+
+```bash
+./artifacts/migration-deployment/efbundle 0 \
+    --connection "<isolated-rehearsal-secret>"
+```
+
+Take and verify a restorable backup before production rollback. MySQL and
+MariaDB DDL behavior can make a multi-command rollback only partially
+transactional; a bundle exit code alone is not proof that application data is
+recoverable.
+
+### `dotnet ef database update`
+
+The CLI uses the same EF migrator and provider lock as runtime migration and
+bundles. It is suitable for an operator workstation or build agent that has the
+correct SDK, tool manifest, source tree, and credentials. It is less portable
+than a bundle because those inputs must be reconstructed at execution time.
+Always pass the intended context and release configuration explicitly.
+
+### SQL scripts
+
+Generated SQL scripts are reviewable and work with database-native deployment
+systems. They do not execute through EF Core's runtime migrator, so the
+provider's advisory lock does not protect script execution. The deployment
+orchestrator must enforce a single writer and retain script output, target
+identity, execution result, and post-deployment readback. An idempotent script
+reduces repeat-application risk; it does not make concurrent script runners
+safe.
+
+### Primary sources
+
+- Microsoft, [Applying Migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying),
+  retrieved 2026-07-28.
+- Microsoft, [Managing Migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/managing),
+  retrieved 2026-07-28.

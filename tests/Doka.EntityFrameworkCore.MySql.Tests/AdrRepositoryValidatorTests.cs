@@ -57,6 +57,41 @@ public sealed class AdrRepositoryValidatorTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Keeps model drift, bundle lifecycle coverage, and retained evidence wired
+    /// into both pull-request and release-candidate paths.
+    /// </summary>
+    [Fact]
+    public void Migration_deployment_gate_is_wired_into_ci_and_release_candidates()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var modelGate = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "check-migration-model.sh"));
+        var deploymentGate = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "test-migration-deployment.sh"));
+        var releaseCandidate = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "release-candidate.sh"));
+        var workflow = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+
+        Assert.Contains("migrations has-pending-model-changes", modelGate, StringComparison.Ordinal);
+        Assert.Contains("migrations bundle", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains(
+            "run_bundle_command \"${connection_string}\" \"${server_version}\" 0",
+            deploymentGate,
+            StringComparison.Ordinal);
+        Assert.Contains("\"mysql84\"", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains("\"mariadb114\"", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains("\"mariadb118\"", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains("run_migration_deployment_gate", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains(
+            "DOKA_MIGRATION_DEPLOYMENT_EVIDENCE_ROOT=\"${migration_deployment_root}\"",
+            releaseCandidate,
+            StringComparison.Ordinal);
+        Assert.Contains("run: bash eng/check-migration-model.sh", workflow, StringComparison.Ordinal);
+        Assert.Contains("run: bash eng/test-migration-deployment.sh", workflow, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Command_line_write_index_validates_and_generates_artifacts()
     {

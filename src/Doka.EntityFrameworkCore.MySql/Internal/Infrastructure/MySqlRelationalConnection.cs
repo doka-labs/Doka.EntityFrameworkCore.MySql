@@ -45,13 +45,19 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
             return _optionsExtension.Connection;
         }
 
-        if (string.IsNullOrWhiteSpace(_optionsExtension.ConnectionString))
+        // The base connection string is mutable by EF tooling through
+        // Database.SetConnectionString(). Reading the active relational value
+        // here ensures the lazily created physical connection targets that
+        // override instead of the immutable options snapshot.
+        var connectionString = ConnectionString;
+
+        if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
                 "A MySQL connection string, DbConnection, or MySqlDataSource must be configured.");
         }
 
-        return _driverFacade.CreateConnection(NormalizeConnectionString(_optionsExtension.ConnectionString));
+        return _driverFacade.CreateConnection(NormalizeConnectionString(connectionString));
     }
 
     protected override DbTransaction ConnectionBeginTransaction(

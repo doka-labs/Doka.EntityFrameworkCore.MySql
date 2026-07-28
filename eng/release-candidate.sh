@@ -20,6 +20,8 @@ changelog_file="${release_candidate_dir}/release-candidate-changelog.md"
 specification_dir="${release_candidate_dir}/specification"
 coverage_input_dir="${release_candidate_dir}/coverage-input"
 coverage_merged_dir="${release_candidate_dir}/coverage-merged"
+migration_deployment_root="${release_candidate_dir}/migration-deployment"
+migration_deployment_dir="${migration_deployment_root}/${release_candidate_run_id}"
 
 require_command() {
     local command_name="$1"
@@ -112,6 +114,12 @@ run_integration_gate() {
     DOKA_INTEGRATION_RUN_ID="${release_candidate_run_id}" \
     DOKA_INTEGRATION_TARGETS="mysql84,mariadb118" \
         bash "${repo_root}/eng/test-integration.sh"
+}
+
+run_migration_deployment_gate() {
+    DOKA_MIGRATION_DEPLOYMENT_RUN_ID="${release_candidate_run_id}" \
+    DOKA_MIGRATION_DEPLOYMENT_EVIDENCE_ROOT="${migration_deployment_root}" \
+        bash "${repo_root}/eng/test-migration-deployment.sh"
 }
 
 run_coverage_gate() {
@@ -210,7 +218,7 @@ write_changelog() {
         echo
         echo "## Repo-local release-hardening note"
         echo
-        echo "This changelog records the specification gate, package build, vulnerability audit, benchmark gate, and SBOM evidence."
+        echo "This changelog records specification, migration deployment, package, audit, benchmark, and SBOM evidence."
         echo "It does not imply signing, provenance, publication, or externally hosted compatibility closure."
     } > "${changelog_file}"
 }
@@ -229,6 +237,7 @@ write_summary() {
         echo "- auditDirectory: ${audit_dir}"
         echo "- sbomDirectory: ${sbom_dir}"
         echo "- specificationDirectory: ${specification_dir}"
+        echo "- migrationDeploymentDirectory: ${migration_deployment_dir}"
         echo "- coverageDirectory: ${coverage_merged_dir}"
         echo "- changelogFile: ${changelog_file}"
         echo "- packageCount: ${package_count}"
@@ -274,6 +283,7 @@ write_evidence() {
   "auditDirectory": "${audit_dir}",
   "sbomDirectory": "${sbom_dir}",
   "specificationDirectory": "${specification_dir}",
+  "migrationDeploymentDirectory": "${migration_deployment_dir}",
   "coverageDirectory": "${coverage_merged_dir}",
   "changelogFile": "${changelog_file}",
   "packageCount": ${package_count},
@@ -290,6 +300,7 @@ cd "${repo_root}"
 run_repository_test_gate
 run_specification_gate
 run_integration_gate
+run_migration_deployment_gate
 run_coverage_gate
 run_pack
 

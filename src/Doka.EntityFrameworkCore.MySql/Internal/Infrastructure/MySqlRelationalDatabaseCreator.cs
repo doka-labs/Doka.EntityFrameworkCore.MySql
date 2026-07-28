@@ -113,8 +113,7 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         connection.Open();
 
         using var command = connection.CreateCommand();
-        command.CommandText =
-            $"CREATE DATABASE IF NOT EXISTS {Dependencies.SqlGenerationHelper.DelimitIdentifier(GetDatabaseName())}{Dependencies.SqlGenerationHelper.StatementTerminator}";
+        command.CommandText = BuildCreateDatabaseSql();
         command.ExecuteNonQuery();
     }
 
@@ -128,8 +127,7 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
-        command.CommandText =
-            $"CREATE DATABASE IF NOT EXISTS {Dependencies.SqlGenerationHelper.DelimitIdentifier(GetDatabaseName())}{Dependencies.SqlGenerationHelper.StatementTerminator}";
+        command.CommandText = BuildCreateDatabaseSql();
         await command
             .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -141,8 +139,7 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         connection.Open();
 
         using var command = connection.CreateCommand();
-        command.CommandText =
-            $"DROP DATABASE IF EXISTS {Dependencies.SqlGenerationHelper.DelimitIdentifier(GetDatabaseName())}{Dependencies.SqlGenerationHelper.StatementTerminator}";
+        command.CommandText = BuildDropDatabaseSql();
         command.ExecuteNonQuery();
     }
 
@@ -156,8 +153,7 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
-        command.CommandText =
-            $"DROP DATABASE IF EXISTS {Dependencies.SqlGenerationHelper.DelimitIdentifier(GetDatabaseName())}{Dependencies.SqlGenerationHelper.StatementTerminator}";
+        command.CommandText = BuildDropDatabaseSql();
         await command
             .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -199,6 +195,16 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
 
     private DbConnection CreateServerConnection() => _driverFacade.CreateConnection(CreateServerConnectionString());
 
+    private string BuildCreateDatabaseSql()
+        => "CREATE DATABASE IF NOT EXISTS "
+            + Dependencies.SqlGenerationHelper.DelimitIdentifier(GetDatabaseName())
+            + Dependencies.SqlGenerationHelper.StatementTerminator;
+
+    private string BuildDropDatabaseSql()
+        => "DROP DATABASE IF EXISTS "
+            + Dependencies.SqlGenerationHelper.DelimitIdentifier(GetDatabaseName())
+            + Dependencies.SqlGenerationHelper.StatementTerminator;
+
     private string CreateServerConnectionString()
     {
         var builder = new MySqlConnectionStringBuilder(GetConnectionString())
@@ -216,6 +222,18 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
     {
         var extension = Dependencies.ContextOptions.FindExtension<MySqlOptionsExtension>();
 
+        // EF tooling replaces the active connection string through
+        // Database.SetConnectionString(), for example when an operator supplies
+        // `efbundle --connection`. RelationalConnection retains that value
+        // independently of driver-side redaction after Open(), so it must remain
+        // authoritative over the immutable options snapshot.
+        var connectionString = Dependencies.Connection.ConnectionString;
+
+        if (!string.IsNullOrWhiteSpace(connectionString))
+        {
+            return connectionString;
+        }
+
         if (extension?.DataSource is { } dataSource)
         {
             var dataSourceConnectionString = dataSource.ConnectionString;
@@ -226,23 +244,12 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
             }
         }
 
-        // Prefer the extension's original connection string over DbConnection.ConnectionString:
-        // MySqlConnector strips security-sensitive information (password, etc.) from the
-        // connection string once the connection has been opened, unless
-        // "Persist Security Info=True" is set. The extension keeps the verbatim value
-        // passed to UseMySql(...) which is what server-level operations (CREATE DATABASE,
-        // DROP DATABASE) need to authenticate.
+        // The options value is the final fallback for custom connection paths that
+        // cannot surface an active relational connection string.
         if (extension?.ConnectionString is { } extensionConnectionString
             && !string.IsNullOrWhiteSpace(extensionConnectionString))
         {
             return extensionConnectionString;
-        }
-
-        var connectionString = Dependencies.Connection.DbConnection.ConnectionString;
-
-        if (!string.IsNullOrWhiteSpace(connectionString))
-        {
-            return connectionString;
         }
 
         throw new InvalidOperationException(

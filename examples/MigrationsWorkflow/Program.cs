@@ -1,9 +1,5 @@
-using Doka.EntityFrameworkCore.MySql;
-using Microsoft.EntityFrameworkCore;
+using Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow;
 
-// -- MigrationsWorkflow Example --
-// This example demonstrates MigrationsWorkflow patterns with Doka.EntityFrameworkCore.MySql.
-// See the project README for details.
-
-Console.WriteLine("MigrationsWorkflow example -- see README.md for usage instructions.");
-Console.WriteLine("Example completed successfully.");
+return await MigrationWorkflowCommand
+    .RunAsync(args)
+    .ConfigureAwait(false);
