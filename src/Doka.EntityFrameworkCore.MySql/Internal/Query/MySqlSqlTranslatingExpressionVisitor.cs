@@ -105,11 +105,7 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
     private static bool IsDateTimeDifference(
         BinaryExpression binaryExpression
     ) => binaryExpression.NodeType == ExpressionType.Subtract
-        && UnwrapNullableType(binaryExpression.Left.Type) == typeof(DateTime)
-        && UnwrapNullableType(binaryExpression.Right.Type) == typeof(DateTime)
-        && UnwrapNullableType(binaryExpression.Type) == typeof(TimeSpan);
-
-    private static Type UnwrapNullableType(
-        Type type
-    ) => Nullable.GetUnderlyingType(type) ?? type;
+        && binaryExpression.Left.Type.UnwrapNullableType() == typeof(DateTime)
+        && binaryExpression.Right.Type.UnwrapNullableType() == typeof(DateTime)
+        && binaryExpression.Type.UnwrapNullableType() == typeof(TimeSpan);
 }

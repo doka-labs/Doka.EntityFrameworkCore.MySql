@@ -246,7 +246,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         in RelationalTypeMappingInfo mappingInfo
     )
     {
-        var clrType = mappingInfo.ClrType is null ? null : UnwrapNullableType(mappingInfo.ClrType);
+        var clrType = mappingInfo.ClrType?.UnwrapNullableType();
 
         if (clrType == typeof(MySqlServerVersion))
         {
@@ -364,7 +364,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         RelationalTypeMappingInfo mappingInfo
     )
     {
-        var clrType = mappingInfo.ClrType is null ? null : UnwrapNullableType(mappingInfo.ClrType);
+        var clrType = mappingInfo.ClrType?.UnwrapNullableType();
 
         if (clrType == typeof(bool)
             || IsBooleanTinyIntStoreType(mappingInfo.StoreTypeName))
@@ -429,7 +429,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         string? normalizedStoreType
     )
     {
-        var clrType = mappingInfo.ClrType is null ? null : UnwrapNullableType(mappingInfo.ClrType);
+        var clrType = mappingInfo.ClrType?.UnwrapNullableType();
 
         if (normalizedStoreType is "char" or "varchar" or "text" or "longtext"
             || (clrType == typeof(string) && normalizedStoreType != "json"))
@@ -687,14 +687,5 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         var precision = mappingInfo.Precision ?? DefaultTimePrecision;
 
         return new TimeSpanTypeMapping($"time({precision})", DbType.Time);
-    }
-
-    private static Type UnwrapNullableType(
-        Type type
-    )
-    {
-        ArgumentNullException.ThrowIfNull(type);
-
-        return Nullable.GetUnderlyingType(type) ?? type;
     }
 }

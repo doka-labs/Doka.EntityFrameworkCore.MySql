@@ -76,7 +76,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                     continue;
                 }
 
-                var propertyKind = UnwrapNullableType(property.ClrType) == typeof(byte[]) ? "binary" : "text";
+                var propertyKind = property.ClrType.UnwrapNullableType() == typeof(byte[]) ? "binary" : "text";
 
                 MySqlLoggerMessages.KeyOrIndexMaxLengthRequired(
                     logger,
@@ -124,7 +124,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
         {
             foreach (var property in entityType.GetProperties())
             {
-                if (UnwrapNullableType(property.ClrType) != typeof(decimal))
+                if (property.ClrType.UnwrapNullableType() != typeof(decimal))
                 {
                     continue;
                 }
@@ -148,7 +148,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
         IProperty property
     )
     {
-        var clrType = UnwrapNullableType(property.ClrType);
+        var clrType = property.ClrType.UnwrapNullableType();
 
         if (clrType != typeof(string)
             && clrType != typeof(byte[]))
@@ -298,14 +298,5 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
     {
         MySqlLoggerMessages.InvalidSpatialIndexConfiguration(logger, index, reason);
         throw new InvalidOperationException($"The spatial index '{index}' {reason} by this provider.");
-    }
-
-    private static Type UnwrapNullableType(
-        Type type
-    )
-    {
-        ArgumentNullException.ThrowIfNull(type);
-
-        return Nullable.GetUnderlyingType(type) ?? type;
     }
 }

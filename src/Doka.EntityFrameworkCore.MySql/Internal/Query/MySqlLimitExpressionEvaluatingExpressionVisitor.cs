@@ -15,7 +15,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <see href="https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/limit">
 /// MariaDB LIMIT</see>.
 /// </remarks>
-internal sealed class MySqlLimitExpressionEvaluatingExpressionVisitor : ExpressionVisitor
+internal sealed class MySqlLimitExpressionEvaluatingExpressionVisitor
+    : MySqlShapedQueryTraversingExpressionVisitor
 {
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly ParametersCacheDecorator _parametersDecorator;
@@ -33,13 +34,6 @@ internal sealed class MySqlLimitExpressionEvaluatingExpressionVisitor : Expressi
         Expression node
     )
     {
-        if (node is ShapedQueryExpression shapedQueryExpression)
-        {
-            return shapedQueryExpression
-                .UpdateQueryExpression(Visit(shapedQueryExpression.QueryExpression))
-                .UpdateShaperExpression(Visit(shapedQueryExpression.ShaperExpression));
-        }
-
         var visited = base.VisitExtension(node);
 
         return visited is SelectExpression selectExpression ? EvaluateLimit(selectExpression) : visited;

@@ -33,7 +33,7 @@ internal sealed class MySqlNetTopologySuiteTypeMappingSourcePlugin : IRelational
         in RelationalTypeMappingInfo mappingInfo
     )
     {
-        var clrType = mappingInfo.ClrType is null ? null : UnwrapNullableType(mappingInfo.ClrType);
+        var clrType = mappingInfo.ClrType?.UnwrapNullableType();
         var normalizedStoreType = NormalizeStoreTypeName(mappingInfo.StoreTypeName);
         var spatialClrType = ResolveSpatialClrType(clrType, normalizedStoreType);
 
@@ -186,8 +186,4 @@ internal sealed class MySqlNetTopologySuiteTypeMappingSourcePlugin : IRelational
             .Trim()
             .ToLowerInvariant();
     }
-
-    private static Type UnwrapNullableType(
-        Type type
-    ) => Nullable.GetUnderlyingType(type) ?? type;
 }

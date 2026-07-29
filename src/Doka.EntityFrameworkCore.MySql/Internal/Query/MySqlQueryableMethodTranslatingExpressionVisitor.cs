@@ -298,7 +298,7 @@ internal sealed class
         var isNullable = property?.GetElementType()?.IsNullable
             ?? IsNullableType(sequenceType);
 
-        var unwrapped = UnwrapNullableType(sequenceType);
+        var unwrapped = sequenceType.UnwrapNullableType();
         var valueColumn = new ColumnExpression(
             name: "value",
             tableAlias: tableAlias,
@@ -500,10 +500,6 @@ internal sealed class
 
         return null;
     }
-
-    private static Type UnwrapNullableType(
-        Type type
-    ) => Nullable.GetUnderlyingType(type) ?? type;
 
     private static bool IsNullableType(
         Type type

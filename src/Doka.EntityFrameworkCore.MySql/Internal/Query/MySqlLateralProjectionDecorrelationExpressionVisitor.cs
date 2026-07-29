@@ -16,19 +16,13 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <see href="https://dev.mysql.com/doc/refman/8.4/en/lateral-derived-tables.html">
 /// MySQL 8.4 Lateral Derived Tables</see>.
 /// </remarks>
-internal sealed class MySqlLateralProjectionDecorrelationExpressionVisitor : ExpressionVisitor
+internal sealed class MySqlLateralProjectionDecorrelationExpressionVisitor
+    : MySqlShapedQueryTraversingExpressionVisitor
 {
     protected override Expression VisitExtension(
         Expression node
     )
     {
-        if (node is ShapedQueryExpression shapedQueryExpression)
-        {
-            return shapedQueryExpression
-                .UpdateQueryExpression(Visit(shapedQueryExpression.QueryExpression))
-                .UpdateShaperExpression(Visit(shapedQueryExpression.ShaperExpression));
-        }
-
         var visited = base.VisitExtension(node);
 
         return visited is SelectExpression selectExpression ? RewriteApplyProjections(selectExpression) : visited;
@@ -43,12 +37,7 @@ internal sealed class MySqlLateralProjectionDecorrelationExpressionVisitor : Exp
         for (var index = 0; index < selectExpression.Tables.Count; index++)
         {
             var table = selectExpression.Tables[index];
-            var inner = table switch
-            {
-                CrossApplyExpression { Table: SelectExpression select } => select,
-                OuterApplyExpression { Table: SelectExpression select } => select,
-                _ => null,
-            };
+            var inner = MySqlTableExpressionHelper.GetApplySelect(table);
 
             if (inner is null)
             {
@@ -87,7 +76,7 @@ internal sealed class MySqlLateralProjectionDecorrelationExpressionVisitor : Exp
         SelectExpression selectExpression
     )
     {
-        var innerAliases = GetImmediateTableAliases(selectExpression.Tables);
+        var innerAliases = MySqlTableExpressionHelper.CollectAliases(selectExpression.Tables);
         var replacements = FindEquivalentInnerColumns(selectExpression.Predicate, innerAliases);
 
         if (replacements.Count == 0)
@@ -111,37 +100,6 @@ internal sealed class MySqlLateralProjectionDecorrelationExpressionVisitor : Exp
                 selectExpression.Orderings,
                 selectExpression.Offset,
                 selectExpression.Limit);
-    }
-
-    private static HashSet<string> GetImmediateTableAliases(
-        IReadOnlyList<TableExpressionBase> tables
-    )
-    {
-        var aliases = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var table in tables)
-        {
-            AddAlias(table, aliases);
-        }
-
-        return aliases;
-    }
-
-    private static void AddAlias(
-        TableExpressionBase table,
-        ISet<string> aliases
-    )
-    {
-        if (table is JoinExpressionBase join)
-        {
-            AddAlias(join.Table, aliases);
-            return;
-        }
-
-        if (table.Alias is not null)
-        {
-            aliases.Add(table.Alias);
-        }
     }
 
     private static Dictionary<(string TableAlias, string Name), ColumnExpression> FindEquivalentInnerColumns(

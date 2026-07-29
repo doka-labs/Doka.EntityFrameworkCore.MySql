@@ -4,7 +4,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// Rewrites APPLY shapes that MariaDB can represent without a LATERAL derived
 /// table while preserving query cardinality or DML target-set semantics.
 /// </summary>
-internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor : ExpressionVisitor
+internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor
+    : MySqlShapedQueryTraversingExpressionVisitor
 {
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
 
@@ -19,13 +20,6 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor : ExpressionVi
         Expression node
     )
     {
-        if (node is ShapedQueryExpression shapedQueryExpression)
-        {
-            return shapedQueryExpression
-                .UpdateQueryExpression(Visit(shapedQueryExpression.QueryExpression))
-                .UpdateShaperExpression(Visit(shapedQueryExpression.ShaperExpression));
-        }
-
         var visited = base.VisitExtension(node);
 
         return visited switch
@@ -66,12 +60,7 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor : ExpressionVi
     )
     {
         var table = outer.Tables[tableIndex];
-        var inner = table switch
-        {
-            CrossApplyExpression { Table: SelectExpression select } => select,
-            OuterApplyExpression { Table: SelectExpression select } => select,
-            _ => null,
-        };
+        var inner = MySqlTableExpressionHelper.GetApplySelect(table);
 
         if (inner is null
             || inner.Alias is null
@@ -104,7 +93,7 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor : ExpressionVi
             inner.Alias,
             projectionMap,
             inner.Predicate,
-            GetTableAliases(inner.Tables),
+            MySqlTableExpressionHelper.CollectAliases(inner.Tables),
             makeNullable: table is OuterApplyExpression);
         var predicate = (SqlExpression?)remapper.Visit(outer.Predicate);
         var having = (SqlExpression?)remapper.Visit(outer.Having);
@@ -172,37 +161,6 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor : ExpressionVi
         return projections;
     }
 
-    private static HashSet<string> GetTableAliases(
-        IReadOnlyList<TableExpressionBase> tables
-    )
-    {
-        var aliases = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var table in tables)
-        {
-            AddTableAlias(table, aliases);
-        }
-
-        return aliases;
-    }
-
-    private static void AddTableAlias(
-        TableExpressionBase table,
-        ISet<string> aliases
-    )
-    {
-        if (table is JoinExpressionBase join)
-        {
-            AddTableAlias(join.Table, aliases);
-            return;
-        }
-
-        if (table.Alias is not null)
-        {
-            aliases.Add(table.Alias);
-        }
-    }
-
     /// <summary>
     /// ExecuteDelete targets a set of rows rather than a result sequence. An
     /// unreferenced CROSS APPLY therefore becomes EXISTS, while an unreferenced
@@ -248,12 +206,7 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor : ExpressionVi
         for (var index = 0; index < selectExpression.Tables.Count; index++)
         {
             var table = selectExpression.Tables[index];
-            var inner = table switch
-            {
-                CrossApplyExpression { Table: SelectExpression select } => select,
-                OuterApplyExpression { Table: SelectExpression select } => select,
-                _ => null,
-            };
+            var inner = MySqlTableExpressionHelper.GetApplySelect(table);
             var canRewrite = inner?.Alias is not null
                 && !ReferencesAlias(selectExpression, inner.Alias, additionalExpressions);
 

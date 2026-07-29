@@ -70,7 +70,8 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
         return -1;
     }
 
-    private abstract class ShapedQueryTraversingExpressionVisitor : ExpressionVisitor
+    private abstract class ShapedQueryTraversingExpressionVisitor
+        : MySqlShapedQueryTraversingExpressionVisitor
     {
         protected override Expression VisitExtension(
             Expression node
@@ -94,10 +95,6 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
                                     elementSelector,
                                     groupingEnumerable);
                     }
-                case ShapedQueryExpression shapedQueryExpression:
-                    return shapedQueryExpression
-                        .UpdateQueryExpression(Visit(shapedQueryExpression.QueryExpression))
-                        .UpdateShaperExpression(Visit(shapedQueryExpression.ShaperExpression));
                 default:
                     return base.VisitExtension(node);
             }
