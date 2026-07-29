@@ -17,7 +17,6 @@ internal sealed class MySqlObjectToStringTranslator : IMethodCallTranslator
         typeof(decimal),
         typeof(double),
         typeof(float),
-        typeof(Guid),
         typeof(int),
         typeof(long),
         typeof(sbyte),
@@ -41,9 +40,9 @@ internal sealed class MySqlObjectToStringTranslator : IMethodCallTranslator
     )
     {
         _sqlExpressionFactory = sqlExpressionFactory;
-        _stringTypeMapping = typeMappingSource.FindMapping(typeof(string))
-            ?? throw new InvalidOperationException(
-                "The MySQL object-to-string translator requires a string type mapping.");
+        _stringTypeMapping = MySqlTranslationTypeMapping.GetRequired(
+            typeMappingSource,
+            typeof(string));
     }
 
     /// <inheritdoc />
@@ -61,6 +60,18 @@ internal sealed class MySqlObjectToStringTranslator : IMethodCallTranslator
             return null;
         }
 
+        return TranslateInstance(instance);
+    }
+
+    /// <summary>
+    /// Creates the provider's scalar string representation for an already translated
+    /// value. Shared with the static <see cref="Convert.ToString(object?)"/> path so
+    /// boolean and null semantics have one implementation.
+    /// </summary>
+    internal SqlExpression? TranslateInstance(
+        SqlExpression instance
+    )
+    {
         if (instance.TypeMapping?.ClrType == typeof(string))
         {
             return instance;

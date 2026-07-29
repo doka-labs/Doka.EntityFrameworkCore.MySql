@@ -22,6 +22,31 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </remarks>
 internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTranslatingExpressionVisitor
 {
+    private static readonly MethodInfo s_stringJoinArrayMethod = typeof(string).GetRuntimeMethod(
+        nameof(string.Join),
+        [
+            typeof(string),
+            typeof(string[]),
+        ])!;
+
+    private static readonly MethodInfo s_convertObjectToStringMethod = typeof(Convert).GetRuntimeMethod(
+        nameof(Convert.ToString),
+        [typeof(object)])!;
+
+    private static readonly MethodInfo s_enumerableElementAtMethod = typeof(Enumerable)
+        .GetRuntimeMethods()
+        .Single(
+            method => method.Name == nameof(Enumerable.ElementAt)
+                && method.IsGenericMethodDefinition
+                && method.GetParameters() is
+                [
+                    _,
+                { ParameterType: var indexType, },
+                ]
+                && indexType == typeof(int));
+
+    private static readonly bool[] s_singleArgumentNullPropagation = [true];
+
     private static readonly bool[] s_twoArgumentNullPropagation =
     [
         true,
@@ -39,6 +64,50 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
     {
         _sqlExpressionFactory = dependencies.SqlExpressionFactory;
         _typeMappingSource = dependencies.TypeMappingSource;
+    }
+
+    /// <summary>
+    /// Translates relational byte-array length before the base visitor treats it as
+    /// an unsupported CLR array operation.
+    /// </summary>
+    protected override Expression VisitUnary(
+        UnaryExpression unaryExpression
+    )
+    {
+        if (unaryExpression.NodeType is ExpressionType.Not or ExpressionType.OnesComplement
+            && IsSignedIntegralType(unaryExpression.Type))
+        {
+            if (Visit(unaryExpression.Operand) is not SqlExpression operand)
+            {
+                return QueryCompilationContext.NotTranslatedExpression;
+            }
+
+            return _sqlExpressionFactory.Function(
+                "__mysql_ones_complement",
+                [operand],
+                nullable: true,
+                argumentsPropagateNullability: s_singleArgumentNullPropagation,
+                unaryExpression.Type,
+                operand.TypeMapping);
+        }
+
+        if (unaryExpression.NodeType == ExpressionType.ArrayLength
+            && unaryExpression.Operand.Type == typeof(byte[]))
+        {
+            if (Visit(unaryExpression.Operand) is not SqlExpression operand)
+            {
+                return QueryCompilationContext.NotTranslatedExpression;
+            }
+
+            return _sqlExpressionFactory.Function(
+                "LENGTH",
+                [operand],
+                nullable: true,
+                argumentsPropagateNullability: s_singleArgumentNullPropagation,
+                typeof(int));
+        }
+
+        return base.VisitUnary(unaryExpression);
     }
 
     /// <inheritdoc />
@@ -62,13 +131,27 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         BinaryExpression binaryExpression
     )
     {
+        if (binaryExpression.NodeType == ExpressionType.ArrayIndex
+            && binaryExpression.Left.Type == typeof(byte[]))
+        {
+            return TranslateByteArrayElementAccess(
+                binaryExpression.Left,
+                binaryExpression.Right);
+        }
+
+        if (binaryExpression.NodeType is ExpressionType.LeftShift or ExpressionType.RightShift)
+        {
+            return TranslateShift(binaryExpression);
+        }
+
         if (HasPromotedCoalesceOperand(binaryExpression)
             && TranslatePromotedCoalesce(binaryExpression) is { } coalesce)
         {
             return coalesce;
         }
 
-        if (!IsDateTimeDifference(binaryExpression))
+        if (!IsDateTimeDifference(binaryExpression)
+            && !IsTimeOnlyDifference(binaryExpression))
         {
             return base.VisitBinary(binaryExpression);
         }
@@ -82,6 +165,20 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
             return QueryCompilationContext.NotTranslatedExpression;
         }
 
+        if (IsTimeOnlyDifference(binaryExpression))
+        {
+            return _sqlExpressionFactory.Function(
+                "__mysql_time_diff_ticks",
+                [
+                    leftSql,
+                    rightSql,
+                ],
+                nullable: true,
+                argumentsPropagateNullability: s_twoArgumentNullPropagation,
+                typeof(TimeSpan),
+                MySqlTimeSpanTicksTypeMapping.Default);
+        }
+
         return _sqlExpressionFactory.Function(
             "__mysql_datetime_diff_ticks",
             [
@@ -92,6 +189,140 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
             argumentsPropagateNullability: s_twoArgumentNullPropagation,
             binaryExpression.Type,
             MySqlTimeSpanTicksTypeMapping.Default);
+    }
+
+    /// <summary>
+    /// Translates non-aggregate <see cref="string.Join(string?, string?[])"/> calls
+    /// whose inline array contains columns or parameters. EF Core cannot represent
+    /// such an array as a scalar SQL value, so each element is translated separately.
+    /// </summary>
+    protected override Expression VisitMethodCall(
+        MethodCallExpression methodCallExpression
+    )
+    {
+        if (methodCallExpression.Method.IsGenericMethod
+            && methodCallExpression.Method.GetGenericMethodDefinition() == s_enumerableElementAtMethod
+            && methodCallExpression.Arguments[0].Type == typeof(byte[]))
+        {
+            return TranslateByteArrayElementAccess(
+                methodCallExpression.Arguments[0],
+                methodCallExpression.Arguments[1]);
+        }
+
+        if (methodCallExpression.Method == s_convertObjectToStringMethod
+            && methodCallExpression.Arguments[0] is UnaryExpression
+            {
+                NodeType: ExpressionType.Convert, Type: { } type,
+            } conversion
+            && type == typeof(object))
+        {
+            return Visit(conversion.Operand);
+        }
+
+        if (methodCallExpression.Method != s_stringJoinArrayMethod
+            || methodCallExpression.Arguments[1] is not NewArrayExpression newArray)
+        {
+            return base.VisitMethodCall(methodCallExpression);
+        }
+
+        if (Visit(methodCallExpression.Arguments[0]) is not SqlExpression separator)
+        {
+            return QueryCompilationContext.NotTranslatedExpression;
+        }
+
+        var arguments = new List<SqlExpression>(newArray.Expressions.Count + 1)
+        {
+            separator,
+        };
+
+        foreach (var element in newArray.Expressions)
+        {
+            if (Visit(element) is not SqlExpression translatedElement)
+            {
+                return QueryCompilationContext.NotTranslatedExpression;
+            }
+
+            arguments.Add(
+                _sqlExpressionFactory.Coalesce(translatedElement, _sqlExpressionFactory.Constant(string.Empty)));
+        }
+
+        var nullPropagation = new bool[arguments.Count];
+        nullPropagation[0] = true;
+
+        return _sqlExpressionFactory.Function(
+            "CONCAT_WS",
+            arguments,
+            nullable: true,
+            argumentsPropagateNullability: nullPropagation,
+            typeof(string),
+            _typeMappingSource.FindMapping(typeof(string)));
+    }
+
+    private Expression TranslateByteArrayElementAccess(
+        Expression arrayExpression,
+        Expression indexExpression
+    )
+    {
+        if (Visit(arrayExpression) is not SqlExpression array
+            || Visit(indexExpression) is not SqlExpression index)
+        {
+            return QueryCompilationContext.NotTranslatedExpression;
+        }
+
+        var element = _sqlExpressionFactory.Function(
+            "SUBSTRING",
+            [
+                array,
+                _sqlExpressionFactory.Add(index, _sqlExpressionFactory.Constant(1)),
+                _sqlExpressionFactory.Constant(1),
+            ],
+            nullable: true,
+            argumentsPropagateNullability:
+            [
+                true,
+                true,
+                false,
+            ],
+            typeof(byte[]),
+            array.TypeMapping);
+
+        return _sqlExpressionFactory.Function(
+            "ASCII",
+            [element],
+            nullable: true,
+            argumentsPropagateNullability: s_singleArgumentNullPropagation,
+            typeof(byte));
+    }
+
+    private Expression TranslateShift(
+        BinaryExpression binaryExpression
+    )
+    {
+        if (Visit(binaryExpression.Left) is not SqlExpression left
+            || Visit(binaryExpression.Right) is not SqlExpression right)
+        {
+            return QueryCompilationContext.NotTranslatedExpression;
+        }
+
+        return _sqlExpressionFactory.Function(
+            binaryExpression.NodeType == ExpressionType.LeftShift ? "__mysql_left_shift" : "__mysql_right_shift",
+            [
+                left,
+                right,
+            ],
+            nullable: true,
+            argumentsPropagateNullability: s_twoArgumentNullPropagation,
+            binaryExpression.Type,
+            left.TypeMapping);
+    }
+
+    private static bool IsSignedIntegralType(
+        Type type
+    )
+    {
+        type = type.UnwrapNullableType();
+
+        return type == typeof(sbyte) || type == typeof(short) || type == typeof(int) || type == typeof(long);
     }
 
     /// <summary>
@@ -141,7 +372,10 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         var resultType = binaryExpression.Type.UnwrapNullableType();
         var leftSourceType = binaryExpression.Left.Type.UnwrapNullableType();
 
-        if (binaryExpression.Left is UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked } conversion)
+        if (binaryExpression.Left is UnaryExpression
+            {
+                NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked,
+            } conversion)
         {
             leftSourceType = conversion.Operand.Type.UnwrapNullableType();
         }
@@ -171,5 +405,12 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
     ) => binaryExpression.NodeType == ExpressionType.Subtract
         && binaryExpression.Left.Type.UnwrapNullableType() == typeof(DateTime)
         && binaryExpression.Right.Type.UnwrapNullableType() == typeof(DateTime)
+        && binaryExpression.Type.UnwrapNullableType() == typeof(TimeSpan);
+
+    private static bool IsTimeOnlyDifference(
+        BinaryExpression binaryExpression
+    ) => binaryExpression.NodeType == ExpressionType.Subtract
+        && binaryExpression.Left.Type.UnwrapNullableType() == typeof(TimeOnly)
+        && binaryExpression.Right.Type.UnwrapNullableType() == typeof(TimeOnly)
         && binaryExpression.Type.UnwrapNullableType() == typeof(TimeSpan);
 }

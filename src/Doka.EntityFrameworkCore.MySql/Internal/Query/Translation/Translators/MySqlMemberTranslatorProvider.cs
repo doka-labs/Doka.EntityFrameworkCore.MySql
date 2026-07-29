@@ -3,7 +3,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed class MySqlMemberTranslatorProvider : RelationalMemberTranslatorProvider
 {
     public MySqlMemberTranslatorProvider(
-        RelationalMemberTranslatorProviderDependencies dependencies
+        RelationalMemberTranslatorProviderDependencies dependencies,
+        IRelationalTypeMappingSource typeMappingSource
     ) : base(dependencies)
     {
         var sqlExpressionFactory = dependencies.SqlExpressionFactory;
@@ -12,6 +13,7 @@ internal sealed class MySqlMemberTranslatorProvider : RelationalMemberTranslator
             new IMemberTranslator[]
             {
                 new MySqlMemberTranslator(sqlExpressionFactory),
+                new MySqlTemporalMemberTranslator(sqlExpressionFactory, typeMappingSource),
             });
     }
 }

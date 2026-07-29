@@ -80,8 +80,7 @@ public sealed class MySqlNewFeatureTests
             .Where(e => e.BirthDate.AddDays(7) > new DateOnly(2025, 1, 1))
             .ToQueryString();
 
-        Assert.Contains("INTERVAL", query, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("DAY", query, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsDateAdd(query, "DAY");
     }
 
     /// <summary>
@@ -96,8 +95,7 @@ public sealed class MySqlNewFeatureTests
             .Where(e => e.BirthDate.AddMonths(3) > new DateOnly(2025, 1, 1))
             .ToQueryString();
 
-        Assert.Contains("INTERVAL", query, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("MONTH", query, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsDateAdd(query, "MONTH");
     }
 
     /// <summary>
@@ -112,8 +110,7 @@ public sealed class MySqlNewFeatureTests
             .Where(e => e.BirthDate.AddYears(1) > new DateOnly(2025, 1, 1))
             .ToQueryString();
 
-        Assert.Contains("INTERVAL", query, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("YEAR", query, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsDateAdd(query, "YEAR");
     }
 
     /// <summary>
@@ -128,7 +125,7 @@ public sealed class MySqlNewFeatureTests
             .Where(e => e.StartTime.Add(TimeSpan.FromHours(1)) > new TimeOnly(12, 0))
             .ToQueryString();
 
-        Assert.Contains("ADDTIME", query, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(query, "ADDTIME");
     }
 
     // -- MariaDB INVISIBLE Columns --
@@ -197,7 +194,7 @@ public sealed class MySqlNewFeatureTests
             .Select(e => EF.Functions.JsonSet(e.Data, "$.name", "test"))
             .ToQueryString();
 
-        Assert.Contains("JSON_SET", query, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(query, "JSON_SET");
     }
 
     /// <summary>
@@ -212,7 +209,7 @@ public sealed class MySqlNewFeatureTests
             .Select(e => EF.Functions.JsonRemove(e.Data, "$.name"))
             .ToQueryString();
 
-        Assert.Contains("JSON_REMOVE", query, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(query, "JSON_REMOVE");
     }
 
     // -- JSON Inspection Functions --
@@ -229,7 +226,7 @@ public sealed class MySqlNewFeatureTests
             .Select(e => EF.Functions.JsonDepth(e.Data))
             .ToQueryString();
 
-        Assert.Contains("JSON_DEPTH", query, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(query, "JSON_DEPTH");
     }
 
     /// <summary>
@@ -244,7 +241,7 @@ public sealed class MySqlNewFeatureTests
             .Select(e => EF.Functions.JsonLength(e.Data))
             .ToQueryString();
 
-        Assert.Contains("JSON_LENGTH", query, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(query, "JSON_LENGTH");
     }
 
     /// <summary>
@@ -259,7 +256,7 @@ public sealed class MySqlNewFeatureTests
             .Select(e => EF.Functions.JsonType(e.Data))
             .ToQueryString();
 
-        Assert.Contains("JSON_TYPE", query, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(query, "JSON_TYPE");
     }
 
     /// <summary>
@@ -274,7 +271,7 @@ public sealed class MySqlNewFeatureTests
             .Select(e => EF.Functions.JsonKeys(e.Data))
             .ToQueryString();
 
-        Assert.Contains("JSON_KEYS", query, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(query, "JSON_KEYS");
     }
 
     /// <summary>
@@ -289,7 +286,7 @@ public sealed class MySqlNewFeatureTests
             .Where(e => EF.Functions.JsonContains(e.Data, "\"value\""))
             .ToQueryString();
 
-        Assert.Contains("JSON_CONTAINS", query, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(query, "JSON_CONTAINS");
     }
 
     // -- Helpers --

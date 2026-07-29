@@ -18,12 +18,6 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
         true,
     ];
 
-    private static readonly bool[] s_truncateNullPropagation =
-    [
-        true,
-        false,
-    ];
-
     private static readonly MethodInfo s_stringIsNullOrEmptyMethod = typeof(string).GetRuntimeMethod(
         nameof(string.IsNullOrEmpty),
         [typeof(string)])!;
@@ -261,25 +255,6 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
             typeof(string),
             typeof(string),
         ])!;
-
-    // Math methods.
-    private static readonly HashSet<MethodInfo> s_absMethods = CreateMathMethodSet(nameof(Math.Abs));
-    private static readonly HashSet<MethodInfo> s_ceilingMethods = CreateMathMethodSet(nameof(Math.Ceiling));
-    private static readonly HashSet<MethodInfo> s_floorMethods = CreateMathMethodSet(nameof(Math.Floor));
-    private static readonly HashSet<MethodInfo> s_roundMethods = CreateMathMethodSet(nameof(Math.Round));
-    private static readonly HashSet<MethodInfo> s_truncateMethods = CreateMathMethodSet(nameof(Math.Truncate));
-    private static readonly HashSet<MethodInfo> s_powMethods = CreateMathMethodSet(nameof(Math.Pow));
-    private static readonly HashSet<MethodInfo> s_sqrtMethods = CreateMathMethodSet(nameof(Math.Sqrt));
-    private static readonly HashSet<MethodInfo> s_logMethods = CreateMathMethodSet(nameof(Math.Log));
-    private static readonly HashSet<MethodInfo> s_log10Methods = CreateMathMethodSet(nameof(Math.Log10));
-    private static readonly HashSet<MethodInfo> s_expMethods = CreateMathMethodSet(nameof(Math.Exp));
-    private static readonly HashSet<MethodInfo> s_signMethods = CreateMathMethodSet(nameof(Math.Sign));
-    private static readonly HashSet<MethodInfo> s_sinMethods = CreateMathMethodSet(nameof(Math.Sin));
-    private static readonly HashSet<MethodInfo> s_cosMethods = CreateMathMethodSet(nameof(Math.Cos));
-    private static readonly HashSet<MethodInfo> s_tanMethods = CreateMathMethodSet(nameof(Math.Tan));
-    private static readonly HashSet<MethodInfo> s_atan2Methods = CreateMathMethodSet(nameof(Math.Atan2));
-    private static readonly HashSet<MethodInfo> s_maxMethods = CreateMathMethodSet(nameof(Math.Max));
-    private static readonly HashSet<MethodInfo> s_minMethods = CreateMathMethodSet(nameof(Math.Min));
 
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
 
@@ -677,98 +652,6 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
             }
         }
 
-        // Math methods.
-        if (s_absMethods.Contains(method))
-        {
-            return TranslateSingleArgumentFunction("ABS", arguments[0], method.ReturnType);
-        }
-
-        if (s_ceilingMethods.Contains(method))
-        {
-            return TranslateSingleArgumentFunction("CEILING", arguments[0], method.ReturnType);
-        }
-
-        if (s_floorMethods.Contains(method))
-        {
-            return TranslateSingleArgumentFunction("FLOOR", arguments[0], method.ReturnType);
-        }
-
-        if (s_roundMethods.Contains(method))
-        {
-            return TranslateRound(arguments, method.ReturnType);
-        }
-
-        if (s_truncateMethods.Contains(method))
-        {
-            return TranslateTruncate(arguments[0], method.ReturnType);
-        }
-
-        if (s_powMethods.Contains(method)
-            && arguments.Count == 2)
-        {
-            return TranslateTwoArgumentFunction("POWER", arguments[0], arguments[1], method.ReturnType);
-        }
-
-        if (s_sqrtMethods.Contains(method))
-        {
-            return TranslateSingleArgumentFunction("SQRT", arguments[0], method.ReturnType);
-        }
-
-        if (s_logMethods.Contains(method))
-        {
-            return arguments.Count == 1
-                ? TranslateSingleArgumentFunction("LN", arguments[0], method.ReturnType)
-                : TranslateTwoArgumentFunction("LOG", arguments[1], arguments[0], method.ReturnType);
-        }
-
-        if (s_log10Methods.Contains(method))
-        {
-            return TranslateSingleArgumentFunction("LOG10", arguments[0], method.ReturnType);
-        }
-
-        if (s_expMethods.Contains(method))
-        {
-            return TranslateSingleArgumentFunction("EXP", arguments[0], method.ReturnType);
-        }
-
-        if (s_signMethods.Contains(method))
-        {
-            return TranslateSingleArgumentFunction("SIGN", arguments[0], method.ReturnType);
-        }
-
-        if (s_sinMethods.Contains(method))
-        {
-            return TranslateSingleArgumentFunction("SIN", arguments[0], method.ReturnType);
-        }
-
-        if (s_cosMethods.Contains(method))
-        {
-            return TranslateSingleArgumentFunction("COS", arguments[0], method.ReturnType);
-        }
-
-        if (s_tanMethods.Contains(method))
-        {
-            return TranslateSingleArgumentFunction("TAN", arguments[0], method.ReturnType);
-        }
-
-        if (s_atan2Methods.Contains(method)
-            && arguments.Count == 2)
-        {
-            return TranslateTwoArgumentFunction("ATAN2", arguments[0], arguments[1], method.ReturnType);
-        }
-
-        if (s_maxMethods.Contains(method)
-            && arguments.Count == 2)
-        {
-            return TranslateTwoArgumentFunction("GREATEST", arguments[0], arguments[1], method.ReturnType);
-        }
-
-        if (s_minMethods.Contains(method)
-            && arguments.Count == 2)
-        {
-            return TranslateTwoArgumentFunction("LEAST", arguments[0], arguments[1], method.ReturnType);
-        }
-
         return null;
     }
 
@@ -862,47 +745,6 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
         argumentsPropagateNullability: s_singleArgumentNullPropagation,
         typeof(int),
         s_intTypeMapping);
-
-    private SqlExpression? TranslateRound(
-        IReadOnlyList<SqlExpression> arguments,
-        Type resultType
-    ) => arguments.Count switch
-    {
-        1 => _sqlExpressionFactory.Function(
-            "ROUND",
-            [
-                arguments[0],
-            ],
-            nullable: true,
-            argumentsPropagateNullability: s_singleArgumentNullPropagation,
-            resultType,
-            arguments[0].TypeMapping),
-        2 => _sqlExpressionFactory.Function(
-            "ROUND",
-            [
-                arguments[0],
-                arguments[1],
-            ],
-            nullable: true,
-            argumentsPropagateNullability: s_roundTwoArgumentNullPropagation,
-            resultType,
-            arguments[0].TypeMapping),
-        _ => null,
-    };
-
-    private SqlExpression TranslateTruncate(
-        SqlExpression argument,
-        Type resultType
-    ) => _sqlExpressionFactory.Function(
-        "TRUNCATE",
-        [
-            argument,
-            _sqlExpressionFactory.Constant(0),
-        ],
-        nullable: true,
-        argumentsPropagateNullability: s_truncateNullPropagation,
-        resultType,
-        argument.TypeMapping);
 
     /// <summary>
     /// Translates DateTime.AddX(n) to the MySQL DATE_ADD function with INTERVAL syntax.
@@ -1064,20 +906,4 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
             instance.TypeMapping);
     }
 
-    private static HashSet<MethodInfo> CreateMathMethodSet(
-        string methodName
-    )
-    {
-        var methods = typeof(Math)
-            .GetRuntimeMethods()
-            .Where(method => method.Name == methodName)
-            .Concat(
-                typeof(MathF)
-                    .GetRuntimeMethods()
-                    .Where(method => method.Name == methodName))
-            .Where(method => method.GetParameters()
-                .Length is 1 or 2);
-
-        return [.. methods];
-    }
 }

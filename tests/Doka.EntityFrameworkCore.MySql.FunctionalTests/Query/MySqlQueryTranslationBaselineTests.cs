@@ -24,12 +24,12 @@ public sealed class MySqlQueryTranslationBaselineTests
             })
             .ToQueryString();
 
-        Assert.Contains("CHAR_LENGTH(", sql, StringComparison.Ordinal);
+        MySqlSqlAssert.ContainsFunction(sql, "CHAR_LENGTH");
         Assert.Contains("`Name`", sql, StringComparison.Ordinal);
-        Assert.Contains("DATE(", sql, StringComparison.Ordinal);
-        Assert.Contains("YEAR(", sql, StringComparison.Ordinal);
-        Assert.Contains("MONTH(", sql, StringComparison.Ordinal);
-        Assert.Contains("SECOND(", sql, StringComparison.Ordinal);
+        MySqlSqlAssert.ContainsFunction(sql, "DATE");
+        MySqlSqlAssert.ContainsFunction(sql, "YEAR");
+        MySqlSqlAssert.ContainsFunction(sql, "MONTH");
+        MySqlSqlAssert.ContainsFunction(sql, "SECOND");
     }
 
     /// <summary>
@@ -51,11 +51,11 @@ public sealed class MySqlQueryTranslationBaselineTests
             .ToQueryString();
 
         Assert.Contains("`OptionalName`", sql, StringComparison.Ordinal);
-        Assert.Contains("ABS(", sql, StringComparison.Ordinal);
-        Assert.Contains("CEILING(", sql, StringComparison.Ordinal);
-        Assert.Contains("FLOOR(", sql, StringComparison.Ordinal);
-        Assert.Contains("ROUND(", sql, StringComparison.Ordinal);
-        Assert.Contains("TRUNCATE(", sql, StringComparison.Ordinal);
+        MySqlSqlAssert.ContainsFunction(sql, "ABS");
+        MySqlSqlAssert.ContainsFunction(sql, "CEILING");
+        MySqlSqlAssert.ContainsFunction(sql, "FLOOR");
+        MySqlSqlAssert.ContainsFunction(sql, "ROUND");
+        MySqlSqlAssert.ContainsFunction(sql, "TRUNCATE");
     }
 
     /// <summary>
@@ -102,15 +102,22 @@ public sealed class MySqlQueryTranslationBaselineTests
     }
 
     /// <summary>
-    /// Verifies that unsupported members still fail explicitly instead of falling back.
+    /// Verifies that an unstored <see cref="DateTime.Kind"/> cannot silently acquire
+    /// server semantics.
     /// </summary>
+    /// <remarks>
+    /// MySQL <c>DATETIME</c> stores date and time fields without a CLR kind or time-zone
+    /// attribute. Source retrieved 2026-07-29:
+    /// <see href="https://dev.mysql.com/doc/refman/8.4/en/datetime.html">
+    /// MySQL date and time types</see>.
+    /// </remarks>
     [Fact]
-    public void Unsupported_members_fail_explicitly()
+    public void Unstored_datetime_kind_fails_explicitly()
     {
         using var context = new QueryTranslationContext(CreateOptions());
 
         var exception = Assert.Throws<InvalidOperationException>(() => context
-            .Entities.Where(entity => entity.CreatedAt.DayOfWeek == DayOfWeek.Monday)
+            .Entities.Where(entity => entity.CreatedAt.Kind == DateTimeKind.Utc)
             .ToQueryString());
 
         Assert.Contains("could not be translated", exception.Message, StringComparison.OrdinalIgnoreCase);

@@ -36,25 +36,7 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
 
             case { Name: "__mysql_regexp", Arguments.Count: 2 }:
                 {
-                    // MySQL 8.0+: REGEXP_LIKE(input, pattern) -- scalar function
-                    // MariaDB: input REGEXP pattern -- infix operator (REGEXP_LIKE does not exist)
-                    var isMariaDb = _singletonOptions.ServerVersion?.IsMariaDb == true;
-
-                    if (!isMariaDb)
-                    {
-                        Sql.Append("REGEXP_LIKE(");
-                        Visit(sqlFunctionExpression.Arguments[0]);
-                        Sql.Append(", ");
-                        Visit(sqlFunctionExpression.Arguments[1]);
-                        Sql.Append(")");
-                    }
-                    else
-                    {
-                        Visit(sqlFunctionExpression.Arguments[0]);
-                        Sql.Append(" REGEXP ");
-                        Visit(sqlFunctionExpression.Arguments[1]);
-                    }
-
+                    EmitRegularExpression(sqlFunctionExpression);
                     return sqlFunctionExpression;
                 }
 
@@ -77,16 +59,28 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
                     return sqlFunctionExpression;
                 }
 
-            case { Name: "__mysql_group_concat", Arguments.Count: 2 }:
+            case { Name: "__mysql_group_concat", Arguments.Count: >= 2 }:
                 {
-                    // GROUP_CONCAT(expr SEPARATOR sep) -- MySQL requires the SEPARATOR keyword;
-                    // a standard comma-separated argument list is invalid syntax.
-                    Sql.Append("GROUP_CONCAT(");
-                    Visit(sqlFunctionExpression.Arguments[0]);
-                    Sql.Append(" SEPARATOR ");
-                    Visit(sqlFunctionExpression.Arguments[1]);
-                    Sql.Append(")");
+                    EmitGroupConcat(sqlFunctionExpression);
+                    return sqlFunctionExpression;
+                }
 
+            case { Name: "__mysql_order_ascending" or "__mysql_order_descending", Arguments.Count: 1, }:
+                {
+                    Visit(sqlFunctionExpression.Arguments[0]);
+                    Sql.Append(sqlFunctionExpression.Name == "__mysql_order_ascending" ? " ASC" : " DESC");
+                    return sqlFunctionExpression;
+                }
+
+            case { Name: "__mysql_guid_to_string", Arguments.Count: 1 }:
+                {
+                    EmitGuidToString(sqlFunctionExpression.Arguments[0]);
+                    return sqlFunctionExpression;
+                }
+
+            case { Name: "__mysql_datetimeoffset_now" or "__mysql_datetimeoffset_utc_now", Arguments.Count: 0, }:
+                {
+                    EmitDateTimeOffsetNow(utc: sqlFunctionExpression.Name == "__mysql_datetimeoffset_utc_now");
                     return sqlFunctionExpression;
                 }
 
@@ -96,15 +90,43 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
                     return sqlFunctionExpression;
                 }
 
-            case { Name: var name, Arguments.Count: 2 }
-                when name.StartsWith(DateAddSentinelPrefix, StringComparison.Ordinal):
+            case { Name: "__mysql_time_diff_ticks", Arguments.Count: 2 }:
+                {
+                    EmitTimeDifferenceTicks(sqlFunctionExpression);
+                    return sqlFunctionExpression;
+                }
+
+            case { Name: "__mysql_time_of_day_ticks", Arguments.Count: 1 }:
+                {
+                    EmitTimeOfDayTicks(sqlFunctionExpression);
+                    return sqlFunctionExpression;
+                }
+
+            case { Name: "__mysql_left_shift" or "__mysql_right_shift", Arguments.Count: 2, }:
+                {
+                    EmitSignedShift(sqlFunctionExpression);
+                    return sqlFunctionExpression;
+                }
+
+            case { Name: "__mysql_ones_complement", Arguments.Count: 1 }:
+                {
+                    Sql.Append("CAST((~");
+                    Visit(sqlFunctionExpression.Arguments[0]);
+                    Sql.Append(") AS SIGNED)");
+                    return sqlFunctionExpression;
+                }
+
+            case { Name: var name, Arguments.Count: 2 } when name.StartsWith(
+                DateAddSentinelPrefix,
+                StringComparison.Ordinal):
                 {
                     EmitDateAdd(sqlFunctionExpression, name[DateAddSentinelPrefix.Length..]);
                     return sqlFunctionExpression;
                 }
 
-            case { Name: var name, Arguments.Count: 2 }
-                when name.StartsWith(TimeAddSentinelPrefix, StringComparison.Ordinal):
+            case { Name: var name, Arguments.Count: 2 } when name.StartsWith(
+                TimeAddSentinelPrefix,
+                StringComparison.Ordinal):
                 {
                     EmitDateAdd(sqlFunctionExpression, name[TimeAddSentinelPrefix.Length..]);
                     return sqlFunctionExpression;
@@ -113,6 +135,183 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
             default:
                 return base.VisitSqlFunction(sqlFunctionExpression);
         }
+    }
+
+    private void EmitRegularExpression(
+        SqlFunctionExpression expression
+    )
+    {
+        var arguments = GetRequiredArguments(expression, 2);
+        var input = arguments[0];
+        var pattern = arguments[1];
+
+        Sql.Append("(CASE WHEN ");
+        Visit(pattern);
+        Sql.Append(" = '' THEN TRUE ELSE ");
+
+        if (_singletonOptions.ServerVersion?.IsMariaDb == true)
+        {
+            Visit(input);
+            Sql.Append(" REGEXP ");
+            Visit(pattern);
+        }
+        else
+        {
+            Sql.Append("REGEXP_LIKE(");
+            Visit(input);
+            Sql.Append(", ");
+            Visit(pattern);
+            Sql.Append(")");
+        }
+
+        Sql.Append(" END)");
+    }
+
+    /// <summary>
+    /// Emits MySQL's ordered aggregate grammar:
+    /// <c>GROUP_CONCAT(value ORDER BY ... SEPARATOR separator)</c>.
+    /// </summary>
+    private void EmitGroupConcat(
+        SqlFunctionExpression expression
+    )
+    {
+        var arguments = expression.Arguments
+            ?? throw new InvalidOperationException(
+                "The __mysql_group_concat sentinel requires at least two arguments.");
+
+        Sql.Append("GROUP_CONCAT(");
+        Visit(arguments[0]);
+
+        if (arguments.Count > 2)
+        {
+            Sql.Append(" ORDER BY ");
+
+            for (var index = 2; index < arguments.Count; index++)
+            {
+                if (index > 2)
+                {
+                    Sql.Append(", ");
+                }
+
+                Visit(arguments[index]);
+            }
+        }
+
+        Sql.Append(" SEPARATOR ");
+        Visit(arguments[1]);
+        Sql.Append(")");
+    }
+
+    private void EmitGuidToString(
+        SqlExpression hexadecimal
+    )
+    {
+        Sql.Append("LOWER(CONCAT(");
+        EmitSubstring(hexadecimal, 1, 8);
+        Sql.Append(", '-', ");
+        EmitSubstring(hexadecimal, 9, 4);
+        Sql.Append(", '-', ");
+        EmitSubstring(hexadecimal, 13, 4);
+        Sql.Append(", '-', ");
+        EmitSubstring(hexadecimal, 17, 4);
+        Sql.Append(", '-', ");
+        EmitSubstring(hexadecimal, 21, 12);
+        Sql.Append("))");
+    }
+
+    private void EmitTimeDifferenceTicks(
+        SqlFunctionExpression expression
+    )
+    {
+        var arguments = GetRequiredArguments(expression, 2);
+
+        Sql.Append("CAST((TIMESTAMPDIFF(MICROSECOND, TIMESTAMP('2000-01-01', ");
+        Visit(arguments[1]);
+        Sql.Append("), TIMESTAMP('2000-01-01', ");
+        Visit(arguments[0]);
+        Sql.Append(")) * 10) AS SIGNED)");
+    }
+
+    private void EmitTimeOfDayTicks(
+        SqlFunctionExpression expression
+    )
+    {
+        var arguments = GetRequiredArguments(expression, 1);
+
+        Sql.Append("CAST((TIMESTAMPDIFF(MICROSECOND, DATE(");
+        Visit(arguments[0]);
+        Sql.Append("), ");
+        Visit(arguments[0]);
+        Sql.Append(") * 10) AS SIGNED)");
+    }
+
+    private void EmitSignedShift(
+        SqlFunctionExpression expression
+    )
+    {
+        var arguments = GetRequiredArguments(expression, 2);
+
+        Sql.Append("CAST((CAST(");
+        Visit(arguments[0]);
+        Sql.Append(" AS SIGNED) ");
+        Sql.Append(expression.Name == "__mysql_left_shift" ? "<<" : ">>");
+        Sql.Append(" ");
+        Visit(arguments[1]);
+        Sql.Append(") AS SIGNED)");
+    }
+
+    private static IReadOnlyList<SqlExpression> GetRequiredArguments(
+        SqlFunctionExpression expression,
+        int expectedCount
+    )
+    {
+        var arguments = expression.Arguments;
+
+        if (arguments is null
+            || arguments.Count != expectedCount)
+        {
+            throw new InvalidOperationException($"The {expression.Name} sentinel requires {expectedCount} arguments.");
+        }
+
+        return arguments;
+    }
+
+    private void EmitSubstring(
+        SqlExpression expression,
+        int start,
+        int length
+    )
+    {
+        Sql.Append("SUBSTRING(");
+        Visit(expression);
+        Sql.Append(", ");
+        Sql.Append(start.ToString(CultureInfo.InvariantCulture));
+        Sql.Append(", ");
+        Sql.Append(length.ToString(CultureInfo.InvariantCulture));
+        Sql.Append(")");
+    }
+
+    /// <summary>
+    /// Produces the provider's sortable DateTimeOffset text shape, including the
+    /// current session offset for <see cref="DateTimeOffset.Now"/>.
+    /// </summary>
+    private void EmitDateTimeOffsetNow(
+        bool utc
+    )
+    {
+        Sql.Append("CONCAT(DATE_FORMAT(");
+        Sql.Append(utc ? "UTC_TIMESTAMP(6)" : "NOW(6)");
+        Sql.Append(", '%Y-%m-%d %H:%i:%s.%f'), ");
+
+        if (utc)
+        {
+            Sql.Append("'+00:00')");
+            return;
+        }
+
+        Sql.Append("CASE WHEN TIMEDIFF(NOW(), UTC_TIMESTAMP()) < 0 ");
+        Sql.Append("THEN TIME_FORMAT(TIMEDIFF(NOW(), UTC_TIMESTAMP()), '%H:%i') ");
+        Sql.Append("ELSE CONCAT('+', TIME_FORMAT(TIMEDIFF(NOW(), UTC_TIMESTAMP()), '%H:%i')) END)");
     }
 
     /// <summary>
@@ -1259,6 +1458,15 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     {
         ArgumentNullException.ThrowIfNull(sqlUnaryExpression);
 
+        if (sqlUnaryExpression.OperatorType is ExpressionType.Not or ExpressionType.OnesComplement
+            && IsSignedIntegralType(sqlUnaryExpression.Type.UnwrapNullableType()))
+        {
+            Sql.Append("CAST((~");
+            Visit(sqlUnaryExpression.Operand);
+            Sql.Append(") AS SIGNED)");
+            return sqlUnaryExpression;
+        }
+
         if (sqlUnaryExpression is not { OperatorType: ExpressionType.Convert, TypeMapping: { } typeMapping })
         {
             return base.VisitSqlUnary(sqlUnaryExpression);
@@ -1271,10 +1479,19 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         }
 
         var operandType = sqlUnaryExpression.Operand.Type;
-        var castTarget = sqlUnaryExpression.Type == typeof(decimal)
-            && (operandType == typeof(double) || operandType == typeof(float))
-                ? "DECIMAL(65,30)"
-                : TranslateStoreTypeToCastTarget(typeMapping.StoreType);
+
+        if (sqlUnaryExpression.Type == typeof(decimal)
+            && operandType == typeof(float))
+        {
+            Sql.Append("CAST(CAST(");
+            Visit(sqlUnaryExpression.Operand);
+            Sql.Append(" AS CHAR) AS DECIMAL(65,30))");
+            return sqlUnaryExpression;
+        }
+
+        var castTarget = sqlUnaryExpression.Type == typeof(decimal) && operandType == typeof(double)
+            ? "DECIMAL(65,30)"
+            : TranslateStoreTypeToCastTarget(typeMapping.StoreType);
 
         if (castTarget is null)
         {
@@ -1352,6 +1569,17 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     {
         ArgumentNullException.ThrowIfNull(sqlBinaryExpression);
 
+        if (IsSignedIntegralType(sqlBinaryExpression.Type.UnwrapNullableType())
+            && sqlBinaryExpression.OperatorType is ExpressionType.And
+                or ExpressionType.Or
+                or ExpressionType.ExclusiveOr
+                or ExpressionType.LeftShift
+                or ExpressionType.RightShift)
+        {
+            EmitSignedBitwise(sqlBinaryExpression);
+            return sqlBinaryExpression;
+        }
+
         if (sqlBinaryExpression.OperatorType != ExpressionType.Add
             || sqlBinaryExpression.Type != typeof(string))
         {
@@ -1365,6 +1593,52 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         Sql.Append(")");
         return sqlBinaryExpression;
     }
+
+    /// <summary>
+    /// Casts MySQL-family unsigned 64-bit bitwise results back to the signed CLR
+    /// domain. Arithmetic right shift needs a separate negative branch because the
+    /// engines otherwise zero-fill the high bits.
+    /// </summary>
+    private void EmitSignedBitwise(
+        SqlBinaryExpression expression
+    )
+    {
+        if (expression.OperatorType == ExpressionType.RightShift)
+        {
+            Sql.Append("(CASE WHEN ");
+            Visit(expression.Left);
+            Sql.Append(" < 0 THEN CAST((~((~");
+            Visit(expression.Left);
+            Sql.Append(") >> ");
+            Visit(expression.Right);
+            Sql.Append(")) AS SIGNED) ELSE CAST((");
+            Visit(expression.Left);
+            Sql.Append(" >> ");
+            Visit(expression.Right);
+            Sql.Append(") AS SIGNED) END)");
+            return;
+        }
+
+        Sql.Append("CAST((");
+        Visit(expression.Left);
+        Sql.Append(expression.OperatorType switch
+        {
+            ExpressionType.And => " & ",
+            ExpressionType.Or => " | ",
+            ExpressionType.ExclusiveOr => " ^ ",
+            ExpressionType.LeftShift => " << ",
+            _ => throw new UnreachableException(),
+        });
+        Visit(expression.Right);
+        Sql.Append(") AS SIGNED)");
+    }
+
+    private static bool IsSignedIntegralType(
+        Type type
+    ) => type == typeof(sbyte)
+        || type == typeof(short)
+        || type == typeof(int)
+        || type == typeof(long);
 
     /// <summary>
     /// Maps a column-level MySQL store-type string to the cast-context-valid keyword. Returns

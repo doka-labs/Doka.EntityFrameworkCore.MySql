@@ -17,8 +17,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Where(e => e.CreatedAt.AddYears(1) > DateTime.Now)
             .ToQueryString();
 
-        Assert.Contains("INTERVAL", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("YEAR", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsDateAdd(sql, "YEAR");
     }
 
     [Fact]
@@ -30,8 +29,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Where(e => e.CreatedAt.AddMonths(6) > DateTime.Now)
             .ToQueryString();
 
-        Assert.Contains("INTERVAL", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("MONTH", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsDateAdd(sql, "MONTH");
     }
 
     [Fact]
@@ -43,8 +41,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Where(e => e.CreatedAt.AddDays(30) > DateTime.Now)
             .ToQueryString();
 
-        Assert.Contains("INTERVAL", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("DAY", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsDateAdd(sql, "DAY");
     }
 
     [Fact]
@@ -56,8 +53,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Where(e => e.CreatedAt.AddHours(12) > DateTime.Now)
             .ToQueryString();
 
-        Assert.Contains("INTERVAL", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("HOUR", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsDateAdd(sql, "HOUR");
     }
 
     [Fact]
@@ -69,8 +65,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Where(e => e.CreatedAt.AddMinutes(45) > DateTime.Now)
             .ToQueryString();
 
-        Assert.Contains("INTERVAL", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("MINUTE", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsDateAdd(sql, "MINUTE");
     }
 
     [Fact]
@@ -82,8 +77,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Where(e => e.CreatedAt.AddSeconds(90) > DateTime.Now)
             .ToQueryString();
 
-        Assert.Contains("INTERVAL", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("SECOND", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsDateAdd(sql, "SECOND");
     }
 
     // -- TimeSpan Member Translations --
@@ -97,7 +91,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => e.Duration.TotalSeconds)
             .ToQueryString();
 
-        Assert.Contains("TIME_TO_SEC", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "TIME_TO_SEC");
     }
 
     [Fact]
@@ -109,7 +103,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => e.Duration.TotalMinutes)
             .ToQueryString();
 
-        Assert.Contains("TIME_TO_SEC", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "TIME_TO_SEC");
         Assert.Contains("60", sql, StringComparison.Ordinal);
     }
 
@@ -122,7 +116,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => e.Duration.TotalHours)
             .ToQueryString();
 
-        Assert.Contains("TIME_TO_SEC", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "TIME_TO_SEC");
         Assert.Contains("3600", sql, StringComparison.Ordinal);
     }
 
@@ -138,7 +132,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => e.Name.TrimStart())
             .ToQueryString();
 
-        Assert.Contains("LTRIM", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "LTRIM");
     }
 
     [Fact]
@@ -151,7 +145,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => e.Name.TrimEnd())
             .ToQueryString();
 
-        Assert.Contains("RTRIM", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "RTRIM");
     }
 
     [Fact]
@@ -163,7 +157,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => e.Name.PadLeft(10, '0'))
             .ToQueryString();
 
-        Assert.Contains("LPAD", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "LPAD");
     }
 
     [Fact]
@@ -175,7 +169,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => e.Name.PadRight(10, '_'))
             .ToQueryString();
 
-        Assert.Contains("RPAD", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "RPAD");
     }
 
     [Fact]
@@ -187,7 +181,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => e.Name.Substring(2, 5))
             .ToQueryString();
 
-        Assert.Contains("SUBSTRING", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "SUBSTRING");
     }
 
     [Fact]
@@ -199,7 +193,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => string.Concat(e.Name, " ", e.Name))
             .ToQueryString();
 
-        Assert.Contains("CONCAT", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "CONCAT");
     }
 
     [Fact]
@@ -231,7 +225,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => Math.Log10(e.Score))
             .ToQueryString();
 
-        Assert.Contains("LOG10", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "LOG10");
     }
 
     [Fact]
@@ -243,7 +237,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => Math.Exp(e.Score))
             .ToQueryString();
 
-        Assert.Contains("EXP", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "EXP");
     }
 
     // Math.Sign already tested in MySqlQueryTranslationExtendedTests.
@@ -257,7 +251,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => Math.Sin(e.Score))
             .ToQueryString();
 
-        Assert.Contains("SIN", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "SIN");
     }
 
     [Fact]
@@ -269,7 +263,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => Math.Cos(e.Score))
             .ToQueryString();
 
-        Assert.Contains("COS", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "COS");
     }
 
     [Fact]
@@ -281,7 +275,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => Math.Tan(e.Score))
             .ToQueryString();
 
-        Assert.Contains("TAN", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "TAN");
     }
 
     [Fact]
@@ -293,7 +287,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => Math.Atan2(e.Score, 1.0))
             .ToQueryString();
 
-        Assert.Contains("ATAN2", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "ATAN2");
     }
 
     // Math.Pow, Math.Sqrt, Math.Log (1-arg) already tested in MySqlQueryTranslationExtendedTests.
@@ -307,7 +301,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => Math.Log(e.Score, 2.0))
             .ToQueryString();
 
-        Assert.Contains("LOG", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "LOG");
     }
 
     [Fact]
@@ -319,7 +313,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => Math.Round(e.Score))
             .ToQueryString();
 
-        Assert.Contains("ROUND", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "ROUND");
     }
 
     // -- GROUP_CONCAT --
@@ -338,7 +332,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             })
             .ToQueryString();
 
-        Assert.Contains("GROUP_CONCAT", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "GROUP_CONCAT");
         Assert.Contains("SEPARATOR", sql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("GROUP_CONCAT(`c`.`Name`, ", sql, StringComparison.Ordinal);
     }
@@ -354,7 +348,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => e.CreatedAt.Day)
             .ToQueryString();
 
-        Assert.Contains("DAY(", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "DAY");
     }
 
     [Fact]
@@ -366,7 +360,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => e.CreatedAt.Hour)
             .ToQueryString();
 
-        Assert.Contains("HOUR(", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "HOUR");
     }
 
     [Fact]
@@ -378,7 +372,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(e => e.CreatedAt.Minute)
             .ToQueryString();
 
-        Assert.Contains("MINUTE(", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "MINUTE");
     }
 
     [Fact]
@@ -390,7 +384,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(entity => entity.CreatedAt.Microsecond)
             .ToQueryString();
 
-        Assert.Contains("MICROSECOND", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "MICROSECOND");
         Assert.Contains("% 1000", sql, StringComparison.Ordinal);
     }
 
@@ -403,7 +397,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .Select(entity => entity.CreatedAt.Nanosecond)
             .ToQueryString();
 
-        Assert.Contains("MICROSECOND", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "MICROSECOND");
         Assert.Contains("* 1000", sql, StringComparison.Ordinal);
         Assert.Contains("% 1000", sql, StringComparison.Ordinal);
     }

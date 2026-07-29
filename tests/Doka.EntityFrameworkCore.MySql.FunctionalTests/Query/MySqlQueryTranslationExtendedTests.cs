@@ -18,7 +18,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Select(e => e.Name.Substring(2))
             .ToQueryString();
 
-        Assert.Contains("SUBSTRING", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "SUBSTRING");
     }
 
     /// <summary>
@@ -40,8 +40,8 @@ public sealed class MySqlQueryTranslationExtendedTests
             .ToQueryString();
 #pragma warning restore CA1304, CA1311
 
-        Assert.Contains("UPPER", upperSql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("LOWER", lowerSql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(upperSql, "UPPER");
+        MySqlSqlAssert.ContainsFunction(lowerSql, "LOWER");
     }
 
     /// <summary>
@@ -55,7 +55,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Select(e => e.Name.Replace("old", "new"))
             .ToQueryString();
 
-        Assert.Contains("REPLACE", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "REPLACE");
     }
 
     /// <summary>
@@ -69,7 +69,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Select(e => e.Name.Trim())
             .ToQueryString();
 
-        Assert.Contains("TRIM", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "TRIM");
     }
 
     /// <summary>
@@ -83,7 +83,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Select(e => e.Name.IndexOf("test"))
             .ToQueryString();
 
-        Assert.Contains("LOCATE", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "LOCATE");
     }
 
     /// <summary>
@@ -97,13 +97,13 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Select(e => string.Concat(e.Name, "-suffix"))
             .ToQueryString();
 
-        Assert.Contains("CONCAT", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "CONCAT");
     }
 
     // -- DateTime Function Translations ----------------------------
 
     /// <summary>
-    /// DateTime.Now translates to NOW().
+    /// DateTime.Now translates to microsecond-precision NOW(6).
     /// </summary>
     [Fact]
     public void Datetime_now_translates_to_now()
@@ -113,11 +113,11 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Where(e => e.CreatedAt < DateTime.Now)
             .ToQueryString();
 
-        Assert.Contains("NOW()", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsCurrentTimestamp(sql, utc: false, precision: 6);
     }
 
     /// <summary>
-    /// DateTime.UtcNow translates to UTC_TIMESTAMP().
+    /// DateTime.UtcNow translates to microsecond-precision UTC_TIMESTAMP(6).
     /// </summary>
     [Fact]
     public void Datetime_utcnow_translates_to_utc_timestamp()
@@ -127,7 +127,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Where(e => e.CreatedAt < DateTime.UtcNow)
             .ToQueryString();
 
-        Assert.Contains("UTC_TIMESTAMP()", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsCurrentTimestamp(sql, utc: true, precision: 6);
     }
 
     /// <summary>
@@ -159,7 +159,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Select(e => Math.Pow(e.Value, 2))
             .ToQueryString();
 
-        Assert.Contains("POWER", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "POWER");
     }
 
     /// <summary>
@@ -173,7 +173,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Select(e => Math.Sqrt(e.Value))
             .ToQueryString();
 
-        Assert.Contains("SQRT", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "SQRT");
     }
 
     /// <summary>
@@ -187,7 +187,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Select(e => Math.Log(e.Value))
             .ToQueryString();
 
-        Assert.Contains("LN", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsNaturalLogarithm(sql);
     }
 
     /// <summary>
@@ -201,7 +201,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Select(e => Math.Sign(e.Value))
             .ToQueryString();
 
-        Assert.Contains("SIGN", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "SIGN");
     }
 
     /// <summary>
@@ -364,7 +364,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Select(e => e.NullableName ?? "default")
             .ToQueryString();
 
-        Assert.Contains("COALESCE", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "COALESCE");
     }
 
     /// <summary>
@@ -379,7 +379,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Select(e => e.NullableUnsignedValue ?? 2.25)
             .ToQueryString();
 
-        Assert.Contains("COALESCE", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "COALESCE");
         Assert.Contains("CAST(", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("AS DOUBLE", sql, StringComparison.OrdinalIgnoreCase);
     }
@@ -441,7 +441,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .ToQueryString();
 
         Assert.Contains("GROUP BY", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("COUNT", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "COUNT");
     }
 
     /// <summary>
@@ -601,7 +601,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Select(g => g.Sum(e => e.SingleValue))
             .ToQueryString();
 
-        Assert.Contains("SUM(", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "SUM");
         Assert.Contains(" AS FLOAT)", sql, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -635,7 +635,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .ToQueryString();
 
         Assert.Contains("SELECT", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("AVG", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "AVG");
     }
 
     /// <summary>
@@ -711,7 +711,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Where(e => EF.Functions.Match(e.Name, "search term"))
             .ToQueryString();
 
-        Assert.Contains("MATCH", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "MATCH");
         Assert.Contains("AGAINST", sql, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -726,7 +726,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Where(e => EF.Functions.MatchInBooleanMode(e.Name, "+required -excluded"))
             .ToQueryString();
 
-        Assert.Contains("MATCH", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "MATCH");
         Assert.Contains("AGAINST", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("IN BOOLEAN MODE", sql, StringComparison.OrdinalIgnoreCase);
     }
@@ -742,7 +742,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Where(e => EF.Functions.Regexp(e.Name, "^test.*$"))
             .ToQueryString();
 
-        Assert.Contains("REGEXP_LIKE", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsRegularExpression(sql, mariaDb: false);
     }
 
     /// <summary>
@@ -756,7 +756,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Items.Where(e => EF.Functions.Regexp(e.Name, "^test.*$"))
             .ToQueryString();
 
-        Assert.Contains("REGEXP", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsRegularExpression(sql, mariaDb: true);
         Assert.DoesNotContain("REGEXP_LIKE", sql, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -867,7 +867,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             })
             .ToQueryString();
 
-        Assert.Contains("CHAR_LENGTH", sql, StringComparison.OrdinalIgnoreCase);
+        MySqlSqlAssert.ContainsFunction(sql, "CHAR_LENGTH");
     }
 
     private static DbContextOptions<EnumQueryContext> CreateEnumOptions()
