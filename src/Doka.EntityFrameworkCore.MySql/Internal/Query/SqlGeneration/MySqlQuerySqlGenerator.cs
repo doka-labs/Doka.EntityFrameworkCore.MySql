@@ -104,7 +104,7 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
 
             case { Name: "__mysql_left_shift" or "__mysql_right_shift", Arguments.Count: 2, }:
                 {
-                    EmitSignedShift(sqlFunctionExpression);
+                    EmitShift(sqlFunctionExpression);
                     return sqlFunctionExpression;
                 }
 
@@ -245,19 +245,134 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         Sql.Append(") * 10) AS SIGNED)");
     }
 
-    private void EmitSignedShift(
+    private void EmitShift(
         SqlFunctionExpression expression
     )
     {
         var arguments = GetRequiredArguments(expression, 2);
+        var resultType = expression.Type.UnwrapNullableType();
+        var bitWidth = resultType == typeof(long) || resultType == typeof(ulong) ? 64 : 32;
+
+        if (expression.Name == "__mysql_right_shift")
+        {
+            if (resultType == typeof(uint)
+                || resultType == typeof(ulong))
+            {
+                EmitUnsignedRightShift(arguments[0], arguments[1], bitWidth);
+            }
+            else
+            {
+                EmitSignedRightShift(arguments[0], arguments[1], bitWidth);
+            }
+
+            return;
+        }
+
+        if (resultType == typeof(uint))
+        {
+            Sql.Append("((");
+            Visit(arguments[0]);
+            Sql.Append(" << ");
+            EmitMaskedShift(arguments[1], bitWidth);
+            Sql.Append(") & 4294967295)");
+            return;
+        }
+
+        if (resultType == typeof(ulong))
+        {
+            Sql.Append("(");
+            Visit(arguments[0]);
+            Sql.Append(" << ");
+            EmitMaskedShift(arguments[1], bitWidth);
+            Sql.Append(")");
+            return;
+        }
+
+        if (bitWidth == 32)
+        {
+            EmitSignedInt32LeftShift(arguments[0], arguments[1]);
+            return;
+        }
 
         Sql.Append("CAST((CAST(");
         Visit(arguments[0]);
-        Sql.Append(" AS SIGNED) ");
-        Sql.Append(expression.Name == "__mysql_left_shift" ? "<<" : ">>");
-        Sql.Append(" ");
-        Visit(arguments[1]);
+        Sql.Append(" AS SIGNED) << ");
+        EmitMaskedShift(arguments[1], bitWidth);
         Sql.Append(") AS SIGNED)");
+    }
+
+    /// <summary>
+    /// Preserves CLR arithmetic right-shift semantics for negative values while
+    /// applying the CLR shift-count mask. MySQL-family bitwise operators otherwise
+    /// interpret the operand as unsigned and zero-fill the high bits.
+    /// </summary>
+    private void EmitSignedRightShift(
+        SqlExpression value,
+        SqlExpression shift,
+        int bitWidth
+    )
+    {
+        Sql.Append("(CASE WHEN ");
+        Visit(value);
+        Sql.Append(" < 0 THEN CAST((~((~");
+        Visit(value);
+        Sql.Append(") >> ");
+        EmitMaskedShift(shift, bitWidth);
+        Sql.Append(")) AS SIGNED) ELSE CAST((");
+        Visit(value);
+        Sql.Append(" >> ");
+        EmitMaskedShift(shift, bitWidth);
+        Sql.Append(") AS SIGNED) END)");
+    }
+
+    private void EmitUnsignedRightShift(
+        SqlExpression value,
+        SqlExpression shift,
+        int bitWidth
+    )
+    {
+        Sql.Append("(");
+
+        if (bitWidth == 32)
+        {
+            Sql.Append("(");
+            Visit(value);
+            Sql.Append(" & 4294967295)");
+        }
+        else
+        {
+            Visit(value);
+        }
+
+        Sql.Append(" >> ");
+        EmitMaskedShift(shift, bitWidth);
+        Sql.Append(")");
+    }
+
+    /// <summary>
+    /// Narrows the engine's unsigned 64-bit shift result back to the signed
+    /// 32-bit domain required by CLR integer promotion.
+    /// </summary>
+    private void EmitSignedInt32LeftShift(
+        SqlExpression value,
+        SqlExpression shift
+    )
+    {
+        Sql.Append("CAST((CAST((((CAST(");
+        Visit(value);
+        Sql.Append(" AS SIGNED) << ");
+        EmitMaskedShift(shift, 32);
+        Sql.Append(") & 4294967295) ^ 2147483648) AS SIGNED) - 2147483648) AS SIGNED)");
+    }
+
+    private void EmitMaskedShift(
+        SqlExpression shift,
+        int bitWidth
+    )
+    {
+        Sql.Append("(");
+        Visit(shift);
+        Sql.Append(bitWidth == 64 ? " & 63)" : " & 31)");
     }
 
     private static IReadOnlyList<SqlExpression> GetRequiredArguments(
@@ -1572,9 +1687,7 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         if (IsSignedIntegralType(sqlBinaryExpression.Type.UnwrapNullableType())
             && sqlBinaryExpression.OperatorType is ExpressionType.And
                 or ExpressionType.Or
-                or ExpressionType.ExclusiveOr
-                or ExpressionType.LeftShift
-                or ExpressionType.RightShift)
+                or ExpressionType.ExclusiveOr)
         {
             EmitSignedBitwise(sqlBinaryExpression);
             return sqlBinaryExpression;
@@ -1596,29 +1709,12 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
 
     /// <summary>
     /// Casts MySQL-family unsigned 64-bit bitwise results back to the signed CLR
-    /// domain. Arithmetic right shift needs a separate negative branch because the
-    /// engines otherwise zero-fill the high bits.
+    /// domain.
     /// </summary>
     private void EmitSignedBitwise(
         SqlBinaryExpression expression
     )
     {
-        if (expression.OperatorType == ExpressionType.RightShift)
-        {
-            Sql.Append("(CASE WHEN ");
-            Visit(expression.Left);
-            Sql.Append(" < 0 THEN CAST((~((~");
-            Visit(expression.Left);
-            Sql.Append(") >> ");
-            Visit(expression.Right);
-            Sql.Append(")) AS SIGNED) ELSE CAST((");
-            Visit(expression.Left);
-            Sql.Append(" >> ");
-            Visit(expression.Right);
-            Sql.Append(") AS SIGNED) END)");
-            return;
-        }
-
         Sql.Append("CAST((");
         Visit(expression.Left);
         Sql.Append(expression.OperatorType switch
@@ -1626,7 +1722,6 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
             ExpressionType.And => " & ",
             ExpressionType.Or => " | ",
             ExpressionType.ExclusiveOr => " ^ ",
-            ExpressionType.LeftShift => " << ",
             _ => throw new UnreachableException(),
         });
         Visit(expression.Right);

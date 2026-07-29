@@ -337,6 +337,28 @@ public sealed class MySqlQueryTranslationCoverageTests
         Assert.DoesNotContain("GROUP_CONCAT(`c`.`Name`, ", sql, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Verifies that multiple aggregate orderings retain their declared order
+    /// inside MySQL's GROUP_CONCAT grammar.
+    /// </summary>
+    [Fact]
+    public void String_Join_with_multiple_orderings_translates_to_group_concat()
+    {
+        using var context = CreateContext();
+        var sql = context
+            .Set<CoverageEntity>()
+            .GroupBy(e => e.Category)
+            .Select(g => string.Join(
+                ", ",
+                g
+                    .OrderBy(e => e.Name)
+                    .ThenByDescending(e => e.Id)
+                    .Select(e => e.Name)))
+            .ToQueryString();
+
+        Assert.Contains("ORDER BY `c`.`Name` ASC, `c`.`Id` DESC", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
     // -- DateTime member translations --
 
     [Fact]
@@ -404,6 +426,172 @@ public sealed class MySqlQueryTranslationCoverageTests
 
     // DateTime.Now and DateTime.UtcNow already tested in MySqlQueryTranslationExtendedTests.
 
+    // -- Binary GUID and signed-integral translations --
+
+    /// <summary>
+    /// Verifies that binary GUID formatting remains server-side and reconstructs
+    /// the canonical dashed representation instead of casting binary bytes to text.
+    /// </summary>
+    [Fact]
+    public void Guid_ToString_translates_binary_value_to_canonical_text()
+    {
+        using var context = CreateContext();
+        var expected = "00112233-4455-6677-8899-aabbccddeeff";
+        var sql = context
+            .Set<CoverageEntity>()
+            .Where(e => e.Token.ToString() == expected)
+            .ToQueryString();
+
+        MySqlSqlAssert.ContainsFunction(sql, "HEX");
+        Assert.Contains("LOWER(CONCAT(", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("SUBSTRING(", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("@expected", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that signed and unsigned shifts apply CLR width masks and that
+    /// complement operations do not leak the engines' unsigned 64-bit results.
+    /// </summary>
+    [Fact]
+    public void Signed_integral_bitwise_operations_preserve_clr_semantics()
+    {
+        using var context = CreateContext();
+        var sql = context
+            .Set<CoverageEntity>()
+            .Select(e => new
+            {
+                SignedIntLeft = e.SignedValue << e.ShiftCount,
+                SignedIntRight = e.SignedValue >> e.ShiftCount,
+                SignedLongLeft = e.SignedLongValue << e.ShiftCount,
+                SignedLongRight = e.SignedLongValue >> e.ShiftCount,
+                UnsignedIntLeft = e.UnsignedValue << e.ShiftCount,
+                UnsignedIntRight = e.UnsignedValue >> e.ShiftCount,
+                UnsignedLongLeft = e.UnsignedLongValue << e.ShiftCount,
+                UnsignedLongRight = e.UnsignedLongValue >> e.ShiftCount,
+                Complement = ~e.SignedValue,
+                And = e.SignedValue & e.AltId,
+                Or = e.SignedValue | e.AltId,
+                Xor = e.SignedValue ^ e.AltId,
+            })
+            .ToQueryString();
+
+        Assert.Contains("CASE WHEN `c`.`SignedValue` < 0", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("AS SIGNED) <<", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("AS SIGNED) END", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(" & 31)", sql, StringComparison.Ordinal);
+        Assert.Contains(" & 63)", sql, StringComparison.Ordinal);
+        Assert.Contains("4294967295", sql, StringComparison.Ordinal);
+        Assert.Contains("2147483648", sql, StringComparison.Ordinal);
+        Assert.Contains(" & ", sql, StringComparison.Ordinal);
+        Assert.Contains(" | ", sql, StringComparison.Ordinal);
+        Assert.Contains(" ^ ", sql, StringComparison.Ordinal);
+    }
+
+    // -- Temporal component and precision translations --
+
+    /// <summary>
+    /// Verifies every stored TimeSpan total and component family in a single
+    /// server-side projection, including the engines' microsecond boundary.
+    /// </summary>
+    [Fact]
+    public void TimeSpan_components_and_totals_translate_server_side()
+    {
+        using var context = CreateContext();
+        var sql = context
+            .Set<CoverageEntity>()
+            .Select(e => new
+            {
+                e.Duration.Days,
+                e.Duration.Hours,
+                e.Duration.Minutes,
+                e.Duration.Seconds,
+                e.Duration.Milliseconds,
+                e.Duration.Microseconds,
+                e.Duration.Nanoseconds,
+                e.Duration.TotalDays,
+                e.Duration.TotalHours,
+                e.Duration.TotalMinutes,
+                e.Duration.TotalSeconds,
+                e.Duration.TotalMilliseconds,
+                e.Duration.TotalMicroseconds,
+                e.Duration.TotalNanoseconds,
+            })
+            .ToQueryString();
+
+        MySqlSqlAssert.ContainsFunction(sql, "TIME_TO_SEC");
+        MySqlSqlAssert.ContainsFunction(sql, "MICROSECOND");
+        Assert.Contains("1000000000", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that tick-backed TimeSpan members produced by DateTime subtraction
+    /// preserve long ranges without routing through the engines' TIME type.
+    /// </summary>
+    [Fact]
+    public void DateTime_difference_components_translate_from_ticks()
+    {
+        using var context = CreateContext();
+        var baseline = new DateTime(2000, 1, 1);
+        var sql = context
+            .Set<CoverageEntity>()
+            .Select(e => new
+            {
+                Days = (e.CreatedAt - baseline).Days,
+                Hours = (e.CreatedAt - baseline).Hours,
+                Minutes = (e.CreatedAt - baseline).Minutes,
+                Seconds = (e.CreatedAt - baseline).Seconds,
+                Milliseconds = (e.CreatedAt - baseline).Milliseconds,
+                Microseconds = (e.CreatedAt - baseline).Microseconds,
+                Nanoseconds = (e.CreatedAt - baseline).Nanoseconds,
+                TotalDays = (e.CreatedAt - baseline).TotalDays,
+                TotalHours = (e.CreatedAt - baseline).TotalHours,
+                TotalMinutes = (e.CreatedAt - baseline).TotalMinutes,
+                TotalSeconds = (e.CreatedAt - baseline).TotalSeconds,
+                TotalMilliseconds = (e.CreatedAt - baseline).TotalMilliseconds,
+                TotalMicroseconds = (e.CreatedAt - baseline).TotalMicroseconds,
+                TotalNanoseconds = (e.CreatedAt - baseline).TotalNanoseconds,
+            })
+            .ToQueryString();
+
+        Assert.Contains("TIMESTAMPDIFF(MICROSECOND", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("* 100.0", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("TIME(", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies the actual translator path for a column value. Constant and
+    /// parameter Parse inputs are evaluated before SQL generation by EF Core.
+    /// </summary>
+    [Fact]
+    public void DateTime_Parse_from_column_translates_to_str_to_date()
+    {
+        using var context = CreateContext();
+        var entity = System.Linq.Expressions.Expression.Parameter(
+            typeof(CoverageEntity),
+            "entity");
+        var name = System.Linq.Expressions.Expression.Property(
+            entity,
+            nameof(CoverageEntity.Name));
+        var createdAt = System.Linq.Expressions.Expression.Property(
+            entity,
+            nameof(CoverageEntity.CreatedAt));
+        var parse = System.Linq.Expressions.Expression.Call(
+            typeof(DateTime).GetMethod(
+                nameof(DateTime.Parse),
+                [typeof(string)])!,
+            name);
+        var predicate = System.Linq.Expressions.Expression.Lambda<Func<CoverageEntity, bool>>(
+            System.Linq.Expressions.Expression.GreaterThanOrEqual(parse, createdAt),
+            entity);
+        var sql = context
+            .Set<CoverageEntity>()
+            .Where(predicate)
+            .ToQueryString();
+
+        MySqlSqlAssert.ContainsFunction(sql, "STR_TO_DATE");
+        Assert.Contains("%c/%e/%Y %H:%i:%s", sql, StringComparison.Ordinal);
+    }
+
     // -- Helpers --
 
     private static CoverageContext CreateContext()
@@ -424,6 +612,12 @@ public sealed class MySqlQueryTranslationCoverageTests
         public double Score { get; set; }
         public double AltScore { get; set; }
         public int AltId { get; set; }
+        public int SignedValue { get; set; }
+        public long SignedLongValue { get; set; }
+        public uint UnsignedValue { get; set; }
+        public ulong UnsignedLongValue { get; set; }
+        public int ShiftCount { get; set; }
+        public Guid Token { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateOnly BirthDate { get; set; }
         public TimeOnly StartTime { get; set; }

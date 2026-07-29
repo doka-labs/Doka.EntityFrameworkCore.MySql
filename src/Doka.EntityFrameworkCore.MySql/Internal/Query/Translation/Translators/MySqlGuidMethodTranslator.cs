@@ -12,10 +12,6 @@ internal sealed class MySqlGuidMethodTranslator : IMethodCallTranslator
         nameof(Guid.NewGuid),
         Type.EmptyTypes)!;
 
-    private static readonly MethodInfo s_toStringMethod = typeof(Guid).GetRuntimeMethod(
-        nameof(Guid.ToString),
-        Type.EmptyTypes)!;
-
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly RelationalTypeMapping _guidTypeMapping;
     private readonly RelationalTypeMapping _stringTypeMapping;
@@ -74,8 +70,11 @@ internal sealed class MySqlGuidMethodTranslator : IMethodCallTranslator
                 _guidTypeMapping);
         }
 
-        if (method != s_toStringMethod
-            || instance?.Type != typeof(Guid))
+        // EF can expose Guid.ToString() through the inherited object method.
+        // The instance type and argument count identify the supported overload.
+        if (instance?.Type != typeof(Guid)
+            || method.Name != nameof(Guid.ToString)
+            || arguments.Count != 0)
         {
             return null;
         }

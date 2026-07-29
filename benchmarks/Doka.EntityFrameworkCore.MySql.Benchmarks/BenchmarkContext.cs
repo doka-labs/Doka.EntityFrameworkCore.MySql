@@ -8,6 +8,8 @@ public sealed class BenchmarkContext : DbContext
 
     public DbSet<BasicBenchmarkEntity> BasicEntities => Set<BasicBenchmarkEntity>();
 
+    public DbSet<TranslationBenchmarkEntity> TranslationEntities => Set<TranslationBenchmarkEntity>();
+
     public DbSet<SaveChangeBenchmarkEntity> SaveChangeEntities => Set<SaveChangeBenchmarkEntity>();
 
     public DbSet<SpatialBenchmarkEntity> SpatialEntities => Set<SpatialBenchmarkEntity>();
@@ -24,6 +26,16 @@ public sealed class BenchmarkContext : DbContext
             entity
                 .Property(property => property.Payload)
                 .HasColumnType("json");
+        });
+
+        modelBuilder.Entity<TranslationBenchmarkEntity>(entity =>
+        {
+            entity
+                .Property(property => property.Name)
+                .HasMaxLength(128);
+            entity
+                .Property(property => property.BinaryPayload)
+                .HasMaxLength(256);
         });
 
         modelBuilder.Entity<SpatialBenchmarkEntity>(entity =>
@@ -117,6 +129,29 @@ public sealed class SaveChangeBenchmarkEntity
     public int Id { get; set; }
 
     public string Name { get; set; } = string.Empty;
+}
+
+public sealed class TranslationBenchmarkEntity
+{
+    public int Id { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public double Score { get; set; }
+
+    public int SignedValue { get; set; }
+
+    public int ShiftCount { get; set; }
+
+    public Guid Token { get; set; }
+
+    public byte[] BinaryPayload { get; set; } = [];
+
+    public DateTime CreatedAt { get; set; }
+
+    public DateTimeOffset RecordedAt { get; set; }
+
+    public TimeSpan Duration { get; set; }
 }
 
 public sealed class SpatialBenchmarkEntity

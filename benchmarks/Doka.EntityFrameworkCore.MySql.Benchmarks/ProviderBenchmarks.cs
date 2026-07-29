@@ -37,6 +37,8 @@ public class ModelInitializationBenchmarks
 [SimpleJob(launchCount: 1, warmupCount: 3, iterationCount: 5)]
 public class QueryTranslationBenchmarks
 {
+    private const string GuidText = "00112233-4455-6677-8899-aabbccddeeff";
+
     private readonly Point _referencePoint = new(13.4050, 52.5200) { SRID = 4326 };
     private TranslationCorpusDto _corpus = null!;
 
@@ -72,6 +74,77 @@ public class QueryTranslationBenchmarks
                 "spatial-distance-sphere" => context
                     .SpatialEntities.Where(entity =>
                         EF.Functions.DistanceSphere(entity.Location, _referencePoint) < 250000d)
+                    .ToQueryString()
+                    .Length,
+                "guid-format-filter" => context
+                    .TranslationEntities.Where(entity => entity.Token.ToString() == GuidText)
+                    .ToQueryString()
+                    .Length,
+                "signed-bitwise-projection" => context
+                    .TranslationEntities.Select(entity => new
+                    {
+                        Left = entity.SignedValue << entity.ShiftCount,
+                        Right = entity.SignedValue >> entity.ShiftCount,
+                        Complement = ~entity.SignedValue,
+                        And = entity.SignedValue & entity.Id,
+                        Or = entity.SignedValue | entity.Id,
+                        Xor = entity.SignedValue ^ entity.Id,
+                    })
+                    .ToQueryString()
+                    .Length,
+                "temporal-components-projection" => context
+                    .TranslationEntities.Select(entity => new
+                    {
+                        CreatedYear = entity.CreatedAt.Year,
+                        CreatedDayOfYear = entity.CreatedAt.DayOfYear,
+                        CreatedTimeOfDay = entity.CreatedAt.TimeOfDay,
+                        UnixMilliseconds = entity.RecordedAt.ToUnixTimeMilliseconds(),
+                        RecordedDayOfYear = entity.RecordedAt.DayOfYear,
+                        DurationDays = entity.Duration.TotalDays,
+                        DurationMicroseconds = entity.Duration.TotalMicroseconds,
+                    })
+                    .ToQueryString()
+                    .Length,
+                "byte-array-projection" => context
+                    .TranslationEntities.Select(entity => new
+                    {
+                        Length = entity.BinaryPayload.Length,
+                        First = entity.BinaryPayload[0],
+                    })
+                    .ToQueryString()
+                    .Length,
+                "string-transform-projection" => context
+                    .TranslationEntities.Select(entity => new
+                    {
+                        Length = entity
+                            .Name.Trim()
+                            .Replace("old", "new")
+                            .Length,
+                        Segment = entity.Name.Substring(1, 4),
+                    })
+                    .ToQueryString()
+                    .Length,
+                "math-projection" => context
+                    .TranslationEntities.Select(entity => new
+                    {
+                        Absolute = Math.Abs(entity.Score),
+                        Sine = Math.Sin(entity.Score),
+                        Logarithm = Math.Log(entity.Score),
+                    })
+                    .ToQueryString()
+                    .Length,
+                "numeric-convert-projection" => context
+                    .TranslationEntities.Select(entity => Convert.ToInt64(entity.Score))
+                    .ToQueryString()
+                    .Length,
+                "ordered-group-concat-projection" => context
+                    .TranslationEntities.GroupBy(entity => entity.ShiftCount)
+                    .Select(group => string.Join(
+                        ", ",
+                        group
+                            .OrderBy(entity => entity.Name)
+                            .ThenByDescending(entity => entity.Id)
+                            .Select(entity => entity.Name)))
                     .ToQueryString()
                     .Length,
                 _ => throw new InvalidOperationException($"Unknown translation scenario '{query.Id}'."),

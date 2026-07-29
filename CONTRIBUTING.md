@@ -96,14 +96,18 @@ The script is the single deterministic pre-tag checkpoint while the CI
 benchmark workflow is disabled per ADR D-019. Exit `0` signals "safe to tag";
 exit non-zero stops the release. The final publication-readiness check invokes
 the official EF Core relational compliance assertions and requires zero
-provider-owned specification debt. The benchmark + ratio gate asserts
+provider-owned specification debt. The benchmark gate asserts
 IdentifierQuoting >= 2x throughput vs. the naive baseline,
 BulkInsert1000Rows >= 3x throughput vs. per-row SaveChanges, and JsonComparer
->= 80% allocation reduction vs. a string-round-trip baseline; these run
-against both `mysql84` and `mariadb118` via `--up-smoke-down`, so Docker must
-be available.
+>= 80% allocation reduction vs. a string-round-trip baseline. The versioned
+query-translation corpus must also remain at or below 163,840 allocated bytes
+per operation. These run against both `mysql84` and `mariadb118` via
+`--up-smoke-down`, so Docker must be available.
 
-Dev-loop bypass (only for iteration that does not aim to ship): `DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1 ./eng/release-candidate.sh` skips the benchmark + gate step. The resulting evidence is explicitly not release-eligible.
+Dev-loop bypass (only for iteration that does not aim to ship):
+`DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1 ./eng/release-candidate.sh` skips the
+benchmark and gate step. The resulting evidence is explicitly not
+release-eligible.
 
 Once the script returns `0`, tag manually:
 

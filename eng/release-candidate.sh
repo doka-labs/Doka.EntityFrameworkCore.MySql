@@ -250,7 +250,7 @@ run_benchmark_and_gate() {
     local skip="${DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS:-0}"
 
     if [[ "${skip}" == "1" ]]; then
-        echo "Benchmark + ratio gate skipped via DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1."
+        echo "Benchmark gate skipped via DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1."
         echo "This bypass is for dev-loop iteration only; the resulting evidence is not release-eligible." >&2
         return 0
     fi
@@ -263,7 +263,7 @@ run_benchmark_and_gate() {
             "${repo_root}/eng/benchmark.sh" --up-smoke-down
     done
 
-    echo "Asserting performance ratio gate (strict mode)..."
+    echo "Asserting performance gate (strict mode)..."
     DOKA_BENCHMARK_GATE_STRICT=1 \
         DOKA_BENCHMARK_GATE_RUN_ID="${release_candidate_run_id}" \
         bash "${repo_root}/eng/check-benchmark-ratios.sh" "${repo_root}/artifacts/benchmarks"

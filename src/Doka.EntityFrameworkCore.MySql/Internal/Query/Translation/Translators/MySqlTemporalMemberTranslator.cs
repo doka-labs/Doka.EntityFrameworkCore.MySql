@@ -24,6 +24,7 @@ internal sealed class MySqlTemporalMemberTranslator : IMemberTranslator
     private readonly RelationalTypeMapping _dateTimeTypeMapping;
     private readonly RelationalTypeMapping _doubleTypeMapping;
     private readonly RelationalTypeMapping _intTypeMapping;
+    private readonly RelationalTypeMapping _longTypeMapping;
     private readonly RelationalTypeMapping _timeSpanTypeMapping;
 
     public MySqlTemporalMemberTranslator(
@@ -36,6 +37,7 @@ internal sealed class MySqlTemporalMemberTranslator : IMemberTranslator
         _dateTimeTypeMapping = MySqlTranslationTypeMapping.GetRequired(typeMappingSource, typeof(DateTime));
         _doubleTypeMapping = MySqlTranslationTypeMapping.GetRequired(typeMappingSource, typeof(double));
         _intTypeMapping = MySqlTranslationTypeMapping.GetRequired(typeMappingSource, typeof(int));
+        _longTypeMapping = MySqlTranslationTypeMapping.GetRequired(typeMappingSource, typeof(long));
         _timeSpanTypeMapping = MySqlTranslationTypeMapping.GetRequired(typeMappingSource, typeof(TimeSpan));
     }
 
@@ -322,10 +324,14 @@ internal sealed class MySqlTemporalMemberTranslator : IMemberTranslator
         Type returnType
     )
     {
+        // DateTime subtraction yields numeric ticks that can retain a temporal
+        // mapping. Normalize the mapping before applying numeric operations.
+        var tickValue = _sqlExpressionFactory.Convert(ticks, typeof(long), _longTypeMapping);
+
         if (memberName == nameof(TimeSpan.TotalNanoseconds))
         {
             return _sqlExpressionFactory.Multiply(
-                _sqlExpressionFactory.Convert(ticks, typeof(double), _doubleTypeMapping),
+                _sqlExpressionFactory.Convert(tickValue, typeof(double), _doubleTypeMapping),
                 _sqlExpressionFactory.Constant(100.0));
         }
 
@@ -343,20 +349,20 @@ internal sealed class MySqlTemporalMemberTranslator : IMemberTranslator
         if (divisor != 0)
         {
             return _sqlExpressionFactory.Divide(
-                _sqlExpressionFactory.Convert(ticks, typeof(double), _doubleTypeMapping),
+                _sqlExpressionFactory.Convert(tickValue, typeof(double), _doubleTypeMapping),
                 _sqlExpressionFactory.Constant((double)divisor));
         }
 
         return memberName switch
         {
-            nameof(TimeSpan.Days) => TranslateTickComponent(ticks, TimeSpan.TicksPerDay, 0),
-            nameof(TimeSpan.Hours) => TranslateTickComponent(ticks, TimeSpan.TicksPerHour, 24),
-            nameof(TimeSpan.Minutes) => TranslateTickComponent(ticks, TimeSpan.TicksPerMinute, 60),
-            nameof(TimeSpan.Seconds) => TranslateTickComponent(ticks, TimeSpan.TicksPerSecond, 60),
-            nameof(TimeSpan.Milliseconds) => TranslateTickComponent(ticks, TimeSpan.TicksPerMillisecond, 1000),
-            nameof(TimeSpan.Microseconds) => TranslateTickComponent(ticks, TimeSpan.TicksPerMicrosecond, 1000),
+            nameof(TimeSpan.Days) => TranslateTickComponent(tickValue, TimeSpan.TicksPerDay, 0),
+            nameof(TimeSpan.Hours) => TranslateTickComponent(tickValue, TimeSpan.TicksPerHour, 24),
+            nameof(TimeSpan.Minutes) => TranslateTickComponent(tickValue, TimeSpan.TicksPerMinute, 60),
+            nameof(TimeSpan.Seconds) => TranslateTickComponent(tickValue, TimeSpan.TicksPerSecond, 60),
+            nameof(TimeSpan.Milliseconds) => TranslateTickComponent(tickValue, TimeSpan.TicksPerMillisecond, 1000),
+            nameof(TimeSpan.Microseconds) => TranslateTickComponent(tickValue, TimeSpan.TicksPerMicrosecond, 1000),
             nameof(TimeSpan.Nanoseconds) => _sqlExpressionFactory.Multiply(
-                _sqlExpressionFactory.Modulo(ticks, _sqlExpressionFactory.Constant(TimeSpan.TicksPerMicrosecond)),
+                _sqlExpressionFactory.Modulo(tickValue, _sqlExpressionFactory.Constant(TimeSpan.TicksPerMicrosecond)),
                 _sqlExpressionFactory.Constant(100)),
             _ => null,
         };

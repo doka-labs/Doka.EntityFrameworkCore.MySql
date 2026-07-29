@@ -17,9 +17,21 @@
   "criticalClasses": [
     {
       "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlByteArrayMethodTranslator",
+      "minimumLinePercent": 98,
+      "minimumBranchPercent": 98
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
       "name": "Doka.EntityFrameworkCore.MySql.MySqlConnectionStringRedactor",
       "minimumLinePercent": 98,
       "minimumBranchPercent": 98
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlConvertMethodTranslator",
+      "minimumLinePercent": 98,
+      "minimumBranchPercent": 89
     },
     {
       "assembly": "Doka.EntityFrameworkCore.MySql",
@@ -35,9 +47,21 @@
     },
     {
       "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlGuidMethodTranslator",
+      "minimumLinePercent": 98,
+      "minimumBranchPercent": 98
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
       "name": "Doka.EntityFrameworkCore.MySql.MySqlJsonValueComparers",
       "minimumLinePercent": 86,
       "minimumBranchPercent": 85
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlMathMethodTranslator",
+      "minimumLinePercent": 95,
+      "minimumBranchPercent": 64
     },
     {
       "assembly": "Doka.EntityFrameworkCore.MySql",
@@ -56,6 +80,30 @@
       "name": "Doka.EntityFrameworkCore.MySql.MySqlSequenceValueGenerator",
       "minimumLinePercent": 89,
       "minimumBranchPercent": 68
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlSqlTranslatingExpressionVisitor",
+      "minimumLinePercent": 91,
+      "minimumBranchPercent": 82
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlStringMethodTranslator",
+      "minimumLinePercent": 96,
+      "minimumBranchPercent": 85
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlTemporalMemberTranslator",
+      "minimumLinePercent": 96,
+      "minimumBranchPercent": 80
+    },
+    {
+      "assembly": "Doka.EntityFrameworkCore.MySql",
+      "name": "Doka.EntityFrameworkCore.MySql.MySqlTemporalMethodCallTranslator",
+      "minimumLinePercent": 98,
+      "minimumBranchPercent": 98
     },
     {
       "assembly": "Doka.EntityFrameworkCore.MySql",

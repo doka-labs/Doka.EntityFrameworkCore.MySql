@@ -34,18 +34,17 @@ Coverage must remain a regression detector rather than a vanity score, but it
 must measure the surfaces that are actually shipped and the paths whose failure
 would have disproportionate production impact.
 
-The fresh merged union measured on 2026-07-27 combines:
+The fresh merged union measured on 2026-07-29 combines:
 
-- 515 unit tests;
-- 298 non-live functional tests;
-- 945 MySQL 8.4 specification results;
-- 924 MariaDB 11.4 specification results;
-- 924 MariaDB 11.8 specification results;
-- 112 dual-engine integration results, of which 97 ran and 15 were excluded
-  because their engine targets were not selected.
+- 536 unit tests;
+- 378 non-live functional tests;
+- 8,811 executed MySQL 8.4 specification tests and 175 dispositions;
+- 8,647 executed MariaDB 11.4 specification tests and 257 dispositions;
+- 8,649 executed MariaDB 11.8 specification tests and 256 dispositions;
+- 128 executed integration tests and five MySQL 8.0 matrix exclusions.
 
-Every executed test passed. Exact specification skips were reconciled against
-D-021 before the coverage evidence was accepted.
+Every executed test passed. Exact specification dispositions were reconciled
+against D-021 before the coverage evidence was accepted.
 
 ## Decision Drivers
 
@@ -81,28 +80,37 @@ package summary attributes.
 
 | Assembly | Measured lines | Line floor | Measured branches | Branch floor |
 |---|---:|---:|---:|---:|
-| `Doka.EntityFrameworkCore.MySql` | 86.50% | 84% | 72.65% | 70% |
-| `Doka.EntityFrameworkCore.MySql.NetTopologySuite` | 79.11% | 77% | 60.42% | 58% |
+| `Doka.EntityFrameworkCore.MySql` | 91.69% | 84% | 79.17% | 70% |
+| `Doka.EntityFrameworkCore.MySql.NetTopologySuite` | 81.14% | 77% | 65.13% | 58% |
 
 ### Risk-critical class floors
 
-| Class | Line floor | Branch floor |
-|---|---:|---:|
-| `MySqlConnectionStringRedactor` | 98% | 98% |
-| `MySqlDatabaseModelFactory` | 94% | 78% |
-| `MySqlExecutionStrategy` | 98% | 73% |
-| `MySqlJsonValueComparers` | 86% | 85% |
-| `MySqlMigrationsSqlGenerator` | 89% | 72% |
-| `MySqlQuerySqlGenerator` | 95% | 68% |
-| `MySqlSequenceValueGenerator` | 89% | 68% |
-| `MySqlTransientExceptionDetector` | 98% | 90% |
-| `MySqlUpdateSqlGenerator` | 98% | 93% |
-| `MySqlNetTopologySuiteMethodCallTranslator` | 81% | 73% |
-| `MySqlNetTopologySuiteTypeMappingSourcePlugin` | 74% | 52% |
+| Class | Lines | Floor | Branches | Floor |
+|---|---:|---:|---:|---:|
+| `MySqlByteArrayMethodTranslator` | 100.00% | 98% | 100.00% | 98% |
+| `MySqlConnectionStringRedactor` | 100.00% | 98% | 100.00% | 98% |
+| `MySqlConvertMethodTranslator` | 100.00% | 98% | 91.67% | 89% |
+| `MySqlDatabaseModelFactory` | 100.00% | 94% | 92.31% | 78% |
+| `MySqlExecutionStrategy` | 100.00% | 98% | 75.00% | 73% |
+| `MySqlGuidMethodTranslator` | 100.00% | 98% | 100.00% | 98% |
+| `MySqlJsonValueComparers` | 88.10% | 86% | 88.37% | 85% |
+| `MySqlMathMethodTranslator` | 97.41% | 95% | 66.91% | 64% |
+| `MySqlMigrationsSqlGenerator` | 92.02% | 89% | 74.94% | 72% |
+| `MySqlQuerySqlGenerator` | 96.13% | 95% | 87.00% | 68% |
+| `MySqlSequenceValueGenerator` | 91.67% | 89% | 70.00% | 68% |
+| `MySqlSqlTranslatingExpressionVisitor` | 93.27% | 91% | 84.17% | 82% |
+| `MySqlStringMethodTranslator` | 98.28% | 96% | 87.84% | 85% |
+| `MySqlTemporalMemberTranslator` | 98.31% | 96% | 82.70% | 80% |
+| `MySqlTemporalMethodCallTranslator` | 100.00% | 98% | 100.00% | 98% |
+| `MySqlTransientExceptionDetector` | 100.00% | 98% | 92.00% | 90% |
+| `MySqlUpdateSqlGenerator` | 98.89% | 98% | 93.75% | 93% |
+| `MySqlNetTopologySuiteMethodCallTranslator` | 83.52% | 81% | 75.68% | 73% |
+| `MySqlNetTopologySuiteTypeMappingSourcePlugin` | 82.35% | 74% | 72.50% | 52% |
 
 The assembly floors retain roughly two percentage points of measurement
-headroom. Critical-class floors are similarly below the fresh measured values
-but above any previous blind spot.
+headroom from their original calibration. Critical-class floors retain a
+smaller, deliberate buffer below the fresh measured values while preventing
+each split query translator from hiding behind aggregate provider coverage.
 
 ### Consequences
 
@@ -193,10 +201,10 @@ The policy reader:
 5. requires every critical class exactly once in its declared assembly;
 6. checks every critical class floor.
 
-The 2026-07-27 accepted union measured:
+The 2026-07-29 accepted union measured:
 
-- core: 11,194/12,941 lines and 4,231/5,824 branches;
-- NetTopologySuite: 1,000/1,264 lines and 290/480 branches.
+- core: 19,428/21,189 lines and 8,639/10,912 branches;
+- NetTopologySuite: 1,024/1,262 lines and 310/476 branches.
 
 ### Additional Alternative Rationale
 
@@ -229,6 +237,8 @@ The 2026-07-27 accepted union measured:
 - 2026-07-27: Migrated to Doka MADR profile 1.0.
 - 2026-07-27: Replaced the aggregate-only gate with shipped-assembly,
   critical-class, integration-union, and freshness enforcement.
+- 2026-07-29: Added independent floors for the SQL translation visitor and
+  seven split method/member translators using a fresh full test-run union.
 
 ### Implementation References
 

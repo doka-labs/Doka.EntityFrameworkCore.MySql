@@ -1,5 +1,5 @@
 {
-  "corpusVersion": "1.0.0",
+  "corpusVersion": "2.0.0",
   "queries": [
     {
       "id": "string-length-filter"
@@ -12,6 +12,30 @@
     },
     {
       "id": "spatial-distance-sphere"
+    },
+    {
+      "id": "guid-format-filter"
+    },
+    {
+      "id": "signed-bitwise-projection"
+    },
+    {
+      "id": "temporal-components-projection"
+    },
+    {
+      "id": "byte-array-projection"
+    },
+    {
+      "id": "string-transform-projection"
+    },
+    {
+      "id": "math-projection"
+    },
+    {
+      "id": "numeric-convert-projection"
+    },
+    {
+      "id": "ordered-group-concat-projection"
     }
   ]
 }

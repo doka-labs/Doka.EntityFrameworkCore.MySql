@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 
 # Scans BenchmarkDotNet -report-full.json files under the given root and asserts
-# the three DoD performance ratios:
+# the release performance gates:
 #
 #   IdentifierQuoting  DelimitStringPlain          mean  <= 0.5   (>= 2x faster vs naive)
 #   BulkInsert         MultiRowAddRangeSaveChanges mean  <= 0.333 (>= 3x faster vs per-row)
 #   JsonComparer       JsonElementEqualsLoop       alloc <= 0.2   (>= 80% alloc reduction)
+#   QueryTranslation   TranslateRepresentativeCorpus alloc <= 163840 bytes
 #
-# Each gate compares a gated benchmark method against the [Benchmark(Baseline=true)]
-# method declared in the same class. Mean is parsed from Statistics.Mean (nanoseconds);
-# alloc is parsed from Memory.BytesAllocatedPerOperation.
+# Ratio gates compare a gated benchmark method against the [Benchmark(Baseline=true)]
+# method declared in the same class. The query-translation gate uses an absolute
+# allocation ceiling because a synthetic slower translation is not a representative
+# control. Mean is parsed from Statistics.Mean (nanoseconds); alloc is parsed from
+# Memory.BytesAllocatedPerOperation.
 #
 # Inputs:
 #   $1                                Benchmark artifacts root (default artifacts/benchmarks).
@@ -72,6 +75,17 @@ gates=(
     "JsonComparerBenchmark|NaiveJsonElementEqualsLoop|JsonElementEqualsLoop|alloc|0.2"
 )
 
+# (class, gated_method, metric, threshold_max)
+# Absolute gates pass when the measured value is <= threshold_max.
+absolute_gates=(
+    "QueryTranslationBenchmarks|TranslateRepresentativeCorpus|alloc|163840"
+)
+
+required_targets=(
+    "mysql84"
+    "mariadb118"
+)
+
 overall_failures=0
 overall_skips=0
 overall_passes=0
@@ -122,7 +136,7 @@ for benchmark in payload.get("Benchmarks", []):
             continue
         fi
 
-        report_label="$(basename "$(dirname "${report}")")/$(basename "${report}")"
+        report_label="${report#${benchmarks_root%/}/}"
 
         if awk -v b="${baseline_value}" 'BEGIN { exit (b + 0 == 0) ? 0 : 1 }'; then
             echo "[${class}] ${report_label}: baseline ${baseline} reports zero ${metric}; cannot compute ratio." >&2
@@ -141,42 +155,102 @@ for benchmark in payload.get("Benchmarks", []):
             overall_failures=$(( overall_failures + 1 ))
         fi
     done
+
+    for entry in "${absolute_gates[@]}"; do
+        IFS='|' read -r class gated metric threshold <<< "${entry}"
+
+        gated_value=""
+        while IFS=$'\t' read -r type_name method mean_value alloc_value; do
+            if [[ "${type_name}" != *".${class}" && "${type_name}" != "${class}" ]]; then
+                continue
+            fi
+            if [[ "${metric}" == "mean" ]]; then
+                value="${mean_value}"
+            else
+                value="${alloc_value}"
+            fi
+            if [[ "${method}" == "${gated}" ]]; then
+                gated_value="${value}"
+            fi
+        done <<< "${parsed}"
+
+        if [[ -z "${gated_value}" ]]; then
+            continue
+        fi
+
+        report_label="${report#${benchmarks_root%/}/}"
+        pass="$(awk -v g="${gated_value}" -v t="${threshold}" 'BEGIN { print (g + 0 <= t + 0) ? 1 : 0 }')"
+
+        if [[ "${pass}" -eq 1 ]]; then
+            echo "PASS [${class}] ${report_label}: ${gated} ${metric} = ${gated_value} <= ${threshold}"
+            overall_passes=$(( overall_passes + 1 ))
+        else
+            echo "FAIL [${class}] ${report_label}: ${gated} ${metric} = ${gated_value} > ${threshold}" >&2
+            overall_failures=$(( overall_failures + 1 ))
+        fi
+    done
 done <<< "${reports}"
 
-# Per-gate data presence walk: count how many configured gates had data in at least
-# one report. Done as a second pass so the summary line can explicitly name the
-# strict-mode policy decision below.
-gates_with_data=0
-gates_total=${#gates[@]}
-for entry in "${gates[@]}"; do
-    IFS='|' read -r class baseline gated metric threshold <<< "${entry}"
-    found=0
-    while IFS= read -r report; do
-        [[ -z "${report}" ]] && continue
-        if python3 -c '
+report_contains_methods() {
+    local report="$1"
+    local class="$2"
+    local baseline="$3"
+    local gated="$4"
+
+    python3 -c '
 import sys, json
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     payload = json.load(fh)
 target = sys.argv[2]
-baseline = sys.argv[3]
-gated = sys.argv[4]
-methods = {b.get("Method"): b for b in payload.get("Benchmarks", []) if b.get("Type", "").endswith("." + target) or b.get("Type") == target}
-sys.exit(0 if (baseline in methods and gated in methods) else 1)
-' "${report}" "${class}" "${baseline}" "${gated}" 2>/dev/null; then
-            found=1
-            break
+required = [method for method in sys.argv[3:] if method]
+methods = {
+    benchmark.get("Method")
+    for benchmark in payload.get("Benchmarks", [])
+    if benchmark.get("Type", "").endswith("." + target)
+    or benchmark.get("Type") == target
+}
+sys.exit(0 if all(method in methods for method in required) else 1)
+' "${report}" "${class}" "${baseline}" "${gated}" 2>/dev/null
+}
+
+# Strict evidence is target-scoped. A complete report from one engine must never
+# conceal a missing scenario on the other supported benchmark target.
+presence_gates=("${gates[@]}")
+for entry in "${absolute_gates[@]}"; do
+    IFS='|' read -r class gated metric threshold <<< "${entry}"
+    presence_gates+=("${class}||${gated}|${metric}|${threshold}")
+done
+
+gates_total=$(( ${#presence_gates[@]} * ${#required_targets[@]} ))
+for benchmark_target in "${required_targets[@]}"; do
+    for entry in "${presence_gates[@]}"; do
+        IFS='|' read -r class baseline gated metric threshold <<< "${entry}"
+        found=0
+
+        while IFS= read -r report; do
+            [[ -z "${report}" ]] && continue
+            relative_report="${report#${benchmarks_root%/}/}"
+            [[ "${relative_report}" != "${benchmark_target}/"* ]] && continue
+
+            if report_contains_methods "${report}" "${class}" "${baseline}" "${gated}"; then
+                found=1
+                break
+            fi
+        done <<< "${reports}"
+
+        if [[ "${found}" -ne 1 ]]; then
+            overall_skips=$(( overall_skips + 1 ))
+            echo "SKIP [${class}] ${benchmark_target}: required method data is missing." >&2
         fi
-    done <<< "${reports}"
-    if [[ "${found}" -eq 1 ]]; then
-        gates_with_data=$(( gates_with_data + 1 ))
-    else
-        overall_skips=$(( overall_skips + 1 ))
-        echo "SKIP [${class}]: no -report-full.json contained both ${baseline} and ${gated} entries." >&2
-    fi
+    done
 done
 
 echo
-echo "Benchmark ratio gate summary: ${overall_passes} pass, ${overall_failures} fail, ${overall_skips} gate(s) without data (of ${gates_total} configured)."
+printf 'Benchmark gate summary: %s pass, %s fail, %s gate(s) without data (of %s configured).\n' \
+    "${overall_passes}" \
+    "${overall_failures}" \
+    "${overall_skips}" \
+    "${gates_total}"
 
 if [[ "${overall_failures}" -gt 0 ]]; then
     exit 1
