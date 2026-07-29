@@ -129,7 +129,7 @@ In addition, both `GET_LOCK` and `RELEASE_LOCK` are now invoked with parameteriz
 ### Implementation References
 
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Migrations/MySqlAdvisoryLockNaming.cs`
-- `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/MySqlMigrationConcurrencyTests.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Migrations/MySqlMigrationConcurrencyTests.cs`
 
 ### Sources
 

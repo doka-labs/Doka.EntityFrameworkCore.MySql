@@ -196,7 +196,7 @@ no-listener case stays effectively zero-cost.
 ### Implementation References
 
 - `src/Doka.EntityFrameworkCore.MySql/Diagnostics/MySqlDiagnostics.cs`
-- `tests/Doka.EntityFrameworkCore.MySql.Tests/MySqlActivityAndMeterSmokeTests.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.Tests/Diagnostics/MySqlActivityAndMeterSmokeTests.cs`
 
 ### Sources
 

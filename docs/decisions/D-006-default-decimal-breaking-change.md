@@ -174,7 +174,7 @@ short migration recipe:
 
 ### Implementation References
 
-- `src/Doka.EntityFrameworkCore.MySql/Internal/Storage/MySqlTypeMappingSource.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Storage/TypeMappings/MySqlTypeMappingSource.cs`
 - `CHANGELOG.md`
 
 ### Sources

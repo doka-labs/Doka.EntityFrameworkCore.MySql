@@ -132,7 +132,10 @@ the cache between integration test runs (exposed via `InternalsVisibleTo`).
 
 ### Implementation Snapshot
 
-- `src/Doka.EntityFrameworkCore.MySql/Internal/Metadata/MySqlHiLoStateCache.cs` (commit `bc5d4ea5d6a4`); block-claim correctness + connection-isolation follow-up in `MySqlSequenceHiLoValueGenerator.cs` + `MySqlValueGeneratorSelector.cs`.
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Metadata/ValueGeneration/MySqlHiLoStateCache.cs`
+  (commit `bc5d4ea5d6a4`); block-claim correctness and connection-isolation
+  follow-up in `MySqlSequenceHiLoValueGenerator.cs` and
+  `MySqlValueGeneratorSelector.cs`.
 
 ### Implementation Notes
 
@@ -175,7 +178,7 @@ the cache between integration test runs (exposed via `InternalsVisibleTo`).
 
 ### Implementation References
 
-- `src/Doka.EntityFrameworkCore.MySql/Internal/Metadata/MySqlHiLoStateCache.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Metadata/ValueGeneration/MySqlHiLoStateCache.cs`
 - `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/HiLoBenchmarks.cs`
 
 ### Sources

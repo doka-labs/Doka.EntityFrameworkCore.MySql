@@ -188,7 +188,7 @@ Three structural improvements:
 ### Implementation References
 
 - `src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Internal/Storage/MySqlNetTopologySuiteGeometryTypeMapping.cs`
-- `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/MySqlNetTopologySuiteIntegrationTests.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Spatial/MySqlNetTopologySuiteIntegrationTests.cs`
 
 ### Sources
 

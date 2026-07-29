@@ -128,7 +128,7 @@ The numeric branch of `ToBoolean` covers the full signed / unsigned / floating /
 
 ### Implementation References
 
-- `src/Doka.EntityFrameworkCore.MySql/Internal/Storage/MySqlScalarConvert.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Storage/Conversion/MySqlScalarConvert.cs`
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Migrations/MySqlHistoryRepository.cs`
 
 ### Sources
