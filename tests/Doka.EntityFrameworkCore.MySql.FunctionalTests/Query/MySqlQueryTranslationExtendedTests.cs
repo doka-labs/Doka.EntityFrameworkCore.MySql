@@ -367,6 +367,47 @@ public sealed class MySqlQueryTranslationExtendedTests
         Assert.Contains("COALESCE", sql, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Numeric coalesce preserves the CLR promotion instead of inheriting the
+    /// unsigned column's result mapping.
+    /// </summary>
+    [Fact]
+    public void Numeric_coalesce_with_conversion_preserves_promoted_type()
+    {
+        using var context = CreateContext();
+        var sql = context
+            .Items.Select(e => e.NullableUnsignedValue ?? 2.25)
+            .ToQueryString();
+
+        Assert.Contains("COALESCE", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CAST(", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("AS DOUBLE", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Numeric conversion of characters uses CLR character values rather than the
+    /// database's decimal parsing of character text.
+    /// </summary>
+    [Fact]
+    public void String_character_join_uses_clr_character_values()
+    {
+        using var context = CreateContext();
+        var characters = "12";
+        var sql = context
+            .Items.Join(
+                characters,
+                item => item.Id,
+                character => character,
+                (item, _) => item.Id)
+            .ToQueryString();
+
+        Assert.Contains(
+            "CONV(HEX(CONVERT(",
+            sql,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("USING utf32", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void Converter_in_groupby_produces_valid_sql()
     {
@@ -991,6 +1032,7 @@ public sealed class MySqlQueryTranslationExtendedTests
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? NullableName { get; set; }
+        public uint? NullableUnsignedValue { get; set; }
         public double Value { get; set; }
         public float SingleValue { get; set; }
         public DateTime CreatedAt { get; set; }

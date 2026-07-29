@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "lastReviewedAt": "2026-07-28",
+  "lastReviewedAt": "2026-07-29",
   "policy": {
     "providerGapBudget": 0,
     "statement": "Every applicable EF Core relational specification behavior must run. A skip is permitted only for a primary-source-backed database-engine limitation, an upstream EF Core limitation reached before provider-owned translation can solve it, or a structurally inapplicable historical test.",
@@ -324,6 +324,7 @@
         "NorthwindGroupByQueryMySqlTest.Complex_query_with_groupBy_in_subquery2",
         "NorthwindGroupByQueryMySqlTest.Complex_query_with_groupBy_in_subquery3",
         "NorthwindGroupByQueryMySqlTest.Complex_query_with_groupBy_in_subquery4",
+        "NorthwindGroupByQueryMySqlTest.GroupBy_aggregate_left_join_GroupBy_aggregate_left_join",
         "NorthwindGroupByQueryMySqlTest.GroupBy_Count_in_projection",
         "NorthwindGroupByQueryMySqlTest.Select_nested_collection_with_groupby",
         "NorthwindGroupByQueryMySqlTest.Select_uncorrelated_collection_with_groupby_multiple_collections_work",
@@ -405,6 +406,7 @@
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindGroupByQueryMySqlTest.Complex_query_with_groupBy_in_subquery2",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindGroupByQueryMySqlTest.Complex_query_with_groupBy_in_subquery3",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindGroupByQueryMySqlTest.Complex_query_with_groupBy_in_subquery4",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindGroupByQueryMySqlTest.GroupBy_aggregate_left_join_GroupBy_aggregate_left_join",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindGroupByQueryMySqlTest.GroupBy_Count_in_projection",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindGroupByQueryMySqlTest.Select_nested_collection_with_groupby",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindGroupByQueryMySqlTest.Select_uncorrelated_collection_with_groupby_multiple_collections_work",
@@ -492,16 +494,16 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-28",
+        "performedAt": "2026-07-29",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~JsonQueryMySqlTest|FullyQualifiedName~NorthwindAggregateOperatorsQueryMySqlTest|FullyQualifiedName~NorthwindEfPropertyIncludeQueryMySqlTest|FullyQualifiedName~NorthwindGroupByQueryMySqlTest|FullyQualifiedName~NorthwindIncludeNoTrackingQueryMySqlTest|FullyQualifiedName~NorthwindIncludeQueryMySqlTest|FullyQualifiedName~NorthwindJoinQueryMySqlTest|FullyQualifiedName~NorthwindMiscellaneousQueryMySqlTest|FullyQualifiedName~NorthwindNavigationsQueryMySqlTest|FullyQualifiedName~NorthwindSelectQueryMySqlTest|FullyQualifiedName~NorthwindSplitIncludeNoTrackingQueryMySqlTest|FullyQualifiedName~NorthwindSplitIncludeQueryMySqlTest|FullyQualifiedName~NorthwindStringIncludeQueryMySqlTest\"",
         "observations": [
           {
             "target": "mariadb114",
-            "result": "158 affected invocations fail: 36 JSON queries and 122 Northwind query or include shapes. Representative failures are ERROR 1054 for an outer column below a derived-table boundary and the provider's explicit correlated-derived-table capability exception."
+            "result": "160 affected invocations fail: 36 JSON queries and 124 Northwind query or include shapes. Representative failures are ERROR 1054 for an outer column below a derived-table boundary and the provider's explicit correlated-derived-table capability exception."
           },
           {
             "target": "mariadb118",
-            "result": "The same 158 invocations fail at the correlated FROM-subquery or missing LATERAL boundary as MariaDB 11.4."
+            "result": "The same 160 invocations fail at the correlated FROM-subquery or missing LATERAL boundary as MariaDB 11.4."
           }
         ]
       },
@@ -833,6 +835,151 @@
       },
       "frameworkBoundaryAssessment": "EF Core performs null-semantics rewriting around value conversion before provider-specific SQL generation. The identical upstream skipped test and issue isolate this as framework behavior rather than an engine capability.",
       "reevaluateWhen": "The probe passes after dotnet/efcore issue 29416 is fixed in the consumed EF Core line."
+    },
+    {
+      "id": "EFCORE-29014",
+      "classification": "framework-limitation",
+      "suite": "query",
+      "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindGroupByQueryMySqlTest",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "EF Core cannot expand a navigation reached through a grouping key after the grouping operation.",
+      "testMethods": [
+        "NorthwindGroupByQueryMySqlTest.GroupBy_with_group_key_being_navigation_with_complex_projection"
+      ],
+      "discoveredTestIds": [
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindGroupByQueryMySqlTest.GroupBy_with_group_key_being_navigation_with_complex_projection"
+      ],
+      "primarySources": [
+        {
+          "publisher": "Microsoft EF Core",
+          "title": "Expand navigations on grouping key",
+          "url": "https://github.com/dotnet/efcore/issues/29014",
+          "retrievedAt": "2026-07-29",
+          "supports": "The open EF Core issue explains that grouping-key navigations cannot be expanded through the normal translation path and tracks a framework-level correlated-subquery implementation."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-29",
+        "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~GroupBy_with_group_key_being_navigation_with_complex_projection",
+        "observations": [
+          {
+            "target": "mysql84",
+            "result": "Both sync and async invocations return a null nested navigation component where the specification expects customer VINET."
+          },
+          {
+            "target": "mariadb114",
+            "result": "Both sync and async invocations reproduce the same null nested navigation component as MySQL 8.4."
+          },
+          {
+            "target": "mariadb118",
+            "result": "Both sync and async invocations reproduce the same null nested navigation component as MySQL 8.4."
+          }
+        ]
+      },
+      "frameworkBoundaryAssessment": "Navigation expansion and grouping projection construction are owned by EF Core. The navigation is absent from the translated projection before the provider receives a recoverable relational shape, so provider SQL generation cannot reconstruct the missing navigation path.",
+      "reevaluateWhen": "Re-run the probe when dotnet/efcore issue 29014 closes or when the consumed EF Core patch changes grouping-key navigation expansion."
+    },
+    {
+      "id": "EFCORE-27130",
+      "classification": "framework-limitation",
+      "suite": "query",
+      "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindGroupByQueryMySqlTest",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "EF Core can bind an aggregate from an outer grouping to an inner grouping when equivalent aggregate expressions are simplified.",
+      "testMethods": [
+        "NorthwindGroupByQueryMySqlTest.GroupBy_aggregate_from_multiple_query_in_same_projection",
+        "NorthwindGroupByQueryMySqlTest.GroupBy_aggregate_from_multiple_query_in_same_projection_3"
+      ],
+      "discoveredTestIds": [
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindGroupByQueryMySqlTest.GroupBy_aggregate_from_multiple_query_in_same_projection",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindGroupByQueryMySqlTest.GroupBy_aggregate_from_multiple_query_in_same_projection_3"
+      ],
+      "primarySources": [
+        {
+          "publisher": "Microsoft EF Core",
+          "title": "Simplification of Count(*) with multiple group by can generate wrong result",
+          "url": "https://github.com/dotnet/efcore/issues/27130",
+          "retrievedAt": "2026-07-29",
+          "supports": "The open EF Core issue demonstrates that aggregate simplification can rebind an outer grouping count to the inner grouping and produce incorrect results."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-29",
+        "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~GroupBy_aggregate_from_multiple_query_in_same_projection|FullyQualifiedName~GroupBy_aggregate_from_multiple_query_in_same_projection_3\"",
+        "observations": [
+          {
+            "target": "mysql84",
+            "result": "Both methods reproduce the framework aggregate-binding defect in sync and async mode; the projected count is 4 where the specification requires 8."
+          },
+          {
+            "target": "mariadb114",
+            "result": "The third projection returns 4 instead of 8 in both modes. The other projection reaches MariaDB's correlated-derived-table boundary after EF Core has produced the same incorrect aggregate structure."
+          },
+          {
+            "target": "mariadb118",
+            "result": "The third projection returns 4 instead of 8 in both modes. The other projection reaches the same correlated-derived-table boundary as MariaDB 11.4 after framework translation."
+          }
+        ]
+      },
+      "frameworkBoundaryAssessment": "EF Core performs aggregate simplification and grouping-scope binding before provider-specific SQL generation. The resulting relational tree no longer identifies the aggregate as belonging to the outer grouping, so the provider cannot infer and restore the original LINQ scope.",
+      "reevaluateWhen": "Re-run the probe when dotnet/efcore issue 27130 closes or when the consumed EF Core patch changes aggregate simplification across nested groupings."
+    },
+    {
+      "id": "EFCORE-35028",
+      "classification": "framework-limitation",
+      "suite": "query",
+      "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindJoinQueryMySqlTest",
+      "targets": [
+        "mysql84",
+        "mariadb114",
+        "mariadb118"
+      ],
+      "summary": "EF Core does not preserve every component of nested anonymous-object join keys during relational translation.",
+      "testMethods": [
+        "NorthwindJoinQueryMySqlTest.GroupJoin_aggregate_nested_anonymous_key_selectors",
+        "NorthwindJoinQueryMySqlTest.Join_with_key_selectors_being_nested_anonymous_objects"
+      ],
+      "discoveredTestIds": [
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindJoinQueryMySqlTest.GroupJoin_aggregate_nested_anonymous_key_selectors",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindJoinQueryMySqlTest.Join_with_key_selectors_being_nested_anonymous_objects"
+      ],
+      "primarySources": [
+        {
+          "publisher": "Microsoft EF Core",
+          "title": "Query: invalid SQL generated when doing join with nested anonymous key selectors",
+          "url": "https://github.com/dotnet/efcore/issues/35028",
+          "retrievedAt": "2026-07-29",
+          "supports": "The open EF Core issue reproduces a nested anonymous join key whose relational predicate ends after AND because a nested key component is lost."
+        }
+      ],
+      "probe": {
+        "performedAt": "2026-07-29",
+        "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~GroupJoin_aggregate_nested_anonymous_key_selectors|FullyQualifiedName~Join_with_key_selectors_being_nested_anonymous_objects\"",
+        "observations": [
+          {
+            "target": "mysql84",
+            "result": "The Join method emits a predicate ending in AND before ORDER BY. The GroupJoin method reaches EF Core's expected translation-failure assertion; both sync and async modes reproduce the upstream boundary."
+          },
+          {
+            "target": "mariadb114",
+            "result": "Both methods reproduce the same incomplete-predicate or framework translation-failure behavior as MySQL 8.4 in sync and async mode."
+          },
+          {
+            "target": "mariadb118",
+            "result": "Both methods reproduce the same incomplete-predicate or framework translation-failure behavior as MySQL 8.4 in sync and async mode."
+          }
+        ]
+      },
+      "frameworkBoundaryAssessment": "EF Core decomposes structural join keys before provider SQL generation. It either emits an incomplete relational predicate or returns NotTranslated after nested members have been discarded, so a provider SQL generator cannot recover the original anonymous-object components.",
+      "reevaluateWhen": "Re-run the probe when dotnet/efcore issue 35028 closes or when the consumed EF Core patch changes structural join-key translation."
     },
     {
       "id": "DOKA-HISTORICAL-SNAPSHOT-NOT-APPLICABLE",

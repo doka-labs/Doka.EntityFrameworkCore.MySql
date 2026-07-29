@@ -1,8 +1,6 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
-using Microsoft.EntityFrameworkCore.TestUtilities;
 using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
@@ -318,6 +316,37 @@ public class
     public override Task Select_uncorrelated_collection_with_groupby_works(
         bool async
     ) => base.Select_uncorrelated_collection_with_groupby_works(async);
+
+    [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task GroupBy_aggregate_left_join_GroupBy_aggregate_left_join(
+        bool async
+    ) => base.GroupBy_aggregate_left_join_GroupBy_aggregate_left_join(async);
+
+    // EF Core still produces incorrect grouping semantics for these shapes before
+    // provider SQL generation can reconstruct the lost query intent.
+
+    [SpecFrameworkLimitationTheory("EFCORE-29014")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task GroupBy_with_group_key_being_navigation_with_complex_projection(
+        bool async
+    ) => base.GroupBy_with_group_key_being_navigation_with_complex_projection(async);
+
+    [SpecFrameworkLimitationTheory("EFCORE-27130")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task GroupBy_aggregate_from_multiple_query_in_same_projection(
+        bool async
+    ) => base.GroupBy_aggregate_from_multiple_query_in_same_projection(async);
+
+    [SpecFrameworkLimitationTheory("EFCORE-27130")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task GroupBy_aggregate_from_multiple_query_in_same_projection_3(
+        bool async
+    ) => base.GroupBy_aggregate_from_multiple_query_in_same_projection_3(async);
 }
 
 /// <summary>
@@ -329,8 +358,13 @@ public class
     NorthwindJoinQueryMySqlTest : NorthwindJoinQueryRelationalTestBase<NorthwindQueryMySqlFixture<NoopModelCustomizer>>
 {
     public NorthwindJoinQueryMySqlTest(
-        NorthwindQueryMySqlFixture<NoopModelCustomizer> fixture
-    ) : base(fixture) { }
+        NorthwindQueryMySqlFixture<NoopModelCustomizer> fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture)
+    {
+        Fixture.TestSqlLoggerFactory.Clear();
+        Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
+    }
 
     // These collection shapers retain an outer reference across a derived-table
     // boundary and therefore need LATERAL on MariaDB.
@@ -362,6 +396,95 @@ public class
     public override Task Take_in_collection_projection_with_FirstOrDefault_on_top_level(
         bool async
     ) => base.Take_in_collection_projection_with_FirstOrDefault_on_top_level(async);
+
+    /// <summary>
+    /// Executes byte-collection joins instead of preserving EF Core's upstream
+    /// translation-failure expectation.
+    /// </summary>
+    /// <remarks>
+    /// EF Core issue 30677 tracks the skipped upstream test. The provider can
+    /// preserve the collection's numeric byte semantics, so this override requires
+    /// successful execution. Source retrieved 2026-07-29:
+    /// <see href="https://github.com/dotnet/efcore/issues/30677">dotnet/efcore#30677</see>.
+    /// </remarks>
+    [DirectTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override async Task Join_local_bytes_closure_is_cached_correctly(
+        bool async
+    )
+    {
+        byte[] ids = [1, 2];
+        await AssertQueryScalar(
+            async,
+            ss => from employee in ss.Set<Employee>()
+                  join id in ids on employee.EmployeeID equals id
+                  select employee.EmployeeID);
+
+        ids = [3];
+        await AssertQueryScalar(
+            async,
+            ss => from employee in ss.Set<Employee>()
+                  join id in ids on employee.EmployeeID equals id
+                  select employee.EmployeeID);
+    }
+
+    /// <summary>
+    /// Executes string-character joins with CLR numeric character semantics instead
+    /// of treating digit characters as their decimal values.
+    /// </summary>
+    /// <remarks>
+    /// EF Core issue 30677 tracks the skipped upstream test. The provider accepts
+    /// the stronger contract of translating the enumerable string correctly.
+    /// Source retrieved 2026-07-29:
+    /// <see href="https://github.com/dotnet/efcore/issues/30677">dotnet/efcore#30677</see>.
+    /// </remarks>
+    [DirectTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override async Task Join_local_string_closure_is_cached_correctly(
+        bool async
+    )
+    {
+        var ids = "12";
+        await AssertQueryScalar(
+            async,
+            ss => from employee in ss.Set<Employee>()
+                  join id in ids on employee.EmployeeID equals id
+                  select employee.EmployeeID,
+            assertEmpty: true);
+
+        // Control characters prove the positive numeric conversion without
+        // conflating the character value with decimal text parsing.
+        ids = "\u0001\u0002";
+        await AssertQueryScalar(
+            async,
+            ss => from employee in ss.Set<Employee>()
+                  join id in ids on employee.EmployeeID equals id
+                  select employee.EmployeeID);
+
+        ids = "3";
+        await AssertQueryScalar(
+            async,
+            ss => from employee in ss.Set<Employee>()
+                  join id in ids on employee.EmployeeID equals id
+                  select employee.EmployeeID,
+            assertEmpty: true);
+    }
+
+    [SpecFrameworkLimitationTheory("EFCORE-35028")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task Join_with_key_selectors_being_nested_anonymous_objects(
+        bool async
+    ) => base.Join_with_key_selectors_being_nested_anonymous_objects(async);
+
+    [SpecFrameworkLimitationTheory("EFCORE-35028")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task GroupJoin_aggregate_nested_anonymous_key_selectors(
+        bool async
+    ) => base.GroupJoin_aggregate_nested_anonymous_key_selectors(async);
 }
 
 /// <summary>
@@ -461,6 +584,17 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
     public override Task Subquery_with_navigation_inside_inline_collection(
         bool async
     ) => base.Subquery_with_navigation_inside_inline_collection(async);
+
+    /// <summary>
+    /// Requires a coalesce between an unsigned nullable column and a double
+    /// fallback to preserve the promoted CLR result type.
+    /// </summary>
+    [DirectTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task Coalesce_Correct_TypeMapping_Double(
+        bool async
+    ) => base.Coalesce_Correct_TypeMapping_Double(async);
 
     /// <summary>
     /// Verifies the projected collection without assigning semantic meaning to

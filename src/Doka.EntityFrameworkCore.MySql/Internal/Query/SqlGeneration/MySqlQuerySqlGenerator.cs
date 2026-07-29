@@ -1264,6 +1264,12 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
             return base.VisitSqlUnary(sqlUnaryExpression);
         }
 
+        if (sqlUnaryExpression.Operand.Type.UnwrapNullableType() == typeof(char)
+            && IsNumericType(sqlUnaryExpression.Type.UnwrapNullableType()))
+        {
+            return VisitCharToNumericConvert(sqlUnaryExpression);
+        }
+
         var operandType = sqlUnaryExpression.Operand.Type;
         var castTarget = sqlUnaryExpression.Type == typeof(decimal)
             && (operandType == typeof(double) || operandType == typeof(float))
@@ -1282,6 +1288,54 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         Sql.Append(")");
         return sqlUnaryExpression;
     }
+
+    /// <summary>
+    /// Converts a database character to its numeric CLR <see cref="char"/> value
+    /// before applying the requested numeric target type.
+    /// </summary>
+    /// <remarks>
+    /// A direct numeric cast interprets a digit character by its decimal text
+    /// (<c>'1'</c> becomes 1), whereas the CLR conversion yields numeric value 49.
+    /// Converting the character to UTF-32, reading those bytes as hexadecimal, and
+    /// converting base 16 to base 10 preserves the value of database-representable
+    /// CLR characters on every supported engine. Sources retrieved 2026-07-29:
+    /// <see href="https://dev.mysql.com/doc/refman/8.4/en/cast-functions.html">MySQL cast functions</see>,
+    /// <see href="https://dev.mysql.com/doc/refman/8.4/en/string-functions.html#function_hex">MySQL HEX</see>,
+    /// <see href="https://mariadb.com/docs/server/reference/sql-functions/string-functions/convert">
+    /// MariaDB CONVERT</see>, and
+    /// <see href="https://mariadb.com/docs/server/reference/sql-functions/numeric-functions/conv">
+    /// MariaDB CONV</see>.
+    /// </remarks>
+    private SqlUnaryExpression VisitCharToNumericConvert(
+        SqlUnaryExpression expression
+    )
+    {
+        var castTarget = TranslateStoreTypeToCastTarget(expression.TypeMapping!.StoreType)
+            ?? throw new InvalidOperationException(
+                $"The numeric character conversion has no MySQL cast target for "
+                + $"'{expression.TypeMapping.StoreType}'.");
+
+        Sql.Append("CAST(CONV(HEX(CONVERT(");
+        Visit(expression.Operand);
+        Sql.Append(" USING utf32)), 16, 10) AS ");
+        Sql.Append(castTarget);
+        Sql.Append(")");
+        return expression;
+    }
+
+    private static bool IsNumericType(
+        Type type
+    ) => type == typeof(sbyte)
+        || type == typeof(byte)
+        || type == typeof(short)
+        || type == typeof(ushort)
+        || type == typeof(int)
+        || type == typeof(uint)
+        || type == typeof(long)
+        || type == typeof(ulong)
+        || type == typeof(float)
+        || type == typeof(double)
+        || type == typeof(decimal);
 
     /// <summary>
     /// Intercepts string-typed Add expressions so they emit MySQL <c>CONCAT(left, right)</c> rather
