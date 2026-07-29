@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Design;
-
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>

@@ -33,6 +33,12 @@ jobs:
       - name: Verify formatting
         run: dotnet format Doka.EntityFrameworkCore.MySql.slnx --verify-no-changes --no-restore
 
+      - name: Verify unnecessary usings
+        run: |
+          dotnet format Doka.EntityFrameworkCore.MySql.slnx style \
+            --diagnostics IDE0005 --severity hidden \
+            --verify-no-changes --no-restore
+
       - name: Vulnerability audit (runtime provider)
         run: |
           mkdir -p artifacts/ci-audit

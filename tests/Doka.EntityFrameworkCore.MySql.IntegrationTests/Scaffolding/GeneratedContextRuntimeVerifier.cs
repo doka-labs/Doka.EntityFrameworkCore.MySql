@@ -1,7 +1,5 @@
-using System.Diagnostics;
 using System.IO;
 using System.Security;
-using Microsoft.EntityFrameworkCore.Scaffolding;
 
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 

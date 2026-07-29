@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.ModelBuilding;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.ModelBuilding;
 
 /// <summary>

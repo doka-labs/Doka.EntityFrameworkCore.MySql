@@ -1,4 +1,3 @@
-using Doka.EntityFrameworkCore.MySql;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable

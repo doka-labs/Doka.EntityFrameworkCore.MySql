@@ -4,7 +4,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.EntityFrameworkCore.Scaffolding.Metadata;
 using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;

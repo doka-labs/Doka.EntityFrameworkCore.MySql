@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.EntityFrameworkCore.Design.Internal;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;

@@ -1,8 +1,5 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.EntityFrameworkCore.Migrations;
-using Microsoft.EntityFrameworkCore.Storage;
-using MySqlConnector;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Migrations;
 

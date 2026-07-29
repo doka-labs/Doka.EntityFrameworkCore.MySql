@@ -1,6 +1,5 @@
 using System.Runtime.CompilerServices;
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-using Microsoft.EntityFrameworkCore.Scaffolding;
 using NetTopologySuite;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Scaffolding;

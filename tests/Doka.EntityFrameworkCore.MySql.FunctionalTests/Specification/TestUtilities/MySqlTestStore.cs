@@ -1,5 +1,3 @@
-using MySqlConnector;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 
 /// <summary>

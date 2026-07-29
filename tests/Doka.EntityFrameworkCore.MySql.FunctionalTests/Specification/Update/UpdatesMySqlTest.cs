@@ -1,6 +1,5 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestModels.UpdatesModel;
-using Microsoft.EntityFrameworkCore.Update;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update;
 

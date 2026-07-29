@@ -1,6 +1,3 @@
-using Microsoft.EntityFrameworkCore.Query;
-using Microsoft.EntityFrameworkCore.TestUtilities;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
 /// <summary>

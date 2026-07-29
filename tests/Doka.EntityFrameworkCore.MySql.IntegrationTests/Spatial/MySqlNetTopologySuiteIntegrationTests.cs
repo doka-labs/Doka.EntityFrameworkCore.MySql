@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
