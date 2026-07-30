@@ -11,6 +11,16 @@ internal static class SpecTestTarget
     public const string EnvironmentVariableName = "DOKA_SPEC_TEST_TARGET";
 
     /// <summary>
+    /// Environment variable which makes engine-limited tests executable for re-evaluation.
+    /// </summary>
+    public const string EngineLimitationProbeEnvironmentVariableName = "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS";
+
+    /// <summary>
+    /// Environment variable which makes framework-limited tests executable for re-evaluation.
+    /// </summary>
+    public const string FrameworkLimitationProbeEnvironmentVariableName = "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS";
+
+    /// <summary>
     /// Gets the target used by local IDE and command-line runs when none is configured.
     /// </summary>
     public const string DefaultTarget = "mysql84";
@@ -19,8 +29,18 @@ internal static class SpecTestTarget
     /// Resolves the configured target or the local default when the variable is absent.
     /// </summary>
     /// <returns>The target identifier shared by discovery and database execution.</returns>
-    public static string Resolve() =>
-        Resolve(Environment.GetEnvironmentVariable(EnvironmentVariableName));
+    public static string Resolve() => Resolve(Environment.GetEnvironmentVariable(EnvironmentVariableName));
+
+    /// <summary>
+    /// Determines whether engine-limitation skips are disabled for a re-evaluation probe.
+    /// </summary>
+    public static bool IsEngineLimitationProbeEnabled() => IsEnabled(EngineLimitationProbeEnvironmentVariableName);
+
+    /// <summary>
+    /// Determines whether framework-limitation skips are disabled for a re-evaluation probe.
+    /// </summary>
+    public static bool IsFrameworkLimitationProbeEnabled() =>
+        IsEnabled(FrameworkLimitationProbeEnvironmentVariableName);
 
     /// <summary>
     /// Resolves an explicit target value or the local default when it is absent.
@@ -30,4 +50,11 @@ internal static class SpecTestTarget
     internal static string Resolve(
         string? configuredTarget
     ) => configuredTarget ?? DefaultTarget;
+
+    private static bool IsEnabled(
+        string environmentVariableName
+    ) => string.Equals(
+        Environment.GetEnvironmentVariable(environmentVariableName),
+        "true",
+        StringComparison.OrdinalIgnoreCase);
 }

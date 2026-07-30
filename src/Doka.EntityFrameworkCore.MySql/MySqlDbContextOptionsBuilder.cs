@@ -4,27 +4,20 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// Provides access to provider-specific configuration options for <c>UseMySql(...)</c>.
 /// </summary>
 public sealed class MySqlDbContextOptionsBuilder
+    : RelationalDbContextOptionsBuilder<MySqlDbContextOptionsBuilder, MySqlOptionsExtension>
 {
-    private readonly DbContextOptionsBuilder _optionsBuilder;
-
     /// <summary>
-    /// The current options extension snapshot. This follows the standard EF Core mutable-extension
-    /// pattern: the initial constructor value is a snapshot that is replaced on the first fluent
-    /// call via <see cref="UpdateExtension"/>. Each fluent method clones the extension, mutates
-    /// the clone, and re-registers it on the options builder.
+    /// Creates a provider builder over the supplied EF Core options builder.
     /// </summary>
-    private MySqlOptionsExtension _extension;
-
-    internal DbContextOptionsBuilder OptionsBuilder => _optionsBuilder;
-
-    internal MySqlDbContextOptionsBuilder(
-        DbContextOptionsBuilder optionsBuilder,
-        MySqlOptionsExtension extension
-    )
+    /// <param name="optionsBuilder">The core options builder to configure.</param>
+    public MySqlDbContextOptionsBuilder(
+        DbContextOptionsBuilder optionsBuilder
+    ) : base(optionsBuilder)
     {
-        _optionsBuilder = optionsBuilder ?? throw new ArgumentNullException(nameof(optionsBuilder));
-        _extension = extension ?? throw new ArgumentNullException(nameof(extension));
+        ArgumentNullException.ThrowIfNull(optionsBuilder);
     }
+
+    internal DbContextOptionsBuilder InfrastructureOptionsBuilder => OptionsBuilder;
 
     /// <summary>
     /// Enables the opt-in retry configuration surface for the provider.
@@ -35,7 +28,7 @@ public sealed class MySqlDbContextOptionsBuilder
     public MySqlDbContextOptionsBuilder EnableRetryOnFailure(
         int maxRetryCount = MySqlRetryOptions.DefaultMaxRetryCount,
         TimeSpan? maxRetryDelay = null
-    ) => UpdateExtension(currentExtension =>
+    ) => WithOption(currentExtension =>
         currentExtension.WithRetryOptions(MySqlRetryOptions.Create(maxRetryCount, maxRetryDelay)));
 
     /// <summary>
@@ -46,7 +39,7 @@ public sealed class MySqlDbContextOptionsBuilder
     public MySqlDbContextOptionsBuilder DefaultGuidFormat(
         MySqlGuidFormat format
     ) => Enum.IsDefined(format)
-        ? UpdateExtension(currentExtension => currentExtension.WithDefaultGuidFormat(format))
+        ? WithOption(currentExtension => currentExtension.WithDefaultGuidFormat(format))
         : throw new ArgumentOutOfRangeException(nameof(format));
 
     /// <summary>
@@ -62,7 +55,7 @@ public sealed class MySqlDbContextOptionsBuilder
     )
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(commandTimeout);
-        return UpdateExtension(currentExtension =>
+        return WithOption(currentExtension =>
             (MySqlOptionsExtension)currentExtension.WithCommandTimeout(commandTimeout));
     }
 
@@ -75,12 +68,12 @@ public sealed class MySqlDbContextOptionsBuilder
     /// </summary>
     /// <param name="maxBatchSize">Maximum number of statements per batch; must be positive.</param>
     /// <returns>The current builder instance.</returns>
-    public MySqlDbContextOptionsBuilder MaxBatchSize(
+    public override MySqlDbContextOptionsBuilder MaxBatchSize(
         int maxBatchSize
     )
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBatchSize);
-        return UpdateExtension(currentExtension =>
+        return WithOption(currentExtension =>
             (MySqlOptionsExtension)currentExtension.WithMaxBatchSize(maxBatchSize));
     }
 
@@ -91,12 +84,12 @@ public sealed class MySqlDbContextOptionsBuilder
     /// </summary>
     /// <param name="minBatchSize">Minimum number of statements per batch; must be positive.</param>
     /// <returns>The current builder instance.</returns>
-    public MySqlDbContextOptionsBuilder MinBatchSize(
+    public override MySqlDbContextOptionsBuilder MinBatchSize(
         int minBatchSize
     )
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minBatchSize);
-        return UpdateExtension(currentExtension =>
+        return WithOption(currentExtension =>
             (MySqlOptionsExtension)currentExtension.WithMinBatchSize(minBatchSize));
     }
 
@@ -109,13 +102,13 @@ public sealed class MySqlDbContextOptionsBuilder
     /// <param name="tableName">The history table name; must not be null or whitespace.</param>
     /// <param name="schema">Reserved for engines that distinguish schema from database; ignored by MySQL.</param>
     /// <returns>The current builder instance.</returns>
-    public MySqlDbContextOptionsBuilder MigrationsHistoryTable(
+    public override MySqlDbContextOptionsBuilder MigrationsHistoryTable(
         string tableName,
         string? schema = null
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-        return UpdateExtension(currentExtension =>
+        return WithOption(currentExtension =>
         {
             var withTable = (MySqlOptionsExtension)currentExtension.WithMigrationsHistoryTableName(tableName);
             return (MySqlOptionsExtension)withTable.WithMigrationsHistoryTableSchema(schema);
@@ -131,7 +124,7 @@ public sealed class MySqlDbContextOptionsBuilder
     /// </summary>
     /// <param name="querySplittingBehavior">The query splitting behavior to apply.</param>
     /// <returns>The current builder instance.</returns>
-    public MySqlDbContextOptionsBuilder UseQuerySplittingBehavior(
+    public override MySqlDbContextOptionsBuilder UseQuerySplittingBehavior(
         QuerySplittingBehavior querySplittingBehavior
     )
     {
@@ -140,17 +133,7 @@ public sealed class MySqlDbContextOptionsBuilder
             throw new ArgumentOutOfRangeException(nameof(querySplittingBehavior));
         }
 
-        return UpdateExtension(currentExtension =>
+        return WithOption(currentExtension =>
             (MySqlOptionsExtension)currentExtension.WithUseQuerySplittingBehavior(querySplittingBehavior));
-    }
-
-    private MySqlDbContextOptionsBuilder UpdateExtension(
-        Func<MySqlOptionsExtension, MySqlOptionsExtension> update
-    )
-    {
-        _extension = update(_extension);
-        ((IDbContextOptionsBuilderInfrastructure)_optionsBuilder).AddOrUpdateExtension(_extension);
-
-        return this;
     }
 }

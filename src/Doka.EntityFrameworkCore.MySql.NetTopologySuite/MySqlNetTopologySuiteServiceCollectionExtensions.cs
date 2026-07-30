@@ -27,6 +27,10 @@ public static class MySqlNetTopologySuiteServiceCollectionExtensions
         serviceCollection.TryAddEnumerable(
             ServiceDescriptor.Scoped<IMethodCallTranslatorPlugin, MySqlNetTopologySuiteMethodCallTranslatorPlugin>());
         serviceCollection.TryAddEnumerable(
+            ServiceDescriptor
+                .Scoped<IAggregateMethodCallTranslatorPlugin,
+                    MySqlNetTopologySuiteAggregateMethodCallTranslatorPlugin>());
+        serviceCollection.TryAddEnumerable(
             ServiceDescriptor.Scoped<IMemberTranslatorPlugin, MySqlNetTopologySuiteMemberTranslatorPlugin>());
 
         return serviceCollection;

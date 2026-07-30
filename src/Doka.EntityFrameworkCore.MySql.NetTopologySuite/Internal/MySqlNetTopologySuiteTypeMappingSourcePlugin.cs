@@ -142,7 +142,7 @@ internal sealed class MySqlNetTopologySuiteTypeMappingSourcePlugin : IRelational
                 geometry => MySqlGeometry.FromWkb(geometry.SRID, new WKBWriter().Write(geometry)),
                 providerValue => ConvertFromProvider<TGeometry>(providerValue)),
             storeType,
-            jsonValueReaderWriter: null);
+            MySqlJsonGeometryWktReaderWriter.Instance);
     }
 
     private static TGeometry ConvertFromProvider<TGeometry>(

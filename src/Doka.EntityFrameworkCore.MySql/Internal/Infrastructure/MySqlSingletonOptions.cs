@@ -15,10 +15,6 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
 
     public bool UsesDataSource { get; private set; }
 
-    internal ILogger? ProviderLogger { get; private set; }
-
-    internal ILogger? ResilienceLogger { get; private set; }
-
     /// <summary>
     /// Materializes the configuration snapshot from the supplied options. Idempotent
     /// and thread-safe: under <c>AddDbContextPool</c> the framework can resolve
@@ -66,9 +62,9 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
 
             if (loggerFactory is not null)
             {
-                ProviderLogger = loggerFactory.CreateLogger(MySqlLoggerCategory.Configuration);
-                ResilienceLogger = loggerFactory.CreateLogger(MySqlLoggerCategory.Resilience);
-                MySqlLoggerMessages.ServerVersionResolved(ProviderLogger, extension.ServerVersion);
+                var logger = loggerFactory.CreateLogger(MySqlLoggerCategory.Configuration);
+
+                MySqlLoggerMessages.ServerVersionResolved(logger, extension.ServerVersion);
             }
 
             // volatile-write: publishes every property write above to any thread that

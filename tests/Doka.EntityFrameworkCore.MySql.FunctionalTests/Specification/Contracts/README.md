@@ -15,6 +15,8 @@ not architecture decisions.
 - `SpecDiscovery.<version>.json` records the exact xUnit display IDs discovered
   for MySQL 8.4, MariaDB 11.4, and MariaDB 11.8. It detects missing fixtures,
   missing Theory rows, duplicate IDs, and unexpected discovery growth.
+- The discovery gate also compares the complete specification namespace with
+  `Category=Spec`, so an adapter cannot silently fall out of the release matrix.
 - `../SpecDispositions.json` records only executable engine, upstream-framework,
   and structurally not-applicable outcomes. Each disposition names its exact
   discovered test IDs. Provider debt is never a permitted disposition.
@@ -31,11 +33,38 @@ Both EF Core 10.0.8 and 10.0.10 expose 327 official compliance bases. The
 effective base-to-method assignments. The 10.0.10 inventory contains 9,039
 definitions and 19,191 assignments.
 
-At retrieval on 2026-07-27, the provider had 9 implemented base mappings, 1
-official compliance exemption, and 317 provider-owned base contracts still to
-implement. This nonzero baseline is accepted only as a no-growth development
-ratchet. `eng/check-publication-readiness.sh` rejects publication until the
-provider-owned count reaches zero.
+The baseline retrieved on 2026-07-27 recorded 9 implemented base mappings,
+1 official compliance exemption, and 317 provider-owned gaps. Those 317 gaps
+are now closed: the repository validator reports provider suite debt `0/317`
+for both supported EF Core patch contracts.
+
+Discovery regenerated on 2026-07-30 records the complete concrete provider
+surface:
+
+| EF Core | MySQL 8.4 | MariaDB 11.4 | MariaDB 11.8 |
+| --- | ---: | ---: | ---: |
+| 10.0.8 | 29,744 | 29,408 | 29,409 |
+| 10.0.10 | 29,752 | 29,416 | 29,417 |
+
+Every target was executed in full on 2026-07-30:
+
+| EF Core | Target | Passed | Skipped | Failed | Total |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 10.0.8 | MySQL 8.4 | 29,417 | 327 | 0 | 29,744 |
+| 10.0.8 | MariaDB 11.4 | 28,706 | 702 | 0 | 29,408 |
+| 10.0.8 | MariaDB 11.8 | 28,708 | 701 | 0 | 29,409 |
+| 10.0.10 | MySQL 8.4 | 29,425 | 327 | 0 | 29,752 |
+| 10.0.10 | MariaDB 11.4 | 28,714 | 702 | 0 | 29,416 |
+| 10.0.10 | MariaDB 11.8 | 28,716 | 701 | 0 | 29,417 |
+
+The exact TRX totals and display IDs matched the corresponding discovery
+contract. Every skip matched its ledger ID, method, and target; every other
+discovered test passed. The source contract also rejects inherited upstream
+skips unless the provider activates the assertion or records an executable
+framework disposition.
+
+The publication gate still calculates this state from the provider assembly.
+These figures are evidence, not a substitute for the zero-debt check.
 
 ## Verification
 

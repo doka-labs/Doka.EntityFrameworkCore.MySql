@@ -573,6 +573,14 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
         commandStringBuilder.Append(" = LAST_INSERT_ID()");
     }
 
+    /// <inheritdoc />
+    protected override bool IsIdentityOperation(
+        IColumnModification modification
+    ) => modification is { IsKey: true, IsRead: true, IsWrite: false, }
+        && (modification.Property is null
+            || modification.Property.GetMySqlValueGenerationStrategy() == MySqlValueGenerationStrategy.AutoIncrement
+            || modification.Property.ValueGenerated == ValueGenerated.Never);
+
     protected override void AppendRowsAffectedWhereCondition(
         StringBuilder commandStringBuilder,
         int expectedRowsAffected

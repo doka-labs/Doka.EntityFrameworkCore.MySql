@@ -62,6 +62,16 @@ internal sealed class
         };
     }
 
+    protected override string GenerateNonNullSqlLiteral(
+        object value
+    )
+    {
+        var wkt = AsText(value).Replace("'", "''", StringComparison.Ordinal);
+        var srid = GetSrid(value);
+
+        return $"ST_GeomFromText('{wkt}', {srid.ToString(CultureInfo.InvariantCulture)})";
+    }
+
     public override Expression CustomizeDataReaderExpression(
         Expression expression
     )
@@ -169,28 +179,56 @@ internal sealed class
                 $"Empty byte stream cannot be materialized as '{typeof(TGeometry).Name}'.");
         }
 
-        ReadOnlySpan<byte> data;
-        var srid = 0;
-
-        if (wkbBytes[0] is 0 or 1)
+        if (TryReadExactWkb(wkbBytes, out var geometry))
         {
-            data = wkbBytes;
-        }
-        else if (wkbBytes.Length > 4
-                 && wkbBytes[4] is 0 or 1)
-        {
-            srid = BinaryPrimitives.ReadInt32LittleEndian(wkbBytes.AsSpan(0, 4));
-            data = wkbBytes.AsSpan(4);
-        }
-        else
-        {
-            throw new InvalidOperationException(
-                $"Unrecognized WKB byte layout for '{typeof(TGeometry).Name}'. "
-                + "Expected canonical OGC WKB (byte-order indicator at index 0) or MySQL-style "
-                + "SRID-prefixed WKB (byte-order indicator at index 4).");
+            return CastGeometry(geometry, srid: 0);
         }
 
-        var geometry = new WKBReader().Read(data.ToArray());
+        if (wkbBytes.Length > 4
+            && TryReadExactWkb(wkbBytes.AsSpan(4), out geometry))
+        {
+            var srid = BinaryPrimitives.ReadInt32LittleEndian(wkbBytes.AsSpan(0, 4));
+            return CastGeometry(geometry, srid);
+        }
+
+        throw new InvalidOperationException(
+            $"Unrecognized WKB byte layout for '{typeof(TGeometry).Name}'. "
+            + "Expected canonical OGC WKB or MySQL-style SRID-prefixed WKB.");
+    }
+
+    private static bool TryReadExactWkb(
+        ReadOnlySpan<byte> candidate,
+        out Geometry geometry
+    )
+    {
+        geometry = null!;
+
+        if (candidate.Length == 0
+            || candidate[0] is not (0 or 1))
+        {
+            return false;
+        }
+
+        try
+        {
+            geometry = new WKBReader().Read(candidate.ToArray());
+
+            // A zero SRID prefix also starts with a valid WKB byte-order marker.
+            // Re-serializing detects that ambiguous layout because the first,
+            // incorrectly parsed geometry consumes only part of the byte stream.
+            return new WKBWriter().Write(geometry).Length == candidate.Length;
+        }
+        catch (ParseException)
+        {
+            return false;
+        }
+    }
+
+    private static TGeometry CastGeometry(
+        Geometry geometry,
+        int srid
+    )
+    {
         geometry.SRID = srid;
 
         return geometry as TGeometry

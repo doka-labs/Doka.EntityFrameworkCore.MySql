@@ -52,13 +52,17 @@ infrastructure exists, but nothing connects them.
 
 ## Decision Outcome
 
-Chosen option: "Provider subclasses of official specification suites", because official inherited suites provide the strongest shared contract for an EF Core provider.
+Chosen option: "Provider subclasses of official specification suites",
+because official inherited suites provide the strongest shared contract for
+an EF Core provider.
 
 Add a `Specification/` directory under
 `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/` containing
 provider-specific subclasses of the upstream specification fixtures.
 
-First wave (the minimum for v1.0):
+Coverage includes every concrete implementation required by the official
+`ComplianceTestBase` and `RelationalComplianceTestBase` inventories for each
+supported EF Core patch. Representative families include:
 
 - `NorthwindQueryMySqlTest` plus the seven other Northwind variants.
 - `BuiltInDataTypesMySqlTest` plus the standard date/time variants.
@@ -72,8 +76,8 @@ Shared infrastructure:
   string resolution, test-database creation/teardown, and isolation
   across parallel test runs.
 - Engine routing exercises both supported engines (MySQL 8.4 LTS and
-  the MariaDB 11.x LTS line) via an xUnit theory data source; failures
-  are reported per-engine.
+  the MariaDB 11.x line) through an exact target-specific CI matrix;
+  failures and dispositions are reported per target.
 
 Disposition discipline is defined by D-021. Provider-owned gaps are never
 skips and never enter quarantine. Engine and upstream-framework limitations
@@ -147,8 +151,15 @@ probes, and re-evaluation triggers.
   exact image and endpoint evidence.
 - Version-bound inventories enumerate all 327 official compliance bases for
   EF Core 10.0.8 and 10.0.10.
-- Exact discovery contracts contain 945 MySQL 8.4 tests and 924 tests for
-  each supported MariaDB target.
+- Exact EF Core 10.0.8 discovery contracts contain 29,744 MySQL 8.4 tests,
+  29,408 MariaDB 11.4 tests, and 29,409 MariaDB 11.8 tests.
+- Exact EF Core 10.0.10 discovery contracts contain 29,752 MySQL 8.4 tests,
+  29,416 MariaDB 11.4 tests, and 29,417 MariaDB 11.8 tests.
+- A classification-drift gate proves that every test below the provider's
+  `Specification` namespace carries `Category=Spec`; this prevents an
+  unclassified official fixture from silently escaping the release matrix.
+- An inherited-skip gate rejects every upstream skip unless the provider
+  activates the assertion or records an executable framework disposition.
 - D-021 defines the monotonic provider-debt baseline, permitted dispositions,
   exact TRX reconciliation, and zero-debt publication boundary.
 
@@ -179,6 +190,11 @@ probes, and re-evaluation triggers.
 
 - 2026-05-16: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-07-29: Completed the zero-debt provider mapping and verified both
+  supported EF Core patches against MySQL 8.4, MariaDB 11.4, and MariaDB
+  11.8 with exact discovery and TRX reconciliation.
+- 2026-07-30: Activated or explicitly dispositioned every inherited upstream
+  skip and repeated the complete six-target matrix with zero failures.
 
 ### Implementation References
 
@@ -188,6 +204,13 @@ probes, and re-evaluation triggers.
 
 ### Sources
 
-- [EF Core ComplianceTestBase 10.0.10](https://github.com/dotnet/efcore/blob/v10.0.10/test/EFCore.Specification.Tests/ComplianceTestBase.cs) (primary source; retrieved 2026-07-27)
-- [EF Core RelationalComplianceTestBase 10.0.10](https://github.com/dotnet/efcore/blob/v10.0.10/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs) (primary source; retrieved 2026-07-27)
-- [Microsoft.EntityFrameworkCore.Relational.Specification.Tests versions](https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.relational.specification.tests/index.json) (primary source; retrieved 2026-07-27)
+- [EF Core ComplianceTestBase 10.0.10][ef-compliance]
+  (primary source; retrieved 2026-07-27)
+- [EF Core RelationalComplianceTestBase 10.0.10][ef-relational-compliance]
+  (primary source; retrieved 2026-07-27)
+- [Relational specification package versions][ef-relational-spec-versions]
+  (primary source; retrieved 2026-07-27)
+
+[ef-compliance]: https://github.com/dotnet/efcore/blob/v10.0.10/test/EFCore.Specification.Tests/ComplianceTestBase.cs
+[ef-relational-compliance]: https://github.com/dotnet/efcore/blob/v10.0.10/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs
+[ef-relational-spec-versions]: https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.relational.specification.tests/index.json

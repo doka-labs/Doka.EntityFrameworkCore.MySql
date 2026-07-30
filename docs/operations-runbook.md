@@ -43,7 +43,12 @@ Full catalog (source of truth: `src/Doka.EntityFrameworkCore.MySql/MySqlEventId.
 | 1700 | `BulkInsertParameterCountCapped` | Warning | Update | A `SaveChanges` batch would exceed MySQL's 65535-placeholder hard limit; the batch is split at the command that would have crossed the cap. |
 | 1701 | `BulkInsertPacketSizeCapped` | Warning | Update | A `SaveChanges` batch would exceed the conservative `max_allowed_packet` budget; the batch is split at the command that would have crossed the cap. |
 
-All emissions go through `MySqlLoggerCategory.*` categories (Configuration, Query, Update, Migrations, Scaffolding, Resilience, Spatial) so log shippers can route by category without parsing event numbers.
+Provider runtime emissions use the stable `MySqlLoggerCategory.*` taxonomy
+(Configuration, Query, Update, Migrations, Scaffolding, Resilience, Spatial).
+Events raised during EF Core model validation intentionally use
+`Microsoft.EntityFrameworkCore.Model.Validation`, so application warning
+configuration and category filters remain effective. The stable `EventId`
+continues to identify the provider subsystem independently of category.
 
 ## 2. Migration Lock Stuck Procedure
 

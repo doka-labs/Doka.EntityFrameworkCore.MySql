@@ -213,11 +213,12 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
         var entry = Assert.Single(
             sink.Entries,
-            logEntry => logEntry.EventId.Id == MySqlEventId.InvalidSpatialIndexConfiguration.Id);
+            logEntry => logEntry.EventId == MySqlEventId.InvalidSpatialIndexConfiguration
+                && logEntry.Category == DbLoggerCategory.Model.Validation.Name);
 
         Assert.Contains("exactly one property", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(LogLevel.Error, entry.LogLevel);
-        Assert.Equal(MySqlLoggerCategory.Configuration, entry.Category);
+        Assert.Equal(DbLoggerCategory.Model.Validation.Name, entry.Category);
     }
 
     private static DbContextOptions<TContext> CreateOptions<TContext>(

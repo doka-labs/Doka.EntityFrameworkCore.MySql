@@ -12,6 +12,8 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 /// Target selection is evaluated during xUnit discovery from
 /// <c>DOKA_SPEC_TEST_TARGET</c>. This produces an actual skipped test case and prevents an
 /// engine exception from being hidden behind a successful no-op method body.
+/// Data rows may be declared on the provider override or inherited from its nearest base
+/// declaration; the custom discoverer consumes exactly one source.
 /// Setting <c>DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true</c> deliberately disables these skips
 /// so the documented failure can be reproduced without editing test source.
 /// </remarks>
@@ -22,8 +24,6 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public sealed class SpecEngineLimitationTheoryAttribute : TheoryAttribute
 {
-    private const string ProbeEnvironmentVariable = "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS";
-
     /// <summary>
     /// Creates an engine-limited theory disposition for the supplied test targets.
     /// </summary>
@@ -46,10 +46,7 @@ public sealed class SpecEngineLimitationTheoryAttribute : TheoryAttribute
 
         var target = SpecTestTarget.Resolve();
         if (unsupportedTargets.Contains(target, StringComparer.OrdinalIgnoreCase)
-            && !string.Equals(
-                Environment.GetEnvironmentVariable(ProbeEnvironmentVariable),
-                "true",
-                StringComparison.OrdinalIgnoreCase))
+            && !SpecTestTarget.IsEngineLimitationProbeEnabled())
         {
             Skip =
                 $"[spec-engine-limit:{dispositionId}] Target '{target}' is covered by "

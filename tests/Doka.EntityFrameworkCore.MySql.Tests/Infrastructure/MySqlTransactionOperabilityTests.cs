@@ -40,18 +40,41 @@ public sealed class MySqlTransactionOperabilityTests
     }
 
     /// <summary>
-    /// Verifies that transient commit failures emit the provider commit-unknown diagnostic.
+    /// Verifies that transient commit failures use the active context logger
+    /// after a shared provider was initialized without a custom logger.
     /// </summary>
     [Fact]
     public async Task Commit_unknown_failures_emit_the_resilience_diagnostic()
     {
+        MySqlSingletonOptions primedSingletonOptions;
+
+        await using (var primingConnection = new RecordingDbConnection())
+        await using (var primingContext =
+            new TransactionOperabilityContext(
+                CreateOptions(primingConnection, defaultGuidFormat: MySqlGuidFormat.Char36)))
+        await using (var primingTransaction = await primingContext.Database.BeginTransactionAsync())
+        {
+            primedSingletonOptions = primingContext
+                .GetService<IEnumerable<ISingletonOptions>>()
+                .OfType<MySqlSingletonOptions>()
+                .Single();
+            await primingTransaction.RollbackAsync();
+        }
+
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         await using var connection =
             new RecordingDbConnection(commitFailure: new SocketException((int)SocketError.ConnectionReset));
-        await using var context = new TransactionOperabilityContext(CreateOptions(connection, loggerFactory));
+        await using var context =
+            new TransactionOperabilityContext(
+                CreateOptions(connection, loggerFactory, MySqlGuidFormat.Char36));
+        var activeSingletonOptions = context
+            .GetService<IEnumerable<ISingletonOptions>>()
+            .OfType<MySqlSingletonOptions>()
+            .Single();
         await using var transaction = await context.Database.BeginTransactionAsync();
 
+        Assert.Same(primedSingletonOptions, activeSingletonOptions);
         await Assert.ThrowsAsync<SocketException>(() => transaction.CommitAsync());
 
         var entry = Assert.Single(sink.Entries, candidate => candidate.EventId.Id == MySqlEventId.CommitUnknown.Id);
@@ -62,7 +85,8 @@ public sealed class MySqlTransactionOperabilityTests
 
     private static DbContextOptions<TransactionOperabilityContext> CreateOptions(
         DbConnection connection,
-        ILoggerFactory? loggerFactory = null
+        ILoggerFactory? loggerFactory = null,
+        MySqlGuidFormat defaultGuidFormat = MySqlGuidFormat.Binary16
     )
     {
         var builder = new DbContextOptionsBuilder<TransactionOperabilityContext>();
@@ -75,7 +99,9 @@ public sealed class MySqlTransactionOperabilityTests
         builder.UseMySql(
             connection,
             MySqlServerVersion.MySql(new Version(8, 4, 0)),
-            options => options.EnableRetryOnFailure(maxRetryCount: 2, maxRetryDelay: TimeSpan.FromMilliseconds(1)));
+            options => options
+                .EnableRetryOnFailure(maxRetryCount: 2, maxRetryDelay: TimeSpan.FromMilliseconds(1))
+                .DefaultGuidFormat(defaultGuidFormat));
 
         return builder.Options;
     }

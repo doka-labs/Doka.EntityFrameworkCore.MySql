@@ -192,6 +192,24 @@ public class SpecificationContractTests
     }
 
     [Fact]
+    public void Contract_json_escapes_non_ascii_characters_without_changing_the_value()
+    {
+        const string unicodeValue = "\u2764\U0001F44D";
+
+        var serialized = ContractJson.Serialize(new
+        {
+            Value = unicodeValue,
+        });
+        var roundTripped = JsonSerializer.Deserialize<JsonElement>(serialized)
+            .GetProperty("value")
+            .GetString();
+
+        Assert.DoesNotContain(unicodeValue, serialized, StringComparison.Ordinal);
+        Assert.All(serialized, character => Assert.InRange(character, '\0', '\u007f'));
+        Assert.Equal(unicodeValue, roundTripped);
+    }
+
+    [Fact]
     public void Trx_accepts_only_exact_results_and_declared_not_executed_ids()
     {
         var directory = Directory.CreateTempSubdirectory("doka-spec-contract-");
@@ -212,6 +230,40 @@ public class SpecificationContractTests
             Assert.Equal(2, report.Total);
             Assert.Equal(1, report.Passed);
             Assert.Equal(1, report.NotExecuted);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Trx_normalizes_only_escaped_utf16_surrogate_pairs()
+    {
+        var directory = Directory.CreateTempSubdirectory("doka-spec-contract-");
+        try
+        {
+            var trxPath = Path.Combine(directory.FullName, "unicode.trx");
+            var dispositionPath = Path.Combine(directory.FullName, "dispositions.json");
+            var supplementaryCharacterId = Fixture + ".Unicode(\U0001F44D)";
+            var escapedSurrogatePairId = Fixture + ".Unicode(\\ud83d\\udc4d)";
+            var literalBmpEscapeId = Fixture + ".Json(\\u2764)";
+
+            File.WriteAllText(
+                trxPath,
+                Trx(
+                    (escapedSurrogatePairId, "Passed"),
+                    (literalBmpEscapeId, "Passed")));
+            File.WriteAllText(dispositionPath, EmptyDispositions());
+
+            var report = TrxContract.Validate(
+                Discovery(supplementaryCharacterId, literalBmpEscapeId),
+                "mysql84",
+                [trxPath],
+                dispositionPath);
+
+            Assert.True(report.IsValid, string.Join(Environment.NewLine, report.Errors));
+            Assert.Equal(2, report.Passed);
         }
         finally
         {
@@ -367,6 +419,13 @@ public class SpecificationContractTests
                     discoveredTestIds,
                 },
             },
+        });
+
+    private static string EmptyDispositions() => JsonSerializer.Serialize(
+        new
+        {
+            schemaVersion = 2,
+            activeDispositions = Array.Empty<object>(),
         });
 
     private static string Trx(

@@ -12,8 +12,6 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public sealed class SpecFrameworkLimitationFactAttribute : FactAttribute
 {
-    private const string ProbeEnvironmentVariable = "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS";
-
     /// <summary>
     /// Creates a framework-limited specification fact linked to a stable ledger entry.
     /// </summary>
@@ -27,10 +25,7 @@ public sealed class SpecFrameworkLimitationFactAttribute : FactAttribute
         ArgumentException.ThrowIfNullOrWhiteSpace(dispositionId);
         DispositionId = dispositionId;
 
-        if (!string.Equals(
-                Environment.GetEnvironmentVariable(ProbeEnvironmentVariable),
-                "true",
-                StringComparison.OrdinalIgnoreCase))
+        if (!SpecTestTarget.IsFrameworkLimitationProbeEnabled())
         {
             Skip = $"[spec-framework-limit:{dispositionId}] The consumed EF Core version skips "
                 + "this shape due to a framework-owned limitation outside provider SQL "

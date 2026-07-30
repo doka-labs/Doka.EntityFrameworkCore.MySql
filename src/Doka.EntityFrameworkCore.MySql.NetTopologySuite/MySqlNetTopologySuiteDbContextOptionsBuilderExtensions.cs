@@ -16,7 +16,7 @@ public static class MySqlNetTopologySuiteDbContextOptionsBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        var optionsBuilder = builder.OptionsBuilder;
+        var optionsBuilder = builder.InfrastructureOptionsBuilder;
         var extension = optionsBuilder.Options.FindExtension<MySqlNetTopologySuiteOptionsExtension>()
             ?? new MySqlNetTopologySuiteOptionsExtension();
 

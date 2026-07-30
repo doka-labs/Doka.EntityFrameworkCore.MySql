@@ -45,6 +45,16 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
                 ]
                 && indexType == typeof(int));
 
+    private static readonly MethodInfo s_enumerableContainsMethod = typeof(Enumerable)
+        .GetRuntimeMethods()
+        .Single(method => method is { Name: nameof(Enumerable.Contains), IsGenericMethodDefinition: true }
+            && method.GetParameters().Length == 2);
+
+    private static readonly MethodInfo s_convertEnumParameterToStringMethod =
+        typeof(MySqlSqlTranslatingExpressionVisitor)
+            .GetTypeInfo()
+            .GetDeclaredMethod(nameof(ConvertEnumParameterToString))!;
+
     private static readonly bool[] s_singleArgumentNullPropagation = [true];
 
     private static readonly bool[] s_twoArgumentNullPropagation =
@@ -55,6 +65,7 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
 
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly IRelationalTypeMappingSource _typeMappingSource;
+    private readonly QueryCompilationContext _queryCompilationContext;
 
     public MySqlSqlTranslatingExpressionVisitor(
         RelationalSqlTranslatingExpressionVisitorDependencies dependencies,
@@ -64,6 +75,7 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
     {
         _sqlExpressionFactory = dependencies.SqlExpressionFactory;
         _typeMappingSource = dependencies.TypeMappingSource;
+        _queryCompilationContext = queryCompilationContext;
     }
 
     /// <summary>
@@ -150,6 +162,16 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
             return coalesce;
         }
 
+        if (IsTimeSpanAddition(binaryExpression))
+        {
+            return TranslateTimeSpanAddition(binaryExpression);
+        }
+
+        if (IsDateTimeOffsetSubtraction(binaryExpression))
+        {
+            return TranslateDateTimeOffsetSubtraction(binaryExpression);
+        }
+
         if (!IsDateTimeDifference(binaryExpression)
             && !IsTimeOnlyDifference(binaryExpression))
         {
@@ -191,6 +213,54 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
             MySqlTimeSpanTicksTypeMapping.Default);
     }
 
+    private Expression TranslateTimeSpanAddition(
+        BinaryExpression binaryExpression
+    )
+    {
+        if (Visit(binaryExpression.Left) is not SqlExpression left
+            || Visit(binaryExpression.Right) is not SqlExpression right)
+        {
+            return QueryCompilationContext.NotTranslatedExpression;
+        }
+
+        var timeSpanMapping = _typeMappingSource.FindMapping(typeof(TimeSpan))!;
+
+        return _sqlExpressionFactory.Function(
+            "ADDTIME",
+            [
+                _sqlExpressionFactory.ApplyTypeMapping(left, timeSpanMapping),
+                _sqlExpressionFactory.ApplyTypeMapping(right, timeSpanMapping),
+            ],
+            nullable: true,
+            argumentsPropagateNullability: s_twoArgumentNullPropagation,
+            typeof(TimeSpan),
+            timeSpanMapping);
+    }
+
+    private Expression TranslateDateTimeOffsetSubtraction(
+        BinaryExpression binaryExpression
+    )
+    {
+        if (Visit(binaryExpression.Left) is not SqlExpression left
+            || Visit(binaryExpression.Right) is not SqlExpression right)
+        {
+            return QueryCompilationContext.NotTranslatedExpression;
+        }
+
+        var timeSpanMapping = _typeMappingSource.FindMapping(typeof(TimeSpan))!;
+
+        return _sqlExpressionFactory.Function(
+            "__mysql_datetimeoffset_subtract_timespan",
+            [
+                left,
+                _sqlExpressionFactory.ApplyTypeMapping(right, timeSpanMapping),
+            ],
+            nullable: true,
+            argumentsPropagateNullability: s_twoArgumentNullPropagation,
+            typeof(DateTimeOffset),
+            left.TypeMapping);
+    }
+
     /// <summary>
     /// Translates non-aggregate <see cref="string.Join(string?, string?[])"/> calls
     /// whose inline array contains columns or parameters. EF Core cannot represent
@@ -200,6 +270,13 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         MethodCallExpression methodCallExpression
     )
     {
+        if (methodCallExpression.Method.IsGenericMethod
+            && methodCallExpression.Method.GetGenericMethodDefinition() == s_enumerableContainsMethod
+            && TryTranslateConvertedEnumCollectionContains(methodCallExpression) is { } enumCollectionContains)
+        {
+            return enumCollectionContains;
+        }
+
         if (methodCallExpression.Method.IsGenericMethod
             && methodCallExpression.Method.GetGenericMethodDefinition() == s_enumerableElementAtMethod
             && methodCallExpression.Arguments[0].Type == typeof(byte[]))
@@ -257,6 +334,85 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
             typeof(string),
             _typeMappingSource.FindMapping(typeof(string)));
     }
+
+    /// <summary>
+    /// Translates <c>Contains</c> over enum collections serialized by a value
+    /// converter as comma-separated names.
+    /// </summary>
+    /// <remarks>
+    /// Both supported engine families expose <c>FIND_IN_SET</c> for exact
+    /// membership in comma-separated strings. Sources retrieved 2026-07-29:
+    /// <see href="https://dev.mysql.com/doc/refman/8.4/en/string-functions.html">
+    /// MySQL 8.4 string functions</see> and
+    /// <see href="https://mariadb.com/docs/server/reference/sql-functions/string-functions/find_in_set">
+    /// MariaDB FIND_IN_SET</see>.
+    /// </remarks>
+    private SqlExpression? TryTranslateConvertedEnumCollectionContains(
+        MethodCallExpression methodCallExpression
+    )
+    {
+        var enumType = methodCallExpression.Method.GetGenericArguments()[0];
+        if (!enumType.IsEnum
+            || Visit(methodCallExpression.Arguments[0]) is not SqlExpression collection
+            || collection.TypeMapping?.Converter?.ProviderClrType != typeof(string)
+            || Visit(methodCallExpression.Arguments[1]) is not SqlExpression item)
+        {
+            return null;
+        }
+
+        var stringMapping = _typeMappingSource.FindMapping(typeof(string))!;
+        var itemName = item switch
+        {
+            SqlConstantExpression { Value: Enum value } => _sqlExpressionFactory.Constant(
+                value.ToString(),
+                stringMapping),
+            SqlParameterExpression parameter => CreateEnumNameRuntimeParameter(parameter, stringMapping),
+            _ => null,
+        };
+
+        if (itemName is null)
+        {
+            return null;
+        }
+
+        var intMapping = _typeMappingSource.FindMapping(typeof(int))!;
+        var position = _sqlExpressionFactory.Function(
+            "FIND_IN_SET",
+            [
+                itemName,
+                collection,
+            ],
+            nullable: true,
+            argumentsPropagateNullability: s_twoArgumentNullPropagation,
+            typeof(int),
+            intMapping);
+
+        return _sqlExpressionFactory.GreaterThan(position, _sqlExpressionFactory.Constant(0, intMapping));
+    }
+
+    private SqlParameterExpression CreateEnumNameRuntimeParameter(
+        SqlParameterExpression parameter,
+        RelationalTypeMapping stringMapping
+    )
+    {
+        var lambda = Expression.Lambda<Func<QueryContext, string?>>(
+            Expression.Call(
+                s_convertEnumParameterToStringMethod,
+                QueryCompilationContext.QueryContextParameter,
+                Expression.Constant(parameter.Name)),
+            QueryCompilationContext.QueryContextParameter);
+
+        var runtimeParameter = _queryCompilationContext.RegisterRuntimeParameter($"{parameter.Name}_enum_name", lambda);
+
+        return new SqlParameterExpression(runtimeParameter.Name!, runtimeParameter.Type, stringMapping);
+    }
+
+    private static string? ConvertEnumParameterToString(
+        QueryContext queryContext,
+        string parameterName
+    ) => queryContext.Parameters.TryGetValue(parameterName, out var value)
+        ? value?.ToString()
+        : null;
 
     private Expression TranslateByteArrayElementAccess(
         Expression arrayExpression,
@@ -413,4 +569,18 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         && binaryExpression.Left.Type.UnwrapNullableType() == typeof(TimeOnly)
         && binaryExpression.Right.Type.UnwrapNullableType() == typeof(TimeOnly)
         && binaryExpression.Type.UnwrapNullableType() == typeof(TimeSpan);
+
+    private static bool IsTimeSpanAddition(
+        BinaryExpression binaryExpression
+    ) => binaryExpression.NodeType == ExpressionType.Add
+        && binaryExpression.Left.Type.UnwrapNullableType() == typeof(TimeSpan)
+        && binaryExpression.Right.Type.UnwrapNullableType() == typeof(TimeSpan)
+        && binaryExpression.Type.UnwrapNullableType() == typeof(TimeSpan);
+
+    private static bool IsDateTimeOffsetSubtraction(
+        BinaryExpression binaryExpression
+    ) => binaryExpression.NodeType == ExpressionType.Subtract
+        && binaryExpression.Left.Type.UnwrapNullableType() == typeof(DateTimeOffset)
+        && binaryExpression.Right.Type.UnwrapNullableType() == typeof(TimeSpan)
+        && binaryExpression.Type.UnwrapNullableType() == typeof(DateTimeOffset);
 }

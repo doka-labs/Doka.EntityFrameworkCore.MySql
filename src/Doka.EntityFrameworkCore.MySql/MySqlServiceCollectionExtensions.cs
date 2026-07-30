@@ -29,6 +29,7 @@ public static class MySqlServiceCollectionExtensions
             .TryAdd<IRelationalDatabaseCreator, MySqlRelationalDatabaseCreator>()
             .TryAdd<IDatabaseCreator>(p => p.GetRequiredService<IRelationalDatabaseCreator>())
             .TryAdd<IExecutionStrategyFactory, MySqlExecutionStrategyFactory>()
+            .TryAdd<IInterceptor, MySqlParameterSizeCommandInterceptor>()
             .TryAdd<IRelationalTypeMappingSource, MySqlTypeMappingSource>()
             .TryAdd<ITypeMappingSource>(p => p.GetRequiredService<IRelationalTypeMappingSource>())
             .TryAdd<IRelationalAnnotationProvider, MySqlRelationalAnnotationProvider>()

@@ -1,19 +1,31 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
-internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
+/// <summary>
+/// Stores the immutable provider options consumed by EF Core infrastructure.
+/// </summary>
+/// <remarks>
+/// This type is public because EF Core's standard relational options-builder base includes
+/// its extension type in the public generic signature. Application code should configure it
+/// through <see cref="MySqlDbContextOptionsBuilder"/> instead of constructing it directly.
+/// </remarks>
+public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
 {
     private DbContextOptionsExtensionInfo? _info;
 
-    public MySqlDataSource? DataSource { get; private set; }
+    internal MySqlDataSource? DataSource { get; private set; }
 
-    public MySqlServerVersion? ServerVersion { get; private set; }
+    internal MySqlServerVersion? ServerVersion { get; private set; }
 
-    public MySqlRetryOptions? RetryOptions { get; private set; }
+    internal MySqlRetryOptions? RetryOptions { get; private set; }
 
-    public MySqlGuidFormat DefaultGuidFormat { get; private set; } = MySqlGuidFormat.Binary16;
+    internal MySqlGuidFormat DefaultGuidFormat { get; private set; } = MySqlGuidFormat.Binary16;
 
+    /// <inheritdoc />
     public override DbContextOptionsExtensionInfo Info => _info ??= new MySqlOptionsExtensionInfo(this);
 
+    /// <summary>
+    /// Creates an empty provider-options snapshot for EF Core infrastructure.
+    /// </summary>
     public MySqlOptionsExtension() { }
 
     private MySqlOptionsExtension(
@@ -26,8 +38,10 @@ internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
         DefaultGuidFormat = copyFrom.DefaultGuidFormat;
     }
 
+    /// <inheritdoc />
     protected override RelationalOptionsExtension Clone() => new MySqlOptionsExtension(this);
 
+    /// <inheritdoc />
     public override void ApplyServices(
         IServiceCollection services
     )
@@ -37,6 +51,7 @@ internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
         services.AddEntityFrameworkDokaMySql();
     }
 
+    /// <inheritdoc />
     public override void Validate(
         IDbContextOptions options
     )
@@ -87,7 +102,7 @@ internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
         }
     }
 
-    public new MySqlOptionsExtension WithConnectionString(
+    internal new MySqlOptionsExtension WithConnectionString(
         string connectionString
     )
     {
@@ -97,7 +112,7 @@ internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
         return clone.ResetOtherConnectionPaths(ConnectionPath.ConnectionString);
     }
 
-    public new MySqlOptionsExtension WithConnection(
+    internal new MySqlOptionsExtension WithConnection(
         DbConnection connection
     )
     {
@@ -107,7 +122,7 @@ internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
         return clone.ResetOtherConnectionPaths(ConnectionPath.Connection);
     }
 
-    public MySqlOptionsExtension WithDataSource(
+    internal MySqlOptionsExtension WithDataSource(
         MySqlDataSource dataSource
     )
     {
@@ -118,7 +133,7 @@ internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
         return clone.ResetOtherConnectionPaths(ConnectionPath.DataSource);
     }
 
-    public MySqlOptionsExtension WithServerVersion(
+    internal MySqlOptionsExtension WithServerVersion(
         MySqlServerVersion serverVersion
     )
     {
@@ -130,7 +145,7 @@ internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
         return clone;
     }
 
-    public MySqlOptionsExtension WithRetryOptions(
+    internal MySqlOptionsExtension WithRetryOptions(
         MySqlRetryOptions retryOptions
     )
     {
@@ -142,7 +157,7 @@ internal sealed class MySqlOptionsExtension : RelationalOptionsExtension
         return clone;
     }
 
-    public MySqlOptionsExtension WithDefaultGuidFormat(
+    internal MySqlOptionsExtension WithDefaultGuidFormat(
         MySqlGuidFormat defaultGuidFormat
     )
     {

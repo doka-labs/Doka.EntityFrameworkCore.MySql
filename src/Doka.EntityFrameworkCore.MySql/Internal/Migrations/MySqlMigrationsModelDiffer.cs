@@ -250,6 +250,15 @@ internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
 
             foreach (var alterColumn in alterColumns)
             {
+                // Preserve the transition explicitly. A missing annotation and None both
+                // mean "not generated" in the target model, but the migration operation
+                // must record that AUTO_INCREMENT is being removed before the key drop.
+                if (alterColumn.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy) is null)
+                {
+                    alterColumn[MySqlAnnotationNames.ValueGenerationStrategy] =
+                        MySqlValueGenerationStrategy.None;
+                }
+
                 MoveBefore(operations, alterColumn, dropPrimaryKey);
             }
         }

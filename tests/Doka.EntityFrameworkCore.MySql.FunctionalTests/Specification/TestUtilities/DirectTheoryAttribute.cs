@@ -3,9 +3,9 @@ using Xunit.Sdk;
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 
 /// <summary>
-/// Marks a provider override whose data rows must come only from attributes declared directly
-/// on that override. This prevents inheritable EF Core data attributes from producing duplicate
-/// test IDs while retaining the original relational assertion body.
+/// Marks a provider override whose direct data rows replace, rather than combine with, inherited
+/// rows. When no direct rows exist, the nearest base declaration supplies the rows. This keeps
+/// metadata-only overrides concise without producing duplicate test IDs.
 /// </summary>
 [XunitTestCaseDiscoverer(
     "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities."

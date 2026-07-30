@@ -45,7 +45,9 @@ failure modes:
 
 ## Decision Outcome
 
-Chosen option: "Zero provider-gap ledger with executable dispositions", because typed executable dispositions preserve full provider responsibility without falsifying engine reality.
+Chosen option: "Zero provider-gap ledger with executable dispositions",
+because typed executable dispositions preserve full provider responsibility
+without falsifying engine reality.
 
 The specification suite has a zero provider-gap budget.
 
@@ -114,7 +116,8 @@ infrastructure, the provider is changed and the inherited assertion continues to
 
 ### Executable Contract
 
-The machine-readable contract is `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/SpecDispositions.json`.
+The machine-readable contract is
+`tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/SpecDispositions.json`.
 
 ### Executable skip contract
 
@@ -126,11 +129,12 @@ Engine limitations use `SpecEngineLimitationTheoryAttribute`. The attribute:
 - can be deliberately bypassed with `DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true` to reproduce the
   documented engine failure without editing source.
 
-Upstream framework limitations use `SpecFrameworkLimitationTheoryAttribute`. It uses direct
-`InlineData` discovery, emits a visible skip linked to the ledger ID, and can be bypassed with
-`DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true`. The provider-specific override still invokes the
-inherited assertion, so removing the attribute after an EF Core update immediately restores
-the original specification test.
+Upstream framework limitations use `SpecFrameworkLimitationTheoryAttribute`.
+The provider override declares its inherited data source explicitly, emits a
+visible skip linked to the ledger ID, and can be bypassed with
+`DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true`. The override still invokes the
+inherited assertion, so removing the attribute after an EF Core update
+immediately restores the original specification test.
 
 Historical not-applicable tests keep an explicit xUnit skip, but their reason includes the
 stable disposition ID.
@@ -142,6 +146,7 @@ The contract test reconciles source annotations against
 - a ledger test method has no matching source annotation;
 - an engine or framework limitation lacks official primary-source evidence or a retrieval date;
 - a framework limitation is not reproduced on every supported target;
+- an upstream skip is inherited without provider activation or an executable framework disposition;
 - an active provider-gap entry exists;
 - a silent-pass pattern is reintroduced.
 
@@ -158,11 +163,14 @@ version-bound files below `Specification/Contracts/` additionally enforce:
 - the official relational compliance assertion and zero provider debt before
   publication.
 
-The current nonzero provider baseline is development bookkeeping, not an
-exception policy and not publication readiness. Internal scheduling metadata
-does not create or amend an architecture decision.
+The provider baseline is now zero. Internal scheduling metadata remains
+development bookkeeping; it does not create or amend an architecture decision.
 
 ### Active engine limitations
+
+The ledger contains 15 engine dispositions covering 418 exact methods and
+discovered test IDs. Each one records official vendor evidence, an unmasked
+probe, a provider-workaround assessment, and a re-evaluation trigger.
 
 #### MDB-CORRELATED-DERIVED-TABLE
 
@@ -173,7 +181,7 @@ ordering, pagination, or nested collection shaping. MariaDB can correlate a dire
 `JSON_TABLE` invocation with a preceding table, and the provider uses that capability where
 possible, but it cannot preserve that correlation through the required derived-table boundary.
 
-Primary sources, retrieved 2026-07-27:
+Primary sources, retrieved 2026-07-29:
 
 - MariaDB, "Subquery Limitations":
   (see Sources)
@@ -194,33 +202,54 @@ Primary source, retrieved 2026-07-27:
 The exact methods, probe outcomes, target set, and re-evaluation predicates live in the
 machine-readable ledger and are intentionally not duplicated here.
 
+#### Spatial server operations
+
+The spatial contract has six target-specific dispositions:
+
+- geometry normalization and component-order reversal are absent from the
+  exhaustive MySQL 8.4 and MariaDB 11.x spatial function inventories;
+- MySQL 8.4 has no `ST_Relate` operation for an arbitrary DE-9IM pattern;
+- MariaDB 11.4 and 11.8 cannot represent the NTS buffer quadrant-segment
+  strategy;
+- MariaDB provides `ST_Collect` and `ST_IsValid` only from MariaDB 12.0.
+
+The ledger records each affected method, exact target, unmasked probe result,
+official vendor source retrieved on 2026-07-29, workaround assessment, and
+re-evaluation trigger.
+
+#### Other exact server boundaries
+
+The remaining engine dispositions cover:
+
+- filtered indexes and immediate self-referencing foreign-key deletes;
+- native JSON-document validation and scalar stored functions;
+- microsecond temporal storage, empty Point values, and Z/M ordinates.
+
+These boundaries account for 38 exact methods. They remain dispositions only
+where MySQL or MariaDB cannot represent the requested server behavior. The
+provider implementation remains responsible for every translation or
+semantics-preserving rewrite that the engines can execute.
+
 ### Active upstream EF Core limitations
 
-Six inherited JSON shapes remain skipped by the consumed EF Core version itself. Doka exposes
-them as explicit framework dispositions rather than silently inheriting the upstream skip. Each
-issue is an official `dotnet/efcore` primary source, retrieved 2026-07-27:
+The ledger contains 25 upstream-framework dispositions covering 210 provider
+methods and 281 exact discovered test IDs. They cover bulk-update entity
+projection, grouping pushdown, non-leaf TPC updates, JSON projection,
+inheritance set operations, query grouping and join boundaries, change
+tracking, and EF Core complex-type behavior.
 
-- EFCORE-31397, JSON collection anonymous projection with `Distinct`:
-  (see Sources)
-- EFCORE-29287, grouping and ordering by a JSON scalar before `FirstOrDefault`:
-  (see Sources)
-- EFCORE-28733, JSON entity projection and entity comparison after `FirstOrDefault`:
-  (see Sources)
-- EFCORE-28645, backtracking from a JSON entity to its parent:
-  (see Sources)
-- EFCORE-24263, nested collection projection after a second query pushdown:
-  (see Sources)
-- EFCORE-29416, null semantics for a nullable property converter that handles nulls:
-  (see Sources)
+Of those methods, 113 retain an upstream method-level skip. The inherited-skip
+gate requires every one to be named by an executable framework disposition.
+Every other upstream skip is activated by the provider and must execute.
 
-The adjacent single-pushdown JSON projection was also skipped upstream, but passes when activated
-on Doka and therefore remains a normal executable specification test. Framework dispositions
-are accepted only when the probe fails before a provider-owned SQL tree can provide the missing
-behavior.
+Every entry links to an official `dotnet/efcore` issue or source location,
+records exact test IDs, and carries an unmasked probe across all supported
+targets. Framework dispositions are accepted only when the failure occurs
+before a provider-owned SQL tree can supply the missing behavior.
 
 ### Provider workarounds chosen over skips
 
-Three discovered engine constraints remain fully supported by the provider:
+Six discovered engine constraints remain fully supported by the provider:
 
 - MySQL and MariaDB reject `LIMIT` directly inside an `IN` subquery.
   `MySqlQuerySqlGenerator.GenerateIn` places the limited query behind a derived-table boundary.
@@ -230,9 +259,54 @@ Three discovered engine constraints remain fully supported by the provider:
 - MySQL and MariaDB cap the relevant schema identifiers at 64 characters.
   `MySqlConventionSetBuilder` registers EF Core's maximum-identifier convention so names are
   truncated deterministically with collision suffixes before DDL generation.
+- MariaDB exposes `ST_Relate` but no named Covers predicate. The spatial
+  translator composes the four OGC DE-9IM covers masks and reverses operands
+  for CoveredBy.
+- MariaDB's `ST_SRID` is getter-only. Static geometry arguments are serialized
+  with `ST_AsWKB` and reconstructed through `ST_GeomFromWKB` with the model
+  column's SRID.
+- MariaDB uses `ST_NumInteriorRings` and returns a non-null sentinel for
+  `ST_IsSimple(NULL)` on the supported 11.x lines. The member translator
+  selects the dialect name and preserves the nullable NTS contract with
+  `CASE`.
 
 The ledger retains the vendor sources and test evidence for these resolved restrictions. They
 are not skips.
+
+### Relational ordering assertions
+
+Four inherited methods, representing eight sync and async test rows, contained
+stronger ordering expectations than their SQL queries expressed:
+
+- two TPC methods order only by `Rank`, although two fixture rows share the
+  same rank;
+- the regular and shared-type complex-navigation methods order the parent by
+  ID, flatten an unordered child collection, and then take one child.
+
+The provider overrides execute the original query shapes on every target. They
+verify the complete SQL-guaranteed contract: the requested outer ordering,
+the exact result set where all rows are retained, or membership in the first
+parent's valid child set where `Take(1)` follows an unordered collection.
+These rows are real passes, not dispositions, and production SQL generation
+does not receive artificial tie-breaker columns.
+
+MySQL explicitly permits any relative order for equal `ORDER BY` keys.
+MariaDB documents that another ordering expression is required to order ties.
+Both sources were retrieved on 2026-07-30.
+
+### Verified target matrix
+
+The complete `Category=Spec` matrix was executed on 2026-07-30. Every TRX
+total matched its version-bound discovery contract:
+
+| EF Core | Target | Passed | Skipped | Failed | Total |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 10.0.8 | MySQL 8.4.10 | 29,417 | 327 | 0 | 29,744 |
+| 10.0.8 | MariaDB 11.4.12 | 28,706 | 702 | 0 | 29,408 |
+| 10.0.8 | MariaDB 11.8.8 | 28,708 | 701 | 0 | 29,409 |
+| 10.0.10 | MySQL 8.4.10 | 29,425 | 327 | 0 | 29,752 |
+| 10.0.10 | MariaDB 11.4.12 | 28,714 | 702 | 0 | 29,416 |
+| 10.0.10 | MariaDB 11.8.8 | 28,716 | 701 | 0 | 29,417 |
 
 ### Superseded process
 
@@ -260,6 +334,21 @@ specification corpus; D-021 governs how exceptions are classified and enforced.
 - 2026-07-27: Migrated to Doka MADR profile 1.0.
 - 2026-07-27: Added version-bound inventory, exact discovery/TRX reconciliation,
   monotonic provider-debt enforcement, and the zero-debt publication gate.
+- 2026-07-29: Expanded exact discovery to every provider test below the
+  `Specification` namespace and added a classification-drift gate.
+- 2026-07-29: Reconciled native JSON validation, temporal precision, empty
+  Point, Z/M ordinates, and the inapplicable TPT graph with executable
+  dispositions and target-specific probes.
+- 2026-07-29: Added exhaustive MariaDB correlated-derived-table and spatial
+  dispositions, implemented every semantics-preserving spatial workaround,
+  and completed the six-target EF Core 10.0.8/10.0.10 matrix with zero
+  failures.
+- 2026-07-30: Activated every solvable inherited upstream skip, added
+  primary-source-backed framework dispositions for the remaining upstream
+  boundaries, and enforced the inherited-skip gate.
+- 2026-07-30: Corrected under-specified upstream ordering assertions without
+  adding skips or production tie-breakers, then repeated the complete
+  six-target matrix with exact TRX reconciliation and zero failures.
 
 ### Implementation References
 
@@ -273,12 +362,55 @@ specification corpus; D-021 governs how exceptions are classified and enforced.
 
 ### Sources
 
-- [MariaDB subquery limitations](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/subqueries/subquery-limitations) (primary source; retrieved 2026-07-27)
-- [MariaDB JOIN syntax](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/joins/join-syntax) (primary source; retrieved 2026-07-27)
-- [MariaDB JSON_TABLE](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_table) (primary source; retrieved 2026-07-27)
-- [dotnet/efcore issue 31397](https://github.com/dotnet/efcore/issues/31397) (primary source; retrieved 2026-07-27)
-- [dotnet/efcore issue 29287](https://github.com/dotnet/efcore/issues/29287) (primary source; retrieved 2026-07-27)
-- [dotnet/efcore issue 28733](https://github.com/dotnet/efcore/issues/28733) (primary source; retrieved 2026-07-27)
-- [dotnet/efcore issue 28645](https://github.com/dotnet/efcore/issues/28645) (primary source; retrieved 2026-07-27)
-- [dotnet/efcore issue 24263](https://github.com/dotnet/efcore/issues/24263) (primary source; retrieved 2026-07-27)
-- [dotnet/efcore issue 29416](https://github.com/dotnet/efcore/issues/29416) (primary source; retrieved 2026-07-27)
+- [MariaDB subquery limitations][mariadb-subquery-limitations]
+  (primary source; retrieved 2026-07-29)
+- [MariaDB JOIN syntax][mariadb-join]
+  (primary source; retrieved 2026-07-29)
+- [MariaDB JSON_TABLE][mariadb-json-table]
+  (primary source; retrieved 2026-07-27)
+- [MySQL 8.4 spatial function reference][mysql-spatial]
+  (primary source; retrieved 2026-07-29)
+- [MariaDB geometry statements][mariadb-geometry]
+  (primary source; retrieved 2026-07-29)
+- [MariaDB ST_Buffer][mariadb-buffer]
+  (primary source; retrieved 2026-07-29)
+- [MariaDB ST_Collect][mariadb-collect]
+  (primary source; retrieved 2026-07-29)
+- [MariaDB ST_IsValid][mariadb-is-valid]
+  (primary source; retrieved 2026-07-29)
+- [MariaDB ST_Relate][mariadb-relate]
+  (primary source; retrieved 2026-07-29)
+- [MySQL LIMIT query optimization][mysql-limit]
+  (primary source; retrieved 2026-07-30)
+- [MariaDB ORDER BY][mariadb-order-by]
+  (primary source; retrieved 2026-07-30)
+- [dotnet/efcore issue 31397][ef-31397]
+  (primary source; retrieved 2026-07-27)
+- [dotnet/efcore issue 29287][ef-29287]
+  (primary source; retrieved 2026-07-27)
+- [dotnet/efcore issue 28733][ef-28733]
+  (primary source; retrieved 2026-07-27)
+- [dotnet/efcore issue 28645][ef-28645]
+  (primary source; retrieved 2026-07-27)
+- [dotnet/efcore issue 24263][ef-24263]
+  (primary source; retrieved 2026-07-27)
+- [dotnet/efcore issue 29416][ef-29416]
+  (primary source; retrieved 2026-07-27)
+
+[mariadb-subquery-limitations]: https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/subqueries/subquery-limitations
+[mariadb-join]: https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/joins/join-syntax
+[mariadb-json-table]: https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_table
+[mysql-spatial]: https://dev.mysql.com/doc/refman/8.4/en/spatial-function-reference.html
+[mariadb-geometry]: https://mariadb.com/docs/server/reference/sql-statements/geometry-constructors
+[mariadb-buffer]: https://mariadb.com/docs/server/reference/sql-statements/geometry-constructors/geometry-constructors/st_buffer
+[mariadb-collect]: https://mariadb.com/docs/server/reference/sql-statements/geometry-constructors/miscellaneous-gis-functions/st_collect
+[mariadb-is-valid]: https://mariadb.com/docs/server/reference/sql-statements/geometry-constructors/miscellaneous-gis-functions/st_isvalid
+[mariadb-relate]: https://mariadb.com/docs/server/reference/sql-statements/geometry-constructors/geometry-properties/st_relate
+[mysql-limit]: https://dev.mysql.com/doc/refman/8.4/en/limit-optimization.html
+[mariadb-order-by]: https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/order-by
+[ef-31397]: https://github.com/dotnet/efcore/issues/31397
+[ef-29287]: https://github.com/dotnet/efcore/issues/29287
+[ef-28733]: https://github.com/dotnet/efcore/issues/28733
+[ef-28645]: https://github.com/dotnet/efcore/issues/28645
+[ef-24263]: https://github.com/dotnet/efcore/issues/24263
+[ef-29416]: https://github.com/dotnet/efcore/issues/29416

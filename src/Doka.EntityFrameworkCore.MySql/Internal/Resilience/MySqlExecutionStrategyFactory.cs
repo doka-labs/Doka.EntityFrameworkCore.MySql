@@ -35,7 +35,7 @@ internal sealed class MySqlExecutionStrategyFactory : IExecutionStrategyFactory
             retryOptions,
             _dependencies
                 .Options.FindExtension<CoreOptionsExtension>()
-                ?.LoggerFactory?.CreateLogger(MySqlLoggerCategory.Resilience) ?? _singletonOptions.ResilienceLogger,
+                ?.LoggerFactory?.CreateLogger(MySqlLoggerCategory.Resilience),
             _transientExceptionDetector);
     }
 }

@@ -10,7 +10,6 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
     private static readonly Dictionary<(Type DeclaringType, string MemberName), string> s_scalarFunctions = new()
     {
         [(typeof(Geometry), nameof(Geometry.SRID))] = "ST_SRID",
-        [(typeof(Geometry), nameof(Geometry.GeometryType))] = "ST_GeometryType",
         [(typeof(Geometry), nameof(Geometry.Area))] = "ST_Area",
         [(typeof(Geometry), nameof(Geometry.Length))] = "ST_Length",
         [(typeof(Geometry), nameof(Geometry.IsEmpty))] = "ST_IsEmpty",
@@ -19,8 +18,6 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
         [(typeof(Geometry), nameof(Geometry.NumPoints))] = "ST_NumPoints",
         [(typeof(Point), "X")] = "ST_X",
         [(typeof(Point), "Y")] = "ST_Y",
-        [(typeof(Point), "Z")] = "ST_Z",
-        [(typeof(Point), "M")] = "ST_M",
         [(typeof(Polygon), nameof(Polygon.NumInteriorRings))] = "ST_NumInteriorRing",
     };
 
@@ -40,16 +37,19 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly IRelationalTypeMappingSource _typeMappingSource;
     private readonly ILogger _logger;
+    private readonly bool _supportsMariaDbSpatialFunctions;
 
     public MySqlNetTopologySuiteMemberTranslator(
         ISqlExpressionFactory sqlExpressionFactory,
         IRelationalTypeMappingSource typeMappingSource,
-        ILogger logger
+        ILogger logger,
+        bool supportsMariaDbSpatialFunctions
     )
     {
         _sqlExpressionFactory = sqlExpressionFactory ?? throw new ArgumentNullException(nameof(sqlExpressionFactory));
         _typeMappingSource = typeMappingSource ?? throw new ArgumentNullException(nameof(typeMappingSource));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _supportsMariaDbSpatialFunctions = supportsMariaDbSpatialFunctions;
     }
 
     public SqlExpression? Translate(
@@ -68,15 +68,47 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
             return null;
         }
 
+        if (member.Name == nameof(Geometry.GeometryType)
+            && typeof(Geometry).IsAssignableFrom(member.DeclaringType))
+        {
+            return TranslateGeometryType(instance);
+        }
+
         if (TryGetScalarFunction(member, out var scalarFunctionName, out var typeMapping))
         {
-            return TranslateFunction(scalarFunctionName, instance, returnType, typeMapping);
+            if (_supportsMariaDbSpatialFunctions && scalarFunctionName == "ST_NumInteriorRing")
+            {
+                scalarFunctionName = "ST_NumInteriorRings";
+            }
+
+            var translated = TranslateFunction(scalarFunctionName, instance, returnType, typeMapping);
+
+            if (_supportsMariaDbSpatialFunctions && scalarFunctionName == "ST_IsSimple")
+            {
+                // MariaDB 11.x returns -1 for ST_IsSimple(NULL), although its
+                // documentation specifies NULL. Preserve the NTS nullable contract.
+                return _sqlExpressionFactory.Case(
+                    [
+                        new CaseWhenClause(
+                            _sqlExpressionFactory.IsNull(instance),
+                            _sqlExpressionFactory.Constant(null, typeof(bool), s_boolMapping)),
+                    ],
+                    translated);
+            }
+
+            return translated;
         }
 
         if (TryGetGeometryFunction(member, out var geometryFunctionName))
         {
-            var geometryTypeMapping = _typeMappingSource.FindMapping(returnType) as RelationalTypeMapping
-                ?? instance.TypeMapping as RelationalTypeMapping;
+            if (!_supportsMariaDbSpatialFunctions
+                && geometryFunctionName is "ST_Boundary" or "ST_PointOnSurface")
+            {
+                MySqlLoggerMessages.MissingSpatialTranslation(_logger, $"{member.DeclaringType.Name}.{member.Name}");
+                return null;
+            }
+
+            var geometryTypeMapping = _typeMappingSource.FindMapping(returnType) ?? instance.TypeMapping;
 
             return TranslateFunction(geometryFunctionName, instance, returnType, geometryTypeMapping);
         }
@@ -87,6 +119,36 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
         }
 
         return null;
+    }
+
+    private SqlExpression TranslateGeometryType(
+        SqlExpression instance
+    )
+    {
+        var databaseType = TranslateFunction(
+            "ST_GeometryType",
+            instance,
+            typeof(string),
+            s_stringMapping);
+        var typeNames = new[]
+        {
+            "Point",
+            "LineString",
+            "Polygon",
+            "MultiPoint",
+            "MultiLineString",
+            "MultiPolygon",
+            "GeometryCollection",
+        };
+        var clauses = typeNames
+            .Select(typeName => new CaseWhenClause(
+                _sqlExpressionFactory.Equal(
+                    databaseType,
+                    _sqlExpressionFactory.Constant(typeName.ToUpperInvariant(), s_stringMapping)),
+                _sqlExpressionFactory.Constant(typeName, s_stringMapping)))
+            .ToArray();
+
+        return _sqlExpressionFactory.Case(clauses, databaseType);
     }
 
     private SqlExpression TranslateFunction(

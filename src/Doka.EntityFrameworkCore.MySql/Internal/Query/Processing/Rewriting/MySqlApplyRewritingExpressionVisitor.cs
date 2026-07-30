@@ -1,19 +1,21 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Rewrites APPLY shapes that MariaDB can represent without a LATERAL derived
-/// table while preserving query cardinality or DML target-set semantics.
+/// Rewrites APPLY shapes that can be represented as ordinary joins while
+/// preserving query cardinality or DML target-set semantics.
 /// </summary>
-internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor
-    : MySqlShapedQueryTraversingExpressionVisitor
+internal sealed class MySqlApplyRewritingExpressionVisitor : MySqlShapedQueryTraversingExpressionVisitor
 {
+    private readonly bool _flattenJsonTablesOnly;
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
 
-    public MySqlMariaDbApplyRewritingExpressionVisitor(
-        ISqlExpressionFactory sqlExpressionFactory
+    public MySqlApplyRewritingExpressionVisitor(
+        ISqlExpressionFactory sqlExpressionFactory,
+        bool flattenJsonTablesOnly
     )
     {
         _sqlExpressionFactory = sqlExpressionFactory ?? throw new ArgumentNullException(nameof(sqlExpressionFactory));
+        _flattenJsonTablesOnly = flattenJsonTablesOnly;
     }
 
     protected override Expression VisitExtension(
@@ -65,6 +67,7 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor
         if (inner is null
             || inner.Alias is null
             || inner.Tables.Count != 1
+            || (_flattenJsonTablesOnly && inner.Tables[0] is not MySqlJsonTableExpression)
             || inner.IsDistinct
             || inner.GroupBy.Count > 0
             || inner.Having is not null
@@ -77,7 +80,8 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor
                 .Any()
             || table
                 .GetAnnotations()
-                .Any())
+                .Any()
+            || !CanMovePredicateToJoin(inner.Predicate))
         {
             return null;
         }
@@ -95,6 +99,7 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor
             inner.Predicate,
             MySqlTableExpressionHelper.CollectAliases(inner.Tables),
             makeNullable: table is OuterApplyExpression);
+
         var predicate = (SqlExpression?)remapper.Visit(outer.Predicate);
         var having = (SqlExpression?)remapper.Visit(outer.Having);
         var offset = (SqlExpression?)remapper.Visit(outer.Offset);
@@ -102,9 +107,11 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor
         var groupBy = outer
             .GroupBy.Select(expression => (SqlExpression)remapper.Visit(expression))
             .ToArray();
+
         var projections = outer
             .Projection.Select(projection => projection.Update((SqlExpression)remapper.Visit(projection.Expression)))
             .ToArray();
+
         var orderings = outer
             .Orderings.Select(ordering => ordering.Update((SqlExpression)remapper.Visit(ordering.Expression)))
             .ToArray();
@@ -117,10 +124,8 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor
         TableExpressionBase? rewrittenTable = table switch
         {
             CrossApplyExpression when inner.Predicate is null => new CrossJoinExpression(inner.Tables[0]),
-            CrossApplyExpression => new InnerJoinExpression(inner.Tables[0], inner.Predicate!),
-            OuterApplyExpression => new LeftJoinExpression(
-                inner.Tables[0],
-                inner.Predicate ?? _sqlExpressionFactory.Constant(true)),
+            CrossApplyExpression => new InnerJoinExpression(inner.Tables[0], CreateJoinPredicate(inner.Predicate)),
+            OuterApplyExpression => new LeftJoinExpression(inner.Tables[0], CreateJoinPredicate(inner.Predicate)),
             _ => null,
         };
 
@@ -141,6 +146,45 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor
             orderings,
             offset,
             limit);
+    }
+
+    /// <summary>
+    /// Restricts APPLY flattening to the predicate forms accepted by EF Core's join
+    /// nullability processor. Other predicates retain APPLY so the SQL generator can
+    /// either emit MySQL LATERAL or report MariaDB's documented engine boundary.
+    /// </summary>
+    internal static bool CanMovePredicateToJoin(
+        SqlExpression? predicate
+    ) => predicate switch
+    {
+        null => true,
+        SqlConstantExpression { Value: bool } => true,
+        SqlBinaryExpression
+        {
+            OperatorType: ExpressionType.Equal
+            or ExpressionType.AndAlso
+            or ExpressionType.NotEqual
+            or ExpressionType.GreaterThan
+            or ExpressionType.GreaterThanOrEqual
+            or ExpressionType.LessThan
+            or ExpressionType.LessThanOrEqual,
+        } => true,
+        _ => false,
+    };
+
+    private SqlExpression CreateJoinPredicate(
+        SqlExpression? predicate
+    )
+    {
+        if (predicate is not SqlConstantExpression { Value: bool constant })
+        {
+            return predicate
+                ?? _sqlExpressionFactory.Equal(_sqlExpressionFactory.Constant(1), _sqlExpressionFactory.Constant(1));
+        }
+
+        return _sqlExpressionFactory.Equal(
+            _sqlExpressionFactory.Constant(1),
+            _sqlExpressionFactory.Constant(constant ? 1 : 0));
     }
 
     private static Dictionary<string, SqlExpression>? CreateProjectionMap(
@@ -394,10 +438,7 @@ internal sealed class MySqlMariaDbApplyRewritingExpressionVisitor
                 [
                     new CaseWhenClause(_matchPredicate, replacementColumn),
                 ],
-                _sqlExpressionFactory.Constant(
-                    null,
-                    replacementColumn.Type,
-                    replacementColumn.TypeMapping));
+                _sqlExpressionFactory.Constant(null, replacementColumn.Type, replacementColumn.TypeMapping));
         }
     }
 

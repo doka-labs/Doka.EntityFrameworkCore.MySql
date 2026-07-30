@@ -26,6 +26,35 @@ internal static class DiscoveryContract
     ];
 
     /// <summary>
+    /// Verifies that every test in the specification namespace participates in the release
+    /// matrix through the <c>Category=Spec</c> filter.
+    /// </summary>
+    internal static IReadOnlyList<string> ValidateClassification(
+        IReadOnlyList<string> all,
+        IReadOnlyList<string> classified
+    )
+    {
+        var errors = new List<string>();
+        AddDuplicateErrors(all, "Unfiltered specification discovery", errors);
+        AddDuplicateErrors(classified, "Category=Spec discovery", errors);
+
+        var allSet = all.ToHashSet(StringComparer.Ordinal);
+        var classifiedSet = classified.ToHashSet(StringComparer.Ordinal);
+
+        foreach (var missing in allSet.Except(classifiedSet, StringComparer.Ordinal))
+        {
+            errors.Add($"Specification test '{missing}' is not classified as Category=Spec.");
+        }
+
+        foreach (var unexpected in classifiedSet.Except(allSet, StringComparer.Ordinal))
+        {
+            errors.Add($"Category=Spec discovery contains unexpected test '{unexpected}'.");
+        }
+
+        return errors;
+    }
+
+    /// <summary>
     /// Adds or replaces one target in a version-bound discovery contract.
     /// </summary>
     internal static DiscoveryContractDocument Update(
@@ -217,6 +246,21 @@ internal static class DiscoveryContract
         return separator <= 0
             ? throw new InvalidDataException($"Test ID '{testId}' has no fixture separator.")
             : testId[..separator];
+    }
+
+    private static void AddDuplicateErrors(
+        IReadOnlyList<string> testIds,
+        string source,
+        List<string> errors
+    )
+    {
+        foreach (var duplicate in testIds
+                     .GroupBy(value => value, StringComparer.Ordinal)
+                     .Where(group => group.Count() > 1)
+                     .Select(group => group.Key))
+        {
+            errors.Add($"{source} contains duplicate test ID '{duplicate}'.");
+        }
     }
 
     private static void ValidateTarget(

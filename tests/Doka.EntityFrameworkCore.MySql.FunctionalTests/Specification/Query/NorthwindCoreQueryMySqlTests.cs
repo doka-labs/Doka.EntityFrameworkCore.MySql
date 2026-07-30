@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore.TestModels.Northwind;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
 /// <summary>
@@ -40,6 +42,14 @@ public class
     public NorthwindChangeTrackingQueryMySqlTest(
         NorthwindQueryMySqlFixture<NoopModelCustomizer> fixture
     ) : base(fixture) { }
+
+    protected override NorthwindContext CreateNoTrackingContext()
+    {
+        var context = Fixture.CreateContext();
+        context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
+
+        return context;
+    }
 }
 
 /// <summary>

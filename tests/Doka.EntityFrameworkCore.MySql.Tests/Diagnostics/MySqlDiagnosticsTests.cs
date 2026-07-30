@@ -30,32 +30,25 @@ public sealed class MySqlDiagnosticsTests
     }
 
     /// <summary>
-    /// Verifies that schema-unsupported diagnostics use the provider configuration category.
+    /// Verifies that schema-unsupported diagnostics use EF Core's model-validation category.
     /// </summary>
     [Fact]
-    public void Schema_unsupported_logging_from_model_validation_uses_the_configuration_category()
+    public void Schema_unsupported_logging_uses_the_model_validation_category()
     {
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
-        var optionsBuilder = new DbContextOptionsBuilder();
-        var singletonOptions = new MySqlSingletonOptions();
+        var logger = loggerFactory.CreateLogger(DbLoggerCategory.Model.Validation.Name);
 
-        optionsBuilder.UseLoggerFactory(loggerFactory);
-        optionsBuilder.UseMySql(
-            "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)));
-
-        singletonOptions.Initialize(optionsBuilder.Options);
         MySqlLoggerMessages.SchemaUnsupported(
-            singletonOptions.ProviderLogger!,
+            logger,
             "Model",
             "<default>",
             "schema unsupported",
             "remove the schema");
 
-        var entry = sink.Entries.First(e => e.EventId.Id == MySqlEventId.SchemaUnsupported.Id);
+        var entry = Assert.Single(sink.Entries);
 
-        Assert.Equal(MySqlLoggerCategory.Configuration, entry.Category);
+        Assert.Equal(DbLoggerCategory.Model.Validation.Name, entry.Category);
         Assert.Equal(LogLevel.Error, entry.LogLevel);
     }
 
@@ -86,62 +79,48 @@ public sealed class MySqlDiagnosticsTests
     }
 
     /// <summary>
-    /// Verifies that keyed/indexed max-length diagnostics use the provider configuration category.
+    /// Verifies that keyed/indexed max-length diagnostics use EF Core's model-validation category.
     /// </summary>
     [Fact]
-    public void Keyed_or_indexed_max_length_validation_uses_the_configuration_category()
+    public void Keyed_or_indexed_max_length_validation_uses_the_model_validation_category()
     {
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
-        var optionsBuilder = new DbContextOptionsBuilder();
-        var singletonOptions = new MySqlSingletonOptions();
+        var logger = loggerFactory.CreateLogger(DbLoggerCategory.Model.Validation.Name);
 
-        optionsBuilder.UseLoggerFactory(loggerFactory);
-        optionsBuilder.UseMySql(
-            "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)));
-
-        singletonOptions.Initialize(optionsBuilder.Options);
         MySqlLoggerMessages.KeyOrIndexMaxLengthRequired(
-            singletonOptions.ProviderLogger!,
+            logger,
             "Entity",
             "Code",
             "text");
 
-        var entry = sink.Entries.First(e => e.EventId.Id == MySqlEventId.KeyOrIndexMaxLengthRequired.Id);
+        var entry = Assert.Single(sink.Entries);
 
-        Assert.Equal(MySqlLoggerCategory.Configuration, entry.Category);
+        Assert.Equal(DbLoggerCategory.Model.Validation.Name, entry.Category);
         Assert.Equal(LogLevel.Error, entry.LogLevel);
         Assert.Contains("explicit max length", entry.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
-    /// Verifies that implicit decimal precision diagnostics use the provider configuration category.
+    /// Verifies that implicit decimal precision diagnostics use EF Core's model-validation category.
     /// </summary>
     [Fact]
-    public void Implicit_decimal_precision_warning_uses_the_configuration_category()
+    public void Implicit_decimal_precision_warning_uses_the_model_validation_category()
     {
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
-        var optionsBuilder = new DbContextOptionsBuilder();
-        var singletonOptions = new MySqlSingletonOptions();
+        var logger = loggerFactory.CreateLogger(DbLoggerCategory.Model.Validation.Name);
 
-        optionsBuilder.UseLoggerFactory(loggerFactory);
-        optionsBuilder.UseMySql(
-            "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)));
-
-        singletonOptions.Initialize(optionsBuilder.Options);
         MySqlLoggerMessages.ImplicitDecimalPrecisionDefaulted(
-            singletonOptions.ProviderLogger!,
+            logger,
             "Entity",
             "Amount",
             defaultPrecision: 18,
             defaultScale: 2);
 
-        var entry = sink.Entries.First(e => e.EventId.Id == MySqlEventId.ImplicitDecimalPrecisionDefaulted.Id);
+        var entry = Assert.Single(sink.Entries);
 
-        Assert.Equal(MySqlLoggerCategory.Configuration, entry.Category);
+        Assert.Equal(DbLoggerCategory.Model.Validation.Name, entry.Category);
         Assert.Equal(LogLevel.Warning, entry.LogLevel);
         Assert.Contains("decimal(18,2)", entry.Message, StringComparison.Ordinal);
     }

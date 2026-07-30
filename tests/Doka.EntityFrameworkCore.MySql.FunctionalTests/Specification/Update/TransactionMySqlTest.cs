@@ -44,6 +44,12 @@ public sealed class TransactionMySqlTest
         protected override ITestStoreFactory TestStoreFactory =>
             MySqlTestStoreFactory.Instance;
 
+        public override DbContextOptionsBuilder AddOptions(
+            DbContextOptionsBuilder builder
+        ) => base
+            .AddOptions(builder)
+            .ConfigureWarnings(warnings => warnings.Log(RelationalEventId.MultipleCollectionIncludeWarning));
+
         public override async Task ReseedAsync()
         {
             await using var context = CreateContext();

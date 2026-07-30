@@ -23,9 +23,9 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         ArgumentNullException.ThrowIfNull(modelBuilder);
         ArgumentNullException.ThrowIfNull(context);
 
-        foreach (var entityType in modelBuilder.Metadata.GetEntityTypes())
+        foreach (var entityType in modelBuilder.Metadata.GetEntityTypes().ToArray())
         {
-            foreach (var property in entityType.GetProperties())
+            foreach (var property in entityType.GetProperties().ToArray())
             {
                 ApplyGuidFormat(property);
                 ApplyValueGenerationStrategy(entityType, property);
@@ -165,41 +165,34 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
             return;
         }
 
-        // Respect an explicit `ValueGeneratedNever()` from the user model. EF Core stores
-        // that decision on the core ValueGenerated facet; the auto-increment default below
-        // must not override it. Without this guard every integer-key entity gets
-        // AUTO_INCREMENT regardless of intent, which breaks modification-batch protocols
-        // that read back the generated key when the user provides an explicit primary key
-        // (the round-trip "fetch back the generated Id" path collides with the explicit
-        // value the user already supplied and the server reports as a duplicate-PK).
-        if (property.ValueGenerated == ValueGenerated.Never)
-        {
-            mutableProperty.SetMySqlValueGenerationStrategy(MySqlValueGenerationStrategy.None);
-            return;
-        }
-
         if (property.ClrType == typeof(Guid))
         {
-            var explicitlyGeneratedOnAdd =
-                property.ValueGenerated == ValueGenerated.OnAdd
-                && property.GetValueGeneratedConfigurationSource()
-                    is ConfigurationSource.Explicit
-                    or ConfigurationSource.DataAnnotation;
+            var generatedOnAdd = property.ValueGenerated == ValueGenerated.OnAdd;
 
             mutableProperty.SetMySqlValueGenerationStrategy(
-                explicitlyGeneratedOnAdd
+                generatedOnAdd
                     ? MySqlValueGenerationStrategy.ClientGuid
                     : MySqlValueGenerationStrategy.None);
-            mutableProperty.ValueGenerated = explicitlyGeneratedOnAdd
+            mutableProperty.ValueGenerated = generatedOnAdd
                 ? ValueGenerated.OnAdd
                 : ValueGenerated.Never;
             return;
         }
 
-        if (IsIntegerPrimaryKey(entityType, property))
+        if (IsAutoIncrementIntegerKey(entityType, property))
         {
             mutableProperty.SetMySqlValueGenerationStrategy(MySqlValueGenerationStrategy.AutoIncrement);
             mutableProperty.ValueGenerated = ValueGenerated.OnAdd;
+            return;
+        }
+
+        // Evaluate generated-key conventions before materializing None. This
+        // allows EF's convention-level ValueGenerated.Never on owned collection
+        // keys to become AUTO_INCREMENT while preserving stable metadata for
+        // every property that remains non-generated.
+        if (property.ValueGenerated == ValueGenerated.Never)
+        {
+            mutableProperty.SetMySqlValueGenerationStrategy(MySqlValueGenerationStrategy.None);
         }
     }
 
@@ -215,16 +208,30 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         _ => throw new ArgumentOutOfRangeException(nameof(strategy))
     };
 
-    private static bool IsIntegerPrimaryKey(
+    private static bool IsAutoIncrementIntegerKey(
         IReadOnlyEntityType entityType,
         IConventionProperty property
     )
     {
         var primaryKey = entityType.FindPrimaryKey();
+        var ownership = entityType.FindOwnership();
+        var isConventionallyGeneratedOwnedCollectionKey =
+            ownership is not null
+            && !ownership.Properties.Contains(property)
+            && primaryKey is not null
+            && primaryKey.Properties.Count(
+                keyProperty => !ownership.Properties.Contains(keyProperty)) == 1
+            && property.GetValueGeneratedConfigurationSource()
+                is null
+                or ConfigurationSource.Convention;
 
         if (primaryKey is null
-            || primaryKey.Properties.Count != 1
-            || primaryKey.Properties[0] != property)
+            || !primaryKey.Properties.Contains(property)
+            || (property.ValueGenerated != ValueGenerated.OnAdd
+                && !isConventionallyGeneratedOwnedCollectionKey)
+            || property.FindAnnotation(RelationalAnnotationNames.DefaultValue) is not null
+            || property.GetDefaultValueSql() is not null
+            || property.GetComputedColumnSql() is not null)
         {
             return false;
         }

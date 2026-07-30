@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 
 /// <summary>
@@ -11,6 +13,11 @@ public class MySqlTestStore : RelationalTestStore
     public const int DefaultCommandTimeout = 600;
 
     private static readonly string s_adminConnectionString = BuildAdminConnectionString();
+
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> s_initializationLocks =
+        new(StringComparer.Ordinal);
+
+    private static readonly ConcurrentDictionary<string, byte> s_initializedSharedStores = new(StringComparer.Ordinal);
 
     public MySqlTestStore(
         string name,
@@ -32,15 +39,18 @@ public class MySqlTestStore : RelationalTestStore
 
     public override DbContextOptionsBuilder AddProviderOptions(
         DbContextOptionsBuilder builder
-    ) => UseSharedConnectionInProviderOptions
-        ? builder.UseMySql(
-            Connection,
-            ServerVersion,
-            provider => provider.UseNetTopologySuite())
-        : builder.UseMySql(
-            Connection.ConnectionString,
-            ServerVersion,
-            provider => provider.UseNetTopologySuite());
+    ) => (UseSharedConnectionInProviderOptions && !UseConnectionString
+            ? builder.UseMySql(
+                Connection,
+                ServerVersion,
+                provider => provider.UseNetTopologySuite())
+            : builder.UseMySql(
+                Connection.ConnectionString,
+                ServerVersion,
+                provider => provider.UseNetTopologySuite()))
+        .ConfigureWarnings(
+            warnings => warnings.Log(
+                RelationalEventId.MultipleCollectionIncludeWarning));
 
     /// <summary>
     /// Default <see langword="true"/>: the test-store's owned <see cref="DbConnection"/> is
@@ -74,35 +84,56 @@ public class MySqlTestStore : RelationalTestStore
         Func<DbContext, Task>? clean
     )
     {
-        // Fixtures that opt into SharedStoreFixtureBase.RecreateStore=true route the framework
-        // call through the non-Shared factory path; honor that intent by dropping any leftover
-        // database so the test class starts with a verifiably empty store. Without this drop
-        // the prior run's data persists, surfacing as 'Duplicate entry' on tests that insert
-        // entities with fixed primary keys (BuiltInDataTypes, MaxLengthDataTypes, ...).
-        if (!Shared)
+        var initializationLock = s_initializationLocks.GetOrAdd(
+            Name,
+            static _ => new SemaphoreSlim(1, 1));
+        await initializationLock.WaitAsync();
+
+        var initializesSharedStore = false;
+
+        try
         {
-            await DropDatabaseAsync();
-        }
+            // A named shared store is shared only within this test process. Its database may
+            // survive from an earlier IDE or CLI run because the Docker volumes are persistent.
+            // Claiming the name once per process preserves intentional cross-fixture sharing
+            // while preventing stale rows from changing the next run's outcome.
+            initializesSharedStore = Shared
+                && s_initializedSharedStores.TryAdd(Name, 0);
 
-        var databaseFreshlyCreated = await EnsureDatabaseCreatedIfMissingAsync();
-
-        await using var context = createContext();
-
-        // Seed runs only when this init just created the database; for shared stores that
-        // already exist with a seeded state from an earlier fixture-init the data must
-        // stay put across test classes. The framework-supplied clean callback runs
-        // independently when the test explicitly asks for a per-method reset.
-        if (databaseFreshlyCreated)
-        {
-            await context.Database.EnsureCreatedResilientlyAsync();
-            if (seed is not null)
+            if (!Shared || initializesSharedStore)
             {
-                await seed(context);
+                await DropDatabaseAsync();
+            }
+
+            var databaseFreshlyCreated = await EnsureDatabaseCreatedIfMissingAsync();
+
+            await using var context = createContext();
+
+            if (databaseFreshlyCreated)
+            {
+                await context.Database.EnsureCreatedResilientlyAsync();
+                if (seed is not null)
+                {
+                    await seed(context);
+                }
+            }
+            else if (clean is not null)
+            {
+                await clean(context);
             }
         }
-        else if (clean is not null)
+        catch
         {
-            await clean(context);
+            if (initializesSharedStore)
+            {
+                s_initializedSharedStores.TryRemove(Name, out _);
+            }
+
+            throw;
+        }
+        finally
+        {
+            initializationLock.Release();
         }
     }
 

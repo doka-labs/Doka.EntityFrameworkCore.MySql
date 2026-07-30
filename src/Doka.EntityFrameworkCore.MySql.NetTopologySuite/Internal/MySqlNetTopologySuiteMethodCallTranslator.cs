@@ -8,11 +8,25 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
     private static readonly StringTypeMapping s_stringMapping = new("longtext", DbType.String, unicode: true);
     private static readonly ByteArrayTypeMapping s_binaryMapping = new("longblob", DbType.Binary);
 
+    private static readonly string[] s_coversPatterns =
+    [
+        "T*****FF*",
+        "*T****FF*",
+        "***T**FF*",
+        "****T*FF*",
+    ];
+
     private static readonly MethodInfo s_asTextMethod =
         typeof(Geometry).GetRuntimeMethod(nameof(Geometry.AsText), Type.EmptyTypes)!;
 
     private static readonly MethodInfo s_asBinaryMethod =
         typeof(Geometry).GetRuntimeMethod(nameof(Geometry.AsBinary), Type.EmptyTypes)!;
+
+    private static readonly MethodInfo s_toTextMethod =
+        typeof(Geometry).GetRuntimeMethod(nameof(Geometry.ToText), Type.EmptyTypes)!;
+
+    private static readonly MethodInfo s_toBinaryMethod =
+        typeof(Geometry).GetRuntimeMethod(nameof(Geometry.ToBinary), Type.EmptyTypes)!;
 
     private static readonly MethodInfo s_containsMethod =
         typeof(Geometry).GetRuntimeMethod(nameof(Geometry.Contains), [typeof(Geometry)])!;
@@ -38,17 +52,45 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
     private static readonly MethodInfo s_equalsTopologicallyMethod =
         typeof(Geometry).GetRuntimeMethod(nameof(Geometry.EqualsTopologically), [typeof(Geometry)])!;
 
+    private static readonly MethodInfo s_coversMethod =
+        typeof(Geometry).GetRuntimeMethod(nameof(Geometry.Covers), [typeof(Geometry)])!;
+
+    private static readonly MethodInfo s_coveredByMethod =
+        typeof(Geometry).GetRuntimeMethod(nameof(Geometry.CoveredBy), [typeof(Geometry)])!;
+
     private static readonly MethodInfo s_distanceMethod =
         typeof(Geometry).GetRuntimeMethod(nameof(Geometry.Distance), [typeof(Geometry)])!;
 
+    private static readonly MethodInfo s_isWithinDistanceMethod =
+        typeof(Geometry).GetRuntimeMethod(
+            nameof(Geometry.IsWithinDistance),
+            [
+                typeof(Geometry),
+                typeof(double),
+            ])!;
+
     private static readonly MethodInfo s_bufferMethod =
         typeof(Geometry).GetRuntimeMethod(nameof(Geometry.Buffer), [typeof(double)])!;
+
+    private static readonly MethodInfo s_bufferWithQuadrantSegmentsMethod =
+        typeof(Geometry).GetRuntimeMethod(
+            nameof(Geometry.Buffer),
+            [
+                typeof(double),
+                typeof(int),
+            ])!;
+
+    private static readonly MethodInfo s_convexHullMethod =
+        typeof(Geometry).GetRuntimeMethod(nameof(Geometry.ConvexHull), Type.EmptyTypes)!;
 
     private static readonly MethodInfo s_intersectionMethod =
         typeof(Geometry).GetRuntimeMethod(nameof(Geometry.Intersection), [typeof(Geometry)])!;
 
     private static readonly MethodInfo s_unionMethod =
         typeof(Geometry).GetRuntimeMethod(nameof(Geometry.Union), [typeof(Geometry)])!;
+
+    private static readonly MethodInfo s_unionVoidMethod =
+        typeof(Geometry).GetRuntimeMethod(nameof(Geometry.Union), Type.EmptyTypes)!;
 
     private static readonly MethodInfo s_differenceMethod =
         typeof(Geometry).GetRuntimeMethod(nameof(Geometry.Difference), [typeof(Geometry)])!;
@@ -69,6 +111,15 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
 
     private static readonly MethodInfo s_getPointNMethod =
         typeof(LineString).GetRuntimeMethod(nameof(LineString.GetPointN), [typeof(int)])!;
+
+    private static readonly MethodInfo s_getInteriorRingNMethod =
+        typeof(Polygon).GetRuntimeMethod(nameof(Polygon.GetInteriorRingN), [typeof(int)])!;
+
+    private static readonly MethodInfo s_enumerableElementAtMethod = typeof(Enumerable)
+        .GetMethods()
+        .Single(method => method is { Name: nameof(Enumerable.ElementAt), IsGenericMethodDefinition: true }
+            && method.GetParameters() is [_, { ParameterType: { } indexType }]
+            && indexType == typeof(int));
 
     private static readonly MethodInfo s_distanceSphereMethod =
         typeof(MySqlNetTopologySuiteDbFunctionsExtensions).GetRuntimeMethod(
@@ -139,27 +190,29 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
     private static readonly Dictionary<MethodInfo, string> s_geometryInstanceFunctions = new()
     {
         [s_bufferMethod] = "ST_Buffer",
+        [s_convexHullMethod] = "ST_ConvexHull",
         [s_intersectionMethod] = "ST_Intersection",
         [s_unionMethod] = "ST_Union",
         [s_differenceMethod] = "ST_Difference",
         [s_symmetricDifferenceMethod] = "ST_SymDifference",
-        [s_getGeometryNMethod] = "ST_GeometryN",
-        [s_getPointNMethod] = "ST_PointN",
     };
 
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly IRelationalTypeMappingSource _typeMappingSource;
     private readonly ILogger _logger;
+    private readonly bool _supportsMariaDbSpatialFunctions;
 
     public MySqlNetTopologySuiteMethodCallTranslator(
         ISqlExpressionFactory sqlExpressionFactory,
         IRelationalTypeMappingSource typeMappingSource,
-        ILogger logger
+        ILogger logger,
+        bool supportsMariaDbSpatialFunctions
     )
     {
         _sqlExpressionFactory = sqlExpressionFactory ?? throw new ArgumentNullException(nameof(sqlExpressionFactory));
         _typeMappingSource = typeMappingSource ?? throw new ArgumentNullException(nameof(typeMappingSource));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _supportsMariaDbSpatialFunctions = supportsMariaDbSpatialFunctions;
     }
 
     public SqlExpression? Translate(
@@ -173,13 +226,15 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
         ArgumentNullException.ThrowIfNull(arguments);
         ArgumentNullException.ThrowIfNull(logger);
 
-        if (method == s_asTextMethod
+        if (method is { } textMethod
+            && (textMethod == s_asTextMethod || textMethod == s_toTextMethod)
             && instance is not null)
         {
             return TranslateFunction("ST_AsText", typeof(string), s_stringMapping, [instance]);
         }
 
-        if (method == s_asBinaryMethod
+        if (method is { } binaryMethod
+            && (binaryMethod == s_asBinaryMethod || binaryMethod == s_toBinaryMethod)
             && instance is not null)
         {
             return TranslateFunction("ST_AsBinary", typeof(byte[]), s_binaryMapping, [instance]);
@@ -189,7 +244,22 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
             && instance is not null)
         {
             WarnIfStaticSridMismatch(instance, arguments[0]);
+            var alignedArgument = AlignStaticGeometrySrid(instance, arguments[0]);
+
             return TranslateFunction(
+                "ST_Distance",
+                typeof(double),
+                s_doubleMapping,
+                [
+                    instance,
+                    alignedArgument,
+                ]);
+        }
+
+        if (method == s_isWithinDistanceMethod
+            && instance is not null)
+        {
+            var distance = TranslateFunction(
                 "ST_Distance",
                 typeof(double),
                 s_doubleMapping,
@@ -197,11 +267,77 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
                     instance,
                     arguments[0],
                 ]);
+
+            return _sqlExpressionFactory.LessThanOrEqual(distance, arguments[1]);
+        }
+
+        if (method == s_bufferWithQuadrantSegmentsMethod
+            && instance is not null)
+        {
+            return TranslateBufferWithQuadrantSegments(instance, arguments);
+        }
+
+        if (method == s_unionVoidMethod
+            && instance is not null)
+        {
+            // MySQL exposes only the binary ST_Union form. Unioning a geometry
+            // with itself provides the same unary topological cleanup semantics.
+            return TranslateGeometryFunction(
+                "ST_Union",
+                method.ReturnType,
+                [
+                    instance,
+                    instance,
+                ]);
+        }
+
+        if (method == s_getGeometryNMethod
+            && instance is not null)
+        {
+            return TranslateOneBasedGeometryElement("ST_GeometryN", method.ReturnType, instance, arguments[0]);
+        }
+
+        if (method == s_getPointNMethod
+            && instance is not null)
+        {
+            return TranslateOneBasedGeometryElement("ST_PointN", method.ReturnType, instance, arguments[0]);
+        }
+
+        if (method == s_getInteriorRingNMethod
+            && instance is not null)
+        {
+            return TranslateOneBasedGeometryElement("ST_InteriorRingN", method.ReturnType, instance, arguments[0]);
+        }
+
+        if (method.IsGenericMethod
+            && method.GetGenericMethodDefinition() == s_enumerableElementAtMethod
+            && method.ReturnType == typeof(Geometry)
+            && arguments is [var collection, var index])
+        {
+            return TranslateOneBasedGeometryElement("ST_GeometryN", method.ReturnType, collection, index);
+        }
+
+        if (method == s_coversMethod
+            && instance is not null)
+        {
+            return TranslateCovers(instance, arguments[0]);
+        }
+
+        if (method == s_coveredByMethod
+            && instance is not null)
+        {
+            return TranslateCovers(arguments[0], instance);
         }
 
         if (method == s_relatePatternMethod
             && instance is not null)
         {
+            if (!_supportsMariaDbSpatialFunctions)
+            {
+                MySqlLoggerMessages.MissingSpatialTranslation(_logger, "Geometry.Relate");
+                return null;
+            }
+
             return TranslateFunction(
                 "ST_Relate",
                 typeof(bool),
@@ -316,6 +452,123 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
         }
 
         return null;
+    }
+
+    private SqlExpression TranslateBufferWithQuadrantSegments(
+        SqlExpression instance,
+        IReadOnlyList<SqlExpression> arguments
+    )
+    {
+        var pointsPerCircle = _sqlExpressionFactory.Multiply(
+            arguments[1],
+            _sqlExpressionFactory.Constant(4, s_intMapping));
+
+        var strategyName = typeof(Point).IsAssignableFrom(instance.Type)
+            || typeof(MultiPoint).IsAssignableFrom(instance.Type)
+                ? "point_circle"
+                : "join_round";
+
+        var strategy = TranslateFunction(
+            "ST_Buffer_Strategy",
+            typeof(byte[]),
+            s_binaryMapping,
+            [
+                _sqlExpressionFactory.Constant(strategyName, s_stringMapping),
+                pointsPerCircle,
+            ]);
+
+        return TranslateGeometryFunction(
+            "ST_Buffer",
+            returnType: typeof(Geometry),
+            [
+                instance,
+                arguments[0],
+                strategy,
+            ]);
+    }
+
+    private SqlExpression TranslateOneBasedGeometryElement(
+        string functionName,
+        Type returnType,
+        SqlExpression instance,
+        SqlExpression zeroBasedIndex
+    ) => TranslateGeometryFunction(
+        functionName,
+        returnType,
+        [
+            instance,
+            _sqlExpressionFactory.Add(zeroBasedIndex, _sqlExpressionFactory.Constant(1, s_intMapping)),
+        ]);
+
+    private SqlExpression TranslateCovers(
+        SqlExpression coveringGeometry,
+        SqlExpression coveredGeometry
+    )
+    {
+        if (_supportsMariaDbSpatialFunctions)
+        {
+            // MariaDB exposes DE-9IM relation matching but no ST_Covers function.
+            // The four OGC covers patterns include interior, boundary, and equality
+            // cases without relying on MariaDB's incomplete mixed-dimension difference.
+            return s_coversPatterns
+                .Select(pattern => TranslateFunction(
+                    "ST_Relate",
+                    typeof(bool),
+                    s_boolMapping,
+                    [
+                        coveringGeometry,
+                        coveredGeometry,
+                        _sqlExpressionFactory.Constant(pattern, s_stringMapping),
+                    ]))
+                .Aggregate(_sqlExpressionFactory.OrElse);
+        }
+
+        var difference = TranslateGeometryFunction(
+            "ST_Difference",
+            typeof(Geometry),
+            [
+                coveredGeometry,
+                coveringGeometry,
+            ]);
+
+        return TranslateFunction("ST_IsEmpty", typeof(bool), s_boolMapping, [difference]);
+    }
+
+    private SqlExpression AlignStaticGeometrySrid(
+        SqlExpression referenceGeometry,
+        SqlExpression geometry
+    )
+    {
+        if (geometry is not SqlConstantExpression)
+        {
+            return geometry;
+        }
+
+        var referenceSrid = TranslateFunction("ST_SRID", typeof(int), s_intMapping, [referenceGeometry]);
+
+        if (_supportsMariaDbSpatialFunctions)
+        {
+            // MariaDB's ST_SRID is getter-only. Reconstructing the same WKB with the
+            // reference SRID preserves coordinates while using MariaDB's documented
+            // optional-SRID constructor.
+            var binary = TranslateFunction("ST_AsWKB", typeof(byte[]), s_binaryMapping, [geometry]);
+
+            return TranslateGeometryFunction(
+                "ST_GeomFromWKB",
+                geometry.Type,
+                [
+                    binary,
+                    referenceSrid,
+                ]);
+        }
+
+        return TranslateGeometryFunction(
+            "ST_SRID",
+            geometry.Type,
+            [
+                geometry,
+                referenceSrid,
+            ]);
     }
 
     private SqlExpression TranslateGeometryFunction(

@@ -6,10 +6,10 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 public sealed class MySqlValueGenerationAndGuidFormatTests
 {
     /// <summary>
-    /// Verifies that integer keys default to auto-increment while GUID keys do not generate implicitly.
+    /// Verifies the conventional value-generation strategies for integer and GUID keys.
     /// </summary>
     [Fact]
-    public void Model_defaults_integer_keys_to_autoincrement_and_guid_keys_to_none()
+    public void Model_defaults_integer_keys_to_autoincrement_and_guid_keys_to_client_generation()
     {
         using var context = new ValueGenerationContext(CreateOptions());
         var intKeyProperty = context.Model.FindEntityType(typeof(IntKeyEntity))!.FindProperty(nameof(IntKeyEntity.Id))!;
@@ -18,8 +18,8 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
 
         Assert.Equal(MySqlValueGenerationStrategy.AutoIncrement, intKeyProperty.GetMySqlValueGenerationStrategy());
         Assert.Equal(ValueGenerated.OnAdd, intKeyProperty.ValueGenerated);
-        Assert.Equal(MySqlValueGenerationStrategy.None, guidKeyProperty.GetMySqlValueGenerationStrategy());
-        Assert.Equal(ValueGenerated.Never, guidKeyProperty.ValueGenerated);
+        Assert.Equal(MySqlValueGenerationStrategy.ClientGuid, guidKeyProperty.GetMySqlValueGenerationStrategy());
+        Assert.Equal(ValueGenerated.OnAdd, guidKeyProperty.ValueGenerated);
     }
 
     /// <summary>
@@ -49,7 +49,8 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
         context.Add(nonGeneratedEntity);
 
         Assert.NotEqual(Guid.Empty, generatedEntity.Id);
-        Assert.Equal(Guid.Empty, nonGeneratedEntity.Id);
+        Assert.NotEqual(Guid.Empty, nonGeneratedEntity.Id);
+        Assert.Equal(7, nonGeneratedEntity.Id.Version);
     }
 
     /// <summary>

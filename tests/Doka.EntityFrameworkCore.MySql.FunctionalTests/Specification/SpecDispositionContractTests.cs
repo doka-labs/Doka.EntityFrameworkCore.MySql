@@ -9,6 +9,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification;
 /// database. The tests reconcile executable skips with the machine-readable disposition
 /// ledger and reject undocumented or provider-owned gaps.
 /// </summary>
+[Trait("Category", "Spec")]
 public class SpecDispositionContractTests
 {
     private static readonly string[] s_activeClassifications =
@@ -21,6 +22,7 @@ public class SpecDispositionContractTests
     private static readonly string[] s_supportedSuites =
     [
         "bulk-updates",
+        "change-tracking",
         "migrations",
         "model-building",
         "query",
@@ -46,6 +48,68 @@ public class SpecDispositionContractTests
     public void Missing_specification_target_defaults_to_mysql84()
     {
         Assert.Equal("mysql84", SpecTestTarget.Resolve(configuredTarget: null));
+    }
+
+    /// <summary>
+    /// Guards patch-version inheritance chains in which an intermediate override carries
+    /// no xUnit rows and the authoritative theory data lives on a more distant base.
+    /// </summary>
+    [Fact]
+    public void Inherited_theory_data_uses_the_nearest_data_bearing_base_declaration()
+    {
+        var method = typeof(Query.Associations.OwnedNavigationsProjectionMySqlTest).GetMethod(
+            nameof(Query.Associations.OwnedNavigationsProjectionMySqlTest
+                .Select_subquery_optional_related_FirstOrDefault))!;
+        var attribute = method.GetCustomAttribute<InheritedTheoryDataAttribute>()!;
+
+        Assert.NotEmpty(attribute.GetData(method));
+    }
+
+    /// <summary>
+    /// Prevents an upstream <c>Skip</c> from entering the provider matrix without a
+    /// provider-owned activation or an executable disposition.
+    /// </summary>
+    [Fact]
+    public void Specification_types_do_not_inherit_upstream_skips()
+    {
+        using var ledger = LoadLedger();
+        var dispositionedInheritedMethods = ledger
+            .RootElement.GetProperty("activeDispositions")
+            .EnumerateArray()
+            .SelectMany(InheritedUpstreamMethods)
+            .ToHashSet(StringComparer.Ordinal);
+        var inheritedSkips = typeof(SpecDispositionContractTests)
+            .Assembly.GetTypes()
+            .Where(type =>
+                type.IsClass
+                && !type.IsAbstract
+                && type.Namespace?.StartsWith(
+                    "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification",
+                    StringComparison.Ordinal)
+                == true)
+            .SelectMany(type => type
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                .Where(method => method.DeclaringType?.Assembly != typeof(SpecDispositionContractTests).Assembly)
+                .Where(method => method
+                    .GetCustomAttributes<FactAttribute>(inherit: false)
+                    .Any(attribute => !string.IsNullOrWhiteSpace(attribute.Skip)))
+                .Select(method => new
+                {
+                    ProviderType = type,
+                    Method = method,
+                }))
+            .Where(item => !MatchesInheritedDisposition(item.ProviderType, item.Method, dispositionedInheritedMethods))
+            .OrderBy(item => item.ProviderType.FullName, StringComparer.Ordinal)
+            .ThenBy(item => item.Method.Name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(
+            inheritedSkips.Length == 0,
+            "Provider specification types inherit upstream skips:"
+            + Environment.NewLine
+            + string.Join(
+                Environment.NewLine,
+                inheritedSkips.Select(item => FormatInheritedSkip(item.ProviderType, item.Method))));
     }
 
     /// <summary>
@@ -116,6 +180,14 @@ public class SpecDispositionContractTests
                     testId,
                     StringComparison.Ordinal));
             Assert.False(string.IsNullOrWhiteSpace(RequiredString(disposition, "reevaluateWhen")));
+
+            if (disposition.TryGetProperty("execution", out var execution))
+            {
+                Assert.Equal("inherited-upstream-skip", execution.GetString());
+                Assert.Equal(
+                    StringValues(disposition.GetProperty("testMethods")).OrderBy(value => value),
+                    InheritedUpstreamMethods(disposition).OrderBy(value => value));
+            }
 
             if (classification == "not-applicable")
             {
@@ -350,12 +422,7 @@ public class SpecDispositionContractTests
             .OrderBy(value => value)
             .ToArray();
         var inheritedUpstreamFrameworkMethods = frameworkDispositions.Values
-            .SelectMany(disposition =>
-                disposition.TryGetProperty(
-                    "inheritedUpstreamTestMethods",
-                    out var inheritedMethods)
-                        ? StringValues(inheritedMethods)
-                        : [])
+            .SelectMany(InheritedUpstreamMethods)
             .OrderBy(value => value)
             .ToArray();
         Assert.All(
@@ -469,6 +536,44 @@ public class SpecDispositionContractTests
     private static string LedgerMethodName(
         MethodInfo method
     ) => $"{method.DeclaringType!.Name}.{method.Name}";
+
+    private static string FormatInheritedSkip(
+        Type providerType,
+        MethodInfo method
+    ) => string.Join(
+        "|",
+        providerType.FullName,
+        method.ReturnType.FullName,
+        method.Name,
+        string.Join(",", method.GetParameters().Select(parameter => $"{parameter.ParameterType.FullName} {parameter.Name}")));
+
+    private static bool MatchesInheritedDisposition(
+        Type providerType,
+        MethodInfo method,
+        IReadOnlySet<string> dispositionedMethods
+    )
+    {
+        foreach (var identifier in dispositionedMethods)
+        {
+            var separator = identifier.LastIndexOf('.');
+            if (separator < 0
+                || identifier[(separator + 1)..] != method.Name)
+            {
+                continue;
+            }
+
+            var declaringTypeName = identifier[..separator];
+            for (var type = providerType; type is not null; type = type.BaseType)
+            {
+                if (type.Name == declaringTypeName)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     private static bool IsMethodDisplayId(
         string testId,
@@ -610,6 +715,23 @@ public class SpecDispositionContractTests
                 && source.Contains(
                     "/src/",
                     StringComparison.Ordinal));
+    }
+
+    private static IReadOnlyList<string> InheritedUpstreamMethods(
+        JsonElement disposition
+    )
+    {
+        if (disposition.TryGetProperty("execution", out var execution)
+            && execution.GetString() == "inherited-upstream-skip")
+        {
+            return StringValues(disposition.GetProperty("testMethods"));
+        }
+
+        return disposition.TryGetProperty(
+            "inheritedUpstreamTestMethods",
+            out var inheritedMethods)
+                ? StringValues(inheritedMethods)
+                : [];
     }
 
     private static void ValidateProbe(

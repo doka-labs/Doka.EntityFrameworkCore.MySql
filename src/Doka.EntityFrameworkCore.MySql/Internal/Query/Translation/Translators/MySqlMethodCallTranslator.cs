@@ -697,7 +697,11 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
             typeof(string),
             instance.TypeMapping);
 
-        return _sqlExpressionFactory.Equal(leftExpression, argument);
+        return _sqlExpressionFactory.AndAlso(
+            _sqlExpressionFactory.IsNotNull(instance),
+            _sqlExpressionFactory.AndAlso(
+                _sqlExpressionFactory.IsNotNull(argument),
+                _sqlExpressionFactory.Equal(leftExpression, argument)));
     }
 
     private SqlExpression TranslateEndsWith(
@@ -717,7 +721,11 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
             typeof(string),
             instance.TypeMapping);
 
-        return _sqlExpressionFactory.Equal(rightExpression, argument);
+        return _sqlExpressionFactory.AndAlso(
+            _sqlExpressionFactory.IsNotNull(instance),
+            _sqlExpressionFactory.AndAlso(
+                _sqlExpressionFactory.IsNotNull(argument),
+                _sqlExpressionFactory.Equal(rightExpression, argument)));
     }
 
     private SqlExpression TranslateSingleArgumentFunction(

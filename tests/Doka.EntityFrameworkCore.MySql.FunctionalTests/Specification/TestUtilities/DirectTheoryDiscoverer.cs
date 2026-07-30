@@ -5,9 +5,9 @@ using Xunit.Sdk;
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 
 /// <summary>
-/// Discovers specification theories from data attributes declared directly on the provider
-/// override. EF Core specification base classes use inheritable data attributes; consuming
-/// both inherited and direct attributes would create duplicate test IDs.
+/// Discovers specification theories from one unambiguous data source. Direct provider rows
+/// take precedence; an override without rows inherits them from the nearest data-bearing base
+/// declaration. The discoverer never combines both sources, which prevents duplicate test IDs.
 /// </summary>
 public sealed class DirectTheoryDiscoverer : TheoryDiscoverer
 {
@@ -25,8 +25,9 @@ public sealed class DirectTheoryDiscoverer : TheoryDiscoverer
 
     /// <summary>
     /// Produces one skipped case when the current engine target is unsupported. On supported
-    /// targets it creates exactly one case per directly declared <see cref="InlineDataAttribute"/>
-    /// row and intentionally excludes inherited EF Core data attributes.
+    /// targets it creates exactly one case per direct data row, or per row on the nearest
+    /// data-bearing base declaration when the provider override only changes executable
+    /// metadata.
     /// </summary>
     /// <param name="discoveryOptions">Current xUnit discovery options.</param>
     /// <param name="testMethod">Provider override being discovered.</param>
@@ -62,10 +63,24 @@ public sealed class DirectTheoryDiscoverer : TheoryDiscoverer
         }
 
         var methodInfo = reflectionMethod.MethodInfo;
-        var dataRows = methodInfo
-            .GetCustomAttributes<InlineDataAttribute>(inherit: false)
-            .SelectMany(attribute => attribute.GetData(methodInfo))
+        var dataMethod = methodInfo;
+        var dataAttributes = methodInfo
+            .GetCustomAttributes<DataAttribute>(inherit: false)
             .ToArray();
+
+        if (dataAttributes.Length == 0)
+        {
+            dataMethod = TheoryDataInheritance.FindNearestDataDeclaration(methodInfo)
+                ?? methodInfo;
+            dataAttributes = dataMethod
+                .GetCustomAttributes<DataAttribute>(inherit: false)
+                .ToArray();
+        }
+
+        var dataRows = dataAttributes
+            .SelectMany(attribute => attribute.GetData(dataMethod))
+            .ToArray();
+
         if (dataRows.Length == 0)
         {
             return
@@ -75,7 +90,8 @@ public sealed class DirectTheoryDiscoverer : TheoryDiscoverer
                     discoveryOptions.MethodDisplayOrDefault(),
                     discoveryOptions.MethodDisplayOptionsOrDefault(),
                     testMethod,
-                    "Direct-data theories require directly declared InlineData rows."),
+                    "Direct-data theories require rows on the provider override "
+                    + "or a matching base declaration."),
             ];
         }
 

@@ -7,6 +7,10 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     // fit below the 3,072-byte index limit of every supported engine.
     private const int DefaultKeyOrIndexLength = 255;
 
+    // utf8mb4 may require four bytes per character. MySQL limits a VARCHAR
+    // column to 65,535 bytes, so larger implicit strings must use a text type.
+    private const int MaximumUtf8Mb4VarCharLength = 16383;
+
     private const int DefaultDateTimePrecision = 6;
     private const int DefaultTimePrecision = 6;
 
@@ -247,6 +251,12 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     )
     {
         var clrType = mappingInfo.ClrType?.UnwrapNullableType();
+
+        if (clrType == typeof(byte[])
+            && mappingInfo.ElementTypeMapping is not null)
+        {
+            return base.FindMapping(mappingInfo);
+        }
 
         if (clrType == typeof(MySqlServerVersion))
         {
@@ -527,16 +537,32 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
 
         if (isFixedLength)
         {
-            return new StringTypeMapping(
+            return new MySqlStringTypeMapping(
                 $"char({size})",
                 DbType.StringFixedLength,
                 unicode: true,
-                size);
+                size,
+                useKeyComparison: mappingInfo.IsKeyOrIndex);
+        }
+
+        if (normalizedStoreType is null
+            && size > MaximumUtf8Mb4VarCharLength)
+        {
+            return (StringTypeMapping)s_stringMapping;
         }
 
         return size is > 0
-            ? new StringTypeMapping($"varchar({size.Value})", DbType.String, unicode: true, size.Value)
-            : new StringTypeMapping("longtext", DbType.String, unicode: true);
+            ? new MySqlStringTypeMapping(
+                $"varchar({size.Value})",
+                DbType.String,
+                unicode: true,
+                size.Value,
+                useKeyComparison: mappingInfo.IsKeyOrIndex)
+            : new MySqlStringTypeMapping(
+                "longtext",
+                DbType.String,
+                unicode: true,
+                useKeyComparison: mappingInfo.IsKeyOrIndex);
     }
 
     private ByteArrayTypeMapping CreateByteArrayMapping(

@@ -28,12 +28,14 @@ public static class MySqlDbContextOptionsBuilderExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         ArgumentNullException.ThrowIfNull(serverVersion);
 
+        ConfigureWarnings(optionsBuilder);
+
         var extension = GetOrCreateExtension(optionsBuilder)
             .WithConnectionString(connectionString)
             .WithServerVersion(serverVersion);
 
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
-        mySqlOptionsAction?.Invoke(new MySqlDbContextOptionsBuilder(optionsBuilder, extension));
+        mySqlOptionsAction?.Invoke(new MySqlDbContextOptionsBuilder(optionsBuilder));
 
         return optionsBuilder;
     }
@@ -61,12 +63,14 @@ public static class MySqlDbContextOptionsBuilderExtensions
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(serverVersion);
 
+        ConfigureWarnings(optionsBuilder);
+
         var extension = GetOrCreateExtension(optionsBuilder)
             .WithConnection(connection)
             .WithServerVersion(serverVersion);
 
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
-        mySqlOptionsAction?.Invoke(new MySqlDbContextOptionsBuilder(optionsBuilder, extension));
+        mySqlOptionsAction?.Invoke(new MySqlDbContextOptionsBuilder(optionsBuilder));
 
         return optionsBuilder;
     }
@@ -94,12 +98,14 @@ public static class MySqlDbContextOptionsBuilderExtensions
         ArgumentNullException.ThrowIfNull(dataSource);
         ArgumentNullException.ThrowIfNull(serverVersion);
 
+        ConfigureWarnings(optionsBuilder);
+
         var extension = GetOrCreateExtension(optionsBuilder)
             .WithDataSource(dataSource)
             .WithServerVersion(serverVersion);
 
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
-        mySqlOptionsAction?.Invoke(new MySqlDbContextOptionsBuilder(optionsBuilder, extension));
+        mySqlOptionsAction?.Invoke(new MySqlDbContextOptionsBuilder(optionsBuilder));
 
         return optionsBuilder;
     }
@@ -191,4 +197,16 @@ public static class MySqlDbContextOptionsBuilderExtensions
     private static MySqlOptionsExtension GetOrCreateExtension(
         DbContextOptionsBuilder optionsBuilder
     ) => optionsBuilder.Options.FindExtension<MySqlOptionsExtension>() ?? new MySqlOptionsExtension();
+
+    private static void ConfigureWarnings(
+        DbContextOptionsBuilder optionsBuilder
+    )
+    {
+        var coreOptionsExtension =
+            optionsBuilder.Options.FindExtension<CoreOptionsExtension>() ?? new CoreOptionsExtension();
+
+        coreOptionsExtension = RelationalOptionsExtension.WithDefaultWarningConfiguration(coreOptionsExtension);
+
+        ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(coreOptionsExtension);
+    }
 }

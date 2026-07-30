@@ -171,6 +171,7 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
         {
             CreateTableColumns(operation, model, builder);
             CreateTableConstraints(operation, model, builder);
+            AppendAutoIncrementSupportingIndex(operation, builder);
         }
 
         builder.Append(")");
@@ -860,6 +861,56 @@ internal sealed class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 
         return operation.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
             ?.Value is MySqlValueGenerationStrategy.AutoIncrement;
+    }
+
+    /// <summary>
+    /// Adds the leading index required for a generated column that appears
+    /// after an owner foreign key in an EF composite primary key.
+    /// </summary>
+    /// <remarks>
+    /// The logical primary-key order remains unchanged because nested owned
+    /// types can reference that exact order. MySQL and MariaDB only require
+    /// the <c>AUTO_INCREMENT</c> column to lead any index.
+    ///
+    /// Primary sources, retrieved 2026-07-29:
+    /// https://dev.mysql.com/doc/refman/8.4/en/example-auto-increment.html
+    /// https://mariadb.com/docs/server/reference/data-types/auto_increment
+    /// </remarks>
+    private void AppendAutoIncrementSupportingIndex(
+        CreateTableOperation operation,
+        MigrationCommandListBuilder builder
+    )
+    {
+        var autoIncrementColumns = operation
+            .Columns.Where(IsAutoIncrementColumn)
+            .ToArray();
+
+        if (autoIncrementColumns.Length > 1)
+        {
+            throw new InvalidOperationException(
+                $"Table '{operation.Name}' declares more than one AUTO_INCREMENT column.");
+        }
+
+        if (autoIncrementColumns.Length == 0)
+        {
+            return;
+        }
+
+        var columnName = autoIncrementColumns[0].Name;
+        var alreadyLeadsIndex = operation.PrimaryKey?.Columns.FirstOrDefault() == columnName
+            || operation.UniqueConstraints.Any(constraint => constraint.Columns.FirstOrDefault() == columnName)
+            || operation.ForeignKeys.Any(foreignKey => foreignKey.Columns.FirstOrDefault() == columnName);
+
+        if (alreadyLeadsIndex)
+        {
+            return;
+        }
+
+        builder
+            .AppendLine(",")
+            .Append("INDEX (")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(columnName))
+            .Append(")");
     }
 
     private static bool IsJsonColumn(

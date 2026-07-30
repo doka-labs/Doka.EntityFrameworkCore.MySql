@@ -7,6 +7,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal sealed class MySqlQueryCompilationContext : RelationalQueryCompilationContext
 {
+    private const string LazyLoadingProxyAnnotation = "Proxies:LazyLoading";
+
     /// <summary>
     /// Initializes a context for a regular query compilation.
     /// </summary>
@@ -38,13 +40,16 @@ internal sealed class MySqlQueryCompilationContext : RelationalQueryCompilationC
     /// Gets whether the current query must buffer its result before issuing another command.
     /// </summary>
     /// <remarks>
-    /// MySqlConnector permits only one active reader per connection. Split queries therefore
-    /// buffer each result set before EF Core executes the next command on that connection.
-    /// Single queries retain EF Core's streaming behavior.
+    /// MySqlConnector permits only one active reader per connection. Split queries buffer
+    /// each result set before EF Core executes the next command. Lazy-loading proxy queries
+    /// also buffer because relationship fixup or a client projection can re-enter the
+    /// connection while the root entity is being materialized. Other single queries retain
+    /// EF Core's streaming behavior.
     /// </remarks>
     public override bool IsBuffering =>
         base.IsBuffering
-        || QuerySplittingBehavior == global::Microsoft.EntityFrameworkCore.QuerySplittingBehavior.SplitQuery;
+        || QuerySplittingBehavior == global::Microsoft.EntityFrameworkCore.QuerySplittingBehavior.SplitQuery
+        || Model.FindAnnotation(LazyLoadingProxyAnnotation)?.Value is true;
 
     /// <summary>
     /// Gets whether the provider can generate precompiled queries.

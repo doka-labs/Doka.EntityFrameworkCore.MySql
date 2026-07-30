@@ -36,9 +36,8 @@ internal sealed class MySqlExecutionStrategy : ExecutionStrategy
             ?? throw new ArgumentNullException(nameof(transientExceptionDetector));
 
         _logger = dependencies
-                .Options.FindExtension<CoreOptionsExtension>()
-                ?.LoggerFactory?.CreateLogger(MySqlLoggerCategory.Resilience)
-            ?? singletonOptions.ResilienceLogger;
+            .Options.FindExtension<CoreOptionsExtension>()
+            ?.LoggerFactory?.CreateLogger(MySqlLoggerCategory.Resilience);
     }
 
     protected override TimeSpan? GetNextDelay(

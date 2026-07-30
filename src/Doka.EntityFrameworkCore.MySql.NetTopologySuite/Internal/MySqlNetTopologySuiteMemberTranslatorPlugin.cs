@@ -5,19 +5,27 @@ internal sealed class MySqlNetTopologySuiteMemberTranslatorPlugin : IMemberTrans
     public MySqlNetTopologySuiteMemberTranslatorPlugin(
         ISqlExpressionFactory sqlExpressionFactory,
         IRelationalTypeMappingSource typeMappingSource,
-        ILoggerFactory loggerFactory
+        ILoggerFactory loggerFactory,
+        IEnumerable<ISingletonOptions> singletonOptions
     )
     {
         ArgumentNullException.ThrowIfNull(sqlExpressionFactory);
         ArgumentNullException.ThrowIfNull(typeMappingSource);
         ArgumentNullException.ThrowIfNull(loggerFactory);
+        ArgumentNullException.ThrowIfNull(singletonOptions);
+
+        var supportsMariaDbSpatialFunctions = singletonOptions
+            .OfType<MySqlSingletonOptions>()
+            .Single()
+            .Profile?.Family == EngineFamily.MariaDb;
 
         Translators =
         [
             new MySqlNetTopologySuiteMemberTranslator(
                 sqlExpressionFactory,
                 typeMappingSource,
-                loggerFactory.CreateLogger(MySqlLoggerCategory.Spatial)),
+                loggerFactory.CreateLogger(MySqlLoggerCategory.Spatial),
+                supportsMariaDbSpatialFunctions),
         ];
     }
 

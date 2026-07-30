@@ -46,6 +46,22 @@ public sealed class MySqlValueGenerationConventionTests
     }
 
     /// <summary>
+    /// Ordinary non-generated properties retain the explicit provider <c>None</c>
+    /// strategy used by migration snapshots.
+    /// </summary>
+    [Fact]
+    public void Convention_non_generated_property_retains_none_strategy()
+    {
+        using var context = new ConventionContext();
+        var property = context.Model
+            .FindEntityType(typeof(DefaultKeyEntity))!
+            .FindProperty(nameof(DefaultKeyEntity.Name))!;
+
+        Assert.Equal(ValueGenerated.Never, property.ValueGenerated);
+        Assert.Equal(MySqlValueGenerationStrategy.None, property.GetMySqlValueGenerationStrategy());
+    }
+
+    /// <summary>
     /// An integer model key converted to text is not an integer store column
     /// and therefore cannot use MySQL AUTO_INCREMENT.
     /// </summary>
@@ -88,6 +104,69 @@ public sealed class MySqlValueGenerationConventionTests
         Assert.Equal(
             MySqlValueGenerationStrategy.AutoIncrement,
             enumProperty.GetMySqlValueGenerationStrategy());
+    }
+
+    /// <summary>
+    /// A relational default is a distinct store-generation contract and must
+    /// not be replaced with AUTO_INCREMENT merely because the property is an
+    /// integer member of a composite primary key.
+    /// </summary>
+    [Fact]
+    public void Defaulted_composite_key_member_does_not_use_AUTO_INCREMENT()
+    {
+        using var context = new ConventionContext();
+        var property = context.Model
+            .FindEntityType(typeof(DefaultedCompositeKeyEntity))!
+            .FindProperty(nameof(DefaultedCompositeKeyEntity.PrimaryGroup))!;
+
+        Assert.Null(property.GetMySqlValueGenerationStrategy());
+        Assert.DoesNotContain(
+            "`PrimaryGroup` int NOT NULL AUTO_INCREMENT",
+            context.Database.GenerateCreateScript(),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A late <c>HasKey("Id")</c> override on an <c>OwnsMany</c> element can
+    /// leave EF's convention-level value-generation facet at
+    /// <c>ValueGenerated.Never</c>. The provider must still recognize the
+    /// sole non-owner integer key as generated and emit the leading index
+    /// required by MySQL-family engines.
+    /// </summary>
+    [Fact]
+    public void Owned_collection_shadow_key_uses_AUTO_INCREMENT()
+    {
+        using var context = new ConventionContext();
+        var property = context.Model
+            .GetEntityTypes()
+            .Single(entityType => entityType.ClrType == typeof(OwnedCollectionElement))
+            .FindProperty("Id")!;
+        var script = context.Database.GenerateCreateScript();
+
+        Assert.Equal(
+            MySqlValueGenerationStrategy.AutoIncrement,
+            property.GetMySqlValueGenerationStrategy());
+        Assert.Contains(
+            "`Id` int NOT NULL AUTO_INCREMENT",
+            script,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A generated integer that follows its owner foreign key in a composite
+    /// primary key needs a separate leading index without changing the logical
+    /// primary-key order.
+    /// </summary>
+    [Fact]
+    public void Composite_owned_collection_key_gets_supporting_index()
+    {
+        using var context = new ConventionContext();
+        var script = context.Database.GenerateCreateScript();
+
+        Assert.Contains(
+            "INDEX (`Id`)",
+            script,
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -138,6 +217,36 @@ public sealed class MySqlValueGenerationConventionTests
     private sealed class EnumKeyEntity
     {
         public ConventionKey Id { get; set; }
+    }
+
+    private sealed class DefaultedCompositeKeyEntity
+    {
+        public int TargetId { get; set; }
+
+        public int SourceId { get; set; }
+
+        public int PrimaryGroup { get; set; }
+    }
+
+    private sealed class OwnedCollectionOwner
+    {
+        public int Id { get; set; }
+
+        public ICollection<OwnedCollectionElement> Elements { get; } =
+            new List<OwnedCollectionElement>();
+
+        public ICollection<CompositeOwnedCollectionElement> CompositeElements { get; } =
+            new List<CompositeOwnedCollectionElement>();
+    }
+
+    private sealed class OwnedCollectionElement
+    {
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class CompositeOwnedCollectionElement
+    {
+        public string Name { get; set; } = string.Empty;
     }
 
     private sealed class GuidStringPrincipal
@@ -214,6 +323,43 @@ public sealed class MySqlValueGenerationConventionTests
             {
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Id).ValueGeneratedOnAdd();
+            });
+
+            modelBuilder.Entity<DefaultedCompositeKeyEntity>(entity =>
+            {
+                entity.HasKey(
+                    e => new
+                    {
+                        e.TargetId,
+                        e.SourceId,
+                        e.PrimaryGroup,
+                    });
+                entity
+                    .Property(e => e.PrimaryGroup)
+                    .HasDefaultValue(1);
+            });
+
+            modelBuilder.Entity<OwnedCollectionOwner>(entity =>
+            {
+                entity.OwnsMany(
+                    e => e.Elements,
+                    owned =>
+                    {
+                        owned.HasKey("Id");
+                        owned.Property(e => e.Name).IsRequired();
+                    });
+
+                entity.OwnsMany(
+                    e => e.CompositeElements,
+                    owned =>
+                    {
+                        owned
+                            .WithOwner()
+                            .HasForeignKey("OwnerId");
+                        owned.Property<int>("Id").ValueGeneratedOnAdd();
+                        owned.HasKey("OwnerId", "Id");
+                        owned.Property(e => e.Name).IsRequired();
+                    });
             });
 
             modelBuilder.Entity<GuidStringPrincipal>(entity =>

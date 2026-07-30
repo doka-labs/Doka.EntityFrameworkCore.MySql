@@ -2,19 +2,10 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlModelValidator : RelationalModelValidator
 {
-    private readonly MySqlSingletonOptions _mySqlSingletonOptions;
-
     public MySqlModelValidator(
         ModelValidatorDependencies dependencies,
-        RelationalModelValidatorDependencies relationalDependencies,
-        IEnumerable<ISingletonOptions> singletonOptions
-    ) : base(dependencies, relationalDependencies)
-    {
-        ArgumentNullException.ThrowIfNull(singletonOptions);
-        _mySqlSingletonOptions = singletonOptions
-            .OfType<MySqlSingletonOptions>()
-            .Single();
-    }
+        RelationalModelValidatorDependencies relationalDependencies
+    ) : base(dependencies, relationalDependencies) { }
 
     public override void Validate(
         IModel model,
@@ -25,13 +16,17 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
         ArgumentNullException.ThrowIfNull(logger);
 
         base.Validate(model, logger);
-        var providerLogger = _mySqlSingletonOptions.ProviderLogger ?? logger.Logger;
 
-        ValidateSequenceSchema(model, providerLogger);
-        ValidateKeyedAndIndexedPropertyLengths(model, providerLogger);
-        ValidateDecimalPrecision(model, providerLogger);
-        ValidateConstraintNameLengths(model, providerLogger);
-        ValidateSpatialIndexes(model, providerLogger);
+        // EF supplies this scoped logger for the active model-validation
+        // operation. A singleton validator must not retain a logger created
+        // from another context's options.
+        var modelValidationLogger = logger.Logger;
+
+        ValidateSequenceSchema(model, modelValidationLogger);
+        ValidateKeyedAndIndexedPropertyLengths(model, modelValidationLogger);
+        ValidateDecimalPrecision(model, modelValidationLogger);
+        ValidateConstraintNameLengths(model, modelValidationLogger);
+        ValidateSpatialIndexes(model, modelValidationLogger);
     }
 
     private static void ValidateSequenceSchema(

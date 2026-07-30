@@ -8,9 +8,13 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Tra
 /// Connects the official EF Core basic-types model and seed data to the shared MySQL
 /// specification-test store.
 /// </summary>
-public sealed class BasicTypesQueryMySqlFixture : BasicTypesQueryFixtureBase
+public sealed class BasicTypesQueryMySqlFixture
+    : BasicTypesQueryFixtureBase,
+        ITestSqlLoggerFactory
 {
     private ISetSource? _expectedData;
+
+    public TestSqlLoggerFactory TestSqlLoggerFactory => (TestSqlLoggerFactory)ListLoggerFactory;
 
     protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 

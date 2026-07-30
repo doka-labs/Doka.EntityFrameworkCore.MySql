@@ -15,6 +15,7 @@ trap cleanup EXIT
 
 for discovery_target in "${discovery_targets[@]}"; do
     discovery_output="${discovery_directory}/${discovery_target}.txt"
+    all_specification_output="${discovery_directory}/${discovery_target}-all.txt"
 
     if ! DOKA_SPEC_TEST_TARGET="${discovery_target}" dotnet test "${functional_test_project}" \
         --configuration Release --no-build --no-restore --tl:off \
@@ -25,6 +26,25 @@ for discovery_target in "${discovery_targets[@]}"; do
         echo "Specification test discovery failed for ${discovery_target}." >&2
         exit 1
     fi
+
+    if ! DOKA_SPEC_TEST_TARGET="${discovery_target}" dotnet test "${functional_test_project}" \
+        --configuration Release --no-build --no-restore --tl:off \
+        --filter "FullyQualifiedName~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification." \
+        --list-tests \
+        --logger "console;verbosity=normal" > "${all_specification_output}" 2>&1; then
+        cat "${all_specification_output}" >&2
+        echo "Unfiltered specification test discovery failed for ${discovery_target}." >&2
+        exit 1
+    fi
+
+    dotnet run \
+        --project "${contract_project}" \
+        --configuration Release \
+        --no-build \
+        -- \
+        classification-validate \
+        --all "${all_specification_output}" \
+        --classified "${discovery_output}"
 
     dotnet run \
         --project "${contract_project}" \

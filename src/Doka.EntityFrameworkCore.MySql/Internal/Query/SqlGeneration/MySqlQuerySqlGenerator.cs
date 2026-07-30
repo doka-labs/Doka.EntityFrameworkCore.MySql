@@ -84,6 +84,12 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
                     return sqlFunctionExpression;
                 }
 
+            case { Name: "__mysql_datetimeoffset_subtract_timespan", Arguments.Count: 2, }:
+                {
+                    EmitDateTimeOffsetSubtractTimeSpan(sqlFunctionExpression);
+                    return sqlFunctionExpression;
+                }
+
             case { Name: "__mysql_datetime_diff_ticks", Arguments.Count: 2 }:
                 {
                     EmitDateTimeDifferenceTicks(sqlFunctionExpression);
@@ -416,7 +422,7 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     {
         Sql.Append("CONCAT(DATE_FORMAT(");
         Sql.Append(utc ? "UTC_TIMESTAMP(6)" : "NOW(6)");
-        Sql.Append(", '%Y-%m-%d %H:%i:%s.%f'), ");
+        Sql.Append(", '%Y-%m-%d %H:%i:%s.%f'), '0', ");
 
         if (utc)
         {
@@ -427,6 +433,28 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         Sql.Append("CASE WHEN TIMEDIFF(NOW(), UTC_TIMESTAMP()) < 0 ");
         Sql.Append("THEN TIME_FORMAT(TIMEDIFF(NOW(), UTC_TIMESTAMP()), '%H:%i') ");
         Sql.Append("ELSE CONCAT('+', TIME_FORMAT(TIMEDIFF(NOW(), UTC_TIMESTAMP()), '%H:%i')) END)");
+    }
+
+    /// <summary>
+    /// Subtracts a native <c>TIME</c> value from the local timestamp portion of
+    /// the provider's sortable <see cref="DateTimeOffset"/> text and retains its
+    /// seventh fractional digit and offset.
+    /// </summary>
+    private void EmitDateTimeOffsetSubtractTimeSpan(
+        SqlFunctionExpression expression
+    )
+    {
+        var arguments = GetRequiredArguments(expression, 2);
+
+        Sql.Append("CONCAT(DATE_FORMAT(SUBTIME(STR_TO_DATE(LEFT(");
+        Visit(arguments[0]);
+        Sql.Append(", 26), '%Y-%m-%d %H:%i:%s.%f'), ");
+        Visit(arguments[1]);
+        Sql.Append("), '%Y-%m-%d %H:%i:%s.%f'), SUBSTRING(");
+        Visit(arguments[0]);
+        Sql.Append(", 27, 1), RIGHT(");
+        Visit(arguments[0]);
+        Sql.Append(", 6))");
     }
 
     /// <summary>
@@ -685,34 +713,80 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     }
 
     /// <summary>
-    /// Gives an unordered offset subquery a stable key order while it selects
-    /// rows for a mutation. EF Core's mutation fallback projects the target key
-    /// first, so the ordering does not add columns or alter the selected range.
+    /// Gives unordered, identity-sensitive subqueries a stable key order.
     /// </summary>
     protected override Expression VisitSelect(
         SelectExpression selectExpression
     )
     {
-        if (_mutationTargetTable is null
-            || selectExpression.Offset is null
-            || selectExpression.Orderings.Count > 0
-            || selectExpression.Projection.Count == 0)
+        var orderMutationTarget = _mutationTargetTable is not null
+            && selectExpression.Offset is not null
+            && selectExpression.Orderings.Count == 0
+            && selectExpression.Projection.Count > 0;
+
+        if (orderMutationTarget)
         {
-            return base.VisitSelect(selectExpression);
+            // EF Core's mutation fallback projects the target key first.
+            selectExpression = WithOrdering(selectExpression, selectExpression.Projection[0].Expression);
         }
 
-        selectExpression.AppendOrdering(
-            new OrderingExpression(selectExpression.Projection[0].Expression, ascending: true));
-
-        try
-        {
-            return base.VisitSelect(selectExpression);
-        }
-        finally
-        {
-            selectExpression.ClearOrdering();
-        }
+        return base.VisitSelect(OrderLimitedApplyParents(selectExpression));
     }
+
+    /// <summary>
+    /// Stabilizes the parent selected by an unordered <c>LIMIT</c> before a correlated
+    /// collection APPLY. EF Core projects the parent identity first for collection
+    /// shaping, so the ordering does not add a projection or change an explicit order.
+    /// </summary>
+    private static SelectExpression OrderLimitedApplyParents(
+        SelectExpression selectExpression
+    )
+    {
+        if (!selectExpression.Tables.Any(table => MySqlTableExpressionHelper.GetApplySelect(table) is not null))
+        {
+            return selectExpression;
+        }
+
+        TableExpressionBase[]? rewrittenTables = null;
+
+        for (var index = 0; index < selectExpression.Tables.Count; index++)
+        {
+            var table = selectExpression.Tables[index];
+
+            if (table is not SelectExpression { Limit: not null, Orderings.Count: 0, Projection.Count: > 0, } parent)
+            {
+                continue;
+            }
+
+            rewrittenTables ??= selectExpression.Tables.ToArray();
+            rewrittenTables[index] = WithOrdering(parent, parent.Projection[0].Expression);
+        }
+
+        return rewrittenTables is null
+            ? selectExpression
+            : selectExpression.Update(
+                rewrittenTables,
+                selectExpression.Predicate,
+                selectExpression.GroupBy,
+                selectExpression.Having,
+                selectExpression.Projection,
+                selectExpression.Orderings,
+                selectExpression.Offset,
+                selectExpression.Limit);
+    }
+
+    private static SelectExpression WithOrdering(
+        SelectExpression selectExpression,
+        SqlExpression expression
+    ) => selectExpression.Update(
+        selectExpression.Tables,
+        selectExpression.Predicate,
+        selectExpression.GroupBy,
+        selectExpression.Having,
+        selectExpression.Projection,
+        [new OrderingExpression(expression, ascending: true)],
+        selectExpression.Offset,
+        selectExpression.Limit);
 
     private const string DateAddSentinelPrefix = "__mysql_date_add_";
     private const string TimeAddSentinelPrefix = "__mysql_time_add_";
@@ -906,6 +980,46 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     }
 
     /// <summary>
+    /// Keeps a multi-row inline operand grouped inside its enclosing set operation.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="GenerateValues"/> expands one <see cref="ValuesExpression"/> to
+    /// multiple <c>UNION ALL SELECT</c> branches. Without parentheses, a parent
+    /// <c>UNION</c> applies its distinctness only to the first branch and changes
+    /// the result cardinality.
+    /// </remarks>
+    protected override void GenerateSetOperationOperand(
+        SetOperationBase setOperation,
+        SelectExpression operand
+    )
+    {
+        if (operand is
+            {
+                Tables: [ValuesExpression { RowValues.Count: > 1 }],
+                Predicate: null,
+                GroupBy: [],
+                Having: null,
+                Orderings: [],
+                Offset: null,
+                Limit: null,
+            })
+        {
+            Sql.AppendLine("(");
+
+            using (Sql.Indent())
+            {
+                Visit(operand);
+            }
+
+            Sql.AppendLine();
+            Sql.Append(")");
+            return;
+        }
+
+        base.GenerateSetOperationOperand(setOperation, operand);
+    }
+
+    /// <summary>
     /// Wraps a restricted <c>IN</c> subquery in a derived table. MySQL and
     /// MariaDB reject <c>LIMIT</c> directly below <c>IN</c>, <c>ALL</c>,
     /// <c>ANY</c>, or <c>SOME</c>. MySQL also rejects a mutation that reads its
@@ -921,16 +1035,50 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         ArgumentNullException.ThrowIfNull(inExpression);
 
         var subquery = inExpression.Subquery;
-        var requiresLimitIsolation = subquery is { Limit: not null, } or { Offset: not null, };
-        var requiresTargetIsolation = subquery is not null && RequiresMutationTargetIsolation(subquery);
 
-        if (!requiresLimitIsolation && !requiresTargetIsolation)
+        if (TryGenerateJsonCollectionContains(inExpression, negated))
         {
-            base.GenerateIn(inExpression, negated);
             return;
         }
 
-        Visit(inExpression.Item);
+        var requiresLimitIsolation = subquery is { Limit: not null, } or { Offset: not null, };
+        var requiresTargetIsolation = subquery is not null && RequiresMutationTargetIsolation(subquery);
+
+        if (!requiresLimitIsolation
+            && !requiresTargetIsolation)
+        {
+            GenerateInItem(inExpression.Item);
+            Sql.Append(negated ? " NOT IN (" : " IN (");
+
+            if (inExpression.Values is not null)
+            {
+                for (var index = 0; index < inExpression.Values.Count; index++)
+                {
+                    if (index > 0)
+                    {
+                        Sql.Append(", ");
+                    }
+
+                    Visit(inExpression.Values[index]);
+                }
+            }
+            else
+            {
+                Sql.AppendLine();
+
+                using (Sql.Indent())
+                {
+                    Visit(inExpression.Subquery);
+                }
+
+                Sql.AppendLine();
+            }
+
+            Sql.Append(")");
+            return;
+        }
+
+        GenerateInItem(inExpression.Item);
         Sql.Append(negated ? " NOT IN (" : " IN (");
         Sql.AppendLine();
 
@@ -950,6 +1098,228 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         }
 
         Sql.AppendLine();
+        Sql.Append(")");
+    }
+
+    /// <summary>
+    /// Emits scalar JSON membership for a primitive collection.
+    /// </summary>
+    /// <remarks>
+    /// MySQL can decorrelate a rowset-returning <c>IN</c> subquery before
+    /// evaluating its <c>JSON_TABLE</c> input, which loses the current
+    /// outer-row value. Uncomposed membership becomes direct
+    /// <c>JSON_CONTAINS</c>. Filtered or naturally paginated membership becomes
+    /// a correlated scalar count, a shape both engines evaluate against the
+    /// current row.
+    /// </remarks>
+    private bool TryGenerateJsonCollectionContains(
+        InExpression inExpression,
+        bool negated
+    )
+    {
+        if (inExpression.Subquery is not
+            {
+                Tables: [MySqlJsonTableExpression jsonTable],
+                Predicate: var predicate,
+                GroupBy: [],
+                Having: null,
+                IsDistinct: var isDistinct,
+                Orderings: var orderings,
+                Limit: var limit,
+                Offset: var offset,
+                Projection:
+                [
+                { Expression: ColumnExpression { Name: "value", TableAlias: var projectionAlias, }, },
+                ],
+            }
+            || projectionAlias != jsonTable.Alias)
+        {
+            return false;
+        }
+
+        if (predicate is null
+            && !isDistinct
+            && orderings.Count == 0
+            && limit is null
+            && offset is null
+            && CanUseNativeJsonCandidate(inExpression.Item.Type))
+        {
+            if (negated)
+            {
+                Sql.Append("NOT ");
+            }
+
+            Sql.Append("JSON_CONTAINS(");
+            Visit(jsonTable.JsonExpression);
+            Sql.Append(", ");
+            GenerateJsonCollectionCandidate(inExpression.Item);
+            Sql.Append(")");
+
+            return true;
+        }
+
+        if (isDistinct
+            || !HasNaturalJsonTableOrdering(orderings, jsonTable)
+            || ((limit is not null || offset is not null) && predicate is not null))
+        {
+            return false;
+        }
+
+        var ordinalityColumnName = GetOrdinalityColumnName(jsonTable);
+
+        Sql.Append("(");
+        Sql.AppendLine();
+
+        using (Sql.Indent())
+        {
+            Sql.AppendLine("SELECT COUNT(*)");
+            Sql.Append("FROM ");
+            Visit(jsonTable);
+            Sql.AppendLine();
+            Sql.Append("WHERE ");
+
+            if (predicate is not null)
+            {
+                Visit(predicate);
+                Sql.Append(" AND ");
+            }
+
+            Visit(
+                new ColumnExpression(
+                    "value",
+                    jsonTable.Alias!,
+                    inExpression.Item.Type,
+                    inExpression.Item.TypeMapping,
+                    nullable: true));
+            Sql.Append(" <=> ");
+            Visit(inExpression.Item);
+
+            if (offset is not null)
+            {
+                Sql.Append(" AND ");
+                Visit(
+                    new ColumnExpression(
+                        ordinalityColumnName,
+                        jsonTable.Alias!,
+                        typeof(int),
+                        RelationalTypeMapping.NullMapping,
+                        nullable: false));
+                Sql.Append(" > ");
+                Visit(offset);
+            }
+
+            if (limit is not null)
+            {
+                Sql.Append(" AND ");
+                Visit(
+                    new ColumnExpression(
+                        ordinalityColumnName,
+                        jsonTable.Alias!,
+                        typeof(int),
+                        RelationalTypeMapping.NullMapping,
+                        nullable: false));
+                Sql.Append(" <= ");
+
+                if (offset is not null)
+                {
+                    Sql.Append("(");
+                    Visit(offset);
+                    Sql.Append(" + ");
+                    Visit(limit);
+                    Sql.Append(")");
+                }
+                else
+                {
+                    Visit(limit);
+                }
+            }
+        }
+
+        Sql.AppendLine();
+        Sql.Append(negated ? ") = 0" : ") > 0");
+
+        return true;
+    }
+
+    private static bool CanUseNativeJsonCandidate(
+        Type itemType
+    )
+    {
+        itemType = itemType.UnwrapNullableType();
+
+        return itemType.IsEnum
+            || itemType == typeof(bool)
+            || itemType == typeof(string)
+            || itemType == typeof(char)
+            || itemType == typeof(byte)
+            || itemType == typeof(sbyte)
+            || itemType == typeof(short)
+            || itemType == typeof(ushort)
+            || itemType == typeof(int)
+            || itemType == typeof(uint)
+            || itemType == typeof(long)
+            || itemType == typeof(ulong)
+            || itemType == typeof(float)
+            || itemType == typeof(double)
+            || itemType == typeof(decimal);
+    }
+
+    private static bool HasNaturalJsonTableOrdering(
+        IReadOnlyList<OrderingExpression> orderings,
+        MySqlJsonTableExpression jsonTable
+    ) => orderings.Count == 0
+        || (orderings is
+            [
+            {
+                IsAscending: true,
+                Expression: ColumnExpression { Name: var columnName, TableAlias: var orderingAlias, },
+            },
+            ]
+            && orderingAlias == jsonTable.Alias
+            && columnName == GetOrdinalityColumnName(jsonTable));
+
+    private static string GetOrdinalityColumnName(
+        MySqlJsonTableExpression jsonTable
+    ) => (jsonTable.ColumnInfos
+            ?? throw new UnreachableException("A translated JSON_TABLE rowset must declare its columns."))
+        .Single(static column => column.ForOrdinality)
+        .Name;
+
+    private void GenerateJsonCollectionCandidate(
+        SqlExpression item
+    )
+    {
+        if (item.Type.UnwrapNullableType() == typeof(bool))
+        {
+            Sql.Append("JSON_EXTRACT(CASE WHEN ");
+            Visit(item);
+            Sql.Append(" IS NULL THEN 'null' WHEN ");
+            Visit(item);
+            Sql.Append(" THEN 'true' ELSE 'false' END, '$')");
+            return;
+        }
+
+        Sql.Append("JSON_EXTRACT(JSON_ARRAY(");
+        Visit(item);
+        Sql.Append("), '$[0]')");
+    }
+
+    /// <summary>
+    /// Parenthesizes the value tested by an <c>IN</c> expression.
+    /// </summary>
+    /// <remarks>
+    /// EF Core can produce a predicate as the tested value from a custom
+    /// function translation. MySQL and MariaDB require that predicate to be
+    /// grouped before it can be compared with a boolean value list. Grouping
+    /// every tested value keeps the SQL shape deterministic and is
+    /// semantics-neutral for scalar values.
+    /// </remarks>
+    private void GenerateInItem(
+        SqlExpression item
+    )
+    {
+        Sql.Append("(");
+        Visit(item);
         Sql.Append(")");
     }
 
@@ -1291,11 +1661,34 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
             return jsonScalarExpression;
         }
 
+        // Binary GUID columns use the RFC 4122 byte order configured for
+        // MySqlConnector's Binary16 mode. JSON stores the same value as canonical
+        // text, so rebuild the byte sequence before comparison or materialization.
+        if (modelNonNullable == typeof(Guid)
+            && typeMapping?.StoreType.StartsWith("binary", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            Sql.Append("UNHEX(REPLACE(JSON_UNQUOTE(");
+            EmitJsonExtract(jsonScalarExpression);
+            Sql.Append("), '-', ''))");
+            return jsonScalarExpression;
+        }
+
+        if (modelNonNullable == typeof(string)
+            && typeMapping?.ElementTypeMapping is null)
+        {
+            Sql.Append("CASE WHEN JSON_TYPE(");
+            EmitJsonExtract(jsonScalarExpression);
+            Sql.Append(") = 'NULL' THEN NULL ELSE JSON_UNQUOTE(");
+            EmitJsonExtract(jsonScalarExpression);
+            Sql.Append(") END");
+            return jsonScalarExpression;
+        }
+
         // Default path: always JSON_UNQUOTE. The earlier branches (bool wrapper + CAST
         // path) cover every CLR type whose JSON representation is a non-string primitive
         // (boolean, number). Everything that reaches here was serialized into JSON as a
-        // string and the .NET shaper needs the unquoted text form: string, Guid (e.g.
-        // `"12345678-..."`), DateTimeOffset (e.g. `"2000-01-01 12:34:56-08:00"`), char,
+        // string and the .NET shaper needs the unquoted text form: string,
+        // DateTimeOffset (e.g. `"2000-01-01 12:34:56-08:00"`), char and
         // custom-converter types with string provider mapping. NOTE: JSON_VALUE would
         // give NULL-safe semantics for JSON null (vs JSON_UNQUOTE's returning the string
         // "null") but it returns SQL NULL on non-scalar JSON values (objects, arrays) --
@@ -1684,6 +2077,14 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
     {
         ArgumentNullException.ThrowIfNull(sqlBinaryExpression);
 
+        if (sqlBinaryExpression.OperatorType is ExpressionType.Equal or ExpressionType.NotEqual
+            && IsJsonDocument(sqlBinaryExpression.Left)
+            && IsJsonDocument(sqlBinaryExpression.Right))
+        {
+            EmitJsonDocumentComparison(sqlBinaryExpression);
+            return sqlBinaryExpression;
+        }
+
         if (IsSignedIntegralType(sqlBinaryExpression.Type.UnwrapNullableType())
             && sqlBinaryExpression.OperatorType is ExpressionType.And
                 or ExpressionType.Or
@@ -1706,6 +2107,76 @@ internal sealed class MySqlQuerySqlGenerator : QuerySqlGenerator
         Sql.Append(")");
         return sqlBinaryExpression;
     }
+
+    /// <summary>
+    /// Emits structural equality for JSON objects and arrays instead of comparing their
+    /// serialized text. MySQL compares native JSON values, while MariaDB normalizes its
+    /// LONGTEXT-backed JSON documents before applying the relational operator.
+    /// </summary>
+    /// <remarks>
+    /// Sources retrieved 2026-07-29:
+    /// <see href="https://dev.mysql.com/doc/refman/8.4/en/json-search-functions.html">
+    /// MySQL JSON search functions</see> and
+    /// <see
+    ///     href="https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_normalize">
+    /// MariaDB JSON_NORMALIZE</see>.
+    /// </remarks>
+    private void EmitJsonDocumentComparison(
+        SqlBinaryExpression expression
+    )
+    {
+        var isMariaDb = _singletonOptions.ServerVersion?.IsMariaDb == true;
+
+        if (isMariaDb)
+        {
+            Sql.Append("JSON_NORMALIZE(");
+            EmitJsonDocument(expression.Left);
+            Sql.Append(")");
+        }
+        else
+        {
+            EmitJsonDocument(expression.Left);
+        }
+
+        Sql.Append(expression.OperatorType == ExpressionType.Equal ? " = " : " <> ");
+
+        if (isMariaDb)
+        {
+            Sql.Append("JSON_NORMALIZE(");
+            EmitJsonDocument(expression.Right);
+            Sql.Append(")");
+        }
+        else
+        {
+            EmitJsonDocument(expression.Right);
+        }
+    }
+
+    private void EmitJsonDocument(
+        SqlExpression expression
+    )
+    {
+        if (expression is JsonScalarExpression jsonScalarExpression)
+        {
+            EmitJsonExtract(jsonScalarExpression);
+            return;
+        }
+
+        if (_singletonOptions.ServerVersion?.IsMariaDb == true)
+        {
+            Visit(expression);
+            return;
+        }
+
+        Sql.Append("JSON_EXTRACT(");
+        Visit(expression);
+        Sql.Append(", '$')");
+    }
+
+    private static bool IsJsonDocument(
+        SqlExpression expression
+    ) => expression.TypeMapping?.ElementTypeMapping is not null
+        || string.Equals(expression.TypeMapping?.StoreType, "json", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Casts MySQL-family unsigned 64-bit bitwise results back to the signed CLR

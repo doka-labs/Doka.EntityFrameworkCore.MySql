@@ -119,11 +119,84 @@ internal static class TrxContract
                 .Descendants()
                 .Where(element => element.Name.LocalName == "UnitTestResult")
                 .Select(element => new TrxTestResult(
-                    (string?)element.Attribute("testName")
-                    ?? throw new InvalidDataException($"TRX result in '{path}' has no testName."),
+                    NormalizeTestId(
+                        (string?)element.Attribute("testName")
+                        ?? throw new InvalidDataException($"TRX result in '{path}' has no testName.")),
                     (string?)element.Attribute("outcome")
                     ?? throw new InvalidDataException($"TRX result in '{path}' has no outcome."))),
         ];
+    }
+
+    /// <summary>
+    /// Normalizes supplementary Unicode characters that VSTest serializes as adjacent
+    /// UTF-16 surrogate escapes in TRX display names.
+    /// </summary>
+    /// <remarks>
+    /// BMP escapes remain untouched because test display names can legitimately contain
+    /// JSON text such as <c>\u2764</c>. Decoding only complete surrogate pairs makes the
+    /// TRX representation comparable with discovery without changing test identity.
+    /// </remarks>
+    private static string NormalizeTestId(
+        string testId
+    )
+    {
+        StringBuilder? normalized = null;
+        var copiedUntil = 0;
+
+        for (var index = 0; index <= testId.Length - 12; index++)
+        {
+            if (!TryReadEscapedSurrogate(testId, index, out var highSurrogate)
+                || !char.IsHighSurrogate(highSurrogate)
+                || !TryReadEscapedSurrogate(testId, index + 6, out var lowSurrogate)
+                || !char.IsLowSurrogate(lowSurrogate))
+            {
+                continue;
+            }
+
+            normalized ??= new StringBuilder(testId.Length);
+            normalized.Append(testId, copiedUntil, index - copiedUntil);
+            normalized.Append(highSurrogate);
+            normalized.Append(lowSurrogate);
+
+            index += 11;
+            copiedUntil = index + 1;
+        }
+
+        if (normalized is null)
+        {
+            return testId;
+        }
+
+        normalized.Append(testId, copiedUntil, testId.Length - copiedUntil);
+        return normalized.ToString();
+    }
+
+    private static bool TryReadEscapedSurrogate(
+        string value,
+        int index,
+        out char surrogate
+    )
+    {
+        surrogate = '\0';
+
+        if (index > value.Length - 6
+            || value[index] != '\\'
+            || value[index + 1] != 'u')
+        {
+            return false;
+        }
+
+        if (!ushort.TryParse(
+                value.AsSpan(index + 2, 4),
+                NumberStyles.AllowHexSpecifier,
+                CultureInfo.InvariantCulture,
+                out var codeUnit))
+        {
+            return false;
+        }
+
+        surrogate = (char)codeUnit;
+        return true;
     }
 
     private static HashSet<string> LoadPermittedNotExecuted(

@@ -12,7 +12,7 @@ public sealed class MySqlOptionsExtensionInfoTests
     [Fact]
     public void IsDatabaseProvider_is_true()
     {
-        var info = new MySqlOptionsExtensionInfo(new MySqlOptionsExtension());
+        var info = new MySqlOptionsExtension().Info;
         Assert.True(info.IsDatabaseProvider);
     }
 
@@ -21,7 +21,7 @@ public sealed class MySqlOptionsExtensionInfoTests
     [Fact]
     public void LogFragment_without_server_version_is_unparameterized()
     {
-        var info = new MySqlOptionsExtensionInfo(new MySqlOptionsExtension());
+        var info = new MySqlOptionsExtension().Info;
         Assert.Equal("using Doka MySql ", info.LogFragment);
     }
 
@@ -30,7 +30,7 @@ public sealed class MySqlOptionsExtensionInfoTests
     {
         var extension = new MySqlOptionsExtension()
             .WithServerVersion(MySqlServerVersion.MySql(new Version(8, 4, 0)));
-        var info = new MySqlOptionsExtensionInfo(extension);
+        var info = extension.Info;
         Assert.Contains("MySQL", info.LogFragment, StringComparison.Ordinal);
         Assert.Contains("8.4.0", info.LogFragment, StringComparison.Ordinal);
     }
@@ -40,7 +40,7 @@ public sealed class MySqlOptionsExtensionInfoTests
     [Fact]
     public void PopulateDebugInfo_writes_doka_mysql_entry()
     {
-        var info = new MySqlOptionsExtensionInfo(new MySqlOptionsExtension());
+        var info = new MySqlOptionsExtension().Info;
         var dict = new Dictionary<string, string>();
         info.PopulateDebugInfo(dict);
         Assert.True(dict.ContainsKey("DokaMySql"));
@@ -137,8 +137,9 @@ public sealed class MySqlOptionsExtensionInfoTests
     private static MySqlOptionsExtension WithVersion(MySqlOptionsExtension extension) =>
         extension.WithServerVersion(MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
-    private static MySqlOptionsExtensionInfo InfoFor(MySqlOptionsExtension extension) =>
-        new(extension);
+    private static DbContextOptionsExtensionInfo InfoFor(
+        MySqlOptionsExtension extension
+    ) => extension.Info;
 
     private sealed class OtherExtensionInfo : DbContextOptionsExtensionInfo
     {

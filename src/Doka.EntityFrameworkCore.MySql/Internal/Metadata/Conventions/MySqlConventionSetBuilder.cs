@@ -28,6 +28,8 @@ internal sealed class MySqlConventionSetBuilder : RelationalConventionSetBuilder
                 MaxIdentifierLength,
                 Dependencies,
                 RelationalDependencies));
+        conventionSet.ModelFinalizingConventions.Add(
+            new MySqlIndexLengthConvention());
         conventionSet.ModelFinalizingConventions.Add(new MySqlValueGenerationConvention(_singletonOptions));
 
         return conventionSet;

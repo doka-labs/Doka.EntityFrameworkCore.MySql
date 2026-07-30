@@ -69,6 +69,10 @@ The stable provider logging taxonomy for the `10.0.x` line is:
 - `Doka.EntityFrameworkCore.MySql.Resilience`
 - `Doka.EntityFrameworkCore.MySql.Spatial`
 
+Provider events emitted from EF Core model validation use
+`Microsoft.EntityFrameworkCore.Model.Validation` instead of retaining a
+context-specific logger inside the singleton model validator.
+
 These category names are documentation-safe and test-backed. Renaming or repurposing them requires:
 
 1. a deliberate planning update

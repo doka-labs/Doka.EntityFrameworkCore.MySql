@@ -1,5 +1,6 @@
 #nullable enable
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder
+Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MySqlDbContextOptionsBuilder(Microsoft.EntityFrameworkCore.DbContextOptionsBuilder! optionsBuilder) -> void
 Doka.EntityFrameworkCore.MySql.MySqlDiagnostics
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.CancellationTotalMetricName = "doka_mysql_cancellation_total" -> string!
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.CommandTimeoutTotalMetricName = "doka_mysql_command_timeout_total" -> string!
@@ -13,10 +14,15 @@ const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.SourceName = "Doka.EntityF
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.CommandTimeout(int commandTimeout) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.DefaultGuidFormat(Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.EnableRetryOnFailure(int maxRetryCount = 6, System.TimeSpan? maxRetryDelay = null) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
-Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MaxBatchSize(int maxBatchSize) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
-Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MigrationsHistoryTable(string! tableName, string? schema = null) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
-Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MinBatchSize(int minBatchSize) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
-Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.UseQuerySplittingBehavior(Microsoft.EntityFrameworkCore.QuerySplittingBehavior querySplittingBehavior) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
+Doka.EntityFrameworkCore.MySql.MySqlOptionsExtension
+Doka.EntityFrameworkCore.MySql.MySqlOptionsExtension.MySqlOptionsExtension() -> void
+override Doka.EntityFrameworkCore.MySql.MySqlOptionsExtension.ApplyServices(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> void
+override Doka.EntityFrameworkCore.MySql.MySqlOptionsExtension.Info.get -> Microsoft.EntityFrameworkCore.Infrastructure.DbContextOptionsExtensionInfo!
+override Doka.EntityFrameworkCore.MySql.MySqlOptionsExtension.Validate(Microsoft.EntityFrameworkCore.Infrastructure.IDbContextOptions! options) -> void
+override Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MaxBatchSize(int maxBatchSize) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
+override Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MigrationsHistoryTable(string! tableName, string? schema = null) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
+override Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MinBatchSize(int minBatchSize) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
+override Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.UseQuerySplittingBehavior(Microsoft.EntityFrameworkCore.QuerySplittingBehavior querySplittingBehavior) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlBytesToDateTimeConverter
 Doka.EntityFrameworkCore.MySql.MySqlBytesToDateTimeConverter.MySqlBytesToDateTimeConverter() -> void
 static Doka.EntityFrameworkCore.MySql.MySqlBytesToDateTimeConverter.FromBytes(byte[]! bytes) -> System.DateTime
@@ -52,6 +58,8 @@ Doka.EntityFrameworkCore.MySql.MySqlServerVersion
 Doka.EntityFrameworkCore.MySql.MySqlServerVersion.IsMariaDb.get -> bool
 Doka.EntityFrameworkCore.MySql.MySqlServerVersion.Version.get -> System.Version!
 Doka.EntityFrameworkCore.MySql.MySqlServiceCollectionExtensions
+Doka.EntityFrameworkCore.MySql.MySqlStringTypeMapping
+Doka.EntityFrameworkCore.MySql.MySqlStringTypeMapping.MySqlStringTypeMapping(string! storeType, System.Data.DbType? dbType, bool unicode = true, int? size = null, bool useKeyComparison = false) -> void
 Doka.EntityFrameworkCore.MySql.MySqlDateTimeTypeMapping
 static Doka.EntityFrameworkCore.MySql.MySqlDateTimeTypeMapping.Default.get -> Doka.EntityFrameworkCore.MySql.MySqlDateTimeTypeMapping!
 Doka.EntityFrameworkCore.MySql.MySqlDateTimeTypeMapping.MySqlDateTimeTypeMapping(string! storeType, System.Data.DbType? dbType = System.Data.DbType.DateTime) -> void
@@ -107,6 +115,7 @@ static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.MariaDb(System.Version!
 static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.MySql(System.Version! version) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
 static Doka.EntityFrameworkCore.MySql.MySqlServiceCollectionExtensions.AddEntityFrameworkDokaMySql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! serviceCollection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Doka.EntityFrameworkCore.MySql.MySqlServiceCollectionExtensions.AddEntityFrameworkDokaMySqlDesignTime(this Microsoft.Extensions.DependencyInjection.IServiceCollection! serviceCollection, System.Action<Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Doka.EntityFrameworkCore.MySql.MySqlStringTypeMapping.Default.get -> Doka.EntityFrameworkCore.MySql.MySqlStringTypeMapping!
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.BulkInsertPacketSizeCapped -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.BulkInsertParameterCountCapped -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.CommandTimeoutExhausted -> Microsoft.Extensions.Logging.EventId

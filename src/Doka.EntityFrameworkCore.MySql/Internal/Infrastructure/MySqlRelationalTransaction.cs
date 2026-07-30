@@ -4,6 +4,7 @@ internal sealed class MySqlRelationalTransaction : RelationalTransaction
 {
     private static readonly MySqlTransientExceptionDetector s_transientExceptionDetector = new();
 
+    private readonly ILogger? _resilienceLogger;
     private readonly MySqlSingletonOptions _singletonOptions;
     private readonly DbTransaction _transaction;
     private readonly Guid _transactionId;
@@ -21,6 +22,13 @@ internal sealed class MySqlRelationalTransaction : RelationalTransaction
         _singletonOptions = singletonOptions ?? throw new ArgumentNullException(nameof(singletonOptions));
         _transaction = transaction ?? throw new ArgumentNullException(nameof(transaction));
         _transactionId = transactionId;
+
+        // Logger factories belong to the active context options and are not part
+        // of the provider service-provider identity. Capturing the scoped factory
+        // here prevents the first context from defining logging for later contexts.
+        _resilienceLogger = connection.Context?
+            .GetService<ILoggerFactory>()
+            .CreateLogger(MySqlLoggerCategory.Resilience);
     }
 
     public override bool SupportsSavepoints =>
@@ -130,14 +138,13 @@ internal sealed class MySqlRelationalTransaction : RelationalTransaction
 
         MySqlMeter.CommitUnknownTotal.Add(1);
 
-        var logger = _singletonOptions.ResilienceLogger;
-        if (logger is null)
+        if (_resilienceLogger is null)
         {
             return false;
         }
 
         MySqlLoggerMessages.CommitUnknown(
-            logger,
+            _resilienceLogger,
             _transactionId,
             _transaction.Connection?.State.ToString() ?? "Unknown",
             exception);

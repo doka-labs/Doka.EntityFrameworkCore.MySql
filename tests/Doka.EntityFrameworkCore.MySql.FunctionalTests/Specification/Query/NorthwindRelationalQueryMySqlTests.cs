@@ -1,5 +1,4 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 using Xunit.Abstractions;
 
@@ -414,7 +413,11 @@ public class
         bool async
     )
     {
-        byte[] ids = [1, 2];
+        byte[] ids =
+        [
+            1,
+            2,
+        ];
         await AssertQueryScalar(
             async,
             ss => from employee in ss.Set<Employee>()
@@ -540,8 +543,8 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
     public override Task
         Correlated_collection_with_distinct_without_default_identifiers_projecting_columns_with_navigation(
             bool async
-        ) => base
-        .Correlated_collection_with_distinct_without_default_identifiers_projecting_columns_with_navigation(async);
+        ) => base.Correlated_collection_with_distinct_without_default_identifiers_projecting_columns_with_navigation(
+        async);
 
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
@@ -614,13 +617,16 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
             .Set<Order>()
             .Where(order => order.OrderID < 10300)
             .OrderBy(order => order.OrderID)
-            .Select(order => new { Item = order, })
+            .Select(order => new
+            {
+                Item = order,
+            })
             .Take(10)
             .Select(element => new
             {
                 element.Item.OrderID,
-                ProductIds = element.Item.OrderDetails
-                    .Select(detail => detail.ProductID)
+                ProductIds = element
+                    .Item.OrderDetails.Select(detail => detail.ProductID)
                     .ToList(),
             }),
         assertOrder: true,
@@ -658,14 +664,17 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
             .Set<Order>()
             .Where(order => order.OrderID < 10300)
             .OrderBy(order => order.OrderID)
-            .Select(order => new { Item = order, })
+            .Select(order => new
+            {
+                Item = order,
+            })
             .Skip(5)
             .Take(10)
             .Select(element => new
             {
                 element.Item.OrderID,
-                ProductIds = element.Item.OrderDetails
-                    .Select(detail => detail.ProductID)
+                ProductIds = element
+                    .Item.OrderDetails.Select(detail => detail.ProductID)
                     .ToList(),
             }),
         assertOrder: true,
@@ -697,13 +706,16 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
             .Set<Order>()
             .Where(order => order.OrderID < 10300)
             .OrderBy(order => order.OrderID)
-            .Select(order => new { Item = order, })
+            .Select(order => new
+            {
+                Item = order,
+            })
             .Skip(5)
             .Select(element => new
             {
                 element.Item.OrderID,
-                ProductIds = element.Item.OrderDetails
-                    .Select(detail => detail.ProductID)
+                ProductIds = element
+                    .Item.OrderDetails.Select(detail => detail.ProductID)
                     .ToList(),
             }),
         assertOrder: true,
@@ -733,14 +745,14 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
         async,
         ss => ss
             .Set<Customer>()
-            .OrderBy(customer => customer.Orders
-                .OrderBy(order => order.OrderID)
+            .OrderBy(customer => customer
+                .Orders.OrderBy(order => order.OrderID)
                 .FirstOrDefault())
             .ThenBy(customer => customer.CustomerID),
         ss => ss
             .Set<Customer>()
-            .OrderBy(customer => customer.Orders
-                .OrderBy(order => order.OrderID)
+            .OrderBy(customer => customer
+                .Orders.OrderBy(order => order.OrderID)
                 .Select(order => (int?)order.OrderID)
                 .FirstOrDefault())
             .ThenBy(customer => customer.CustomerID),
@@ -753,10 +765,9 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
     public override async Task Client_code_using_instance_in_anonymous_type(
         bool async
     ) => Assert.Equal(
-        CoreStrings.ClientProjectionCapturingConstantInTree(
-            typeof(NorthwindMiscellaneousQueryMySqlTest).FullName!),
-        (await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base.Client_code_using_instance_in_anonymous_type(async))).Message);
+        CoreStrings.ClientProjectionCapturingConstantInTree(typeof(NorthwindMiscellaneousQueryMySqlTest).FullName!),
+        (await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            base.Client_code_using_instance_in_anonymous_type(async))).Message);
 
     public override async Task Client_code_using_instance_in_static_method(
         bool async
@@ -764,8 +775,8 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
         CoreStrings.ClientProjectionCapturingConstantInMethodArgument(
             typeof(NorthwindMiscellaneousQueryMySqlTest).FullName!,
             "StaticMethod"),
-        (await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base.Client_code_using_instance_in_static_method(async))).Message);
+        (await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            base.Client_code_using_instance_in_static_method(async))).Message);
 
     public override async Task Client_code_using_instance_method_throws(
         bool async
@@ -773,30 +784,26 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
         CoreStrings.ClientProjectionCapturingConstantInMethodInstance(
             typeof(NorthwindMiscellaneousQueryMySqlTest).FullName!,
             "InstanceMethod"),
-        (await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base.Client_code_using_instance_method_throws(async))).Message);
+        (await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            base.Client_code_using_instance_method_throws(async))).Message);
 
     public override async Task Entity_equality_through_subquery_composite_key(
         bool async
     ) => Assert.Equal(
-        CoreStrings.EntityEqualityOnCompositeKeyEntitySubqueryNotSupported(
-            "==",
-            nameof(OrderDetail)),
-        (await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base.Entity_equality_through_subquery_composite_key(async))).Message);
+        CoreStrings.EntityEqualityOnCompositeKeyEntitySubqueryNotSupported("==", nameof(OrderDetail)),
+        (await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            base.Entity_equality_through_subquery_composite_key(async))).Message);
 
     public override async Task Max_on_empty_sequence_throws(
         bool async
-    ) => await Assert.ThrowsAsync<InvalidOperationException>(
-        () => base.Max_on_empty_sequence_throws(async));
+    ) => await Assert.ThrowsAsync<InvalidOperationException>(() => base.Max_on_empty_sequence_throws(async));
 
-    public override async Task
+    public override Task
         Select_DTO_constructor_distinct_with_collection_projection_translated_to_server_with_binding_after_client_eval(
             bool async
-        ) => await Assert.ThrowsAsync<Xunit.Sdk.TrueException>(
-        () => base
-            .Select_DTO_constructor_distinct_with_collection_projection_translated_to_server_with_binding_after_client_eval(
-                async));
+        ) => base
+        .Select_DTO_constructor_distinct_with_collection_projection_translated_to_server_with_binding_after_client_eval(
+            async);
 }
 
 /// <summary>
@@ -939,24 +946,23 @@ public class
             bool async
         ) => Assert.Equal(
         RelationalStrings.InsufficientInformationToIdentifyElementOfCollectionJoin,
-        (await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base
-                .Correlated_collection_after_distinct_with_complex_projection_not_containing_original_identifier(
-                    async))).Message);
+        (await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            base.Correlated_collection_after_distinct_with_complex_projection_not_containing_original_identifier(
+                async))).Message);
 
     public override Task Member_binding_after_ctor_arguments_fails_with_client_eval(
         bool async
     ) => AssertTranslationFailed(() => base.Member_binding_after_ctor_arguments_fails_with_client_eval(async));
 
     /// <summary>
-    /// Verifies EF Core's active translation boundary for EF.Property calls over
-    /// non-entity values inside a correlated subquery.
+    /// Preserves EF Core's specific unmapped-property translation contract instead
+    /// of reducing every translation failure to the generic query message.
     /// </summary>
     public override async Task
         SelectMany_with_collection_being_correlated_subquery_which_references_non_mapped_properties_from_inner_and_outer_entity(
             bool async
-        ) => await AssertUnableToTranslateEFProperty(
-        () => base
+        ) => await AssertUnableToTranslateEFProperty(() =>
+        base
             .SelectMany_with_collection_being_correlated_subquery_which_references_non_mapped_properties_from_inner_and_outer_entity(
                 async));
 }
@@ -977,8 +983,8 @@ public class NorthwindSetOperationsQueryMySqlTest : NorthwindSetOperationsQueryR
         bool async
     ) => Assert.Equal(
         RelationalStrings.SetOperationsNotAllowedAfterClientEvaluation,
-        (await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base.Client_eval_Union_FirstOrDefault(async))).Message);
+        (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Client_eval_Union_FirstOrDefault(async)))
+        .Message);
 }
 
 /// <summary>

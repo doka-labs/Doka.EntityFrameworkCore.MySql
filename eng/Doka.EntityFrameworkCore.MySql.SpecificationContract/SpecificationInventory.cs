@@ -405,7 +405,6 @@ internal static class ContractJson
 {
     private static readonly JsonSerializerOptions s_options = new()
     {
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
     };

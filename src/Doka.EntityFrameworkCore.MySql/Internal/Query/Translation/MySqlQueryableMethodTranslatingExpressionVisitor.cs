@@ -13,6 +13,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed class
     MySqlQueryableMethodTranslatingExpressionVisitor : RelationalQueryableMethodTranslatingExpressionVisitor
 {
+    private const string MySqlValuesOrderingColumnName = "_ord";
+    private const string MySqlValuesValueColumnName = "Value";
+
     private readonly IRelationalTypeMappingSource _typeMappingSource;
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly RelationalQueryCompilationContext _queryCompilationContext;
@@ -100,23 +103,127 @@ internal sealed class
     )
     {
         if (returnDefault
-            || source.QueryExpression is not SelectExpression
+            || TranslateExpression(index) is not { } translatedIndex
+            || source.QueryExpression is not SelectExpression selectExpression
+            || !TryGetElementProjection(source, selectExpression, out var projection, out var projectionColumn))
+        {
+            return base.TranslateElementAtOrDefault(source, index, returnDefault);
+        }
+
+        switch (selectExpression)
+        {
+            case
             {
                 Tables: [MySqlJsonTableExpression jsonTable],
                 Predicate: null,
                 GroupBy: [],
                 Having: null,
                 IsDistinct: false,
-                Orderings: [{ IsAscending: true, Expression: ColumnExpression { Name: "key" } orderingColumn }],
+                Orderings: [{ IsAscending: true, Expression: ColumnExpression orderingColumn }],
                 Limit: null,
                 Offset: null,
-            } selectExpression
-            || orderingColumn.TableAlias != jsonTable.Alias
-            || TranslateExpression(index) is not { } translatedIndex)
-        {
-            return base.TranslateElementAtOrDefault(source, index, returnDefault);
-        }
+            }
+                when orderingColumn.TableAlias == jsonTable.Alias
+                && orderingColumn.Name == GetOrdinalityColumnName(jsonTable):
+                {
+                    var path = jsonTable.Path?.ToList() ?? [];
+                    var json = jsonTable.JsonExpression;
 
+                    if (json is JsonScalarExpression innerScalar)
+                    {
+                        json = innerScalar.Json;
+                        path.InsertRange(0, innerScalar.Path);
+                    }
+
+                    path.Add(new PathSegment(translatedIndex));
+
+                    return UpdateElementQuery(
+                        source,
+                        new JsonScalarExpression(
+                            json,
+                            path,
+                            projection.Type,
+                            projection.TypeMapping,
+                            projectionColumn.IsNullable));
+                }
+            case
+            {
+                Tables:
+                [
+                    ValuesExpression
+                {
+                    ColumnNames: [MySqlValuesOrderingColumnName, MySqlValuesValueColumnName,],
+                    ValuesParameter: { } parameter,
+                },
+                ],
+                Predicate: null,
+                GroupBy: [],
+                Having: null,
+                IsDistinct: false,
+                Orderings:
+                [
+                { IsAscending: true, Expression: ColumnExpression { Name: MySqlValuesOrderingColumnName, }, },
+                ],
+                Limit: null,
+                Offset: null,
+            }:
+                {
+                    var elementMapping = projection.TypeMapping ?? _typeMappingSource.FindMapping(projection.Type);
+                    var collectionMapping = parameter.TypeMapping
+                        ?? _typeMappingSource.FindMapping(parameter.Type, _queryCompilationContext.Model, elementMapping);
+                    var json = collectionMapping is null ? parameter : parameter.ApplyTypeMapping(collectionMapping);
+
+                    return UpdateElementQuery(
+                        source,
+                        new JsonScalarExpression(
+                            json,
+                            [new PathSegment(translatedIndex)],
+                            projection.Type,
+                            elementMapping,
+                            projectionColumn.IsNullable));
+                }
+            case
+            {
+                Tables:
+                [
+                    ValuesExpression
+                {
+                    ColumnNames: [MySqlValuesOrderingColumnName, MySqlValuesValueColumnName,], RowValues: { } rows,
+                },
+                ],
+                Predicate: null,
+                GroupBy: [],
+                Having: null,
+                IsDistinct: false,
+                Orderings:
+                [
+                { IsAscending: true, Expression: ColumnExpression { Name: MySqlValuesOrderingColumnName, }, },
+                ],
+                Limit: null,
+                Offset: null,
+            }:
+                {
+                    var whenClauses = rows
+                        .Select(row => new CaseWhenClause(
+                            _sqlExpressionFactory.Equal(translatedIndex, row.Values[0]),
+                            row.Values[1]))
+                        .ToArray();
+                    var fallback = _sqlExpressionFactory.Constant(null, projection.Type, projection.TypeMapping);
+
+                    return UpdateElementQuery(source, _sqlExpressionFactory.Case(whenClauses, fallback));
+                }
+            default:
+                return base.TranslateElementAtOrDefault(source, index, returnDefault);
+        }
+    }
+
+    private static bool TryGetElementProjection(
+        ShapedQueryExpression source,
+        SelectExpression selectExpression,
+        [NotNullWhen(true)] out SqlExpression? projection,
+        [NotNullWhen(true)] out ColumnExpression? projectionColumn
+    )
+    {
         var shaper = source.ShaperExpression;
         if (shaper is UnaryExpression { NodeType: ExpressionType.Convert } conversion
             && Nullable.GetUnderlyingType(conversion.Operand.Type) == conversion.Type)
@@ -125,41 +232,202 @@ internal sealed class
         }
 
         if (shaper is not ProjectionBindingExpression projectionBinding
-            || selectExpression.GetProjection(projectionBinding) is not ColumnExpression projection)
+            || selectExpression.GetProjection(projectionBinding) is not SqlExpression sqlProjection)
         {
-            return base.TranslateElementAtOrDefault(source, index, returnDefault);
+            projection = null;
+            projectionColumn = null;
+            return false;
         }
 
-        var path = jsonTable.Path?.ToList() ?? [];
-        var json = jsonTable.JsonExpression;
-
-        if (json is JsonScalarExpression innerScalar)
+        projectionColumn = sqlProjection switch
         {
-            json = innerScalar.Json;
-            path.InsertRange(0, innerScalar.Path);
-        }
+            ColumnExpression column => column,
+            SqlUnaryExpression { OperatorType: ExpressionType.Convert, Operand: ColumnExpression column, } => column,
+            _ => null,
+        };
+        projection = projectionColumn is null ? null : sqlProjection;
 
-        path.Add(new PathSegment(translatedIndex));
+        return projection is not null;
+    }
 
-        var scalar = new JsonScalarExpression(
-            json,
-            path,
-            projection.Type,
-            projection.TypeMapping,
-            projection.IsNullable);
-
+    private ShapedQueryExpression UpdateElementQuery(
+        ShapedQueryExpression source,
+        SqlExpression element
+    )
+    {
         // EF's JSON setter recognizer requires this provider-constructed internal scalar SelectExpression.
 #pragma warning disable EF1001
-        var scalarSelect = new SelectExpression(scalar, _queryCompilationContext.SqlAliasManager);
+        var scalarSelect = new SelectExpression(element, _queryCompilationContext.SqlAliasManager);
 #pragma warning restore EF1001
 
         return source.UpdateQueryExpression(scalarSelect);
     }
 
     /// <summary>
+    /// Serializes a relational scalar expression through the engines' JSON
+    /// constructor. This covers column-to-JSON updates for provider types whose
+    /// JSON representation differs from their relational representation, such as
+    /// temporal, binary and GUID values.
+    /// </summary>
+    protected override bool TrySerializeScalarToJson(
+        JsonScalarExpression target,
+        SqlExpression value,
+        [NotNullWhen(true)] out SqlExpression? jsonValue
+    )
+    {
+#pragma warning disable EF9002 // The provider override must compose EF Core's experimental JSON scalar serializer.
+        if (base.TrySerializeScalarToJson(target, value, out jsonValue))
+        {
+            return true;
+        }
+#pragma warning restore EF9002
+
+        var jsonTypeMapping = target.Json.TypeMapping;
+        var valueForJsonObject = NormalizeRelationalScalarForJson(target.Type, value);
+        var jsonObject = _sqlExpressionFactory.Function(
+            "JSON_OBJECT",
+            [
+                _sqlExpressionFactory.Constant("value"),
+                valueForJsonObject,
+            ],
+            nullable: true,
+            argumentsPropagateNullability:
+            [
+                false,
+                true,
+            ],
+            typeof(string),
+            jsonTypeMapping);
+
+        jsonValue = _sqlExpressionFactory.Function(
+            "JSON_EXTRACT",
+            [
+                jsonObject,
+                _sqlExpressionFactory.Constant("$.value"),
+            ],
+            nullable: true,
+            argumentsPropagateNullability:
+            [
+                true,
+                false,
+            ],
+            typeof(string),
+            jsonTypeMapping);
+
+        return true;
+    }
+
+    private SqlExpression NormalizeRelationalScalarForJson(
+        Type targetType,
+        SqlExpression value
+    )
+    {
+        var nonNullableTargetType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        var stringTypeMapping = _typeMappingSource.FindMapping(typeof(string));
+
+        if (nonNullableTargetType == typeof(DateTime))
+        {
+            return _sqlExpressionFactory.Function(
+                "DATE_FORMAT",
+                [
+                    value,
+                    _sqlExpressionFactory.Constant("%Y-%m-%dT%H:%i:%s.%f", stringTypeMapping),
+                ],
+                nullable: true,
+                argumentsPropagateNullability:
+                [
+                    true,
+                    false,
+                ],
+                typeof(string),
+                stringTypeMapping);
+        }
+
+        if (nonNullableTargetType != typeof(byte[]))
+        {
+            return nonNullableTargetType == typeof(Guid)
+                && value.TypeMapping?.StoreType.StartsWith("binary", StringComparison.OrdinalIgnoreCase) == true
+                    ? FormatBinaryGuid(value, stringTypeMapping)
+                    : value;
+        }
+
+        var base64 = _sqlExpressionFactory.Function(
+            "TO_BASE64",
+            [value],
+            nullable: true,
+            argumentsPropagateNullability: [true],
+            typeof(string),
+            stringTypeMapping);
+
+        return _sqlExpressionFactory.Function(
+            "REPLACE",
+            [
+                base64,
+                _sqlExpressionFactory.Constant("\n", stringTypeMapping),
+                _sqlExpressionFactory.Constant(string.Empty, stringTypeMapping),
+            ],
+            nullable: true,
+            argumentsPropagateNullability:
+            [
+                true,
+                false,
+                false,
+            ],
+            typeof(string),
+            stringTypeMapping);
+    }
+
+    private SqlExpression FormatBinaryGuid(
+        SqlExpression value,
+        RelationalTypeMapping? stringTypeMapping
+    )
+    {
+        var formatted = _sqlExpressionFactory.Function(
+            "LOWER",
+            [
+                _sqlExpressionFactory.Function(
+                    "HEX",
+                    [value],
+                    nullable: true,
+                    argumentsPropagateNullability: [true],
+                    typeof(string),
+                    stringTypeMapping),
+            ],
+            nullable: true,
+            argumentsPropagateNullability: [true],
+            typeof(string),
+            stringTypeMapping);
+
+        foreach (var position in (ReadOnlySpan<int>)[9, 14, 19, 24])
+        {
+            formatted = _sqlExpressionFactory.Function(
+                "INSERT",
+                [
+                    formatted,
+                    _sqlExpressionFactory.Constant(position),
+                    _sqlExpressionFactory.Constant(0),
+                    _sqlExpressionFactory.Constant("-", stringTypeMapping),
+                ],
+                nullable: true,
+                argumentsPropagateNullability:
+                [
+                    true,
+                    false,
+                    false,
+                    false
+                ],
+                typeof(string),
+                stringTypeMapping);
+        }
+
+        return formatted;
+    }
+
+    /// <summary>
     /// Composes partial JSON ExecuteUpdate setters as nested <c>JSON_SET</c> calls.
-    /// Scalar values remain typed SQL values; objects and collections are parsed as
-    /// JSON fragments so the engine does not store their serialized text as a string.
+    /// Objects and collections are parsed as JSON fragments. Boolean SQL values are
+    /// parsed explicitly as JSON booleans because both engines otherwise store their
+    /// numeric <c>0</c>/<c>1</c> representation.
     /// </summary>
     protected override SqlExpression? GenerateJsonPartialUpdateSetter(
         Expression target,
@@ -176,22 +444,25 @@ internal sealed class
             _ => throw new UnreachableException(),
         };
 
-        var jsonValue = isJsonScalar
-            ? value
-            : _sqlExpressionFactory.Function(
-                "JSON_EXTRACT",
-                [
-                    value,
-                    _sqlExpressionFactory.Constant("$"),
-                ],
-                nullable: true,
-                argumentsPropagateNullability:
-                [
-                    true,
-                    false
-                ],
-                typeof(string),
-                jsonColumn.TypeMapping);
+        var targetType = Nullable.GetUnderlyingType(target.Type) ?? target.Type;
+        var jsonValue = isJsonScalar && targetType == typeof(bool)
+            ? SerializeBooleanToJson(value, jsonColumn.TypeMapping)
+            : isJsonScalar
+                ? value
+                : _sqlExpressionFactory.Function(
+                    "JSON_EXTRACT",
+                    [
+                        value,
+                        _sqlExpressionFactory.Constant("$"),
+                    ],
+                    nullable: true,
+                    argumentsPropagateNullability:
+                    [
+                        true,
+                        false,
+                    ],
+                    typeof(string),
+                    jsonColumn.TypeMapping);
 
         var jsonSet = _sqlExpressionFactory.Function(
             "__mysql_json_set",
@@ -205,7 +476,7 @@ internal sealed class
             [
                 true,
                 false,
-                false
+                false,
             ],
             typeof(string),
             jsonColumn.TypeMapping);
@@ -217,6 +488,37 @@ internal sealed class
 
         existingSetterValue = jsonSet;
         return null;
+    }
+
+    private SqlExpression SerializeBooleanToJson(
+        SqlExpression value,
+        RelationalTypeMapping? jsonTypeMapping
+    )
+    {
+        var stringTypeMapping = _typeMappingSource.FindMapping(typeof(string));
+        var serializedValue = _sqlExpressionFactory.Case(
+            [
+                new CaseWhenClause(
+                    _sqlExpressionFactory.IsNull(value),
+                    _sqlExpressionFactory.Constant(null, typeof(string), stringTypeMapping)),
+                new CaseWhenClause(value, _sqlExpressionFactory.Constant("true", stringTypeMapping)),
+            ],
+            _sqlExpressionFactory.Constant("false", stringTypeMapping));
+
+        return _sqlExpressionFactory.Function(
+            "JSON_EXTRACT",
+            [
+                serializedValue,
+                _sqlExpressionFactory.Constant("$"),
+            ],
+            nullable: true,
+            argumentsPropagateNullability:
+            [
+                true,
+                false
+            ],
+            typeof(string),
+            jsonTypeMapping);
     }
 
     /// <summary>
@@ -241,12 +543,13 @@ internal sealed class
             return false;
         }
 
-        if (selectExpression.Orderings is not [{ IsAscending: true, Expression: ColumnExpression { Name: "key" } orderingColumn }])
+        if (selectExpression.Orderings is not [{ IsAscending: true, Expression: ColumnExpression orderingColumn }])
         {
             return false;
         }
 
-        return orderingColumn.TableAlias == jsonTable.Alias;
+        return orderingColumn.TableAlias == jsonTable.Alias
+            && orderingColumn.Name == GetOrdinalityColumnName(jsonTable);
     }
 
     /// <summary>
@@ -261,26 +564,35 @@ internal sealed class
     )
     {
         var elementTypeMapping = (RelationalTypeMapping?)sqlExpression.TypeMapping?.ElementTypeMapping;
+        var sequenceType = TryGetSequenceType(sqlExpression.Type)
+            ?? throw new InvalidOperationException(
+                "Primitive-collection translation requires a sequence type; "
+                + $"'{sqlExpression.Type}' is not enumerable.");
+
+        var unwrapped = sequenceType.UnwrapNullableType();
+        var jsonTableValueMapping = GetJsonTableValueMapping(unwrapped, elementTypeMapping);
 
         var columns = new List<MySqlJsonTableExpression.ColumnInfo>(2);
 
-        if (elementTypeMapping is not null)
+        if (jsonTableValueMapping is not null)
         {
             columns.Add(
                 new MySqlJsonTableExpression.ColumnInfo(
                     Name: "value",
-                    TypeMapping: elementTypeMapping,
+                    TypeMapping: jsonTableValueMapping,
                     Path: [],
                     AsJson: false,
                     ForOrdinality: false));
         }
 
-        // Key ordinality column matches SqlServer OPENJSON's "key" column semantics. Type mapping
+        const string ordinalityColumnName = "key";
+
+        // The ordinality column matches SqlServer OPENJSON's "key" column semantics. Type mapping
         // is integer because JSON_TABLE FOR ORDINALITY always returns BIGINT-shaped values.
         var keyTypeMapping = _typeMappingSource.FindMapping(typeof(int))!;
         columns.Add(
             new MySqlJsonTableExpression.ColumnInfo(
-                Name: "key",
+                Name: ordinalityColumnName,
                 TypeMapping: keyTypeMapping,
                 Path: null,
                 AsJson: false,
@@ -292,22 +604,23 @@ internal sealed class
             path: null,
             columnInfos: columns);
 
-        var sequenceType = TryGetSequenceType(sqlExpression.Type)
-            ?? throw new InvalidOperationException(
-                $"Primitive-collection translation requires a sequence type; '{sqlExpression.Type}' is not enumerable.");
         var isNullable = property?.GetElementType()?.IsNullable
             ?? IsNullableType(sequenceType);
 
-        var unwrapped = sequenceType.UnwrapNullableType();
         var valueColumn = new ColumnExpression(
             name: "value",
             tableAlias: tableAlias,
-            type: unwrapped,
-            typeMapping: elementTypeMapping ?? _typeMappingSource.FindMapping(unwrapped)!,
+            type: jsonTableValueMapping?.ClrType ?? unwrapped,
+            typeMapping: jsonTableValueMapping ?? _typeMappingSource.FindMapping(unwrapped)!,
             nullable: isNullable);
 
+        var valueProjection = DecodeJsonTableValue(
+            valueColumn,
+            unwrapped,
+            elementTypeMapping);
+
         var keyColumn = new ColumnExpression(
-            name: "key",
+            name: ordinalityColumnName,
             tableAlias: tableAlias,
             type: typeof(int),
             typeMapping: keyTypeMapping,
@@ -323,7 +636,7 @@ internal sealed class
 #pragma warning disable EF1001 // SelectExpression's table-list ctor is EF Core internal; the LINQ -> JSON_TABLE translation needs it.
         var select = new SelectExpression(
             tables: tables,
-            projection: valueColumn,
+            projection: valueProjection,
             identifier: identifier,
             sqlAliasManager: _queryCompilationContext.SqlAliasManager);
 #pragma warning restore EF1001
@@ -338,6 +651,99 @@ internal sealed class
         }
 
         return new ShapedQueryExpression(select, shaper);
+    }
+
+    private RelationalTypeMapping? GetJsonTableValueMapping(
+        Type elementType,
+        RelationalTypeMapping? elementTypeMapping
+    )
+    {
+        if (elementTypeMapping is null)
+        {
+            return null;
+        }
+
+        if (elementType == typeof(Guid)
+            && elementTypeMapping.StoreType.StartsWith("binary", StringComparison.OrdinalIgnoreCase))
+        {
+            return _typeMappingSource.FindMapping(typeof(string), "char(36)");
+        }
+
+        return elementType == typeof(byte[])
+            ? _typeMappingSource.FindMapping(typeof(string), "longtext")
+            : elementTypeMapping;
+    }
+
+    /// <summary>
+    /// Restores JSON string encodings to their relational binary representation.
+    /// </summary>
+    private SqlExpression DecodeJsonTableValue(
+        ColumnExpression valueColumn,
+        Type elementType,
+        RelationalTypeMapping? elementTypeMapping
+    )
+    {
+        if (elementType == typeof(string))
+        {
+            // JSON_UNQUOTE leaves an already unquoted string unchanged, but gives the
+            // expression coercible collation. The compared model column can therefore
+            // supply its configured collation instead of colliding with JSON_TABLE's
+            // connection-default implicit collation on MariaDB.
+            return _sqlExpressionFactory.Function(
+                "JSON_UNQUOTE",
+                [valueColumn],
+                nullable: true,
+                argumentsPropagateNullability: [true],
+                typeof(string),
+                valueColumn.TypeMapping);
+        }
+
+        if (elementTypeMapping is null)
+        {
+            return valueColumn;
+        }
+
+        if (elementType == typeof(byte[]))
+        {
+            return _sqlExpressionFactory.Function(
+                "FROM_BASE64",
+                [valueColumn],
+                nullable: true,
+                argumentsPropagateNullability: [true],
+                typeof(byte[]),
+                elementTypeMapping);
+        }
+
+        if (elementType != typeof(Guid)
+            || !elementTypeMapping.StoreType.StartsWith("binary", StringComparison.OrdinalIgnoreCase))
+        {
+            return valueColumn;
+        }
+
+        var normalized = _sqlExpressionFactory.Function(
+            "REPLACE",
+            [
+                valueColumn,
+                _sqlExpressionFactory.Constant("-", valueColumn.TypeMapping),
+                _sqlExpressionFactory.Constant(string.Empty, valueColumn.TypeMapping),
+            ],
+            nullable: true,
+            argumentsPropagateNullability:
+            [
+                true,
+                false,
+                false,
+            ],
+            typeof(string),
+            valueColumn.TypeMapping);
+
+        return _sqlExpressionFactory.Function(
+            "UNHEX",
+            [normalized],
+            nullable: true,
+            argumentsPropagateNullability: [true],
+            typeof(Guid),
+            elementTypeMapping);
     }
 
     /// <summary>
@@ -424,11 +830,13 @@ internal sealed class
 
         // Ordinality column for stable ordering across the rowset. JSON_TABLE FOR ORDINALITY is
         // 1-based; the spec test corpus does not depend on a particular start index, only on
-        // deterministic ordering.
+        // deterministic ordering. MySQL compares JSON_TABLE column names case-insensitively, so
+        // a JSON property named "Key" cannot share the usual synthetic "key" name.
+        var ordinalityColumnName = CreateOrdinalityColumnName(columns);
         var keyTypeMapping = _typeMappingSource.FindMapping(typeof(int))!;
         columns.Add(
             new MySqlJsonTableExpression.ColumnInfo(
-                Name: "key",
+                Name: ordinalityColumnName,
                 TypeMapping: keyTypeMapping,
                 Path: null,
                 AsJson: false,
@@ -444,7 +852,7 @@ internal sealed class
         var select = CreateSelect(
             jsonQueryExpression,
             jsonTableExpression,
-            identifierColumnName: "key",
+            identifierColumnName: ordinalityColumnName,
             identifierColumnType: typeof(int),
             identifierColumnTypeMapping: keyTypeMapping);
 #pragma warning restore EF1001
@@ -453,7 +861,7 @@ internal sealed class
             new OrderingExpression(
                 select.CreateColumnExpression(
                     jsonTableExpression,
-                    "key",
+                    ordinalityColumnName,
                     typeof(int),
                     keyTypeMapping,
                     columnNullable: false),
@@ -466,6 +874,36 @@ internal sealed class
                 new ProjectionBindingExpression(select, new ProjectionMember(), typeof(ValueBuffer)),
                 nullable: false));
     }
+
+    private static string CreateOrdinalityColumnName(
+        IReadOnlyList<MySqlJsonTableExpression.ColumnInfo> columns
+    )
+    {
+        const string preferredName = "key";
+
+        if (!columns.Any(column => string.Equals(column.Name, preferredName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return preferredName;
+        }
+
+        const string fallbackPrefix = "__doka_ordinality";
+        var candidate = fallbackPrefix;
+        var suffix = 0;
+
+        while (columns.Any(column => string.Equals(column.Name, candidate, StringComparison.OrdinalIgnoreCase)))
+        {
+            candidate = $"{fallbackPrefix}_{++suffix}";
+        }
+
+        return candidate;
+    }
+
+    private static string GetOrdinalityColumnName(
+        MySqlJsonTableExpression jsonTable
+    ) => (jsonTable.ColumnInfos
+            ?? throw new UnreachableException("A translated JSON_TABLE rowset must declare its columns."))
+        .Single(static column => column.ForOrdinality)
+        .Name;
 
     // Mirrors System.SharedTypeExtensions.TryGetSequenceType (EF Core internal); inlined so the
     // translator does not depend on the internal extension surface.

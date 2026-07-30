@@ -38,7 +38,20 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
     {
         ArgumentNullException.ThrowIfNull(property);
 
-        if (property.GetMySqlValueGenerationStrategy() != MySqlValueGenerationStrategy.HiLo)
+        var strategy = property.GetMySqlValueGenerationStrategy();
+        if (property.GetValueGeneratorFactory() is not null)
+        {
+            return base.TrySelect(property, typeBase, out valueGenerator);
+        }
+
+        if (strategy == MySqlValueGenerationStrategy.ClientGuid
+            && (Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType) == typeof(Guid))
+        {
+            valueGenerator = new MySqlSequentialGuidValueGenerator();
+            return true;
+        }
+
+        if (strategy != MySqlValueGenerationStrategy.HiLo)
         {
             return base.TrySelect(property, typeBase, out valueGenerator);
         }
