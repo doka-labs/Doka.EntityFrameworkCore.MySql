@@ -17,7 +17,6 @@ public sealed class MySqlSingletonOptionsConcurrencyTests
 
         Parallel.For(0, 4000, _ => singletonOptions.Initialize(options));
 
-        Assert.NotNull(singletonOptions.ServerVersion);
         Assert.NotNull(singletonOptions.Profile);
         Assert.Equal(MySqlGuidFormat.Char36, singletonOptions.DefaultGuidFormat);
         Assert.False(singletonOptions.UsesDataSource);
@@ -30,12 +29,12 @@ public sealed class MySqlSingletonOptionsConcurrencyTests
         var singletonOptions = new MySqlSingletonOptions();
 
         singletonOptions.Initialize(options);
-        var firstServerVersion = singletonOptions.ServerVersion;
+        var firstProfile = singletonOptions.Profile;
 
         singletonOptions.Initialize(options);
-        var secondServerVersion = singletonOptions.ServerVersion;
+        var secondProfile = singletonOptions.Profile;
 
-        Assert.Same(firstServerVersion, secondServerVersion);
+        Assert.Same(firstProfile, secondProfile);
     }
 
     [Fact]
@@ -45,9 +44,9 @@ public sealed class MySqlSingletonOptionsConcurrencyTests
         var singletonOptions = new MySqlSingletonOptions();
 
         // The torn-snapshot failure mode would surface as Validate throwing because
-        // ServerVersion appeared set on one thread while Capabilities was still
-        // null on another. Running them back-to-back from many threads exercises
-        // exactly that ordering.
+        // Profile appeared set on one thread while the remaining snapshot fields
+        // were still stale on another. Running them back-to-back from many threads
+        // exercises exactly that ordering.
         Parallel.For(0, 1000, _ =>
         {
             singletonOptions.Initialize(options);

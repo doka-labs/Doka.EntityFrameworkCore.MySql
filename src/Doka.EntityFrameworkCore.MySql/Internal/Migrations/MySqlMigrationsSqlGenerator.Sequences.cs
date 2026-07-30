@@ -14,13 +14,13 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
-        if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsNativeSequences) == true)
+        if (UsesNativeSequences())
         {
             builder
                 .Append("CREATE SEQUENCE ")
                 .Append(DelimitMigrationIdentifier(operation.Name));
 
-            if (_mySqlSingletonOptions.Profile.Version.CompareTo(new Version(11, 5, 0)) >= 0)
+            if (Profile.Engine.Version.CompareTo(new Version(11, 5, 0)) >= 0)
             {
                 builder
                     .Append(" AS ")
@@ -159,7 +159,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
-        if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsNativeSequences) == true)
+        if (UsesNativeSequences())
         {
             builder
                 .Append("DROP SEQUENCE IF EXISTS ")
@@ -191,7 +191,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
-        if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsNativeSequences) == true)
+        if (UsesNativeSequences())
         {
             builder
                 .Append("ALTER SEQUENCE ")
@@ -273,7 +273,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return;
         }
 
-        if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsNativeSequences) == true)
+        if (UsesNativeSequences())
         {
             builder
                 .Append("RENAME TABLE ")
@@ -310,7 +310,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
-        if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsNativeSequences) == true)
+        if (UsesNativeSequences())
         {
             builder
                 .Append("ALTER SEQUENCE ")
@@ -447,6 +447,9 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 $"The unsigned sequence store type '{typeInfo.StoreType}' cannot use a negative increment.");
         }
     }
+
+    private bool UsesNativeSequences() =>
+        Profile.GetSupport(ProviderCapability.Sequences) == ProviderSupportStatus.Native;
 
     private readonly record struct SequenceTypeInfo(
         string StoreType,

@@ -16,6 +16,12 @@ public static class MySqlEventId
     public static readonly EventId InvalidConfiguration = new(1001, nameof(InvalidConfiguration));
 
     /// <summary>
+    /// Emitted when an explicit compatibility opt-in allows a legacy,
+    /// unvalidated, or future server release line.
+    /// </summary>
+    public static readonly EventId UnsupportedServerVersion = new(1005, nameof(UnsupportedServerVersion));
+
+    /// <summary>
     /// Emitted when unsupported MySQL schema configuration is encountered.
     /// </summary>
     public static readonly EventId SchemaUnsupported = new(1002, nameof(SchemaUnsupported));

@@ -66,6 +66,14 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
             throw new InvalidOperationException("A MySQL server version must be configured.");
         }
 
+        if (ServerVersion.SupportStatus != MySqlServerVersionSupportStatus.Supported
+            && ServerVersion.CompatibilityMode != MySqlServerVersionCompatibilityMode.AllowUnsupported)
+        {
+            var message = ServerVersionSupportPolicy.CreateRejectionMessage(ServerVersion);
+            LogInvalidConfiguration(options, message);
+            throw new NotSupportedException(message);
+        }
+
         var configuredInputCount = 0;
 
         if (!string.IsNullOrWhiteSpace(ConnectionString))

@@ -15,13 +15,15 @@ internal static class CheckConstraintLoader
         ArgumentNullException.ThrowIfNull(context);
 
         using var command = context.Connection.CreateCommand();
-        var sql = context.Profile.Family == EngineFamily.MariaDb ? MariaDbQuery() : MySqlQuery();
+        var catalogIncludesTableName = context.Profile.Engine.Has(
+            EngineCapability.CheckConstraintCatalogIncludesTableName);
+        var sql = catalogIncludesTableName ? MariaDbQuery() : MySqlQuery();
 
         ScaffoldingHelpers.AppendTableNameFilter(
             sql,
             command,
             context.TableFilter,
-            context.Profile.Family == EngineFamily.MariaDb ? "checks.TABLE_NAME" : "constraints.TABLE_NAME");
+            catalogIncludesTableName ? "checks.TABLE_NAME" : "constraints.TABLE_NAME");
         sql.Append(" ORDER BY TABLE_NAME, CONSTRAINT_NAME;");
         command.CommandText = sql.ToString();
 

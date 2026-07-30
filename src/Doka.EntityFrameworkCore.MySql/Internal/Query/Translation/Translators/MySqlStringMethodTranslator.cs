@@ -136,7 +136,7 @@ internal sealed class MySqlStringMethodTranslator : IMethodCallTranslator
         if (method == s_regexIsMatchMethod)
         {
             return _sqlExpressionFactory.Function(
-                "__mysql_regexp",
+                MySqlSentinelContract.GetName(MySqlSentinelKind.RegularExpression),
                 arguments,
                 nullable: true,
                 argumentsPropagateNullability: s_twoArgumentNullPropagation,

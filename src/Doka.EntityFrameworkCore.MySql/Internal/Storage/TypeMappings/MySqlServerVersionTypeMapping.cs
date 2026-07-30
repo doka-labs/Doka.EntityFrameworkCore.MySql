@@ -31,6 +31,21 @@ internal sealed class MySqlServerVersionTypeMapping : RelationalTypeMapping
         nameof(MySqlServerVersion.MariaDb),
         [typeof(Version)])!;
 
+    private static readonly MethodInfo s_mySqlCompatibilityFactoryMethod = typeof(MySqlServerVersion).GetRuntimeMethod(
+        nameof(MySqlServerVersion.MySql),
+        [
+            typeof(Version),
+            typeof(MySqlServerVersionCompatibilityMode),
+        ])!;
+
+    private static readonly MethodInfo s_mariaDbCompatibilityFactoryMethod =
+        typeof(MySqlServerVersion).GetRuntimeMethod(
+            nameof(MySqlServerVersion.MariaDb),
+            [
+                typeof(Version),
+                typeof(MySqlServerVersionCompatibilityMode),
+            ])!;
+
     public MySqlServerVersionTypeMapping() : base(
         new RelationalTypeMappingParameters(
             new CoreTypeMappingParameters(typeof(MySqlServerVersion)),
@@ -62,9 +77,23 @@ internal sealed class MySqlServerVersionTypeMapping : RelationalTypeMapping
         }
 
         var versionLiteral = CreateVersionLiteral(serverVersion.Version);
-        var factoryMethod = serverVersion.IsMariaDb ? s_mariaDbFactoryMethod : s_mySqlFactoryMethod;
+        if (serverVersion.CompatibilityMode == MySqlServerVersionCompatibilityMode.SupportedOnly)
+        {
+            var supportedFactoryMethod = serverVersion.IsMariaDb
+                ? s_mariaDbFactoryMethod
+                : s_mySqlFactoryMethod;
 
-        return Expression.Call(factoryMethod, versionLiteral);
+            return Expression.Call(supportedFactoryMethod, versionLiteral);
+        }
+
+        var compatibilityFactoryMethod = serverVersion.IsMariaDb
+            ? s_mariaDbCompatibilityFactoryMethod
+            : s_mySqlCompatibilityFactoryMethod;
+
+        return Expression.Call(
+            compatibilityFactoryMethod,
+            versionLiteral,
+            Expression.Constant(serverVersion.CompatibilityMode));
     }
 
     private static NewExpression CreateVersionLiteral(

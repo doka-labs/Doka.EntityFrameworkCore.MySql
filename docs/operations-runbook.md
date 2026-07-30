@@ -28,6 +28,7 @@ Full catalog (source of truth: `src/Doka.EntityFrameworkCore.MySql/MySqlEventId.
 | 1002 | `SchemaUnsupported` | Error | Configuration | Unsupported MySQL schema configuration is detected; MySQL treats schema and database as synonyms. |
 | 1003 | `KeyOrIndexMaxLengthRequired` | Error | Configuration | A keyed or indexed text or binary property omits the required explicit max length. |
 | 1004 | `ImplicitDecimalPrecisionDefaulted` | Warning | Configuration | A decimal property falls back to the provider default precision and scale contract (18, 2). |
+| 1005 | `UnsupportedServerVersion` | Warning | Configuration | An explicit opt-in uses an unsupported release line. |
 | 1102 | `LockReleaseFailed` | Warning | Migrations | The migration advisory lock could not be released cleanly via `RELEASE_LOCK`. Disposing the dedicated connection still releases the session-scoped lock implicitly; the warning surfaces an unusual server-side state worth investigating. |
 | 1403 | `ForeignKeyPrincipalTableNotScaffolded` | Warning | Scaffolding | A foreign key is skipped during scaffolding because its principal table is excluded by the scaffolding filter. |
 | 1500 | `RetryAttempt` | Warning | Resilience | The execution strategy retries a transient failure; attempt counter + previous-exception attached to the log scope. |

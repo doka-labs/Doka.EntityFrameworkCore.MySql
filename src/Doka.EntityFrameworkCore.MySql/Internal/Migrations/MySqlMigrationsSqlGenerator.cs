@@ -4,6 +4,10 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
 {
     private readonly MySqlSingletonOptions _mySqlSingletonOptions;
 
+    private ProviderProfile Profile => _mySqlSingletonOptions.Profile
+        ?? throw new InvalidOperationException(
+            "The provider profile must be initialized before migration SQL generation.");
+
     public MySqlMigrationsSqlGenerator(
         MigrationsSqlGeneratorDependencies dependencies,
         IEnumerable<ISingletonOptions> singletonOptions

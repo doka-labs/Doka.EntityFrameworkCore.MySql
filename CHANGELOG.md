@@ -13,6 +13,10 @@ Initial release line preparing the first publishable `10.0.x` package.
 
 - Default `decimal` mapping changed from `decimal(65,30)` (the MySQL maximum) to `decimal(18,2)` (the real-world common case for currency). Unannotated decimal properties now resolve to the new default; properties annotated with `[Precision(p, s)]` or `HasPrecision(p, s)` are unaffected. Existing schemata that have unannotated decimal columns wider than `(18,2)` should be audited via `SELECT MAX(ABS(x))` before the next migration runs. The `ImplicitDecimalPrecisionDefaulted` warning fires on first use per `DbContext`. See ADR D-006 for the full rationale.
 - GUID stored as `char(36)` / `varchar(36)` now declares `unicode: false`, matching the ASCII-only canonical hex representation. The on-disk footprint and the network payload shrink to one byte per character. Existing schemata that declared GUID columns with utf8mb4 collation continue to read and write correctly; the migration only re-emits the type mapping.
+- Server versions outside MySQL 8.4 and MariaDB 11.4 / 11.8 now require
+  the explicit `MySqlServerVersionCompatibilityMode.AllowUnsupported`
+  opt-in. Legacy, unvalidated, and future lines remain executable without
+  a support guarantee and emit `MySqlEventId.UnsupportedServerVersion`.
 
 ### Added
 
@@ -20,8 +24,12 @@ Initial release line preparing the first publishable `10.0.x` package.
 
 - Entity Framework Core 10 provider for MySQL 8.4 LTS and MariaDB 11.4 / 11.8 LTS
 - Three connection configuration paths: connection string, `DbConnection`, and `MySqlDataSource`
-- `MySqlServerVersion` with explicit `MySql(...)` / `MariaDb(...)` factories and `AutoDetect(...)` helper
-- Capability-driven engine differences via the internal `ServerCapabilities` model (single source of truth for MySQL vs. MariaDB behavior)
+- `MySqlServerVersion` with explicit `MySql(...)` / `MariaDb(...)`
+  factories, `AutoDetect(...)`, support classification, and an
+  unsupported-version compatibility mode
+- Separate engine-fact and provider-support contracts; provider
+  capabilities resolve as native, emulated, or unavailable because of an
+  engine limitation
 - GUID storage format selection: `Binary16` (default) and `Char36`, both configurable via `DefaultGuidFormat(...)` and per-property `HasMySqlGuidFormat(...)`
 - Value generation strategies: `AutoIncrement`, `ClientGuid`, and `HiLo` via `UseHiLo(...)`
 - Native MariaDB sequences (10.3+) plus table-based sequence emulation for MySQL
@@ -49,8 +57,14 @@ Initial release line preparing the first publishable `10.0.x` package.
 
 ### Tested
 
-- 321 unit tests, 1224 functional tests (296 in-memory + 928 spec-suite subclasses run cross-engine), 107 live integration test methods
-- Live integration coverage against Dockerized MySQL 8.0, MySQL 8.4 LTS, MariaDB 11.4 LTS, and MariaDB 11.8 LTS
+- 586 unit tests and 377 provider-local functional tests
+- Upstream specification contracts covering 29,745 MySQL 8.4,
+  29,409 MariaDB 11.4, and 29,410 MariaDB 11.8 test cases
+- 133 live integration cases across the supported matrix, including five
+  explicit skips reserved for the external-only MySQL 8.0 baseline
+- Live integration coverage against MySQL 8.4 LTS, MariaDB 11.4 LTS, and
+  MariaDB 11.8 LTS, plus an external-only opt-in MySQL 8.0 compatibility
+  baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
 [Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/HEAD

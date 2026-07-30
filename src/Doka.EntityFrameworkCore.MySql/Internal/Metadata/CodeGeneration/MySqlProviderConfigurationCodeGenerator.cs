@@ -37,7 +37,20 @@ internal sealed class MySqlProviderConfigurationCodeGenerator : ProviderCodeGene
                 : providerOptionsWithSpatial.Chain("UseNetTopologySuite", Array.Empty<object>());
         }
 
-        var serverVersion = MySqlServerVersion.AutoDetect(detectedServerVersionText);
+        var detectedServerVersion = MySqlServerVersion.AutoDetect(detectedServerVersionText);
+
+        // Preserve unsupported scaffolding as an explicit generated-code decision.
+        // The code literal includes AllowUnsupported, so the compatibility risk is
+        // visible in the generated DbContext and runtime diagnostics emit a warning.
+        var serverVersion = detectedServerVersion.SupportStatus == MySqlServerVersionSupportStatus.Supported
+            ? detectedServerVersion
+            : detectedServerVersion.IsMariaDb
+                ? MySqlServerVersion.MariaDb(
+                    detectedServerVersion.Version,
+                    MySqlServerVersionCompatibilityMode.AllowUnsupported)
+                : MySqlServerVersion.MySql(
+                    detectedServerVersion.Version,
+                    MySqlServerVersionCompatibilityMode.AllowUnsupported);
 
         return providerOptionsWithSpatial is null
             ? new MethodCallCodeFragment(

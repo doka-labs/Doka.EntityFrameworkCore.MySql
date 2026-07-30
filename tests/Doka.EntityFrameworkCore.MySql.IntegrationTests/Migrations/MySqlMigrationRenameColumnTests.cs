@@ -8,7 +8,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// - MariaDB 11.8 (>= 10.5.2): native <c>ALTER TABLE ... RENAME COLUMN old TO new</c>.
 /// - Capability-driven fallback: <c>ALTER TABLE ... CHANGE COLUMN old new &lt;definition&gt;</c>
 ///   exercised by forcing an older MariaDB version string so the engine profile drops
-///   <see cref="Capability.SupportsRenameColumnSyntax"/>.
+///   <see cref="EngineCapability.RenameColumnSyntax"/>.
 /// MySQL 8.4 + MariaDB 11.4 share the modern path; the snapshot DDL test pins both
 /// paths against the live server to keep the fallback honest.
 /// </summary>
@@ -28,11 +28,13 @@ public sealed class MySqlMigrationRenameColumnTests
     public async Task MariaDb118_legacy_version_uses_change_column_fallback_and_persists_data()
     {
         // Force a MariaDB version string that predates the RENAME COLUMN feature
-        // so EngineProfile drops SupportsRenameColumnSyntax. The live server still
+        // so EngineProfile drops RenameColumnSyntax. The live server still
         // accepts CHANGE COLUMN, so the round-trip remains correctness-checked.
         await RunRenameRoundTrip(
             IntegrationDatabaseTarget.MariaDb118,
-            MySqlServerVersion.MariaDb(new Version(10, 5, 0)),
+            MySqlServerVersion.MariaDb(
+                new Version(10, 5, 0),
+                MySqlServerVersionCompatibilityMode.AllowUnsupported),
             expectFallback: true);
     }
 

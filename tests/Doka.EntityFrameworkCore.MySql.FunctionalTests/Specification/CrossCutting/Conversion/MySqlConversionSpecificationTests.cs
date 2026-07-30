@@ -193,11 +193,18 @@ public sealed class FieldMappingMySqlTest : FieldMappingTestBase<FieldMappingMyS
 /// <summary>
 /// Verifies that malformed JSON is rejected during provider materialization.
 /// </summary>
+/// <remarks>
+/// The upstream contract creates throwaway contexts with a replacement model-cache-key
+/// service. Those intentionally distinct test option graphs must not accumulate in EF
+/// Core's process-wide internal service-provider cache.
+/// </remarks>
 [Trait("Category", "Spec")]
 [Collection(FunctionalDatabaseTestGroup.Name)]
 public sealed class BadDataJsonDeserializationMySqlTest : BadDataJsonDeserializationTestBase
 {
     protected override void OnConfiguring(
         DbContextOptionsBuilder optionsBuilder
-    ) => base.OnConfiguring(MySqlTestHelpers.Instance.UseProviderOptions(optionsBuilder));
+    ) => base.OnConfiguring(
+        MySqlTestHelpers.Instance.UseProviderOptions(
+            optionsBuilder.EnableServiceProviderCaching(false)));
 }

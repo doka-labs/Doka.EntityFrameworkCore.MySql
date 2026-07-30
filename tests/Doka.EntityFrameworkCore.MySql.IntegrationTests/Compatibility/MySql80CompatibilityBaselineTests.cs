@@ -26,14 +26,17 @@ public sealed class MySql80CompatibilityBaselineTests
                 .OpenAsync()
                 .ConfigureAwait(false);
 
-            var detectedServerVersion = MySqlServerVersion.AutoDetect(connection);
+            var detectedServerVersion = MySqlServerVersion.AutoDetect(
+                connection,
+                MySqlServerVersionCompatibilityMode.AllowUnsupported);
 
             Assert.False(detectedServerVersion.IsMariaDb);
             Assert.Equal(8, detectedServerVersion.Version.Major);
             Assert.Equal(0, detectedServerVersion.Version.Minor);
-            Assert.True(detectedServerVersion.Profile.Has(Capability.SupportsNativeJsonType));
-            Assert.False(detectedServerVersion.Profile.Has(Capability.UsesJsonAliasForJsonColumns));
-            Assert.True(detectedServerVersion.Profile.Has(Capability.SupportsSavepoints));
+            Assert.Equal(
+                ProviderSupportStatus.Native,
+                detectedServerVersion.Profile.GetSupport(ProviderCapability.JsonColumns));
+            Assert.True(detectedServerVersion.Profile.Supports(ProviderCapability.Savepoints));
 
             await using var context = new MySql80CompatibilityContext(CreateOptions(connectionString));
 
@@ -83,7 +86,9 @@ public sealed class MySql80CompatibilityBaselineTests
 
         optionsBuilder.UseMySql(
             connectionString,
-            MySqlServerVersion.MySql(new Version(8, 0, 0)),
+            MySqlServerVersion.MySql(
+                new Version(8, 0, 0),
+                MySqlServerVersionCompatibilityMode.AllowUnsupported),
             options => options.EnableRetryOnFailure(maxRetryCount: 2, maxRetryDelay: TimeSpan.FromMilliseconds(1)));
 
         return optionsBuilder.Options;

@@ -12,12 +12,12 @@ internal sealed partial class MySqlQuerySqlGenerator
     )
     {
         var arguments = expression.Arguments
-            ?? throw new InvalidOperationException("The __mysql_json_set sentinel requires three arguments.");
+            ?? throw new InvalidOperationException($"The {expression.Name} sentinel requires three arguments.");
 
         if (arguments[1] is not SqlConstantExpression { Value: IReadOnlyList<PathSegment> path, })
         {
             throw new InvalidOperationException(
-                "The __mysql_json_set sentinel requires an IReadOnlyList<PathSegment> path.");
+                $"The {expression.Name} sentinel requires an IReadOnlyList<PathSegment> path.");
         }
 
         Sql.Append("JSON_SET(");
@@ -357,7 +357,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         ArgumentNullException.ThrowIfNull(existsExpression);
 
         var subquery = existsExpression.Subquery;
-        if (_singletonOptions.ServerVersion?.IsMariaDb != false
+        if (!Profile.Engine.Has(EngineCapability.JsonTableExistsRequiresWorkaround)
             || subquery.Tables is not [MySqlJsonTableExpression, ..]
             || subquery.GroupBy.Count > 0
             || subquery.Having is not null
@@ -590,9 +590,10 @@ internal sealed partial class MySqlQuerySqlGenerator
             && typeMapping is not null
             && JsonScalarCastTarget(typeMapping.StoreType) is { } cast)
         {
-            var isMariaDb = _singletonOptions.ServerVersion?.IsMariaDb == true;
+            var usesJsonTextSemantics =
+                Profile.GetSupport(ProviderCapability.JsonColumns) == ProviderSupportStatus.Emulated;
 
-            if (isMariaDb)
+            if (usesJsonTextSemantics)
             {
                 Sql.Append("CAST(");
                 EmitJsonScalarRead(jsonScalarExpression);
@@ -965,7 +966,8 @@ internal sealed partial class MySqlQuerySqlGenerator
         string name
     )
     {
-        var isMariaDb = _singletonOptions.ServerVersion?.IsMariaDb == true;
+        var usesJsonTextSemantics =
+            Profile.GetSupport(ProviderCapability.JsonColumns) == ProviderSupportStatus.Emulated;
         var sb = new StringBuilder(name.Length + 4);
         sb.Append('"');
         foreach (var c in name)
@@ -982,7 +984,7 @@ internal sealed partial class MySqlQuerySqlGenerator
                     // `"`, which then decodes to a literal double-quote. Empirical
                     // probe (MySqlConnector direct, 2026-05-17) confirmed both shapes work
                     // on their respective engines and fail when swapped.
-                    sb.Append(isMariaDb ? "\\\"" : @"\\u0022");
+                    sb.Append(usesJsonTextSemantics ? "\\\"" : @"\\u0022");
                     break;
                 case '\\':
                     // Same engine asymmetry as for the double-quote: MariaDB's SQL parser
@@ -991,7 +993,7 @@ internal sealed partial class MySqlQuerySqlGenerator
                     // MariaDB's `\\` survives both layers; MySQL needs `\\u005C` so the SQL
                     // parser ends up handing `\` to the JSON path parser which then
                     // decodes to a literal backslash.
-                    sb.Append(isMariaDb ? @"\\" : @"\\u005C");
+                    sb.Append(usesJsonTextSemantics ? @"\\" : @"\\u005C");
                     break;
                 default:
                     sb.Append(c);

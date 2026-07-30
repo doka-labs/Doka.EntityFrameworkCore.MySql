@@ -5,9 +5,7 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
     private readonly Lock _initLock = new();
     private volatile bool _initialized;
 
-    public MySqlServerVersion? ServerVersion { get; private set; }
-
-    public EngineProfile? Profile { get; private set; }
+    public ProviderProfile? Profile { get; private set; }
 
     public MySqlRetryOptions? RetryOptions { get; private set; }
 
@@ -20,7 +18,8 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
     /// and thread-safe: under <c>AddDbContextPool</c> the framework can resolve
     /// singleton services from multiple threads before the first Initialize completes;
     /// without the double-checked-lock guard a consumer could observe a torn snapshot
-    /// where ServerVersion is set but Capabilities is still null. Subsequent calls
+    /// where the profile is set but retry or format settings are still stale.
+    /// Subsequent calls
     /// return without touching state.
     /// </summary>
     public void Initialize(
@@ -46,16 +45,19 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
             var extension = options.FindExtension<MySqlOptionsExtension>()
                 ?? throw new InvalidOperationException("The Doka MySQL options extension is not configured.");
 
-            ServerVersion = extension.ServerVersion
+            var serverVersion = extension.ServerVersion
                 ?? throw new InvalidOperationException("A MySQL server version must be configured.");
-            Profile = extension.ServerVersion.Profile;
+
+            Profile = serverVersion.Profile;
             RetryOptions = extension.RetryOptions;
             DefaultGuidFormat = extension.DefaultGuidFormat;
             UsesDataSource = extension.DataSource is not null;
 
             activity?.SetTag("db.system", "mysql");
-            activity?.SetTag("db.serverversion.engine_family", Profile.Family.ToString());
-            activity?.SetTag("db.serverversion.version", ServerVersion.Version.ToString());
+            activity?.SetTag("db.serverversion.engine_family", Profile.Engine.Family.ToString());
+            activity?.SetTag("db.serverversion.version", Profile.Engine.Version.ToString());
+            activity?.SetTag("db.serverversion.support_status", serverVersion.SupportStatus.ToString());
+            activity?.SetTag("db.serverversion.compatibility_mode", serverVersion.CompatibilityMode.ToString());
 
             var loggerFactory = options.FindExtension<CoreOptionsExtension>()
                 ?.LoggerFactory;
@@ -64,7 +66,13 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
             {
                 var logger = loggerFactory.CreateLogger(MySqlLoggerCategory.Configuration);
 
-                MySqlLoggerMessages.ServerVersionResolved(logger, extension.ServerVersion);
+                MySqlLoggerMessages.ServerVersionResolved(logger, serverVersion);
+
+                if (serverVersion.SupportStatus != MySqlServerVersionSupportStatus.Supported
+                    && serverVersion.CompatibilityMode == MySqlServerVersionCompatibilityMode.AllowUnsupported)
+                {
+                    MySqlLoggerMessages.UnsupportedServerVersion(logger, serverVersion);
+                }
             }
 
             // volatile-write: publishes every property write above to any thread that
@@ -82,7 +90,7 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
         var extension = options.FindExtension<MySqlOptionsExtension>()
             ?? throw new InvalidOperationException("The Doka MySQL options extension is not configured.");
 
-        if (!Equals(ServerVersion, extension.ServerVersion))
+        if (!Equals(Profile, extension.ServerVersion?.Profile))
         {
             LogConfigurationMismatch(
                 options,

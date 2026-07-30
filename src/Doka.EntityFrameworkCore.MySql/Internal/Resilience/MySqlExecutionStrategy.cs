@@ -2,7 +2,6 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlExecutionStrategy : ExecutionStrategy
 {
-    private readonly EngineProfile _profile;
     private readonly IMySqlTransientExceptionDetector _transientExceptionDetector;
     private readonly ILogger? _logger;
 
@@ -28,10 +27,6 @@ internal sealed class MySqlExecutionStrategy : ExecutionStrategy
         ?? throw new InvalidOperationException("Retry options must be configured for the MySQL execution strategy."),
         singletonOptions.RetryOptions.MaxRetryDelay)
     {
-        _profile = singletonOptions.Profile
-            ?? throw new InvalidOperationException(
-                "MySQL engine profile must be configured before creating the execution strategy.");
-
         _transientExceptionDetector = transientExceptionDetector
             ?? throw new ArgumentNullException(nameof(transientExceptionDetector));
 

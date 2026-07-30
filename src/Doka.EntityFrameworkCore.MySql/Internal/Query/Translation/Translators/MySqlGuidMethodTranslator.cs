@@ -88,7 +88,7 @@ internal sealed class MySqlGuidMethodTranslator : IMethodCallTranslator
             _stringTypeMapping);
 
         return _sqlExpressionFactory.Function(
-            "__mysql_guid_to_string",
+            MySqlSentinelContract.GetName(MySqlSentinelKind.GuidToString),
             [hex],
             nullable: true,
             argumentsPropagateNullability: s_singleArgumentNullPropagation,

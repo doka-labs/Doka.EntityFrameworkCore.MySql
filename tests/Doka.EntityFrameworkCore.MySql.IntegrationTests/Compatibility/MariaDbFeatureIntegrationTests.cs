@@ -335,7 +335,9 @@ public sealed class MariaDbFeatureIntegrationTests
         {
             IntegrationDatabaseTarget.MariaDb114 => MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
             IntegrationDatabaseTarget.MariaDb118 => MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
-            IntegrationDatabaseTarget.MySql80 => MySqlServerVersion.MySql(new Version(8, 0, 0)),
+            IntegrationDatabaseTarget.MySql80 => MySqlServerVersion.MySql(
+                new Version(8, 0, 0),
+                MySqlServerVersionCompatibilityMode.AllowUnsupported),
             IntegrationDatabaseTarget.MySql84 => MySqlServerVersion.MySql(new Version(8, 4, 0)),
             _ => throw new ArgumentOutOfRangeException(nameof(target)),
         };

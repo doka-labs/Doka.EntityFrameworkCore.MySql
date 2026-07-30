@@ -95,7 +95,10 @@ internal sealed class MySqlStringAggregateTranslator : IAggregateMethodCallTrans
         {
             functionArguments.Add(
                 _sqlExpressionFactory.Function(
-                    ordering.IsAscending ? "__mysql_order_ascending" : "__mysql_order_descending",
+                    MySqlSentinelContract.GetName(
+                        ordering.IsAscending
+                            ? MySqlSentinelKind.OrderAscending
+                            : MySqlSentinelKind.OrderDescending),
                     [ordering.Expression],
                     nullable: true,
                     argumentsPropagateNullability: [true],
@@ -104,7 +107,7 @@ internal sealed class MySqlStringAggregateTranslator : IAggregateMethodCallTrans
         }
 
         var aggregate = _sqlExpressionFactory.Function(
-            "__mysql_group_concat",
+            MySqlSentinelContract.GetName(MySqlSentinelKind.GroupConcat),
             functionArguments,
             nullable: true,
             argumentsPropagateNullability: new bool[functionArguments.Count],

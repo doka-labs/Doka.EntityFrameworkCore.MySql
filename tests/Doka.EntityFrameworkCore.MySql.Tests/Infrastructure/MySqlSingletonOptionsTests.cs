@@ -6,7 +6,8 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 public sealed class MySqlSingletonOptionsTests
 {
     /// <summary>
-    /// Verifies that the singleton options cache the resolved version, capabilities, and persisted Phase 1 settings.
+    /// Verifies that the singleton options cache one provider profile and the
+    /// remaining immutable provider settings.
     /// </summary>
     [Fact]
     public void Initialize_caches_resolved_server_version_capabilities_and_phase1_settings()
@@ -25,7 +26,6 @@ public sealed class MySqlSingletonOptionsTests
 
         singletonOptions.Initialize(builder.Options);
 
-        Assert.Equal(serverVersion, singletonOptions.ServerVersion);
         Assert.Equal(serverVersion.Profile, singletonOptions.Profile);
         Assert.NotNull(singletonOptions.RetryOptions);
         Assert.Equal(4, singletonOptions.RetryOptions.MaxRetryCount);

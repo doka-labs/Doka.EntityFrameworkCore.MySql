@@ -1,25 +1,25 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Static lookup table mapping (engine-family, version) to a frozen capability
-/// snapshot. Replaces the per-call <c>ServerCapabilities.Create(isMariaDb, version)</c>
-/// computation with a deterministic build-once / read-many table that scales
-/// linearly with the number of supported engine versions rather than quadratically
-/// with the number of capabilities times the number of version thresholds.
+/// Static lookup table mapping an engine family and version to a frozen engine-fact
+/// snapshot. Provider support is derived separately by <see cref="ProviderProfile"/>.
 ///
-/// Adding support for a new engine version becomes a single entry: list the
-/// minimum version that introduces the new capabilities, and the table propagates
-/// the feature set to every <see cref="EngineProfile"/> resolved at or above that
-/// version via the lower-bound search in <see cref="Resolve"/>.
+/// Adding support for a new engine version means declaring the exact threshold
+/// that changes an engine fact. The table accumulates every fact whose threshold
+/// is satisfied by the requested version.
 /// </summary>
 internal static class EngineProfileTable
 {
-    private static readonly Version s_mySql57 = new(5, 7, 0);
-    private static readonly Version s_mySql8 = new(8, 0, 0);
-    private static readonly Version s_mySql8031 = new(8, 0, 31);
-    private static readonly Version s_mariaDb102 = new(10, 2, 0);
+    private static readonly Version s_mySql576 = new(5, 7, 6);
+    private static readonly Version s_mySql578 = new(5, 7, 8);
+    private static readonly Version s_mySql803 = new(8, 0, 3);
+    private static readonly Version s_mySql804 = new(8, 0, 4);
+    private static readonly Version s_mySql8013 = new(8, 0, 13);
+    private static readonly Version s_mySql8014 = new(8, 0, 14);
+    private static readonly Version s_mariaDb52 = new(5, 2, 0);
+    private static readonly Version s_mariaDb1021 = new(10, 2, 1);
+    private static readonly Version s_mariaDb1023 = new(10, 2, 3);
     private static readonly Version s_mariaDb103 = new(10, 3, 0);
-    private static readonly Version s_mariaDb1034 = new(10, 3, 4);
     private static readonly Version s_mariaDb105 = new(10, 5, 0);
     private static readonly Version s_mariaDb1052 = new(10, 5, 2);
 
@@ -53,24 +53,21 @@ internal static class EngineProfileTable
         Version version
     )
     {
-        var builder = new HashSet<Capability>
+        var builder = new HashSet<EngineCapability>
         {
-            // Baseline capabilities every supported engine version advertises.
-            // Kept as explicit entries rather than implicit so a future engine that
-            // drops one of them surfaces as an explicit profile change rather than a
-            // silent global assumption.
-            Capability.SupportsDateTime6,
-            Capability.SupportsSavepoints,
-            Capability.SupportsFullTextIndex,
+            EngineCapability.Savepoints,
         };
 
-        if (family == EngineFamily.MariaDb)
+        switch (family)
         {
-            AccumulateMariaDb(version, builder);
-        }
-        else
-        {
-            AccumulateMySql(version, builder);
+            case EngineFamily.MySql:
+                AccumulateMySql(version, builder);
+                break;
+            case EngineFamily.MariaDb:
+                AccumulateMariaDb(version, builder);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(family));
         }
 
         return new EngineProfile(family, version, builder.ToFrozenSet());
@@ -78,72 +75,86 @@ internal static class EngineProfileTable
 
     private static void AccumulateMySql(
         Version version,
-        HashSet<Capability> capabilities
+        HashSet<EngineCapability> capabilities
     )
     {
-        if (IsAtLeast(version, s_mySql57))
+        if (IsAtLeast(version, s_mySql576))
         {
-            capabilities.Add(Capability.SupportsNativeJsonType);
-            capabilities.Add(Capability.SupportsVirtualGeneratedColumns);
-            capabilities.Add(Capability.SupportsStoredGeneratedColumns);
+            capabilities.Add(EngineCapability.VirtualGeneratedColumns);
+            capabilities.Add(EngineCapability.StoredGeneratedColumns);
+            capabilities.Add(EngineCapability.GeneratedColumnNullabilityClause);
         }
 
-        if (IsAtLeast(version, s_mySql8))
+        if (IsAtLeast(version, s_mySql578))
         {
-            capabilities.Add(Capability.SupportsCommonTableExpressions);
-            capabilities.Add(Capability.SupportsWindowFunctions);
-            capabilities.Add(Capability.SupportsGeneratedInvisiblePrimaryKeys);
-            capabilities.Add(Capability.SupportsRenameColumnSyntax);
+            capabilities.Add(EngineCapability.NativeJsonType);
         }
 
-        if (IsAtLeast(version, s_mySql8031))
+        if (IsAtLeast(version, s_mySql803))
         {
-            capabilities.Add(Capability.SupportsIntersectExcept);
+            capabilities.Add(EngineCapability.RenameColumnSyntax);
+            capabilities.Add(EngineCapability.SpatialColumnSridAttribute);
         }
 
-        // MySQL-only invariants (no version gate): nullability clause on generated
-        // columns + spatial-column SRID attribute have shipped since the earliest
-        // version this provider targets.
-        capabilities.Add(Capability.SupportsGeneratedColumnNullabilityClause);
-        capabilities.Add(Capability.SupportsSpatialColumnSridAttribute);
+        if (IsAtLeast(version, s_mySql804))
+        {
+            capabilities.Add(EngineCapability.RegexpLikeFunction);
+            capabilities.Add(EngineCapability.JsonTableExistsRequiresWorkaround);
+        }
+
+        if (IsAtLeast(version, s_mySql8013))
+        {
+            capabilities.Add(EngineCapability.FunctionalIndexExpressionMetadata);
+        }
+
+        if (IsAtLeast(version, s_mySql8014))
+        {
+            capabilities.Add(EngineCapability.LateralDerivedTables);
+        }
+
+        capabilities.Add(EngineCapability.SelfReferencingMutationRequiresIsolation);
     }
 
     private static void AccumulateMariaDb(
         Version version,
-        HashSet<Capability> capabilities
+        HashSet<EngineCapability> capabilities
     )
     {
-        // MariaDB stores JSON as LONGTEXT with utf8mb4_bin and a JSON_VALID CHECK;
-        // the provider routes JSON columns through that alias regardless of version.
-        capabilities.Add(Capability.UsesJsonAliasForJsonColumns);
+        capabilities.Add(EngineCapability.MariaDbSpatialSemantics);
+        capabilities.Add(EngineCapability.CheckConstraintCatalogIncludesTableName);
 
-        if (IsAtLeast(version, s_mariaDb102))
+        if (IsAtLeast(version, s_mariaDb52))
         {
-            capabilities.Add(Capability.SupportsCommonTableExpressions);
-            capabilities.Add(Capability.SupportsWindowFunctions);
-            capabilities.Add(Capability.SupportsVirtualGeneratedColumns);
-            capabilities.Add(Capability.SupportsStoredGeneratedColumns);
+            capabilities.Add(EngineCapability.VirtualGeneratedColumns);
+            capabilities.Add(EngineCapability.StoredGeneratedColumns);
+        }
+
+        if (IsAtLeast(version, s_mariaDb52)
+            && !IsAtLeast(version, s_mariaDb1021))
+        {
+            capabilities.Add(EngineCapability.StoredGeneratedColumnUsesPersistentKeyword);
+        }
+
+        if (IsAtLeast(version, s_mariaDb1023))
+        {
+            // The provider can preserve JSON column semantics with LONGTEXT and
+            // a JSON_VALID check as soon as MariaDB exposes the validator.
+            capabilities.Add(EngineCapability.JsonValidationFunction);
         }
 
         if (IsAtLeast(version, s_mariaDb103))
         {
-            capabilities.Add(Capability.SupportsNativeSequences);
-            capabilities.Add(Capability.SupportsIntersectExcept);
-        }
-
-        if (IsAtLeast(version, s_mariaDb1034))
-        {
-            capabilities.Add(Capability.SupportsSystemVersioning);
+            capabilities.Add(EngineCapability.NativeSequences);
         }
 
         if (IsAtLeast(version, s_mariaDb105))
         {
-            capabilities.Add(Capability.SupportsReturningClause);
+            capabilities.Add(EngineCapability.ReturningClause);
         }
 
         if (IsAtLeast(version, s_mariaDb1052))
         {
-            capabilities.Add(Capability.SupportsRenameColumnSyntax);
+            capabilities.Add(EngineCapability.RenameColumnSyntax);
         }
     }
 

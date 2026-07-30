@@ -16,7 +16,7 @@ internal sealed class ScaffoldingPipelineContext
         DbConnection connection,
         DatabaseModel databaseModel,
         TableFilter tableFilter,
-        EngineProfile profile,
+        ProviderProfile profile,
         HashSet<(string TableName, string ColumnName)> mariaDbJsonColumns,
         string databaseName,
         bool qualifyNamesWithSchema,
@@ -43,7 +43,7 @@ internal sealed class ScaffoldingPipelineContext
 
     public TableFilter TableFilter { get; }
 
-    public EngineProfile Profile { get; }
+    public ProviderProfile Profile { get; }
 
     public HashSet<(string TableName, string ColumnName)> MariaDbJsonColumns { get; }
 

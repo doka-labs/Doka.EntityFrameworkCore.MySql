@@ -99,7 +99,8 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
 
         var sequence = property.DeclaringType.Model.FindSequence(sequenceName);
         var blockSize = sequence?.IncrementBy ?? 10;
-        var supportsNative = _singletonOptions.Profile?.Has(Capability.SupportsNativeSequences) ?? false;
+        var supportsNative = _singletonOptions.Profile?.GetSupport(ProviderCapability.Sequences)
+            == ProviderSupportStatus.Native;
 
         // RelationalConnection.ConnectionString is null for the MySqlDataSource path.
         // The provider-created DbConnection still exposes the canonical string while

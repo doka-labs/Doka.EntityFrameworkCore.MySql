@@ -14,7 +14,7 @@ internal static class SpatialColumnLoader
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!context.Profile.Has(Capability.SupportsSpatialColumnSridAttribute))
+        if (!context.Profile.Supports(ProviderCapability.SpatialColumnSridAttribute))
         {
             return;
         }

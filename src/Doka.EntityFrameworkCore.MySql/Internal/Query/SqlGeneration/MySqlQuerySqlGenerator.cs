@@ -8,6 +8,10 @@ internal sealed partial class MySqlQuerySqlGenerator : QuerySqlGenerator
     private TableExpression? _mutationTargetTable;
     private string? _unqualifiedTableAlias;
 
+    private ProviderProfile Profile => _singletonOptions.Profile
+        ?? throw new InvalidOperationException(
+            "The provider profile must be initialized before SQL generation.");
+
     public MySqlQuerySqlGenerator(
         QuerySqlGeneratorDependencies dependencies,
         MySqlSingletonOptions singletonOptions

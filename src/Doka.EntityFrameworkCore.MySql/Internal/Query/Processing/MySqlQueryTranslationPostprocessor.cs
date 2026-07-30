@@ -65,14 +65,19 @@ internal sealed class MySqlQueryTranslationPostprocessor : RelationalQueryTransl
                 RelationalQueryCompilationContext.SqlAliasManager)
             .Visit(pruned);
 
+        var profile = _singletonOptions.Profile
+            ?? throw new InvalidOperationException(
+                "The provider profile must be initialized before query postprocessing.");
+        var supportsLateralDerivedTables = profile.Supports(ProviderCapability.LateralDerivedTables);
+
         var flattened = new MySqlApplyRewritingExpressionVisitor(
                 RelationalDependencies.SqlExpressionFactory,
-                flattenJsonTablesOnly: _singletonOptions.ServerVersion?.IsMariaDb != true)
+                flattenJsonTablesOnly: supportsLateralDerivedTables)
             .Visit(dynamicOffsets);
 
-        return _singletonOptions.ServerVersion?.IsMariaDb == true
-            ? flattened
-            : new MySqlLateralProjectionDecorrelationExpressionVisitor().Visit(flattened);
+        return supportsLateralDerivedTables
+            ? new MySqlLateralProjectionDecorrelationExpressionVisitor().Visit(flattened)
+            : flattened;
     }
 
     /// <summary>

@@ -89,7 +89,7 @@ internal sealed class MySqlTemporalMemberTranslator : IMemberTranslator
                 _sqlExpressionFactory.Constant(1, _intTypeMapping)),
             nameof(DateTime.Date) => TranslateFunction("DATE", instance, returnType, instance.TypeMapping),
             nameof(DateTime.TimeOfDay) => _sqlExpressionFactory.Function(
-                "__mysql_time_of_day_ticks",
+                MySqlSentinelContract.GetName(MySqlSentinelKind.TimeOfDayTicks),
                 [instance],
                 nullable: true,
                 argumentsPropagateNullability: s_singleArgumentNullPropagation,
@@ -141,7 +141,10 @@ internal sealed class MySqlTemporalMemberTranslator : IMemberTranslator
     private SqlExpression TranslateDateTimeOffsetNow(
         bool utc
     ) => _sqlExpressionFactory.Function(
-        utc ? "__mysql_datetimeoffset_utc_now" : "__mysql_datetimeoffset_now",
+        MySqlSentinelContract.GetName(
+            utc
+                ? MySqlSentinelKind.DateTimeOffsetUtcNow
+                : MySqlSentinelKind.DateTimeOffsetNow),
         Array.Empty<SqlExpression>(),
         nullable: false,
         argumentsPropagateNullability: Array.Empty<bool>(),

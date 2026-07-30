@@ -17,7 +17,7 @@ internal sealed class MySqlNetTopologySuiteMemberTranslatorPlugin : IMemberTrans
         var supportsMariaDbSpatialFunctions = singletonOptions
             .OfType<MySqlSingletonOptions>()
             .Single()
-            .Profile?.Family == EngineFamily.MariaDb;
+            .Profile?.Engine.Has(EngineCapability.MariaDbSpatialSemantics) == true;
 
         Translators =
         [

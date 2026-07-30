@@ -197,7 +197,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         SelectExpression subquery
     )
     {
-        if (_singletonOptions.ServerVersion?.IsMariaDb != false
+        if (Profile.GetSupport(ProviderCapability.SelfReferencingMutations) != ProviderSupportStatus.Emulated
             || _mutationTargetTable is null)
         {
             return false;

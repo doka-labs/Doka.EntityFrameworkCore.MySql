@@ -34,7 +34,7 @@ public static class MySqlDiagnostics
     /// <summary>
     /// The name of the server-version resolve span. Emitted around the
     /// one-shot resolution of the configured <see cref="MySqlServerVersion"/>
-    /// into the runtime <see cref="EngineProfile"/>.
+    /// into the provider's immutable runtime capability profile.
     /// </summary>
     public const string ServerVersionResolveSpanName = "db.serverversion.resolve";
 

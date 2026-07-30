@@ -1,9 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
-/// Tests for static helpers in <c>MySqlLoggerMessages</c>: covers the disabled-logger early-return
-/// (line 154 in source), null-delay retry path (line 201), and the <c>ServerVersionResolvedLogValues</c>
-/// indexer + GetEnumerator paths that the LogValues struct exposes to log providers.
+/// Tests the structured diagnostic payloads and retry events emitted by
+/// <c>MySqlLoggerMessages</c>.
 /// </summary>
 public sealed class MySqlLoggerMessagesTests
 {
@@ -51,19 +50,42 @@ public sealed class MySqlLoggerMessagesTests
 
         var state = Assert.IsAssignableFrom<IReadOnlyList<KeyValuePair<string, object?>>>(logger.Entries.Single().State);
 
-        // Drive the indexer through all positions: engine (0), version (1), then capability entries.
-        Assert.True(state.Count >= 3);
+        Assert.Equal(4 + Enum.GetValues<ProviderCapability>().Length, state.Count);
         Assert.Equal("DatabaseEngine", state[0].Key);
         Assert.Equal("MySQL", state[0].Value);
         Assert.Equal("ServerVersion", state[1].Key);
-        Assert.NotNull(state[2].Key);
+        Assert.Equal("SupportStatus", state[2].Key);
+        Assert.Equal(MySqlServerVersionSupportStatus.Supported.ToString(), state[2].Value);
+        Assert.Equal("CompatibilityMode", state[3].Key);
+        Assert.Equal(
+            Enum.GetNames<ProviderCapability>(),
+            state.Skip(4).Select(entry => entry.Key));
 
-        // Walk every entry through the IEnumerable surface to drive GetEnumerator + indexer's capability arm.
         var iterated = state.ToList();
         Assert.Equal(state.Count, iterated.Count);
 
-        // Index past Count throws ArgumentOutOfRangeException.
         Assert.Throws<ArgumentOutOfRangeException>(() => state[state.Count]);
+    }
+
+    /// <summary>
+    /// Verifies that an explicitly allowed legacy version emits a structured
+    /// warning with its support classification.
+    /// </summary>
+    [Fact]
+    public void UnsupportedServerVersion_emits_structured_warning()
+    {
+        var logger = new CapturingLogger();
+        var serverVersion = MySqlServerVersion.MySql(
+            new Version(8, 0, 44),
+            MySqlServerVersionCompatibilityMode.AllowUnsupported);
+
+        MySqlLoggerMessages.UnsupportedServerVersion(logger, serverVersion);
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Equal(MySqlEventId.UnsupportedServerVersion, entry.EventId);
+        Assert.Contains(MySqlServerVersionSupportStatus.Legacy.ToString(), entry.RenderedMessage);
+        Assert.Contains(ServerVersionSupportPolicy.SupportedMatrix, entry.RenderedMessage);
     }
 
     // -- RetryAttempt null-delay path --

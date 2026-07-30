@@ -31,7 +31,7 @@ public sealed class StoreValueGenerationMySqlTest
         var supportsReturning = MySqlTestEnvironment
             .ServerVersion
             .Profile
-            .Has(Capability.SupportsReturningClause);
+            .Supports(ProviderCapability.ReturningClause);
 
         if (supportsReturning)
         {

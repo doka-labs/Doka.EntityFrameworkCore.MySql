@@ -66,7 +66,8 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
             return ResultSetMapping.NoResults;
         }
 
-        return _singletonOptions.Profile?.Has(Capability.SupportsReturningClause) == true
+        return _singletonOptions.Profile?.GetSupport(ProviderCapability.ReturningClause)
+                == ProviderSupportStatus.Native
             ? AppendInsertReturningOperation(commandStringBuilder, command, out requiresTransaction)
             : base.AppendInsertOperation(commandStringBuilder, command, commandPosition, out requiresTransaction);
     }
@@ -314,7 +315,7 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
                 out requiresTransaction);
         }
 
-        if (_singletonOptions.Profile?.Has(Capability.SupportsReturningClause) == true)
+        if (_singletonOptions.Profile?.GetSupport(ProviderCapability.ReturningClause) == ProviderSupportStatus.Native)
         {
             return AppendBulkInsertReturningOperation(
                 commandStringBuilder,

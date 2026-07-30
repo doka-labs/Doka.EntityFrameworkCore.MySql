@@ -29,7 +29,7 @@ internal static class SequenceLoader
 
         LoadEmulatedSequences(context);
 
-        if (context.Profile.Has(Capability.SupportsNativeSequences))
+        if (context.Profile.GetSupport(ProviderCapability.Sequences) == ProviderSupportStatus.Native)
         {
             LoadNativeSequences(context);
         }
@@ -125,7 +125,7 @@ internal static class SequenceLoader
         ScaffoldingPipelineContext context
     )
     {
-        if (context.Profile.Version.CompareTo(s_informationSchemaSequencesVersion) >= 0)
+        if (context.Profile.Engine.Version.CompareTo(s_informationSchemaSequencesVersion) >= 0)
         {
             LoadNativeSequencesFromInformationSchema(context);
             return;

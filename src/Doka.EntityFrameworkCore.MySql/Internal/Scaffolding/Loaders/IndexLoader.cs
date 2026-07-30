@@ -18,7 +18,9 @@ internal static class IndexLoader
         ArgumentNullException.ThrowIfNull(context);
 
         using var command = context.Connection.CreateCommand();
-        var sql = CreateQuery(context.Profile.Family);
+        var sql = CreateQuery(
+            context.Profile.GetSupport(ProviderCapability.FunctionalIndexScaffolding)
+            == ProviderSupportStatus.Native);
 
         ScaffoldingHelpers.AppendTableNameFilter(sql, command, context.TableFilter);
         sql.Append(" ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX;");
@@ -119,9 +121,9 @@ internal static class IndexLoader
     }
 
     private static StringBuilder CreateQuery(
-        EngineFamily family
+        bool includesExpressionMetadata
     ) => new(
-        family == EngineFamily.MySql
+        includesExpressionMetadata
             ?
             """
             SELECT

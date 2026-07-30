@@ -15,6 +15,14 @@ public abstract class QueryExpressionInterceptionMySqlTestBase : QueryExpression
     {
         protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
+        public override DbContextOptionsBuilder AddOptions(
+            DbContextOptionsBuilder builder
+        ) => base.AddOptions(
+            // The isolation contract requires one provider per interceptor graph.
+            // Keeping those providers out of the global cache prevents order-dependent
+            // failures after other functional tests have populated that cache.
+            builder.EnableServiceProviderCaching(false));
+
         protected override IServiceCollection InjectInterceptors(
             IServiceCollection serviceCollection,
             IEnumerable<IInterceptor> injectedInterceptors

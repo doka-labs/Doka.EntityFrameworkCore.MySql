@@ -123,6 +123,11 @@ public abstract class CommandInterceptionMySqlTestBase
 /// contract, including connection creation, replacement, failure, and
 /// disposal paths.
 /// </summary>
+/// <remarks>
+/// The upstream contract adds per-test interceptor instances to throwaway
+/// context options. Both provider-configuration paths keep those intentionally
+/// distinct providers out of EF Core's process-wide service-provider cache.
+/// </remarks>
 public abstract class ConnectionInterceptionMySqlTestBase
     : ConnectionInterceptionTestBase
 {
@@ -137,13 +142,19 @@ public abstract class ConnectionInterceptionMySqlTestBase
 
     protected override DbContextOptionsBuilder ConfigureProvider(
         DbContextOptionsBuilder optionsBuilder
-    ) => optionsBuilder.UseMySql(
-        "Server=localhost;Database=DokaConnectionInterception;User ID=root;",
-        s_serverVersion);
+    ) => optionsBuilder
+        .EnableServiceProviderCaching(false)
+        .UseMySql(
+            "Server=localhost;Database=DokaConnectionInterception;User ID=root;",
+            s_serverVersion);
 
     protected override BadUniverseContext CreateBadUniverse(
         DbContextOptionsBuilder optionsBuilder
-    ) => new(optionsBuilder.UseMySql(new ThrowingDbConnection(), s_serverVersion).Options);
+    ) => new(
+        optionsBuilder
+            .EnableServiceProviderCaching(false)
+            .UseMySql(new ThrowingDbConnection(), s_serverVersion)
+            .Options);
 
     public abstract class InterceptionMySqlFixtureBase : InterceptionFixtureBase
     {

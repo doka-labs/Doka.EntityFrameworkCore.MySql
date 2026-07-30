@@ -8,6 +8,14 @@ internal static class MySqlLoggerMessages
             MySqlEventId.InvalidConfiguration,
             "{Message} ConnectionPath={ConnectionPath} RedactedConnectionString={RedactedConnectionString}");
 
+    private static readonly Action<ILogger, string, string, string, string, Exception?> s_unsupportedServerVersion =
+        LoggerMessage.Define<string, string, string, string>(
+            LogLevel.Warning,
+            MySqlEventId.UnsupportedServerVersion,
+            "Running outside the supported database matrix by explicit opt-in. "
+            + "DatabaseEngine={DatabaseEngine} ServerVersion={ServerVersion} "
+            + "SupportStatus={SupportStatus} SupportedMatrix={SupportedMatrix}");
+
     private static readonly Action<ILogger, string, string, string, string, Exception?> s_schemaUnsupported =
         LoggerMessage.Define<string, string, string, string>(
             LogLevel.Error,
@@ -117,30 +125,23 @@ internal static class MySqlLoggerMessages
         string redactedConnectionString
     ) => s_invalidConfiguration(logger, message, connectionPath, redactedConnectionString, null);
 
-    // Order-preserving capability snapshot for the resolved-version log payload. The
-    // tuple list is declared once at file scope so the diagnostic surface stays
-    // diffable when capabilities are added (one tuple per capability) and every
-    // capability ships as its own structured field in the log state, queryable by
-    // name from OpenTelemetry sinks.
-    private static readonly (string Label, Capability Capability)[] s_capabilitySnapshot =
+    // Order-preserving provider-support snapshot for the resolved-version log
+    // payload. Each entry reports Native, Emulated, or UnsupportedByEngine rather
+    // than conflating an engine fact with provider availability.
+    private static readonly (string Label, ProviderCapability Capability)[] s_capabilitySnapshot =
     [
-        ("CTE", Capability.SupportsCommonTableExpressions),
-        ("WindowFunctions", Capability.SupportsWindowFunctions),
-        ("NativeJson", Capability.SupportsNativeJsonType),
-        ("JsonAlias", Capability.UsesJsonAliasForJsonColumns),
-        ("Returning", Capability.SupportsReturningClause),
-        ("DateTime6", Capability.SupportsDateTime6),
-        ("GeneratedInvisiblePrimaryKeys", Capability.SupportsGeneratedInvisiblePrimaryKeys),
-        ("Savepoints", Capability.SupportsSavepoints),
-        ("GeneratedColumnNullabilityClause", Capability.SupportsGeneratedColumnNullabilityClause),
-        ("VirtualGeneratedColumns", Capability.SupportsVirtualGeneratedColumns),
-        ("StoredGeneratedColumns", Capability.SupportsStoredGeneratedColumns),
-        ("SpatialColumnSridAttribute", Capability.SupportsSpatialColumnSridAttribute),
-        ("NativeSequences", Capability.SupportsNativeSequences),
-        ("IntersectExcept", Capability.SupportsIntersectExcept),
-        ("SystemVersioning", Capability.SupportsSystemVersioning),
-        ("FullTextIndex", Capability.SupportsFullTextIndex),
-        ("RenameColumnSyntax", Capability.SupportsRenameColumnSyntax),
+        ("JsonColumns", ProviderCapability.JsonColumns),
+        ("ReturningClause", ProviderCapability.ReturningClause),
+        ("Savepoints", ProviderCapability.Savepoints),
+        ("GeneratedColumnNullabilityClause", ProviderCapability.GeneratedColumnNullabilityClause),
+        ("VirtualGeneratedColumns", ProviderCapability.VirtualGeneratedColumns),
+        ("StoredGeneratedColumns", ProviderCapability.StoredGeneratedColumns),
+        ("SpatialColumnSridAttribute", ProviderCapability.SpatialColumnSridAttribute),
+        ("Sequences", ProviderCapability.Sequences),
+        ("RenameColumn", ProviderCapability.RenameColumn),
+        ("LateralDerivedTables", ProviderCapability.LateralDerivedTables),
+        ("SelfReferencingMutations", ProviderCapability.SelfReferencingMutations),
+        ("FunctionalIndexScaffolding", ProviderCapability.FunctionalIndexScaffolding),
     ];
 
     public static void ServerVersionResolved(
@@ -162,6 +163,23 @@ internal static class MySqlLoggerMessages
             new ServerVersionResolvedLogValues(serverVersion),
             exception: null,
             ServerVersionResolvedLogValues.Render);
+    }
+
+    public static void UnsupportedServerVersion(
+        ILogger logger,
+        MySqlServerVersion serverVersion
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(serverVersion);
+
+        s_unsupportedServerVersion(
+            logger,
+            serverVersion.IsMariaDb ? "MariaDB" : "MySQL",
+            serverVersion.Version.ToString(),
+            serverVersion.SupportStatus.ToString(),
+            ServerVersionSupportPolicy.SupportedMatrix,
+            null);
     }
 
     public static void SchemaUnsupported(
@@ -377,9 +395,9 @@ internal static class MySqlLoggerMessages
 
     /// <summary>
     /// Carries every server-version-resolution field as a structured key-value
-    /// entry so OpenTelemetry sinks can query each capability boolean by name.
+    /// entry so OpenTelemetry sinks can query each provider support status by name.
     /// <c>LoggerMessage.Define</c> caps at six generic parameters which would
-    /// force the capability snapshot back into a joined string; the
+    /// force the support snapshot back into a joined string; the
     /// per-capability fields stay queryable here because the struct implements
     /// <see cref="IReadOnlyList{T}"/> over <see cref="KeyValuePair{TKey,TValue}"/>.
     /// </summary>
@@ -399,7 +417,7 @@ internal static class MySqlLoggerMessages
             _serverVersion = serverVersion;
         }
 
-        public int Count => 2 + s_capabilitySnapshot.Length;
+        public int Count => 4 + s_capabilitySnapshot.Length;
 
         public KeyValuePair<string, object?> this[
             int index
@@ -410,9 +428,13 @@ internal static class MySqlLoggerMessages
                     "DatabaseEngine",
                     _serverVersion.IsMariaDb ? "MariaDB" : "MySQL"),
                 1 => new KeyValuePair<string, object?>("ServerVersion", _serverVersion.Version.ToString()),
+                2 => new KeyValuePair<string, object?>("SupportStatus", _serverVersion.SupportStatus.ToString()),
+                3 => new KeyValuePair<string, object?>(
+                    "CompatibilityMode",
+                    _serverVersion.CompatibilityMode.ToString()),
                 _ when index < Count => new KeyValuePair<string, object?>(
-                    s_capabilitySnapshot[index - 2].Label,
-                    _serverVersion.Profile.Has(s_capabilitySnapshot[index - 2].Capability)),
+                    s_capabilitySnapshot[index - 4].Label,
+                    _serverVersion.Profile.GetSupport(s_capabilitySnapshot[index - 4].Capability).ToString()),
                 _ => throw new ArgumentOutOfRangeException(nameof(index)),
             };
 
@@ -432,7 +454,7 @@ internal static class MySqlLoggerMessages
             var engine = _serverVersion.IsMariaDb ? "MariaDB" : "MySQL";
             var capabilities = string.Join(
                 ';',
-                s_capabilitySnapshot.Select(entry => $"{entry.Label}={profile.Has(entry.Capability)}"));
+                s_capabilitySnapshot.Select(entry => $"{entry.Label}={profile.GetSupport(entry.Capability)}"));
 
             return $"Resolved {engine} server version {_serverVersion.Version}. Capabilities={capabilities}";
         }

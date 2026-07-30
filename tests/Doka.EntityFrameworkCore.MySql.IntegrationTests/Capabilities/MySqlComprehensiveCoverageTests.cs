@@ -127,7 +127,11 @@ public sealed class MySqlComprehensiveCoverageTests
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql80);
         await using var context = new ParityContext(
-            CreateOptions<ParityContext>(connectionString, MySqlServerVersion.MySql(new Version(8, 0, 0))));
+            CreateOptions<ParityContext>(
+                connectionString,
+                MySqlServerVersion.MySql(
+                    new Version(8, 0, 0),
+                    MySqlServerVersionCompatibilityMode.AllowUnsupported)));
 
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `ParityItems`;");
         await context.Database.ExecuteSqlRawAsync(
@@ -202,7 +206,11 @@ public sealed class MySqlComprehensiveCoverageTests
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql80);
         await using var context = new TphParityContext(
-            CreateOptions<TphParityContext>(connectionString, MySqlServerVersion.MySql(new Version(8, 0, 0))));
+            CreateOptions<TphParityContext>(
+                connectionString,
+                MySqlServerVersion.MySql(
+                    new Version(8, 0, 0),
+                    MySqlServerVersionCompatibilityMode.AllowUnsupported)));
 
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `Parity80Animals`;");
         await context.Database.ExecuteSqlRawAsync(
@@ -586,7 +594,9 @@ public sealed class MySqlComprehensiveCoverageTests
         IntegrationDatabaseTarget target
     ) => target switch
     {
-        IntegrationDatabaseTarget.MySql80 => MySqlServerVersion.MySql(new Version(8, 0, 0)),
+        IntegrationDatabaseTarget.MySql80 => MySqlServerVersion.MySql(
+            new Version(8, 0, 0),
+            MySqlServerVersionCompatibilityMode.AllowUnsupported),
         IntegrationDatabaseTarget.MySql84 => MySqlServerVersion.MySql(new Version(8, 4, 0)),
         IntegrationDatabaseTarget.MariaDb114 => MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
         IntegrationDatabaseTarget.MariaDb118 => MySqlServerVersion.MariaDb(new Version(11, 8, 0)),

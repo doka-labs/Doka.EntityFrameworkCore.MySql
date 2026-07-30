@@ -57,11 +57,11 @@ Chosen option: "Support only MySQL 8.4, MariaDB 11.4, and MariaDB 11.8", because
 - The v1.0 support matrix is **MySQL 8.4 LTS, MariaDB 11.4 LTS, MariaDB 11.8
   LTS** -- three LTS engines, every one of them covered by upstream support
   through 2028 or later.
-- The provider source code retains the 8.0-aware capability thresholds in
-  `ServerCapabilities` / the future `EngineProfile`. Consumers who insist on
-  running against 8.0 can still compile and execute the provider; they receive
-  no support guarantee, no compatibility coverage, and the CI matrix no longer
-  exercises 8.0.
+- The provider source code retains the 8.0-aware engine-profile thresholds.
+  Consumers who insist on running against 8.0 must select
+  `MySqlServerVersionCompatibilityMode.AllowUnsupported` explicitly. The
+  provider emits `MySqlEventId.UnsupportedServerVersion`; the release line
+  receives no support guarantee or scheduled compatibility coverage.
 - README, CHANGELOG, and the csproj `<Description>` no longer list 8.0 as a
   supported engine. The scheduled `container-matrix.yml` workflow removes its
   `mysql80` service definition.
@@ -86,20 +86,23 @@ Chosen option: "Support only MySQL 8.4, MariaDB 11.4, and MariaDB 11.8", because
 
 - Consumers still running on 8.0 (in particular those who deferred the 8.4
   upgrade) lose the project's explicit blessing and must either upgrade their
-  database or accept the unsupported runtime. The provider continues to compile
-  and run for them, but bug reports will be treated as best-effort.
-- The CI compatibility matrix no longer detects regressions against 8.0. If a
-  later patch breaks the 8.0-specific code path in `ServerCapabilities`, the
-  failure surfaces only when an external consumer reports it.
+  database or opt into the unsupported runtime explicitly. The provider
+  continues to compile and run for them, but bug reports will be treated as
+  best-effort.
+- The scheduled CI compatibility matrix no longer detects regressions against
+  8.0. If a later patch breaks the retained 8.0 engine-profile path, the
+  failure surfaces through the optional external baseline or an external
+  consumer report.
 
 #### Neutral
 
-- Provider source code is unchanged; the 8.0 capability thresholds remain in
-  place so the drop is reversible. A future ADR can promote 8.0 back into the
-  matrix if external demand warrants it.
+- The 8.0 engine thresholds remain in place behind the explicit compatibility
+  mode, so a future ADR can promote the line without reconstructing its dialect
+  behavior.
 
 ### Confirmation
 
+- Run support-policy boundary, explicit-opt-in, and structured-diagnostic tests.
 - Run support-matrix contract tests and inspect package metadata.
 - Review Oracle and MariaDB lifecycle sources before every minor support-matrix change.
 
@@ -154,6 +157,10 @@ retained below, and the support-matrix outcome remains unchanged.
 - `.github/workflows/container-matrix.yml` -- remove the `mysql80` service and
   the corresponding `DOKA_INTEGRATION_TARGETS` entry plus
   `DOKA_MYSQL80_CONNECTION_STRING` env var.
+- `MySqlServerVersion` and `ServerVersionSupportPolicy` -- classify supported,
+  legacy, unvalidated, and future release lines.
+- `MySqlOptionsExtension` and `MySqlLoggerMessages` -- reject implicit
+  unsupported use and warn on explicit compatibility opt-in.
 
 ### Re-evaluation Triggers
 
@@ -172,11 +179,14 @@ retained below, and the support-matrix outcome remains unchanged.
 
 - 2026-05-16: Decision recorded with status accepted.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-07-30: Made unsupported execution an explicit, diagnostic compatibility opt-in.
 
 ### Implementation References
 
 - `README.md`
 - `src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj`
+- `src/Doka.EntityFrameworkCore.MySql/MySqlServerVersion.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Capabilities/ServerVersionSupportPolicy.cs`
 - `.github/workflows/container-matrix.yml`
 
 ### Sources

@@ -122,7 +122,7 @@ internal sealed partial class MySqlQuerySqlGenerator
 
         if (RequiresLateralModifier(crossApplyExpression.Table))
         {
-            ThrowIfMariaDbLateralDerivedTableIsRequired();
+            ThrowIfLateralDerivedTablesAreUnsupported();
             Sql.Append("JOIN LATERAL ");
         }
         else
@@ -151,7 +151,7 @@ internal sealed partial class MySqlQuerySqlGenerator
 
         if (RequiresLateralModifier(outerApplyExpression.Table))
         {
-            ThrowIfMariaDbLateralDerivedTableIsRequired();
+            ThrowIfLateralDerivedTablesAreUnsupported();
             Sql.Append("LEFT JOIN LATERAL ");
         }
         else
@@ -173,16 +173,18 @@ internal sealed partial class MySqlQuerySqlGenerator
     ) => tableExpression is SelectExpression or SetOperationBase;
 
     /// <summary>
-    /// Prevents MariaDB from receiving a LATERAL derived-table construct that its SQL
-    /// grammar cannot parse. The disposition ID links the runtime boundary to the
-    /// primary-source evidence and re-evaluation trigger in the specification ledger.
+    /// Prevents an engine from receiving a LATERAL derived-table construct that its
+    /// SQL grammar cannot parse. The disposition ID links the runtime boundary to
+    /// the primary-source evidence and re-evaluation trigger in the specification
+    /// ledger.
     /// </summary>
-    private void ThrowIfMariaDbLateralDerivedTableIsRequired()
+    private void ThrowIfLateralDerivedTablesAreUnsupported()
     {
-        if (_singletonOptions.ServerVersion?.IsMariaDb == true)
+        if (!Profile.Supports(ProviderCapability.LateralDerivedTables))
         {
             throw new InvalidOperationException(
-                "MariaDB cannot execute a correlated derived table because its JOIN grammar "
+                "The configured database engine cannot execute a correlated derived table "
+                + "because its JOIN grammar "
                 + "does not support LATERAL. See disposition MDB-CORRELATED-DERIVED-TABLE.");
         }
     }

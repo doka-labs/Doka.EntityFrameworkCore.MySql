@@ -418,9 +418,9 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
             // EF.Functions.Regexp(input, pattern)
             // MySQL 8.0+: REGEXP_LIKE(input, pattern) -- scalar function
             // MariaDB: input REGEXP pattern -- infix operator (no REGEXP_LIKE function)
-            // Use a sentinel name; MySqlQuerySqlGenerator rewrites to engine-appropriate SQL.
+            // The typed sentinel contract lets the SQL generator select the engine grammar.
             return _sqlExpressionFactory.Function(
-                "__mysql_regexp",
+                MySqlSentinelContract.GetName(MySqlSentinelKind.RegularExpression),
                 [
                     arguments[1],
                     arguments[2],
@@ -437,9 +437,9 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
         if (method == s_matchMethod)
         {
             // EF.Functions.Match(column, term) -> MATCH(column) AGAINST(term)
-            // Use a sentinel function name that MySqlQuerySqlGenerator recognizes and rewrites.
+            // The typed sentinel preserves the compound MATCH ... AGAINST grammar.
             return _sqlExpressionFactory.Function(
-                "__mysql_match",
+                MySqlSentinelContract.GetName(MySqlSentinelKind.Match),
                 [
                     arguments[1],
                     arguments[2],
@@ -457,7 +457,7 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
         {
             // EF.Functions.MatchInBooleanMode(column, term) -> MATCH(column) AGAINST(term IN BOOLEAN MODE)
             return _sqlExpressionFactory.Function(
-                "__mysql_match_boolean",
+                MySqlSentinelContract.GetName(MySqlSentinelKind.MatchBoolean),
                 [
                     arguments[1],
                     arguments[2],
@@ -591,59 +591,59 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
         {
             if (method == s_dateTimeAddYearsMethod)
             {
-                return TranslateDateAdd(instance, arguments[0], "YEAR");
+                return TranslateDateAdd(instance, arguments[0], MySqlIntervalUnit.Year);
             }
 
             if (method == s_dateTimeAddMonthsMethod)
             {
-                return TranslateDateAdd(instance, arguments[0], "MONTH");
+                return TranslateDateAdd(instance, arguments[0], MySqlIntervalUnit.Month);
             }
 
             if (method == s_dateTimeAddDaysMethod)
             {
-                return TranslateDateAdd(instance, arguments[0], "DAY");
+                return TranslateDateAdd(instance, arguments[0], MySqlIntervalUnit.Day);
             }
 
             if (method == s_dateTimeAddHoursMethod)
             {
-                return TranslateDateAdd(instance, arguments[0], "HOUR");
+                return TranslateDateAdd(instance, arguments[0], MySqlIntervalUnit.Hour);
             }
 
             if (method == s_dateTimeAddMinutesMethod)
             {
-                return TranslateDateAdd(instance, arguments[0], "MINUTE");
+                return TranslateDateAdd(instance, arguments[0], MySqlIntervalUnit.Minute);
             }
 
             if (method == s_dateTimeAddSecondsMethod)
             {
-                return TranslateDateAdd(instance, arguments[0], "SECOND");
+                return TranslateDateAdd(instance, arguments[0], MySqlIntervalUnit.Second);
             }
 
             // DateOnly methods -> DATE_ADD with INTERVAL.
             if (method == s_dateOnlyAddDaysMethod)
             {
-                return TranslateDateAdd(instance, arguments[0], "DAY");
+                return TranslateDateAdd(instance, arguments[0], MySqlIntervalUnit.Day);
             }
 
             if (method == s_dateOnlyAddMonthsMethod)
             {
-                return TranslateDateAdd(instance, arguments[0], "MONTH");
+                return TranslateDateAdd(instance, arguments[0], MySqlIntervalUnit.Month);
             }
 
             if (method == s_dateOnlyAddYearsMethod)
             {
-                return TranslateDateAdd(instance, arguments[0], "YEAR");
+                return TranslateDateAdd(instance, arguments[0], MySqlIntervalUnit.Year);
             }
 
             // TimeOnly methods -> ADDTIME.
             if (method == s_timeOnlyAddHoursMethod)
             {
-                return TranslateTimeOnlyAdd(instance, arguments[0], "HOUR");
+                return TranslateTimeOnlyAdd(instance, arguments[0], MySqlIntervalUnit.Hour);
             }
 
             if (method == s_timeOnlyAddMinutesMethod)
             {
-                return TranslateTimeOnlyAdd(instance, arguments[0], "MINUTE");
+                return TranslateTimeOnlyAdd(instance, arguments[0], MySqlIntervalUnit.Minute);
             }
 
             if (method == s_timeOnlyAddMethod)
@@ -756,17 +756,17 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
 
     /// <summary>
     /// Translates DateTime.AddX(n) to the MySQL DATE_ADD function with INTERVAL syntax.
-    /// Both constant and parametrized intervals route through the sentinel function name
-    /// <c>__mysql_date_add_UNIT</c>; the QuerySqlGenerator rewrites the sentinel to
-    /// <c>DATE_ADD(arg0, INTERVAL arg1 UNIT)</c> so a parametrized interval keeps its
-    /// server-side evaluation path instead of falling back to client-side enumeration.
+    /// Both constant and parametrized intervals route through the typed sentinel
+    /// contract. The SQL generator emits <c>DATE_ADD(arg0, INTERVAL arg1 UNIT)</c>
+    /// so a parametrized interval keeps its server-side evaluation path instead of
+    /// falling back to client-side enumeration.
     /// </summary>
     private SqlExpression TranslateDateAdd(
         SqlExpression instance,
         SqlExpression interval,
-        string unit
+        MySqlIntervalUnit intervalUnit
     ) => _sqlExpressionFactory.Function(
-        $"__mysql_date_add_{unit}",
+        MySqlSentinelContract.GetName(MySqlSentinelKind.DateAdd, intervalUnit),
         [
             instance,
             interval,
@@ -876,15 +876,15 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
     /// <summary>
     /// Translates TimeOnly.AddHours / AddMinutes / AddSeconds to MySQL DATE_ADD with the
     /// INTERVAL keyword. Both constant and parametrized intervals route through the
-    /// sentinel function name <c>__mysql_time_add_UNIT</c>; the QuerySqlGenerator rewrites
-    /// the sentinel to <c>DATE_ADD(arg0, INTERVAL arg1 UNIT)</c>.
+    /// typed sentinel contract before the SQL generator emits
+    /// <c>DATE_ADD(arg0, INTERVAL arg1 UNIT)</c>.
     /// </summary>
     private SqlExpression TranslateTimeOnlyAdd(
         SqlExpression instance,
         SqlExpression interval,
-        string unit
+        MySqlIntervalUnit intervalUnit
     ) => _sqlExpressionFactory.Function(
-        $"__mysql_time_add_{unit}",
+        MySqlSentinelContract.GetName(MySqlSentinelKind.TimeAdd, intervalUnit),
         [
             instance,
             interval,

@@ -95,7 +95,7 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
             }
 
             return _sqlExpressionFactory.Function(
-                "__mysql_ones_complement",
+                MySqlSentinelContract.GetName(MySqlSentinelKind.OnesComplement),
                 [operand],
                 nullable: true,
                 argumentsPropagateNullability: s_singleArgumentNullPropagation,
@@ -190,7 +190,7 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         if (IsTimeOnlyDifference(binaryExpression))
         {
             return _sqlExpressionFactory.Function(
-                "__mysql_time_diff_ticks",
+                MySqlSentinelContract.GetName(MySqlSentinelKind.TimeDifferenceTicks),
                 [
                     leftSql,
                     rightSql,
@@ -202,7 +202,7 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         }
 
         return _sqlExpressionFactory.Function(
-            "__mysql_datetime_diff_ticks",
+            MySqlSentinelContract.GetName(MySqlSentinelKind.DateTimeDifferenceTicks),
             [
                 rightSql,
                 leftSql,
@@ -250,7 +250,7 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         var timeSpanMapping = _typeMappingSource.FindMapping(typeof(TimeSpan))!;
 
         return _sqlExpressionFactory.Function(
-            "__mysql_datetimeoffset_subtract_timespan",
+            MySqlSentinelContract.GetName(MySqlSentinelKind.DateTimeOffsetSubtractTimeSpan),
             [
                 left,
                 _sqlExpressionFactory.ApplyTypeMapping(right, timeSpanMapping),
@@ -461,7 +461,10 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         }
 
         return _sqlExpressionFactory.Function(
-            binaryExpression.NodeType == ExpressionType.LeftShift ? "__mysql_left_shift" : "__mysql_right_shift",
+            MySqlSentinelContract.GetName(
+                binaryExpression.NodeType == ExpressionType.LeftShift
+                    ? MySqlSentinelKind.LeftShift
+                    : MySqlSentinelKind.RightShift),
             [
                 left,
                 right,

@@ -7,7 +7,12 @@
 
 `Doka.EntityFrameworkCore.MySql` is an Entity Framework Core 10 provider for MySQL-compatible databases. It targets MySQL 8.4 LTS and MariaDB 11.4 / 11.8 LTS on top of the [`MySqlConnector`](https://mysqlconnector.net) ADO.NET driver.
 
-The main goal is release responsiveness for `.NET 10` and `EF Core 10` together with a maintainability- and performance-first architecture: a single capability model drives engine differences, the runtime is trim-aware with NativeAOT readiness deferred until upstream EF Core stabilizes its precompiled-query story (see ADR D-017), and every feature is test-backed against the supported engine matrix.
+The main goal is release responsiveness for `.NET 10` and `EF Core 10`
+together with a maintainability- and performance-first architecture: separate
+engine-fact and provider-support contracts drive engine differences, the
+runtime is trim-aware with NativeAOT readiness deferred until upstream EF Core
+stabilizes its precompiled-query story (see ADR D-017), and every feature is
+test-backed against the supported engine matrix.
 
 ## What This Project Solves
 
@@ -56,7 +61,23 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite
 | MySQL         | 8.4 LTS              | yes         | emulated (table)   | n/a          |
 | MariaDB       | 11.4 LTS, 11.8 LTS   | alias       | yes (10.3+)        | yes (10.5+)  |
 
-Engine-specific behavior is captured by the internal `ServerCapabilities` model and exposed automatically at runtime; application code does not branch on engine or version.
+Engine facts and provider support are separate internal contracts. Runtime
+diagnostics report each provider capability as `Native`, `Emulated`, or
+`UnsupportedByEngine`; application code does not branch on engine names.
+
+Only the release lines in this table are accepted by default. Legacy,
+unvalidated, and future versions are classified explicitly and rejected during
+provider-option validation. Unsupported execution remains available as an
+intentional compatibility path:
+
+```csharp
+var legacyVersion = MySqlServerVersion.MySql(
+    new Version(8, 0, 44),
+    MySqlServerVersionCompatibilityMode.AllowUnsupported);
+```
+
+The opt-in carries no support guarantee and emits the structured
+`MySqlEventId.UnsupportedServerVersion` warning at runtime.
 
 ## Quick Start
 

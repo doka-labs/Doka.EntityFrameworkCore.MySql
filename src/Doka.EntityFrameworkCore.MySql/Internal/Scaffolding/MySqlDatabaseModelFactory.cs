@@ -106,7 +106,8 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
             {
                 ChangeDatabase(connection, selectedDatabaseName);
 
-                var mariaDbJsonColumns = serverVersion.IsMariaDb
+                var mariaDbJsonColumns = serverVersion.Profile.GetSupport(ProviderCapability.JsonColumns)
+                    == ProviderSupportStatus.Emulated
                     ? JsonCheckConstraintLoader.Load(connection, tableFilter)
                     : new HashSet<(string, string)>();
                 var pipelineContext = new ScaffoldingPipelineContext(

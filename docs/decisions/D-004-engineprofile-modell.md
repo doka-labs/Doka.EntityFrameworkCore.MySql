@@ -54,27 +54,32 @@ classes as ad-hoc `isMariaDb` branches.
 
 Chosen option: "Typed EngineProfile table", because a typed table gives engine behavior one maintainable and testable routing boundary.
 
-Introduce an `EngineProfile` record that captures both capabilities and
-syntax variants in a structured form:
+Introduce an `EngineProfile` record that contains only version-derived engine
+facts and dialect traits:
 
 ```csharp
 internal sealed record EngineProfile(
     EngineFamily Family,
     Version Version,
-    FrozenDictionary<Capability, bool> Capabilities,
-    FrozenDictionary<SyntaxFeature, SyntaxBehavior> SyntaxBehaviors);
+    FrozenSet<EngineCapability> Capabilities);
 ```
 
-A static table `s_profiles` of `(family, version)` -> `EngineProfile`
-entries is consulted by binary-search for the lower-bound version. New
-engine releases become a single table append; consumers reading
-`profile.Capabilities[X]` do not change.
+Derive provider availability through a separate `ProviderProfile` contract:
 
-A second optional layer `EngineProfile.WithProbedOverrides(IProbeRunner)`
-takes a runtime probe (server-version SELECT plus selected feature-detection
-queries) and overlays the static table with what the actual server reports.
-The overlay is the seam for Aurora, TiDB, Vitess and other MySQL-protocol
-forks whose version string does not directly map into the static table.
+```csharp
+internal enum ProviderSupportStatus
+{
+    Native,
+    Emulated,
+    UnsupportedByEngine,
+}
+```
+
+Every `ProviderCapability` maps exhaustively from engine facts to one of these
+three states. There is deliberately no `UnsupportedByProvider` state: a
+declared provider capability either has an implementation route or is absent
+from the contract. `EngineProfileTable` accumulates facts from version
+thresholds and caches the frozen profile per `(family, version)`.
 
 ### Consequences
 
@@ -87,22 +92,18 @@ forks whose version string does not directly map into the static table.
   operation; consumers do not need to change.
 - Dead knobs disappear naturally: a capability without a consumer is simply
   absent from the profile, not declared as `true` everywhere.
-- Syntax-variant routing moves out of ad-hoc `isMariaDb` branches and into a
-  single lookup (`profile.SyntaxBehaviors[SyntaxFeature.Regexp]`), which
-  documents the per-engine differences in one place.
-- The overlay seam pre-positions the provider for MySQL-protocol forks
-  without requiring a hard fork of `ServerCapabilities`.
+- Syntax-variant routing moves out of ad-hoc `isMariaDb` branches and into
+  named `EngineCapability` facts.
+- Provider emulation is visible instead of being mistaken for missing engine
+  or provider support.
 
 #### Negative
 
 - The migration from `ServerCapabilities` to `EngineProfile` touches every
   call site that currently reads a capability field. The change is mechanical
   but wide.
-- A profile-table lookup on the hot path costs one `FrozenDictionary` read
-  per capability check; the existing `ServerCapabilities` is a direct field
-  read. Measured cost is well within noise for normal query translation, but
-  any benchmark-sensitive caller (HiLo selection, batch sizing) should
-  cache the lookup result locally.
+- An engine-fact check costs one `FrozenSet` lookup. Profiles are built once
+  per family/version and reused through the cache.
 
 #### Neutral
 
@@ -136,15 +137,33 @@ forks whose version string does not directly map into the static table.
 
 ### Implementation Snapshot
 
-- `Capability` enum + `EngineFamily` enum + `EngineProfile` record (with `FrozenSet<Capability>`) + `EngineProfileTable` static lookup with per-`(family, version)` instance cache. `ServerCapabilities.cs` deleted; all 11 consumers (MigrationsSqlGenerator, RelationalTransaction, LoggerMessages, ValueGeneratorSelector, ExecutionStrategy, TransientExceptionDetector, ScaffoldingPipelineContext, SpatialColumnLoader, DatabaseModelFactory, ServerVersion, SingletonOptions) plus 6 test fixtures migrated to `Profile.Has(Capability.X)`.
+- `EngineCapability`, `EngineFamily`, `EngineProfile`, and
+  `EngineProfileTable` own version-derived engine facts.
+- `ProviderCapability`, `ProviderSupportStatus`, and `ProviderProfile` own
+  provider availability and native/emulated routing.
+- Query, migration, update, transaction, scaffolding, and NetTopologySuite
+  behavior reads these contracts instead of `IsMariaDb` or `EngineFamily`.
+- Source conformance tests require an active behavior consumer for every
+  provider capability and a consumer or provider mapping for every engine
+  capability.
 
 ### Implementation Notes
 
-- `EngineProfileTable.Resolve(family, version)` accumulates capabilities by walking a small set of version thresholds (MySQL 5.7 / 8.0 / 8.0.31; MariaDB 10.2 / 10.3 / 10.3.4 / 10.5). Adding a new engine version becomes a single static-table entry append.
-- The three "always-true" capabilities (`SupportsDateTime6`, `SupportsSavepoints`, `SupportsFullTextIndex`) are retained because the transaction surface (`MySqlRelationalTransaction.SupportsSavepoints`), the diagnostic logging (`MySqlLoggerMessages.ServerVersionResolved`), and the engine-baseline tests (`MariaDbCompatibilityBaselineTests`, `MySql80CompatibilityBaselineTests`, `MySqlServerVersionTests`) genuinely consume them. They sit as explicit baseline entries in `EngineProfileTable.Resolve` so a future engine that drops one surfaces as a profile change rather than a silent global assumption.
+- `EngineProfileTable.Resolve(family, version)` accumulates capabilities from
+  the exact version thresholds that affect provider behavior.
+- MariaDB generated columns are modeled from their 5.2 introduction. Versions
+  before 10.2.1 route stored columns through the engine's `PERSISTENT` keyword;
+  later releases use the MySQL-compatible `STORED` alias.
+- The MariaDB JSON-column emulation requires `JSON_VALID` and therefore starts
+  at 10.2.3. Earlier releases fail explicitly instead of receiving invalid DDL.
+- Diagnostic-only flags for CTEs, window functions, DateTime6, generated
+  invisible primary keys, INTERSECT/EXCEPT, system versioning, and full-text
+  indexes were removed. Their real behavior remains covered by specification
+  and integration tests rather than dead runtime metadata.
+- `Savepoints` remains because `MySqlRelationalTransaction` actively consumes
+  the corresponding provider capability.
 - `IMySqlTransientExceptionDetector.ShouldRetryOn` lost its unused `ServerCapabilities` parameter; the detector never branched on capabilities and the parameter was already dead.
 - `EngineProfileTable.s_cache` is a `ConcurrentDictionary<(EngineFamily, Version), EngineProfile>` so two `MySqlServerVersion.MySql(8.4.0)` calls return the same `EngineProfile` reference. Without the cache, every fresh `MySqlServerVersion` instance produced a fresh `FrozenSet<Capability>` (reference equality only) and EF Core's internal service-provider cache invalidated on every test-DbContext build -- the `ManyServiceProvidersCreatedWarning` escalated to an error in suites that build many contexts per run.
-- The `WithProbedOverrides(IProbeRunner)` overlay layer from the ADR is intentionally not implemented yet: no consumer needs it today; the static-table form serves every supported MySQL / MariaDB version through the v1.0 release line.
 
 ### Additional Alternative Rationale
 
@@ -152,21 +171,19 @@ forks whose version string does not directly map into the static table.
   every new engine version; dead knobs already obscure the real routing.
 - **Hexagonal architecture with per-capability interfaces.** Rejected:
   overkill for 16 boolean knobs plus a handful of syntax variants.
-  `FrozenDictionary` plus a tiny `SyntaxBehavior` enum delivers the same
-  pluggability at a fraction of the moving parts.
+  the engine/provider profile pair delivers the required routing with fewer
+  moving parts.
 - **External configuration file (JSON/YAML) for the profile table.**
   Rejected: the table is small, change-controlled with the source, and
-  benefits from compile-time enum exhaustiveness on the `Capability` and
-  `SyntaxFeature` keys.
+  benefits from compile-time enum exhaustiveness.
 
 ### Re-evaluation Triggers
 
-- A MySQL or MariaDB release introduces a capability that the
-  `FrozenDictionary<Capability, bool>` shape cannot express (for example,
-  tri-state: supported / supported-with-caveat / unsupported).
-- A MySQL-protocol fork ships with version strings that the binary-search
-  lower-bound logic cannot resolve correctly; the overlay path would need
-  to grow a fork-identification probe.
+- A MySQL or MariaDB release introduces an engine behavior that the
+  `FrozenSet<EngineCapability>` plus provider-support status cannot express.
+- A MySQL-protocol fork ships with version strings that the threshold resolver
+  cannot classify correctly; engine-family detection would need to grow a
+  fork-identification probe.
 - A future EF Core release moves capability-detection into the core
   abstractions; the provider profile would then need to align with the
   upstream shape rather than maintain its own.
@@ -177,12 +194,64 @@ forks whose version string does not directly map into the static table.
 
 - 2026-05-16: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-07-30: Separated engine facts from provider support and removed unconsumed capability metadata.
 
 ### Implementation References
 
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Capabilities/EngineProfile.cs`
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Capabilities/EngineProfileTable.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Capabilities/ProviderCapability.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Capabilities/ProviderProfile.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.Tests/Contracts/ArchitectureConformanceTests.cs`
 
 ### Sources
 
-- No external sources; repository evidence only.
+- [MySQL 5.7.6 generated-column release notes][mysql-generated-columns]
+  (primary source; retrieved 2026-07-30)
+- [MySQL 5.7 native JSON documentation][mysql-native-json]
+  (primary source; retrieved 2026-07-30)
+- [MySQL 8.0.3 spatial and RENAME COLUMN release notes][mysql-803]
+  (primary source; retrieved 2026-07-30)
+- [MySQL 8.0.4 regular-expression release notes][mysql-804]
+  (primary source; retrieved 2026-07-30)
+- [MySQL 8.0.13 functional-index release notes][mysql-8013]
+  (primary source; retrieved 2026-07-30)
+- [MySQL lateral-derived-table documentation][mysql-lateral]
+  (primary source; retrieved 2026-07-30)
+- [MariaDB JSON data-type documentation][mariadb-json]
+  (primary source; retrieved 2026-07-30)
+- [MariaDB 5.2 generated-column release notes][mariadb-generated-columns]
+  (primary source; retrieved 2026-07-30)
+- [MariaDB generated-column syntax documentation][mariadb-generated-column-syntax]
+  (primary source; retrieved 2026-07-30)
+- [MariaDB 10.2.0 parser without the `STORED` alias][mariadb-1020-parser]
+  (primary source; retrieved 2026-07-30)
+- [MariaDB 10.2.1 parser with the `STORED` alias][mariadb-1021-parser]
+  (primary source; retrieved 2026-07-30)
+- [MariaDB 10.2.2 SQL source tree without JSON functions][mariadb-1022-sql-tree]
+  (primary source; retrieved 2026-07-30)
+- [MariaDB 10.2.3 `JSON_VALID` implementation][mariadb-1023-json-valid]
+  (primary source; retrieved 2026-07-30)
+- [MariaDB 10.3 sequence overview][mariadb-sequences]
+  (primary source; retrieved 2026-07-30)
+- [MariaDB INSERT RETURNING documentation][mariadb-returning]
+  (primary source; retrieved 2026-07-30)
+- [MariaDB 10.5.2 release notes][mariadb-rename-column]
+  (primary source; retrieved 2026-07-30)
+
+[mysql-generated-columns]: https://dev.mysql.com/doc/relnotes/mysql/5.7/en/news-5-7-6.html
+[mysql-native-json]: https://dev.mysql.com/doc/refman/5.7/en/json.html
+[mysql-803]: https://dev.mysql.com/doc/relnotes/mysql/8.0/en/news-8-0-3.html
+[mysql-804]: https://dev.mysql.com/doc/relnotes/mysql/8.0/en/news-8-0-4.html
+[mysql-8013]: https://dev.mysql.com/doc/relnotes/mysql/8.0/en/news-8-0-13.html
+[mysql-lateral]: https://dev.mysql.com/doc/refman/8.0/en/lateral-derived-tables.html
+[mariadb-json]: https://mariadb.com/kb/en/json-data-type/
+[mariadb-generated-columns]: https://mariadb.com/kb/en/mariadb-520-release-notes/
+[mariadb-generated-column-syntax]: https://mariadb.com/kb/en/generated-columns/
+[mariadb-1020-parser]: https://github.com/MariaDB/server/blob/mariadb-10.2.0/sql/sql_yacc.yy#L6284
+[mariadb-1021-parser]: https://github.com/MariaDB/server/blob/mariadb-10.2.1/sql/sql_yacc.yy#L6164-L6168
+[mariadb-1022-sql-tree]: https://github.com/MariaDB/server/tree/mariadb-10.2.2/sql
+[mariadb-1023-json-valid]: https://github.com/MariaDB/server/blob/mariadb-10.2.3/sql/item_jsonfunc.cc#L235
+[mariadb-sequences]: https://mariadb.com/kb/en/what-is-mariadb-103/
+[mariadb-returning]: https://mariadb.com/kb/en/insertreturning/
+[mariadb-rename-column]: https://mariadb.com/kb/en/mariadb-1052-release-notes/

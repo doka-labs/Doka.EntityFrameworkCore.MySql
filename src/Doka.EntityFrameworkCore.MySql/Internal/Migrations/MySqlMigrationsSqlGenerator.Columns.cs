@@ -199,10 +199,13 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(" GENERATED ALWAYS AS (")
             .Append(computedColumnSql)
             .Append(") ")
-            .Append(operation.IsStored == true ? "STORED" : "VIRTUAL");
+            .Append(operation.IsStored == true
+                ? GetStoredGeneratedColumnKeyword()
+                : "VIRTUAL");
 
         if (!operation.IsNullable
-            && _mySqlSingletonOptions.Profile?.Has(Capability.SupportsGeneratedColumnNullabilityClause) == true)
+            && _mySqlSingletonOptions.Profile?.GetSupport(
+                ProviderCapability.GeneratedColumnNullabilityClause) == ProviderSupportStatus.Native)
         {
             builder.Append(" NOT NULL");
         }
@@ -243,7 +246,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         if (operation.FindAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId)
                 ?.Value is int spatialReferenceSystemId
-            && _mySqlSingletonOptions.Profile?.Has(Capability.SupportsSpatialColumnSridAttribute) == true)
+            && _mySqlSingletonOptions.Profile?.GetSupport(
+                ProviderCapability.SpatialColumnSridAttribute) == ProviderSupportStatus.Native)
         {
             builder
                 .Append(" SRID ")
@@ -262,12 +266,14 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return;
         }
 
-        if (_mySqlSingletonOptions.Profile?.Has(Capability.UsesJsonAliasForJsonColumns) == true)
+        if (_mySqlSingletonOptions.Profile?.GetSupport(ProviderCapability.JsonColumns)
+            == ProviderSupportStatus.Emulated)
         {
             return;
         }
 
-        if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsNativeJsonType) == true)
+        if (_mySqlSingletonOptions.Profile?.GetSupport(ProviderCapability.JsonColumns)
+            == ProviderSupportStatus.Native)
         {
             return;
         }
@@ -291,8 +297,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         // an explicitly configured virtual column.
         var isStored = operation.IsStored == true;
         var supportsGeneratedColumns = isStored
-            ? _mySqlSingletonOptions.Profile?.Has(Capability.SupportsStoredGeneratedColumns) == true
-            : _mySqlSingletonOptions.Profile?.Has(Capability.SupportsVirtualGeneratedColumns) == true;
+            ? _mySqlSingletonOptions.Profile?.Supports(ProviderCapability.StoredGeneratedColumns) == true
+            : _mySqlSingletonOptions.Profile?.Supports(ProviderCapability.VirtualGeneratedColumns) == true;
 
         if (supportsGeneratedColumns)
         {
@@ -301,6 +307,14 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         throw new InvalidOperationException(
             $"The configured server version does not support {(isStored ? "stored" : "virtual")} generated columns.");
+    }
+
+    private string GetStoredGeneratedColumnKeyword()
+    {
+        return _mySqlSingletonOptions.Profile?.Engine.Has(
+            EngineCapability.StoredGeneratedColumnUsesPersistentKeyword) == true
+                ? "PERSISTENT"
+                : "STORED";
     }
 
     private static void ValidateSpatialColumnSupport(
@@ -320,7 +334,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
     private bool IsMariaDbJsonAliasColumn(
         ColumnOperation operation
-    ) => _mySqlSingletonOptions.Profile?.Has(Capability.UsesJsonAliasForJsonColumns) == true && IsJsonColumn(operation);
+    ) => _mySqlSingletonOptions.Profile?.GetSupport(ProviderCapability.JsonColumns) == ProviderSupportStatus.Emulated
+        && IsJsonColumn(operation);
 
     private static bool IsSpatialColumn(
         ColumnOperation operation

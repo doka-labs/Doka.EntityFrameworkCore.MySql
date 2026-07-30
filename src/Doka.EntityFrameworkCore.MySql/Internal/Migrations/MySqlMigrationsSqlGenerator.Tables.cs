@@ -206,8 +206,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     /// MySQL 8.0+ and MariaDB 10.5.2+ accept the modern
     /// <c>ALTER TABLE ... RENAME COLUMN old TO new</c> form; older MariaDB versions
     /// require <c>ALTER TABLE ... CHANGE COLUMN old new &lt;full column definition&gt;</c>.
-    /// The engine choice is read from the active <see cref="EngineProfile"/> via
-    /// <see cref="Capability.SupportsRenameColumnSyntax"/>; the fallback path resolves
+    /// The engine choice is read from the active <see cref="ProviderProfile"/> via
+    /// <see cref="ProviderCapability.RenameColumn"/>; the fallback path resolves
     /// the column definition from the post-rename <see cref="IModel"/> (post-rename
     /// because EF Core applies the operation to the model before invoking the
     /// generator, so the column entry already carries the new name).
@@ -221,7 +221,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
-        if (_mySqlSingletonOptions.Profile?.Has(Capability.SupportsRenameColumnSyntax) == true)
+        if (_mySqlSingletonOptions.Profile?.GetSupport(ProviderCapability.RenameColumn) == ProviderSupportStatus.Native)
         {
             builder
                 .Append("ALTER TABLE ")

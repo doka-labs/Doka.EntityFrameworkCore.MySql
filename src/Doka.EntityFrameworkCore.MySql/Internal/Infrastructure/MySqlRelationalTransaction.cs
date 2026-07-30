@@ -32,7 +32,7 @@ internal sealed class MySqlRelationalTransaction : RelationalTransaction
     }
 
     public override bool SupportsSavepoints =>
-        base.SupportsSavepoints && (_singletonOptions.Profile?.Has(Capability.SupportsSavepoints) ?? false);
+        base.SupportsSavepoints && (_singletonOptions.Profile?.Supports(ProviderCapability.Savepoints) ?? false);
 
     public override void CreateSavepoint(
         string name

@@ -46,7 +46,7 @@ internal static class MySqlActivitySource
     /// <summary>
     /// Starts the <see cref="MySqlDiagnostics.ServerVersionResolveSpanName"/>
     /// span for the one-shot resolution of the configured server version into
-    /// the runtime <see cref="EngineProfile"/>.
+    /// the runtime <see cref="ProviderProfile"/>.
     /// </summary>
     public static Activity? StartServerVersionResolve() => !s_source.HasListeners()
         ? null

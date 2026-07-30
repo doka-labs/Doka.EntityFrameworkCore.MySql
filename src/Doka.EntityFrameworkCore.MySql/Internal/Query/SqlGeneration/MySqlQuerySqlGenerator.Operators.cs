@@ -186,9 +186,10 @@ internal sealed partial class MySqlQuerySqlGenerator
         SqlBinaryExpression expression
     )
     {
-        var isMariaDb = _singletonOptions.ServerVersion?.IsMariaDb == true;
+        var usesJsonTextSemantics =
+            Profile.GetSupport(ProviderCapability.JsonColumns) == ProviderSupportStatus.Emulated;
 
-        if (isMariaDb)
+        if (usesJsonTextSemantics)
         {
             Sql.Append("JSON_NORMALIZE(");
             EmitJsonDocument(expression.Left);
@@ -201,7 +202,7 @@ internal sealed partial class MySqlQuerySqlGenerator
 
         Sql.Append(expression.OperatorType == ExpressionType.Equal ? " = " : " <> ");
 
-        if (isMariaDb)
+        if (usesJsonTextSemantics)
         {
             Sql.Append("JSON_NORMALIZE(");
             EmitJsonDocument(expression.Right);
@@ -223,7 +224,7 @@ internal sealed partial class MySqlQuerySqlGenerator
             return;
         }
 
-        if (_singletonOptions.ServerVersion?.IsMariaDb == true)
+        if (Profile.GetSupport(ProviderCapability.JsonColumns) == ProviderSupportStatus.Emulated)
         {
             Visit(expression);
             return;

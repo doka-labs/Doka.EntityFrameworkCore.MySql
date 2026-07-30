@@ -8,54 +8,116 @@ public sealed record MySqlServerVersion
     /// <summary>
     /// Gets the parsed server version.
     /// </summary>
-    public Version Version { get; }
+    public Version Version => Profile.Engine.Version;
 
     /// <summary>
     /// Gets a value indicating whether the configured engine is MariaDB.
     /// </summary>
-    public bool IsMariaDb { get; }
+    public bool IsMariaDb => Profile.Engine.Family == EngineFamily.MariaDb;
 
-    internal EngineProfile Profile { get; }
+    /// <summary>
+    /// Gets the release-line classification against the provider's continuously
+    /// tested support matrix.
+    /// </summary>
+    public MySqlServerVersionSupportStatus SupportStatus { get; }
+
+    /// <summary>
+    /// Gets the compatibility mode selected for this descriptor.
+    /// </summary>
+    public MySqlServerVersionCompatibilityMode CompatibilityMode { get; }
+
+    internal ProviderProfile Profile { get; }
 
     private MySqlServerVersion(
         Version version,
-        bool isMariaDb
+        bool isMariaDb,
+        MySqlServerVersionCompatibilityMode compatibilityMode
     )
     {
         ArgumentNullException.ThrowIfNull(version);
 
-        Version = version;
-        IsMariaDb = isMariaDb;
-        Profile = EngineProfileTable.Resolve(
-            isMariaDb ? EngineFamily.MariaDb : EngineFamily.MySql,
-            version);
+        if (!Enum.IsDefined(compatibilityMode))
+        {
+            throw new ArgumentOutOfRangeException(nameof(compatibilityMode));
+        }
+
+        Profile = new ProviderProfile(EngineProfileTable.Resolve(isMariaDb
+            ? EngineFamily.MariaDb
+            : EngineFamily.MySql, version));
+        SupportStatus = ServerVersionSupportPolicy.Classify(Profile.Engine.Family, version);
+        CompatibilityMode = compatibilityMode;
     }
 
     /// <summary>
-    /// Creates a MySQL server-version descriptor.
+    /// Creates a MySQL server-version descriptor that permits only supported
+    /// release lines during provider-option validation.
     /// </summary>
     /// <param name="version">The server version.</param>
     /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
     public static MySqlServerVersion MySql(
         Version version
-    ) => new(version, false);
+    ) => MySql(version, MySqlServerVersionCompatibilityMode.SupportedOnly);
 
     /// <summary>
-    /// Creates a MariaDB server-version descriptor.
+    /// Creates a MySQL server-version descriptor with an explicit compatibility
+    /// mode.
+    /// </summary>
+    /// <param name="version">The server version.</param>
+    /// <param name="compatibilityMode">
+    /// The compatibility mode controlling unsupported release lines.
+    /// </param>
+    /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
+    public static MySqlServerVersion MySql(
+        Version version,
+        MySqlServerVersionCompatibilityMode compatibilityMode
+    ) => new(version, false, compatibilityMode);
+
+    /// <summary>
+    /// Creates a MariaDB server-version descriptor that permits only supported
+    /// release lines during provider-option validation.
     /// </summary>
     /// <param name="version">The server version.</param>
     /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
     public static MySqlServerVersion MariaDb(
         Version version
-    ) => new(version, true);
+    ) => MariaDb(version, MySqlServerVersionCompatibilityMode.SupportedOnly);
 
     /// <summary>
-    /// Parses a server-version string into a provider server-version descriptor.
+    /// Creates a MariaDB server-version descriptor with an explicit compatibility
+    /// mode.
+    /// </summary>
+    /// <param name="version">The server version.</param>
+    /// <param name="compatibilityMode">
+    /// The compatibility mode controlling unsupported release lines.
+    /// </param>
+    /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
+    public static MySqlServerVersion MariaDb(
+        Version version,
+        MySqlServerVersionCompatibilityMode compatibilityMode
+    ) => new(version, true, compatibilityMode);
+
+    /// <summary>
+    /// Parses a server-version string into a descriptor that permits only supported
+    /// release lines during provider-option validation.
     /// </summary>
     /// <param name="serverVersion">The raw server-version string.</param>
     /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
     public static MySqlServerVersion AutoDetect(
         string serverVersion
+    ) => AutoDetect(serverVersion, MySqlServerVersionCompatibilityMode.SupportedOnly);
+
+    /// <summary>
+    /// Parses a server-version string into a descriptor with an explicit
+    /// compatibility mode.
+    /// </summary>
+    /// <param name="serverVersion">The raw server-version string.</param>
+    /// <param name="compatibilityMode">
+    /// The compatibility mode controlling unsupported release lines.
+    /// </param>
+    /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
+    public static MySqlServerVersion AutoDetect(
+        string serverVersion,
+        MySqlServerVersionCompatibilityMode compatibilityMode
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(serverVersion);
@@ -63,16 +125,31 @@ public sealed record MySqlServerVersion
         var version = ParseVersion(serverVersion);
         var isMariaDb = serverVersion.Contains("mariadb", StringComparison.OrdinalIgnoreCase);
 
-        return new MySqlServerVersion(version, isMariaDb);
+        return new MySqlServerVersion(version, isMariaDb, compatibilityMode);
     }
 
     /// <summary>
-    /// Reads the server-version string from an existing database connection and parses it.
+    /// Reads and parses the server version from a connection into a descriptor that
+    /// permits only supported release lines during provider-option validation.
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
     public static MySqlServerVersion AutoDetect(
         DbConnection connection
+    ) => AutoDetect(connection, MySqlServerVersionCompatibilityMode.SupportedOnly);
+
+    /// <summary>
+    /// Reads and parses the server version from an existing database connection
+    /// with an explicit compatibility mode.
+    /// </summary>
+    /// <param name="connection">The database connection.</param>
+    /// <param name="compatibilityMode">
+    /// The compatibility mode controlling unsupported release lines.
+    /// </param>
+    /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
+    public static MySqlServerVersion AutoDetect(
+        DbConnection connection,
+        MySqlServerVersionCompatibilityMode compatibilityMode
     )
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -80,7 +157,7 @@ public sealed record MySqlServerVersion
         var serverVersion = connection.ServerVersion;
 
         return !string.IsNullOrWhiteSpace(serverVersion)
-            ? AutoDetect(serverVersion)
+            ? AutoDetect(serverVersion, compatibilityMode)
             : throw new InvalidOperationException("The supplied connection did not expose a server version.");
     }
 

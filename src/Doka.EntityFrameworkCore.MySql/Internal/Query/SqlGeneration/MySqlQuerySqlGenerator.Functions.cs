@@ -3,8 +3,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed partial class MySqlQuerySqlGenerator
 {
     /// <summary>
-    /// Intercepts sentinel function names for MySQL-specific compound SQL expressions
-    /// like <c>MATCH(...) AGAINST(...)</c>.
+    /// Intercepts typed provider sentinels for MySQL-specific compound SQL
+    /// expressions such as <c>MATCH(...) AGAINST(...)</c>.
     /// </summary>
     protected override Expression VisitSqlFunction(
         SqlFunctionExpression sqlFunctionExpression
@@ -12,30 +12,37 @@ internal sealed partial class MySqlQuerySqlGenerator
     {
         ArgumentNullException.ThrowIfNull(sqlFunctionExpression);
 
-        switch (sqlFunctionExpression)
+        if (!MySqlSentinelContract.IsSentinelName(sqlFunctionExpression.Name))
         {
-            case { Name: "__mysql_json_set", Arguments.Count: 3 }:
+            return base.VisitSqlFunction(sqlFunctionExpression);
+        }
+
+        var arguments = sqlFunctionExpression.Arguments ?? Array.Empty<SqlExpression>();
+        var sentinel = MySqlSentinelContract.Resolve(sqlFunctionExpression.Name, arguments.Count);
+
+        switch (sentinel.Kind)
+        {
+            case MySqlSentinelKind.JsonSet:
                 {
                     EmitJsonSet(sqlFunctionExpression);
                     return sqlFunctionExpression;
                 }
 
-            case { Name: "__mysql_regexp", Arguments.Count: 2 }:
+            case MySqlSentinelKind.RegularExpression:
                 {
                     EmitRegularExpression(sqlFunctionExpression);
                     return sqlFunctionExpression;
                 }
 
-            case { Name: "__mysql_match" or "__mysql_match_boolean", Arguments.Count: 2 }:
+            case MySqlSentinelKind.Match:
+            case MySqlSentinelKind.MatchBoolean:
                 {
-                    var isBooleanMode = sqlFunctionExpression.Name == "__mysql_match_boolean";
-
                     Sql.Append("MATCH(");
-                    Visit(sqlFunctionExpression.Arguments[0]);
+                    Visit(arguments[0]);
                     Sql.Append(") AGAINST(");
-                    Visit(sqlFunctionExpression.Arguments[1]);
+                    Visit(arguments[1]);
 
-                    if (isBooleanMode)
+                    if (sentinel.Kind == MySqlSentinelKind.MatchBoolean)
                     {
                         Sql.Append(" IN BOOLEAN MODE");
                     }
@@ -45,87 +52,86 @@ internal sealed partial class MySqlQuerySqlGenerator
                     return sqlFunctionExpression;
                 }
 
-            case { Name: "__mysql_group_concat", Arguments.Count: >= 2 }:
+            case MySqlSentinelKind.GroupConcat:
                 {
                     EmitGroupConcat(sqlFunctionExpression);
                     return sqlFunctionExpression;
                 }
 
-            case { Name: "__mysql_order_ascending" or "__mysql_order_descending", Arguments.Count: 1, }:
+            case MySqlSentinelKind.OrderAscending:
+            case MySqlSentinelKind.OrderDescending:
                 {
-                    Visit(sqlFunctionExpression.Arguments[0]);
-                    Sql.Append(sqlFunctionExpression.Name == "__mysql_order_ascending" ? " ASC" : " DESC");
+                    Visit(arguments[0]);
+                    Sql.Append(sentinel.Kind == MySqlSentinelKind.OrderAscending ? " ASC" : " DESC");
                     return sqlFunctionExpression;
                 }
 
-            case { Name: "__mysql_guid_to_string", Arguments.Count: 1 }:
+            case MySqlSentinelKind.GuidToString:
                 {
-                    EmitGuidToString(sqlFunctionExpression.Arguments[0]);
+                    EmitGuidToString(arguments[0]);
                     return sqlFunctionExpression;
                 }
 
-            case { Name: "__mysql_datetimeoffset_now" or "__mysql_datetimeoffset_utc_now", Arguments.Count: 0, }:
+            case MySqlSentinelKind.DateTimeOffsetNow:
+            case MySqlSentinelKind.DateTimeOffsetUtcNow:
                 {
-                    EmitDateTimeOffsetNow(utc: sqlFunctionExpression.Name == "__mysql_datetimeoffset_utc_now");
+                    EmitDateTimeOffsetNow(utc: sentinel.Kind == MySqlSentinelKind.DateTimeOffsetUtcNow);
                     return sqlFunctionExpression;
                 }
 
-            case { Name: "__mysql_datetimeoffset_subtract_timespan", Arguments.Count: 2, }:
+            case MySqlSentinelKind.DateTimeOffsetSubtractTimeSpan:
                 {
                     EmitDateTimeOffsetSubtractTimeSpan(sqlFunctionExpression);
                     return sqlFunctionExpression;
                 }
 
-            case { Name: "__mysql_datetime_diff_ticks", Arguments.Count: 2 }:
+            case MySqlSentinelKind.DateTimeDifferenceTicks:
                 {
                     EmitDateTimeDifferenceTicks(sqlFunctionExpression);
                     return sqlFunctionExpression;
                 }
 
-            case { Name: "__mysql_time_diff_ticks", Arguments.Count: 2 }:
+            case MySqlSentinelKind.TimeDifferenceTicks:
                 {
                     EmitTimeDifferenceTicks(sqlFunctionExpression);
                     return sqlFunctionExpression;
                 }
 
-            case { Name: "__mysql_time_of_day_ticks", Arguments.Count: 1 }:
+            case MySqlSentinelKind.TimeOfDayTicks:
                 {
                     EmitTimeOfDayTicks(sqlFunctionExpression);
                     return sqlFunctionExpression;
                 }
 
-            case { Name: "__mysql_left_shift" or "__mysql_right_shift", Arguments.Count: 2, }:
+            case MySqlSentinelKind.LeftShift:
+            case MySqlSentinelKind.RightShift:
                 {
-                    EmitShift(sqlFunctionExpression);
+                    EmitShift(
+                        sqlFunctionExpression,
+                        isRightShift: sentinel.Kind == MySqlSentinelKind.RightShift);
                     return sqlFunctionExpression;
                 }
 
-            case { Name: "__mysql_ones_complement", Arguments.Count: 1 }:
+            case MySqlSentinelKind.OnesComplement:
                 {
                     Sql.Append("CAST((~");
-                    Visit(sqlFunctionExpression.Arguments[0]);
+                    Visit(arguments[0]);
                     Sql.Append(") AS SIGNED)");
                     return sqlFunctionExpression;
                 }
 
-            case { Name: var name, Arguments.Count: 2 } when name.StartsWith(
-                DateAddSentinelPrefix,
-                StringComparison.Ordinal):
+            case MySqlSentinelKind.DateAdd:
+            case MySqlSentinelKind.TimeAdd:
                 {
-                    EmitDateAdd(sqlFunctionExpression, name[DateAddSentinelPrefix.Length..]);
-                    return sqlFunctionExpression;
-                }
-
-            case { Name: var name, Arguments.Count: 2 } when name.StartsWith(
-                TimeAddSentinelPrefix,
-                StringComparison.Ordinal):
-                {
-                    EmitDateAdd(sqlFunctionExpression, name[TimeAddSentinelPrefix.Length..]);
+                    EmitDateAdd(
+                        sqlFunctionExpression,
+                        sentinel.IntervalUnit
+                        ?? throw new InvalidOperationException("Date/time addition sentinel has no interval unit."));
                     return sqlFunctionExpression;
                 }
 
             default:
-                return base.VisitSqlFunction(sqlFunctionExpression);
+                throw new UnreachableException();
         }
     }
 
@@ -141,7 +147,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         Visit(pattern);
         Sql.Append(" = '' THEN TRUE ELSE ");
 
-        if (_singletonOptions.ServerVersion?.IsMariaDb == true)
+        if (!Profile.Engine.Has(EngineCapability.RegexpLikeFunction))
         {
             Visit(input);
             Sql.Append(" REGEXP ");
@@ -169,7 +175,7 @@ internal sealed partial class MySqlQuerySqlGenerator
     {
         var arguments = expression.Arguments
             ?? throw new InvalidOperationException(
-                "The __mysql_group_concat sentinel requires at least two arguments.");
+                $"The {expression.Name} sentinel requires at least two arguments.");
 
         Sql.Append("GROUP_CONCAT(");
         Visit(arguments[0]);
@@ -238,14 +244,15 @@ internal sealed partial class MySqlQuerySqlGenerator
     }
 
     private void EmitShift(
-        SqlFunctionExpression expression
+        SqlFunctionExpression expression,
+        bool isRightShift
     )
     {
         var arguments = GetRequiredArguments(expression, 2);
         var resultType = expression.Type.UnwrapNullableType();
         var bitWidth = resultType == typeof(long) || resultType == typeof(ulong) ? 64 : 32;
 
-        if (expression.Name == "__mysql_right_shift")
+        if (isRightShift)
         {
             if (resultType == typeof(uint)
                 || resultType == typeof(ulong))
@@ -443,9 +450,6 @@ internal sealed partial class MySqlQuerySqlGenerator
         Sql.Append(", 6))");
     }
 
-    private const string DateAddSentinelPrefix = "__mysql_date_add_";
-    private const string TimeAddSentinelPrefix = "__mysql_time_add_";
-
     /// <summary>
     /// Emits a signed, range-preserving <see cref="TimeSpan"/> value as
     /// 100-nanosecond ticks.
@@ -463,9 +467,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         SqlFunctionExpression expression
     )
     {
-        var arguments = expression.Arguments
-            ?? throw new InvalidOperationException(
-                "The __mysql_datetime_diff_ticks sentinel requires two arguments.");
+        var arguments = GetRequiredArguments(expression, 2);
 
         Sql.Append("(TIMESTAMPDIFF(MICROSECOND, ");
         Visit(arguments[0]);
@@ -483,7 +485,7 @@ internal sealed partial class MySqlQuerySqlGenerator
     /// </summary>
     private void EmitDateAdd(
         SqlFunctionExpression expression,
-        string unit
+        MySqlIntervalUnit intervalUnit
     )
     {
         var arguments = expression.Arguments
@@ -494,7 +496,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         Sql.Append(", INTERVAL ");
         Visit(arguments[1]);
         Sql.Append(" ");
-        Sql.Append(unit);
+        Sql.Append(MySqlSentinelContract.GetIntervalSql(intervalUnit));
         Sql.Append(")");
     }
 }

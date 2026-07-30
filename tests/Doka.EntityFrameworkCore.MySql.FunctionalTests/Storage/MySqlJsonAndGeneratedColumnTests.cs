@@ -79,13 +79,67 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     }
 
     /// <summary>
+    /// Verifies that legacy MariaDB versions use the engine's PERSISTENT spelling
+    /// instead of rejecting stored generated columns that the engine supports.
+    /// </summary>
+    [Fact]
+    public void Legacy_mariadb_uses_persistent_generated_column_syntax()
+    {
+        using var context = new MariaDbJsonContext(
+            CreateOptions<MariaDbJsonContext>(
+                MySqlServerVersion.MariaDb(
+                    new Version(10, 1, 0),
+                    MySqlServerVersionCompatibilityMode.AllowUnsupported)));
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = CreateJsonTableOperation();
+
+        operation.Columns.RemoveAt(0);
+
+        var command = Assert.Single(generator.Generate([operation], context.Model));
+
+        Assert.Contains(
+            "`VirtualKind` varchar(64) GENERATED ALWAYS AS "
+            + "(JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))) VIRTUAL",
+            command.CommandText,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "`StoredCount` int GENERATED ALWAYS AS (JSON_LENGTH(`Payload`)) PERSISTENT",
+            command.CommandText,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that MariaDB releases without JSON_VALID reject JSON columns
+    /// instead of emitting an invalid validation constraint.
+    /// </summary>
+    [Fact]
+    public void Legacy_mariadb_without_json_validation_rejects_json_columns()
+    {
+        using var context = new MariaDbJsonContext(
+            CreateOptions<MariaDbJsonContext>(
+                MySqlServerVersion.MariaDb(
+                    new Version(10, 2, 2),
+                    MySqlServerVersionCompatibilityMode.AllowUnsupported)));
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = CreateJsonTableOperation();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            generator.Generate([operation], context.Model));
+
+        Assert.Contains("JSON", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies that legacy MySQL versions fail explicitly instead of silently accepting unsupported JSON columns.
     /// </summary>
     [Fact]
     public void Legacy_mysql_rejects_native_json_columns_explicitly()
     {
         using var context = new MySqlJsonContext(
-            CreateOptions<MySqlJsonContext>(MySqlServerVersion.MySql(new Version(5, 6, 0))));
+            CreateOptions<MySqlJsonContext>(
+                MySqlServerVersion.MySql(
+                    new Version(5, 6, 0),
+                    MySqlServerVersionCompatibilityMode.AllowUnsupported)));
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var operation = CreateJsonTableOperation();
 
@@ -101,7 +155,10 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     public void Legacy_mysql_rejects_generated_columns_explicitly()
     {
         using var context = new MySqlJsonContext(
-            CreateOptions<MySqlJsonContext>(MySqlServerVersion.MySql(new Version(5, 6, 0))));
+            CreateOptions<MySqlJsonContext>(
+                MySqlServerVersion.MySql(
+                    new Version(5, 6, 0),
+                    MySqlServerVersionCompatibilityMode.AllowUnsupported)));
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var operation = CreateJsonTableOperation();
 

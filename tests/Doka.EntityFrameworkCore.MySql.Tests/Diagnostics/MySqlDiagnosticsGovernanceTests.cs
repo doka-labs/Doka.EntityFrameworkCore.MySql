@@ -59,6 +59,7 @@ public sealed class MySqlDiagnosticsGovernanceTests
         {
             [nameof(MySqlEventId.ServerVersionResolved)] = 1000,
             [nameof(MySqlEventId.InvalidConfiguration)] = 1001,
+            [nameof(MySqlEventId.UnsupportedServerVersion)] = 1005,
             [nameof(MySqlEventId.SchemaUnsupported)] = 1002,
             [nameof(MySqlEventId.KeyOrIndexMaxLengthRequired)] = 1003,
             [nameof(MySqlEventId.ImplicitDecimalPrecisionDefaulted)] = 1004,
@@ -144,6 +145,7 @@ public sealed class MySqlDiagnosticsGovernanceTests
         {
             [nameof(MySqlEventId.ServerVersionResolved)] = (1000, 1099),
             [nameof(MySqlEventId.InvalidConfiguration)] = (1000, 1099),
+            [nameof(MySqlEventId.UnsupportedServerVersion)] = (1000, 1099),
             [nameof(MySqlEventId.SchemaUnsupported)] = (1000, 1099),
             [nameof(MySqlEventId.KeyOrIndexMaxLengthRequired)] = (1000, 1099),
             [nameof(MySqlEventId.ImplicitDecimalPrecisionDefaulted)] = (1000, 1099),

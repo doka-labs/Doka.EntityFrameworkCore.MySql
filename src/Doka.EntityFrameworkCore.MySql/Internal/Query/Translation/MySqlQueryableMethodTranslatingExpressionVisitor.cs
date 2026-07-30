@@ -464,7 +464,7 @@ internal sealed class
                     jsonColumn.TypeMapping);
 
         var jsonSet = _sqlExpressionFactory.Function(
-            "__mysql_json_set",
+            MySqlSentinelContract.GetName(MySqlSentinelKind.JsonSet),
             [
                 existingSetterValue ?? jsonColumn,
                 _sqlExpressionFactory.Constant(path, RelationalTypeMapping.NullMapping),

@@ -43,6 +43,21 @@ public sealed class MySqlReverseEngineeringBaselineTests
     }
 
     /// <summary>
+    /// Verifies that scaffolding an unsupported release line makes the
+    /// compatibility opt-in visible in generated provider configuration.
+    /// </summary>
+    [Fact]
+    public void Reverse_engineering_preserves_explicit_unsupported_version_opt_in()
+    {
+        var scaffoldedModel = ScaffoldModel(CreatePhase2DatabaseModel(), detectedServerVersionText: "8.0.44");
+
+        Assert.Contains(
+            "MySqlServerVersionCompatibilityMode.AllowUnsupported",
+            scaffoldedModel.ContextFile.Code,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies that core relational metadata survives database-model to generated-code
     /// conversion without turning views into tables or duplicating unique definitions.
     /// </summary>
