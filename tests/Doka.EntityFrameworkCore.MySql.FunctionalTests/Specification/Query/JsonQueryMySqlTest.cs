@@ -1,5 +1,4 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.TestModels.JsonQuery;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;

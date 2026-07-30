@@ -63,6 +63,40 @@ class CoveragePolicyTests(unittest.TestCase):
             self.assertEqual(1, len(errors))
             self.assertIn("old", errors[0])
 
+    def test_aggregates_distinct_partial_class_source_files(self) -> None:
+        """Aggregate one critical partial class across its source files."""
+        lines, errors = self._evaluate(
+            class_elements=(
+                '<class name="Provider.Critical" filename="Critical.cs"><lines>'
+                '<line number="1" hits="1" branch="true" '
+                'condition-coverage="50% (1/2)" />'
+                "</lines></class>"
+                '<class name="Provider.Critical" filename="Critical.Partial.cs"><lines>'
+                '<line number="1" hits="1" />'
+                "</lines></class>"
+            )
+        )
+
+        self.assertEqual([], errors)
+        self.assertIn("lines 2/2", lines[1])
+        self.assertIn("branches 1/2", lines[1])
+
+    def test_rejects_ambiguous_partial_class_source_files(self) -> None:
+        """Reject repeated source entries that could inflate class coverage."""
+        _, errors = self._evaluate(
+            class_elements=(
+                '<class name="Provider.Critical" filename="Critical.cs"><lines>'
+                '<line number="1" hits="1" branch="true" '
+                'condition-coverage="50% (1/2)" />'
+                "</lines></class>"
+                '<class name="Provider.Critical" filename="Critical.cs"><lines>'
+                '<line number="1" hits="1" />'
+                "</lines></class>"
+            )
+        )
+
+        self.assertTrue(any("ambiguous source fragments" in error for error in errors))
+
     def _evaluate(
         self,
         *,
@@ -71,20 +105,25 @@ class CoveragePolicyTests(unittest.TestCase):
         class_name: str = "Provider.Critical",
         line_hits: tuple[int, int] = (1, 1),
         branch_fraction: str = "50% (1/2)",
+        class_elements: str | None = None,
     ) -> tuple[list[str], list[str]]:
         with tempfile.TemporaryDirectory(prefix="doka-coverage-policy-") as directory:
             root = Path(directory)
             report = root / "coverage.cobertura.xml"
             policy = root / "coverage-policy.json"
+            class_elements = class_elements or (
+                f'<class name="{class_name}"><lines>'
+                f'<line number="1" hits="{line_hits[0]}" branch="true" '
+                f'condition-coverage="{branch_fraction}" />'
+                f'<line number="2" hits="{line_hits[1]}" />'
+                "</lines></class>"
+            )
             report.write_text(
                 (
                     '<coverage timestamp="1000"><packages>'
                     f'<package name="{assembly_name}"><classes>'
-                    f'<class name="{class_name}"><lines>'
-                    f'<line number="1" hits="{line_hits[0]}" branch="true" '
-                    f'condition-coverage="{branch_fraction}" />'
-                    f'<line number="2" hits="{line_hits[1]}" />'
-                    "</lines></class></classes></package>"
+                    f"{class_elements}"
+                    "</classes></package>"
                     "</packages></coverage>"
                 ),
                 encoding="utf-8",

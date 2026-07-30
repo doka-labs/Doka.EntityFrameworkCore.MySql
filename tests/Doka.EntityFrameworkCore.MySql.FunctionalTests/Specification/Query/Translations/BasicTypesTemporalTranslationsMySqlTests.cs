@@ -141,4 +141,20 @@ public sealed class BasicTypesTimeSpanTranslationsMySqlTest
             source => source
                 .Set<BasicTypesEntity>()
                 .Where(entity => entity.TimeSpan.Nanoseconds == 0));
+
+    /// <summary>
+    /// Verifies that adding two stored-duration expressions executes through
+    /// the provider's ADDTIME translation and preserves materialized values.
+    /// </summary>
+    [Fact]
+    public async Task Addition_translates_to_addtime_and_preserves_results()
+    {
+        Fixture.TestSqlLoggerFactory.Clear();
+
+        await AssertQuery(source => source
+            .Set<BasicTypesEntity>()
+            .Select(entity => entity.TimeSpan + TimeSpan.FromMinutes(1)));
+
+        Assert.Contains("ADDTIME(", Fixture.TestSqlLoggerFactory.Sql, StringComparison.Ordinal);
+    }
 }

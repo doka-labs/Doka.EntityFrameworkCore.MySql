@@ -258,8 +258,8 @@
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update.TransactionMySqlTest",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update.UpdatesMySqlTest"
       ],
-      "minimumTestCount": 29416,
-      "testIdsSha256": "2fb4d1a06b7bb70799a1cfadd5847d7666cffb53ef7ccddd6e8d0709b446619b",
+      "minimumTestCount": 29417,
+      "testIdsSha256": "19cdfff1e3ca05240691346f62d3da26d4339458071c63eeaf2e9e35616aea1a",
       "testIds": [
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.ComplexJsonBulkUpdateMySqlTest.Delete_entity_with_associations",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.ComplexJsonBulkUpdateMySqlTest.Delete_optional_associate",
@@ -28640,6 +28640,7 @@
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeOnlyTranslationsMySqlTest.Order_by_FromTimeSpan",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeOnlyTranslationsMySqlTest.Second",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeOnlyTranslationsMySqlTest.Subtract",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeSpanTranslationsMySqlTest.Addition_translates_to_addtime_and_preserves_results",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeSpanTranslationsMySqlTest.Hours",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeSpanTranslationsMySqlTest.Microseconds",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeSpanTranslationsMySqlTest.Milliseconds",
@@ -29934,8 +29935,8 @@
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update.TransactionMySqlTest",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update.UpdatesMySqlTest"
       ],
-      "minimumTestCount": 29417,
-      "testIdsSha256": "a22b7b43fac90326f36a0000850b9ee50e64c166a80b1982b95aacadf573c7b2",
+      "minimumTestCount": 29418,
+      "testIdsSha256": "45d89c21d4e40e15a79f3cced1be362462110b226b5241437a74720dd4a0246b",
       "testIds": [
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.ComplexJsonBulkUpdateMySqlTest.Delete_entity_with_associations",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.ComplexJsonBulkUpdateMySqlTest.Delete_optional_associate",
@@ -58317,6 +58318,7 @@
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeOnlyTranslationsMySqlTest.Order_by_FromTimeSpan",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeOnlyTranslationsMySqlTest.Second",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeOnlyTranslationsMySqlTest.Subtract",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeSpanTranslationsMySqlTest.Addition_translates_to_addtime_and_preserves_results",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeSpanTranslationsMySqlTest.Hours",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeSpanTranslationsMySqlTest.Microseconds",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeSpanTranslationsMySqlTest.Milliseconds",
@@ -59611,8 +59613,8 @@
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update.TransactionMySqlTest",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update.UpdatesMySqlTest"
       ],
-      "minimumTestCount": 29752,
-      "testIdsSha256": "7682f726400e8e3c47eb5c600023eb6bb0d8ab7bae3c090416f8a645d5062c19",
+      "minimumTestCount": 29753,
+      "testIdsSha256": "b1c552e5ffbcab6c3b8f828f228d5ea60ba81573dd0e3d03a9cc462275377da3",
       "testIds": [
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.ComplexJsonBulkUpdateMySqlTest.Delete_entity_with_associations",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.ComplexJsonBulkUpdateMySqlTest.Delete_optional_associate",
@@ -88329,6 +88331,7 @@
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeOnlyTranslationsMySqlTest.Order_by_FromTimeSpan",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeOnlyTranslationsMySqlTest.Second",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeOnlyTranslationsMySqlTest.Subtract",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeSpanTranslationsMySqlTest.Addition_translates_to_addtime_and_preserves_results",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeSpanTranslationsMySqlTest.Hours",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeSpanTranslationsMySqlTest.Microseconds",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations.BasicTypesTimeSpanTranslationsMySqlTest.Milliseconds",

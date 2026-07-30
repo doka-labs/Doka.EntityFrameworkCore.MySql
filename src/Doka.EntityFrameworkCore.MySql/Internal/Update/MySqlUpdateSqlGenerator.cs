@@ -460,6 +460,10 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
             .ColumnModifications.Where(c => c.IsRead)
             .ToList();
 
+        Debug.Assert(
+            readColumns.Count > 0,
+            "The caller routes write-only inserts before selecting the RETURNING path.");
+
         AppendInsertCommand(
             commandStringBuilder,
             command.TableName,
@@ -468,12 +472,6 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
             command
                 .ColumnModifications.Where(c => c.IsCondition)
                 .ToList());
-
-        if (readColumns.Count == 0)
-        {
-            requiresTransaction = false;
-            return ResultSetMapping.NoResults;
-        }
 
         // Strip the trailing terminator the base AppendInsertCommand wrote so we can
         // splice in the RETURNING clause before the statement terminator.
@@ -514,10 +512,9 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
             break;
         }
 
-        if (commandStringBuilder.Length < terminator.Length)
-        {
-            return;
-        }
+        Debug.Assert(
+            commandStringBuilder.Length >= terminator.Length,
+            "AppendInsertCommand must emit a statement terminator before RETURNING is appended.");
 
         var existingTerminator = commandStringBuilder.ToString(
             commandStringBuilder.Length - terminator.Length,
@@ -575,6 +572,10 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
 
     /// <inheritdoc />
     protected override bool IsIdentityOperation(
+        IColumnModification modification
+    ) => IsIdentityColumn(modification);
+
+    internal static bool IsIdentityColumn(
         IColumnModification modification
     ) => modification is { IsKey: true, IsRead: true, IsWrite: false, }
         && (modification.Property is null

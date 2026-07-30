@@ -84,6 +84,30 @@ public sealed class MySqlExecutionStrategyTests
     }
 
     /// <summary>
+    /// Verifies that the retry strategy rejects a missing transient-failure
+    /// classifier before an execution attempt can start.
+    /// </summary>
+    [Fact]
+    public void Retrying_execution_strategy_requires_a_transient_failure_detector()
+    {
+        using var context = new ExecutionStrategyContext(CreateOptions(enableRetry: true));
+        var dependencies = context.GetService<ExecutionStrategyDependencies>();
+        var singletonOptions = context
+            .GetService<IEnumerable<ISingletonOptions>>()
+            .OfType<MySqlSingletonOptions>()
+            .Single();
+
+        var exception = Assert.Throws<ArgumentNullException>(
+            "transientExceptionDetector",
+            () => new MySqlExecutionStrategy(
+                dependencies,
+                singletonOptions,
+                transientExceptionDetector: null!));
+
+        Assert.Equal("transientExceptionDetector", exception.ParamName);
+    }
+
+    /// <summary>
     /// Verifies that timeout and cancellation conditions remain outside the retry classifier.
     /// </summary>
     [Fact]

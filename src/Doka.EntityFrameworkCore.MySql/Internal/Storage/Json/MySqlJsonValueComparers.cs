@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>

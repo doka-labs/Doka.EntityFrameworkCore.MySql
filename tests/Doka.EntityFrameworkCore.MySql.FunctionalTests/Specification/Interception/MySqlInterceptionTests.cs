@@ -1,7 +1,6 @@
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Interception;
 

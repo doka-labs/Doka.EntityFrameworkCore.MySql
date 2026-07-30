@@ -43,19 +43,19 @@ surface:
 
 | EF Core | MySQL 8.4 | MariaDB 11.4 | MariaDB 11.8 |
 | --- | ---: | ---: | ---: |
-| 10.0.8 | 29,744 | 29,408 | 29,409 |
-| 10.0.10 | 29,752 | 29,416 | 29,417 |
+| 10.0.8 | 29,745 | 29,409 | 29,410 |
+| 10.0.10 | 29,753 | 29,417 | 29,418 |
 
 Every target was executed in full on 2026-07-30:
 
 | EF Core | Target | Passed | Skipped | Failed | Total |
 | --- | --- | ---: | ---: | ---: | ---: |
-| 10.0.8 | MySQL 8.4 | 29,417 | 327 | 0 | 29,744 |
-| 10.0.8 | MariaDB 11.4 | 28,706 | 702 | 0 | 29,408 |
-| 10.0.8 | MariaDB 11.8 | 28,708 | 701 | 0 | 29,409 |
-| 10.0.10 | MySQL 8.4 | 29,425 | 327 | 0 | 29,752 |
-| 10.0.10 | MariaDB 11.4 | 28,714 | 702 | 0 | 29,416 |
-| 10.0.10 | MariaDB 11.8 | 28,716 | 701 | 0 | 29,417 |
+| 10.0.8 | MySQL 8.4 | 29,418 | 327 | 0 | 29,745 |
+| 10.0.8 | MariaDB 11.4 | 28,707 | 702 | 0 | 29,409 |
+| 10.0.8 | MariaDB 11.8 | 28,709 | 701 | 0 | 29,410 |
+| 10.0.10 | MySQL 8.4 | 29,426 | 327 | 0 | 29,753 |
+| 10.0.10 | MariaDB 11.4 | 28,715 | 702 | 0 | 29,417 |
+| 10.0.10 | MariaDB 11.8 | 28,717 | 701 | 0 | 29,418 |
 
 The exact TRX totals and display IDs matched the corresponding discovery
 contract. Every skip matched its ledger ID, method, and target; every other

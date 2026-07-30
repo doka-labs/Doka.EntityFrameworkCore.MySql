@@ -1,6 +1,5 @@
 using System.Reflection;
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-using Microsoft.EntityFrameworkCore.Diagnostics.Internal;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Infrastructure;
 

@@ -203,15 +203,35 @@ def evaluate(
             for class_element in package.iter("class")
             if class_element.get("name") == class_name
         ]
-        if len(matches) != 1:
+        if not matches:
             errors.append(
-                f"Coverage report must contain critical class '{class_name}' exactly once; "
-                f"found {len(matches)}."
+                f"Coverage report is missing critical class '{class_name}'."
             )
             continue
+
+        # Cobertura emits one class node per source file for partial classes.
+        # Distinct filenames make aggregating those fragments unambiguous.
+        source_files = [
+            class_element.get("filename", "")
+            for class_element in matches
+        ]
+        if len(matches) > 1 and (
+            any(not source_file for source_file in source_files)
+            or len(set(source_files)) != len(source_files)
+        ):
+            errors.append(
+                f"Coverage report contains ambiguous source fragments for "
+                f"critical class '{class_name}'."
+            )
+            continue
+
         result, threshold_errors = _validate_threshold(
             f"critical class {class_name}",
-            _metrics(matches[0].iter("line")),
+            _metrics(
+                line
+                for class_element in matches
+                for line in class_element.iter("line")
+            ),
             float(critical_class["minimumLinePercent"]),
             float(critical_class["minimumBranchPercent"]),
         )
