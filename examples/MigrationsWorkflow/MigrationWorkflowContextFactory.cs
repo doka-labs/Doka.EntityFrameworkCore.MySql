@@ -44,7 +44,7 @@ internal static class MigrationWorkflowContextFactory
         optionsBuilder.UseMySql(
             Environment.GetEnvironmentVariable(ConnectionStringEnvironmentVariable)
             ?? DefaultConnectionString,
-            MySqlServerVersion.AutoDetect(
+            MySqlServerVersion.Parse(
                 Environment.GetEnvironmentVariable(ServerVersionEnvironmentVariable)
                 ?? DefaultServerVersion));
 

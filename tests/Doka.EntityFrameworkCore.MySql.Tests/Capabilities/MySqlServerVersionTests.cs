@@ -72,9 +72,9 @@ public sealed class MySqlServerVersionTests
     /// Verifies that MariaDB version strings are detected correctly.
     /// </summary>
     [Fact]
-    public void AutoDetect_recognizes_mariadb_version_strings()
+    public void Parse_recognizes_mariadb_version_strings()
     {
-        var serverVersion = MySqlServerVersion.AutoDetect("11.8.1-MariaDB-ubu2404");
+        var serverVersion = MySqlServerVersion.Parse("11.8.1-MariaDB-ubu2404");
 
         Assert.True(serverVersion.IsMariaDb);
         Assert.Equal(new Version(11, 8, 1), serverVersion.Version);
@@ -87,11 +87,11 @@ public sealed class MySqlServerVersionTests
     [InlineData("MariaDB")]
     [InlineData("mysql-8x0")]
     [InlineData("version8")]
-    public void AutoDetect_rejects_malformed_version_strings(
+    public void Parse_rejects_malformed_version_strings(
         string rawServerVersion
     )
     {
-        var exception = Assert.Throws<ArgumentException>(() => MySqlServerVersion.AutoDetect(rawServerVersion));
+        var exception = Assert.Throws<ArgumentException>(() => MySqlServerVersion.Parse(rawServerVersion));
 
         Assert.Equal("serverVersion", exception.ParamName);
     }
@@ -140,12 +140,12 @@ public sealed class MySqlServerVersionTests
     }
 
     /// <summary>
-    /// Verifies that explicit compatibility mode survives string auto-detection.
+    /// Verifies that explicit compatibility mode survives server-version parsing.
     /// </summary>
     [Fact]
-    public void AutoDetect_preserves_explicit_unsupported_compatibility_mode()
+    public void Parse_preserves_explicit_unsupported_compatibility_mode()
     {
-        var serverVersion = MySqlServerVersion.AutoDetect(
+        var serverVersion = MySqlServerVersion.Parse(
             "8.0.44",
             MySqlServerVersionCompatibilityMode.AllowUnsupported);
 

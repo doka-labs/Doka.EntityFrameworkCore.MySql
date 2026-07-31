@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Validates the MADR decision corpus and optionally regenerates its derived
+# index through the same typed validator used by CI.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

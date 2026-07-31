@@ -33,6 +33,7 @@ internal sealed class MySqlExecutionStrategyFactory : IExecutionStrategyFactory
             _dependencies,
             innerStrategy,
             retryOptions,
+            _singletonOptions,
             _dependencies
                 .Options.FindExtension<CoreOptionsExtension>()
                 ?.LoggerFactory?.CreateLogger(MySqlLoggerCategory.Resilience),

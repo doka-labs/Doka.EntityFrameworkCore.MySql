@@ -1,5 +1,4 @@
 using System.Text.Json;
-using MySqlConnector;
 
 namespace Doka.EntityFrameworkCore.MySql.TestUtilities;
 

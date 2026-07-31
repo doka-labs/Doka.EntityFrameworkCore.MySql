@@ -25,7 +25,6 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                 MySqlLoggerMessages.SchemaUnsupported(
                     logger,
                     "MigrationsHistory",
-                    TableSchema,
                     "migrations-history table schema declared",
                     "Remove the configured migrations history table schema.");
             }
@@ -188,7 +187,9 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
 
         private readonly MySqlHistoryRepository _historyRepository;
         private readonly string _lockName;
+        private readonly string _lockScopeId;
         private readonly int _lockTimeoutSeconds;
+        private readonly EngineFamily _engineFamily;
         private readonly ILogger? _logger;
         private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
         private DbConnection? _dedicatedConnection;
@@ -203,9 +204,13 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             _historyRepository = (MySqlHistoryRepository)historyRepository;
             _lockName = MySqlAdvisoryLockNaming.BuildLockName(
                 _historyRepository.Dependencies.Connection.DbConnection.ConnectionString);
-            _lockTimeoutSeconds = _historyRepository.Dependencies.Options.FindExtension<MySqlOptionsExtension>()
-                    ?.CommandTimeout
+            _lockScopeId = MySqlAdvisoryLockNaming.BuildDiagnosticScopeId(_lockName);
+            var options = _historyRepository.Dependencies.Options.FindExtension<MySqlOptionsExtension>()
+                ?? throw new InvalidOperationException("The Doka MySQL options extension is not configured.");
+            _lockTimeoutSeconds = options.CommandTimeout
                 ?? DefaultLockTimeoutSeconds;
+            _engineFamily = options.ServerVersion?.Profile.Engine.Family
+                ?? throw new InvalidOperationException("A MySQL server version must be configured.");
             _logger = _historyRepository
                 .Dependencies.Options.FindExtension<CoreOptionsExtension>()
                 ?.LoggerFactory?.CreateLogger(MySqlLoggerCategory.Migrations);
@@ -216,7 +221,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         internal string LockName => _lockName;
 
         private TimeoutException BuildLockTimeoutException() => new(
-            $"Could not acquire the MySQL advisory lock '{_lockName}' within {_lockTimeoutSeconds} seconds. "
+            $"Could not acquire the MySQL advisory lock scope '{_lockScopeId}' within {_lockTimeoutSeconds} seconds. "
             + "Another migration process may be running concurrently.");
 
         /// <summary>
@@ -242,10 +247,10 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         {
             EnsureNotAcquired();
 
-            using var activity = MySqlActivitySource.StartMigrationLockAcquire();
-            activity?.SetTag("db.migration.lock_name", _lockName);
+            using var activity = MySqlActivitySource.StartMigrationLockAcquire(_engineFamily);
             var stopwatch = Stopwatch.StartNew();
-            var outcome = "timeout";
+            var outcome = MySqlDiagnosticTags.Failed;
+            Exception? acquireException = null;
 
             try
             {
@@ -274,14 +279,19 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
 
                 _dedicatedConnection = connection;
                 _lockAcquired = true;
-                outcome = "acquired";
+                outcome = MySqlDiagnosticTags.Acquired;
+            }
+            catch (Exception exception)
+            {
+                acquireException = exception;
+                outcome = exception is TimeoutException
+                    ? MySqlDiagnosticTags.Timeout
+                    : MySqlDiagnosticTags.Failed;
+                throw;
             }
             finally
             {
-                stopwatch.Stop();
-                MySqlMeter.MigrationLockAcquireDuration.Record(
-                    stopwatch.Elapsed.TotalSeconds,
-                    new KeyValuePair<string, object?>("outcome", outcome));
+                RecordAcquireOutcome(activity, stopwatch, outcome, acquireException);
             }
         }
 
@@ -313,10 +323,10 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         {
             EnsureNotAcquired();
 
-            using var activity = MySqlActivitySource.StartMigrationLockAcquire();
-            activity?.SetTag("db.migration.lock_name", _lockName);
+            using var activity = MySqlActivitySource.StartMigrationLockAcquire(_engineFamily);
             var stopwatch = Stopwatch.StartNew();
-            var outcome = "timeout";
+            var outcome = MySqlDiagnosticTags.Failed;
+            Exception? acquireException = null;
 
             try
             {
@@ -351,15 +361,67 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
 
                 _dedicatedConnection = connection;
                 _lockAcquired = true;
-                outcome = "acquired";
+                outcome = MySqlDiagnosticTags.Acquired;
+            }
+            catch (Exception exception)
+            {
+                acquireException = exception;
+                outcome = exception is TimeoutException
+                    ? MySqlDiagnosticTags.Timeout
+                    : MySqlDiagnosticTags.Failed;
+                throw;
             }
             finally
             {
-                stopwatch.Stop();
-                MySqlMeter.MigrationLockAcquireDuration.Record(
-                    stopwatch.Elapsed.TotalSeconds,
-                    new KeyValuePair<string, object?>("outcome", outcome));
+                RecordAcquireOutcome(activity, stopwatch, outcome, acquireException);
             }
+        }
+
+        private void RecordAcquireOutcome(
+            Activity? activity,
+            Stopwatch stopwatch,
+            string outcome,
+            Exception? exception
+        )
+        {
+            stopwatch.Stop();
+
+            MySqlMeter.MigrationLockAcquireDuration.Record(
+                stopwatch.Elapsed.TotalSeconds,
+                new KeyValuePair<string, object?>(MySqlDiagnosticTags.Outcome, outcome),
+                MySqlDiagnosticTags.CreateEngineMetricTag(_engineFamily));
+
+            if (exception is not null)
+            {
+                MySqlActivitySource.RecordException(activity, exception);
+            }
+
+            if (_logger is null)
+            {
+                return;
+            }
+
+            if (exception is TimeoutException timeoutException)
+            {
+                MySqlLoggerMessages.MigrationLockTimeout(
+                    _logger,
+                    _lockScopeId,
+                    stopwatch.Elapsed,
+                    timeoutException);
+                return;
+            }
+
+            if (exception is not null)
+            {
+                MySqlLoggerMessages.MigrationLockAcquireFailed(
+                    _logger,
+                    _lockScopeId,
+                    stopwatch.Elapsed,
+                    exception);
+                return;
+            }
+
+            MySqlLoggerMessages.MigrationLockAcquired(_logger, _lockScopeId, stopwatch.Elapsed);
         }
 
         public IMigrationsDatabaseLock ReacquireIfNeeded(
@@ -481,9 +543,16 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                 }
                 catch (Exception exception)
                 {
+                    using var activity = MySqlActivitySource.StartMigrationLockReleaseFailed(
+                        _engineFamily,
+                        exception);
+                    MySqlMeter.MigrationLockReleaseFailedTotal.Add(
+                        1,
+                        MySqlDiagnosticTags.CreateEngineMetricTag(_engineFamily));
+
                     if (_logger is not null)
                     {
-                        MySqlLoggerMessages.LockReleaseFailed(_logger, _lockName, exception);
+                        MySqlLoggerMessages.LockReleaseFailed(_logger, _lockScopeId, exception);
                     }
                 }
             }
@@ -514,9 +583,16 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                 }
                 catch (Exception exception)
                 {
+                    using var activity = MySqlActivitySource.StartMigrationLockReleaseFailed(
+                        _engineFamily,
+                        exception);
+                    MySqlMeter.MigrationLockReleaseFailedTotal.Add(
+                        1,
+                        MySqlDiagnosticTags.CreateEngineMetricTag(_engineFamily));
+
                     if (_logger is not null)
                     {
-                        MySqlLoggerMessages.LockReleaseFailed(_logger, _lockName, exception);
+                        MySqlLoggerMessages.LockReleaseFailed(_logger, _lockScopeId, exception);
                     }
                 }
             }

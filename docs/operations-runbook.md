@@ -29,14 +29,17 @@ Full catalog (source of truth: `src/Doka.EntityFrameworkCore.MySql/MySqlEventId.
 | 1003 | `KeyOrIndexMaxLengthRequired` | Error | Configuration | A keyed or indexed text or binary property omits the required explicit max length. |
 | 1004 | `ImplicitDecimalPrecisionDefaulted` | Warning | Configuration | A decimal property falls back to the provider default precision and scale contract (18, 2). |
 | 1005 | `UnsupportedServerVersion` | Warning | Configuration | An explicit opt-in uses an unsupported release line. |
+| 1100 | `MigrationLockAcquired` | Information | Migrations | The database-scoped advisory lock was acquired. |
+| 1101 | `MigrationLockTimeout` | Warning | Migrations | Advisory-lock acquisition exhausted its timeout budget. |
 | 1102 | `LockReleaseFailed` | Warning | Migrations | The migration advisory lock could not be released cleanly via `RELEASE_LOCK`. Disposing the dedicated connection still releases the session-scoped lock implicitly; the warning surfaces an unusual server-side state worth investigating. |
+| 1103 | `MigrationLockAcquireFailed` | Error | Migrations | Non-timeout acquisition failure. |
 | 1403 | `ForeignKeyPrincipalTableNotScaffolded` | Warning | Scaffolding | A foreign key is skipped during scaffolding because its principal table is excluded by the scaffolding filter. |
-| 1500 | `RetryAttempt` | Warning | Resilience | The execution strategy retries a transient failure; attempt counter + previous-exception attached to the log scope. |
+| 1500 | `RetryAttempt` | Warning | Resilience | A transient operation will be retried. |
 | 1501 | `RetryLimitExceeded` | Error | Resilience | The configured retry budget for a transient failure is exhausted. |
 | 1502 | `SoftCancellation` | Information | Resilience | The driver completes a command cancellation through the soft-cancel path. |
 | 1503 | `HardCancellation` | Warning | Resilience | The driver had to fall back to the hard-cancel path to finish command cancellation. |
 | 1504 | `CommandTimeoutExhausted` | Warning | Resilience | A relational command exhausted its configured timeout budget. |
-| 1505 | `CommitUnknown` | Warning | Resilience | A transaction commit failed transiently and the commit outcome may be unknown (see section 4). |
+| 1505 | `CommitUnknown` | Warning | Resilience | Commit threw; server outcome unproven (see section 4). |
 | 1600 | `MissingSpatialPackageDuringScaffolding` | Warning | Spatial | Spatial reverse engineering detects spatial artifacts but the optional NetTopologySuite package is not installed. |
 | 1601 | `InvalidSpatialIndexConfiguration` | Error | Spatial | Spatial index configuration violates the supported provider contract. |
 | 1602 | `MissingSpatialTranslation` | Warning | Spatial | A spatial member or method is detected but no supported server translation exists. |
@@ -51,6 +54,8 @@ Events raised during EF Core model validation intentionally use
 configuration and category filters remain effective. The stable `EventId`
 continues to identify the provider subsystem independently of category.
 
+<a id="mysql-migration-lock-failure"></a>
+
 ## 2. Migration Lock Stuck Procedure
 
 The provider serializes migrations through a database-scoped MySQL advisory lock named `__ef_migrations_lock:<database>` (truncated to a SHA-256 suffix when the combined length exceeds MySQL's 64-character `GET_LOCK` limit). The lock is held on a dedicated connection for the full duration of the migration and released through `RELEASE_LOCK` plus dedicated-connection dispose; the timeout for `GET_LOCK` is 60 seconds.
@@ -60,7 +65,7 @@ Stuck conditions and their recovery:
 ### Symptom: migration startup times out with `TimeoutException`
 
 ```
-Could not acquire the MySQL advisory lock '__ef_migrations_lock:<database>'
+Could not acquire the MySQL advisory lock scope '<opaque-lock-scope-id>'
 within 60 seconds. Another migration process may be running concurrently.
 ```
 
@@ -129,9 +134,15 @@ For Galera specifically, the retry budget should account for the worst-case re-r
 
 Read-only failovers via MaxScale or ProxySQL stay invisible to the provider; the proxy decides transparently. See section 6 for the pre-flight checks the operator should run before letting the provider migrate against a fronted cluster.
 
+<a id="mysql-commit-unknown"></a>
+
 ## 4. Commit-Unknown Response
 
-When a transaction commit fails transiently, the commit outcome is genuinely unknown -- the server may have applied the commit before the connection dropped, or the connection may have died before the commit landed. The provider emits `CommitUnknown` (EventId 1505) on that exact path and the application code must decide how to disambiguate.
+When a transaction commit throws after the driver commit API was invoked, its outcome is
+genuinely unknown: the server may have applied it before the acknowledgement was lost, or
+the request may not have landed. The provider conservatively emits `CommitUnknown`
+(EventId 1505) for every such exception because retry classification cannot prove the
+server-side outcome. Application code must decide how to disambiguate it.
 
 ### Pattern: retry with idempotent verification
 
@@ -411,3 +422,52 @@ safe.
   retrieved 2026-07-28.
 - Microsoft, [Managing Migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/managing),
   retrieved 2026-07-28.
+
+## 8. Observability and Alert Response
+
+The machine-readable contract is
+`docs/operations/observability-contract.json`. Dashboard and alert automation
+must consume its stable event, span, metric, tag-domain, and runbook mappings.
+The provider source is `Doka.EntityFrameworkCore.MySql`; EF Core diagnostic
+events use `Microsoft.EntityFrameworkCore`; driver spans and metrics use
+`MySqlConnector`. A single root activity must correlate all three layers.
+Every provider metric carries the bounded `engine` tag (`mysql` or `mariadb`),
+so dashboards and alerts can separate the two supported engine families.
+
+Provider telemetry deliberately excludes SQL, connection strings, raw database
+names, usernames, exception messages, and exception stack traces. Failure logs
+carry the exception type only. Provider-created connection strings receive the
+bounded driver pool name `Doka.EntityFrameworkCore.MySql` when the application
+does not explicitly configure `ApplicationName`. An explicit application name
+is an operator-owned cardinality decision and should come from a small service
+name vocabulary, never from request, tenant, or user data.
+
+<a id="mysql-retry-exhausted"></a>
+
+### Retry budget exhausted
+
+Alert on any five-minute increase of
+`doka_mysql_retry_exhausted_total`. Correlate the provider
+`db.retry.exhausted` span with preceding `db.retry.attempt` spans and the
+driver command span. Stop automatic retries when the error remains persistent;
+inspect database health, pool saturation, and network reachability first.
+
+<a id="mysql-hard-cancellation"></a>
+
+### Hard cancellation rate elevated
+
+Alert when `doka_mysql_cancellation_total{path=hard}` exceeds the established
+service baseline for fifteen minutes. Hard cancellation means cooperative
+command cancellation did not complete before the driver closed the connection.
+Inspect long-running queries, server load, and network latency, then verify that
+the pool replaces the broken physical connection.
+
+<a id="mysql-command-timeout"></a>
+
+### Command timeout rate elevated
+
+Alert when `doka_mysql_command_timeout_total` consumes the service's timeout
+SLO budget. Correlate `db.operation.timeout` with the MySqlConnector command
+span and EF Core command event. Do not blindly raise the timeout: determine
+whether the cause is query-plan regression, blocking, capacity, or transport
+latency and correct that cause first.

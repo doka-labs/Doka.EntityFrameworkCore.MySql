@@ -3,7 +3,7 @@ using FsCheck.Xunit;
 namespace Doka.EntityFrameworkCore.MySql.Tests.Properties;
 
 /// <summary>
-/// Property-style coverage for <see cref="MySqlServerVersion.AutoDetect(string)"/>.
+/// Property-style coverage for <see cref="MySqlServerVersion.Parse(string)"/>.
 /// Three complementary surfaces are pinned:
 /// (1) Twenty real-world <c>@@version</c> strings collected from MySQL 5.7 / 8.0 / 8.4
 ///     and MariaDB 10.x / 11.x deployments must parse to the expected version + engine.
@@ -36,7 +36,7 @@ public sealed class MySqlServerVersionPropertyTests
     [InlineData("8.0.36-commercial", false, 8, 0, 36)]
     [InlineData("8.4.0 community-edition", false, 8, 4, 0)]
     [InlineData("MySQL 8.4.0", false, 8, 4, 0)]
-    public void AutoDetect_parses_real_world_at_version_strings(
+    public void Parse_handles_real_world_at_version_strings(
         string serverVersion,
         bool expectedIsMariaDb,
         int expectedMajor,
@@ -44,7 +44,7 @@ public sealed class MySqlServerVersionPropertyTests
         int expectedBuild
     )
     {
-        var parsed = MySqlServerVersion.AutoDetect(serverVersion);
+        var parsed = MySqlServerVersion.Parse(serverVersion);
 
         Assert.Equal(expectedIsMariaDb, parsed.IsMariaDb);
         Assert.Equal(expectedMajor, parsed.Version.Major);
@@ -53,7 +53,7 @@ public sealed class MySqlServerVersionPropertyTests
     }
 
     [Property(MaxTest = 1000)]
-    public bool AutoDetect_either_succeeds_or_throws_documented_exception(
+    public bool Parse_either_succeeds_or_throws_documented_exception(
         string? raw
     )
     {
@@ -64,7 +64,7 @@ public sealed class MySqlServerVersionPropertyTests
 
         try
         {
-            _ = MySqlServerVersion.AutoDetect(raw);
+            _ = MySqlServerVersion.Parse(raw);
             return true;
         }
         catch (ArgumentException)
@@ -74,7 +74,7 @@ public sealed class MySqlServerVersionPropertyTests
     }
 
     [Property(MaxTest = 1000)]
-    public bool AutoDetect_finds_leading_numeric_token_regardless_of_surrounding_text(
+    public bool Parse_finds_leading_numeric_token_regardless_of_surrounding_text(
         byte major,
         byte minor,
         byte build
@@ -86,7 +86,7 @@ public sealed class MySqlServerVersionPropertyTests
         var versionToken = FormattableString.Invariant($"{majorComponent}.{minorComponent}.{buildComponent}");
         var input = $"prefix-text {versionToken} suffix-text";
 
-        var parsed = MySqlServerVersion.AutoDetect(input);
+        var parsed = MySqlServerVersion.Parse(input);
 
         return parsed.Version.Major == majorComponent
             && parsed.Version.Minor == minorComponent

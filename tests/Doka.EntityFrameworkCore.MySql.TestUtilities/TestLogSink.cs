@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 
 namespace Doka.EntityFrameworkCore.MySql.TestUtilities;
@@ -18,7 +17,11 @@ public sealed record TestLogEntry(
     string Category,
     LogLevel LogLevel,
     EventId EventId,
-    string Message
+    string Message,
+    IReadOnlyDictionary<string, object?> State,
+    string? TraceId,
+    string? SpanId,
+    Type? ExceptionType
 );
 
 /// <summary>
@@ -80,5 +83,29 @@ public sealed class TestLogger : ILogger
         TState state,
         Exception? exception,
         Func<TState, Exception?, string> formatter
-    ) => _sink.Entries.Enqueue(new TestLogEntry(_categoryName, logLevel, eventId, formatter(state, exception)));
+    )
+    {
+        var structuredState = new Dictionary<string, object?>(StringComparer.Ordinal);
+
+        if (state is IEnumerable<KeyValuePair<string, object?>> values)
+        {
+            foreach (var pair in values)
+            {
+                structuredState[pair.Key] = pair.Value;
+            }
+        }
+
+        var activity = Activity.Current;
+
+        _sink.Entries.Enqueue(
+            new TestLogEntry(
+                _categoryName,
+                logLevel,
+                eventId,
+                formatter(state, exception),
+                structuredState,
+                activity?.TraceId.ToString(),
+                activity?.SpanId.ToString(),
+                exception?.GetType()));
+    }
 }

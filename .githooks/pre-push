@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Mirrors the complete CI quality gate before commits leave the workstation.
+
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"

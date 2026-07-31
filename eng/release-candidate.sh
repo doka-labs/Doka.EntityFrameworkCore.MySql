@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# This script is a fail-closed release orchestrator. Its order is intentional:
+# validate source identity, produce fresh verification artifacts, validate the
+# publication surface, and only then seal the complete directory with a
+# manifest and detached checksum.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,14 +20,65 @@ audit_dir="${release_candidate_dir}/audit"
 sbom_dir="${release_candidate_dir}/sbom"
 sbom_components_dir="${release_candidate_dir}/sbom-components"
 summary_file="${release_candidate_dir}/release-candidate-summary.md"
-evidence_file="${release_candidate_dir}/release-candidate-evidence.json"
 changelog_file="${release_candidate_dir}/release-candidate-changelog.md"
+dependency_graph_file="${release_candidate_dir}/resolved-packages.json"
 specification_dir="${release_candidate_dir}/specification"
 coverage_input_dir="${release_candidate_dir}/coverage-input"
 coverage_merged_dir="${release_candidate_dir}/coverage-merged"
+integration_dir="${release_candidate_dir}/integration"
 migration_deployment_root="${release_candidate_dir}/migration-deployment"
-migration_deployment_dir="${migration_deployment_root}/${release_candidate_run_id}"
 performance_dir="${release_candidate_dir}/performance"
+require_release_tag="${DOKA_RELEASE_REQUIRE_TAG:-1}"
+release_version_override="${DOKA_RELEASE_VERSION:-}"
+
+# Validate early for fast operator feedback. release_evidence.py repeats these
+# checks immediately before sealing the manifest so a long-running candidate
+# cannot hide source drift that occurred while its gates were executing.
+validate_release_source() {
+    if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+        echo "Release candidates require a clean Git worktree." >&2
+        exit 1
+    fi
+
+    if [[ "${require_release_tag}" != "1" ]]; then
+        return 0
+    fi
+
+    local version_tags
+    version_tags="$(git tag --points-at HEAD | grep -E '^v[0-9]+[.][0-9]+[.][0-9]+([-.][0-9A-Za-z.-]+)?$' || true)"
+    if [[ "$(printf '%s\n' "${version_tags}" | sed '/^$/d' | wc -l | tr -d ' ')" != "1" ]]; then
+        echo "A release candidate must run from exactly one semantic version tag at HEAD." >&2
+        exit 1
+    fi
+
+    local release_tag
+    release_tag="$(printf '%s\n' "${version_tags}" | sed '/^$/d')"
+    if [[ -z "${release_version_override}" ]]; then
+        release_version_override="${release_tag#v}"
+    elif [[ "${release_tag}" != "v${release_version_override}" ]]; then
+        echo "Release tag ${release_tag} does not match package version ${release_version_override}." >&2
+        exit 1
+    fi
+
+    if [[ -n "${DOKA_RELEASE_EXPECTED_REF:-}" \
+        && "${DOKA_RELEASE_EXPECTED_REF}" != "refs/tags/${release_tag}" ]]; then
+        echo "Expected release ref ${DOKA_RELEASE_EXPECTED_REF} does not match refs/tags/${release_tag}." >&2
+        exit 1
+    fi
+}
+
+# A run identifier owns one immutable evidence directory. Reusing a non-empty
+# directory could bind stale artifacts to a new source or workflow identity.
+prepare_release_directory() {
+    if [[ -d "${release_candidate_dir}" \
+        && -n "$(find "${release_candidate_dir}" -mindepth 1 -print -quit)" ]]; then
+        echo "Release-candidate directory already contains evidence: ${release_candidate_dir}" >&2
+        echo "Use a new DOKA_RELEASE_CANDIDATE_RUN_ID so stale artifacts cannot enter the manifest." >&2
+        exit 1
+    fi
+
+    mkdir -p "${release_candidate_dir}"
+}
 
 require_command() {
     local command_name="$1"
@@ -64,14 +120,33 @@ package_version_from_file() {
 run_pack() {
     mkdir -p "${packages_dir}"
 
+    local version_arguments=()
+    if [[ -n "${release_version_override}" ]]; then
+        version_arguments+=("-p:PackageVersion=${release_version_override}")
+    fi
+
     dotnet restore "${runtime_project}" --tl:off
     dotnet restore "${spatial_project}" --tl:off
-    dotnet build "${runtime_project}" --configuration Release --no-restore --tl:off -m:1
-    dotnet build "${spatial_project}" --configuration Release --no-restore --tl:off -m:1
-    dotnet pack "${runtime_project}" --configuration Release --no-build --no-restore --output "${packages_dir}" --tl:off
-    dotnet pack "${spatial_project}" --configuration Release --no-build --no-restore --output "${packages_dir}" --tl:off
+    dotnet build "${runtime_project}" --configuration Release --no-restore --tl:off -m:1 \
+        "${version_arguments[@]}"
+    dotnet build "${spatial_project}" --configuration Release --no-restore --tl:off -m:1 \
+        "${version_arguments[@]}"
+    dotnet pack "${runtime_project}" --configuration Release --no-build --no-restore \
+        --output "${packages_dir}" --tl:off "${version_arguments[@]}"
+    dotnet pack "${spatial_project}" --configuration Release --no-build --no-restore \
+        --output "${packages_dir}" --tl:off "${version_arguments[@]}"
+
+    # Persist the graph NuGet actually resolved. The manifest rejects missing
+    # or ambiguous versions for the provider's contract dependencies.
+    dotnet package list \
+        --project "${runtime_project}" \
+        --include-transitive \
+        --format json \
+        --no-restore > "${dependency_graph_file}"
 }
 
+# The advertised engine matrix is explicit here so a newly green default test
+# selection cannot silently narrow release conformance.
 run_specification_gate() {
     mkdir -p "${specification_dir}"
 
@@ -111,9 +186,13 @@ run_repository_test_gate() {
 }
 
 run_integration_gate() {
+    # Route every integration artifact into the candidate root. Files outside
+    # this root cannot be hashed into the release manifest.
     DOKA_COVERAGE_RESULTS_DIR="${coverage_input_dir}/integration" \
+    DOKA_INTEGRATION_ARTIFACTS_DIR="${integration_dir}" \
     DOKA_INTEGRATION_RUN_ID="${release_candidate_run_id}" \
     DOKA_INTEGRATION_TARGETS="mysql84,mariadb118" \
+    DOKA_TEST_DATABASE_EVIDENCE_FILE="${integration_dir}/test-database-evidence.json" \
         bash "${repo_root}/eng/test-integration.sh"
 }
 
@@ -220,7 +299,7 @@ write_changelog() {
         echo "## Repo-local release-hardening note"
         echo
         echo "This changelog records specification, migration deployment, package, audit, benchmark, and SBOM evidence."
-        echo "It does not imply signing, provenance, publication, or externally hosted compatibility closure."
+        echo "The evidence manifest binds these files to their exact source and dependency identities."
     } > "${changelog_file}"
 }
 
@@ -234,17 +313,20 @@ write_summary() {
         echo "- generatedUtc: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
         echo "- releaseCandidateRunId: ${release_candidate_run_id}"
         echo "- releaseVersion: ${release_version}"
-        echo "- packagesDirectory: ${packages_dir}"
-        echo "- auditDirectory: ${audit_dir}"
-        echo "- sbomDirectory: ${sbom_dir}"
-        echo "- specificationDirectory: ${specification_dir}"
-        echo "- migrationDeploymentDirectory: ${migration_deployment_dir}"
-        echo "- coverageDirectory: ${coverage_merged_dir}"
-        echo "- performanceDirectory: ${performance_dir}"
-        echo "- changelogFile: ${changelog_file}"
+        echo "- packagesDirectory: packages"
+        echo "- auditDirectory: audit"
+        echo "- sbomDirectory: sbom"
+        echo "- specificationDirectory: specification"
+        echo "- integrationDirectory: integration"
+        echo "- migrationDeploymentDirectory: migration-deployment/${release_candidate_run_id}"
+        echo "- coverageDirectory: coverage-merged"
+        echo "- performanceDirectory: performance"
+        echo "- changelogFile: release-candidate-changelog.md"
+        echo "- evidenceFile: release-candidate-evidence.json"
+        echo "- evidenceChecksumFile: release-candidate-evidence.sha256"
         echo "- packageCount: ${package_count}"
         echo
-        echo "This repo-local release-candidate path retains package, audit, and SBOM evidence without implying signing, provenance, or publication readiness."
+        echo "The manifest uses portable paths and verifies every retained artifact before upload."
     } > "${summary_file}"
 }
 
@@ -283,31 +365,40 @@ run_benchmark_and_gate() {
 
 write_evidence() {
     local release_version="$1"
-    local package_count="$2"
-    local sbom_file_count="$3"
+    local arguments=(
+        generate
+        --repo "${repo_root}"
+        --root "${release_candidate_dir}"
+        --run-id "${release_candidate_run_id}"
+        --release-version "${release_version}"
+        --dependency-graph "${dependency_graph_file}"
+    )
 
-    cat > "${evidence_file}" <<EOF
-{
-  "generatedUtc": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "releaseCandidateRunId": "${release_candidate_run_id}",
-  "releaseVersion": "${release_version}",
-  "packagesDirectory": "${packages_dir}",
-  "auditDirectory": "${audit_dir}",
-  "sbomDirectory": "${sbom_dir}",
-  "specificationDirectory": "${specification_dir}",
-  "migrationDeploymentDirectory": "${migration_deployment_dir}",
-  "coverageDirectory": "${coverage_merged_dir}",
-  "performanceDirectory": "${performance_dir}",
-  "changelogFile": "${changelog_file}",
-  "packageCount": ${package_count},
-  "sbomFileCount": ${sbom_file_count}
-}
-EOF
+    if [[ -n "${DOKA_RELEASE_EXPECTED_REF:-}" ]]; then
+        arguments+=(--expected-ref "${DOKA_RELEASE_EXPECTED_REF}")
+    fi
+    if [[ "${require_release_tag}" == "1" ]]; then
+        arguments+=(--require-tag)
+    fi
+
+    # Generation performs its own readback, and the separate invocation proves
+    # the persisted CLI contract that publication automation will use.
+    python3 "${repo_root}/eng/release_evidence.py" "${arguments[@]}"
+
+    python3 "${repo_root}/eng/release_evidence.py" verify \
+        --root "${release_candidate_dir}" \
+        --repo "${repo_root}"
 }
 
 require_command jq
+require_command python3
 cd "${repo_root}"
 
+# Do not reorder these gates without updating the evidence contract. The final
+# manifest inventory must observe every retained artifact and must be written
+# only after publication readiness has passed.
+validate_release_source
+prepare_release_directory
 "${repo_root}/eng/verify-dotnet.sh"
 "${repo_root}/eng/validate-adrs.sh"
 run_repository_test_gate
@@ -321,6 +412,18 @@ run_vulnerability_audit "${runtime_project}" "${audit_dir}/Doka.EntityFrameworkC
 run_vulnerability_audit "${spatial_project}" "${audit_dir}/Doka.EntityFrameworkCore.MySql.NetTopologySuite.vulnerabilities.json"
 
 release_version="$(package_version_from_file "Doka.EntityFrameworkCore.MySql")"
+spatial_release_version="$(package_version_from_file "Doka.EntityFrameworkCore.MySql.NetTopologySuite")"
+
+if [[ "${spatial_release_version}" != "${release_version}" ]]; then
+    echo "Provider package version ${release_version} does not match spatial package ${spatial_release_version}." >&2
+    exit 1
+fi
+
+if [[ -n "${release_version_override}" && "${release_version}" != "${release_version_override}" ]]; then
+    echo "Packed version ${release_version} does not match requested version ${release_version_override}." >&2
+    exit 1
+fi
+
 run_sbom "${release_version}"
 write_changelog "${release_version}"
 
@@ -340,5 +443,5 @@ if [[ "${sbom_file_count}" -eq 0 ]]; then
 fi
 
 write_summary "${release_version}" "${package_count}"
-write_evidence "${release_version}" "${package_count}" "${sbom_file_count}"
 bash "${repo_root}/eng/check-publication-readiness.sh"
+write_evidence "${release_version}"

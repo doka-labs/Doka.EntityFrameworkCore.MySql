@@ -168,17 +168,22 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     }
 
     /// <summary>
-    /// Verifies that <c>MigrationsHistoryTable</c> stores the table name + optional schema
-    /// on the relational options snapshot.
+    /// Verifies that <c>MigrationsHistoryTable</c> preserves the relational schema
+    /// value for diagnostic runtime validation.
     /// </summary>
-    [Fact]
-    public void MigrationsHistoryTable_stores_name_and_schema_on_extension()
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("doka_meta")]
+    public void MigrationsHistoryTable_preserves_schema_for_runtime_validation(
+        string schema
+    )
     {
         var extension = BuildExtension(options =>
-            options.MigrationsHistoryTable("__custom_history", schema: "doka_meta"));
+            options.MigrationsHistoryTable("__custom_history", schema));
 
         Assert.Equal("__custom_history", extension.MigrationsHistoryTableName);
-        Assert.Equal("doka_meta", extension.MigrationsHistoryTableSchema);
+        Assert.Equal(schema, extension.MigrationsHistoryTableSchema);
     }
 
     /// <summary>

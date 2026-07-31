@@ -55,4 +55,22 @@ internal static class MySqlAdvisoryLockNaming
 
         return LockNamePrefix + suffix;
     }
+
+    /// <summary>
+    /// Produces a stable, opaque SHA-256-derived identifier for diagnostics.
+    /// Telemetry uses this deterministic pseudonym instead of the lock name
+    /// because the latter may contain a customer database name.
+    /// </summary>
+    public static string BuildDiagnosticScopeId(
+        string lockName
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(lockName);
+
+        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(lockName));
+
+        return Convert
+            .ToHexString(hashBytes.AsSpan(0, 8))
+            .ToLowerInvariant();
+    }
 }

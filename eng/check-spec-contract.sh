@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Materializes provider debt and then validates that every EF Core specification
+# disposition is classified, evidenced, and consistent with the built assembly.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

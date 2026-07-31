@@ -4,6 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies the operability baseline against representative live targets.
 /// </summary>
 [Collection(IntegrationDatabaseTestGroup.Name)]
+[Trait("Category", "DriverContract")]
 public sealed class MySqlOperabilityBaselineTests
 {
     private const string LongRunningBenchmarkSql = "SELECT BENCHMARK(50000000, SHA2('doka-phase3', 512)) AS Value";

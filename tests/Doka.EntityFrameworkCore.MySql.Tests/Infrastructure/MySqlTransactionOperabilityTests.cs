@@ -40,8 +40,8 @@ public sealed class MySqlTransactionOperabilityTests
     }
 
     /// <summary>
-    /// Verifies that transient commit failures use the active context logger
-    /// after a shared provider was initialized without a custom logger.
+    /// Verifies that commit failures with an unproven outcome use the active
+    /// context logger after a shared provider was initialized without one.
     /// </summary>
     [Fact]
     public async Task Commit_unknown_failures_emit_the_resilience_diagnostic()

@@ -37,7 +37,7 @@ internal sealed class MySqlProviderConfigurationCodeGenerator : ProviderCodeGene
                 : providerOptionsWithSpatial.Chain("UseNetTopologySuite", Array.Empty<object>());
         }
 
-        var detectedServerVersion = MySqlServerVersion.AutoDetect(detectedServerVersionText);
+        var detectedServerVersion = MySqlServerVersion.Parse(detectedServerVersionText);
 
         // Preserve unsupported scaffolding as an explicit generated-code decision.
         // The code literal includes AllowUnsupported, so the compatibility risk is

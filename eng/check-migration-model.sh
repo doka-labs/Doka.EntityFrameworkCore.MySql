@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Fails when the executable migration example and its checked-in model snapshot
+# no longer describe the same EF Core model.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

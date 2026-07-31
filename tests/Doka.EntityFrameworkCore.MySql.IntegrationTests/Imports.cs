@@ -4,6 +4,7 @@ global using System.Collections.Generic;
 global using System.Data;
 global using System.Data.Common;
 global using System.Diagnostics;
+global using System.Diagnostics.Metrics;
 global using System.Globalization;
 global using System.Linq;
 global using System.Threading;

@@ -18,9 +18,9 @@ doka-profile-version: "1.0"
 
 ## Context and Problem Statement
 
-`docs/host-integration-examples.md` promises consumers an
-`ActivitySource` for distributed-trace correlation and a `Meter` for SLO
-measurement. The provider currently emits neither:
+When this decision was recorded, `docs/host-integration-examples.md` promised
+consumers an `ActivitySource` for distributed-trace correlation and a `Meter`
+for SLO measurement, but the provider emitted neither:
 
 - No provider-owned `ActivitySource` exists. Spans for migration-lock
   acquisition, retry attempts, soft/hard cancellation, and server-
@@ -44,6 +44,10 @@ correlate against the rest of the application's traces.
 - Enterprise operations need correlated logs, traces, and metrics.
 - No-listener hot paths must avoid avoidable allocations.
 - Public telemetry names need one stable source of truth.
+- Metric labels must have finite, documented value domains.
+- Provider telemetry must not expose SQL, credentials, raw database names,
+  connection strings, or exception messages.
+- EF Core, provider, and driver signals need one trace context.
 
 ## Considered Options
 
@@ -61,33 +65,56 @@ Meter measurement.
 
 ```csharp
 private static readonly ActivitySource s_activitySource = new(
-    "Doka.EntityFrameworkCore.MySql",
+    MySqlDiagnostics.SourceName,
     ProductVersion);
 
 private static readonly Meter s_meter = new(
-    "Doka.EntityFrameworkCore.MySql",
+    MySqlDiagnostics.SourceName,
     ProductVersion);
 
 private static readonly Histogram<double> s_migrationLockAcquireDuration =
     s_meter.CreateHistogram<double>(
-        name: "migration_lock_acquire_duration_seconds",
+        name: MySqlDiagnostics.MigrationLockAcquireDurationMetricName,
         unit: "s",
         description: "Wall time spent waiting for the migration advisory lock.");
 ```
 
-The instrumented operations (initial set):
+The instrumented operations are:
 
-| Operation | EventId | Span | Meter |
-|---|---|---|---|
-| Migration lock acquisition | `MigrationLockAcquired` | `db.migration.lock` | `migration_lock_acquire_duration_seconds` (Histogram) |
-| Retry attempt | `RetryAttempted` | `db.retry.attempt` | `retry_attempts_total{outcome}` (Counter) |
-| Soft / hard cancellation | `OperationCancelled` | included as event in active span | `cancellation_total{path}` (Counter) |
-| Command timeout exceeded | `CommandTimedOut` | included as event in active span | `command_timeout_total` (Counter) |
-| Commit-with-unknown-outcome | `CommitOutcomeUnknown` | included as event in active span | `commit_unknown_total` (Counter) |
-| Server-version resolution | `ServerVersionResolved` | `db.serverversion.resolve` | (no histogram; one-shot) |
+- Server-version resolution:
+  `ServerVersionResolved` / `UnsupportedServerVersion`,
+  `db.serverversion.resolve`, and
+  `doka_mysql_server_version_resolution_total{engine,support_status,compatibility_mode}`.
+- Migration-lock acquisition:
+  `MigrationLockAcquired` / `MigrationLockTimeout` /
+  `MigrationLockAcquireFailed`, `db.migration.lock`, and
+  `doka_mysql_migration_lock_acquire_duration_seconds{engine,outcome}`.
+- Migration-lock release failure: `LockReleaseFailed`,
+  `db.migration.lock.release_failed`, and
+  `doka_mysql_migration_lock_release_failed_total{engine}`.
+- Retry attempt: `RetryAttempt`, `db.retry.attempt`, and
+  `doka_mysql_retry_attempts_total{engine,outcome}`.
+- Retry exhaustion: `RetryLimitExceeded`, `db.retry.exhausted`, and
+  `doka_mysql_retry_exhausted_total{engine}`.
+- Soft or hard cancellation: `SoftCancellation` / `HardCancellation`,
+  `db.operation.cancel`, and `doka_mysql_cancellation_total{engine,path}`.
+- Command timeout: `CommandTimeoutExhausted`, `db.operation.timeout`, and
+  `doka_mysql_command_timeout_total{engine}`.
+- Commit with unknown outcome: `CommitUnknown`,
+  `db.transaction.commit_unknown`, and
+  `doka_mysql_commit_unknown_total{engine}`.
 
-OpenTelemetry semantic-convention tags (`db.system`,
-`server.address`, `db.namespace`) are attached to every span.
+Every provider span carries the stable OpenTelemetry attributes
+`db.system.name` and `db.operation.name`. `db.system.name` is selected from the
+resolved engine profile and is therefore `mysql` for MySQL and `mariadb` for
+MariaDB. Failure spans additionally carry `error.type`. The provider does not
+add SQL, server, port, namespace, user, connection-string, raw lock-name, or
+exception-message data.
+
+Every provider metric carries the bounded `engine` tag (`mysql` / `mariadb`).
+Every metric tag has a finite value domain recorded in
+`docs/operations/observability-contract.json`. Failure logs record the
+exception type as structured data but do not attach the exception object.
 
 The hot-path cost is gated by `ActivitySource.HasListeners()` so the
 no-listener case stays effectively zero-cost.
@@ -152,12 +179,29 @@ no-listener case stays effectively zero-cost.
 
 ### Implementation Snapshot
 
-- The provider exposes an `ActivitySource` and a `Meter` named `Doka.EntityFrameworkCore.MySql` (the canonical `MySqlDiagnostics.SourceName` constant); three spans (`db.migration.lock`, `db.retry.attempt`, `db.serverversion.resolve`) and five instruments (`doka_mysql_migration_lock_acquire_duration_seconds` histogram + `doka_mysql_retry_attempts_total` / `doka_mysql_cancellation_total` / `doka_mysql_command_timeout_total` / `doka_mysql_commit_unknown_total` counters) are wired across the migration-lock, execution-strategy, logging-execution-strategy, server-version-resolution, and commit paths. The hot-path `HasListeners()` guard inside `MySqlActivitySource.Start*` keeps the no-subscriber case allocation-free; the `Meter` counter and histogram writes are unconditional because `System.Diagnostics.Metrics.Meter` short-circuits internally on no-listener. In-process smoke coverage (`MySqlActivityAndMeterSmokeTests`) pins each span + counter / histogram via the dotnet `ActivityListener` and `MeterListener` surfaces, asserting both that emission happens when a listener is subscribed and that `Start*` returns `null` when no listener is attached.
+- `MySqlDiagnostics` exposes the stable provider, MySqlConnector, and EF Core
+  source names plus every provider span and metric name.
+- `MySqlActivitySource` uses `HasListeners()` before activity construction.
+  `MySqlMeter` writes unconditionally because `Meter` short-circuits when no
+  listener consumes an instrument.
+- `MySqlDiagnosticTags` owns the provider vocabulary and bounded tag values.
+- Provider-created connections receive a bounded default `ApplicationName` so
+  MySqlConnector pool metrics do not derive their default pool name from the
+  connection string.
+- `MySqlObservabilityContractTests` reconcile public constants, operational
+  EventIds, signal ownership, privacy, metric domains, alerts, and runbook
+  anchors against the machine-readable contract.
+- `MySqlCrossLayerObservabilityTests` execute live queries against MySQL and
+  MariaDB and prove correlated EF Core, provider, and MySqlConnector signals.
+- `MySqlNetworkFaultContractTests` prove the commit-unknown signal and
+  reconciliation path at real TCP request/response boundaries.
 
 ### Implementation Notes
 
 - `MySqlDiagnostics.SourceName` (`Doka.EntityFrameworkCore.MySql`) is the documented public surface consumers subscribe to via `builder.WithTracing(t => t.AddSource(MySqlDiagnostics.SourceName))` and `builder.WithMetrics(m => m.AddMeter(MySqlDiagnostics.SourceName))`. The span and instrument names are public constants on the same class so dashboard / alert configurations can reference them without string duplication.
-- The migration-lock instrumentation records on both success and timeout paths via a `try`/`finally` around `Stopwatch.StartNew()`; the `outcome` tag (`acquired` / `timeout`) lets SLO dashboards compare the two without re-deriving the threshold from histogram buckets.
+- Migration-lock instrumentation records `acquired`, `timeout`, and `failed`
+  outcomes through one completion path. Logs use an opaque hashed lock-scope
+  identifier instead of the database-derived lock name.
 - The cancellation counter carries a `path` tag (`soft` / `hard`) that mirrors the existing logger event split between `SoftCancellation` and `HardCancellation`.
 - Per-operation activities use `ActivityKind.Client` (migration lock) or `ActivityKind.Internal` (retry, server-version-resolve); the provider is the originator of the span, not a network bridge.
 
@@ -192,12 +236,32 @@ no-listener case stays effectively zero-cost.
 
 - 2026-05-16: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-07-31: Completed the diagnostic triple, privacy/cardinality contract,
+  cross-layer correlation evidence, alert ownership, and real TCP fault proof.
 
 ### Implementation References
 
-- `src/Doka.EntityFrameworkCore.MySql/Diagnostics/MySqlDiagnostics.cs`
+- `src/Doka.EntityFrameworkCore.MySql/MySqlDiagnostics.cs`
+- `docs/operations/observability-contract.json`
 - `tests/Doka.EntityFrameworkCore.MySql.Tests/Diagnostics/MySqlActivityAndMeterSmokeTests.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.Tests/Diagnostics/MySqlObservabilityContractTests.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Infrastructure/MySqlCrossLayerObservabilityTests.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Infrastructure/MySqlNetworkFaultContractTests.cs`
 
 ### Sources
 
-- No external sources; repository evidence only.
+- [OpenTelemetry database client span conventions][otel-database-spans]
+  (primary source; retrieved 2026-07-31)
+- [MySqlConnector tracing][mysqlconnector-tracing]
+  (primary source; retrieved 2026-07-31)
+- [MySqlConnector metrics][mysqlconnector-metrics]
+  (primary source; retrieved 2026-07-31)
+- [EF Core diagnostic listeners][efcore-diagnostic-listeners]
+  (primary source; retrieved 2026-07-31)
+
+[otel-database-spans]:
+  https://opentelemetry.io/docs/specs/semconv/db/database-spans/
+[mysqlconnector-tracing]: https://mysqlconnector.net/diagnostics/tracing/
+[mysqlconnector-metrics]: https://mysqlconnector.net/diagnostics/metrics/
+[efcore-diagnostic-listeners]:
+  https://learn.microsoft.com/en-us/ef/core/logging-events-diagnostics/diagnostic-listeners

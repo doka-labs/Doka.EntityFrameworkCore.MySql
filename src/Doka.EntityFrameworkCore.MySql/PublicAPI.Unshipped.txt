@@ -3,13 +3,24 @@ Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MySqlDbContextOptionsBuilder(Microsoft.EntityFrameworkCore.DbContextOptionsBuilder! optionsBuilder) -> void
 Doka.EntityFrameworkCore.MySql.MySqlDiagnostics
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.CancellationTotalMetricName = "doka_mysql_cancellation_total" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.CancellationSpanName = "db.operation.cancel" -> string!
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.CommandTimeoutTotalMetricName = "doka_mysql_command_timeout_total" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.CommandTimeoutSpanName = "db.operation.timeout" -> string!
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.CommitUnknownTotalMetricName = "doka_mysql_commit_unknown_total" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.CommitUnknownSpanName = "db.transaction.commit_unknown" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.DefaultDriverPoolName = "Doka.EntityFrameworkCore.MySql" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.EfCoreDiagnosticSourceName = "Microsoft.EntityFrameworkCore" -> string!
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.MigrationLockAcquireDurationMetricName = "doka_mysql_migration_lock_acquire_duration_seconds" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.MigrationLockReleaseFailedSpanName = "db.migration.lock.release_failed" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.MigrationLockReleaseFailedTotalMetricName = "doka_mysql_migration_lock_release_failed_total" -> string!
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.MigrationLockSpanName = "db.migration.lock" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.MySqlConnectorSourceName = "MySqlConnector" -> string!
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.RetryAttemptSpanName = "db.retry.attempt" -> string!
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.RetryAttemptsTotalMetricName = "doka_mysql_retry_attempts_total" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.RetryLimitExceededSpanName = "db.retry.exhausted" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.RetryLimitExceededTotalMetricName = "doka_mysql_retry_exhausted_total" -> string!
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.ServerVersionResolveSpanName = "db.serverversion.resolve" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.ServerVersionResolutionTotalMetricName = "doka_mysql_server_version_resolution_total" -> string!
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.SourceName = "Doka.EntityFrameworkCore.MySql" -> string!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.CommandTimeout(int commandTimeout) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.DefaultGuidFormat(Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
@@ -123,10 +134,10 @@ static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.UseMySqlAut
 static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.UseMySqlAutoIncrementColumn<TProperty>(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>! propertyBuilder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>!
 static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.UseMySqlClientGuidValueGeneration(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder! propertyBuilder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder!
 static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.UseMySqlClientGuidValueGeneration<TProperty>(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>! propertyBuilder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>!
-static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.AutoDetect(string! serverVersion) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
-static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.AutoDetect(string! serverVersion, Doka.EntityFrameworkCore.MySql.MySqlServerVersionCompatibilityMode compatibilityMode) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
 static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.AutoDetect(System.Data.Common.DbConnection! connection) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
 static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.AutoDetect(System.Data.Common.DbConnection! connection, Doka.EntityFrameworkCore.MySql.MySqlServerVersionCompatibilityMode compatibilityMode) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
+static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.Parse(string! serverVersion) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
+static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.Parse(string! serverVersion, Doka.EntityFrameworkCore.MySql.MySqlServerVersionCompatibilityMode compatibilityMode) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
 static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.MariaDb(System.Version! version) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
 static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.MariaDb(System.Version! version, Doka.EntityFrameworkCore.MySql.MySqlServerVersionCompatibilityMode compatibilityMode) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
 static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.MySql(System.Version! version) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
@@ -147,6 +158,9 @@ static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.InvalidConfiguration
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.InvalidSpatialIndexConfiguration -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.KeyOrIndexMaxLengthRequired -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.LockReleaseFailed -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MigrationLockAcquired -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MigrationLockAcquireFailed -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MigrationLockTimeout -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MissingSpatialPackageDuringScaffolding -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MissingSpatialTranslation -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.RetryAttempt -> Microsoft.Extensions.Logging.EventId

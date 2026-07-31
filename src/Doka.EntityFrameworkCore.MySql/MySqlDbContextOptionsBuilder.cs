@@ -95,12 +95,13 @@ public sealed class MySqlDbContextOptionsBuilder
 
     /// <summary>
     /// Configures the migrations history table the provider creates and reads to track
-    /// applied migrations. The <paramref name="schema"/> argument is preserved on the
-    /// extension snapshot, but the MySQL engine treats schema and database as synonyms
-    /// so the value has no effect on the emitted DDL.
+    /// applied migrations. The schema is retained for compatibility with EF Core's
+    /// relational contract. Because MySQL and MariaDB cannot implement database-local
+    /// schema semantics, history-repository initialization diagnoses and rejects a
+    /// non-empty schema before any migration SQL is executed.
     /// </summary>
     /// <param name="tableName">The history table name; must not be null or whitespace.</param>
-    /// <param name="schema">Reserved for engines that distinguish schema from database; ignored by MySQL.</param>
+    /// <param name="schema">The optional relational schema value to validate at runtime.</param>
     /// <returns>The current builder instance.</returns>
     public override MySqlDbContextOptionsBuilder MigrationsHistoryTable(
         string tableName,
@@ -108,6 +109,7 @@ public sealed class MySqlDbContextOptionsBuilder
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+
         return WithOption(currentExtension =>
         {
             var withTable = (MySqlOptionsExtension)currentExtension.WithMigrationsHistoryTableName(tableName);

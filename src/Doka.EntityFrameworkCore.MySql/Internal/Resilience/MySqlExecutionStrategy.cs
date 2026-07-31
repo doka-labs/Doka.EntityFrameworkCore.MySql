@@ -4,6 +4,7 @@ internal sealed class MySqlExecutionStrategy : ExecutionStrategy
 {
     private readonly IMySqlTransientExceptionDetector _transientExceptionDetector;
     private readonly ILogger? _logger;
+    private readonly EngineFamily _engineFamily;
 
     // _lastException is written by GetNextDelay (called by EF Core's retry loop on the
     // executing thread) and read by OnRetry (called on the same thread between attempts).
@@ -29,6 +30,8 @@ internal sealed class MySqlExecutionStrategy : ExecutionStrategy
     {
         _transientExceptionDetector = transientExceptionDetector
             ?? throw new ArgumentNullException(nameof(transientExceptionDetector));
+        _engineFamily = singletonOptions.Profile?.Engine.Family
+            ?? throw new InvalidOperationException("The MySQL capability profile must be initialized.");
 
         _logger = dependencies
             .Options.FindExtension<CoreOptionsExtension>()
@@ -51,6 +54,12 @@ internal sealed class MySqlExecutionStrategy : ExecutionStrategy
     protected override void OnRetry()
     {
         var attemptNumber = ExceptionsEncountered.Count;
+        using var activity = MySqlActivitySource.StartRetryAttempt(attemptNumber, _engineFamily);
+
+        if (_lastException is not null)
+        {
+            MySqlActivitySource.RecordException(activity, _lastException);
+        }
 
         if (_logger is not null
             && _lastException is not null)
@@ -63,9 +72,10 @@ internal sealed class MySqlExecutionStrategy : ExecutionStrategy
                 _lastException);
         }
 
-        MySqlMeter.RetryAttemptsTotal.Add(1, new KeyValuePair<string, object?>("outcome", "attempt"));
-
-        using var activity = MySqlActivitySource.StartRetryAttempt(attemptNumber);
+        MySqlMeter.RetryAttemptsTotal.Add(
+            1,
+            new KeyValuePair<string, object?>(MySqlDiagnosticTags.Outcome, MySqlDiagnosticTags.Attempt),
+            MySqlDiagnosticTags.CreateEngineMetricTag(_engineFamily));
 
         base.OnRetry();
     }

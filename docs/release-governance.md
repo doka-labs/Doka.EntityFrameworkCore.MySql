@@ -1,7 +1,8 @@
 # Release Governance
 
-`Doka.EntityFrameworkCore.MySql` treats release hardening as a repo-local
-engineering concern, not as external launch closure.
+`Doka.EntityFrameworkCore.MySql` treats release hardening as a reproducible
+engineering contract. Local gates create the evidence; the hosted release
+workflow binds its manifest to GitHub's artifact-attestation identity.
 
 This document freezes the reviewable governance baseline for:
 
@@ -25,6 +26,14 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - workflow: `.github/workflows/ci.yml`
   - cadence: weekly and on demand
   - EF Core floor/latest matrix: `efcore-patch-matrix`
+  - MySqlConnector floor/latest matrix: `mysqlconnector-patch-matrix`
+  - supported MySqlConnector range: `[2.5.0, 3.0.0)`
+  - driver evidence:
+    - `artifacts/mysqlconnector-patch-matrix/<matrix-entry>/resolved-packages.json`
+    - `artifacts/mysqlconnector-patch-matrix/<matrix-entry>/driver-contract-evidence.json`
+    - `artifacts/mysqlconnector-patch-matrix/<matrix-entry>/test-database-evidence.json`
+    - `artifacts/mysqlconnector-patch-matrix/<matrix-entry>/unit/...`
+    - `artifacts/mysqlconnector-patch-matrix/<matrix-entry>/live/...`
   - specification targets: `mysql84`, `mariadb114`, and `mariadb118`
   - merged source-coverage gate: `coverage-gate`
   - migration deployment lifecycle: `./eng/test-migration-deployment.sh`
@@ -60,13 +69,21 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/benchmarks/<target>/reports/<run-id>/...`
 - Repo-local release candidate:
   - workflow: `.github/workflows/release-candidate.yml`
-  - cadence: manually dispatched before a tag
+  - cadence: manually dispatched from the exact semantic release tag
   - local path: `./eng/release-candidate.sh`
+  - source gates: clean worktree, exact commit/ref, and exactly one matching
+    `v<package-version>` tag
+  - hosted proof: GitHub artifact attestation for packages and the canonical
+    evidence manifest, followed by hosted verification readback
   - retained evidence:
     - `artifacts/release-candidate/<run-id>/release-candidate-changelog.md`
     - `artifacts/release-candidate/<run-id>/release-candidate-summary.md`
     - `artifacts/release-candidate/<run-id>/release-candidate-evidence.json`
+    - `artifacts/release-candidate/<run-id>/release-candidate-evidence.sha256`
+    - `artifacts/release-candidate/<run-id>/resolved-packages.json`
+    - `artifacts/release-candidate/<run-id>/packages/...`
     - `artifacts/release-candidate/<run-id>/audit/...`
+    - `artifacts/release-candidate/<run-id>/integration/...`
     - `artifacts/release-candidate/<run-id>/migration-deployment/...`
     - `artifacts/release-candidate/<run-id>/sbom/...`
 - Migration deployment:
@@ -103,12 +120,11 @@ These category names are documentation-safe and test-backed. Renaming or repurpo
 `MySqlEventId` values remain allocated by subsystem:
 
 - `1000-1099`: configuration
-- `1100-1199`: query and translation
-- `1200-1299`: update and value generation
-- `1300-1399`: migrations
+- `1100-1199`: migrations and advisory locks
 - `1400-1499`: scaffolding
 - `1500-1599`: resilience
 - `1600-1699`: spatial
+- `1700-1799`: update and batch sizing
 
 The current baseline uses these exact IDs:
 
@@ -118,6 +134,12 @@ The current baseline uses these exact IDs:
   - `1002` `SchemaUnsupported`
   - `1003` `KeyOrIndexMaxLengthRequired`
   - `1004` `ImplicitDecimalPrecisionDefaulted`
+  - `1005` `UnsupportedServerVersion`
+- Migrations:
+  - `1100` `MigrationLockAcquired`
+  - `1101` `MigrationLockTimeout`
+  - `1102` `LockReleaseFailed`
+  - `1103` `MigrationLockAcquireFailed`
 - Resilience:
   - `1500` `RetryAttempt`
   - `1501` `RetryLimitExceeded`
@@ -131,6 +153,10 @@ The current baseline uses these exact IDs:
   - `1600` `MissingSpatialPackageDuringScaffolding`
   - `1601` `InvalidSpatialIndexConfiguration`
   - `1602` `MissingSpatialTranslation`
+  - `1603` `SpatialSridMismatchDetected`
+- Update:
+  - `1700` `BulkInsertParameterCountCapped`
+  - `1701` `BulkInsertPacketSizeCapped`
 
 New provider events must stay inside an approved subsystem range, update this document, and add or adjust coverage in the diagnostics-governance tests in the same change.
 
@@ -190,6 +216,33 @@ The repository issue templates are the review seam for these outputs. They inten
 
 This governance baseline:
 
-- it supports repo-local hardening and reviewability
-- it does not imply signing, provenance, publication, or hosted managed-service launch evidence
-- Azure Database for MySQL live validation (when credentials become available), signing, provenance, and publication remain pre-publication work tracked by the internal delivery workflow; Aurora MySQL is out of scope
+- it supports repo-local hardening, immutable evidence inventory, and hosted
+  artifact provenance
+- GitHub artifact attestation is not NuGet repository signing and does not
+  publish a package
+- Azure Database for MySQL live validation remains an external canary when
+  credentials become available; the provider contract does not depend on that
+  account existing
+- NuGet publication and post-publication package install/readback remain
+  explicit release operations; Aurora MySQL is outside the advertised matrix
+
+## Immutable Evidence Contract
+
+`eng/release_evidence.py` generates the canonical manifest only after every
+release gate has completed. It rejects dirty or mismatched source, mutable
+engine image tags, incomplete engine coverage, stale or unexpected packages,
+package/symbol version drift, missing SBOM output, and ambiguous dependency
+versions. Every retained regular file receives a portable relative path,
+SHA-256 digest, byte count, and role. A detached checksum protects the manifest
+before the hosted workflow attests it.
+
+Verification enumerates the directory again and fails on changed, missing, or
+additional files. The release directory must be new and empty, so reruns cannot
+inherit stale evidence from an earlier candidate.
+
+### Primary sources
+
+- GitHub, "Use artifact attestations", retrieved 2026-07-31:
+  <https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations>
+- GitHub, [`actions/attest`](https://github.com/actions/attest), retrieved
+  2026-07-31.

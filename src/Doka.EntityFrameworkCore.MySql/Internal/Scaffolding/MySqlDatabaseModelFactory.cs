@@ -61,7 +61,7 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
             _scaffoldingContext.Begin();
 
             var rawServerVersion = ScaffoldingHelpers.ExecuteScalarString(connection, "SELECT VERSION();");
-            var serverVersion = MySqlServerVersion.AutoDetect(rawServerVersion);
+            var serverVersion = MySqlServerVersion.Parse(rawServerVersion);
 
             _scaffoldingContext.SetDetectedServerVersionText(rawServerVersion);
 

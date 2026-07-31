@@ -36,6 +36,7 @@ class PerformanceEvidenceTests(unittest.TestCase):
     _contract_path = _repo_root / "benchmarks" / "performance-contract.json"
 
     def setUp(self) -> None:
+        """Load the versioned contract shared by every evidence fixture."""
         self.contract = performance_evidence.load_json(self._contract_path)
 
     def test_contract_covers_every_declared_matrix_dimension(self) -> None:
@@ -456,6 +457,7 @@ class PerformanceEvidenceTests(unittest.TestCase):
             )
 
     def _workload_report(self, target: str) -> dict[str, Any]:
+        """Build a complete scorecard workload report for one target."""
         workloads = []
         profile = self.contract["profiles"]["scorecard"]
 
@@ -519,6 +521,7 @@ class PerformanceEvidenceTests(unittest.TestCase):
         }
 
     def _soak_report(self, target: str) -> dict[str, Any]:
+        """Build a complete passing soak report for one target."""
         budgets = self.contract["soakBudgets"]
         return {
             "schemaVersion": 2,
@@ -614,7 +617,10 @@ class PerformanceEvidenceTests(unittest.TestCase):
 
     @staticmethod
     def _bdn_report() -> dict[str, Any]:
+        """Build raw BenchmarkDotNet controls with stable sample statistics."""
+
         def benchmark(type_name: str, method: str, mean: float, allocated: int) -> dict[str, Any]:
+            """Build one raw BenchmarkDotNet benchmark result."""
             values = [mean - 1, mean, mean + 1]
             return {
                 "Type": type_name,
@@ -662,6 +668,7 @@ class PerformanceEvidenceTests(unittest.TestCase):
         }
 
     def _evaluation(self, target: str) -> dict[str, Any]:
+        """Evaluate a complete fixture into the baseline seed representation."""
         report = self._workload_report(target)
         workloads = performance_evidence.validate_workload_report(
             report,
@@ -723,6 +730,7 @@ class PerformanceEvidenceTests(unittest.TestCase):
         root: Path,
         runner_class: str,
     ) -> list[Path]:
+        """Persist one seed evaluation per required target for a runner class."""
         paths = []
         for target in ("mysql84", "mariadb118"):
             evaluation = self._evaluation(target)

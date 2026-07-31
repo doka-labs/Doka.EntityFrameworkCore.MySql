@@ -79,6 +79,7 @@ def repository_source_hash(repository: Path) -> str:
     repository = repository.resolve()
 
     def git(*arguments: str) -> bytes:
+        """Run one read-only Git probe against the measured repository."""
         try:
             result = subprocess.run(
                 ["git", "-C", str(repository), *arguments],

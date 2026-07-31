@@ -45,6 +45,10 @@ public sealed class TwoDatabasesMySqlTest : TwoDatabasesTestBase, IClassFixture<
         Server = "localhost",
         UserID = "root",
         Database = "DokaDummy",
+        // The provider supplies bounded driver defaults before opening a
+        // provider-owned connection. Declaring them here keeps the shared EF
+        // test focused on interceptor-driven database switching.
+        ApplicationName = MySqlDiagnostics.DefaultDriverPoolName,
         GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
     }.ConnectionString;
 

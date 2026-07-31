@@ -30,7 +30,8 @@ public sealed class MySqlDiagnosticsTests
     }
 
     /// <summary>
-    /// Verifies that schema-unsupported diagnostics use EF Core's model-validation category.
+    /// Verifies that schema-unsupported diagnostics use EF Core's model-validation category
+    /// without exposing schema or object names.
     /// </summary>
     [Fact]
     public void Schema_unsupported_logging_uses_the_model_validation_category()
@@ -42,7 +43,6 @@ public sealed class MySqlDiagnosticsTests
         MySqlLoggerMessages.SchemaUnsupported(
             logger,
             "Model",
-            "<default>",
             "schema unsupported",
             "remove the schema");
 
@@ -50,6 +50,7 @@ public sealed class MySqlDiagnosticsTests
 
         Assert.Equal(DbLoggerCategory.Model.Validation.Name, entry.Category);
         Assert.Equal(LogLevel.Error, entry.LogLevel);
+        Assert.DoesNotContain("ScopeName", entry.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

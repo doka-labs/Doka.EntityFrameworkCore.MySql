@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Compares discovered specification tests with the exact per-engine contract.
+# Both classified and unfiltered discovery are required so missing categories
+# cannot hide tests from conformance accounting.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

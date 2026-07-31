@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Runs deterministic engineering, unit, and non-live functional tests. Restore
+# is conditional so an offline developer loop reuses valid assets while a fresh
+# checkout can still hydrate every referenced test graph.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,6 +26,8 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
     --start-directory "${repo_root}/eng/tests" \
     --pattern "test_*.py"
 restore_required=0
+# Project-reference assets are listed explicitly because checking only the two
+# test projects can miss an incomplete restore graph.
 for assets_file in "${required_assets[@]}"; do
     if [[ ! -f "${assets_file}" ]]; then
         restore_required=1

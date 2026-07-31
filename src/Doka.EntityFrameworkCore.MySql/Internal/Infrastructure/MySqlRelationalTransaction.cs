@@ -2,8 +2,6 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlRelationalTransaction : RelationalTransaction
 {
-    private static readonly MySqlTransientExceptionDetector s_transientExceptionDetector = new();
-
     private readonly ILogger? _resilienceLogger;
     private readonly MySqlSingletonOptions _singletonOptions;
     private readonly DbTransaction _transaction;
@@ -130,13 +128,24 @@ internal sealed class MySqlRelationalTransaction : RelationalTransaction
 
         var profile = _singletonOptions.Profile;
 
-        if (profile is null
-            || !s_transientExceptionDetector.ShouldRetryOn(exception))
+        if (profile is null)
         {
             return false;
         }
 
-        MySqlMeter.CommitUnknownTotal.Add(1);
+        // Once the driver commit call throws, the provider cannot prove whether
+        // the server applied the transaction before the acknowledgement was lost.
+        // Retry classification is intentionally irrelevant to that safety fact.
+
+        var connectionState = _transaction.Connection?.State.ToString() ?? "Unknown";
+        using var activity = MySqlActivitySource.StartCommitUnknown(
+            connectionState,
+            profile.Engine.Family,
+            exception);
+
+        MySqlMeter.CommitUnknownTotal.Add(
+            1,
+            MySqlDiagnosticTags.CreateEngineMetricTag(profile.Engine.Family));
 
         if (_resilienceLogger is null)
         {
@@ -146,7 +155,7 @@ internal sealed class MySqlRelationalTransaction : RelationalTransaction
         MySqlLoggerMessages.CommitUnknown(
             _resilienceLogger,
             _transactionId,
-            _transaction.Connection?.State.ToString() ?? "Unknown",
+            connectionState,
             exception);
 
         return false;

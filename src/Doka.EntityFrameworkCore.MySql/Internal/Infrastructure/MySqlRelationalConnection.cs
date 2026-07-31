@@ -4,6 +4,7 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
 {
     private readonly IMySqlDriverFacade _driverFacade;
     private readonly MySqlOptionsExtension _optionsExtension;
+    private bool _connectionStringOverridden;
 
     public MySqlRelationalConnection(
         RelationalConnectionDependencies dependencies,
@@ -23,14 +24,20 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
         {
             var connectionString = base.ConnectionString;
 
-            return _optionsExtension.ConnectionString is not null && connectionString is not null
-                ? NormalizeConnectionString(connectionString)
-                : connectionString;
+            // Initial options and the physical connection must expose the same
+            // provider defaults to creation interceptors. Runtime overrides are
+            // an EF-managed mutable contract and must round-trip unchanged.
+            return !_connectionStringOverridden
+                && _optionsExtension.ConnectionString is not null
+                && connectionString is not null
+                    ? NormalizeConnectionString(connectionString)
+                    : connectionString;
         }
-        set =>
-            base.ConnectionString = _optionsExtension.ConnectionString is not null && value is not null
-                ? NormalizeConnectionString(value)
-                : value;
+        set
+        {
+            base.ConnectionString = value;
+            _connectionStringOverridden = true;
+        }
     }
 
     protected override DbConnection CreateDbConnection()
@@ -45,10 +52,6 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
             return _optionsExtension.Connection;
         }
 
-        // The base connection string is mutable by EF tooling through
-        // Database.SetConnectionString(). Reading the active relational value
-        // here ensures the lazily created physical connection targets that
-        // override instead of the immutable options snapshot.
         var connectionString = ConnectionString;
 
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -57,7 +60,10 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
                 "A MySQL connection string, DbConnection, or MySqlDataSource must be configured.");
         }
 
-        return _driverFacade.CreateConnection(NormalizeConnectionString(connectionString));
+        return _driverFacade.CreateConnection(
+            _connectionStringOverridden
+                ? connectionString
+                : NormalizeConnectionString(connectionString));
     }
 
     protected override DbTransaction ConnectionBeginTransaction(
@@ -106,19 +112,23 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
         string connectionString
     )
     {
-        var connectionStringBuilder = new MySqlConnectionStringBuilder(connectionString)
+        var connectionStringBuilder = new MySqlConnectionStringBuilder(connectionString);
+
+        if (string.IsNullOrWhiteSpace(connectionStringBuilder.ApplicationName))
         {
-            GuidFormat = _optionsExtension.DefaultGuidFormat switch
-            {
-                MySqlGuidFormat.Char36 => MySqlConnector.MySqlGuidFormat.Char36,
-                _ => MySqlConnector.MySqlGuidFormat.Binary16,
-            },
+            connectionStringBuilder.ApplicationName = MySqlDiagnostics.DefaultDriverPoolName;
+        }
+
+        connectionStringBuilder.GuidFormat = _optionsExtension.DefaultGuidFormat switch
+        {
+            MySqlGuidFormat.Char36 => MySqlConnector.MySqlGuidFormat.Char36,
+            _ => MySqlConnector.MySqlGuidFormat.Binary16,
         };
 
         return connectionStringBuilder.ConnectionString;
     }
 
-    // MySqlConnector 2.6.1 already emits REPEATABLE READ when callers pass
+    // MySqlConnector already emits REPEATABLE READ when callers pass
     // Unspecified, but retains Unspecified on MySqlTransaction.IsolationLevel.
     // Normalize the enum before the driver call so interception and public ADO.NET
     // state report the isolation level that the driver actually sends.

@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# Builds an EF Core migration bundle and proves apply, idempotent reapply,
+# rollback-to-zero, and recovery across the complete supported engine matrix.
+# Release orchestration retains the evidence only when lifecycle and cleanup
+# both return successfully.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -29,6 +34,8 @@ cleanup() {
         local down_exit_code=$?
         set -e
 
+        # A leaked migration stack invalidates an otherwise green owned run.
+        # Preserve an earlier workflow failure when both operations fail.
         if [[ "${exit_code}" -eq 0 && "${down_exit_code}" -ne 0 ]]; then
             exit_code="${down_exit_code}"
         fi
@@ -84,6 +91,8 @@ run_bundle_lifecycle() {
     local server_version="$3"
     local connection_string
 
+    # These credentials belong only to the isolated repository Compose stack;
+    # no externally supplied database is mutated by this deployment gate.
     connection_string="Server=127.0.0.1;Port=${port};Database=doka_provider;"
     connection_string+="User ID=root;Password=root_password;Persist Security Info=True;"
 
@@ -104,6 +113,8 @@ run_bundle_lifecycle() {
 }
 
 write_evidence() {
+    # This function is reached only after all target lifecycles complete. The
+    # release manifest hashes both forms only after the cleanup trap succeeds.
     cat > "${summary_file}" <<EOF
 # Migration deployment summary
 

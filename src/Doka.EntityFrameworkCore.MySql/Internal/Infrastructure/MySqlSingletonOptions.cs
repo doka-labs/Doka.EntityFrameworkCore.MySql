@@ -40,24 +40,33 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
                 return;
             }
 
-            using var activity = MySqlActivitySource.StartServerVersionResolve();
-
             var extension = options.FindExtension<MySqlOptionsExtension>()
                 ?? throw new InvalidOperationException("The Doka MySQL options extension is not configured.");
 
             var serverVersion = extension.ServerVersion
                 ?? throw new InvalidOperationException("A MySQL server version must be configured.");
 
+            using var activity = MySqlActivitySource.StartServerVersionResolve(serverVersion.Profile.Engine.Family);
+
             Profile = serverVersion.Profile;
             RetryOptions = extension.RetryOptions;
             DefaultGuidFormat = extension.DefaultGuidFormat;
             UsesDataSource = extension.DataSource is not null;
 
-            activity?.SetTag("db.system", "mysql");
-            activity?.SetTag("db.serverversion.engine_family", Profile.Engine.Family.ToString());
-            activity?.SetTag("db.serverversion.version", Profile.Engine.Version.ToString());
-            activity?.SetTag("db.serverversion.support_status", serverVersion.SupportStatus.ToString());
-            activity?.SetTag("db.serverversion.compatibility_mode", serverVersion.CompatibilityMode.ToString());
+            activity?.SetTag(MySqlDiagnosticTags.EngineFamilyName, Profile.Engine.Family.ToString());
+            activity?.SetTag(MySqlDiagnosticTags.ServerVersion, Profile.Engine.Version.ToString());
+            activity?.SetTag(MySqlDiagnosticTags.SupportStatus, serverVersion.SupportStatus.ToString());
+            activity?.SetTag(MySqlDiagnosticTags.CompatibilityMode, serverVersion.CompatibilityMode.ToString());
+
+            MySqlMeter.ServerVersionResolutionTotal.Add(
+                1,
+                MySqlDiagnosticTags.CreateEngineMetricTag(Profile.Engine.Family),
+                new KeyValuePair<string, object?>(
+                    MySqlDiagnosticTags.MetricSupportStatus,
+                    serverVersion.SupportStatus.ToString()),
+                new KeyValuePair<string, object?>(
+                    MySqlDiagnosticTags.MetricCompatibilityMode,
+                    serverVersion.CompatibilityMode.ToString()));
 
             var loggerFactory = options.FindExtension<CoreOptionsExtension>()
                 ?.LoggerFactory;

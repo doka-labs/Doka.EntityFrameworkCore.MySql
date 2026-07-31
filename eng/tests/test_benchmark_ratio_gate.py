@@ -66,6 +66,7 @@ class BenchmarkGateTests(unittest.TestCase):
         root: Path,
         target: str,
     ) -> Path:
+        """Write one complete smoke-profile target fixture and return its BDN report."""
         fixture = performance_test_helpers.PerformanceEvidenceTests()
         fixture.setUp()
         report_directory = root / target / "reports" / "test-run"
@@ -136,6 +137,7 @@ class BenchmarkGateTests(unittest.TestCase):
         self,
         root: Path,
     ) -> subprocess.CompletedProcess[str]:
+        """Run the real strict wrapper against an isolated evidence root."""
         environment = os.environ.copy()
         environment["DOKA_BENCHMARK_GATE_STRICT"] = "1"
         environment["DOKA_BENCHMARK_GATE_RUN_ID"] = "test-run"

@@ -113,7 +113,46 @@ public sealed class MySqlLoggerMessagesTests
         Assert.Single(logger.Entries);
     }
 
-    private sealed record LogEntry(LogLevel Level, EventId EventId, string RenderedMessage, object? State);
+    /// <summary>
+    /// Failure logs retain structured exception types without forwarding
+    /// exception objects, messages, SQL, or raw migration lock names.
+    /// </summary>
+    [Fact]
+    public void Failure_emitters_do_not_serialize_exception_payloads()
+    {
+        var logger = new CapturingLogger();
+        var exception = new InvalidOperationException("password=secret;SELECT private_data");
+
+        MySqlLoggerMessages.RetryAttempt(logger, 1, 3, TimeSpan.Zero, exception);
+        MySqlLoggerMessages.RetryLimitExceeded(logger, 4, 3, exception);
+        MySqlLoggerMessages.CommandTimeoutExhausted(logger, "Async", 30, "Broken", exception);
+        MySqlLoggerMessages.CommitUnknown(logger, Guid.NewGuid(), "Broken", exception);
+        MySqlLoggerMessages.MigrationLockTimeout(logger, "safe-scope-id", TimeSpan.FromSeconds(1), exception);
+        MySqlLoggerMessages.MigrationLockAcquireFailed(
+            logger,
+            "safe-scope-id",
+            TimeSpan.FromSeconds(1),
+            exception);
+        MySqlLoggerMessages.LockReleaseFailed(logger, "safe-scope-id", exception);
+
+        Assert.All(logger.Entries, entry =>
+        {
+            Assert.Null(entry.Exception);
+            Assert.DoesNotContain("password", entry.RenderedMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("private_data", entry.RenderedMessage, StringComparison.Ordinal);
+        });
+        Assert.All(
+            logger.Entries,
+            entry => Assert.Contains("InvalidOperationException", entry.RenderedMessage, StringComparison.Ordinal));
+    }
+
+    private sealed record LogEntry(
+        LogLevel Level,
+        EventId EventId,
+        string RenderedMessage,
+        object? State,
+        Exception? Exception
+    );
 
     private sealed class CapturingLogger : ILogger
     {
@@ -131,6 +170,6 @@ public sealed class MySqlLoggerMessagesTests
             TState state,
             Exception? exception,
             Func<TState, Exception?, string> formatter) =>
-            Entries.Add(new LogEntry(logLevel, eventId, formatter(state, exception), state));
+            Entries.Add(new LogEntry(logLevel, eventId, formatter(state, exception), state, exception));
     }
 }

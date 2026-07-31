@@ -37,7 +37,7 @@ public sealed class ConnectionStringOverrideTests
         var overriddenConnectionString = IntegrationDatabaseUtilities.BuildConnectionString(
             baseConnectionString,
             databaseName);
-        var serverVersion = MySqlServerVersion.AutoDetect(
+        var serverVersion = MySqlServerVersion.Parse(
             IntegrationTestEnvironment.CreateRequest(target)
                 .ServerVersionToken);
 

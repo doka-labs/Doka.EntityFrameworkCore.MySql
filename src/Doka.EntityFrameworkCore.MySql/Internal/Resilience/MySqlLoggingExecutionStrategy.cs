@@ -16,11 +16,13 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
     private readonly IExecutionStrategy _innerStrategy;
     private readonly ILogger? _logger;
     private readonly int? _maxRetryCount;
+    private readonly EngineFamily _engineFamily;
 
     public MySqlLoggingExecutionStrategy(
         ExecutionStrategyDependencies dependencies,
         IExecutionStrategy innerStrategy,
         MySqlRetryOptions? retryOptions,
+        MySqlSingletonOptions singletonOptions,
         ILogger? logger,
         IMySqlTransientExceptionDetector transientExceptionDetector
     )
@@ -29,6 +31,9 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
         _innerStrategy = innerStrategy ?? throw new ArgumentNullException(nameof(innerStrategy));
 
         _maxRetryCount = retryOptions?.MaxRetryCount;
+        var capabilityProfile = (singletonOptions ?? throw new ArgumentNullException(nameof(singletonOptions))).Profile
+            ?? throw new InvalidOperationException("The MySQL capability profile must be initialized.");
+        _engineFamily = capabilityProfile.Engine.Family;
         _logger = logger;
         _transientExceptionDetector = transientExceptionDetector
             ?? throw new ArgumentNullException(nameof(transientExceptionDetector));
@@ -123,17 +128,24 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
     {
         ArgumentNullException.ThrowIfNull(exception);
 
-        if (_logger is null
-            || _maxRetryCount is null)
+        if (_maxRetryCount is null)
         {
             return false;
         }
 
-        MySqlLoggerMessages.RetryLimitExceeded(
-            _logger,
-            _maxRetryCount.Value + 1,
-            _maxRetryCount.Value,
-            exception.InnerException ?? exception);
+        using var activity = MySqlActivitySource.StartRetryLimitExceeded(_engineFamily, exception);
+        MySqlMeter.RetryLimitExceededTotal.Add(
+            1,
+            MySqlDiagnosticTags.CreateEngineMetricTag(_engineFamily));
+
+        if (_logger is not null)
+        {
+            MySqlLoggerMessages.RetryLimitExceeded(
+                _logger,
+                _maxRetryCount.Value + 1,
+                _maxRetryCount.Value,
+                exception.InnerException ?? exception);
+        }
 
         return false;
     }
@@ -147,8 +159,19 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
 
         var connectionStateName = diagnostic.ConnectionStateName;
         var isHardPath = diagnostic.ConnectionState is ConnectionState.Broken or ConnectionState.Closed;
+        var cancellationPath = isHardPath
+            ? MySqlDiagnosticTags.Hard
+            : MySqlDiagnosticTags.Soft;
+        using var activity = MySqlActivitySource.StartCancellation(
+            cancellationPath,
+            connectionStateName,
+            _engineFamily,
+            exception);
 
-        MySqlMeter.CancellationTotal.Add(1, new KeyValuePair<string, object?>("path", isHardPath ? "hard" : "soft"));
+        MySqlMeter.CancellationTotal.Add(
+            1,
+            new KeyValuePair<string, object?>(MySqlDiagnosticTags.Path, cancellationPath),
+            MySqlDiagnosticTags.CreateEngineMetricTag(_engineFamily));
 
         if (_logger is null)
         {
@@ -177,7 +200,13 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
             return false;
         }
 
-        MySqlMeter.CommandTimeoutTotal.Add(1);
+        using var activity = MySqlActivitySource.StartCommandTimeout(
+            diagnostic.ConnectionStateName,
+            _engineFamily,
+            exception);
+        MySqlMeter.CommandTimeoutTotal.Add(
+            1,
+            MySqlDiagnosticTags.CreateEngineMetricTag(_engineFamily));
 
         if (_logger is null)
         {

@@ -33,7 +33,9 @@ This provider is designed for teams that need:
 - One of:
   - MySQL 8.4 LTS
   - MariaDB 11.4 LTS or 11.8 LTS
-- Transitive: [MySqlConnector](https://mysqlconnector.net) 2.5.x (the modern fully-managed ADO.NET driver)
+- Transitive: [MySqlConnector](https://mysqlconnector.net) 2.5.0 through the latest stable 2.x release
+  on the 2.x line. The supported floor and latest compatible 2.x release are
+  validated separately by the scheduled live driver matrix.
 
 ### Building From Source
 
@@ -109,9 +111,21 @@ var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
 
 Or let the provider detect the engine from the server greeting:
 
+<!-- readme-autodetect-snippet begin -->
+
 ```csharp
-var serverVersion = MySqlServerVersion.AutoDetect(connectionString);
+using Doka.EntityFrameworkCore.MySql;
+using MySqlConnector;
+
+var connectionString = "Server=localhost;Database=app;User ID=app;Password=change-me";
+
+await using var connection = new MySqlConnection(connectionString);
+await connection.OpenAsync();
+
+var serverVersion = MySqlServerVersion.AutoDetect(connection);
 ```
+
+<!-- readme-autodetect-snippet end -->
 
 ## Registration
 

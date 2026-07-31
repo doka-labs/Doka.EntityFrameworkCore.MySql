@@ -64,7 +64,7 @@ public static class MySqlEventId
     public static readonly EventId CommandTimeoutExhausted = new(1504, nameof(CommandTimeoutExhausted));
 
     /// <summary>
-    /// Emitted when a transaction commit fails transiently and the commit outcome may be unknown.
+    /// Emitted when a transaction commit throws and the server outcome cannot be proven.
     /// </summary>
     public static readonly EventId CommitUnknown = new(1505, nameof(CommitUnknown));
 
@@ -104,6 +104,16 @@ public static class MySqlEventId
         new(1403, nameof(ForeignKeyPrincipalTableNotScaffolded));
 
     /// <summary>
+    /// Emitted when the provider acquires the database-scoped migration advisory lock.
+    /// </summary>
+    public static readonly EventId MigrationLockAcquired = new(1100, nameof(MigrationLockAcquired));
+
+    /// <summary>
+    /// Emitted when the migration advisory lock cannot be acquired within its timeout budget.
+    /// </summary>
+    public static readonly EventId MigrationLockTimeout = new(1101, nameof(MigrationLockTimeout));
+
+    /// <summary>
     /// Emitted when the migration advisory lock could not be released cleanly via
     /// <c>RELEASE_LOCK</c>. The dedicated connection is still disposed afterwards,
     /// which releases the session-scoped lock implicitly, so the migration outcome
@@ -111,6 +121,11 @@ public static class MySqlEventId
     /// investigating.
     /// </summary>
     public static readonly EventId LockReleaseFailed = new(1102, nameof(LockReleaseFailed));
+
+    /// <summary>
+    /// Emitted when migration advisory lock acquisition fails for a reason other than timeout.
+    /// </summary>
+    public static readonly EventId MigrationLockAcquireFailed = new(1103, nameof(MigrationLockAcquireFailed));
 
     /// <summary>
     /// Emitted at most once per <see cref="DbContext.SaveChanges()"/> batch when the

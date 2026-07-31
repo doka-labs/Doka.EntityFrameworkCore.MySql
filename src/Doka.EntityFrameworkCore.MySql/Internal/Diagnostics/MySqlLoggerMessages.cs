@@ -2,6 +2,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal static class MySqlLoggerMessages
 {
+    // Failure emitters record the exception type as structured data but do not
+    // attach the exception object. Driver exception messages can contain SQL or
+    // connection metadata and therefore do not belong in provider-owned logs.
     private static readonly Action<ILogger, string, string, string, Exception?> s_invalidConfiguration =
         LoggerMessage.Define<string, string, string>(
             LogLevel.Error,
@@ -16,11 +19,11 @@ internal static class MySqlLoggerMessages
             + "DatabaseEngine={DatabaseEngine} ServerVersion={ServerVersion} "
             + "SupportStatus={SupportStatus} SupportedMatrix={SupportedMatrix}");
 
-    private static readonly Action<ILogger, string, string, string, string, Exception?> s_schemaUnsupported =
-        LoggerMessage.Define<string, string, string, string>(
+    private static readonly Action<ILogger, string, string, string, Exception?> s_schemaUnsupported =
+        LoggerMessage.Define<string, string, string>(
             LogLevel.Error,
             MySqlEventId.SchemaUnsupported,
-            "MySQL schema configuration is not supported. Scope={Scope} ScopeName={ScopeName} Reason={Reason} Remediation={Remediation}");
+            "MySQL schema configuration is not supported. Scope={Scope} Reason={Reason} Remediation={Remediation}");
 
     private static readonly Action<ILogger, string, string, string, Exception?> s_keyOrIndexMaxLengthRequired =
         LoggerMessage.Define<string, string, string>(
@@ -58,17 +61,21 @@ internal static class MySqlLoggerMessages
             MySqlEventId.HardCancellation,
             "MySQL command cancellation escalated to the hard-cancel path. ExecuteMethod={ExecuteMethod} CommandTimeout={CommandTimeout} ConnectionState={ConnectionState}");
 
-    private static readonly Action<ILogger, string, int, string, Exception?> s_commandTimeoutExhausted =
-        LoggerMessage.Define<string, int, string>(
+    private static readonly Action<ILogger, string, int, string, string, Exception?> s_commandTimeoutExhausted =
+        LoggerMessage.Define<string, int, string, string>(
             LogLevel.Warning,
             MySqlEventId.CommandTimeoutExhausted,
-            "MySQL command timeout exhausted. ExecuteMethod={ExecuteMethod} CommandTimeout={CommandTimeout} ConnectionState={ConnectionState}");
+            "MySQL command timeout exhausted. ExecuteMethod={ExecuteMethod} "
+            + "CommandTimeout={CommandTimeout} ConnectionState={ConnectionState} "
+            + "ExceptionType={ExceptionType}");
 
-    private static readonly Action<ILogger, Guid, string, string, Exception?> s_commitUnknown =
-        LoggerMessage.Define<Guid, string, string>(
+    private static readonly Action<ILogger, Guid, string, string, string, Exception?> s_commitUnknown =
+        LoggerMessage.Define<Guid, string, string, string>(
             LogLevel.Warning,
             MySqlEventId.CommitUnknown,
-            "MySQL transaction commit failed with an unknown outcome. TransactionId={TransactionId} ConnectionState={ConnectionState} Guidance={Guidance}");
+            "MySQL transaction commit failed with an unknown outcome. "
+            + "TransactionId={TransactionId} ConnectionState={ConnectionState} "
+            + "ExceptionType={ExceptionType} Guidance={Guidance}");
 
     private static readonly Action<ILogger, string, string, Exception?> s_missingSpatialPackageDuringScaffolding =
         LoggerMessage.Define<string, string>(
@@ -116,7 +123,29 @@ internal static class MySqlLoggerMessages
         LoggerMessage.Define<string, string>(
             LogLevel.Warning,
             MySqlEventId.LockReleaseFailed,
-            "MySQL migration advisory lock release failed. LockName={LockName} ExceptionType={ExceptionType}. The dedicated connection is still disposed, which releases the session-scoped lock implicitly.");
+            "MySQL migration advisory lock release failed. "
+            + "LockScopeId={LockScopeId} ExceptionType={ExceptionType}. "
+            + "The dedicated connection is still disposed, which releases the session-scoped lock implicitly.");
+
+    private static readonly Action<ILogger, string, double, Exception?> s_migrationLockAcquired =
+        LoggerMessage.Define<string, double>(
+            LogLevel.Information,
+            MySqlEventId.MigrationLockAcquired,
+            "MySQL migration advisory lock acquired. LockScopeId={LockScopeId} DurationMs={DurationMs}");
+
+    private static readonly Action<ILogger, string, double, string, Exception?> s_migrationLockTimeout =
+        LoggerMessage.Define<string, double, string>(
+            LogLevel.Warning,
+            MySqlEventId.MigrationLockTimeout,
+            "MySQL migration advisory lock timed out. "
+            + "LockScopeId={LockScopeId} DurationMs={DurationMs} ExceptionType={ExceptionType}");
+
+    private static readonly Action<ILogger, string, double, string, Exception?> s_migrationLockAcquireFailed =
+        LoggerMessage.Define<string, double, string>(
+            LogLevel.Error,
+            MySqlEventId.MigrationLockAcquireFailed,
+            "MySQL migration advisory lock acquisition failed. "
+            + "LockScopeId={LockScopeId} DurationMs={DurationMs} ExceptionType={ExceptionType}");
 
     public static void InvalidConfiguration(
         ILogger logger,
@@ -185,10 +214,9 @@ internal static class MySqlLoggerMessages
     public static void SchemaUnsupported(
         ILogger logger,
         string scope,
-        string scopeName,
         string reason,
         string remediation
-    ) => s_schemaUnsupported(logger, scope, scopeName, reason, remediation, null);
+    ) => s_schemaUnsupported(logger, scope, reason, remediation, null);
 
     public static void KeyOrIndexMaxLengthRequired(
         ILogger logger,
@@ -223,7 +251,7 @@ internal static class MySqlLoggerMessages
             delay?.TotalMilliseconds ?? 0,
             exception.GetType()
                 .Name,
-            exception);
+            null);
     }
 
     public static void RetryLimitExceeded(
@@ -242,7 +270,7 @@ internal static class MySqlLoggerMessages
             maxRetryCount,
             exception.GetType()
                 .Name,
-            exception);
+            null);
     }
 
     public static void SoftCancellation(
@@ -280,7 +308,13 @@ internal static class MySqlLoggerMessages
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(exception);
 
-        s_commandTimeoutExhausted(logger, executeMethod, commandTimeout, connectionState, exception);
+        s_commandTimeoutExhausted(
+            logger,
+            executeMethod,
+            commandTimeout,
+            connectionState,
+            exception.GetType().Name,
+            null);
     }
 
     public static void CommitUnknown(
@@ -297,8 +331,9 @@ internal static class MySqlLoggerMessages
             logger,
             transactionId,
             connectionState,
+            exception.GetType().Name,
             "Use Database.CreateExecutionStrategy().ExecuteInTransaction(...) or ExecuteInTransactionAsync(..., verifySucceeded: ...) to verify whether the commit succeeded.",
-            exception);
+            null);
     }
 
     public static void MissingSpatialPackageDuringScaffolding(
@@ -383,14 +418,61 @@ internal static class MySqlLoggerMessages
 
     public static void LockReleaseFailed(
         ILogger logger,
-        string lockName,
+        string lockScopeId,
         Exception exception
     )
     {
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(exception);
 
-        s_lockReleaseFailed(logger, lockName, exception.GetType().Name, exception);
+        s_lockReleaseFailed(logger, lockScopeId, exception.GetType().Name, null);
+    }
+
+    public static void MigrationLockAcquired(
+        ILogger logger,
+        string lockScopeId,
+        TimeSpan duration
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        s_migrationLockAcquired(logger, lockScopeId, duration.TotalMilliseconds, null);
+    }
+
+    public static void MigrationLockTimeout(
+        ILogger logger,
+        string lockScopeId,
+        TimeSpan duration,
+        Exception exception
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(exception);
+
+        s_migrationLockTimeout(
+            logger,
+            lockScopeId,
+            duration.TotalMilliseconds,
+            exception.GetType().Name,
+            null);
+    }
+
+    public static void MigrationLockAcquireFailed(
+        ILogger logger,
+        string lockScopeId,
+        TimeSpan duration,
+        Exception exception
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(exception);
+
+        s_migrationLockAcquireFailed(
+            logger,
+            lockScopeId,
+            duration.TotalMilliseconds,
+            exception.GetType().Name,
+            null);
     }
 
     /// <summary>

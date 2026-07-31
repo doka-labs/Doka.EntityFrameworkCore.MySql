@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Runs the publication contract against the built provider test assembly. This
+# is the final semantic gate before release evidence is sealed.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

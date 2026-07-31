@@ -107,6 +107,7 @@ class CoveragePolicyTests(unittest.TestCase):
         branch_fraction: str = "50% (1/2)",
         class_elements: str | None = None,
     ) -> tuple[list[str], list[str]]:
+        """Build one focused report and policy fixture, then evaluate it."""
         with tempfile.TemporaryDirectory(prefix="doka-coverage-policy-") as directory:
             root = Path(directory)
             report = root / "coverage.cobertura.xml"

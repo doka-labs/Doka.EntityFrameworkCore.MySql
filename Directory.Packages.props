@@ -2,6 +2,8 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <DokaEfCoreVersion Condition="'$(DokaEfCoreVersion)' == ''">[10.0.8, 10.1.0)</DokaEfCoreVersion>
+    <DokaMySqlConnectorVersion
+        Condition="'$(DokaMySqlConnectorVersion)' == ''">[2.5.0, 3.0.0)</DokaMySqlConnectorVersion>
   </PropertyGroup>
 
   <!--
@@ -18,11 +20,15 @@
     for a provider bump. The next minor (10.1.0) requires a deliberate provider
     response per ADR D-009; the EfCorePatchMatrixCI workflow validates the
     supported floor and the latest 10.0.x patch against the provider surface.
+
+    MySqlConnector 2.5.0 is the supported driver floor. The scheduled driver
+    matrix validates that floor and the latest stable 2.x release against live
+    pooling, resilience, transaction, fault, and observability contracts.
   -->
   <ItemGroup Label="Production">
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="$(DokaEfCoreVersion)" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="$(DokaEfCoreVersion)" />
-    <PackageVersion Include="MySqlConnector" Version="2.6.1" />
+    <PackageVersion Include="MySqlConnector" Version="$(DokaMySqlConnectorVersion)" />
     <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
     <PackageVersion Include="System.IO.Hashing" Version="10.0.10" />
   </ItemGroup>

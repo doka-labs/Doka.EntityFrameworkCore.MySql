@@ -252,7 +252,7 @@ internal static class GeneratedContextRuntimeVerifier
             ?? throw new InvalidOperationException("The generated context connection string is missing.");
         var serverVersionText = Environment.GetEnvironmentVariable("DOKA_GENERATED_CONTEXT_SERVER_VERSION")
             ?? throw new InvalidOperationException("The generated context server version is missing.");
-        var serverVersion = MySqlServerVersion.AutoDetect(serverVersionText);
+        var serverVersion = MySqlServerVersion.Parse(serverVersionText);
         var options = new DbContextOptionsBuilder<RuntimeSchemaContext>()
             .UseMySql(
                 connectionString,

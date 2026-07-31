@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Restores and builds every shipped provider and test project in Release mode
+# after validating the repository SDK and architecture-decision corpus.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

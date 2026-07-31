@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Validates one engine's TRX output against its expected specification outcomes
+# instead of treating the test process exit code as complete conformance proof.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

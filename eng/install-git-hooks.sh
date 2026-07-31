@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Enables the versioned pre-commit and pre-push hooks without overwriting an
+# existing contributor-owned hooks path.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

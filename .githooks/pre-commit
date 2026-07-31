@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Rejects staged whitespace defects and runs the deterministic offline quality
+# subset before Git creates a local commit.
+
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"

@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Runs the selected compatibility matrix with test-owned containers by default
+# or an explicit Compose debugging stack on request. It always records target,
+# lifecycle, cleanup, and process outcomes before returning the test exit code.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,7 +13,10 @@ repo_fingerprint="$(printf '%s' "${repo_root}" | cksum | awk '{print $1}')"
 compose_project_name="${DOKA_COMPOSE_PROJECT_NAME:-doka-${repo_fingerprint}}"
 compose_command=(docker compose -p "${compose_project_name}" -f "${compose_file}")
 integration_run_id="${DOKA_INTEGRATION_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
-integration_artifacts_dir="${repo_root}/artifacts/integration/${integration_run_id}"
+
+# Release orchestration overrides this root so lifecycle identity and cleanup
+# evidence are hashed inside the same immutable candidate package.
+integration_artifacts_dir="${DOKA_INTEGRATION_ARTIFACTS_DIR:-${repo_root}/artifacts/integration/${integration_run_id}}"
 integration_summary_file="${integration_artifacts_dir}/compatibility-matrix-summary.md"
 integration_evidence_file="${integration_artifacts_dir}/compatibility-matrix-evidence.json"
 database_evidence_file="${integration_artifacts_dir}/test-database-evidence.json"
@@ -50,6 +57,7 @@ Modes:
 
 Environment:
   DOKA_INTEGRATION_TARGETS=mysql84,mariadb114,mariadb118
+  DOKA_INTEGRATION_ARTIFACTS_DIR=<evidence output directory>
   DOKA_MYSQL84_CONNECTION_STRING=<external override>
   DOKA_MARIADB114_CONNECTION_STRING=<external override>
   DOKA_MARIADB118_CONNECTION_STRING=<external override>
@@ -70,6 +78,8 @@ cleanup() {
         local down_exit_code=$?
         set -e
 
+        # Owned resources are part of the test contract. Preserve a test
+        # failure, but do not report success when teardown fails.
         if [[ "${exit_code}" -eq 0 && "${down_exit_code}" -ne 0 ]]; then
             exit_code="${down_exit_code}"
         fi
@@ -83,6 +93,8 @@ trap 'cleanup "$?"' EXIT
 configure_target_selection() {
     local normalized_target
 
+    # Normalize once and export the canonical selection consumed by the test
+    # fixture. Unknown targets fail here before resources are created.
     IFS=',' read -r -a configured_targets <<< "${configured_target_selection}"
 
     for raw_target in "${configured_targets[@]}"; do
@@ -166,6 +178,8 @@ configure_compose_overrides() {
         export DOKA_MARIADB118_CONNECTION_STRING="Server=127.0.0.1;Port=${mariadb118_port};Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;"
     fi
 
+    # External endpoints and owned Compose services may coexist in one run;
+    # only missing selected endpoints receive a local service.
     if [[ "${#compose_services[@]}" -eq 0 ]]; then
         echo "Every selected target uses an external connection-string override; skipping Compose startup."
         return
@@ -180,6 +194,8 @@ run_integration_tests() {
     local coverage_results_dir="${DOKA_COVERAGE_RESULTS_DIR:-${repo_root}/artifacts/coverage/integration}"
 
     mkdir -p "${coverage_results_dir}" "${integration_artifacts_dir}"
+    # The .NET fixture owns containers in the canonical path and writes exact
+    # image and cleanup identity to the shared evidence file.
     export DOKA_TEST_DATABASE_EVIDENCE_FILE="${DOKA_TEST_DATABASE_EVIDENCE_FILE:-${database_evidence_file}}"
 
     "${repo_root}/eng/verify-dotnet.sh" || return $?
@@ -285,6 +301,8 @@ if [[ "${mode}" == "compose" ]]; then
     configure_compose_overrides
 fi
 
+# Evidence must survive a red test run, so capture the status explicitly and
+# return it only after the matrix record has been written.
 set +e
 run_integration_tests
 test_exit_code=$?

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Proves the provider's ordinary and fully trimmed self-contained runtime paths
+# against MySQL 8.4 while keeping container ownership explicit per invocation.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -41,6 +44,8 @@ cleanup() {
         local down_exit_code=$?
         set -e
 
+        # Teardown is part of a successful owned-stack run. Preserve the smoke
+        # failure when both execution and cleanup fail.
         if [[ "${exit_code}" -eq 0 && "${down_exit_code}" -ne 0 ]]; then
             exit_code="${down_exit_code}"
         fi
@@ -89,6 +94,8 @@ wait_for_mysql() {
     while true; do
         health_status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${mysql_container_name}" 2>/dev/null || true)"
 
+        # Require both container health and host reachability; either signal on
+        # its own can race the first client connection.
         if [[ "${health_status}" == "healthy" ]] && can_connect "${mysql_host}" "${mysql_port}"; then
             echo "MySQL 8.4 runtime-smoke target is reachable."
             return 0
@@ -164,6 +171,8 @@ run_runtime_posture() {
 
     dotnet run --project "${runtime_smoke_project}" --configuration Release --no-restore --disable-build-servers
 
+    # Executing the published binary, rather than accepting publish success,
+    # catches provider paths removed by trimming.
     dotnet publish "${runtime_smoke_project}" \
         --configuration Release \
         --runtime "${runtime_identifier}" \

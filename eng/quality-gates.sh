@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Mirrors the CI quality contract locally. Fast mode is deliberately offline
+# and requires existing restore assets; full mode adds audits, executable
+# examples, README compilation, and migration-model verification.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -110,6 +114,10 @@ if [[ "${example_build_failed}" -ne 0 ]]; then
 fi
 
 echo "All example projects build successfully."
+
+# Compile owned README snippets against the current project so public API and
+# documentation changes cannot drift independently.
+bash "${repo_root}/eng/check-readme-snippets.sh"
 "${repo_root}/eng/check-migration-model.sh"
 
 echo "Full quality gates passed."

@@ -76,6 +76,9 @@ public sealed class MySqlDiagnosticsGovernanceTests
             [nameof(MySqlEventId.BulkInsertParameterCountCapped)] = 1700,
             [nameof(MySqlEventId.BulkInsertPacketSizeCapped)] = 1701,
             [nameof(MySqlEventId.LockReleaseFailed)] = 1102,
+            [nameof(MySqlEventId.MigrationLockAcquired)] = 1100,
+            [nameof(MySqlEventId.MigrationLockTimeout)] = 1101,
+            [nameof(MySqlEventId.MigrationLockAcquireFailed)] = 1103,
             [nameof(MySqlEventId.SpatialSridMismatchDetected)] = 1603,
         };
 
@@ -162,6 +165,9 @@ public sealed class MySqlDiagnosticsGovernanceTests
             [nameof(MySqlEventId.BulkInsertParameterCountCapped)] = (1700, 1799),
             [nameof(MySqlEventId.BulkInsertPacketSizeCapped)] = (1700, 1799),
             [nameof(MySqlEventId.LockReleaseFailed)] = (1100, 1199),
+            [nameof(MySqlEventId.MigrationLockAcquired)] = (1100, 1199),
+            [nameof(MySqlEventId.MigrationLockTimeout)] = (1100, 1199),
+            [nameof(MySqlEventId.MigrationLockAcquireFailed)] = (1100, 1199),
             [nameof(MySqlEventId.SpatialSridMismatchDetected)] = (1600, 1699),
         };
 

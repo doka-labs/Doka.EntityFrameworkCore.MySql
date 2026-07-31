@@ -43,9 +43,9 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                 MySqlLoggerMessages.SchemaUnsupported(
                     logger,
                     "Sequence",
-                    sequence.Name,
                     "sequence schema declared",
                     remediation);
+
                 throw new InvalidOperationException(
                     $"MySQL schema configuration is not supported. Remove the schema from sequence '{sequence.Name}'.");
             }
@@ -78,6 +78,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                     entityType.DisplayName(),
                     property.Name,
                     propertyKind);
+
                 throw new InvalidOperationException(
                     $"The keyed or indexed {propertyKind} property "
                     + $"'{entityType.DisplayName()}.{property.Name}' must map to a bounded store type.");
@@ -156,8 +157,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
         return property.FindContainingPrimaryKey() is not null
             || declaringEntityType
                 ?.GetKeys()
-                .Any(key => key.Properties.Contains(property))
-            == true
+                .Any(key => key.Properties.Contains(property)) == true
             || property
                 .GetContainingIndexes()
                 .Any(index => !index.GetMySqlFullTextIndex());

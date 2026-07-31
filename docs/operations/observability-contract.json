@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "stability": "public",
+  "sources": {
+    "provider": "Doka.EntityFrameworkCore.MySql",
+    "driver": "MySqlConnector",
+    "efCoreDiagnosticListener": "Microsoft.EntityFrameworkCore"
+  },
+  "operations": [
+    {
+      "id": "server-version-resolution",
+      "eventIds": [1000, 1005],
+      "span": "db.serverversion.resolve",
+      "metric": "doka_mysql_server_version_resolution_total",
+      "metricTagDomains": {
+        "engine": ["mariadb", "mysql"],
+        "support_status": ["Future", "Legacy", "Supported", "Unvalidated"],
+        "compatibility_mode": ["AllowUnsupported", "SupportedOnly"]
+      }
+    },
+    {
+      "id": "migration-lock-acquire",
+      "eventIds": [1100, 1101, 1103],
+      "span": "db.migration.lock",
+      "metric": "doka_mysql_migration_lock_acquire_duration_seconds",
+      "metricTagDomains": {
+        "engine": ["mariadb", "mysql"],
+        "outcome": ["acquired", "failed", "timeout"]
+      }
+    },
+    {
+      "id": "migration-lock-release-failure",
+      "eventIds": [1102],
+      "span": "db.migration.lock.release_failed",
+      "metric": "doka_mysql_migration_lock_release_failed_total",
+      "metricTagDomains": {
+        "engine": ["mariadb", "mysql"]
+      },
+      "alert": "MYSQL-MIGRATION-LOCK-FAILURE",
+      "runbookAnchor": "mysql-migration-lock-failure"
+    },
+    {
+      "id": "retry-attempt",
+      "eventIds": [1500],
+      "span": "db.retry.attempt",
+      "metric": "doka_mysql_retry_attempts_total",
+      "metricTagDomains": {
+        "engine": ["mariadb", "mysql"],
+        "outcome": ["attempt"]
+      }
+    },
+    {
+      "id": "retry-exhausted",
+      "eventIds": [1501],
+      "span": "db.retry.exhausted",
+      "metric": "doka_mysql_retry_exhausted_total",
+      "metricTagDomains": {
+        "engine": ["mariadb", "mysql"]
+      },
+      "alert": "MYSQL-RETRY-EXHAUSTED",
+      "runbookAnchor": "mysql-retry-exhausted"
+    },
+    {
+      "id": "command-cancellation",
+      "eventIds": [1502, 1503],
+      "span": "db.operation.cancel",
+      "metric": "doka_mysql_cancellation_total",
+      "metricTagDomains": {
+        "engine": ["mariadb", "mysql"],
+        "path": ["hard", "soft"]
+      },
+      "alert": "MYSQL-HARD-CANCELLATION",
+      "runbookAnchor": "mysql-hard-cancellation"
+    },
+    {
+      "id": "command-timeout",
+      "eventIds": [1504],
+      "span": "db.operation.timeout",
+      "metric": "doka_mysql_command_timeout_total",
+      "metricTagDomains": {
+        "engine": ["mariadb", "mysql"]
+      },
+      "alert": "MYSQL-COMMAND-TIMEOUT",
+      "runbookAnchor": "mysql-command-timeout"
+    },
+    {
+      "id": "commit-unknown",
+      "eventIds": [1505],
+      "span": "db.transaction.commit_unknown",
+      "metric": "doka_mysql_commit_unknown_total",
+      "metricTagDomains": {
+        "engine": ["mariadb", "mysql"]
+      },
+      "alert": "MYSQL-COMMIT-UNKNOWN",
+      "runbookAnchor": "mysql-commit-unknown"
+    }
+  ],
+  "spanTagContract": {
+    "required": ["db.operation.name", "db.system.name"],
+    "conditionallyAllowed": [
+      "doka.mysql.cancellation.path",
+      "doka.mysql.compatibility.mode",
+      "doka.mysql.connection.state",
+      "doka.mysql.engine.family",
+      "doka.mysql.retry.attempt",
+      "doka.mysql.server.version",
+      "doka.mysql.support.status",
+      "error.type"
+    ],
+    "forbidden": [
+      "db.migration.lock_name",
+      "db.namespace",
+      "db.query.text",
+      "db.statement",
+      "server.address",
+      "server.port",
+      "user.id"
+    ]
+  },
+  "privacy": {
+    "logExceptionObjects": false,
+    "logRawConnectionStrings": false,
+    "logRawDatabaseNames": false,
+    "logRawSchemaOrObjectNames": false,
+    "logSql": false,
+    "defaultDriverPoolName": "Doka.EntityFrameworkCore.MySql"
+  },
+  "alerts": [
+    {
+      "id": "MYSQL-COMMIT-UNKNOWN",
+      "signal": "doka_mysql_commit_unknown_total",
+      "condition": "increase over five minutes is greater than zero",
+      "severity": "critical",
+      "runbookAnchor": "mysql-commit-unknown"
+    },
+    {
+      "id": "MYSQL-HARD-CANCELLATION",
+      "signal": "doka_mysql_cancellation_total{path=hard}",
+      "condition": "rate over fifteen minutes exceeds the service baseline",
+      "severity": "warning",
+      "runbookAnchor": "mysql-hard-cancellation"
+    },
+    {
+      "id": "MYSQL-MIGRATION-LOCK-FAILURE",
+      "signal": "doka_mysql_migration_lock_release_failed_total",
+      "condition": "increase over five minutes is greater than zero",
+      "severity": "critical",
+      "runbookAnchor": "mysql-migration-lock-failure"
+    },
+    {
+      "id": "MYSQL-RETRY-EXHAUSTED",
+      "signal": "doka_mysql_retry_exhausted_total",
+      "condition": "increase over five minutes is greater than zero",
+      "severity": "critical",
+      "runbookAnchor": "mysql-retry-exhausted"
+    },
+    {
+      "id": "MYSQL-COMMAND-TIMEOUT",
+      "signal": "doka_mysql_command_timeout_total",
+      "condition": "rate over fifteen minutes exceeds the service SLO budget",
+      "severity": "warning",
+      "runbookAnchor": "mysql-command-timeout"
+    }
+  ]
+}

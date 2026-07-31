@@ -105,6 +105,7 @@ public sealed class MySqlMigrationBaselineTests
         Assert.Equal(LogLevel.Error, entry.LogLevel);
         Assert.Equal(MySqlLoggerCategory.Configuration, entry.Category);
         Assert.Contains("migrations history table schema", entry.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("dbo", entry.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

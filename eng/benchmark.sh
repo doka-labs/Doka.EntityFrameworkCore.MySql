@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Produces source-bound performance evidence for one engine and profile. A run
+# is accepted only after container identity, workload completeness, statistical
+# budgets, allocation budgets, and applicable soak invariants agree.
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -73,6 +77,8 @@ cleanup() {
         local down_exit_code=$?
         set -e
 
+        # Cleanup is part of a successful owned-stack run. Preserve an earlier
+        # benchmark failure, but surface teardown failure after a green run.
         if [[ "${exit_code}" -eq 0 && "${down_exit_code}" -ne 0 ]]; then
             exit_code="${down_exit_code}"
         fi
@@ -103,6 +109,8 @@ can_connect() {
     local host="$1"
     local port="$2"
 
+    # Minimal CI images may omit netcat; Bash TCP sockets keep the readiness
+    # probe dependency-free on supported hosts.
     if command -v nc >/dev/null 2>&1; then
         nc -z "${host}" "${port}" >/dev/null 2>&1
         return $?
@@ -171,6 +179,8 @@ validate_configuration() {
         exit 1
     fi
 
+    # Benchmark comparisons are meaningful only against the exact image named
+    # by the versioned performance contract.
     verified_server_image="$(
         jq -er \
             --arg target "${benchmark_target}" \
@@ -207,6 +217,8 @@ wait_for_benchmark_target() {
             )"
         fi
 
+        # Container health alone does not prove the published socket is ready
+        # for a client on the host network.
         if [[ "${health_status}" == "healthy" ]] \
             && can_connect "${benchmark_target_host}" "${benchmark_target_port}"; then
             echo "${benchmark_target_display_name} is reachable."
@@ -251,6 +263,8 @@ verify_benchmark_container_identity() {
             | tr -d ' '
     )"
 
+    # A unique port owner prevents an unrelated local database from producing
+    # evidence under the selected target label.
     if [[ "${port_match_count}" -ne 1 ]]; then
         echo "Expected one benchmark container publishing port ${benchmark_target_port}." >&2
         exit 1
@@ -288,6 +302,8 @@ stop_compose_stack() {
 }
 
 ensure_fresh_run_directory() {
+    # Historical comparison may read baselines, but current-run artifacts are
+    # never reused or merged with output from an earlier execution.
     if [[ -d "${benchmark_report_dir}" ]] \
         && find "${benchmark_report_dir}" -mindepth 1 -print -quit | grep -q .; then
         echo "Current-run benchmark directory '${benchmark_report_dir}' is not empty." >&2
@@ -303,6 +319,8 @@ run_benchmarkdotnet() {
         --filter '*' \
         --artifacts "${benchmark_report_dir}"
 
+    # Validate raw BenchmarkDotNet output before any summarized evaluation can
+    # turn a failed or incomplete benchmark process into apparent evidence.
     python3 "${evidence_tool}" validate-bdn \
         --contract "${performance_contract}" \
         --reports "${benchmark_report_dir}" \
@@ -325,6 +343,8 @@ run_soak_if_required() {
 }
 
 evaluate_current_run() {
+    # The evaluator owns absolute and historical budget decisions. The shell
+    # only selects the optional soak input that exists for this profile.
     local command=(
         python3 "${evidence_tool}" evaluate
         --contract "${performance_contract}"
