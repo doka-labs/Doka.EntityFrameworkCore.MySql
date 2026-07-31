@@ -1,5 +1,3 @@
-using System.Text;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Doka.EntityFrameworkCore.MySql.Benchmarks;

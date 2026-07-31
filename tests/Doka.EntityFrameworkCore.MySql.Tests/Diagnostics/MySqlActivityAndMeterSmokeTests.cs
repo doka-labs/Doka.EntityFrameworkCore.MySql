@@ -101,23 +101,40 @@ public sealed class MySqlActivityAndMeterSmokeTests
         Assert.Null(activity);
     }
 
+    [Fact]
+    public void Activity_sink_handles_concurrent_activity_completion()
+    {
+        const int activityCount = 256;
+        using var activitySink = new ActivitySink();
+
+        Parallel.For(0, activityCount, attemptNumber =>
+        {
+            using var activity = MySqlActivitySource.StartRetryAttempt(attemptNumber);
+            activity?.Stop();
+        });
+
+        Assert.True(activitySink.Activities.Count >= activityCount);
+    }
+
     private sealed class ActivitySink : IDisposable
     {
         private readonly ActivityListener _listener;
 
         public ActivitySink()
         {
-            Activities = new List<Activity>();
             _listener = new ActivityListener
             {
                 ShouldListenTo = source => source.Name == MySqlDiagnostics.SourceName,
                 Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-                ActivityStopped = Activities.Add,
+                ActivityStopped = Activities.Enqueue,
             };
             ActivitySource.AddActivityListener(_listener);
         }
 
-        public List<Activity> Activities { get; }
+        // The source is process-wide, so callbacks can overlap with activities
+        // emitted by parallel test collections. Concurrent capture keeps both
+        // writes and assertion enumeration safe without disabling parallelism.
+        public ConcurrentQueue<Activity> Activities { get; } = new();
 
         public void Dispose() => _listener.Dispose();
     }

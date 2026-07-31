@@ -16,7 +16,6 @@ global using BenchmarkDotNet.Configs;
 global using BenchmarkDotNet.Exporters.Json;
 global using BenchmarkDotNet.Running;
 global using Microsoft.EntityFrameworkCore;
-global using Microsoft.EntityFrameworkCore.Diagnostics;
 global using Microsoft.EntityFrameworkCore.Infrastructure;
 global using Microsoft.EntityFrameworkCore.Metadata;
 global using Microsoft.EntityFrameworkCore.Migrations;
