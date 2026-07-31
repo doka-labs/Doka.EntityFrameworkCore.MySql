@@ -174,11 +174,24 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("cron: \"0 2 * * 2\"", containerMatrix, StringComparison.Ordinal);
         Assert.DoesNotContain("schedule:", releaseCandidate, StringComparison.Ordinal);
 
-        Assert.Contains("runtime-dependencies:", dependabot, StringComparison.Ordinal);
-        Assert.Contains("example-dependencies:", dependabot, StringComparison.Ordinal);
-        Assert.Contains("test-infrastructure:", dependabot, StringComparison.Ordinal);
+        Assert.Contains(
+            "groups:\n      github-actions:\n        patterns:\n          - \"*\"\n"
+            + "    open-pull-requests-limit: 1",
+            dependabot,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "groups:\n      nuget-dependencies:\n        patterns:\n          - \"*\"\n"
+            + "    ignore:",
+            dependabot,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("runtime-dependencies:", dependabot, StringComparison.Ordinal);
+        Assert.DoesNotContain("example-dependencies:", dependabot, StringComparison.Ordinal);
+        Assert.DoesNotContain("test-infrastructure:", dependabot, StringComparison.Ordinal);
         Assert.Contains("version-update:semver-patch", dependabot, StringComparison.Ordinal);
-        Assert.Contains("open-pull-requests-limit: 5", dependabot, StringComparison.Ordinal);
+        Assert.Contains(
+            "version-update:semver-patch\n    open-pull-requests-limit: 1",
+            dependabot,
+            StringComparison.Ordinal);
     }
 
     /// <summary>

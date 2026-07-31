@@ -74,11 +74,14 @@ remain weekly. Runs for the same workflow and Git ref use one concurrency
 group per event type, and a newer run cancels an older in-progress run. A fast
 `main` push therefore cannot cancel a scheduled exhaustive run.
 
-Dependabot keeps its weekly review cadence but groups runtime, example, and
-test-infrastructure dependencies separately. EF Core version-update pull
-requests are suppressed across patch, minor, and major updates because D-009
-assigns patch discovery to the scheduled floor/latest matrix and requires a
-deliberate decision for a new minor or major.
+Dependabot keeps its weekly review cadence but groups every non-excluded NuGet
+version update into one ecosystem-wide train and every GitHub Actions update
+into a second train. Each ecosystem permits one open routine version-update
+pull request. EF Core version-update pull requests are suppressed across patch,
+minor, and major updates because D-009 assigns patch discovery to the scheduled
+floor/latest matrix and requires a deliberate decision for a new minor or
+major. Security updates retain their independent Dependabot path and are not
+constrained by the routine version-update pull-request limit.
 
 Local enforcement reuses the hosted quality contract. The versioned
 `pre-commit` hook runs its deterministic no-network subset, and `pre-push`
@@ -97,6 +100,8 @@ local `core.hooksPath` and refuses to replace an existing custom path.
   changes even when no repository event occurs.
 - Good, because local and hosted quality checks cannot drift into independent
   command lists.
+- Good, because a scheduled Dependabot run creates at most one routine NuGet
+  pull request and one routine GitHub Actions pull request.
 - Bad, because a regression visible only in the exhaustive lane can remain
   undetected until the next weekly run unless a contributor dispatches it
   manually.
@@ -104,6 +109,8 @@ local `core.hooksPath` and refuses to replace an existing custom path.
   heavy job that is intentionally skipped on ordinary pull requests.
 - Bad, because Git hooks require one explicit activation per clone and remain
   bypassable through Git's standard `--no-verify` option.
+- Bad, because a failing NuGet train may require the operator to isolate one
+  package before the update can be accepted.
 
 ### Confirmation
 
@@ -112,6 +119,8 @@ local `core.hooksPath` and refuses to replace an existing custom path.
 - Confirm that `schedule` and `workflow_dispatch` execute every CI job.
 - Confirm that `concurrency.cancel-in-progress` is enabled per workflow and
   event type plus Git ref.
+- Confirm that Dependabot admits one routine pull request for each of the
+  NuGet and GitHub Actions ecosystems.
 - Run `eng/quality-gates.sh --fast` and `eng/quality-gates.sh`.
 - Run `eng/install-git-hooks.sh` in an isolated clone and confirm that only the
   local `core.hooksPath` becomes `.githooks`.
@@ -175,6 +184,8 @@ bypassed.
 ### Decision History
 
 - 2026-07-31: Decision recorded with status implemented.
+- 2026-07-31: Consolidated routine dependency updates into one pull request
+  per ecosystem after observing avoidable CI fan-out from narrower groups.
 
 ### Implementation References
 
@@ -196,4 +207,5 @@ bypassed.
 - [Triggering a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow) (primary source; retrieved 2026-07-31)
 - [Control jobs with conditions](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-jobs-with-conditions) (primary source; retrieved 2026-07-31)
 - [Dependabot on GitHub Actions](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-on-actions) (primary source; retrieved 2026-07-31)
+- [Dependabot options reference](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference) (primary source; retrieved 2026-07-31)
 - [Git hooks](https://git-scm.com/docs/githooks) (primary source; retrieved 2026-07-31)
