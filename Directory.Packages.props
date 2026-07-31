@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <DokaEfCoreVersion Condition="'$(DokaEfCoreVersion)' == ''">[10.0.8, 10.1.0)</DokaEfCoreVersion>
+    <DokaEfCoreVersion Condition="'$(DokaEfCoreVersion)' == ''">[10.0.10, 10.1.0)</DokaEfCoreVersion>
   </PropertyGroup>
 
   <!--
