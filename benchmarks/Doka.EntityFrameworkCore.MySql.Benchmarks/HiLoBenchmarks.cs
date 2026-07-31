@@ -1,11 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 
 /// <summary>
-/// Measures the Hi/Lo state-cache hot path in isolation: every call site that resolves
-/// a Hi/Lo generator goes through GetOrCreate, so the per-call cost of the dictionary
-/// lookup is a regression-sensitive number even before any database round-trip enters
-/// the picture. Pairs with HiLoBulkInsertBenchmarks which measures the end-to-end
-/// throughput against a live MySQL container.
+/// Measures the bounded HiLo state-cache hit path independently of database I/O.
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob(launchCount: 1, warmupCount: 3, iterationCount: 5)]
@@ -23,7 +19,6 @@ public class HiLoStateCacheBenchmarks
     [GlobalSetup]
     public void GlobalSetup()
     {
-        // Prime the cache so the benchmark only measures hit-path cost.
         _ = MySqlHiLoStateCache.GetOrCreate(s_databaseIdentity, SequenceName, BlockSize);
     }
 
@@ -33,67 +28,135 @@ public class HiLoStateCacheBenchmarks
 }
 
 /// <summary>
-/// Measures the end-to-end Hi/Lo bulk-insert throughput against a live MySQL container.
-/// The shared state cache is what makes this fast: without the cache, every DbContext
-/// would round-trip to the sequence on its first insert; with the cache, ten contexts
-/// share the same block window and the round-trip count collapses by an order of
-/// magnitude. Run before and after a code change to verify the throughput delta.
+/// Measures end-to-end HiLo inserts across concurrent contexts against the live
+/// benchmark target.
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob(launchCount: 1, warmupCount: 1, iterationCount: 3)]
-public class HiLoBulkInsertBenchmarks
+public class HiLoBulkInsertBenchmarks : IDisposable
+{
+    private HiLoBenchmarkDatabase _database = null!;
+
+    [GlobalSetup]
+    public void GlobalSetup() => _database = new HiLoBenchmarkDatabase();
+
+    [IterationSetup]
+    public void IterationSetup() => _database.Reset();
+
+    [GlobalCleanup]
+    public void GlobalCleanup() => Dispose();
+
+    [Benchmark]
+    public Task BulkInsertAcrossTenContexts() => _database.InsertAsync(
+        contextCount: 10,
+        rowCount: 100,
+        CancellationToken.None);
+
+    public void Dispose()
+    {
+        _database?.Dispose();
+        GC.SuppressFinalize(this);
+    }
+}
+
+internal sealed class HiLoBenchmarkDatabase : IDisposable
 {
     private const string SequenceName = "bench_hilo_bulk_seq";
     private const string TableName = "BenchHiLoItems";
-    private const int InsertsPerIteration = 100;
 
-    private string _connectionString = string.Empty;
+    private readonly string _connectionString;
+    private bool _disposed;
 
-    [GlobalSetup]
-    public async Task GlobalSetup()
+    public HiLoBenchmarkDatabase()
     {
         BenchmarkEnvironment.EnsureInitialized();
         _connectionString = BenchmarkEnvironment.CreateConnectionString(BenchmarkEnvironment.DatabaseNameValue);
-
-        await PrepareSchemaAsync()
-            .ConfigureAwait(false);
-    }
-
-    [IterationSetup]
-    public void IterationSetup()
-    {
-        MySqlHiLoStateCache.ResetForTesting();
-        TruncateTableAsync()
+        PrepareSchemaAsync()
             .GetAwaiter()
             .GetResult();
     }
 
-    [GlobalCleanup]
-    public async Task GlobalCleanup()
+    public void Reset()
     {
-        await TearDownSchemaAsync()
-            .ConfigureAwait(false);
+        MySqlHiLoStateCache.ResetForTesting();
+        ResetSchemaAsync()
+            .GetAwaiter()
+            .GetResult();
     }
 
-    [Benchmark]
-    public async Task BulkInsertAcrossTenContexts()
+    public void Insert(
+        int contextCount,
+        int rowCount
+    )
     {
+        ValidateShape(contextCount, rowCount);
+        var rowsPerContext = rowCount / contextCount;
+
+        Parallel.For(
+            0,
+            contextCount,
+            contextIndex =>
+            {
+                using var context = new HiLoBenchContext(BuildOptions());
+
+                for (var rowIndex = 0; rowIndex < rowsPerContext; rowIndex++)
+                {
+                    context.Items.Add(
+                        new HiLoBenchEntity
+                        {
+                            Name = $"row-{contextIndex}-{rowIndex}",
+                        });
+                    context.SaveChanges();
+                }
+            });
+    }
+
+    public async Task InsertAsync(
+        int contextCount,
+        int rowCount,
+        CancellationToken cancellationToken
+    )
+    {
+        ValidateShape(contextCount, rowCount);
+        var rowsPerContext = rowCount / contextCount;
+
         await Parallel
             .ForEachAsync(
-                Enumerable.Range(0, 10),
-                async (_, cancellationToken) =>
+                Enumerable.Range(0, contextCount),
+                cancellationToken,
+                async (
+                    contextIndex,
+                    token
+                ) =>
                 {
                     await using var context = new HiLoBenchContext(BuildOptions());
 
-                    for (var index = 0; index < InsertsPerIteration / 10; index++)
+                    for (var rowIndex = 0; rowIndex < rowsPerContext; rowIndex++)
                     {
-                        context.Items.Add(new HiLoBenchEntity { Name = $"row-{index}" });
+                        context.Items.Add(
+                            new HiLoBenchEntity
+                            {
+                                Name = $"row-{contextIndex}-{rowIndex}",
+                            });
                         await context
-                            .SaveChangesAsync(cancellationToken)
+                            .SaveChangesAsync(token)
                             .ConfigureAwait(false);
                     }
                 })
             .ConfigureAwait(false);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        TearDownSchemaAsync()
+            .GetAwaiter()
+            .GetResult();
+        _disposed = true;
     }
 
     private DbContextOptions<HiLoBenchContext> BuildOptions()
@@ -110,17 +173,8 @@ public class HiLoBulkInsertBenchmarks
             .OpenAsync()
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
-        command.CommandText =
-            $"DROP TABLE IF EXISTS `{TableName}`;"
-            + $"DROP TABLE IF EXISTS `__efsequence_{SequenceName}`;"
-            + $"CREATE TABLE `__efsequence_{SequenceName}` ("
-            + "  `id` TINYINT UNSIGNED NOT NULL,"
-            + "  `value` BIGINT NOT NULL,"
-            + "  `is_called` BOOLEAN NOT NULL,"
-            + "  PRIMARY KEY (`id`),"
-            + "  CHECK (`id` = 1)"
-            + ") ENGINE=InnoDB;"
-            + $"INSERT INTO `__efsequence_{SequenceName}` (`id`, `value`, `is_called`) VALUES (1, 1, FALSE);"
+        command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
+            + CreateSequenceSql()
             + $"CREATE TABLE `{TableName}` ("
             + "  `Id` INT NOT NULL,"
             + "  `Name` VARCHAR(64) NOT NULL,"
@@ -131,7 +185,7 @@ public class HiLoBulkInsertBenchmarks
             .ConfigureAwait(false);
     }
 
-    private async Task TruncateTableAsync()
+    private async Task ResetSchemaAsync()
     {
         await using var connection = new MySqlConnection(_connectionString);
         await connection
@@ -139,7 +193,7 @@ public class HiLoBulkInsertBenchmarks
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"TRUNCATE TABLE `{TableName}`;"
-            + $"UPDATE `__efsequence_{SequenceName}` SET `value` = 1, `is_called` = FALSE WHERE `id` = 1;";
+            + ResetSequenceSql();
         await command
             .ExecuteNonQueryAsync()
             .ConfigureAwait(false);
@@ -153,15 +207,51 @@ public class HiLoBulkInsertBenchmarks
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
-            + $"DROP TABLE IF EXISTS `__efsequence_{SequenceName}`;";
+            + DropSequenceSql();
         await command
             .ExecuteNonQueryAsync()
             .ConfigureAwait(false);
     }
 
+    private static string CreateSequenceSql() => BenchmarkEnvironment.SupportsNativeSequencesValue
+        ? $"DROP SEQUENCE IF EXISTS `{SequenceName}`;"
+            + $"CREATE SEQUENCE `{SequenceName}` START WITH 1 INCREMENT BY 10 MINVALUE 1 NOCACHE;"
+        : $"DROP TABLE IF EXISTS `__efsequence_{SequenceName}`;"
+            + $"CREATE TABLE `__efsequence_{SequenceName}` ("
+            + "  `id` TINYINT UNSIGNED NOT NULL,"
+            + "  `value` BIGINT NOT NULL,"
+            + "  `is_called` BOOLEAN NOT NULL,"
+            + "  PRIMARY KEY (`id`),"
+            + "  CHECK (`id` = 1)"
+            + ") ENGINE=InnoDB;"
+            + $"INSERT INTO `__efsequence_{SequenceName}` (`id`, `value`, `is_called`) VALUES (1, 1, FALSE);";
+
+    private static string ResetSequenceSql() => BenchmarkEnvironment.SupportsNativeSequencesValue
+        ? $"ALTER SEQUENCE `{SequenceName}` RESTART WITH 1;"
+        : $"UPDATE `__efsequence_{SequenceName}` SET `value` = 1, `is_called` = FALSE WHERE `id` = 1;";
+
+    private static string DropSequenceSql() => BenchmarkEnvironment.SupportsNativeSequencesValue
+        ? $"DROP SEQUENCE IF EXISTS `{SequenceName}`;"
+        : $"DROP TABLE IF EXISTS `__efsequence_{SequenceName}`;";
+
+    private static void ValidateShape(
+        int contextCount,
+        int rowCount
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(contextCount);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(rowCount);
+
+        if (rowCount % contextCount != 0)
+        {
+            throw new ArgumentException("The row count must be divisible by the context count.");
+        }
+    }
+
     private sealed class HiLoBenchEntity
     {
         public int Id { get; set; }
+
         public string Name { get; set; } = string.Empty;
     }
 
@@ -180,12 +270,12 @@ public class HiLoBulkInsertBenchmarks
             modelBuilder.Entity<HiLoBenchEntity>(builder =>
             {
                 builder.ToTable(TableName);
-                builder.HasKey(e => e.Id);
+                builder.HasKey(entity => entity.Id);
                 builder
-                    .Property(e => e.Id)
+                    .Property(entity => entity.Id)
                     .UseHiLo(SequenceName);
                 builder
-                    .Property(e => e.Name)
+                    .Property(entity => entity.Name)
                     .HasMaxLength(64);
             });
         }

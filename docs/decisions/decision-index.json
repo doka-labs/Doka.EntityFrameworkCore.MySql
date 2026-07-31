@@ -205,7 +205,7 @@
     },
     {
       "id": "D-019",
-      "title": "Gate performance in the release-candidate path",
+      "title": "Gate performance and resource behavior at the publication boundary",
       "status": "implemented",
       "date": "2026-05-18",
       "path": "docs/decisions/D-019-performance-gate-architecture.md",

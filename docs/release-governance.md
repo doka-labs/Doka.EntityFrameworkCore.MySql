@@ -33,9 +33,18 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/integration/<run-id>/test-database-evidence.json`
 - Dedicated benchmark scorecard:
   - workflow: `.github/workflows/benchmark.yml`
-  - local path:
-    - `DOKA_BENCHMARK_TARGET=mysql84 DOKA_BENCHMARK_PROFILE=scorecard ./eng/benchmark.sh --up-smoke-down`
-    - `DOKA_BENCHMARK_TARGET=mariadb118 DOKA_BENCHMARK_PROFILE=scorecard ./eng/benchmark.sh --up-smoke-down`
+  - local paths:
+
+    ```bash
+    DOKA_BENCHMARK_TARGET=mysql84 \
+    DOKA_BENCHMARK_PROFILE=scorecard \
+    ./eng/benchmark.sh --up-run-down
+
+    DOKA_BENCHMARK_TARGET=mariadb118 \
+    DOKA_BENCHMARK_PROFILE=scorecard \
+    ./eng/benchmark.sh --up-run-down
+    ```
+
   - retained evidence:
     - `artifacts/benchmarks/<target>/benchmark-summary.md`
     - `artifacts/benchmarks/<target>/benchmark-evidence.json`

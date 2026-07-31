@@ -78,11 +78,26 @@ bash eng/check-coverage-threshold.sh artifacts/coverage-merged
 ./eng/test-runtime-posture.sh --up-test-down
 ```
 
-**Benchmark smoke** (representative benchmark run, MySQL 8.4 or MariaDB 11.8):
+**Benchmark smoke** (fast harness and contract check, MySQL 8.4 or MariaDB
+11.8):
 
 ```bash
-DOKA_BENCHMARK_TARGET=mysql84 ./eng/benchmark.sh --up-smoke-down
+DOKA_BENCHMARK_TARGET=mysql84 ./eng/benchmark.sh --up-run-down
 ```
+
+**Performance scorecard** (complete named workload, historical budget, and
+soak evidence):
+
+```bash
+DOKA_BENCHMARK_TARGET=mysql84 \
+DOKA_BENCHMARK_PROFILE=scorecard \
+./eng/benchmark.sh --up-run-down
+```
+
+See
+[Performance and memory evidence](docs/operations/performance-evidence.md) for
+runner identity, dual-engine baseline acceptance, strict comparison, and
+failure triage.
 
 **Release-candidate evidence path** (repository, specification, integration,
 coverage, package, vulnerability, SBOM, benchmark, performance, and
@@ -92,17 +107,16 @@ publication-readiness gates):
 ./eng/release-candidate.sh
 ```
 
-The script is the single deterministic pre-tag checkpoint while the CI
-benchmark workflow is disabled per ADR D-019. Exit `0` signals "safe to tag";
-exit non-zero stops the release. The final publication-readiness check invokes
-the official EF Core relational compliance assertions and requires zero
-provider-owned specification debt. The benchmark gate asserts
-IdentifierQuoting >= 2x throughput vs. the naive baseline,
-BulkInsert1000Rows >= 3x throughput vs. per-row SaveChanges, and JsonComparer
->= 80% allocation reduction vs. a string-round-trip baseline. The versioned
-query-translation corpus must also remain at or below 163,840 allocated bytes
-per operation. These run against both `mysql84` and `mariadb118` via
-`--up-smoke-down`, so Docker must be available.
+The script is the single deterministic pre-tag checkpoint. Exit `0` signals
+"safe to tag"; exit non-zero stops the release. The final
+publication-readiness check invokes the official EF Core relational compliance
+assertions and requires zero provider-owned specification debt.
+
+The performance gate requires the complete 55-cell scorecard, raw median,
+p95/p99, standard-error, allocation and GC evidence, same-run BenchmarkDotNet
+controls, absolute and runner-specific historical budgets, and six sustained
+resource invariants. It runs against both `mysql84` and `mariadb118`, so Docker
+and an accepted baseline for the runner class must be available.
 
 Dev-loop bypass (only for iteration that does not aim to ship):
 `DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1 ./eng/release-candidate.sh` skips the

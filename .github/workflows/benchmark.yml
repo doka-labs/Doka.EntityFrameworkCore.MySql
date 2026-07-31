@@ -2,8 +2,17 @@ name: benchmark
 
 on:
   workflow_dispatch:
+    inputs:
+      baseline_mode:
+        description: Compare with accepted baselines or produce a reviewed seed candidate
+        required: true
+        default: compare
+        type: choice
+        options:
+          - compare
+          - seed
   schedule:
-    - cron: "15 2 * * *"
+    - cron: "15 2 * * 0"
 
 permissions:
   contents: read
@@ -11,6 +20,7 @@ permissions:
 jobs:
   benchmark-scorecard:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
 
     permissions:
       contents: read
@@ -65,6 +75,8 @@ jobs:
       - name: Run benchmark scorecard
         env:
           DOKA_BENCHMARK_PROFILE: scorecard
+          DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.baseline_mode || 'compare' }}
+          DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
           DOKA_BENCHMARK_TARGET: ${{ matrix.benchmark-target }}
         run: bash ./eng/benchmark.sh --test-only
 
@@ -73,3 +85,70 @@ jobs:
         with:
           name: benchmark-artifacts-${{ matrix.benchmark-target }}
           path: artifacts/benchmarks/${{ matrix.benchmark-target }}
+
+  package-baseline-candidate:
+    if: github.event_name == 'workflow_dispatch' && inputs.baseline_mode == 'seed'
+    needs: benchmark-scorecard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download MySQL evidence
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: benchmark-artifacts-mysql84
+          path: artifacts/benchmarks/mysql84
+
+      - name: Download MariaDB evidence
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: benchmark-artifacts-mariadb118
+          path: artifacts/benchmarks/mariadb118
+
+      - name: Build combined baseline candidate
+        env:
+          BASELINE_VERSION: github-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          mapfile -t mysql_evidence < <(
+            find artifacts/benchmarks/mysql84 \
+              -type f \
+              -name performance-evaluation.json
+          )
+          mapfile -t mariadb_evidence < <(
+            find artifacts/benchmarks/mariadb118 \
+              -type f \
+              -name performance-evaluation.json
+          )
+
+          if [[ "${#mysql_evidence[@]}" -ne 1 || "${#mariadb_evidence[@]}" -ne 1 ]]; then
+            echo "Expected exactly one evaluation for each benchmark target." >&2
+            exit 1
+          fi
+
+          python3 eng/performance_evidence.py seed \
+            --contract benchmarks/performance-contract.json \
+            --baseline artifacts/doka-benchmark-baseline.candidate.json \
+            --version "${BASELINE_VERSION}" \
+            --merge-existing benchmarks/baselines/doka-benchmark-baseline.json \
+            --evidence "${mysql_evidence[0]}" \
+            --evidence "${mariadb_evidence[0]}"
+
+          python3 eng/performance_evidence.py validate-baseline \
+            --contract benchmarks/performance-contract.json \
+            --baseline artifacts/doka-benchmark-baseline.candidate.json \
+            --output artifacts/baseline-validation.json
+
+      - name: Upload baseline candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: benchmark-baseline-candidate
+          path: |
+            artifacts/doka-benchmark-baseline.candidate.json
+            artifacts/baseline-validation.json

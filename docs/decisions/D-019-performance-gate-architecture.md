@@ -5,7 +5,7 @@ date: 2026-05-18
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
 informed: [Provider contributors]
-scope: "Benchmark baselines, ratio and allocation assertions, and CI activation"
+scope: "Named performance workloads, reproducible baselines, budgets, and soak gates"
 supersedes: []
 superseded-by: []
 amends: []
@@ -14,265 +14,378 @@ madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
 
-# D-019 -- Gate performance in the release-candidate path
+# D-019 -- Gate performance and resource behavior at the publication boundary
 
 ## Context and Problem Statement
 
-The v1.0 release was scoped with three concrete performance targets:
+The provider had useful BenchmarkDotNet controls, but they did not constitute
+complete release evidence:
 
-- Identifier-Quoting hot path >= 2x throughput vs. a naive reference
-  implementation.
-- BulkInsert of 1000 rows >= 3x throughput vs. per-row SaveChanges.
-- JSON-ChangeTracking equality comparison >= 80% allocation reduction vs. a
-  naive string round-trip.
+- several benchmarks measured a terminal aggregate instead of the named
+  materialization path;
+- the corpus did not cover sync and async execution, compiled and dynamic
+  queries, retry, diagnostics, context and connection pooling, concurrency, or
+  representative size boundaries as explicit matrix dimensions;
+- historical reports could be mistaken for the current run;
+- a benchmark process could return success after an individual benchmark
+  failed;
+- the repository retained no accepted median, p95, p99, standard-error,
+  allocation, collection, or retained-memory baseline;
+- cache bounds, pooled-buffer ownership, connection cleanup, advisory-lock
+  cleanup, working-set stabilization, and sustained concurrent throughput were
+  not release gates.
 
-These thresholds need a mechanically asserted gate so a future code change
-that regresses any of them fails the release path rather than silently
-shipping. BenchmarkDotNet (BDN) already produces structured reports for
-operator runs through `eng/benchmark.sh`; the reports need deterministic
-evaluation.
-
-Query translation is also a provider hot path and a broad allocation surface.
-Its original benchmark corpus covered only string length, date year, JSON
-contains, and spatial distance. It did not exercise the split GUID, byte-array,
-numeric conversion, math, string, temporal, or signed-bitwise translators.
-Those paths need a representative corpus and a deterministic memory ceiling.
+Performance evidence must prove that the provider is not the limiting factor
+for its supported engine families. It must remain reviewable, reproducible, and
+hard-failing without turning shared-runner noise into arbitrary threshold
+changes.
 
 ## Decision Drivers
 
-- Performance targets need mechanical pass or fail evidence.
-- Measurements must compare on the same hardware and run.
-- Allocation-sensitive translation paths need a stable absolute ceiling.
-- Continuous benchmark cost must fit the available CI budget.
+- Every result must correspond to a named provider behavior.
+- MySQL and MariaDB need independent evidence on comparable runner classes.
+- Tail latency, managed allocation, garbage collection, and retained memory
+  need persisted raw evidence.
+- Missing, stale, malformed, noisy, or failing measurements must stop the gate.
+- Absolute limits and historical regression limits serve different purposes
+  and must both be enforced.
+- Sustained resource ownership needs explicit invariants outside
+  microbenchmarks.
+- Baseline replacement must be an operator-reviewed action, never an automatic
+  response to a regression.
 
 ## Considered Options
 
-- Strict release-candidate gate with deferred per-PR benchmark CI
-- Run the full benchmark gate on every pull request
-- Keep benchmarks informational
+- Versioned workload contract with dual budget layers and soak gates
+- BenchmarkDotNet ratios without historical baselines
+- Informational benchmark reports
 
 ## Decision Outcome
 
-Chosen option: "Strict release-candidate gate with deferred per-PR benchmark
-CI", because the active release-candidate workflow is the enforceable boundary
-while per-PR benchmark CI remains trigger-driven.
+Chosen option: "Versioned workload contract with dual budget layers and soak
+gates", because it separates workload completeness, measurement integrity,
+hardware-independent safety ceilings, comparable-runner regressions, and
+sustained resource ownership into independently reviewable controls.
 
-The gate is composed of two layers:
+`benchmarks/performance-contract.json` is the authoritative machine-readable
+contract. The C# harness executes the provider paths, and
+`eng/performance_evidence.py` independently validates and evaluates their
+evidence.
 
-### 1. In-benchmark controls and allocation budgets
+### Named workload matrix
 
-Each ratio-gated scenario carries a
-`[Benchmark(Baseline = true)]`-marked naive reference implementation in the
-same benchmark class as the fast path. BenchmarkDotNet's ratio then expresses
-`Mean[gated] / Mean[baseline]`, with both measurements taken on the same
-hardware in the same JIT pass.
+The scorecard requires every declared workload exactly once. Its 55 cells
+cover:
 
-| Scenario | Baseline | Gated method | Metric | Maximum |
-|---|---|---|---|---:|
-| `IdentifierQuotingBenchmark` | `NaiveDelimitStringPlain` | `DelimitStringPlain` | mean ratio | `0.5` |
-| `BulkInsertBenchmark` | `PerRowSaveChanges` | `MultiRowAddRangeSaveChanges` | mean ratio | `0.333` |
-| `JsonComparerBenchmark` | `NaiveJsonElementEqualsLoop` | `JsonElementEqualsLoop` | allocation ratio | `0.2` |
-| `QueryTranslationBenchmarks` | absolute budget | `TranslateRepresentativeCorpus` | allocated bytes | `163840` |
+- cold and warm model access, including a 256-entity model;
+- sync and async queries;
+- compiled and dynamic queries;
+- context pooling, connection pooling, both pools, and neither pool;
+- retry and diagnostic-listener combinations;
+- one, four, and sixteen concurrent contexts;
+- one, ten, one hundred, one thousand, and ten thousand rows where applicable;
+- full-entity and concrete projection materialization;
+- equal, early-mismatch, and late-mismatch JSON values at 1 KiB, 64 KiB, and
+  1 MiB;
+- JSON and spatial materialization;
+- default, 32-row, and 256-row write batches;
+- translation and migration corpora;
+- sync and async HiLo writes across one and ten contexts.
 
-Within-run baseline comparison was preferred over a seeded earlier
-measurement because shared CI runners and local machines produce noisy
-absolute timings. Ratios computed inside the same BDN pass absorb much of that
-noise because numerator and denominator see the same CPU state.
+Benchmark names describe the work actually performed. Materialization
+benchmarks materialize rows; they do not substitute `Count()` or another
+aggregate. The HiLo fixture follows the provider capability contract: MariaDB
+uses native sequences and MySQL uses the provider's table emulation.
 
-The query-translation benchmark deliberately uses an absolute allocation
-ceiling rather than a synthetic slow baseline. A deliberately inefficient
-translator would not represent a useful production comparison. Managed bytes
-per operation are deterministic enough for this gate, while latency remains
-report evidence because the smoke job's five iterations are too noisy for an
-absolute time limit.
+The `smoke`, `scorecard`, and `stress` profiles define warmup, sample, noise,
+and soak requirements. Scorecard and stress runs require the complete matrix,
+an accepted baseline, and all soak scenarios. Smoke is a fast structural check
+and cannot qualify a release.
 
-Corpus version 2.0.0 contains twelve scenarios. The accepted 2026-07-29
-calibration measured 140,000 bytes on MySQL 8.4 and 139,968 bytes on MariaDB
-11.8. The 163,840-byte ceiling leaves 17.0% headroom above the larger result
-for runtime and instrumentation variance while still failing a material
-allocation regression.
+### Measurement and evidence integrity
 
-### 2. eng/check-benchmark-ratios.sh
+BenchmarkDotNet remains the isolated microbenchmark layer for same-run
+controls. It uses the full JSON exporter, the memory diagnoser, Release builds,
+and stop-on-first-error behavior. The host process also returns non-zero for:
 
-The gate script walks every `*-report-full.json` under the benchmark artifacts
-root. It evaluates both relative tuples and absolute allocation tuples, then
-emits one of three verdicts per scenario:
+- no benchmark summaries;
+- critical validation errors;
+- any unsuccessful benchmark report;
+- an exception in a workload or soak run.
 
-- `PASS`: ratio computed and within threshold.
-- `FAIL`: a ratio or absolute value exceeds its threshold; exit `1`.
-- `SKIP`: one required engine target lacks the configured scenario.
+The named-workload runner persists every raw sample and derives median, p95,
+p99, and standard error using documented linear interpolation. The Python gate
+recomputes each statistic from the samples and rejects a mismatch, a non-finite
+number, a missing matrix cell, or excessive relative standard error.
 
-A non-strict default treats `SKIP` as advisory.
-`DOKA_BENCHMARK_GATE_STRICT=1` promotes missing data to a hard failure
-(`exit 2`) so every release-candidate gate must report a verdict for both
-`mysql84` and `mariadb118`.
+Fast, idempotent work uses a fixed, checked-in operations-per-sample value. The
+runner times the complete batch and normalizes latency, allocation, and
+collection counts per operation. This keeps timer resolution and loop overhead
+from dominating sub-microsecond paths while preserving deterministic workload
+identity. Tail statistics for these paths describe the distribution of
+per-operation-normalized batch samples, not individual OS scheduling pauses.
+Scorecard evidence requires 256 samples with at most 25% relative standard
+error; stress requires 512 samples with at most 15%. These counts provide
+enough individual observations to retain several measurements in the p99 tail
+instead of deriving it from an undersized expensive-workload sample.
 
-### 3. Release-candidate integration
+Managed allocation uses the precise process allocation counter around the
+measured operation. Preparation and cleanup are outside that window. Garbage
+collection counts cover the same operation window. Retained bytes are measured
+after forced full collections before and after the workload series. These
+metrics describe managed process behavior; they do not claim to measure native
+driver or server allocation.
 
-The scheduled and manually dispatched
-`.github/workflows/release-candidate.yml` workflow is active. It runs both
-engine benchmark smokes with one release-candidate run ID, then invokes the
-strict gate against only that run's reports. Historical or local reports
-cannot satisfy the gate.
+Every evaluation records:
 
-Continuous `.github/workflows/benchmark.yml` execution remains deferred.
-Operator runs remain available through `eng/benchmark.sh`.
+- run ID, target, profile, Git commit, and exact working-tree source hash;
+- stable runner class;
+- .NET runtime, OS, architecture, processor, processor count, and exact server
+  image;
+- engine family and the server-observed `SELECT VERSION()` value;
+- raw BenchmarkDotNet report paths and SHA-256 hashes;
+- workload, soak, contract, and derived-evidence hashes;
+- all absolute and historical verdicts.
+
+The source hash excludes only the generated baseline output. This avoids a
+self-referential digest while binding measurements made during code review to
+the exact uncommitted source that produced them.
+
+Before measurement, the wrapper resolves exactly one live container on the
+target port. Its configured image or repository digest must match the
+digest-pinned contract. The workload runner then obtains the database version
+from the server; target labels cannot substitute for observed engine identity.
+
+### Budget model
+
+Absolute budgets are broad, runner-tolerant failure ceilings. They detect
+runaway complexity, accidental client work, unbounded allocation, and resource
+catastrophes. They are calibrated above the worst dual-engine local scorecard,
+with larger latency headroom than memory headroom because runner timing varies
+more than managed allocation.
+
+Historical budgets are stricter. They compare only the same target, profile,
+and runner class. The current runtime, OS, architecture, processor, processor
+count, and server image must also exactly match the accepted environment. A
+reused runner label cannot hide hardware or runtime drift.
+
+| Metric | Maximum relative to accepted baseline |
+|---|---:|
+| Median | 1.25x |
+| p95 | 1.35x |
+| p99 | 1.50x |
+| Allocated bytes per operation | 1.15x |
+| Retained bytes | 1.25x plus 8 MiB noise allowance |
+| Gen 0, Gen 1, and Gen 2 collections | 1.25x plus 250 per 1,000 allowance |
+
+Both layers must pass. An absolute budget cannot replace historical
+comparison, and a favorable historical comparison cannot excuse an absolute
+safety violation.
+
+The accepted baseline contains one complete MySQL 8.4 and MariaDB 11.8 pair
+for each runner class. Replacing a pair requires successful seed evaluations
+for both targets. Existing complete runner groups are retained. Duplicate or
+partial target/profile/runner tuples are rejected.
+
+### Sustained resource gates
+
+Scorecard and stress runs execute six independent soak invariants:
+
+| Scenario | Enforced invariant |
+|---|---|
+| HiLo state cache | No more than 1,024 retained entries |
+| Pooled JSON buffer | Every rent is returned and no buffer remains outstanding |
+| Connections | Physical connected-thread delta is at most one |
+| Migration lock | No provider advisory lock remains held |
+| Process memory | Working-set growth <= 64 MiB and managed-heap growth <= 32 MiB |
+| Concurrency | Final throughput retains at least 70% of initial throughput |
+
+The evaluator does not trust the report's success flag. It checks exact metric
+and budget fields, verifies that reported budgets equal the checked-in
+contract, and recomputes every verdict.
+
+### Automation and baseline acceptance
+
+The weekly benchmark workflow and the release-candidate workflow run the
+scorecard against both required engines. A scorecard with no matching accepted
+runner baseline fails.
+
+A manual benchmark workflow can run in `seed` mode. It packages both engine
+evaluations into a combined baseline candidate while retaining already
+accepted runner groups. The candidate is an artifact for review; the workflow
+does not commit or accept it.
+
+The release-candidate path copies the complete raw performance evidence into
+its release evidence directory and re-evaluates both targets before reporting
+success.
 
 ### Consequences
 
-- Good, because tag eligibility requires strict same-run evidence on both
-  engine families.
-- Good, because translation allocation growth now fails at a fixed,
-  reviewable boundary.
-- Bad, because a regression can remain on main until the next scheduled or
-  manual release-candidate run.
+- Good, because a release must prove complete named behavior rather than the
+  presence of benchmark files.
+- Good, because the gate preserves samples and independently recomputes tail
+  statistics.
+- Good, because failures, missing targets, stale runs, noisy measurements, and
+  weakened report budgets fail closed.
+- Good, because absolute, historical, and sustained-resource regressions are
+  separately diagnosable.
+- Bad, because accepting a new runner class requires one reviewed dual-engine
+  seed run before scheduled comparisons can pass.
+- Bad, because the full scorecard and soak corpus is intentionally unsuitable
+  for every pull request.
 
 #### Positive
 
-- Performance regression detection is **mechanically asserted**. The script
-  is deterministic for a fixed report set.
-- Operators can run the benchmark and gate locally before tagging; any missed
-  threshold fails loudly.
-- Continuous CI activation requires no new benchmark or gate architecture.
-- Ratio and absolute gates can be extended independently without inventing a
-  synthetic control benchmark.
-- Query translation exercises twelve representative translator families on
-  both supported engine families.
+- Sync, async, compiled, retry, pooling, concurrency, size, JSON, spatial,
+  migration, write, and HiLo paths share one exhaustive contract.
+- Raw report hashes and source identity make accidental evidence reuse visible.
+- Local and hosted runner records can coexist without pretending their latency
+  distributions are directly comparable.
 
 #### Negative
 
-- A regression that lands before release-candidate validation is detected
-  later than a per-change gate would detect it.
-- Operator-triggered local gates still rely on contributor discipline.
-- Naive variants must remain representative when their fast path changes.
+- Shared hosted runners can still produce timing variance. Relative standard
+  error and runner-specific baselines detect that condition instead of hiding
+  it with wider historical budgets.
+- A source, runtime, engine image, or workload-contract change can require
+  reviewed recalibration.
 
 #### Neutral
 
-- The `pending-seed` long-term baseline manifest addresses cross-release
-  trends and remains independent from these release gates.
+- Benchmark evidence proves performance and resource contracts for the named
+  workloads. It does not replace correctness, compatibility, security,
+  coverage, or production telemetry evidence.
 
 ### Confirmation
 
-- Run `eng/release-candidate.sh` without the development-only benchmark bypass.
-- Verify the weekly `release-candidate` workflow executes the strict benchmark
-  gate.
-- Run the benchmark-gate regression tests:
+- Run the Python evidence regression suite:
 
 ```bash
-python3 -m unittest eng.tests.test_benchmark_ratio_gate
+python3 -m unittest \
+  eng.tests.test_performance_evidence \
+  eng.tests.test_benchmark_ratio_gate
 ```
+
+- Run a scorecard and soak pass for each engine with one stable runner class.
+- Validate the accepted baseline and re-evaluate the same current run in
+  compare mode.
+- Run the strict cross-target gate and confirm two passes with no skipped
+  target.
+- Run the release-candidate path without the development-only benchmark
+  bypass.
 
 ## Pros and Cons of the Options
 
-### Strict release-candidate gate with deferred per-PR benchmark CI
+### Versioned workload contract with dual budget layers and soak gates
 
-- Good, because every release candidate runs same-pass baselines without
-  charging every pull request.
-- Bad, because regressions are detected at release-candidate time rather than
-  immediately after merge.
+- Good, because completeness, statistics, resource use, and historical drift
+  are mechanically enforced.
+- Bad, because the contract and accepted baselines require deliberate
+  maintenance.
 
-### Run the full benchmark gate on every pull request
+### BenchmarkDotNet ratios without historical baselines
 
-- Good, because performance regressions surface before merge.
-- Bad, because dual-engine benchmark time would consume a disproportionate
-  shared CI budget.
+- Good, because same-process ratios reduce hardware noise.
+- Bad, because they cover only synthetic comparator pairs and cannot detect
+  drift across the full provider workload matrix.
 
-### Keep benchmarks informational
+### Informational benchmark reports
 
-- Good, because contributors can inspect reports without flaky gate failures.
-- Bad, because a release can ship below an explicit performance target.
+- Good, because reports never block a workflow.
+- Bad, because missing or regressed evidence can still reach publication.
 
 ## More Information
 
-### Constraint
+### Calibration policy
 
-The project lives in an organization plan with a shared `2000` CI-minute
-monthly budget across multiple repositories. A representative dual-engine
-smoke consumes `15-30` minutes per matrix entry. Per-change execution would
-consume a disproportionate share of that budget.
+Absolute ceilings are reviewed against fresh scorecard evidence from both
+required engine families. They remain broad enough for supported runner
+classes but narrow enough to fail a material order-of-magnitude regression.
+Historical thresholds are not widened in response to a failing run.
 
-The performance-gate infrastructure must therefore be built so that:
+A baseline update requires:
 
-- The gate is **executable** without CI.
-- The gate is **ready** for continuous CI when sufficient capacity exists.
-- The gate is **deterministic** for a fixed set of structured reports.
-
-### Why this split
-
-- **Release-candidate gating protects the publication boundary.** A tag cannot
-  use incomplete or failing benchmark evidence.
-- **Continuous execution has a material budget cost.** The current dual-engine
-  smoke would consume a large share of the organization-wide allowance.
-- **Within-run comparison reduces timing noise.** Ratio controls see the same
-  machine and runtime conditions in one BDN pass.
-- **Allocation ceilings complement ratios.** A representative query-translation
-  corpus has no honest naive implementation. Its managed allocation count is
-  stable across repeated runs and therefore supports a direct upper bound.
+1. the active contract and exact engine images;
+2. one scorecard and soak evaluation per required target;
+3. identical profile and runner class across the pair;
+4. complete raw report hashes and source identity;
+5. an explicit review of metric changes and environment metadata;
+6. baseline validation after the candidate is written.
 
 ### Additional Alternative Rationale
 
-- **Seeded baseline against stored timings.** Rejected because shared-runner
-  timing noise would require a wide regression buffer. The manifest remains
-  available for a dedicated runner.
-- **Pomelo as comparator.** Rejected because it adds a benchmark dependency
-  without improving the provider's release invariant.
-- **Per-PR benchmark gate.** Rejected under the current shared CI allowance.
-- **Informational reports only.** Rejected because explicit performance
-  targets require machine-enforced verdicts.
-
-### References
-
-- Performance-target source: the v1.0 release targets.
-- Baseline-variant commit: `14df9df368b2`
-  (`feat(benchmarks): add baseline-marked naive variants for ratio gates`).
-- Gate-script commit: `a51e22afdd65` (`feat(eng): add benchmark ratio gate script`).
-- The translation-corpus calibration is retained in the 2026-07-29 decision
-  history and reproducible from the implementation references.
+- One cross-platform timing baseline is rejected because CPU, operating system,
+  virtualization, and runtime configuration change latency distributions.
+- Automatically accepting the latest successful run is rejected because it
+  converts a regression into the next expected value.
+- Allocation-only gates are rejected because tail latency and sustained
+  resource ownership are independent failure modes.
+- A long-running microbenchmark alone is rejected because cache, buffer,
+  connection, and lock ownership need explicit postconditions.
 
 ### Re-evaluation Triggers
 
-The CI activation is re-evaluated under any of:
-
-- The organization receives enough CI capacity for continuous benchmark
-  sweeps; enable `benchmark.yml` and its strict gate.
-- A dedicated benchmark runner becomes available; enable continuous execution.
-- A regression reaches a release despite release-candidate evidence; tighten
-  the gate or its invocation before the next release.
-- The translation corpus changes; recalibrate the absolute allocation ceiling
-  on both engine families in the same change.
+- A supported engine image, .NET runtime, BenchmarkDotNet version, or runner
+  class changes.
+- A workload is added, removed, renamed, or changes the provider path it
+  executes.
+- Two accepted runs exceed an absolute ceiling without historical regression;
+  review whether the absolute runner headroom is still representative.
+- A historical budget fails; diagnose the code and measurement stability
+  before proposing a baseline change.
+- Production telemetry identifies an important workload or resource invariant
+  absent from the contract.
+- A new cache, pool, lock, or process-wide retained resource is introduced.
 
 ### Decision History
 
 - 2026-05-18: Decision recorded with status implemented.
-- 2026-05-18: Gate infrastructure accepted with continuous CI activation deferred.
-- 2026-07-27: Strict benchmark execution confirmed in the scheduled and manual
-  release-candidate path.
-- 2026-07-27: Replaced serialization-based JSON equality with .NET 10
-  structural DOM comparison after the strict gate exposed a `1.4071` ratio.
-- 2026-07-27: Scoped strict evaluation to the current release-candidate run ID.
 - 2026-07-27: Migrated to Doka MADR profile 1.0.
-- 2026-07-29: Expanded the translation corpus from four to twelve scenarios
-  and added the 163,840-byte dual-engine allocation ceiling.
-- 2026-07-29: Required every strict gate tuple on both benchmark targets.
+- 2026-07-29: Expanded the translation corpus and enforced its allocation
+  ceiling on both engine families.
+- 2026-07-30: Replaced the ratio-only gate with named workload, raw evidence,
+  runner-specific baseline, absolute and historical budget, source identity,
+  hard-failure, and sustained-resource contracts.
 
 ### Implementation References
 
+- `benchmarks/performance-contract.json`
+- `benchmarks/baselines/doka-benchmark-baseline.json`
+- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks`
+- `eng/benchmark.sh`
+- `eng/performance_evidence.py`
 - `eng/check-benchmark-ratios.sh`
+- `eng/tests/test_performance_evidence.py`
 - `eng/tests/test_benchmark_ratio_gate.py`
-- `benchmarks/corpora/translation-corpus.json`
-- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/ProviderBenchmarks.cs`
-- `eng/release-candidate.sh`
-- `.github/workflows/release-candidate.yml`
 - `.github/workflows/benchmark.yml`
+- `.github/workflows/release-candidate.yml`
+- `eng/release-candidate.sh`
 
 ### Sources
 
-- [.NET 10 `JsonElement.DeepEquals`
-  API](https://learn.microsoft.com/dotnet/api/system.text.json.jsonelement.deepequals?view=net-10.0)
-  (primary source; retrieved 2026-07-27)
-- [.NET 10 `JsonElement.DeepEquals`
-  source](https://source.dot.net/System.Text.Json/System/Text/Json/Document/JsonElement.cs.html)
-  (primary source; retrieved 2026-07-29)
-- [EF Core value
-  comparers](https://learn.microsoft.com/ef/core/modeling/value-comparers)
-  (primary source; retrieved 2026-07-27)
+- [BenchmarkDotNet config options][bdn-config]
+  (primary source; retrieved 2026-07-30)
+- [BenchmarkDotNet diagnosers][bdn-diagnosers]
+  (primary source; retrieved 2026-07-30)
+- [BenchmarkDotNet JsonExporter][bdn-json]
+  (primary source; retrieved 2026-07-30)
+- [.NET `GC.GetTotalAllocatedBytes(Boolean)`][dotnet-allocated]
+  (primary source; retrieved 2026-07-30)
+- [.NET `Stopwatch.GetTimestamp()`][dotnet-stopwatch]
+  (primary source; retrieved 2026-07-30)
+- [MariaDB CREATE SEQUENCE][mariadb-create-sequence]
+  (primary source; retrieved 2026-07-30)
+- [MariaDB ALTER SEQUENCE][mariadb-alter-sequence]
+  (primary source; retrieved 2026-07-30)
+
+[bdn-config]: https://benchmarkdotnet.org/articles/configs/configoptions.html
+[bdn-diagnosers]: https://benchmarkdotnet.org/articles/configs/diagnosers.html
+[bdn-json]: https://benchmarkdotnet.org/api/BenchmarkDotNet.Exporters.Json.JsonExporter.html
+[dotnet-allocated]:
+  https://learn.microsoft.com/en-us/dotnet/api/system.gc.gettotalallocatedbytes?view=net-10.0
+[dotnet-stopwatch]:
+  https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.stopwatch.gettimestamp?view=net-10.0
+[mariadb-create-sequence]:
+  https://mariadb.com/docs/server/reference/sql-structure/sequences/create-sequence
+[mariadb-alter-sequence]:
+  https://mariadb.com/docs/server/reference/sql-structure/sequences/alter-sequence

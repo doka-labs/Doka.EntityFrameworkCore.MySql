@@ -22,6 +22,7 @@ coverage_input_dir="${release_candidate_dir}/coverage-input"
 coverage_merged_dir="${release_candidate_dir}/coverage-merged"
 migration_deployment_root="${release_candidate_dir}/migration-deployment"
 migration_deployment_dir="${migration_deployment_root}/${release_candidate_run_id}"
+performance_dir="${release_candidate_dir}/performance"
 
 require_command() {
     local command_name="$1"
@@ -239,6 +240,7 @@ write_summary() {
         echo "- specificationDirectory: ${specification_dir}"
         echo "- migrationDeploymentDirectory: ${migration_deployment_dir}"
         echo "- coverageDirectory: ${coverage_merged_dir}"
+        echo "- performanceDirectory: ${performance_dir}"
         echo "- changelogFile: ${changelog_file}"
         echo "- packageCount: ${package_count}"
         echo
@@ -257,16 +259,26 @@ run_benchmark_and_gate() {
 
     local engines=("mysql84" "mariadb118")
     for engine in "${engines[@]}"; do
-        echo "Running benchmark smoke against ${engine}..."
-        DOKA_BENCHMARK_TARGET="${engine}" \
+        echo "Running benchmark scorecard and soak evidence against ${engine}..."
+            DOKA_BENCHMARK_PROFILE=scorecard \
+            DOKA_BENCHMARK_TARGET="${engine}" \
             DOKA_BENCHMARK_RUN_ID="${release_candidate_run_id}" \
-            "${repo_root}/eng/benchmark.sh" --up-smoke-down
+            "${repo_root}/eng/benchmark.sh" --up-run-down
     done
 
-    echo "Asserting performance gate (strict mode)..."
-    DOKA_BENCHMARK_GATE_STRICT=1 \
+    echo "Re-evaluating the complete performance and memory gate..."
+    DOKA_BENCHMARK_PROFILE=scorecard \
+        DOKA_BENCHMARK_GATE_STRICT=1 \
         DOKA_BENCHMARK_GATE_RUN_ID="${release_candidate_run_id}" \
-        bash "${repo_root}/eng/check-benchmark-ratios.sh" "${repo_root}/artifacts/benchmarks"
+        bash "${repo_root}/eng/check-benchmark-ratios.sh" \
+            "${repo_root}/artifacts/benchmarks"
+
+    mkdir -p "${performance_dir}"
+    for engine in "${engines[@]}"; do
+        cp -R \
+            "${repo_root}/artifacts/benchmarks/${engine}/reports/${release_candidate_run_id}" \
+            "${performance_dir}/${engine}"
+    done
 }
 
 write_evidence() {
@@ -285,6 +297,7 @@ write_evidence() {
   "specificationDirectory": "${specification_dir}",
   "migrationDeploymentDirectory": "${migration_deployment_dir}",
   "coverageDirectory": "${coverage_merged_dir}",
+  "performanceDirectory": "${performance_dir}",
   "changelogFile": "${changelog_file}",
   "packageCount": ${package_count},
   "sbomFileCount": ${sbom_file_count}

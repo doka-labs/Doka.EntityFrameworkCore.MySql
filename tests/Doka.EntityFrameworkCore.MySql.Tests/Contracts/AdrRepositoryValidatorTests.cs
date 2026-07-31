@@ -39,13 +39,29 @@ public sealed class AdrRepositoryValidatorTests
 
         var benchmarkGateScript = File.ReadAllText(Path.Combine(repositoryRoot, "eng", "check-benchmark-ratios.sh"));
         Assert.Contains(
-            "-path \"*/reports/${gate_run_id}/results/*-report-full.json\"",
+            "report_dir=\"${benchmarks_root}/${target}/reports/${run_id}\"",
+            benchmarkGateScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "--reports \"${report_dir}\"",
+            benchmarkGateScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "--run-id \"${run_id}\"",
             benchmarkGateScript,
             StringComparison.Ordinal);
 
         var benchmarkScript = File.ReadAllText(Path.Combine(repositoryRoot, "eng", "benchmark.sh"));
         Assert.Contains(
             "\"${compose_command[@]}\" ps -q \"${benchmark_compose_service}\"",
+            benchmarkScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "docker inspect --format '{{.Config.Image}}'",
+            benchmarkScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "DOKA_BENCHMARK_SERVER_IMAGE",
             benchmarkScript,
             StringComparison.Ordinal);
         Assert.DoesNotContain("benchmark_container_name", benchmarkScript, StringComparison.Ordinal);

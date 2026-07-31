@@ -160,3 +160,55 @@ public sealed class SpatialBenchmarkEntity
 
     public Point Location { get; set; } = default!;
 }
+
+internal sealed class LargeBenchmarkContext : DbContext
+{
+    private readonly int _entityTypeCount;
+
+    public LargeBenchmarkContext(
+        DbContextOptions<LargeBenchmarkContext> options,
+        int entityTypeCount
+    ) : base(options)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(entityTypeCount);
+        _entityTypeCount = entityTypeCount;
+    }
+
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
+    {
+        for (var index = 0; index < _entityTypeCount; index++)
+        {
+            var entityName = $"LargeBenchmarkEntity{index:D3}";
+            modelBuilder.SharedTypeEntity<Dictionary<string, object>>(
+                entityName,
+                entity =>
+                {
+                    entity.ToTable(entityName);
+                    entity.IndexerProperty<int>("Id");
+                    entity
+                        .IndexerProperty<string>("Name")
+                        .HasMaxLength(128);
+                    entity
+                        .IndexerProperty<string>("Payload")
+                        .HasColumnType("json");
+                    entity.HasKey("Id");
+                });
+        }
+    }
+}
+
+/// <summary>
+/// Materialized two-column projection used by projection benchmarks and workload
+/// evidence. A concrete type prevents a terminal aggregate from replacing row
+/// materialization.
+/// </summary>
+public sealed class BenchmarkProjection
+{
+    /// <summary>Gets the projected entity identifier.</summary>
+    public int Id { get; init; }
+
+    /// <summary>Gets the projected entity name.</summary>
+    public string Name { get; init; } = string.Empty;
+}

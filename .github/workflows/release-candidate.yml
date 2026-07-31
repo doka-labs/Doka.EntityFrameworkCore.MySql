@@ -11,7 +11,7 @@ permissions:
 jobs:
   repo-local-release-candidate:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 360
 
     permissions:
       contents: read
@@ -27,6 +27,8 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Run repo-local release-candidate flow
+        env:
+          DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
         run: bash ./eng/release-candidate.sh
 
       - name: Upload release-candidate artifacts

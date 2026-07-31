@@ -2,6 +2,11 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 
 internal static class BenchmarkEnvironment
 {
+    // Identity values are not benchmark outputs. Keeping cleanup DML-only
+    // avoids carrying AUTO_INCREMENT DDL and storage-engine flush work into
+    // the next measured sample.
+    private const string ClearSaveChangesTableSql = "DELETE FROM `SaveChangeEntities`;";
+
     private static readonly Lock s_initializationGate = new();
     private static readonly BenchmarkDatabaseTarget s_target = BenchmarkDatabaseTarget.Current;
     private const string DatabaseName = "benchmark_suite";
@@ -19,15 +24,48 @@ internal static class BenchmarkEnvironment
 
     public static MySqlServerVersion ServerVersionValue => s_target.CreateServerVersion();
 
-    public static DbContextOptions<TContext> CreateOptions<TContext>()
+    public static bool SupportsNativeSequencesValue
+    {
+        get
+        {
+            var family = s_target.IsMariaDb
+                ? EngineFamily.MariaDb
+                : EngineFamily.MySql;
+            var providerProfile = new ProviderProfile(
+                EngineProfileTable.Resolve(family, s_target.ServerVersion));
+
+            return providerProfile.GetSupport(ProviderCapability.Sequences) == ProviderSupportStatus.Native;
+        }
+    }
+
+    public static DbContextOptions<TContext> CreateOptions<TContext>(
+        bool connectionPooling = true,
+        bool retryOnFailure = false,
+        bool serviceProviderCaching = true,
+        int? maxBatchSize = null
+    )
         where TContext : DbContext
     {
         var builder = new DbContextOptionsBuilder<TContext>();
 
         builder.UseMySql(
-            CreateConnectionString(DatabaseName),
+            CreateConnectionString(DatabaseName, connectionPooling),
             ServerVersionValue,
-            mySqlOptions => mySqlOptions.UseNetTopologySuite());
+            mySqlOptions =>
+            {
+                mySqlOptions.UseNetTopologySuite();
+
+                if (retryOnFailure)
+                {
+                    mySqlOptions.EnableRetryOnFailure();
+                }
+
+                if (maxBatchSize is not null)
+                {
+                    mySqlOptions.MaxBatchSize(maxBatchSize.Value);
+                }
+            });
+        builder.EnableServiceProviderCaching(serviceProviderCaching);
 
         return builder.Options;
     }
@@ -62,13 +100,49 @@ internal static class BenchmarkEnvironment
     public static void ResetSaveChangesTable()
     {
         using var context = CreateContext();
-        context.Database.ExecuteSqlRaw("DELETE FROM `SaveChangeEntities`;");
-        context.Database.ExecuteSqlRaw("ALTER TABLE `SaveChangeEntities` AUTO_INCREMENT = 1;");
+        context.Database.ExecuteSqlRaw(ClearSaveChangesTableSql);
+    }
+
+    public static async Task ResetSaveChangesTableAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var context = CreateContext();
+        await context
+            .Database.ExecuteSqlRawAsync(ClearSaveChangesTableSql, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public static async Task<string> ReadServerVersionAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var connection = new MySqlConnection(CreateConnectionString(DatabaseName));
+        await connection
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT VERSION();";
+        var result = await command
+            .ExecuteScalarAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return result as string
+            ?? throw new InvalidOperationException("The benchmark server did not report its version.");
     }
 
     public static string CreateConnectionString(
-        string databaseName
-    ) => s_target.CreateConnectionString(databaseName);
+        string databaseName,
+        bool pooling = true
+    )
+    {
+        var builder = new MySqlConnectionStringBuilder(s_target.CreateConnectionString(databaseName))
+        {
+            Pooling = pooling,
+        };
+
+        return builder.ConnectionString;
+    }
 
     private static void ResetDatabase(
         string databaseName

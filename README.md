@@ -287,6 +287,28 @@ dotnet build Doka.EntityFrameworkCore.MySql.slnx
 bash eng/check-publication-readiness.sh   # must pass before tag or publication
 ```
 
+## Performance and Memory Evidence
+
+The release scorecard executes 55 named provider workloads across MySQL 8.4
+and MariaDB 11.8. It covers sync and async execution, compiled queries, retry,
+diagnostic listeners, context and connection pooling, concurrency, data sizes,
+batch sizes, JSON, spatial materialization, migrations, and HiLo allocation.
+
+Scorecard evidence includes raw samples, median, p95, p99, standard error,
+managed allocation, GC counts, retained memory, exact environment identity,
+and SHA-256 hashes. Absolute limits, matching-runner historical budgets, and
+six sustained resource invariants must all pass.
+
+Run a fast structural check:
+
+```bash
+DOKA_BENCHMARK_TARGET=mysql84 ./eng/benchmark.sh --up-run-down
+```
+
+Release baselines, full scorecard commands, evidence layout, failure triage,
+and hosted-runner acceptance are documented in the
+[performance evidence runbook](docs/operations/performance-evidence.md).
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full test commands, integration-target selection, benchmark profiles, and code-style requirements.
 
 ## Editor / IDE Tips

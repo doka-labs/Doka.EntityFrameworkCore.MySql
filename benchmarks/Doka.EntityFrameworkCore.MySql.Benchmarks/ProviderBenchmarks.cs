@@ -19,13 +19,33 @@ public class OptionsBuildBenchmarks
 [SimpleJob(launchCount: 1, warmupCount: 3, iterationCount: 5)]
 public class ModelInitializationBenchmarks
 {
+    private DbContextOptions<BenchmarkContext> _warmOptions = null!;
+
     [GlobalSetup]
-    public void GlobalSetup() => BenchmarkEnvironment.EnsureInitialized();
+    public void GlobalSetup()
+    {
+        BenchmarkEnvironment.EnsureInitialized();
+        _warmOptions = BenchmarkEnvironment.CreateOptions<BenchmarkContext>();
+
+        using var context = new BenchmarkContext(_warmOptions);
+        _ = context.Model;
+    }
 
     [Benchmark]
-    public int InitializeModel()
+    public int InitializeColdModel()
     {
-        using var context = BenchmarkEnvironment.CreateContext();
+        var options = BenchmarkEnvironment.CreateOptions<BenchmarkContext>(serviceProviderCaching: false);
+        using var context = new BenchmarkContext(options);
+
+        return context
+            .Model.GetEntityTypes()
+            .Count();
+    }
+
+    [Benchmark]
+    public int AccessWarmModel()
+    {
+        using var context = new BenchmarkContext(_warmOptions);
 
         return context
             .Model.GetEntityTypes()
@@ -314,7 +334,7 @@ public class SpatialBenchmarks
     public void GlobalSetup() => BenchmarkEnvironment.EnsureInitialized();
 
     [Benchmark]
-    public int DistanceSphereQuery()
+    public List<SpatialBenchmarkEntity> MaterializeDistanceSphereRows()
     {
         using var context = BenchmarkEnvironment.CreateContext();
 
@@ -322,8 +342,7 @@ public class SpatialBenchmarks
             .SpatialEntities.AsNoTracking()
             .Where(entity => EF.Functions.DistanceSphere(entity.Location, _referencePoint) < 250000d)
             .Take(100)
-            .Select(entity => entity.Id)
-            .Count();
+            .ToList();
     }
 }
 
@@ -346,19 +365,20 @@ public class ProjectionBenchmarks
     }
 
     [Benchmark]
-    public int AnonymousProjection()
+    public List<BenchmarkProjection> AnonymousProjectionMaterialization()
     {
         using var context = BenchmarkEnvironment.CreateContext();
 
         return context
             .BasicEntities.AsNoTracking()
-            .Select(e => new
+            .OrderBy(entity => entity.Id)
+            .Select(entity => new BenchmarkProjection
             {
-                e.Id,
-                e.Name
+                Id = entity.Id,
+                Name = entity.Name,
             })
             .Take(100)
-            .Count();
+            .ToList();
     }
 }
 

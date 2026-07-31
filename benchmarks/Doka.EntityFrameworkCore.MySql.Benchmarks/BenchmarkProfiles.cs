@@ -2,9 +2,9 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 
 internal static class BenchmarkProfiles
 {
-    private const string SmokeProfile = "smoke";
-    private const string ScorecardProfile = "scorecard";
-    private const string StressProfile = "stress";
+    internal const string SmokeProfile = "smoke";
+    internal const string ScorecardProfile = "scorecard";
+    internal const string StressProfile = "stress";
 
     public static string Current
     {
@@ -73,6 +73,7 @@ internal static class BenchmarkProfiles
             10,
             100,
             1000,
+            10000,
         ],
         _ => [100],
     };

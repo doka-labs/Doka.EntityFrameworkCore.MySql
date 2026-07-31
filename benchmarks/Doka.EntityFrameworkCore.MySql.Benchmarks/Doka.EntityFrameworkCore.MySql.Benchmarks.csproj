@@ -17,5 +17,9 @@
   <ItemGroup>
     <None Include="../corpora/*.json" Link="corpora/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../baselines/*.json" Link="baselines/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None
+      Include="../performance-contract.json"
+      Link="performance-contract.json"
+      CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
