@@ -22,6 +22,19 @@ public sealed class MySqlDriverCompatibilityTests
     }
 
     /// <summary>
+    /// Verifies the shared connection and pool contract against the oldest
+    /// supported MariaDB release line.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public async Task MariaDb114_preserves_connection_and_pool_contracts()
+    {
+        await AssertConnectionAndPoolContractsAsync(
+                IntegrationDatabaseTarget.MariaDb114,
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Verifies pooling, pool reset, server-version detection, and provider reuse
     /// against the supported MariaDB release line.
     /// </summary>

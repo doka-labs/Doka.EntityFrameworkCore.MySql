@@ -79,7 +79,7 @@ public sealed class MySqlConnectionStringRedactorPropertyTests
     }
 
     [Property(MaxTest = 1000)]
-    public bool Redact_preserves_marked_server_and_database_through_roundtrip(
+    public bool Redact_preserves_server_and_redacts_database_through_roundtrip(
         string? serverSuffix,
         string? databaseSuffix
     )
@@ -90,10 +90,9 @@ public sealed class MySqlConnectionStringRedactorPropertyTests
             || ContainsControlOrWhitespace(databaseSuffix))
         {
             // MySqlConnector's connection-string parser normalizes control characters
-            // and embedded whitespace inconsistently across keys; the redactor's
-            // pass-through contract is observable only on inputs MySqlConnector
-            // round-trips identically through its own builder. The named-key tests
-            // in the companion file pin those edge cases explicitly.
+            // and embedded whitespace inconsistently across keys. This property
+            // isolates the redactor from inputs the driver's own builder cannot
+            // round-trip consistently.
             return true;
         }
 
@@ -135,7 +134,7 @@ public sealed class MySqlConnectionStringRedactorPropertyTests
         var roundTrip = new MySqlConnectionStringBuilder(redacted);
 
         return string.Equals(roundTrip.Server, builder.Server, StringComparison.Ordinal)
-            && string.Equals(roundTrip.Database, builder.Database, StringComparison.Ordinal)
+            && roundTrip is { Database: "***", UserID: "***" }
             && !redacted.Contains("secret-no-leak", StringComparison.Ordinal);
     }
 

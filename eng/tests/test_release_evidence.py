@@ -68,6 +68,12 @@ class ReleaseEvidenceTests(unittest.TestCase):
             list(release_evidence.REQUIRED_ENGINE_TARGETS),
             [engine["targetId"] for engine in manifest["engines"]],
         )
+        self.assertEqual(
+            list(release_evidence.REQUIRED_ENGINE_TARGETS),
+            manifest["integrationConfigurationMatrix"]["targets"],
+        )
+        self.assertTrue(manifest["integrationConfigurationMatrix"]["fullConfigurationMatrixRequired"])
+        self.assertEqual("", manifest["integrationConfigurationMatrix"]["testFilter"])
 
     def test_generate_rejects_dirty_release_source(self) -> None:
         """Reject a tag whose checked-out source differs from the reviewed commit."""
@@ -97,6 +103,14 @@ class ReleaseEvidenceTests(unittest.TestCase):
             if target["targetId"] != "mariadb114"
         ]
         integration_path.write_text(json.dumps(integration_evidence), encoding="utf-8")
+        tls_integration_path = self.root / "integration" / "tls" / "test-database-evidence.json"
+        tls_integration_evidence = json.loads(tls_integration_path.read_text(encoding="utf-8"))
+        tls_integration_evidence["targets"] = [
+            target
+            for target in tls_integration_evidence["targets"]
+            if target["targetId"] != "mariadb114"
+        ]
+        tls_integration_path.write_text(json.dumps(tls_integration_evidence), encoding="utf-8")
 
         with self.assertRaisesRegex(release_evidence.EvidenceError, "mariadb114"):
             self._generate()
@@ -109,6 +123,26 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path.write_text(json.dumps(evidence), encoding="utf-8")
 
         with self.assertRaisesRegex(release_evidence.EvidenceError, "not digest-pinned"):
+            self._generate()
+
+    def test_generate_rejects_filtered_integration_matrix(self) -> None:
+        """Reject smoke-filter evidence presented as a complete release matrix."""
+        path = self.root / release_evidence.INTEGRATION_MATRIX_EVIDENCE
+        evidence = json.loads(path.read_text(encoding="utf-8"))
+        evidence["testFilter"] = "Category!=SecurityConfigurationContract"
+        path.write_text(json.dumps(evidence), encoding="utf-8")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "must not contain a test filter"):
+            self._generate()
+
+    def test_generate_rejects_unrequired_integration_matrix(self) -> None:
+        """Reject evidence from a runner that did not enforce the release contract."""
+        path = self.root / release_evidence.INTEGRATION_MATRIX_EVIDENCE
+        evidence = json.loads(path.read_text(encoding="utf-8"))
+        evidence["fullConfigurationMatrixRequired"] = False
+        path.write_text(json.dumps(evidence), encoding="utf-8")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "not marked as the required"):
             self._generate()
 
     def test_generate_rejects_unexpected_release_package(self) -> None:
@@ -263,6 +297,29 @@ class ReleaseEvidenceTests(unittest.TestCase):
                     "schemaVersion": 1,
                     "lifecycleState": "cleanup-completed",
                     "targets": integration_targets,
+                }
+            ),
+            encoding="utf-8",
+        )
+        tls_directory = integration_directory / "tls"
+        tls_directory.mkdir()
+        (tls_directory / "test-database-evidence.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "lifecycleState": "cleanup-completed",
+                    "targets": integration_targets,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (integration_directory / "compatibility-matrix-evidence.json").write_text(
+            json.dumps(
+                {
+                    "targetSelection": "mysql84,mariadb114,mariadb118",
+                    "testFilter": "",
+                    "fullConfigurationMatrixRequired": True,
+                    "testExitCode": 0,
                 }
             ),
             encoding="utf-8",

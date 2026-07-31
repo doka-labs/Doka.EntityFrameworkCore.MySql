@@ -22,6 +22,18 @@ public sealed class MySqlTransactionOperabilityTests
     }
 
     /// <summary>
+    /// Verifies that MariaDB 11.4 savepoints preserve the pre-savepoint state.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public async Task MariaDb114_savepoints_preserve_the_pre_savepoint_state()
+    {
+        await AssertSavepointsPreserveStateAsync(
+                IntegrationDatabaseTarget.MariaDb114,
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Verifies that MariaDB 11.8 savepoints preserve the pre-savepoint state.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
@@ -42,6 +54,20 @@ public sealed class MySqlTransactionOperabilityTests
         await AssertUserManagedTransactionsAreRejectedAsync(
                 IntegrationDatabaseTarget.MySql84,
                 MySqlServerVersion.MySql(new Version(8, 4, 0)))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies that MariaDB 11.4 rejects user-managed transactions outside the
+    /// explicit retry boundary.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public async Task
+        MariaDb114_retrying_execution_strategy_rejects_user_managed_transactions_outside_the_retry_boundary()
+    {
+        await AssertUserManagedTransactionsAreRejectedAsync(
+                IntegrationDatabaseTarget.MariaDb114,
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
             .ConfigureAwait(false);
     }
 
@@ -71,6 +97,18 @@ public sealed class MySqlTransactionOperabilityTests
     }
 
     /// <summary>
+    /// Verifies that MariaDB 11.4 supports the verify-succeeded execution-strategy pattern.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public async Task MariaDb114_execute_in_transaction_async_supports_the_verify_succeeded_pattern()
+    {
+        await AssertVerifySucceededPatternAsync(
+                IntegrationDatabaseTarget.MariaDb114,
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Verifies that MariaDB 11.8 supports the verify-succeeded execution-strategy pattern.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
@@ -91,6 +129,18 @@ public sealed class MySqlTransactionOperabilityTests
         await AssertTransactionScopeAsyncFlowCommitsAsync(
                 IntegrationDatabaseTarget.MySql84,
                 MySqlServerVersion.MySql(new Version(8, 4, 0)))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies that MariaDB 11.4 supports the async ambient transaction path.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public async Task MariaDb114_transaction_scope_async_flow_commits_when_completed()
+    {
+        await AssertTransactionScopeAsyncFlowCommitsAsync(
+                IntegrationDatabaseTarget.MariaDb114,
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
             .ConfigureAwait(false);
     }
 

@@ -5,16 +5,15 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// <summary>
 /// Property-style coverage for <see cref="MySqlConnectionStringRedactor"/>.
 /// Two complementary surfaces are pinned:
-/// (1) The twelve named sensitive keys the operability review flagged stay
+/// (1) The named sensitive keys the operability review flagged stay
 ///     out of the redacted output regardless of their value.
 /// (2) A reflection-walk over every settable string-typed property on
 ///     <see cref="MySqlConnectionStringBuilder"/> proves the allowlist is
 ///     closed: if a future MySqlConnector release adds a new string-typed
 ///     connection-string key, the sentinel-leak check forces a deliberate
 ///     decision to add it to the allowlist (or leave it redacted by default).
-/// The allowlisted property names (Server, Database, UserID) are excluded
-/// from the reflection-walk because their values are explicitly intended to
-/// pass through.
+/// The allowlisted Server property is excluded from the reflection-walk
+/// because its value is explicitly intended to pass through.
 /// </summary>
 public sealed class MySqlConnectionStringRedactorPropertyTests
 {
@@ -24,8 +23,6 @@ public sealed class MySqlConnectionStringRedactorPropertyTests
         new(StringComparer.Ordinal)
         {
             "Server",
-            "Database",
-            "UserID",
         };
 
     [Theory]
@@ -41,6 +38,8 @@ public sealed class MySqlConnectionStringRedactorPropertyTests
     [InlineData("Password3")]
     [InlineData("AuthenticationPlugin")]
     [InlineData("ApplicationName")]
+    [InlineData("Database")]
+    [InlineData("User ID")]
     public void Redact_never_leaks_sentinel_for_named_sensitive_key(
         string key
     )
@@ -67,7 +66,6 @@ public sealed class MySqlConnectionStringRedactorPropertyTests
 
         Assert.DoesNotContain(Sentinel, redacted, StringComparison.Ordinal);
         Assert.Contains("server=host", redacted, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("database=db", redacted, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -127,14 +125,12 @@ public sealed class MySqlConnectionStringRedactorPropertyTests
 
     [Theory]
     [InlineData("Server", "Server=host")]
-    [InlineData("Database", "Database=db")]
-    [InlineData("User ID", "User ID=u")]
     public void Redact_passes_through_allowlisted_keys_unchanged(
         string passThroughKey,
         string expectedFragment
     )
     {
-        var connectionString = $"{passThroughKey}={GetSampleValue(passThroughKey)};Password=do-not-leak;";
+        var connectionString = $"{passThroughKey}=host;Password=do-not-leak;";
 
         var redacted = MySqlConnectionStringRedactor.Redact(connectionString);
 
@@ -143,13 +139,39 @@ public sealed class MySqlConnectionStringRedactorPropertyTests
         Assert.DoesNotContain("do-not-leak", redacted, StringComparison.Ordinal);
     }
 
-    private static string GetSampleValue(
-        string key
-    ) => key switch
+    /// <summary>
+    /// Verifies that typed pool, TLS, and failover values cannot make diagnostic
+    /// redaction throw while their non-allowlisted values remain hidden.
+    /// </summary>
+    [Fact]
+    public void Redact_handles_typed_enterprise_connection_options()
     {
-        "Server" => "host",
-        "Database" => "db",
-        "User ID" => "u",
-        _ => "value",
-    };
+        var builder = new MySqlConnectionStringBuilder
+        {
+            Server = "primary,secondary",
+            Port = 3307,
+            Database = "doka",
+            UserID = "provider",
+            Password = Sentinel,
+            SslMode = MySqlSslMode.VerifyFull,
+            LoadBalance = MySqlLoadBalance.FailOver,
+            Pooling = true,
+            MinimumPoolSize = 1,
+            MaximumPoolSize = 8,
+            ConnectionReset = true,
+            AllowUserVariables = true,
+        };
+
+        var redacted = MySqlConnectionStringRedactor.Redact(builder.ConnectionString);
+
+        Assert.DoesNotContain(Sentinel, redacted, StringComparison.Ordinal);
+        Assert.Contains("Server=primary,secondary", redacted, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Database=***", redacted, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("User ID=***", redacted, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("SSL Mode=VerifyFull", redacted, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Load Balance=***", redacted, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Maximum Pool Size=***", redacted, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Connection Reset=***", redacted, StringComparison.OrdinalIgnoreCase);
+    }
+
 }

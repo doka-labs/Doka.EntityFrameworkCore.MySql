@@ -808,13 +808,14 @@ internal sealed partial class MySqlQuerySqlGenerator
         IReadOnlyList<PathSegment> path
     )
     {
-        Sql.Append("'$");
+        var pathBuilder = new StringBuilder("$");
+
         foreach (var segment in path)
         {
-            AppendPathSegmentLiteral(segment);
+            AppendPathSegmentLiteral(pathBuilder, segment);
         }
 
-        Sql.Append("'");
+        Sql.Append(MySqlSqlLiteralGenerator.Generate(pathBuilder.ToString()));
     }
 
     /// <summary>
@@ -830,34 +831,47 @@ internal sealed partial class MySqlQuerySqlGenerator
         IReadOnlyList<PathSegment> path
     )
     {
-        Sql.Append("'$");
+        var pathBuilder = new StringBuilder("$");
+
         foreach (var segment in path)
         {
-            AppendPathSegmentLiteral(segment);
+            AppendPathSegmentLiteral(pathBuilder, segment);
         }
 
         if (path[^1].PropertyName is not null)
         {
-            Sql.Append("[*]");
+            pathBuilder.Append("[*]");
         }
 
-        Sql.Append("'");
+        Sql.Append(MySqlSqlLiteralGenerator.Generate(pathBuilder.ToString()));
     }
 
-    private void AppendPathSegmentLiteral(
+    /// <summary>
+    /// Escapes one property name at the JSON-path layer. The complete path is
+    /// subsequently passed to <see cref="MySqlSqlLiteralGenerator"/>, which
+    /// handles SQL quoting without coupling JSON escaping to the session mode.
+    /// </summary>
+    private static string EscapeJsonPathPropertyName(
+        string propertyName
+    ) => IsSimpleIdentifier(propertyName)
+        ? propertyName
+        : BuildQuotedJsonPathSegment(propertyName);
+
+    private static void AppendPathSegmentLiteral(
+        StringBuilder pathBuilder,
         PathSegment segment
     )
     {
         if (segment.PropertyName is not null)
         {
-            Sql.Append(".");
-            Sql.Append(EscapeJsonPathPropertyName(segment.PropertyName));
+            pathBuilder.Append('.');
+            pathBuilder.Append(EscapeJsonPathPropertyName(segment.PropertyName));
         }
         else if (segment.ArrayIndex is SqlConstantExpression { Value: int constantIndex })
         {
-            Sql.Append("[");
-            Sql.Append(constantIndex.ToString(CultureInfo.InvariantCulture));
-            Sql.Append("]");
+            pathBuilder.Append('[');
+            pathBuilder.Append(constantIndex.ToString(CultureInfo.InvariantCulture));
+            pathBuilder.Append(']');
         }
     }
 
@@ -865,41 +879,57 @@ internal sealed partial class MySqlQuerySqlGenerator
         IReadOnlyList<PathSegment> path
     )
     {
-        Sql.Append("CONCAT('$");
-        var stringBufferOpen = true;
+        Sql.Append("CONCAT(");
+        var pathBuilder = new StringBuilder("$");
+        var hasArgument = false;
 
         foreach (var segment in path)
         {
             if (segment.PropertyName is not null)
             {
-                Sql.Append(".");
-                Sql.Append(EscapeJsonPathPropertyName(segment.PropertyName));
+                pathBuilder.Append('.');
+                pathBuilder.Append(EscapeJsonPathPropertyName(segment.PropertyName));
                 continue;
             }
 
             if (segment.ArrayIndex is SqlConstantExpression { Value: int constantIndex })
             {
-                Sql.Append("[");
-                Sql.Append(constantIndex.ToString(CultureInfo.InvariantCulture));
-                Sql.Append("]");
+                pathBuilder.Append('[');
+                pathBuilder.Append(constantIndex.ToString(CultureInfo.InvariantCulture));
+                pathBuilder.Append(']');
                 continue;
             }
 
             if (segment.ArrayIndex is not null)
             {
-                // Break out of the path string literal, splice in the expression as CHAR,
-                // then re-open the literal for the suffix segments.
-                Sql.Append("[', CAST(");
+                pathBuilder.Append('[');
+                AppendJsonPathConcatArgument(pathBuilder.ToString(), ref hasArgument);
+                pathBuilder.Clear();
+                pathBuilder.Append(']');
+
+                Sql.Append(", CAST(");
                 Visit(segment.ArrayIndex);
-                Sql.Append(" AS CHAR), ']");
-                stringBufferOpen = true;
+                Sql.Append(" AS CHAR)");
+                hasArgument = true;
             }
         }
 
-        if (stringBufferOpen)
+        AppendJsonPathConcatArgument(pathBuilder.ToString(), ref hasArgument);
+        Sql.Append(")");
+    }
+
+    private void AppendJsonPathConcatArgument(
+        string value,
+        ref bool hasArgument
+    )
+    {
+        if (hasArgument)
         {
-            Sql.Append("')");
+            Sql.Append(", ");
         }
+
+        Sql.Append(MySqlSqlLiteralGenerator.Generate(value));
+        hasArgument = true;
     }
 
     private static bool HasDynamicArrayIndex(
@@ -916,24 +946,6 @@ internal sealed partial class MySqlQuerySqlGenerator
 
         return false;
     }
-
-    /// <summary>
-    /// Escapes a JSON path property name for safe inclusion in a MySQL / MariaDB JSON path
-    /// literal. MySQL accepts an unquoted path segment <c>$.ident</c> only when the segment
-    /// matches the identifier shape (ASCII letter / underscore followed by ASCII letters /
-    /// digits / underscores); any other shape -- non-ASCII characters, dots, brackets,
-    /// punctuation, leading digit -- has to be wrapped in JSON path double quotes, with
-    /// embedded double quotes / backslashes escaped per the JSON spec
-    /// (<c>$."weird\\\"name"</c>). The clean-name fast path returns the unquoted form so
-    /// the common case stays allocation-light; everything else flows through the
-    /// quote-and-escape path so the engines do not reject the literal with
-    /// "Invalid JSON path expression".
-    /// </summary>
-    private string EscapeJsonPathPropertyName(
-        string propertyName
-    ) => IsSimpleIdentifier(propertyName)
-        ? propertyName
-        : BuildQuotedJsonPathSegment(propertyName);
 
     private static bool IsSimpleIdentifier(
         string name
@@ -962,12 +974,10 @@ internal sealed partial class MySqlQuerySqlGenerator
         return true;
     }
 
-    private string BuildQuotedJsonPathSegment(
+    private static string BuildQuotedJsonPathSegment(
         string name
     )
     {
-        var usesJsonTextSemantics =
-            Profile.GetSupport(ProviderCapability.JsonColumns) == ProviderSupportStatus.Emulated;
         var sb = new StringBuilder(name.Length + 4);
         sb.Append('"');
         foreach (var c in name)
@@ -975,25 +985,10 @@ internal sealed partial class MySqlQuerySqlGenerator
             switch (c)
             {
                 case '"':
-                    // MySQL 8.4 rejects the `\"` escape inside a JSON-path quoted name
-                    // ("Invalid JSON path expression at position N"); MariaDB 11.8 accepts
-                    // both forms. Engine-discriminated: MariaDB takes the simple `\"`,
-                    // MySQL takes `\\u0022` -- the double backslash survives MySQL's
-                    // single-quoted-string parser (which strips a single `\` before the
-                    // unrecognized `\u` escape) and arrives at the JSON path parser as
-                    // `"`, which then decodes to a literal double-quote. Empirical
-                    // probe (MySqlConnector direct, 2026-05-17) confirmed both shapes work
-                    // on their respective engines and fail when swapped.
-                    sb.Append(usesJsonTextSemantics ? "\\\"" : @"\\u0022");
+                    sb.Append("\\\"");
                     break;
                 case '\\':
-                    // Same engine asymmetry as for the double-quote: MariaDB's SQL parser
-                    // preserves `\` literally in single-quoted strings outside the documented
-                    // escape set, MySQL's SQL parser silently strips the leading `\`.
-                    // MariaDB's `\\` survives both layers; MySQL needs `\\u005C` so the SQL
-                    // parser ends up handing `\` to the JSON path parser which then
-                    // decodes to a literal backslash.
-                    sb.Append(usesJsonTextSemantics ? @"\\" : @"\\u005C");
+                    sb.Append(@"\\");
                     break;
                 default:
                     sb.Append(c);
@@ -1002,10 +997,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         }
 
         sb.Append('"');
-        // The path literal itself sits inside a single-quoted SQL string, so single
-        // quotes embedded in the property name still need SQL-level doubling.
-        return sb
-            .ToString()
-            .Replace("'", "''", StringComparison.Ordinal);
+
+        return sb.ToString();
     }
 }

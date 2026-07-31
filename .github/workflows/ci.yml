@@ -363,6 +363,7 @@ jobs:
       - name: Run representative dual-engine live integration path
         env:
           DOKA_INTEGRATION_TARGETS: mysql84,mariadb118
+          DOKA_INTEGRATION_TEST_FILTER: "VerificationLane!=FullIntegration"
         run: bash ./eng/test-integration.sh
 
       - name: Upload integration coverage

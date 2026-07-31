@@ -3,10 +3,8 @@ using System.Text;
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
-/// Pins the escape contract of <c>MySqlJsonTypeMapping.GenerateNonNullSqlLiteral</c>: a
-/// raw JSON payload containing a backslash or single quote must round-trip into a
-/// single-quoted MySQL literal that the server parses as one token, not as two with a
-/// trailing tail of unintended SQL.
+/// Pins the mode-independent literal contract of
+/// <c>MySqlJsonTypeMapping.GenerateNonNullSqlLiteral</c>.
 /// </summary>
 public sealed class MySqlJsonLiteralEscapeTests
 {
@@ -14,31 +12,31 @@ public sealed class MySqlJsonLiteralEscapeTests
         MySqlJsonTypeMapping.CreateJsonElementMapping();
 
     [Theory]
-    [InlineData("""{"k":"v"}""", """'{"k":"v"}'""")]
-    [InlineData("""{"k":"a'b"}""", """'{"k":"a''b"}'""")]
-    [InlineData("""{"k":"a\\b"}""", """'{"k":"a\\\\b"}'""")]
-    [InlineData("""{"k":"a\\'b"}""", """'{"k":"a\\\\''b"}'""")]
-    [InlineData("""{"k":"\\\\"}""", """'{"k":"\\\\\\\\"}'""")]
-    public void GenerateSqlLiteral_escapes_backslash_before_quote(
-        string rawJson,
-        string expectedSqlLiteral
+    [InlineData("""{"k":"v"}""")]
+    [InlineData("""{"k":"a'b"}""")]
+    [InlineData("""{"k":"a\\b"}""")]
+    [InlineData("""{"k":"a\\'b"}""")]
+    [InlineData("""{"k":"\\\\"}""")]
+    public void GenerateSqlLiteral_uses_the_mode_independent_literal_form(
+        string rawJson
     )
     {
         using var document = JsonDocument.Parse(rawJson);
 
         var literal = s_jsonElementMapping.GenerateSqlLiteral(document.RootElement);
 
-        Assert.Equal(expectedSqlLiteral, literal);
+        var expected = rawJson.Contains('\\', StringComparison.Ordinal)
+            ? $"_utf8mb4 X'{Convert.ToHexString(Encoding.UTF8.GetBytes(rawJson))}'"
+            : $"'{rawJson.Replace("'", "''", StringComparison.Ordinal)}'";
+
+        Assert.Equal(expected, literal);
     }
 
     /// <summary>
-    /// Length-invariant: the escaped literal grows by exactly the count of backslashes
-    /// and single quotes in the serialized JSON plus the two delimiting single quotes.
-    /// Handrolled to keep this test free of new dependencies; a property-testing
-    /// framework can replace this loop in a later test-infrastructure pass.
+    /// Verifies the UTF-8 byte-to-hex length invariant over deterministic payloads.
     /// </summary>
     [Fact]
-    public void GenerateSqlLiteral_length_grows_by_special_char_count_plus_delimiters()
+    public void GenerateSqlLiteral_length_tracks_utf8_bytes_not_utf16_characters()
     {
         var seed = new Random(Seed: 1337);
 
@@ -51,19 +49,18 @@ public sealed class MySqlJsonLiteralEscapeTests
 
             var literal = s_jsonElementMapping.GenerateSqlLiteral(document.RootElement);
 
-            var specialCount = serialized
-                .Count(c => c is '\\' or '\'');
-            var expectedLength = serialized.Length + specialCount + 2; // +2 for the wrapping single quotes.
+            var expectedLength = serialized.Contains('\\', StringComparison.Ordinal)
+                ? 12 + (Encoding.UTF8.GetByteCount(serialized) * 2)
+                : serialized.Length + serialized.Count(character => character == '\'') + 2;
 
             Assert.Equal(expectedLength, literal.Length);
-            Assert.StartsWith("'", literal, StringComparison.Ordinal);
             Assert.EndsWith("'", literal, StringComparison.Ordinal);
         }
     }
 
     /// <summary>
-    /// The escaped literal must contain no naked single quote and no odd-length
-    /// backslash run, so the MySQL tokenizer cannot terminate the literal mid-payload.
+    /// The payload must remain inside one quoted or hexadecimal literal so no
+    /// content can become a SQL token under any supported session mode.
     /// </summary>
     [Theory]
     [InlineData("""{"sql":"' OR 1=1 --"}""")]
@@ -77,59 +74,15 @@ public sealed class MySqlJsonLiteralEscapeTests
 
         var literal = s_jsonElementMapping.GenerateSqlLiteral(document.RootElement);
 
-        // Inside the literal (strip the wrapping single quotes), every single quote
-        // must be doubled and every backslash run must be even-length.
-        Assert.StartsWith("'", literal, StringComparison.Ordinal);
-        Assert.EndsWith("'", literal, StringComparison.Ordinal);
-
-        var body = literal[1..^1];
-        AssertSingleQuotesAreDoubled(body);
-        AssertBackslashRunsAreEvenLength(body);
-    }
-
-    private static void AssertSingleQuotesAreDoubled(
-        string body
-    )
-    {
-        for (var index = 0; index < body.Length;)
+        if (literal.StartsWith("_utf8mb4 X'", StringComparison.Ordinal))
         {
-            if (body[index] != '\'')
-            {
-                index++;
-                continue;
-            }
-
-            Assert.True(
-                index + 1 < body.Length && body[index + 1] == '\'',
-                $"single quote at position {index} is not doubled: {body}");
-
-            index += 2;
+            Assert.All(literal[11..^1], character => Assert.True(Uri.IsHexDigit(character)));
         }
-    }
-
-    private static void AssertBackslashRunsAreEvenLength(
-        string body
-    )
-    {
-        var index = 0;
-        while (index < body.Length)
+        else
         {
-            if (body[index] != '\\')
-            {
-                index++;
-                continue;
-            }
+            var expected = $"'{maliciousJson.Replace("'", "''", StringComparison.Ordinal)}'";
 
-            var runStart = index;
-            while (index < body.Length && body[index] == '\\')
-            {
-                index++;
-            }
-
-            var runLength = index - runStart;
-            Assert.True(
-                runLength % 2 == 0,
-                $"backslash run starting at {runStart} has odd length {runLength}: {body}");
+            Assert.Equal(expected, literal);
         }
     }
 

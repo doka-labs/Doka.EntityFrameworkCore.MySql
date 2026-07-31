@@ -195,6 +195,89 @@ public sealed class AdrRepositoryValidatorTests
     }
 
     /// <summary>
+    /// Keeps the expensive configuration and failure matrix outside ordinary
+    /// pushes while making its unfiltered three-engine evidence mandatory for
+    /// every release candidate.
+    /// </summary>
+    [Fact]
+    public void Integration_configuration_matrix_is_mandatory_for_release_candidates()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var workflow = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+        var integrationRunner = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "test-integration.sh"));
+        var releaseCandidate = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "release-candidate.sh"));
+        var sqlModeTests = File.ReadAllText(
+            Path.Combine(
+                repositoryRoot,
+                "tests",
+                "Doka.EntityFrameworkCore.MySql.IntegrationTests",
+                "Infrastructure",
+                "MySqlSqlModeContractTests.cs"));
+        var securityTests = File.ReadAllText(
+            Path.Combine(
+                repositoryRoot,
+                "tests",
+                "Doka.EntityFrameworkCore.MySql.IntegrationTests",
+                "Infrastructure",
+                "MySqlTlsAuthenticationContractTests.cs"));
+        var failureTests = File.ReadAllText(
+            Path.Combine(
+                repositoryRoot,
+                "tests",
+                "Doka.EntityFrameworkCore.MySql.IntegrationTests",
+                "Infrastructure",
+                "MySqlPoolAndFailoverContractTests.cs"));
+        var tlsFixture = File.ReadAllText(
+            Path.Combine(
+                repositoryRoot,
+                "tests",
+                "Doka.EntityFrameworkCore.MySql.IntegrationTests",
+                "TestUtilities",
+                "TlsDatabaseTestGroup.cs"));
+
+        Assert.Contains("DOKA_INTEGRATION_TEST_FILTER", workflow, StringComparison.Ordinal);
+        Assert.Contains("VerificationLane!=FullIntegration", workflow, StringComparison.Ordinal);
+
+        Assert.Contains("validate_full_configuration_matrix", integrationRunner, StringComparison.Ordinal);
+        Assert.Contains("The full configuration matrix cannot use", integrationRunner, StringComparison.Ordinal);
+        Assert.Contains("Duplicate integration target", integrationRunner, StringComparison.Ordinal);
+        Assert.Contains(
+            "DOKA_INTEGRATION_TARGETS=\"mysql84,mariadb114,mariadb118\"",
+            releaseCandidate,
+            StringComparison.Ordinal);
+        Assert.Contains("DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=1", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains("--filter \"Category=Spec|Category=Live\"", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains(
+            "run_integration_configuration_and_failure_gate",
+            releaseCandidate,
+            StringComparison.Ordinal);
+
+        Assert.Contains("[Trait(\"Category\", \"ConfigurationContract\")]", sqlModeTests, StringComparison.Ordinal);
+        Assert.Contains("[Trait(\"VerificationLane\", \"FullIntegration\")]", sqlModeTests, StringComparison.Ordinal);
+        Assert.Contains(
+            "[Trait(\"Category\", \"SecurityConfigurationContract\")]",
+            securityTests,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "[Trait(\"VerificationLane\", \"FullIntegration\")]",
+            securityTests,
+            StringComparison.Ordinal);
+        Assert.Contains("StartAsync(requests, evidenceScope: \"tls\")", tlsFixture, StringComparison.Ordinal);
+        Assert.DoesNotContain("TargetId = $\"{request.TargetId}-tls\"", tlsFixture, StringComparison.Ordinal);
+        Assert.Contains(
+            "[Trait(\"Category\", \"FailureConfigurationContract\")]",
+            failureTests,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "[Trait(\"VerificationLane\", \"FullIntegration\")]",
+            failureTests,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Keeps local hooks opt-in while sharing one quality-gate implementation
     /// with hosted CI and protecting contributor-owned Git configuration.
     /// </summary>

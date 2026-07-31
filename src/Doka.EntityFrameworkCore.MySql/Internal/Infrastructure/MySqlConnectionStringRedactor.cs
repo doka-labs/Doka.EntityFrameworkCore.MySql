@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// Redacts MySQL connection strings for safe inclusion in logs, diagnostics, and
 /// error messages. The redactor follows an explicit allowlist: only the
 /// connectivity surface a reviewer needs to recognize the target endpoint
-/// (server, port, database, user, transport security, timeout, pooling toggle)
+/// (server, port, transport security, timeout, and pooling toggle)
 /// passes through unchanged. Every other key keeps its name but receives the
 /// sentinel <c>***</c> value, so reviewers can still see which option was
 /// configured without leaking the secret. The whitelist is intentionally narrow:
@@ -23,10 +23,8 @@ internal static class MySqlConnectionStringRedactor
     {
         "Server",
         "Port",
-        "Database",
-        "User ID",
-        "SslMode",
-        "ConnectionTimeout",
+        "SSL Mode",
+        "Connection Timeout",
         "Pooling",
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
@@ -56,7 +54,9 @@ internal static class MySqlConnectionStringRedactor
             return MalformedSentinel;
         }
 
-        var redacted = new MySqlConnectionStringBuilder();
+        var passThrough = new MySqlConnectionStringBuilder();
+        var redactedKeys = new List<string>();
+
         foreach (var key in builder.Keys.OfType<string>())
         {
             var rawValue = builder[key];
@@ -65,11 +65,34 @@ internal static class MySqlConnectionStringRedactor
                 continue;
             }
 
-            redacted[key] = s_passThroughKeys.Contains(key)
-                ? rawValue
-                : RedactedSentinel;
+            if (s_passThroughKeys.Contains(key))
+            {
+                passThrough[key] = rawValue;
+            }
+            else
+            {
+                // MySqlConnectionStringBuilder rejects a string sentinel for
+                // typed options such as booleans, numbers, and enums.
+                redactedKeys.Add($"{key}={RedactedSentinel}");
+            }
         }
 
-        return redacted.ConnectionString;
+        var result = new StringBuilder(passThrough.ConnectionString);
+
+        if (result.Length > 0
+            && result[^1] != ';'
+            && redactedKeys.Count > 0)
+        {
+            result.Append(';');
+        }
+
+        foreach (var redactedKey in redactedKeys)
+        {
+            result
+                .Append(redactedKey)
+                .Append(';');
+        }
+
+        return result.ToString();
     }
 }

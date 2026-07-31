@@ -101,7 +101,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     private static readonly RelationalTypeMapping s_jsonArrayMapping = MySqlJsonTypeMapping.CreateJsonArrayMapping();
     private static readonly RelationalTypeMapping s_serverVersionMapping = new MySqlServerVersionTypeMapping();
 
-    private static readonly RelationalTypeMapping s_stringMapping = new StringTypeMapping(
+    private static readonly RelationalTypeMapping s_stringMapping = new MySqlStringTypeMapping(
         "longtext",
         DbType.String,
         unicode: true);
@@ -115,14 +115,14 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         new UIntTypeMapping("mediumint unsigned", DbType.UInt32);
 
     private static readonly RelationalTypeMapping s_mediumTextMapping =
-        new StringTypeMapping("mediumtext", DbType.String, unicode: true);
+        new MySqlStringTypeMapping("mediumtext", DbType.String, unicode: true);
 
-    private static readonly RelationalTypeMapping s_tinyTextMapping = new StringTypeMapping(
+    private static readonly RelationalTypeMapping s_tinyTextMapping = new MySqlStringTypeMapping(
         "tinytext",
         DbType.String,
         unicode: true);
 
-    private static readonly RelationalTypeMapping s_textMapping = new StringTypeMapping(
+    private static readonly RelationalTypeMapping s_textMapping = new MySqlStringTypeMapping(
         "text",
         DbType.String,
         unicode: true);
@@ -138,12 +138,12 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     private static readonly RelationalTypeMapping s_varBinaryMapping =
         new ByteArrayTypeMapping("varbinary", DbType.Binary);
 
-    private static readonly RelationalTypeMapping s_charMapping = new StringTypeMapping(
+    private static readonly RelationalTypeMapping s_charMapping = new MySqlStringTypeMapping(
         "char",
         DbType.StringFixedLength,
         unicode: true);
 
-    private static readonly RelationalTypeMapping s_varCharMapping = new StringTypeMapping(
+    private static readonly RelationalTypeMapping s_varCharMapping = new MySqlStringTypeMapping(
         "varchar",
         DbType.String,
         unicode: true);
@@ -336,7 +336,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
 
             if (normalizedStoreType is "enum" or "set")
             {
-                return new StringTypeMapping(
+                return new MySqlStringTypeMapping(
                     mappingInfo.StoreTypeName,
                     DbType.String,
                     unicode: true);

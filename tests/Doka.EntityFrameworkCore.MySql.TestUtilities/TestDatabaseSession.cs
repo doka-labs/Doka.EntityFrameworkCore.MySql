@@ -17,28 +17,39 @@ public sealed class TestDatabaseSession : IAsyncDisposable
 
     private readonly IReadOnlyDictionary<string, TestDatabaseEndpoint> _endpoints;
     private readonly IReadOnlyList<TestDatabaseContainer> _containers;
+    private readonly string? _evidenceFile;
     private bool _disposed;
 
     private TestDatabaseSession(
         IReadOnlyDictionary<string, TestDatabaseEndpoint> endpoints,
-        IReadOnlyList<TestDatabaseContainer> containers
+        IReadOnlyList<TestDatabaseContainer> containers,
+        string? evidenceFile
     )
     {
         _endpoints = endpoints;
         _containers = containers;
+        _evidenceFile = evidenceFile;
     }
 
     /// <summary>
     /// Starts locally provisioned targets and validates externally supplied targets.
     /// </summary>
+    /// <param name="requests">The target definitions owned by this session.</param>
+    /// <param name="evidenceScope">
+    /// An optional single directory name that isolates this session's evidence
+    /// from another fixture in the same test process.
+    /// </param>
+    /// <returns>A session that owns every locally provisioned target.</returns>
     public static async Task<TestDatabaseSession> StartAsync(
-        IEnumerable<TestDatabaseRequest> requests
+        IEnumerable<TestDatabaseRequest> requests,
+        string? evidenceScope = null
     )
     {
         ArgumentNullException.ThrowIfNull(requests);
 
         var requestArray = requests.ToArray();
         ValidateRequests(requestArray);
+        var evidenceFile = ResolveEvidenceFile(evidenceScope);
 
         var endpoints = new Dictionary<string, TestDatabaseEndpoint>(StringComparer.OrdinalIgnoreCase);
         var containers = new List<TestDatabaseContainer>();
@@ -54,6 +65,13 @@ public sealed class TestDatabaseSession : IAsyncDisposable
 
                 if (!string.IsNullOrWhiteSpace(externalConnectionString))
                 {
+                    if (request.SecurityProfile != TestDatabaseSecurityProfile.PlainText)
+                    {
+                        throw new InvalidOperationException(
+                            $"Test-owned TLS target '{request.TargetId}' cannot use external endpoint "
+                            + $"'{request.ConnectionStringEnvironmentVariable}'.");
+                    }
+
                     await VerifyExternalEndpointAsync(externalConnectionString, startupCancellation.Token)
                         .ConfigureAwait(false);
 
@@ -65,6 +83,7 @@ public sealed class TestDatabaseSession : IAsyncDisposable
                             request.ServerVersionToken,
                             externalConnectionString,
                             "environment",
+                            null,
                             null,
                             null));
                     continue;
@@ -91,10 +110,11 @@ public sealed class TestDatabaseSession : IAsyncDisposable
                         container.ConnectionString,
                         "testcontainers",
                         request.Image,
-                        container.ContainerId));
+                        container.ContainerId,
+                        container.TlsOptions));
             }
 
-            var session = new TestDatabaseSession(endpoints, containers);
+            var session = new TestDatabaseSession(endpoints, containers, evidenceFile);
             await session
                 .WriteEvidenceAsync("ready")
                 .ConfigureAwait(false);
@@ -221,13 +241,12 @@ public sealed class TestDatabaseSession : IAsyncDisposable
         string lifecycleState
     )
     {
-        var evidenceFile = Environment.GetEnvironmentVariable(EvidenceFileEnvironmentVariable);
-        if (string.IsNullOrWhiteSpace(evidenceFile))
+        if (string.IsNullOrWhiteSpace(_evidenceFile))
         {
             return;
         }
 
-        var directory = Path.GetDirectoryName(evidenceFile);
+        var directory = Path.GetDirectoryName(_evidenceFile);
         if (!string.IsNullOrWhiteSpace(directory))
         {
             Directory.CreateDirectory(directory);
@@ -243,7 +262,7 @@ public sealed class TestDatabaseSession : IAsyncDisposable
             GeneratedUtc: DateTimeOffset.UtcNow,
             LifecycleState: lifecycleState,
             Targets: targets);
-        var temporaryFile = $"{evidenceFile}.{Guid.NewGuid():N}.tmp";
+        var temporaryFile = $"{_evidenceFile}.{Guid.NewGuid():N}.tmp";
 
         await using (var stream = File.Create(temporaryFile))
         {
@@ -258,7 +277,34 @@ public sealed class TestDatabaseSession : IAsyncDisposable
                 .ConfigureAwait(false);
         }
 
-        File.Move(temporaryFile, evidenceFile, overwrite: true);
+        File.Move(temporaryFile, _evidenceFile, overwrite: true);
+    }
+
+    private static string? ResolveEvidenceFile(
+        string? evidenceScope
+    )
+    {
+        var evidenceFile = Environment.GetEnvironmentVariable(EvidenceFileEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(evidenceFile)
+            || string.IsNullOrWhiteSpace(evidenceScope))
+        {
+            return evidenceFile;
+        }
+
+        if (evidenceScope is "." or ".."
+            || !string.Equals(Path.GetFileName(evidenceScope), evidenceScope, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "The evidence scope must be a single directory name.",
+                nameof(evidenceScope));
+        }
+
+        var directory = Path.GetDirectoryName(evidenceFile);
+        var fileName = Path.GetFileName(evidenceFile);
+
+        return string.IsNullOrWhiteSpace(directory)
+            ? Path.Combine(evidenceScope, fileName)
+            : Path.Combine(directory, evidenceScope, fileName);
     }
 
     private static TestDatabaseEvidenceTarget CreateEvidenceTarget(

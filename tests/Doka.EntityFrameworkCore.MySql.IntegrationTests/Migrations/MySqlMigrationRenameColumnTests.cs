@@ -15,6 +15,11 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlMigrationRenameColumnTests
 {
+    private const string ColumnComment = "rename\\comment 'quoted'";
+
+    /// <summary>
+    /// Verifies the native rename path and comment preservation on MariaDB 11.8.
+    /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_native_rename_column_persists_data()
     {
@@ -24,6 +29,21 @@ public sealed class MySqlMigrationRenameColumnTests
             expectFallback: false);
     }
 
+    /// <summary>
+    /// Verifies the native rename path and comment preservation on MariaDB 11.4.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public async Task MariaDb114_native_rename_column_persists_data()
+    {
+        await RunRenameRoundTrip(
+            IntegrationDatabaseTarget.MariaDb114,
+            MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+            expectFallback: false);
+    }
+
+    /// <summary>
+    /// Forces the legacy MariaDB capability profile and verifies its live fallback.
+    /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_legacy_version_uses_change_column_fallback_and_persists_data()
     {
@@ -38,6 +58,9 @@ public sealed class MySqlMigrationRenameColumnTests
             expectFallback: true);
     }
 
+    /// <summary>
+    /// Verifies the native rename path and data preservation on MySQL 8.4.
+    /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task MySql84_native_rename_column_persists_data()
     {
@@ -58,7 +81,10 @@ public sealed class MySqlMigrationRenameColumnTests
 
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `RenameItems`;");
         await context.Database.ExecuteSqlRawAsync(
-            "CREATE TABLE `RenameItems` (`Id` int NOT NULL AUTO_INCREMENT, `Old` varchar(64) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+            "CREATE TABLE `RenameItems` ("
+            + "`Id` int NOT NULL AUTO_INCREMENT, "
+            + "`Old` varchar(64) NOT NULL COMMENT 'rename\\\\comment ''quoted''', "
+            + "PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
         await context.Database.ExecuteSqlRawAsync(
             "INSERT INTO `RenameItems` (`Old`) VALUES ('alpha'), ('beta'), ('gamma');");
 
@@ -81,6 +107,8 @@ public sealed class MySqlMigrationRenameColumnTests
             {
                 Assert.Contains("CHANGE COLUMN", emitted, StringComparison.Ordinal);
                 Assert.DoesNotContain("RENAME COLUMN", emitted, StringComparison.Ordinal);
+                Assert.Contains("/*! SET @__doka_previous_sql_mode", emitted, StringComparison.Ordinal);
+                Assert.Contains("NO_BACKSLASH_ESCAPES", emitted, StringComparison.Ordinal);
             }
             else
             {
@@ -95,15 +123,29 @@ public sealed class MySqlMigrationRenameColumnTests
             await using var verifyCommand = inspectionConnection.CreateCommand();
             verifyCommand.CommandText =
                 "SELECT `Renamed` FROM `RenameItems` ORDER BY `Id`;";
-            await using var reader = await verifyCommand.ExecuteReaderAsync();
 
             var roundtripped = new List<string>();
-            while (await reader.ReadAsync())
+            await using (var reader = await verifyCommand.ExecuteReaderAsync())
             {
-                roundtripped.Add(reader.GetString(0));
+                while (await reader.ReadAsync())
+                {
+                    roundtripped.Add(reader.GetString(0));
+                }
             }
 
             Assert.Equal(["alpha", "beta", "gamma"], roundtripped);
+
+            verifyCommand.CommandText = "SELECT COLUMN_COMMENT FROM information_schema.COLUMNS "
+                + "WHERE TABLE_SCHEMA = DATABASE() "
+                + "AND TABLE_NAME = 'RenameItems' "
+                + "AND COLUMN_NAME = 'Renamed';";
+
+            Assert.Equal(
+                ColumnComment,
+                Assert.IsType<string>(
+                    await verifyCommand
+                        .ExecuteScalarAsync()
+                        .ConfigureAwait(false)));
         }
         finally
         {
@@ -147,6 +189,7 @@ public sealed class MySqlMigrationRenameColumnTests
                 e
                     .Property(x => x.Renamed)
                     .HasColumnType("varchar(64)")
+                    .HasComment(ColumnComment)
                     .IsRequired();
             });
         }

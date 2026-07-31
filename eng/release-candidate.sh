@@ -170,7 +170,7 @@ run_specification_gate() {
         DOKA_TEST_DATABASE_EVIDENCE_FILE="${specification_dir}/${target}/test-database-evidence.json" \
             dotnet test "${functional_test_project}" \
                 --configuration Release --no-build --no-restore --tl:off \
-                --filter "Category=Spec" \
+                --filter "Category=Spec|Category=Live" \
                 --collect:"XPlat Code Coverage" \
                 --logger trx \
                 --results-directory "${specification_dir}/${target}"
@@ -185,13 +185,16 @@ run_repository_test_gate() {
         bash "${repo_root}/eng/test.sh"
 }
 
-run_integration_gate() {
+run_integration_configuration_and_failure_gate() {
     # Route every integration artifact into the candidate root. Files outside
-    # this root cannot be hashed into the release manifest.
+    # this root cannot be hashed into the release manifest. The required-matrix
+    # flag also prevents a future caller from narrowing either the engine set or
+    # the test categories while still claiming release-candidate coverage.
     DOKA_COVERAGE_RESULTS_DIR="${coverage_input_dir}/integration" \
     DOKA_INTEGRATION_ARTIFACTS_DIR="${integration_dir}" \
     DOKA_INTEGRATION_RUN_ID="${release_candidate_run_id}" \
-    DOKA_INTEGRATION_TARGETS="mysql84,mariadb118" \
+    DOKA_INTEGRATION_TARGETS="mysql84,mariadb114,mariadb118" \
+    DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=1 \
     DOKA_TEST_DATABASE_EVIDENCE_FILE="${integration_dir}/test-database-evidence.json" \
         bash "${repo_root}/eng/test-integration.sh"
 }
@@ -403,7 +406,7 @@ prepare_release_directory
 "${repo_root}/eng/validate-adrs.sh"
 run_repository_test_gate
 run_specification_gate
-run_integration_gate
+run_integration_configuration_and_failure_gate
 run_migration_deployment_gate
 run_coverage_gate
 run_pack

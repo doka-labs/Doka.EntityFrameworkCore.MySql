@@ -45,7 +45,7 @@ internal sealed class MySqlJsonContainerTypeMapping : JsonTypeMapping
     protected override string GenerateNonNullSqlLiteral(
         object value
     ) => value is string json
-        ? MySqlSqlLiteralEscaper.EscapeAndQuote(json)
+        ? MySqlSqlLiteralGenerator.Generate(json)
         : throw new InvalidOperationException(
             $"Cannot generate a JSON container SQL literal from '{value.GetType().FullName}'.");
 

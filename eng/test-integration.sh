@@ -35,6 +35,8 @@ mariadb118_env_var="DOKA_MARIADB118_CONNECTION_STRING"
 mode="testcontainers"
 should_stop_compose_on_exit=0
 configured_target_selection="${DOKA_INTEGRATION_TARGETS:-mysql84,mariadb114,mariadb118}"
+integration_test_filter="${DOKA_INTEGRATION_TEST_FILTER:-}"
+require_full_configuration_matrix="${DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX:-0}"
 target_selection_label=""
 mysql80_target_enabled=0
 mysql84_target_enabled=0
@@ -58,6 +60,8 @@ Modes:
 Environment:
   DOKA_INTEGRATION_TARGETS=mysql84,mariadb114,mariadb118
   DOKA_INTEGRATION_ARTIFACTS_DIR=<evidence output directory>
+  DOKA_INTEGRATION_TEST_FILTER=<optional dotnet test filter>
+  DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=0|1
   DOKA_MYSQL84_CONNECTION_STRING=<external override>
   DOKA_MARIADB114_CONNECTION_STRING=<external override>
   DOKA_MARIADB118_CONNECTION_STRING=<external override>
@@ -106,15 +110,31 @@ configure_target_selection() {
 
         case "${normalized_target}" in
             "${mysql80_target_id}")
+                if [[ "${mysql80_target_enabled}" -eq 1 ]]; then
+                    echo "Duplicate integration target '${normalized_target}'." >&2
+                    exit 1
+                fi
                 mysql80_target_enabled=1
                 ;;
             "${mysql84_target_id}")
+                if [[ "${mysql84_target_enabled}" -eq 1 ]]; then
+                    echo "Duplicate integration target '${normalized_target}'." >&2
+                    exit 1
+                fi
                 mysql84_target_enabled=1
                 ;;
             "${mariadb114_target_id}")
+                if [[ "${mariadb114_target_enabled}" -eq 1 ]]; then
+                    echo "Duplicate integration target '${normalized_target}'." >&2
+                    exit 1
+                fi
                 mariadb114_target_enabled=1
                 ;;
             "${mariadb118_target_id}")
+                if [[ "${mariadb118_target_enabled}" -eq 1 ]]; then
+                    echo "Duplicate integration target '${normalized_target}'." >&2
+                    exit 1
+                fi
                 mariadb118_target_enabled=1
                 ;;
             *)
@@ -137,6 +157,35 @@ configure_target_selection() {
     fi
 
     export DOKA_INTEGRATION_TARGETS="${target_selection_label}"
+}
+
+# A release candidate must exercise every supported engine and every test
+# category. Keeping this assertion in the shared runner prevents a caller from
+# accidentally combining the release flag with a smoke filter or a partial
+# target list.
+validate_full_configuration_matrix() {
+    if [[ "${require_full_configuration_matrix}" != "0" \
+        && "${require_full_configuration_matrix}" != "1" ]]; then
+        echo "DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX must be either 0 or 1." >&2
+        exit 1
+    fi
+
+    if [[ "${require_full_configuration_matrix}" != "1" ]]; then
+        return 0
+    fi
+
+    if [[ "${mysql84_target_enabled}" -ne 1 \
+        || "${mariadb114_target_enabled}" -ne 1 \
+        || "${mariadb118_target_enabled}" -ne 1 \
+        || "${mysql80_target_enabled}" -ne 0 ]]; then
+        echo "The full configuration matrix requires mysql84, mariadb114, and mariadb118 only." >&2
+        exit 1
+    fi
+
+    if [[ -n "${integration_test_filter}" ]]; then
+        echo "The full configuration matrix cannot use DOKA_INTEGRATION_TEST_FILTER." >&2
+        exit 1
+    fi
 }
 
 ensure_docker_compose_available() {
@@ -192,6 +241,18 @@ configure_compose_overrides() {
 
 run_integration_tests() {
     local coverage_results_dir="${DOKA_COVERAGE_RESULTS_DIR:-${repo_root}/artifacts/coverage/integration}"
+    local test_arguments=(
+        --configuration Release
+        --no-restore
+        --tl:off
+        --collect:"XPlat Code Coverage"
+        --results-directory "${coverage_results_dir}"
+        --logger trx
+    )
+
+    if [[ -n "${integration_test_filter}" ]]; then
+        test_arguments+=(--filter "${integration_test_filter}")
+    fi
 
     mkdir -p "${coverage_results_dir}" "${integration_artifacts_dir}"
     # The .NET fixture owns containers in the canonical path and writes exact
@@ -200,13 +261,7 @@ run_integration_tests() {
 
     "${repo_root}/eng/verify-dotnet.sh" || return $?
     dotnet restore "${integration_test_project}" --tl:off || return $?
-    dotnet test "${integration_test_project}" \
-        --configuration Release \
-        --no-restore \
-        --tl:off \
-        --collect:"XPlat Code Coverage" \
-        --results-directory "${coverage_results_dir}" \
-        --logger trx
+    dotnet test "${integration_test_project}" "${test_arguments[@]}"
 }
 
 write_matrix_evidence() {
@@ -221,6 +276,8 @@ write_matrix_evidence() {
         echo "- integrationRunId: ${integration_run_id}"
         echo "- mode: ${mode}"
         echo "- targetSelection: ${target_selection_label}"
+        echo "- testFilter: ${integration_test_filter:-<all>}"
+        echo "- fullConfigurationMatrixRequired: ${require_full_configuration_matrix}"
         echo "- testExitCode: ${test_exit_code}"
         echo "- databaseEvidence: ${DOKA_TEST_DATABASE_EVIDENCE_FILE}"
         echo
@@ -233,12 +290,16 @@ write_matrix_evidence() {
             --arg integrationRunId "${integration_run_id}" \
             --arg mode "${mode}" \
             --arg targetSelection "${target_selection_label}" \
+            --arg testFilter "${integration_test_filter}" \
+            --argjson fullConfigurationMatrixRequired "${require_full_configuration_matrix}" \
             --argjson testExitCode "${test_exit_code}" \
             '{
                 generatedUtc: $generatedUtc,
                 integrationRunId: $integrationRunId,
                 mode: $mode,
                 targetSelection: $targetSelection,
+                testFilter: $testFilter,
+                fullConfigurationMatrixRequired: ($fullConfigurationMatrixRequired == 1),
                 testExitCode: $testExitCode,
                 testDatabase: .
             }' \
@@ -249,12 +310,16 @@ write_matrix_evidence() {
             --arg integrationRunId "${integration_run_id}" \
             --arg mode "${mode}" \
             --arg targetSelection "${target_selection_label}" \
+            --arg testFilter "${integration_test_filter}" \
+            --argjson fullConfigurationMatrixRequired "${require_full_configuration_matrix}" \
             --argjson testExitCode "${test_exit_code}" \
             '{
                 generatedUtc: $generatedUtc,
                 integrationRunId: $integrationRunId,
                 mode: $mode,
                 targetSelection: $targetSelection,
+                testFilter: $testFilter,
+                fullConfigurationMatrixRequired: ($fullConfigurationMatrixRequired == 1),
                 testExitCode: $testExitCode,
                 testDatabase: null
             }' > "${integration_evidence_file}"
@@ -295,6 +360,7 @@ command -v jq >/dev/null 2>&1 || {
 }
 
 configure_target_selection
+validate_full_configuration_matrix
 
 if [[ "${mode}" == "compose" ]]; then
     ensure_docker_compose_available

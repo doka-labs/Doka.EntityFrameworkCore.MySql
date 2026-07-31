@@ -21,6 +21,15 @@ public sealed class MySqlNetworkFaultContractTests
             .ConfigureAwait(false);
     }
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public async Task MariaDb114_satisfies_the_complete_network_fault_contract()
+    {
+        await AssertFaultContractAsync(
+                IntegrationDatabaseTarget.MariaDb114,
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+            .ConfigureAwait(false);
+    }
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_satisfies_the_complete_network_fault_contract()
     {

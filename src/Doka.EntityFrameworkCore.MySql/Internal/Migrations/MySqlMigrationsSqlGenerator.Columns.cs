@@ -60,8 +60,38 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         {
             builder
                 .Append(" COMMENT ")
-                .Append(MySqlSqlLiteralEscaper.EscapeAndQuote(operation.Comment ?? string.Empty));
+                .Append(MySqlSqlLiteralGenerator.GenerateDdlComment(operation.Comment ?? string.Empty));
         }
+    }
+
+    protected override void Generate(
+        AddColumnOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder,
+        bool terminate = true
+    )
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var requiresCommentSqlModeScope = RequiresDdlCommentSqlModeScope(operation.Comment);
+        if (!requiresCommentSqlModeScope)
+        {
+            base.Generate(operation, model, builder, terminate);
+            return;
+        }
+
+        if (!terminate)
+        {
+            throw new InvalidOperationException(
+                "An ADD COLUMN operation with backslashes in its DDL comment must terminate its command.");
+        }
+
+        AppendDdlCommentSqlModeScopeStart(builder);
+        base.Generate(operation, model, builder, terminate: false);
+        builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+        AppendDdlCommentSqlModeScopeEnd(builder);
+        EndStatement(builder);
     }
 
     private static bool IsTemporalRowVersionColumn(
@@ -131,6 +161,12 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
             EndStatement(builder);
 
+            var requiresCommentSqlModeScope = RequiresDdlCommentSqlModeScope(operation.Comment);
+            if (requiresCommentSqlModeScope)
+            {
+                AppendDdlCommentSqlModeScopeStart(builder);
+            }
+
             builder
                 .Append("ALTER TABLE ")
                 .Append(DelimitMigrationIdentifier(operation.Table, operation.Schema))
@@ -139,11 +175,23 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             ColumnDefinition(operation.Schema, operation.Table, operation.Name, operation, model, builder);
 
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
+            if (requiresCommentSqlModeScope)
+            {
+                AppendDdlCommentSqlModeScopeEnd(builder);
+            }
+
             EndStatement(builder);
             return;
         }
 
         GenerateNullValueUpdate(operation, model, builder);
+
+        var requiresSqlModeScope = RequiresDdlCommentSqlModeScope(operation.Comment);
+        if (requiresSqlModeScope)
+        {
+            AppendDdlCommentSqlModeScopeStart(builder);
+        }
 
         builder
             .Append("ALTER TABLE ")
@@ -153,6 +201,12 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ColumnDefinition(operation.Schema, operation.Table, operation.Name, operation, model, builder);
 
         builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
+        if (requiresSqlModeScope)
+        {
+            AppendDdlCommentSqlModeScopeEnd(builder);
+        }
+
         EndStatement(builder);
     }
 

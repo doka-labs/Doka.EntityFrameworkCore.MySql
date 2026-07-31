@@ -31,6 +31,7 @@ REQUIRED_PACKAGES = (
     "Microsoft.EntityFrameworkCore.Relational",
     "MySqlConnector",
 )
+INTEGRATION_MATRIX_EVIDENCE = Path("integration/compatibility-matrix-evidence.json")
 SEMANTIC_VERSION_TAG = re.compile(r"v[0-9]+[.][0-9]+[.][0-9]+(?:[-.][0-9A-Za-z.-]+)?")
 
 
@@ -190,6 +191,42 @@ def collect_engines(root: Path) -> list[dict[str, str]]:
     return [engines[target] for target in sorted(engines)]
 
 
+def validate_integration_configuration_matrix(root: Path) -> dict[str, Any]:
+    """Require unfiltered successful integration evidence for every engine.
+
+    Engine lifecycle records alone prove which containers existed, but they do
+    not prove which test categories ran. The integration runner's own evidence
+    closes that distinction and prevents a filtered smoke run from being
+    sealed as release-candidate configuration and failure coverage.
+    """
+    path = root / INTEGRATION_MATRIX_EVIDENCE
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exception:
+        raise EvidenceError(f"Unable to read integration matrix evidence: {path}") from exception
+
+    if payload.get("fullConfigurationMatrixRequired") is not True:
+        raise EvidenceError("Integration evidence is not marked as the required full configuration matrix.")
+    if payload.get("testFilter") != "":
+        raise EvidenceError("Release integration evidence must not contain a test filter.")
+    if payload.get("testExitCode") != 0:
+        raise EvidenceError("The full integration configuration matrix did not pass.")
+
+    targets = tuple(sorted(filter(None, str(payload.get("targetSelection", "")).split(","))))
+    if targets != REQUIRED_ENGINE_TARGETS:
+        raise EvidenceError(
+            "Full integration matrix target mismatch. "
+            f"Expected={list(REQUIRED_ENGINE_TARGETS)}; actual={list(targets)}"
+        )
+
+    return {
+        "targets": list(targets),
+        "testFilter": "",
+        "fullConfigurationMatrixRequired": True,
+        "testExitCode": 0,
+    }
+
+
 def validate_release_packages(artifacts: list[dict[str, Any]], release_version: str) -> None:
     """Require exactly the two version-aligned packages and symbol packages.
 
@@ -306,6 +343,7 @@ def write_manifest(args: argparse.Namespace) -> None:
     artifacts = collect_artifacts(root)
     validate_release_packages(artifacts, args.release_version)
     engines = collect_engines(root)
+    integration_matrix = validate_integration_configuration_matrix(root)
     dependencies = collect_dependencies(dependency_graph)
     roles: dict[str, int] = {}
     for artifact in artifacts:
@@ -327,6 +365,7 @@ def write_manifest(args: argparse.Namespace) -> None:
             "resolvedPackages": dependencies,
         },
         "engines": engines,
+        "integrationConfigurationMatrix": integration_matrix,
         "artifacts": artifacts,
         "artifactCountsByRole": dict(sorted(roles.items())),
     }

@@ -145,10 +145,9 @@ public sealed class MySqlDefensiveValidationTests
     // ([_A-Za-z][_A-Za-z0-9]*) pass through unquoted so the generator can emit
     // `$.Name` directly. Anything else flows through BuildQuotedJsonPathSegment
     // which wraps the segment in JSON-path double quotes (`"..."`) and applies
-    // engine-conditional escapes for `"` and `\` -- MariaDB accepts the plain
-    // `\"` / `\\` forms; MySQL 8.4 rejects them and demands `\\u0022` / `\\u005C`
-    // which survive the single-quoted-string parser and arrive at the JSON path
-    // parser intact.
+    // JSON-level escapes for `"` and `\`. The complete path subsequently flows
+    // through MySqlSqlLiteralGenerator, so the SQL parser never gets a chance to
+    // reinterpret those backslashes under a different sql_mode.
 
     [Theory]
     [InlineData("normal")]
@@ -159,60 +158,49 @@ public sealed class MySqlDefensiveValidationTests
         string input
     )
     {
-        Assert.Equal(input, InvokeEscape(CreateContext(), input));
-        Assert.Equal(input, InvokeEscape(CreateMariaDbContext(), input));
+        Assert.Equal(input, InvokeEscape(input));
     }
 
     [Theory]
     [InlineData("with space", "\"with space\"")]
     [InlineData("dash-name", "\"dash-name\"")]
     [InlineData("1leading_digit", "\"1leading_digit\"")]
-    [InlineData("apo'stroph", "\"apo''stroph\"")]
+    [InlineData("apo'stroph", "\"apo'stroph\"")]
     [InlineData("", "\"\"")]
     public void JsonScalar_path_wraps_non_identifier_names_in_json_quotes(
         string input,
         string expected
     )
     {
-        // The JSON path literal sits inside a single-quoted SQL string, so embedded
-        // single quotes get SQL-doubled by BuildQuotedJsonPathSegment after the JSON
-        // wrap. Engine-independent.
-        Assert.Equal(expected, InvokeEscape(CreateContext(), input));
-        Assert.Equal(expected, InvokeEscape(CreateMariaDbContext(), input));
+        Assert.Equal(expected, InvokeEscape(input));
     }
-
-    [Theory]
-    [InlineData("has\"quote", "\"has\\\\u0022quote\"")]
-    [InlineData("has\\back", "\"has\\\\u005Cback\"")]
-    [InlineData("\"\\", "\"\\\\u0022\\\\u005C\"")]
-    public void JsonScalar_path_escapes_quote_and_backslash_for_mysql(
-        string input,
-        string expected
-    ) => Assert.Equal(expected, InvokeEscape(CreateContext(), input));
 
     [Theory]
     [InlineData("has\"quote", "\"has\\\"quote\"")]
     [InlineData("has\\back", "\"has\\\\back\"")]
     [InlineData("\"\\", "\"\\\"\\\\\"")]
-    public void JsonScalar_path_escapes_quote_and_backslash_for_mariadb(
+    public void JsonScalar_path_applies_json_level_escaping_before_sql_literal_generation(
         string input,
         string expected
-    ) => Assert.Equal(expected, InvokeEscape(CreateMariaDbContext(), input));
+    )
+    {
+        Assert.Equal(expected, InvokeEscape(input));
+    }
 
     private static string InvokeEscape(
-        DefensiveContext context,
         string propertyName
     )
     {
+        using var context = CreateContext();
         var generator = context.GetService<IQuerySqlGeneratorFactory>().Create();
         var method = generator
             .GetType()
             .GetMethod(
                 "EscapeJsonPathPropertyName",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
         Assert.NotNull(method);
 
-        return (string)method.Invoke(generator, [propertyName])!;
+        return (string)method.Invoke(null, [propertyName])!;
     }
 
     // -- Helpers --
@@ -223,15 +211,6 @@ public sealed class MySqlDefensiveValidationTests
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
-        return new DefensiveContext(builder.Options);
-    }
-
-    private static DefensiveContext CreateMariaDbContext()
-    {
-        var builder = new DbContextOptionsBuilder<DefensiveContext>();
-        builder.UseMySql(
-            "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
         return new DefensiveContext(builder.Options);
     }
 

@@ -1,158 +1,147 @@
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
-/// Integration tests for database creator lifecycle (Exists, Create, Delete, HasTables),
-/// advisory lock mechanism (GET_LOCK/RELEASE_LOCK), sequence value generation,
-/// and HiLo runtime against live MySQL 8.4.
+/// Integration tests for database creator lifecycle, advisory locks, sequence
+/// value generation, and HiLo runtime against supported live engines.
 /// </summary>
 [Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlDatabaseLifecycleTests
 {
-    // -- Database Creator: Exists returns true for existing database --
-
-    /// <summary>
-    /// Verifies that Exists returns true for the existing Docker-provisioned database.
-    /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Database_exists_returns_true_for_existing_database()
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
-
-        await using var context = new LifecycleContext(CreateOptions(connectionString));
-        var creator = context.GetService<IRelationalDatabaseCreator>();
-
-        Assert.True(
-            await creator
-                .ExistsAsync()
-                .ConfigureAwait(false));
+        await AssertDatabaseExistsAsync(
+                IntegrationDatabaseTarget.MySql84,
+                MySqlServerVersion.MySql(new Version(8, 4, 0)))
+            .ConfigureAwait(false);
     }
 
-    // -- Advisory Lock: GET_LOCK / RELEASE_LOCK --
-
-    /// <summary>
-    /// Verifies advisory lock acquire and release on MySQL with IS_USED_LOCK verification.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Advisory_lock_acquires_and_releases_on_mysql84()
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public async Task Database_exists_returns_true_on_mariadb114()
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
-        await using var context = new LifecycleContext(CreateOptions(connectionString));
-        var historyRepository = context.GetService<IHistoryRepository>();
-
-        var databaseLock = await historyRepository
-            .AcquireDatabaseLockAsync()
-            .ConfigureAwait(false);
-        Assert.NotNull(databaseLock);
-
-        // Verify lock is actually held via a separate connection. The lock name is
-        // database-scoped (per ADR D-002), so we derive it from the connection string.
-        var lockName = MySqlAdvisoryLockNaming.BuildLockName(connectionString);
-
-        await using var checkConn = new MySqlConnector.MySqlConnection(connectionString);
-        await checkConn
-            .OpenAsync()
-            .ConfigureAwait(false);
-        await using var checkCmd = checkConn.CreateCommand();
-        checkCmd.CommandText = "SELECT IS_USED_LOCK(@name);";
-        var nameParam = checkCmd.CreateParameter();
-        nameParam.ParameterName = "@name";
-        nameParam.Value = lockName;
-        checkCmd.Parameters.Add(nameParam);
-        var lockHolder = await checkCmd
-            .ExecuteScalarAsync()
-            .ConfigureAwait(false);
-        Assert.NotNull(lockHolder); // Non-null means lock is held.
-
-        // Release.
-        await databaseLock
-            .DisposeAsync()
+        await AssertDatabaseExistsAsync(
+                IntegrationDatabaseTarget.MariaDb114,
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
             .ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Verifies that a second session cannot acquire the lock while the first holds it.
-    /// Uses GET_LOCK with timeout=0 to avoid waiting.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Advisory_lock_contention_blocks_second_session()
-    {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
-        await using var context = new LifecycleContext(CreateOptions(connectionString));
-        var historyRepository = context.GetService<IHistoryRepository>();
-
-        // Session 1: Acquire lock.
-        var databaseLock = await historyRepository
-            .AcquireDatabaseLockAsync()
-            .ConfigureAwait(false);
-
-        try
-        {
-            // Session 2: Try to acquire the same lock with immediate timeout. The lock
-            // name is database-scoped (per ADR D-002).
-            var lockName = MySqlAdvisoryLockNaming.BuildLockName(connectionString);
-
-            await using var conn2 = new MySqlConnector.MySqlConnection(connectionString);
-            await conn2
-                .OpenAsync()
-                .ConfigureAwait(false);
-            await using var cmd2 = conn2.CreateCommand();
-            cmd2.CommandText = "SELECT GET_LOCK(@name, 0);";
-            var nameParam = cmd2.CreateParameter();
-            nameParam.ParameterName = "@name";
-            nameParam.Value = lockName;
-            cmd2.Parameters.Add(nameParam);
-            var result = await cmd2
-                .ExecuteScalarAsync()
-                .ConfigureAwait(false);
-
-            // GET_LOCK returns 0 when timeout expires (lock not acquired).
-            Assert.Equal(0L, Convert.ToInt64(result, System.Globalization.CultureInfo.InvariantCulture));
-        }
-        finally
-        {
-            // Release lock from session 1.
-            await databaseLock
-                .DisposeAsync()
-                .ConfigureAwait(false);
-        }
-    }
-
-    /// <summary>
-    /// Verifies advisory lock acquire and release on MariaDB 11.8.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task Advisory_lock_acquires_and_releases_on_mariadb118()
-    {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
-        await using var context = new LifecycleContext(CreateMariaDbOptions(connectionString));
-        var historyRepository = context.GetService<IHistoryRepository>();
-
-        await using var databaseLock = await historyRepository
-            .AcquireDatabaseLockAsync()
-            .ConfigureAwait(false);
-        Assert.NotNull(databaseLock);
-    }
-
-    /// <summary>
-    /// Verifies that Exists returns true on MariaDB 11.8 for existing database.
-    /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Database_exists_returns_true_on_mariadb118()
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
-        await using var context = new LifecycleContext(CreateMariaDbOptions(connectionString));
-        var creator = context.GetService<IRelationalDatabaseCreator>();
-        Assert.True(
-            await creator
-                .ExistsAsync()
-                .ConfigureAwait(false));
+        await AssertDatabaseExistsAsync(
+                IntegrationDatabaseTarget.MariaDb118,
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
+    public async Task Advisory_lock_contract_holds_on_mysql84()
+    {
+        await AssertAdvisoryLockContractAsync(
+                IntegrationDatabaseTarget.MySql84,
+                MySqlServerVersion.MySql(new Version(8, 4, 0)))
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public async Task Advisory_lock_contract_holds_on_mariadb114()
+    {
+        await AssertAdvisoryLockContractAsync(
+                IntegrationDatabaseTarget.MariaDb114,
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
+    public async Task Advisory_lock_contract_holds_on_mariadb118()
+    {
+        await AssertAdvisoryLockContractAsync(
+                IntegrationDatabaseTarget.MariaDb118,
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public async Task Guid_binary16_and_char36_roundtrip_on_mariadb114()
+    {
+        await AssertGuidRoundTripAsync(
+                IntegrationDatabaseTarget.MariaDb114,
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+            .ConfigureAwait(false);
     }
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Guid_binary16_and_char36_roundtrip_on_mariadb118()
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
-        await using var context = new GuidContext(CreateMariaDbGuidOptions(connectionString));
+        await AssertGuidRoundTripAsync(
+                IntegrationDatabaseTarget.MariaDb118,
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+            .ConfigureAwait(false);
+    }
+
+    private static async Task AssertDatabaseExistsAsync(
+        IntegrationDatabaseTarget target,
+        MySqlServerVersion serverVersion
+    )
+    {
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
+
+        await using var context = new LifecycleContext(CreateOptions(connectionString, serverVersion));
+        var creator = context.GetService<IRelationalDatabaseCreator>();
+
+        Assert.True(
+            await creator
+                .ExistsAsync()
+                .ConfigureAwait(false));
+    }
+
+    private static async Task AssertAdvisoryLockContractAsync(
+        IntegrationDatabaseTarget target,
+        MySqlServerVersion serverVersion
+    )
+    {
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
+        await using var context = new LifecycleContext(CreateOptions(connectionString, serverVersion));
+        var historyRepository = context.GetService<IHistoryRepository>();
+        await using var databaseLock = await historyRepository
+            .AcquireDatabaseLockAsync()
+            .ConfigureAwait(false);
+        var lockName = MySqlAdvisoryLockNaming.BuildLockName(connectionString);
+
+        await using var competingConnection = new MySqlConnection(connectionString);
+        await competingConnection
+            .OpenAsync()
+            .ConfigureAwait(false);
+
+        await using (var ownerCommand = competingConnection.CreateCommand())
+        {
+            ownerCommand.CommandText = "SELECT IS_USED_LOCK(@name);";
+            ownerCommand.Parameters.AddWithValue("@name", lockName);
+
+            Assert.NotNull(
+                await ownerCommand
+                    .ExecuteScalarAsync()
+                    .ConfigureAwait(false));
+        }
+
+        await using var contentionCommand = competingConnection.CreateCommand();
+        contentionCommand.CommandText = "SELECT GET_LOCK(@name, 0);";
+        contentionCommand.Parameters.AddWithValue("@name", lockName);
+
+        var result = await contentionCommand
+            .ExecuteScalarAsync()
+            .ConfigureAwait(false);
+
+        Assert.Equal(0L, Convert.ToInt64(result, CultureInfo.InvariantCulture));
+    }
+
+    private static async Task AssertGuidRoundTripAsync(
+        IntegrationDatabaseTarget target,
+        MySqlServerVersion serverVersion
+    )
+    {
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
+        await using var context = new GuidContext(CreateGuidOptions(connectionString, serverVersion));
 
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbGuidBin`;");
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbGuidChar`;");
@@ -180,11 +169,8 @@ public sealed class MySqlDatabaseLifecycleTests
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
 
-            var loadedBin = await context.BinItems.FirstAsync();
-            Assert.Equal(binId, loadedBin.Id);
-
-            var loadedChar = await context.CharItems.FirstAsync();
-            Assert.Equal(charId, loadedChar.Id);
+            Assert.Equal(binId, (await context.BinItems.FirstAsync()).Id);
+            Assert.Equal(charId, (await context.CharItems.FirstAsync()).Id);
         }
         finally
         {
@@ -314,13 +300,37 @@ public sealed class MySqlDatabaseLifecycleTests
 
     // -- MariaDB Native Sequence --
 
-    /// <summary>
-    /// Verifies the synchronous native MariaDB sequence API.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public void Mariadb_native_sequence_sync_fetch_returns_start_then_increment()
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public void Mariadb114_native_sequence_sync_fetch_returns_start_then_increment()
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
+        AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb114);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
+    public void Mariadb118_native_sequence_sync_fetch_returns_start_then_increment()
+    {
+        AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb118);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public async Task Mariadb114_native_sequence_async_fetch_returns_start_then_increment()
+    {
+        await AssertNativeSequenceAsync(IntegrationDatabaseTarget.MariaDb114)
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
+    public async Task Mariadb118_native_sequence_async_fetch_returns_start_then_increment()
+    {
+        await AssertNativeSequenceAsync(IntegrationDatabaseTarget.MariaDb118)
+            .ConfigureAwait(false);
+    }
+
+    private static void AssertNativeSequenceSync(
+        IntegrationDatabaseTarget target
+    )
+    {
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var seqName = $"test_seq_{Guid.NewGuid():N}"[..30];
 
         using var connection = new MySqlConnection(connectionString);
@@ -356,14 +366,11 @@ public sealed class MySqlDatabaseLifecycleTests
         }
     }
 
-    /// <summary>
-    /// Verifies the asynchronous native MariaDB sequence API without synchronous
-    /// database calls inside the asynchronous test.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task Mariadb_native_sequence_async_fetch_returns_start_then_increment()
+    private static async Task AssertNativeSequenceAsync(
+        IntegrationDatabaseTarget target
+    )
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var seqName = $"test_seq_{Guid.NewGuid():N}"[..30];
 
         await using var connection = new MySqlConnection(connectionString);
@@ -414,29 +421,22 @@ public sealed class MySqlDatabaseLifecycleTests
     // -- Helpers --
 
     private static DbContextOptions<LifecycleContext> CreateOptions(
-        string connectionString
+        string connectionString,
+        MySqlServerVersion serverVersion
     )
     {
         var builder = new DbContextOptionsBuilder<LifecycleContext>();
-        builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+        builder.UseMySql(connectionString, serverVersion);
         return builder.Options;
     }
 
-    private static DbContextOptions<LifecycleContext> CreateMariaDbOptions(
-        string connectionString
-    )
-    {
-        var builder = new DbContextOptionsBuilder<LifecycleContext>();
-        builder.UseMySql(connectionString, MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
-        return builder.Options;
-    }
-
-    private static DbContextOptions<GuidContext> CreateMariaDbGuidOptions(
-        string connectionString
+    private static DbContextOptions<GuidContext> CreateGuidOptions(
+        string connectionString,
+        MySqlServerVersion serverVersion
     )
     {
         var builder = new DbContextOptionsBuilder<GuidContext>();
-        builder.UseMySql(connectionString, MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
+        builder.UseMySql(connectionString, serverVersion);
         return builder.Options;
     }
 

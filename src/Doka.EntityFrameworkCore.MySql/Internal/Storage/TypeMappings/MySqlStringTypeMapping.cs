@@ -61,5 +61,5 @@ public sealed class MySqlStringTypeMapping : StringTypeMapping
     /// <inheritdoc />
     protected override string GenerateNonNullSqlLiteral(
         object value
-    ) => MySqlSqlLiteralEscaper.EscapeAndQuote((string)value);
+    ) => MySqlSqlLiteralGenerator.Generate((string)value);
 }

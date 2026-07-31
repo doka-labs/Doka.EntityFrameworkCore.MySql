@@ -133,6 +133,6 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping
                 $"Cannot generate SQL literal for JSON value of type '{value.GetType().FullName}'."),
         };
 
-        return MySqlSqlLiteralEscaper.EscapeAndQuote(json);
+        return MySqlSqlLiteralGenerator.Generate(json);
     }
 }

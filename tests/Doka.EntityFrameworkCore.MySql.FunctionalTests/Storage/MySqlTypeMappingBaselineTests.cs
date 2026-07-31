@@ -94,6 +94,32 @@ public sealed class MySqlTypeMappingBaselineTests
     }
 
     /// <summary>
+    /// Verifies that every explicit MySQL-family text type retains the
+    /// provider's SQL-mode-independent literal generator.
+    /// </summary>
+    [Theory]
+    [InlineData("char")]
+    [InlineData("varchar")]
+    [InlineData("tinytext")]
+    [InlineData("text")]
+    [InlineData("mediumtext")]
+    [InlineData("longtext")]
+    [InlineData("enum('one','two')")]
+    [InlineData("set('one','two')")]
+    public void Explicit_text_type_literals_are_sql_mode_independent(
+        string storeType
+    )
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var typeMapping = context
+            .GetService<IRelationalTypeMappingSource>()
+            .FindMapping(storeType);
+
+        Assert.NotNull(typeMapping);
+        Assert.Equal("_utf8mb4 X'706174685C7365676D656E74'", typeMapping.GenerateSqlLiteral("path\\segment"));
+    }
+
+    /// <summary>
     /// Verifies that explicit model/property collation metadata remains intact through model building.
     /// </summary>
     [Fact]

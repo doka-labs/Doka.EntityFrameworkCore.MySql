@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
@@ -542,6 +544,92 @@ public sealed class MySqlMigrationDdlCoverageTests
             $"Convention-generated constraint name '{constraintName}' exceeds 64 characters.");
     }
 
+    /// <summary>
+    /// Verifies that every migration path carrying user text uses the same
+    /// SQL-mode-independent UTF-8 literal contract.
+    /// </summary>
+    [Fact]
+    public void Migration_text_payloads_use_mode_independent_utf8_literals()
+    {
+        const string tableComment = "table\\comment 'quoted'";
+        const string columnComment = "column\\comment 'quoted'";
+        const string insertedValue = "inserted\\value";
+        const string updatedValue = "updated\\value";
+        const string updateKey = "update\\key";
+        const string deleteKey = "delete\\key";
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var createTable = new CreateTableOperation
+        {
+            Name = "LiteralContracts",
+            Comment = tableComment,
+        };
+        createTable.Columns.Add(
+            new AddColumnOperation
+            {
+                Table = createTable.Name,
+                Name = "Value",
+                ClrType = typeof(string),
+                ColumnType = "longtext",
+                IsNullable = false,
+                Comment = columnComment,
+            });
+        var insertData = new InsertDataOperation
+        {
+            Table = createTable.Name,
+            Columns = ["Value"],
+            ColumnTypes = ["longtext"],
+            Values = new object[,]
+            {
+                { insertedValue },
+            },
+        };
+        var updateData = new UpdateDataOperation
+        {
+            Table = createTable.Name,
+            Columns = ["Value"],
+            ColumnTypes = ["longtext"],
+            Values = new object[,]
+            {
+                { updatedValue },
+            },
+            KeyColumns = ["Value"],
+            KeyColumnTypes = ["longtext"],
+            KeyValues = new object[,]
+            {
+                { updateKey },
+            },
+        };
+        var deleteData = new DeleteDataOperation
+        {
+            Table = createTable.Name,
+            KeyColumns = ["Value"],
+            KeyColumnTypes = ["longtext"],
+            KeyValues = new object[,]
+            {
+                { deleteKey },
+            },
+        };
+
+        var sql = JoinSql(generator.Generate([createTable, insertData, updateData, deleteData], context.Model));
+
+        Assert.Contains(
+            "/*! SET @__doka_previous_sql_mode = @@SESSION.sql_mode */;",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains("'NO_BACKSLASH_ESCAPES'", sql, StringComparison.Ordinal);
+        Assert.Contains(
+            "/*! SET SESSION sql_mode = @__doka_previous_sql_mode */;",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains($"COMMENT = {GenerateExpectedDdlComment(tableComment)}", sql, StringComparison.Ordinal);
+        Assert.Contains($"COMMENT {GenerateExpectedDdlComment(columnComment)}", sql, StringComparison.Ordinal);
+        Assert.Contains(GenerateExpectedHexLiteral(insertedValue), sql, StringComparison.Ordinal);
+        Assert.Contains(GenerateExpectedHexLiteral(updatedValue), sql, StringComparison.Ordinal);
+        Assert.Contains(GenerateExpectedHexLiteral(updateKey), sql, StringComparison.Ordinal);
+        Assert.Contains(GenerateExpectedHexLiteral(deleteKey), sql, StringComparison.Ordinal);
+    }
+
     // -- HiLo for short type --
 
     [Fact]
@@ -563,6 +651,14 @@ public sealed class MySqlMigrationDdlCoverageTests
     private static string JoinSql(
         IReadOnlyList<MigrationCommand> commands
     ) => string.Join("\n", commands.Select(c => c.CommandText));
+
+    private static string GenerateExpectedHexLiteral(
+        string value
+    ) => $"_utf8mb4 X'{Convert.ToHexString(Encoding.UTF8.GetBytes(value))}'";
+
+    private static string GenerateExpectedDdlComment(
+        string value
+    ) => $"'{value.Replace("'", "''", StringComparison.Ordinal)}'";
 
     private static void ConfigureInvalidIndex(
         CreateIndexOperation operation,

@@ -20,7 +20,14 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - shared quality path: `./eng/quality-gates.sh`
   - local commit subset: `./eng/quality-gates.sh --fast`
   - local path: `./eng/test.sh`
-  - representative live DB path: `DOKA_INTEGRATION_TARGETS=mysql84,mariadb118 ./eng/test-integration.sh`
+  - representative live DB path:
+
+    ```bash
+    DOKA_INTEGRATION_TARGETS=mysql84,mariadb118 \
+    DOKA_INTEGRATION_TEST_FILTER='VerificationLane!=FullIntegration' \
+    ./eng/test-integration.sh
+    ```
+
   - migration model drift gate: `./eng/check-migration-model.sh`
 - Scheduled and manually dispatched exhaustive workflow:
   - workflow: `.github/workflows/ci.yml`
@@ -45,6 +52,8 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - workflow: `.github/workflows/container-matrix.yml`
   - cadence: weekly and on demand
   - local path: `./eng/test-integration.sh`
+  - targets: `mysql84`, `mariadb114`, and `mariadb118`
+  - includes the complete configuration, security, and failure categories
   - retained evidence:
     - `artifacts/integration/<run-id>/compatibility-matrix-summary.md`
     - `artifacts/integration/<run-id>/compatibility-matrix-evidence.json`
@@ -73,6 +82,10 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - local path: `./eng/release-candidate.sh`
   - source gates: clean worktree, exact commit/ref, and exactly one matching
     `v<package-version>` tag
+  - integration gate: unfiltered configuration and failure matrix across
+    `mysql84`, `mariadb114`, and `mariadb118`
+  - functional live gate: specification and standalone `Category=Live`
+    contracts on all three supported engines
   - hosted proof: GitHub artifact attestation for packages and the canonical
     evidence manifest, followed by hosted verification readback
   - retained evidence:
@@ -92,6 +105,89 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - retained evidence:
     - `artifacts/migration-deployment/<run-id>/migration-deployment-summary.md`
     - `artifacts/migration-deployment/<run-id>/migration-deployment-evidence.json`
+
+## Integration Configuration and Failure Contract
+
+The release-candidate integration gate covers configuration and failure modes
+that unit tests or a healthy default connection cannot prove:
+
+- provider-generated text literals are executed with the default SQL mode,
+  `NO_BACKSLASH_ESCAPES`, `ANSI_QUOTES`, and their strict combined form
+- static and dynamically indexed JSON paths apply JSON-path escaping first and
+  then use the same mode-independent SQL literal generator as other text
+- the reusable driver, lifecycle, network-fault, operability, transaction, and
+  cross-layer observability contracts run on MariaDB 11.4 as well as MySQL 8.4
+  and MariaDB 11.8
+- test-owned certificate authorities and server/client certificates prove
+  verified TLS, rejected plaintext, rejected untrusted and name-mismatched
+  certificates, password success/failure, engine-default authentication
+  plugins, and `REQUIRE X509` client authentication
+- bounded pools prove saturation timeout, cancellation, recovery, physical
+  connection reuse, session reset, and broken-connection eviction
+- a deliberately unreachable first address followed by the live test proxy
+  proves ordered multi-host failover through an actual provider query
+
+The fast push lane excludes the three dedicated categories. The
+release-candidate runner sets `DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=1`; the
+shared runner then rejects a filtered selection or any target set other than
+MySQL 8.4, MariaDB 11.4, and MariaDB 11.8. The immutable evidence generator
+independently reads the persisted matrix result and rejects a non-zero exit
+code, a filter, a partial target set, or a run not marked as required.
+
+MySQL-family DDL accepts only its quoted comment-literal grammar, so the
+provider cannot use the general `_utf8mb4 X'...'` expression form directly
+after `COMMENT`. For comment statements containing a backslash, generated SQL
+uses a server-executable comment to save the session mode, adds
+`NO_BACKSLASH_ESCAPES` without removing existing modes, emits the quoted DDL,
+and restores the exact previous mode. MySqlConnector treats the wrapper as a
+comment while MySQL and MariaDB execute its contents, so runtime migrations do
+not require `Allow User Variables=true`. Live readback verifies comment bytes,
+data-operation values, and exact mode restoration.
+
+JSON member names that are not identifiers are quoted and escaped at the JSON
+path layer. The complete static path, or each literal chunk of a dynamic path,
+then flows through the central SQL literal generator. Backslashes used by JSON
+path syntax therefore reach the JSON parser as UTF-8 hexadecimal text instead
+of being reinterpreted by the SQL parser. The live matrix covers quote,
+backslash, and apostrophe member names under every supported SQL mode.
+
+MariaDB certificate-negative tests use a test-owned account with an empty
+password. MySqlConnector 2.6.1 contains a narrowly scoped MariaDB compatibility
+path that can accept an otherwise invalid server certificate when no TLS
+verification option is configured and the certificate fingerprint proves the
+password exchange. Removing the password from this isolated negative-test
+identity prevents that separate compatibility path from masking certificate
+validation. Normal password and mutual-TLS identities are exercised
+independently.
+
+### Primary sources
+
+- MySQL, [Hexadecimal Literals][mysql-hex-literals], retrieved 2026-07-31.
+- MariaDB, [Hexadecimal Literals][mariadb-hex-literals], retrieved 2026-07-31.
+- MySQL, [Comments][mysql-comments], retrieved 2026-07-31.
+- MariaDB, [Comment Syntax][mariadb-comments], retrieved 2026-07-31.
+- MySQL, [Functions That Search JSON Values][mysql-json-search], retrieved
+  2026-07-31.
+- MariaDB, [JSONPath Expressions][mariadb-json-path], retrieved 2026-07-31.
+- MySQL, [Using Encrypted Connections][mysql-encrypted-connections], retrieved
+  2026-07-31.
+- MariaDB, [Securing Connections for Client and Server][mariadb-tls], retrieved
+  2026-07-31.
+- MySqlConnector, [Connection Options][mysqlconnector-options], retrieved
+  2026-07-31.
+- MySqlConnector 2.6.1, [`ServerSession` certificate validation source][mysqlconnector-server-session],
+  retrieved 2026-07-31.
+
+[mysql-hex-literals]: https://dev.mysql.com/doc/refman/8.4/en/hexadecimal-literals.html
+[mariadb-hex-literals]: https://mariadb.com/docs/server/reference/sql-structure/sql-language-structure/hexadecimal-literals
+[mysql-comments]: https://dev.mysql.com/doc/refman/8.4/en/comments.html
+[mariadb-comments]: https://mariadb.com/docs/server/reference/sql-statements/comment-syntax
+[mysql-json-search]: https://dev.mysql.com/doc/refman/8.4/en/json-search-functions.html
+[mariadb-json-path]: https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/jsonpath-expressions
+[mysql-encrypted-connections]: https://dev.mysql.com/doc/refman/8.4/en/using-encrypted-connections.html
+[mariadb-tls]: https://mariadb.com/docs/server/security/securing-mariadb/securing-mariadb-encryption/encryption-data-in-transit
+[mysqlconnector-options]: https://mysqlconnector.net/connection-options/
+[mysqlconnector-server-session]: https://github.com/mysql-net/MySqlConnector/blob/2.6.1/src/MySqlConnector/Core/ServerSession.cs
 
 ## Diagnostics Categories
 

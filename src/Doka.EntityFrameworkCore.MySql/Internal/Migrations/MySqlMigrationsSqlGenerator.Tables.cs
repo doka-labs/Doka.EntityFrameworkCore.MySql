@@ -38,6 +38,18 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
+        var requiresCommentSqlModeScope = RequiresDdlCommentSqlModeScope(operation);
+        if (requiresCommentSqlModeScope)
+        {
+            if (!terminate)
+            {
+                throw new InvalidOperationException(
+                    "A CREATE TABLE operation with backslashes in DDL comments must terminate its command.");
+            }
+
+            AppendDdlCommentSqlModeScopeStart(builder);
+        }
+
         builder
             .Append("CREATE TABLE ")
             .Append(DelimitMigrationIdentifier(operation.Name, operation.Schema))
@@ -57,6 +69,12 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         if (terminate)
         {
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
+            if (requiresCommentSqlModeScope)
+            {
+                AppendDdlCommentSqlModeScopeEnd(builder);
+            }
+
             EndStatement(builder);
         }
     }
@@ -75,12 +93,23 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return;
         }
 
+        var requiresCommentSqlModeScope = RequiresDdlCommentSqlModeScope(operation.Comment);
+        if (requiresCommentSqlModeScope)
+        {
+            AppendDdlCommentSqlModeScopeStart(builder);
+        }
+
         builder
             .Append("ALTER TABLE ")
             .Append(DelimitMigrationIdentifier(operation.Name, operation.Schema))
             .Append(" COMMENT = ")
-            .Append(MySqlSqlLiteralEscaper.EscapeAndQuote(operation.Comment ?? string.Empty))
+            .Append(MySqlSqlLiteralGenerator.GenerateDdlComment(operation.Comment ?? string.Empty))
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
+        if (requiresCommentSqlModeScope)
+        {
+            AppendDdlCommentSqlModeScopeEnd(builder);
+        }
 
         EndStatement(builder);
     }
@@ -140,7 +169,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         {
             builder
                 .Append(" COMMENT = ")
-                .Append(MySqlSqlLiteralEscaper.EscapeAndQuote(comment));
+                .Append(MySqlSqlLiteralGenerator.GenerateDdlComment(comment));
         }
     }
 
@@ -287,6 +316,12 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             columnOperation.AddAnnotation(annotation.Name, annotation.Value);
         }
 
+        var requiresCommentSqlModeScope = RequiresDdlCommentSqlModeScope(columnOperation.Comment);
+        if (requiresCommentSqlModeScope)
+        {
+            AppendDdlCommentSqlModeScopeStart(builder);
+        }
+
         builder
             .Append("ALTER TABLE ")
             .Append(DelimitMigrationIdentifier(operation.Table, operation.Schema))
@@ -303,6 +338,12 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             builder);
 
         builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
+        if (requiresCommentSqlModeScope)
+        {
+            AppendDdlCommentSqlModeScopeEnd(builder);
+        }
+
         builder.EndCommand();
     }
 }

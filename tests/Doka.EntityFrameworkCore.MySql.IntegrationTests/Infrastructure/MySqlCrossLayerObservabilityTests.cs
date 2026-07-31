@@ -18,6 +18,15 @@ public sealed class MySqlCrossLayerObservabilityTests
             .ConfigureAwait(false);
     }
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public async Task MariaDb114_correlates_the_complete_observability_stack()
+    {
+        await AssertCrossLayerContractAsync(
+                IntegrationDatabaseTarget.MariaDb114,
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+            .ConfigureAwait(false);
+    }
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_correlates_the_complete_observability_stack()
     {

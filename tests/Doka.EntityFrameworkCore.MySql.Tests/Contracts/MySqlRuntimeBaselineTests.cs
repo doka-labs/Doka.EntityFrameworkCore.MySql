@@ -114,6 +114,57 @@ public sealed class MySqlRuntimeBaselineTests
         Assert.Equal(expectedConnectorFormat, builder.GuidFormat);
     }
 
+    /// <summary>
+    /// Verifies that provider defaults do not erase driver-owned TLS, pool, or
+    /// multi-host settings from a provider-created physical connection.
+    /// </summary>
+    [Fact]
+    public void Relational_connection_preserves_advanced_connector_options()
+    {
+        var configured = new MySqlConnectionStringBuilder
+        {
+            Server = "primary,secondary",
+            Port = 3307,
+            Database = "doka",
+            UserID = "provider",
+            Password = "secret",
+            ApplicationName = "custom-pool",
+            SslMode = MySqlSslMode.VerifyFull,
+            SslCa = "/certificates/ca.pem",
+            SslCert = "/certificates/client.pem",
+            SslKey = "/certificates/client-key.pem",
+            LoadBalance = MySqlLoadBalance.FailOver,
+            Pooling = true,
+            MinimumPoolSize = 2,
+            MaximumPoolSize = 16,
+            ConnectionReset = true,
+            ConnectionTimeout = 9,
+            AllowUserVariables = true,
+        };
+        var optionsBuilder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
+        optionsBuilder.UseMySql(
+            configured.ConnectionString,
+            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        using var context = new RuntimeBaselineContext(optionsBuilder.Options);
+        var actual = new MySqlConnectionStringBuilder(
+            context.GetService<IRelationalConnection>().DbConnection.ConnectionString);
+
+        Assert.Equal(configured.Server, actual.Server);
+        Assert.Equal(configured.Port, actual.Port);
+        Assert.Equal(configured.ApplicationName, actual.ApplicationName);
+        Assert.Equal(configured.SslMode, actual.SslMode);
+        Assert.Equal(configured.SslCa, actual.SslCa);
+        Assert.Equal(configured.SslCert, actual.SslCert);
+        Assert.Equal(configured.SslKey, actual.SslKey);
+        Assert.Equal(configured.LoadBalance, actual.LoadBalance);
+        Assert.Equal(configured.MinimumPoolSize, actual.MinimumPoolSize);
+        Assert.Equal(configured.MaximumPoolSize, actual.MaximumPoolSize);
+        Assert.Equal(configured.ConnectionReset, actual.ConnectionReset);
+        Assert.Equal(configured.ConnectionTimeout, actual.ConnectionTimeout);
+        Assert.Equal(configured.AllowUserVariables, actual.AllowUserVariables);
+    }
+
     private static DbContextOptions<RuntimeBaselineContext> CreateOptions(
         DbConnection connection
     )

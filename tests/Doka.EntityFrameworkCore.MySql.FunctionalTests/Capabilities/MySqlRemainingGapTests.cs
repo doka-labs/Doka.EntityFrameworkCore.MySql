@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore.ValueGeneration;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
@@ -9,20 +11,26 @@ public sealed class MySqlRemainingGapTests
     // -- ValueGeneratorSelector: unsupported type --
 
     [Fact]
-    public void UseHiLo_on_guid_property_throws_during_model_build()
+    public void UseHiLo_on_guid_property_throws_when_the_value_generator_is_selected()
     {
         var builder = new DbContextOptionsBuilder<HiLoGuidContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
-        // GUID is not a valid type for HiLo -- the convention or selector should reject it.
-        // Since UseHiLo sets strategy on the property, the model should at least build.
-        // The actual exception would come from the selector at runtime.
         using var context = new HiLoGuidContext(builder.Options);
-        var property = context.Model.FindEntityType(typeof(HiLoGuidEntity))!.FindProperty(nameof(HiLoGuidEntity.Id))!;
+        var entityType = context.Model.FindEntityType(typeof(HiLoGuidEntity))
+            ?? throw new InvalidOperationException("HiLoGuidEntity metadata was not created.");
+        var property = entityType.FindProperty(nameof(HiLoGuidEntity.Id))
+            ?? throw new InvalidOperationException("HiLoGuidEntity.Id metadata was not created.");
+        var selector = context.GetService<IValueGeneratorSelector>();
 
-        Assert.Equal(MySqlValueGenerationStrategy.HiLo, property.GetMySqlValueGenerationStrategy());
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => selector.TrySelect(property, entityType, out _));
+
+        Assert.Equal(
+            "Hi/Lo value generation is not supported for properties of type 'Guid'.",
+            exception.Message);
     }
 
     // -- OptionsExtension: multiple connection paths rejection --
@@ -57,6 +65,24 @@ public sealed class MySqlRemainingGapTests
 
         // The single quote in the JSON value must be doubled for MySQL SQL literals.
         Assert.Contains("it''s here", literal, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that JSON backslashes cannot change meaning under
+    /// <c>NO_BACKSLASH_ESCAPES</c> because the mapping emits UTF-8 hexadecimal.
+    /// </summary>
+    [Fact]
+    public void JsonTypeMapping_uses_mode_independent_hex_for_backslashes()
+    {
+        const string rawJson = "{\"path\":\"C:\\\\data\"}";
+        using var document = JsonDocument.Parse(rawJson);
+        var mapping = MySqlJsonTypeMapping.CreateJsonElementMapping();
+
+        var literal = mapping.GenerateSqlLiteral(document.RootElement);
+
+        Assert.Equal(
+            $"_utf8mb4 X'{Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(rawJson))}'",
+            literal);
     }
 
     // -- VisitJsonScalar: JSON_EXTRACT verified via owned-type JSON mapping

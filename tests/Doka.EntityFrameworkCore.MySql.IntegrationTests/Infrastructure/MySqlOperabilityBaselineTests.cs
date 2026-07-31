@@ -22,6 +22,19 @@ public sealed class MySqlOperabilityBaselineTests
     }
 
     /// <summary>
+    /// Verifies that MariaDB 11.4 surfaces the provider timeout diagnostic
+    /// without being treated as a retry.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public async Task MariaDb114_command_timeout_logs_timeout_exhaustion()
+    {
+        await AssertCommandTimeoutAsync(
+                IntegrationDatabaseTarget.MariaDb114,
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Verifies that MariaDB 11.8 surfaces the provider timeout diagnostic without being treated as retries.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
@@ -40,6 +53,19 @@ public sealed class MySqlOperabilityBaselineTests
     public async Task Cancellation_token_honors_driver_cancellation_and_logs_cancellation_path()
     {
         await AssertCancellationAsync(IntegrationDatabaseTarget.MySql84, MySqlServerVersion.MySql(new Version(8, 4, 0)))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies that MariaDB 11.4 honors driver cancellation and emits a
+    /// cancellation diagnostic.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public async Task MariaDb114_cancellation_token_honors_driver_cancellation_and_logs_cancellation_path()
+    {
+        await AssertCancellationAsync(
+                IntegrationDatabaseTarget.MariaDb114,
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
             .ConfigureAwait(false);
     }
 
