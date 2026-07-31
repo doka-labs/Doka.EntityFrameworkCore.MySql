@@ -2,8 +2,6 @@ name: release-candidate
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "45 2 * * 1"
 
 permissions:
   contents: read

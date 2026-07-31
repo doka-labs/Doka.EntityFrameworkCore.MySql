@@ -16,9 +16,17 @@ The release-hardening evidence model is intentionally explicit and repeatable:
 
 - PR workflow:
   - workflow: `.github/workflows/ci.yml`
+  - shared quality path: `./eng/quality-gates.sh`
+  - local commit subset: `./eng/quality-gates.sh --fast`
   - local path: `./eng/test.sh`
   - representative live DB path: `DOKA_INTEGRATION_TARGETS=mysql84,mariadb118 ./eng/test-integration.sh`
   - migration model drift gate: `./eng/check-migration-model.sh`
+- Scheduled and manually dispatched exhaustive workflow:
+  - workflow: `.github/workflows/ci.yml`
+  - cadence: weekly and on demand
+  - EF Core floor/latest matrix: `efcore-patch-matrix`
+  - specification targets: `mysql84`, `mariadb114`, and `mariadb118`
+  - merged source-coverage gate: `coverage-gate`
   - migration deployment lifecycle: `./eng/test-migration-deployment.sh`
   - runtime smoke: `./eng/test-runtime-posture.sh --test-only`
   - benchmark smoke:
@@ -26,6 +34,7 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `DOKA_BENCHMARK_TARGET=mariadb118 ./eng/benchmark.sh --test-only`
 - Scheduled container matrix:
   - workflow: `.github/workflows/container-matrix.yml`
+  - cadence: weekly and on demand
   - local path: `./eng/test-integration.sh`
   - retained evidence:
     - `artifacts/integration/<run-id>/compatibility-matrix-summary.md`
@@ -51,6 +60,7 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/benchmarks/<target>/reports/<run-id>/...`
 - Repo-local release candidate:
   - workflow: `.github/workflows/release-candidate.yml`
+  - cadence: manually dispatched before a tag
   - local path: `./eng/release-candidate.sh`
   - retained evidence:
     - `artifacts/release-candidate/<run-id>/release-candidate-changelog.md`

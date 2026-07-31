@@ -8,7 +8,7 @@ public sealed class AdrRepositoryValidatorTests
         var report = AdrRepositoryValidator.Validate(FindRepositoryRoot());
 
         Assert.True(report.IsValid, FormatErrors(report));
-        Assert.Equal(22, report.Documents.Count);
+        Assert.Equal(23, report.Documents.Count);
     }
 
     [Fact]
@@ -18,6 +18,7 @@ public sealed class AdrRepositoryValidatorTests
         AssertShellGate(Path.Combine(repositoryRoot, "eng", "build.sh"), "dotnet restore");
         AssertShellGate(Path.Combine(repositoryRoot, "eng", "test.sh"), "dotnet build");
         AssertShellGate(Path.Combine(repositoryRoot, "eng", "release-candidate.sh"), "run_specification_gate");
+        AssertShellGate(Path.Combine(repositoryRoot, "eng", "quality-gates.sh"), "dotnet format");
 
         var releaseCandidateScript = File.ReadAllText(Path.Combine(repositoryRoot, "eng", "release-candidate.sh"));
         Assert.Contains(
@@ -68,14 +69,14 @@ public sealed class AdrRepositoryValidatorTests
 
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
         Assert.Contains(
-            "- name: Validate architecture decisions\n" + "        run: bash eng/validate-adrs.sh",
+            "- name: Run repository quality gates\n" + "        run: bash eng/quality-gates.sh",
             workflow,
             StringComparison.Ordinal);
     }
 
     /// <summary>
     /// Keeps model drift, bundle lifecycle coverage, and retained evidence wired
-    /// into both pull-request and release-candidate paths.
+    /// into both exhaustive CI and release-candidate paths.
     /// </summary>
     [Fact]
     public void Migration_deployment_gate_is_wired_into_ci_and_release_candidates()
@@ -87,6 +88,8 @@ public sealed class AdrRepositoryValidatorTests
             Path.Combine(repositoryRoot, "eng", "test-migration-deployment.sh"));
         var releaseCandidate = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release-candidate.sh"));
+        var qualityGates = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "quality-gates.sh"));
         var workflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
 
@@ -104,8 +107,115 @@ public sealed class AdrRepositoryValidatorTests
             "DOKA_MIGRATION_DEPLOYMENT_EVIDENCE_ROOT=\"${migration_deployment_root}\"",
             releaseCandidate,
             StringComparison.Ordinal);
-        Assert.Contains("run: bash eng/check-migration-model.sh", workflow, StringComparison.Ordinal);
+        Assert.Contains(
+            "\"${repo_root}/eng/check-migration-model.sh\"",
+            qualityGates,
+            StringComparison.Ordinal);
+        Assert.Contains("run: bash eng/quality-gates.sh", workflow, StringComparison.Ordinal);
         Assert.Contains("run: bash eng/test-migration-deployment.sh", workflow, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Tiered_ci_preserves_fast_and_exhaustive_verification_lanes()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var workflow = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+        var containerMatrix = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "container-matrix.yml"));
+        var releaseCandidate = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "release-candidate.yml"));
+        var dependabot = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "dependabot.yml"));
+        const string exhaustiveCondition =
+            "if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'";
+
+        Assert.Contains(
+            "schedule:\n    - cron: \"15 1 * * 4\"",
+            workflow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "${{ github.workflow }}-${{ github.event_name }}-"
+            + "${{ github.head_ref || github.ref }}",
+            workflow,
+            StringComparison.Ordinal);
+        Assert.Contains("cancel-in-progress: true", workflow, StringComparison.Ordinal);
+
+        AssertFastLaneJob(workflow, "quality-gates");
+        AssertFastLaneJob(workflow, "repo-tests");
+        AssertFastLaneJob(workflow, "integration-smoke");
+
+        Assert.Contains(
+            $"  migration-deployment:\n    {exhaustiveCondition}",
+            workflow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"  efcore-patch-matrix:\n    {exhaustiveCondition}",
+            workflow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"  spec-test-suite:\n    {exhaustiveCondition}",
+            workflow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"  runtime-posture:\n    {exhaustiveCondition}",
+            workflow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"  benchmark-smoke:\n    {exhaustiveCondition}",
+            workflow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "&& (github.event_name == 'schedule'\n"
+            + "      || github.event_name == 'workflow_dispatch')",
+            workflow,
+            StringComparison.Ordinal);
+
+        Assert.Contains("cron: \"0 2 * * 2\"", containerMatrix, StringComparison.Ordinal);
+        Assert.DoesNotContain("schedule:", releaseCandidate, StringComparison.Ordinal);
+
+        Assert.Contains("runtime-dependencies:", dependabot, StringComparison.Ordinal);
+        Assert.Contains("example-dependencies:", dependabot, StringComparison.Ordinal);
+        Assert.Contains("test-infrastructure:", dependabot, StringComparison.Ordinal);
+        Assert.Contains("version-update:semver-patch", dependabot, StringComparison.Ordinal);
+        Assert.Contains("open-pull-requests-limit: 5", dependabot, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Keeps local hooks opt-in while sharing one quality-gate implementation
+    /// with hosted CI and protecting contributor-owned Git configuration.
+    /// </summary>
+    [Fact]
+    public void Git_hooks_reuse_ci_quality_gates_without_global_configuration()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var workflow = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+        var qualityGates = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "quality-gates.sh"));
+        var preCommit = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".githooks", "pre-commit"));
+        var prePush = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".githooks", "pre-push"));
+        var installer = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "install-git-hooks.sh"));
+
+        Assert.Contains("run: bash eng/quality-gates.sh", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("dotnet format", workflow, StringComparison.Ordinal);
+
+        Assert.Contains("dotnet restore \"${solution}\"", qualityGates, StringComparison.Ordinal);
+        Assert.Contains("--vulnerable", qualityGates, StringComparison.Ordinal);
+        Assert.Contains("examples/*/*.csproj", qualityGates, StringComparison.Ordinal);
+        Assert.Contains("eng/check-migration-model.sh", qualityGates, StringComparison.Ordinal);
+
+        Assert.Contains("eng/quality-gates.sh\" --fast", preCommit, StringComparison.Ordinal);
+        Assert.Contains("git diff --cached --check", preCommit, StringComparison.Ordinal);
+        Assert.Contains("exec \"${repo_root}/eng/quality-gates.sh\"", prePush, StringComparison.Ordinal);
+        Assert.DoesNotContain("--fast", prePush, StringComparison.Ordinal);
+
+        Assert.Contains("config --local core.hooksPath", installer, StringComparison.Ordinal);
+        Assert.Contains("Refusing to replace contributor-owned hooks", installer, StringComparison.Ordinal);
+        Assert.DoesNotContain("config --global", installer, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -789,6 +899,23 @@ public sealed class AdrRepositoryValidatorTests
     private static string FormatErrors(
         AdrValidationReport report
     ) => string.Join(Environment.NewLine, report.Errors);
+
+    private static void AssertFastLaneJob(
+        string workflow,
+        string jobName
+    )
+    {
+        var jobStart = workflow.IndexOf($"  {jobName}:", StringComparison.Ordinal);
+        Assert.True(jobStart >= 0, $"Workflow job '{jobName}' is missing.");
+
+        var runsOn = workflow.IndexOf("    runs-on:", jobStart, StringComparison.Ordinal);
+        Assert.True(runsOn > jobStart, $"Workflow job '{jobName}' has no runs-on declaration.");
+
+        Assert.DoesNotContain(
+            "\n    if:",
+            workflow[jobStart..runsOn],
+            StringComparison.Ordinal);
+    }
 
     private static void AssertShellGate(
         string path,

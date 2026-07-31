@@ -100,7 +100,9 @@
       "supersedes": [],
       "supersededBy": [],
       "amends": [],
-      "amendedBy": []
+      "amendedBy": [
+        "D-023"
+      ]
     },
     {
       "id": "D-010",
@@ -201,7 +203,9 @@
       "supersedes": [],
       "supersededBy": [],
       "amends": [],
-      "amendedBy": []
+      "amendedBy": [
+        "D-023"
+      ]
     },
     {
       "id": "D-019",
@@ -247,6 +251,20 @@
       "supersedes": [],
       "supersededBy": [],
       "amends": [],
+      "amendedBy": []
+    },
+    {
+      "id": "D-023",
+      "title": "Use tiered CI verification under a fixed runner budget",
+      "status": "implemented",
+      "date": "2026-07-31",
+      "path": "docs/decisions/D-023-tiered-ci-verification.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [
+        "D-009",
+        "D-018"
+      ],
       "amendedBy": []
     }
   ]

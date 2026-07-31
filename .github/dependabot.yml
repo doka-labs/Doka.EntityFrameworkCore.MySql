@@ -27,30 +27,34 @@ updates:
       time: "06:00"
       timezone: Europe/Berlin
     groups:
-      microsoft-extensions:
+      runtime-dependencies:
+        patterns:
+          - "MySqlConnector"
+          - "NetTopologySuite"
+          - "System.IO.Hashing"
+      example-dependencies:
         patterns:
           - "Microsoft.Extensions.*"
-      opentelemetry:
-        patterns:
           - "OpenTelemetry.*"
-      serilog:
-        patterns:
           - "Serilog.*"
-      xunit:
-        patterns:
-          - "xunit*"
       test-infrastructure:
         patterns:
+          - "BenchmarkDotNet"
+          - "FsCheck.*"
           - "Microsoft.NET.Test.Sdk"
+          - "Testcontainers.*"
           - "coverlet.*"
+          - "xunit*"
     ignore:
       # Microsoft.EntityFrameworkCore.* floats inside the [10.0.8, 10.1.0) range
-      # per ADR D-009; a deliberate provider response is required for 10.1.0+.
+      # per ADR D-009. The scheduled floor/latest matrix owns patch validation,
+      # while a deliberate provider response is required for 10.1.0+.
       - dependency-name: "Microsoft.EntityFrameworkCore.*"
         update-types:
           - version-update:semver-major
           - version-update:semver-minor
-    open-pull-requests-limit: 10
+          - version-update:semver-patch
+    open-pull-requests-limit: 5
     commit-message:
       prefix: chore
       include: scope

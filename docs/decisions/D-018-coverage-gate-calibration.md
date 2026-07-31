@@ -9,7 +9,7 @@ scope: "Source coverage union, assembly floors, and risk-critical class floors"
 supersedes: []
 superseded-by: []
 amends: []
-amended-by: []
+amended-by: [D-023]
 madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
@@ -119,8 +119,8 @@ each split query translator from hiding behind aggregate provider coverage.
 - Good, because unit, functional, specification, and integration coverage all
   contribute to the same deduplicated union.
 - Good, because stale or multiply merged evidence is rejected.
-- Bad, because CI must run the dual-engine integration suite before the
-  coverage job can finish.
+- Bad, because the exhaustive CI lane must run the dual-engine integration
+  suite before the coverage job can finish.
 - Bad, because adding a critical class requires a deliberate policy update and
   measured baseline.
 
@@ -217,9 +217,9 @@ The 2026-07-29 accepted union measured:
 
 ### Re-evaluation Triggers
 
-- Two consecutive main-branch runs exceed an assembly floor by at least four
-  percentage points in both dimensions; raise that assembly floor by two
-  points.
+- Two consecutive exhaustive verification runs exceed an assembly floor by at
+  least four percentage points in both dimensions; raise that assembly floor
+  by two points.
 - A critical class exceeds both floors by at least five points for two
   consecutive main-branch runs; raise its floors while retaining at least a
   two-point buffer.
@@ -239,6 +239,8 @@ The 2026-07-29 accepted union measured:
   critical-class, integration-union, and freshness enforcement.
 - 2026-07-29: Added independent floors for the SQL translation visitor and
   seven split method/member translators using a fresh full test-run union.
+- 2026-07-31: Amended by D-023 to enforce the complete coverage union in the
+  weekly and manually dispatched exhaustive CI lane.
 
 ### Implementation References
 

@@ -9,7 +9,7 @@ scope: "EF Core package range and compatibility verification"
 supersedes: []
 superseded-by: []
 amends: []
-amended-by: []
+amended-by: [D-023]
 madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
@@ -63,12 +63,13 @@ deterministic at the lower bound; the matrix uses an explicit floating
 override only to discover and validate the latest patch.
 
 The risk that `EF1001` patch-drift breaks the decorator is structurally
-mitigated by the `EfCorePatchMatrixCI` (foundation backbone 9). Every
-repository CI run validates both the supported floor and the floating
-"latest 10.0.x" tag against non-live tests, two-engine specification and
-live tests, and a representative two-engine integration matrix. The
-provider's response to a detected break is either a minimum-version bump
-in the range or a hot-fix release.
+mitigated by the `EfCorePatchMatrixCI` (foundation backbone 9). The weekly
+exhaustive CI lane and every manual full-verification run validate both the
+supported floor and the floating "latest 10.0.x" tag against non-live tests,
+two-engine specification and live tests, and a representative two-engine
+integration matrix. The fast lane validates the deterministic floor on every
+push to `main` and every pull request. The provider's response to a detected
+break is either a minimum-version bump in the range or a hot-fix release.
 
 ### Consequences
 
@@ -88,8 +89,8 @@ in the range or a hot-fix release.
 
 #### Negative
 
-- The provider takes on the operational cost of the wider matrix on
-  every repository CI run.
+- The provider takes on the operational cost of the wider matrix in every
+  weekly or manually dispatched exhaustive verification run.
 - A patch-induced silent semantic change (no compile-time break, no
   test-time break, but a behavioral drift) can slip past the matrix.
   This risk is shared with every loose-pinning choice anywhere in the
@@ -108,6 +109,8 @@ in the range or a hot-fix release.
 
 - Run the `efcore-patch-matrix` CI job for the floor and latest 10.0.x patch.
 - Retain the resolved package JSON for both matrix entries.
+- Confirm that the fast lane restores and tests the deterministic floor on
+  every push to `main` and every pull request.
 
 ## Pros and Cons of the Options
 
@@ -130,11 +133,20 @@ in the range or a hot-fix release.
 
 ### Implementation Snapshot
 
-- `Directory.Packages.props` applies the `DokaEfCoreVersion` property to the three Microsoft.EntityFrameworkCore.* packages and defaults it to `[10.0.8, 10.1.0)`. `.github/workflows/ci.yml` overrides that property with `10.0.8` and `10.0.*`, asserts the resolved package graph, and runs non-live, specification, live, and integration coverage for both matrix entries.
+- `Directory.Packages.props` applies the `DokaEfCoreVersion` property to the
+  three Microsoft.EntityFrameworkCore.* packages and defaults it to
+  `[10.0.8, 10.1.0)`. `.github/workflows/ci.yml` runs the default floor in its
+  fast lane. Its weekly and manually dispatched exhaustive lane overrides the
+  property with `10.0.8` and `10.0.*`, asserts the resolved package graph, and
+  runs non-live, specification, live, and integration coverage for both matrix
+  entries.
 
 ### Implementation Notes
 
-- Range chosen: `10.0.8, 10.1.0)` per operator decision -- the conservative patch-only variant. The minor-tolerance variant `[10.0.8, 11.0.0)` from the alternatives section was rejected because the EF1001 surface drift across 10.x minors cannot be covered by a CI matrix without doubling the per-push CI minutes.
+- Range chosen: `10.0.8, 10.1.0)` per operator decision -- the conservative
+  patch-only variant. The minor-tolerance variant `[10.0.8, 11.0.0)` from the
+  alternatives section was rejected because the EF1001 surface drift across
+  10.x minors would double the exhaustive compatibility surface.
 - The `efcore-patch-matrix` job overrides `DokaEfCoreVersion` at MSBuild evaluation time. It does not edit source files. Central Package Management floating versions remain disabled by default and are enabled only inside this matrix job, as documented by [NuGet error NU1011 (see Sources).
 - Every matrix restore is followed by a machine-readable `dotnet package list` readback. The job fails unless Design, Relational, and Relational.Specification.Tests resolve to one version matching the matrix contract. The JSON readback is retained as an artifact.
 - Each entry runs `eng/test.sh`, specification plus live functional tests against MySQL 8.4 and MariaDB 11.8, and the representative MySQL 8.4 plus MariaDB 11.8 integration matrix. Test-owned containers make the live paths identical locally and in CI.
@@ -176,6 +188,8 @@ in the range or a hot-fix release.
 
 - 2026-05-16: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-07-31: Amended by D-023 to move the floor/latest matrix from every
+  repository event to weekly and manually dispatched exhaustive verification.
 
 ### Implementation References
 

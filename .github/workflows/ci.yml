@@ -6,9 +6,15 @@ on:
       - main
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "15 1 * * 4"
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   quality-gates:
@@ -24,69 +30,11 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Restore
-        run: dotnet restore Doka.EntityFrameworkCore.MySql.slnx --tl:off
-
-      - name: Validate architecture decisions
-        run: bash eng/validate-adrs.sh
-
-      - name: Verify formatting
-        run: dotnet format Doka.EntityFrameworkCore.MySql.slnx --verify-no-changes --no-restore
-
-      - name: Verify unnecessary usings
-        run: |
-          dotnet format Doka.EntityFrameworkCore.MySql.slnx style \
-            --diagnostics IDE0005 --severity hidden \
-            --verify-no-changes --no-restore
-
-      - name: Vulnerability audit (runtime provider)
-        run: |
-          mkdir -p artifacts/ci-audit
-          dotnet package list \
-            --project src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj \
-            --vulnerable --include-transitive --format json \
-            > artifacts/ci-audit/runtime.json
-          count="$(bash eng/check-vulnerability-audit.sh artifacts/ci-audit/runtime.json)"
-          if [[ "${count}" -ne 0 ]]; then
-            echo "Vulnerability audit failed for runtime provider." >&2
-            exit 1
-          fi
-
-      - name: Vulnerability audit (NetTopologySuite)
-        run: |
-          dotnet package list \
-            --project src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj \
-            --vulnerable --include-transitive --format json \
-            > artifacts/ci-audit/spatial.json
-          count="$(bash eng/check-vulnerability-audit.sh artifacts/ci-audit/spatial.json)"
-          if [[ "${count}" -ne 0 ]]; then
-            echo "Vulnerability audit failed for NetTopologySuite package." >&2
-            exit 1
-          fi
-
-      - name: Verify example projects build
-        run: |
-          # Standalone example projects are not part of the .slnx and therefore
-          # not covered by the top-level restore, so let each build restore its
-          # own packages. The NuGet cache is already warm from the slnx restore,
-          # which keeps per-example restore near-instant.
-          failed=0
-          for csproj in examples/*/*.csproj; do
-            if ! dotnet build "${csproj}" --tl:off -m:1 > /dev/null 2>&1; then
-              echo "FAIL: ${csproj}" >&2
-              failed=1
-            fi
-          done
-          if [[ "${failed}" -ne 0 ]]; then
-            echo "One or more example projects failed to build." >&2
-            exit 1
-          fi
-          echo "All example projects build successfully."
-
-      - name: Verify migration model snapshot
-        run: bash eng/check-migration-model.sh
+      - name: Run repository quality gates
+        run: bash eng/quality-gates.sh
 
   migration-deployment:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -141,6 +89,7 @@ jobs:
   # surface surfaces in CI within one nightly cycle rather than at consumer-
   # install time.
   efcore-patch-matrix:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -249,6 +198,7 @@ jobs:
             artifacts/integration
 
   spec-test-suite:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     strategy:
@@ -308,7 +258,10 @@ jobs:
   coverage-gate:
     runs-on: ubuntu-latest
     needs: [repo-tests, spec-test-suite, integration-smoke]
-    if: always()
+    if: >-
+      always()
+      && (github.event_name == 'schedule'
+      || github.event_name == 'workflow_dispatch')
 
     steps:
       - name: Checkout
@@ -380,6 +333,7 @@ jobs:
           path: artifacts/coverage/integration
 
   runtime-posture:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     services:
@@ -416,6 +370,7 @@ jobs:
         run: bash ./eng/test-runtime-posture.sh --test-only
 
   benchmark-smoke:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

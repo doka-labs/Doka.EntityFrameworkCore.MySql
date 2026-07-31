@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+
+git diff --cached --check
+
+echo "Running fast repository quality gates before commit..."
+exec "${repo_root}/eng/quality-gates.sh" --fast

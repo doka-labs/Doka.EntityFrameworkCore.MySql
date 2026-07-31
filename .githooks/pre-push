@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+
+echo "Running full repository quality gates before push..."
+exec "${repo_root}/eng/quality-gates.sh"

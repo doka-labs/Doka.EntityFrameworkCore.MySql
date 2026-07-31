@@ -15,6 +15,28 @@ dotnet build Doka.EntityFrameworkCore.MySql.slnx
 
 The build must remain warning-free, including analyzer, formatting, trim-analysis, and AOT-analysis diagnostics.
 
+## Local Git Hooks
+
+The repository tracks its canonical `pre-commit` and `pre-push` hooks under
+`.githooks`. Git intentionally does not activate hooks from a clone, so enable
+them once for each working copy:
+
+```bash
+./eng/install-git-hooks.sh
+```
+
+The installer sets only this repository's local `core.hooksPath`. It refuses to
+replace a different contributor-owned hook path.
+
+- `pre-commit` runs `./eng/quality-gates.sh --fast`. This no-network gate checks
+  ADRs, formatting, and unnecessary usings against existing restore assets.
+- `pre-push` runs the complete `./eng/quality-gates.sh`, which is also the
+  implementation used by the hosted `quality-gates` CI job.
+
+Run `dotnet restore Doka.EntityFrameworkCore.MySql.slnx --tl:off` once before
+the first commit in a fresh clone. Git's standard `--no-verify` option remains
+available for an explicit emergency bypass; hosted CI remains authoritative.
+
 ## Running Tests
 
 **Unit tests only** (no Docker required):
