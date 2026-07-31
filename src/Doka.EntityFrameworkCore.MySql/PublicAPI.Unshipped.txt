@@ -55,7 +55,9 @@ Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping
 static Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping.Default.get -> Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping!
 Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping.MySqlRowVersionTypeMapping() -> void
 Doka.EntityFrameworkCore.MySql.MySqlServerVersion
+Doka.EntityFrameworkCore.MySql.MySqlServerVersion.<Clone>$() -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
 Doka.EntityFrameworkCore.MySql.MySqlServerVersion.CompatibilityMode.get -> Doka.EntityFrameworkCore.MySql.MySqlServerVersionCompatibilityMode
+Doka.EntityFrameworkCore.MySql.MySqlServerVersion.Equals(Doka.EntityFrameworkCore.MySql.MySqlServerVersion? other) -> bool
 Doka.EntityFrameworkCore.MySql.MySqlServerVersion.IsMariaDb.get -> bool
 Doka.EntityFrameworkCore.MySql.MySqlServerVersion.SupportStatus.get -> Doka.EntityFrameworkCore.MySql.MySqlServerVersionSupportStatus
 Doka.EntityFrameworkCore.MySql.MySqlServerVersion.Version.get -> System.Version!
@@ -78,6 +80,8 @@ Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy.AutoIncrement = 1 ->
 Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy.ClientGuid = 2 -> Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy
 Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy.HiLo = 3 -> Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy
 Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy.None = 0 -> Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy
+override Doka.EntityFrameworkCore.MySql.MySqlServerVersion.Equals(object? obj) -> bool
+override Doka.EntityFrameworkCore.MySql.MySqlServerVersion.GetHashCode() -> int
 override Doka.EntityFrameworkCore.MySql.MySqlServerVersion.ToString() -> string!
 static Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilderExtensions.UseMySql(this Microsoft.EntityFrameworkCore.DbContextOptionsBuilder! optionsBuilder, MySqlConnector.MySqlDataSource! dataSource, Doka.EntityFrameworkCore.MySql.MySqlServerVersion! serverVersion, System.Action<Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!>? mySqlOptionsAction = null) -> Microsoft.EntityFrameworkCore.DbContextOptionsBuilder!
 static Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilderExtensions.UseMySql(this Microsoft.EntityFrameworkCore.DbContextOptionsBuilder! optionsBuilder, string! connectionString, Doka.EntityFrameworkCore.MySql.MySqlServerVersion! serverVersion, System.Action<Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!>? mySqlOptionsAction = null) -> Microsoft.EntityFrameworkCore.DbContextOptionsBuilder!
@@ -127,6 +131,8 @@ static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.MariaDb(System.Version!
 static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.MariaDb(System.Version! version, Doka.EntityFrameworkCore.MySql.MySqlServerVersionCompatibilityMode compatibilityMode) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
 static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.MySql(System.Version! version) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
 static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.MySql(System.Version! version, Doka.EntityFrameworkCore.MySql.MySqlServerVersionCompatibilityMode compatibilityMode) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
+static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.operator !=(Doka.EntityFrameworkCore.MySql.MySqlServerVersion? left, Doka.EntityFrameworkCore.MySql.MySqlServerVersion? right) -> bool
+static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.operator ==(Doka.EntityFrameworkCore.MySql.MySqlServerVersion? left, Doka.EntityFrameworkCore.MySql.MySqlServerVersion? right) -> bool
 static Doka.EntityFrameworkCore.MySql.MySqlServiceCollectionExtensions.AddEntityFrameworkDokaMySql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! serviceCollection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Doka.EntityFrameworkCore.MySql.MySqlServiceCollectionExtensions.AddEntityFrameworkDokaMySqlDesignTime(this Microsoft.Extensions.DependencyInjection.IServiceCollection! serviceCollection, System.Action<Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Doka.EntityFrameworkCore.MySql.MySqlStringTypeMapping.Default.get -> Doka.EntityFrameworkCore.MySql.MySqlStringTypeMapping!
