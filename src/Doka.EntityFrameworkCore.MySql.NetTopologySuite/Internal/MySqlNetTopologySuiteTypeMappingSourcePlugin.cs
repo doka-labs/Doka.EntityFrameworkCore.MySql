@@ -150,7 +150,7 @@ internal sealed class MySqlNetTopologySuiteTypeMappingSourcePlugin : IRelational
     )
         where TGeometry : Geometry
     {
-        var geometry = new WKBReader().Read(providerValue.WKB.ToArray());
+        var geometry = MySqlSpatialValueReader.ReadWkb(providerValue.WKB.ToArray());
         geometry.SRID = providerValue.SRID;
 
         return geometry as TGeometry

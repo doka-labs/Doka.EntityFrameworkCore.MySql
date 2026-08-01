@@ -542,6 +542,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return string.Empty;
         }
 
+        if (valueType == typeof(byte[]))
+        {
+            return Array.Empty<byte>();
+        }
+
         if (valueType == typeof(Guid))
         {
             return Guid.Empty;
@@ -562,30 +567,33 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return TimeSpan.Zero;
         }
 
-        if (valueType == typeof(byte[]))
+        if (valueType == typeof(char))
         {
-            return Array.Empty<byte>();
+            return '\0';
         }
 
-        return Type.GetTypeCode(valueType) switch
+        if (valueType == typeof(DateTime))
         {
-            TypeCode.Boolean => false,
-            TypeCode.Byte => (byte)0,
-            TypeCode.Char => '\0',
-            TypeCode.DateTime => default(DateTime),
-            TypeCode.Decimal => 0m,
-            TypeCode.Double => 0d,
-            TypeCode.Int16 => (short)0,
-            TypeCode.Int32 => 0,
-            TypeCode.Int64 => 0L,
-            TypeCode.SByte => (sbyte)0,
-            TypeCode.Single => 0f,
-            TypeCode.UInt16 => (ushort)0,
-            TypeCode.UInt32 => 0U,
-            TypeCode.UInt64 => 0UL,
-            _ => throw new InvalidOperationException(
-                $"No non-null store default is available for " + $"'{clrType.FullName ?? clrType.Name}'."),
-        };
+            return default(DateTime);
+        }
+
+        var typeCode = Type.GetTypeCode(valueType);
+
+        if (typeCode == TypeCode.Boolean)
+        {
+            return false;
+        }
+
+        // Numeric TypeCode values are contiguous from SByte through Decimal.
+        // Convert.ChangeType preserves the exact boxed CLR type without reflection
+        // metadata requirements or a duplicated arm for every numeric width.
+        if (typeCode is >= TypeCode.SByte and <= TypeCode.Decimal)
+        {
+            return Convert.ChangeType(0, valueType, CultureInfo.InvariantCulture);
+        }
+
+        throw new InvalidOperationException(
+            $"No non-null store default is available for '{clrType.FullName ?? clrType.Name}'.");
     }
 
     private static bool RequiresParenthesizedDefault(

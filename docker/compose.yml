@@ -10,7 +10,7 @@ services:
       MYSQL_USER: doka
       MYSQL_PASSWORD: doka_password
     ports:
-      - "${DOKA_MYSQL84_PORT:-33068}:3306"
+      - "127.0.0.1:${DOKA_MYSQL84_PORT:-33068}:3306"
     volumes:
       - doka-mysql84-data:/var/lib/mysql
     healthcheck:
@@ -31,7 +31,7 @@ services:
       MARIADB_USER: doka
       MARIADB_PASSWORD: doka_password
     ports:
-      - "${DOKA_MARIADB118_PORT:-33069}:3306"
+      - "127.0.0.1:${DOKA_MARIADB118_PORT:-33069}:3306"
     volumes:
       - doka-mariadb118-data:/var/lib/mysql
     healthcheck:
@@ -52,7 +52,7 @@ services:
       MARIADB_USER: doka
       MARIADB_PASSWORD: doka_password
     ports:
-      - "${DOKA_MARIADB114_PORT:-33067}:3306"
+      - "127.0.0.1:${DOKA_MARIADB114_PORT:-33067}:3306"
     volumes:
       - doka-mariadb114-data:/var/lib/mysql
     healthcheck:

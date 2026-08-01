@@ -300,6 +300,7 @@ public sealed class AdrRepositoryValidatorTests
         Assert.DoesNotContain("dotnet format", workflow, StringComparison.Ordinal);
 
         Assert.Contains("dotnet restore \"${solution}\"", qualityGates, StringComparison.Ordinal);
+        Assert.Contains("dotnet build \"${solution}\"", qualityGates, StringComparison.Ordinal);
         Assert.Contains("--vulnerable", qualityGates, StringComparison.Ordinal);
         Assert.Contains("examples/*/*.csproj", qualityGates, StringComparison.Ordinal);
         Assert.Contains("eng/check-migration-model.sh", qualityGates, StringComparison.Ordinal);

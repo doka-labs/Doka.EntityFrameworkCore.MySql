@@ -126,11 +126,26 @@ controlled publication workflows.
 - Generated code and migrations remain reviewable artifacts; silent executable
   source generation from hostile metadata is forbidden.
 
+### Database result materialization
+
+- Database-backed JSON, spatial values, and metadata remain untrusted after the
+  connector has decoded the wire representation.
+- Spatial WKT and WKB cross one iterative provider guard before recursive
+  NetTopologySuite parsing. The guard permits at most 256 structural parser
+  frames, including the leaf geometry, and rejects deeper input without echoing
+  the payload.
+- Process-wide provider caches have explicit cardinality bounds. Exact engine-
+  version profiles retain at most 128 entries while preserving the requested
+  version on every returned profile.
+
 ### Connections, authentication, and transport
 
 - The provider preserves supported MySqlConnector TLS, authentication,
   certificate, pooling, reset, failover, cancellation, and timeout options.
 - Exactly one connection path is active.
+- Process-wide HiLo state includes connector protocol, protocol-specific
+  endpoint, server, port, database, and user identity without retaining a
+  password.
 - Connection strings and exception payloads do not enter provider-owned
   telemetry.
 - Cancellation and timeout exceptions are not classified as transient retries
@@ -145,6 +160,8 @@ controlled publication workflows.
   cross-checked before publication.
 - Test, benchmark, and generated evidence never substitute for the shipped
   source revision they claim to validate.
+- Bundled database services publish repository-known test credentials on IPv4
+  loopback only; wider host-network exposure requires an explicit override.
 
 ## Attacker Stories
 

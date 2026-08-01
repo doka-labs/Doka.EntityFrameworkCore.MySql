@@ -10,6 +10,12 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal static class EngineProfileTable
 {
+    /// <summary>
+    /// Maximum number of exact engine versions retained by the process-wide
+    /// reference cache. Capability construction remains available after eviction.
+    /// </summary>
+    internal const int Capacity = 128;
+
     private static readonly Version s_mySql576 = new(5, 7, 6);
     private static readonly Version s_mySql578 = new(5, 7, 8);
     private static readonly Version s_mySql803 = new(8, 0, 3);
@@ -23,20 +29,34 @@ internal static class EngineProfileTable
     private static readonly Version s_mariaDb105 = new(10, 5, 0);
     private static readonly Version s_mariaDb1052 = new(10, 5, 2);
 
-    // Per-(family, version) instance cache. EF Core caches its internal service
-    // provider per options-graph; the cache hit requires identical references to
-    // every option-extension property, and EngineProfile's FrozenSet defaults to
-    // reference equality. Without the cache here every fresh MySqlServerVersion()
-    // produces a fresh profile, every fresh profile invalidates EF Core's service-
-    // provider cache, and the "more than twenty service providers" warning escalates
-    // to an error in unit tests that build many DbContexts per run.
-    private static readonly ConcurrentDictionary<(EngineFamily Family, Version Version), EngineProfile> s_cache = new();
+    // EF Core's options graph requires stable profile references for repeated
+    // versions. Resolution is configuration-time work, so one short critical
+    // section provides a strict bound for both the entries and FIFO ownership
+    // metadata without putting a lock in query execution.
+    private static readonly object s_cacheLock = new();
+    private static readonly Dictionary<(EngineFamily Family, Version Version), EngineProfile> s_cache = [];
+    private static readonly Queue<(EngineFamily Family, Version Version)> s_insertionOrder = [];
+
+    /// <summary>
+    /// Returns the currently retained exact-version profile count for resource
+    /// invariant tests.
+    /// </summary>
+    internal static int Count
+    {
+        get
+        {
+            lock (s_cacheLock)
+            {
+                return s_cache.Count;
+            }
+        }
+    }
 
     /// <summary>
     /// Resolves an <see cref="EngineProfile"/> for the supplied engine family and
-    /// version. The resulting instance is cached per (family, version) so repeated
+    /// version. Recent instances are cached per (family, version) so repeated
     /// resolution returns the same reference and downstream service-provider caches
-    /// stay warm.
+    /// stay warm without permitting unbounded process retention.
     /// </summary>
     public static EngineProfile Resolve(
         EngineFamily family,
@@ -45,7 +65,27 @@ internal static class EngineProfileTable
     {
         ArgumentNullException.ThrowIfNull(version);
 
-        return s_cache.GetOrAdd((family, version), static key => Build(key.Family, key.Version));
+        var key = (family, version);
+
+        lock (s_cacheLock)
+        {
+            if (s_cache.TryGetValue(key, out var cachedProfile))
+            {
+                return cachedProfile;
+            }
+
+            var profile = Build(family, version);
+
+            if (s_cache.Count == Capacity)
+            {
+                var oldestKey = s_insertionOrder.Dequeue();
+                _ = s_cache.Remove(oldestKey);
+            }
+
+            s_cache.Add(key, profile);
+            s_insertionOrder.Enqueue(key);
+            return profile;
+        }
     }
 
     private static EngineProfile Build(

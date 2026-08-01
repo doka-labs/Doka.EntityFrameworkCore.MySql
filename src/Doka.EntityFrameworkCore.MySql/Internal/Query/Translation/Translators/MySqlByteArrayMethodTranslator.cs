@@ -40,15 +40,28 @@ internal sealed class MySqlByteArrayMethodTranslator : IMethodCallTranslator
         IDiagnosticsLogger<DbLoggerCategory.Query> logger
     )
     {
-        if (!method.IsGenericMethod
-            || arguments.Count == 0
-            || arguments[0].Type != typeof(byte[])
-            || arguments[0].TypeMapping is not { } byteArrayTypeMapping)
+        if (!method.IsGenericMethod)
         {
             return null;
         }
 
         var genericMethod = method.GetGenericMethodDefinition();
+
+        if (genericMethod != s_containsMethod
+            && genericMethod != s_firstMethod)
+        {
+            return null;
+        }
+
+        // Supported method signatures guarantee the source argument. Dispatching
+        // first avoids indexing arguments for unrelated zero-argument methods.
+        var source = arguments[0];
+
+        if (source.Type != typeof(byte[])
+            || source.TypeMapping is not { } byteArrayTypeMapping)
+        {
+            return null;
+        }
 
         if (genericMethod == s_containsMethod)
         {
@@ -57,7 +70,7 @@ internal sealed class MySqlByteArrayMethodTranslator : IMethodCallTranslator
                 "LOCATE",
                 [
                     value,
-                    arguments[0],
+                    source,
                 ],
                 nullable: true,
                 argumentsPropagateNullability: s_twoArgumentNullPropagation,
@@ -66,17 +79,12 @@ internal sealed class MySqlByteArrayMethodTranslator : IMethodCallTranslator
             return _sqlExpressionFactory.GreaterThan(locate, _sqlExpressionFactory.Constant(0));
         }
 
-        if (genericMethod == s_firstMethod)
-        {
-            return _sqlExpressionFactory.Function(
-                "ASCII",
-                [arguments[0]],
-                nullable: true,
-                argumentsPropagateNullability: s_singleArgumentNullPropagation,
-                typeof(byte));
-        }
-
-        return null;
+        return _sqlExpressionFactory.Function(
+            "ASCII",
+            [source],
+            nullable: true,
+            argumentsPropagateNullability: s_singleArgumentNullPropagation,
+            typeof(byte));
     }
 
     /// <summary>

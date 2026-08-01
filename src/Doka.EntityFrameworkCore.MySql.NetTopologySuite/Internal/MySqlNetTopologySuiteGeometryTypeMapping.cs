@@ -211,7 +211,7 @@ internal sealed class
 
         try
         {
-            geometry = new WKBReader().Read(candidate.ToArray());
+            geometry = MySqlSpatialValueReader.ReadWkb(candidate);
 
             // A zero SRID prefix also starts with a valid WKB byte-order marker.
             // Re-serializing detects that ambiguous layout because the first,
@@ -240,7 +240,7 @@ internal sealed class
         MySqlGeometry providerValue
     )
     {
-        var geometry = new WKBReader().Read(providerValue.WKB.ToArray());
+        var geometry = MySqlSpatialValueReader.ReadWkb(providerValue.WKB.ToArray());
         geometry.SRID = providerValue.SRID;
 
         return geometry as TGeometry

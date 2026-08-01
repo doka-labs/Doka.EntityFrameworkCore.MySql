@@ -8,8 +8,6 @@ internal sealed class MySqlJsonGeometryWktReaderWriter : JsonValueReaderWriter<G
     private static readonly PropertyInfo s_instanceProperty =
         typeof(MySqlJsonGeometryWktReaderWriter).GetProperty(nameof(Instance))!;
 
-    private static readonly WKTReader s_wktReader = new();
-
     public static MySqlJsonGeometryWktReaderWriter Instance { get; } = new();
 
     private MySqlJsonGeometryWktReaderWriter() { }
@@ -17,7 +15,17 @@ internal sealed class MySqlJsonGeometryWktReaderWriter : JsonValueReaderWriter<G
     public override Geometry FromJsonTyped(
         ref Utf8JsonReaderManager manager,
         object? existingObject = null
-    ) => s_wktReader.Read(manager.CurrentReader.GetString());
+    )
+    {
+        var wkt = manager.CurrentReader.GetString();
+
+        if (wkt is null)
+        {
+            throw new InvalidOperationException("A JSON spatial value must contain well-known text.");
+        }
+
+        return MySqlSpatialValueReader.ReadWkt(wkt);
+    }
 
     public override void ToJsonTyped(
         Utf8JsonWriter writer,

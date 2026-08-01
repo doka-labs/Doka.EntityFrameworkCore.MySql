@@ -95,7 +95,15 @@ internal static class PerformanceSoakRunner
 
         for (var index = 0; index < Math.Max(iterations, MySqlHiLoStateCache.Capacity * 2); index++)
         {
-            var identity = new MySqlDatabaseIdentity("benchmark-server", 3306, $"tenant-{index}", "benchmark-user");
+            // The soak varies logical databases while retaining one synthetic
+            // socket endpoint, so endpoint identity is not part of the workload.
+            var identity = new MySqlDatabaseIdentity(
+                "benchmark-server",
+                3306,
+                $"tenant-{index}",
+                "benchmark-user",
+                MySqlConnectionProtocol.Sockets,
+                string.Empty);
             _ = MySqlHiLoStateCache.GetOrCreate(identity, "benchmark-sequence", blockSize: 32);
         }
 

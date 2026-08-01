@@ -71,6 +71,13 @@ dotnet format "${solution}" style \
     --verify-no-changes \
     --no-restore
 
+echo "Building the complete repository solution..."
+dotnet build "${solution}" \
+    --configuration Release \
+    --no-restore \
+    --tl:off \
+    -m:1
+
 if [[ "${mode}" == "fast" ]]; then
     echo "Fast quality gates passed."
     exit 0

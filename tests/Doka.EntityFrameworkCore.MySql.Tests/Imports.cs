@@ -1,4 +1,5 @@
 global using System;
+global using System.Buffers.Binary;
 global using System.Collections;
 global using System.Collections.Concurrent;
 global using System.Collections.Generic;
@@ -24,4 +25,6 @@ global using Microsoft.EntityFrameworkCore.ValueGeneration;
 global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.Logging;
 global using MySqlConnector;
+global using NetTopologySuite.Geometries;
+global using NetTopologySuite.IO;
 global using Xunit;

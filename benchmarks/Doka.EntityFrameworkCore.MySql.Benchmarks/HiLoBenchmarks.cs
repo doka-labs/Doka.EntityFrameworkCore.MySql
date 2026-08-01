@@ -14,7 +14,9 @@ public class HiLoStateCacheBenchmarks
         "benchmark-server",
         3306,
         "benchmark-database",
-        "benchmark-user");
+        "benchmark-user",
+        MySqlConnectionProtocol.Sockets,
+        string.Empty);
 
     [GlobalSetup]
     public void GlobalSetup()

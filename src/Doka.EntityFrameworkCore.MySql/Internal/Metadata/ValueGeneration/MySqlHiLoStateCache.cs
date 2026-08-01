@@ -76,21 +76,23 @@ internal static class MySqlHiLoStateCache
 }
 
 /// <summary>
-/// Secret-free identity for the physical MySQL endpoint and logical database that
-/// owns a Hi/Lo sequence. Passwords and other credentials are deliberately excluded
-/// so the process-wide cache cannot retain them.
+/// Secret-free identity for the connector transport, physical MySQL endpoint, and
+/// logical database that owns a Hi/Lo sequence. Passwords and other credentials are
+/// deliberately excluded so the process-wide cache cannot retain them.
 /// </summary>
 internal readonly record struct MySqlDatabaseIdentity(
     string Server,
     uint Port,
     string Database,
-    string UserId
+    string UserId,
+    MySqlConnectionProtocol ConnectionProtocol,
+    string PipeName
 )
 {
     /// <summary>
-    /// Parses the provider connection string into the fields that determine sequence
-    /// ownership. Equivalent connection-string spellings are canonicalized by
-    /// <see cref="MySqlConnectionStringBuilder"/>.
+    /// Parses the provider connection string into the logical and protocol-specific
+    /// endpoint fields that determine sequence ownership. Equivalent connection-
+    /// string spellings are canonicalized by <see cref="MySqlConnectionStringBuilder"/>.
     /// </summary>
     public static MySqlDatabaseIdentity FromConnectionString(
         string connectionString
@@ -100,6 +102,12 @@ internal readonly record struct MySqlDatabaseIdentity(
 
         var builder = new MySqlConnectionStringBuilder(connectionString);
 
-        return new MySqlDatabaseIdentity(builder.Server, builder.Port, builder.Database, builder.UserID);
+        return new MySqlDatabaseIdentity(
+            builder.Server,
+            builder.Port,
+            builder.Database,
+            builder.UserID,
+            builder.ConnectionProtocol,
+            builder.PipeName);
     }
 }

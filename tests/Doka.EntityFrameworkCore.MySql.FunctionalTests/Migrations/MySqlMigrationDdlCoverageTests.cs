@@ -99,6 +99,47 @@ public sealed class MySqlMigrationDdlCoverageTests
         Assert.Contains("`Version` varchar(64)", sql, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Verifies that changing a nullable column to required repairs existing null
+    /// rows with a store-compatible CLR default before issuing the column change.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(string), "varchar(64)", "''")]
+    [InlineData(typeof(int), "int", "0")]
+    [InlineData(typeof(byte[]), "varbinary(16)", "X''")]
+    [InlineData(typeof(DateOnly), "date", "DATE '0001-01-01'")]
+    public void Nullable_column_becoming_required_repairs_existing_null_rows(
+        Type clrType,
+        string columnType,
+        string expectedLiteral
+    )
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterColumnOperation
+        {
+            Table = "Entries",
+            Name = "Value",
+            ClrType = clrType,
+            ColumnType = columnType,
+            IsNullable = false,
+            OldColumn =
+            {
+                ClrType = clrType,
+                ColumnType = columnType,
+                IsNullable = true,
+            },
+        };
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains(
+            $"UPDATE `Entries` SET `Value` = {expectedLiteral} WHERE `Value` IS NULL;",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains("MODIFY COLUMN `Value`", sql, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Qualified_table_operations_preserve_database_name()
     {

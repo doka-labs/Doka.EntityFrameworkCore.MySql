@@ -57,7 +57,7 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
 
             if (current is MySqlException mySqlException)
             {
-                return mySqlException.IsTransient || IsKnownRetryableErrorCode(mySqlException.ErrorCode);
+                return IsKnownRetryableErrorCode(mySqlException.ErrorCode) || mySqlException.IsTransient;
             }
 
             if (current is SocketException or IOException)
