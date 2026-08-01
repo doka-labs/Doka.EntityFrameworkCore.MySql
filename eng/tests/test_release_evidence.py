@@ -26,6 +26,12 @@ class ReleaseEvidenceTests(unittest.TestCase):
     cannot be accidentally mocked into agreement with the manifest.
     """
 
+    _LOCAL_RELEASE_ENVIRONMENT = {
+        "GITHUB_ACTIONS": "false",
+        "GITHUB_REF": "",
+        "GITHUB_SHA": "",
+    }
+
     def setUp(self) -> None:
         """Create a tagged repository with an ignored evidence fixture."""
         self._temporary_directory = tempfile.TemporaryDirectory(prefix="doka-release-evidence-")
@@ -54,7 +60,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         """Generate canonical relative paths and verify the detached checksum."""
         self._generate()
 
-        release_evidence.verify_manifest(self.root, self.repo)
+        self._verify()
 
         manifest = json.loads((self.root / release_evidence.MANIFEST_NAME).read_text(encoding="utf-8"))
         paths = [artifact["path"] for artifact in manifest["artifacts"]]
@@ -89,7 +95,20 @@ class ReleaseEvidenceTests(unittest.TestCase):
         package.write_bytes(b"tampered package")
 
         with self.assertRaisesRegex(release_evidence.EvidenceError, "integrity check failed"):
-            release_evidence.verify_manifest(self.root, self.repo)
+            self._verify()
+
+    def test_fixture_verification_isolated_from_hosted_environment(self) -> None:
+        """Keep the local fixture independent from GitHub runner identity variables."""
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "GITHUB_ACTIONS": "true",
+                "GITHUB_REF": "refs/heads/main",
+                "GITHUB_SHA": "hosted-runner-commit",
+            },
+        ):
+            self._generate()
+            self._verify()
 
     def test_generate_rejects_incomplete_engine_matrix(self) -> None:
         """Reject a release whose manifest would omit one advertised engine line."""
@@ -208,13 +227,17 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
         with mock.patch.dict(
             "os.environ",
-            {
-                "GITHUB_ACTIONS": "false",
-                "GITHUB_REF": "",
-                "GITHUB_SHA": "",
-            },
+            self._LOCAL_RELEASE_ENVIRONMENT,
         ):
             release_evidence.write_manifest(arguments)
+
+    def _verify(self) -> None:
+        """Verify under the same explicit local identity used for generation."""
+        with mock.patch.dict(
+            "os.environ",
+            self._LOCAL_RELEASE_ENVIRONMENT,
+        ):
+            release_evidence.verify_manifest(self.root, self.repo)
 
     def _write_complete_evidence(self) -> None:
         """Write the minimum complete package, dependency, and engine matrix."""
