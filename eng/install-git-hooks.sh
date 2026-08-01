@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Enables the versioned pre-commit and pre-push hooks without overwriting an
-# existing contributor-owned hooks path.
+# Enables the versioned commit-message, pre-commit, and pre-push hooks without
+# overwriting an existing contributor-owned hooks path.
 
 set -euo pipefail
 
@@ -13,7 +13,9 @@ if ! git -C "${repo_root}" rev-parse --git-dir > /dev/null 2>&1; then
     exit 1
 fi
 
-for hook in pre-commit pre-push; do
+hooks=(commit-msg pre-commit pre-push)
+
+for hook in "${hooks[@]}"; do
     if [[ ! -x "${repo_root}/${hooks_path}/${hook}" ]]; then
         echo "Hook '${hooks_path}/${hook}' must exist and be executable." >&2
         exit 1

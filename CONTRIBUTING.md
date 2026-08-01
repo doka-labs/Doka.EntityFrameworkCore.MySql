@@ -17,9 +17,9 @@ The build must remain warning-free, including analyzer, formatting, trim-analysi
 
 ## Local Git Hooks
 
-The repository tracks its canonical `pre-commit` and `pre-push` hooks under
-`.githooks`. Git intentionally does not activate hooks from a clone, so enable
-them once for each working copy:
+The repository tracks its canonical `commit-msg`, `pre-commit`, and `pre-push`
+hooks under `.githooks`. Git intentionally does not activate hooks from a clone,
+so enable them once for each working copy:
 
 ```bash
 ./eng/install-git-hooks.sh
@@ -27,6 +27,19 @@ them once for each working copy:
 
 The installer sets only this repository's local `core.hooksPath`. It refuses to
 replace a different contributor-owned hook path.
+
+- `commit-msg` requires an ASCII Conventional Commit subject of at most 72
+  characters, one rationale bullet, a blank line, and one or more change
+  bullets. Wrapped bullet lines use two spaces. For example:
+
+  ```text
+  fix(provider): harden resource identity
+
+  - Incomplete endpoint identity allowed unrelated databases to share state.
+
+  - Include the normalized transport endpoint in the cache key.
+  - Cover distinct and equivalent endpoints with regression tests.
+  ```
 
 - `pre-commit` runs `./eng/quality-gates.sh --fast`. This no-network gate checks
   ADRs, formatting, and unnecessary usings against existing restore assets.

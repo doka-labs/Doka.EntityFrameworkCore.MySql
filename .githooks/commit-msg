@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+# Rejects commit messages that drift from the repository's reviewable history
+# contract before Git records them. The Python validator carries the parsing
+# rules so the hook remains a transparent, dependency-free adapter.
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+message_path="${1:?Git did not supply a commit-message path.}"
+
+export PYTHONDONTWRITEBYTECODE=1
+exec python3 "${repo_root}/eng/validate_commit_message.py" "${message_path}"

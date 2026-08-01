@@ -289,6 +289,8 @@ public sealed class AdrRepositoryValidatorTests
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
         var qualityGates = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "quality-gates.sh"));
+        var commitMessage = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".githooks", "commit-msg"));
         var preCommit = File.ReadAllText(
             Path.Combine(repositoryRoot, ".githooks", "pre-commit"));
         var prePush = File.ReadAllText(
@@ -309,7 +311,9 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("git diff --cached --check", preCommit, StringComparison.Ordinal);
         Assert.Contains("exec \"${repo_root}/eng/quality-gates.sh\"", prePush, StringComparison.Ordinal);
         Assert.DoesNotContain("--fast", prePush, StringComparison.Ordinal);
+        Assert.Contains("eng/validate_commit_message.py", commitMessage, StringComparison.Ordinal);
 
+        Assert.Contains("hooks=(commit-msg pre-commit pre-push)", installer, StringComparison.Ordinal);
         Assert.Contains("config --local core.hooksPath", installer, StringComparison.Ordinal);
         Assert.Contains("Refusing to replace contributor-owned hooks", installer, StringComparison.Ordinal);
         Assert.DoesNotContain("config --global", installer, StringComparison.Ordinal);

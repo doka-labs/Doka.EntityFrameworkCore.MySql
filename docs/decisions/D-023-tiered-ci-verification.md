@@ -45,6 +45,8 @@ frequency at which every surface runs, not the existence of those surfaces.
 - Dependency updates should be grouped by risk and consumer surface.
 - Release eligibility must continue to require the complete release-candidate
   path.
+- Locally authored commit messages should preserve one reviewable rationale and
+  change structure without relying on contributor memory.
 
 ## Considered Options
 
@@ -91,7 +93,9 @@ major. Security updates retain their independent Dependabot path and are not
 constrained by the routine version-update pull-request limit.
 
 Local enforcement reuses the hosted quality contract. The versioned
-`pre-commit` hook runs its deterministic no-network subset, and `pre-push`
+`commit-msg` hook validates the repository's Conventional Commit subject,
+rationale bullet, separated change bullets, ASCII content, and line length.
+The `pre-commit` hook runs the deterministic no-network subset, and `pre-push`
 runs the complete quality gate. Git does not activate repository files as
 hooks automatically, so an explicit installer sets only the working copy's
 local `core.hooksPath` and refuses to replace an existing custom path.
@@ -107,6 +111,8 @@ local `core.hooksPath` and refuses to replace an existing custom path.
   changes even when no repository event occurs.
 - Good, because local and hosted quality checks cannot drift into independent
   command lists.
+- Good, because locally authored history retains the same rationale and change
+  shape reviewers expect without introducing a package dependency.
 - Good, because release evidence distinguishes a representative smoke run from
   the full integration configuration and failure contract.
 - Good, because a scheduled Dependabot run creates at most one routine NuGet
@@ -137,6 +143,9 @@ local `core.hooksPath` and refuses to replace an existing custom path.
 - Confirm that Dependabot admits one routine pull request for each of the
   NuGet and GitHub Actions ecosystems.
 - Run `eng/quality-gates.sh --fast` and `eng/quality-gates.sh`.
+- Run the commit-message engineering tests and confirm valid rationale/change
+  bodies pass while missing separators, invalid subjects, non-ASCII content,
+  and overlong lines fail.
 - Run `eng/install-git-hooks.sh` in an isolated clone and confirm that only the
   local `core.hooksPath` becomes `.githooks`.
 - Run `eng/validate-adrs.sh`.
@@ -204,6 +213,8 @@ bypassed.
 - 2026-07-31: Reserved the SQL-mode, TLS/authentication, pool/reset, and
   failover matrix for exhaustive and release lanes; made unfiltered
   three-engine evidence mandatory for release candidates.
+- 2026-08-02: Added a dependency-free commit-message gate after rationale
+  blocks drifted out of several locally authored commits.
 
 ### Implementation References
 
@@ -211,10 +222,12 @@ bypassed.
 - `.github/workflows/container-matrix.yml`
 - `.github/workflows/release-candidate.yml`
 - `.github/dependabot.yml`
+- `.githooks/commit-msg`
 - `.githooks/pre-commit`
 - `.githooks/pre-push`
 - `docs/release-governance.md`
 - `eng/install-git-hooks.sh`
+- `eng/validate_commit_message.py`
 - `eng/quality-gates.sh`
 - `eng/test-integration.sh`
 - `eng/release_evidence.py`
