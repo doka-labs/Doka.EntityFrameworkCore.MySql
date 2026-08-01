@@ -19,6 +19,13 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ValidateGeneratedColumnSupport(operation);
         ValidateSpatialColumnSupport(operation);
 
+        if (!string.IsNullOrWhiteSpace(operation.Collation))
+        {
+            MySqlSqlTokenValidator.ValidateIdentifier(
+                operation.Collation,
+                MySqlAnnotationNames.Collation);
+        }
+
         if (IsMariaDbJsonAliasColumn(operation))
         {
             AppendMariaDbJsonAliasColumnDefinition(name, operation, builder);

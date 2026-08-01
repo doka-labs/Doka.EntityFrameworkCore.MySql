@@ -87,6 +87,25 @@ public sealed class MySqlObservabilityContractTests
                 .GetProperty("privacy")
                 .GetProperty("defaultDriverPoolName")
                 .GetString());
+
+        var privacy = root.GetProperty("privacy");
+
+        AssertDomain(
+            privacy.GetProperty("boundedLogFieldDomains"),
+            "configurationFailureReason",
+            Enum.GetNames<MySqlConfigurationFailureReason>());
+        Assert.Equal(
+            "SHA-256",
+            privacy
+                .GetProperty("objectScopeId")
+                .GetProperty("algorithm")
+                .GetString());
+        Assert.Equal(
+            16,
+            privacy
+                .GetProperty("objectScopeId")
+                .GetProperty("hexCharacters")
+                .GetInt32());
     }
 
     [Fact]

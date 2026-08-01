@@ -62,7 +62,10 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
 
         if (ServerVersion is null)
         {
-            LogInvalidConfiguration(options, "A MySQL server version must be configured.");
+            LogInvalidConfiguration(
+                options,
+                MySqlConfigurationFailureReason.MissingServerVersion);
+
             throw new InvalidOperationException("A MySQL server version must be configured.");
         }
 
@@ -70,7 +73,11 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
             && ServerVersion.CompatibilityMode != MySqlServerVersionCompatibilityMode.AllowUnsupported)
         {
             var message = ServerVersionSupportPolicy.CreateRejectionMessage(ServerVersion);
-            LogInvalidConfiguration(options, message);
+
+            LogInvalidConfiguration(
+                options,
+                MySqlConfigurationFailureReason.UnsupportedServerVersion);
+
             throw new NotSupportedException(message);
         }
 
@@ -95,7 +102,8 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
         {
             LogInvalidConfiguration(
                 options,
-                "A MySQL connection string, DbConnection, or MySqlDataSource must be configured.");
+                MySqlConfigurationFailureReason.MissingConnectionPath);
+
             throw new InvalidOperationException(
                 "A MySQL connection string, DbConnection, or MySqlDataSource must be configured.");
         }
@@ -104,7 +112,8 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
         {
             LogInvalidConfiguration(
                 options,
-                "Configure exactly one MySQL connection path: connection string, DbConnection, or MySqlDataSource.");
+                MySqlConfigurationFailureReason.ConflictingConnectionPaths);
+
             throw new InvalidOperationException(
                 "Configure exactly one MySQL connection path: connection string, DbConnection, or MySqlDataSource.");
         }
@@ -221,7 +230,7 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
 
     private void LogInvalidConfiguration(
         IDbContextOptions options,
-        string message
+        MySqlConfigurationFailureReason reason
     )
     {
         var loggerFactory = options.FindExtension<CoreOptionsExtension>()
@@ -236,9 +245,8 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
 
         MySqlLoggerMessages.InvalidConfiguration(
             logger,
-            message,
-            GetConnectionPath(),
-            MySqlConnectionStringRedactor.Redact(ConnectionString));
+            reason,
+            GetConnectionPath());
     }
 
     private string GetConnectionPath()

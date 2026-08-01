@@ -123,6 +123,25 @@
     "logRawDatabaseNames": false,
     "logRawSchemaOrObjectNames": false,
     "logSql": false,
+    "boundedLogFieldDomains": {
+      "configurationFailureReason": [
+        "ConflictingConnectionPaths",
+        "ConnectionPathChanged",
+        "ForeignKeyNameTooLong",
+        "GuidFormatChanged",
+        "IndexNameTooLong",
+        "MissingConnectionPath",
+        "MissingServerVersion",
+        "RetrySettingsChanged",
+        "ServerVersionChanged",
+        "UnsupportedServerVersion"
+      ]
+    },
+    "objectScopeId": {
+      "algorithm": "SHA-256",
+      "hexCharacters": 16,
+      "purpose": "diagnostic-correlation-only"
+    },
     "defaultDriverPoolName": "Doka.EntityFrameworkCore.MySql"
   },
   "alerts": [

@@ -1,8 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
-/// Tests defensive input validation: CharSet/StorageEngine identifier allowlist,
-/// JSON path property name escaping.
+/// Tests defensive input validation for SQL grammar tokens and JSON path
+/// property-name escaping.
 /// </summary>
 public sealed class MySqlDefensiveValidationTests
 {
@@ -138,6 +138,82 @@ public sealed class MySqlDefensiveValidationTests
         Assert.Contains("ENGINE = InnoDB", sql, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("utf8mb4_bin; SELECT 'injected'")]
+    [InlineData("utf8mb4_unicode_ci\u00e9")]
+    public void ColumnDefinition_rejects_invalid_collation_tokens(
+        string collation
+    )
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AddColumnOperation
+        {
+            Table = "DefensiveEntities",
+            Name = "Name",
+            ClrType = typeof(string),
+            ColumnType = "varchar(100)",
+            Collation = collation,
+        };
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => generator.Generate([operation], context.Model));
+
+        Assert.Contains(MySqlAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(collation, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ColumnDefinition_accepts_valid_collation_token()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AddColumnOperation
+        {
+            Table = "DefensiveEntities",
+            Name = "Name",
+            ClrType = typeof(string),
+            ColumnType = "varchar(100)",
+            Collation = "utf8mb4_0900_ai_ci",
+        };
+
+        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+
+        Assert.Contains("COLLATE utf8mb4_0900_ai_ci", sql, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("utf8mb4_bin; SELECT 'injected'")]
+    [InlineData("utf8mb4_unicode_ci\u00e9")]
+    public void Query_generation_rejects_invalid_collation_tokens(
+        string collation
+    )
+    {
+        using var context = CreateContext();
+
+        var query = context
+            .Set<DefensiveEntity>()
+            .Where(entity => EF.Functions.Collate(entity.Name, collation) == "value");
+
+        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+
+        Assert.Contains(MySqlAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(collation, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Query_generation_accepts_valid_collation_token()
+    {
+        using var context = CreateContext();
+
+        var sql = context
+            .Set<DefensiveEntity>()
+            .Where(entity => EF.Functions.Collate(entity.Name, "utf8mb4_bin") == "value")
+            .ToQueryString();
+
+        Assert.Contains("COLLATE utf8mb4_bin", sql, StringComparison.Ordinal);
+    }
+
     // -- JSON path property name escaping --
     //
     // The provider routes JSON path segments through MySqlQuerySqlGenerator's
@@ -217,6 +293,8 @@ public sealed class MySqlDefensiveValidationTests
     private sealed class DefensiveEntity
     {
         public int Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
     }
 
     private sealed class DefensiveContext : DbContext

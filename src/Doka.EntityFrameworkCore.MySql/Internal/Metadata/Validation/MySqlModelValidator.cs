@@ -208,7 +208,10 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                         + $"'{entityType.DisplayName()}' exceeds MySQL's {maxConstraintNameLength}"
                         + "-character limit and will be rejected at migration time.";
 
-                    MySqlLoggerMessages.InvalidConfiguration(logger, message, "ModelValidation", string.Empty);
+                    MySqlLoggerMessages.InvalidConfiguration(
+                        logger,
+                        MySqlConfigurationFailureReason.ForeignKeyNameTooLong,
+                        "ModelValidation");
 
                     throw new InvalidOperationException(message);
                 }
@@ -226,7 +229,10 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                         + $"exceeds MySQL's {maxConstraintNameLength}-character limit "
                         + "and will be rejected at migration time.";
 
-                    MySqlLoggerMessages.InvalidConfiguration(logger, message, "ModelValidation", string.Empty);
+                    MySqlLoggerMessages.InvalidConfiguration(
+                        logger,
+                        MySqlConfigurationFailureReason.IndexNameTooLong,
+                        "ModelValidation");
 
                     throw new InvalidOperationException(message);
                 }

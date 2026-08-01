@@ -88,9 +88,9 @@ package summary attributes.
 | Class | Lines | Floor | Branches | Floor |
 |---|---:|---:|---:|---:|
 | `MySqlByteArrayMethodTranslator` | 100.00% | 98% | 100.00% | 98% |
-| `MySqlConnectionStringRedactor` | 100.00% | 98% | 100.00% | 98% |
 | `MySqlConvertMethodTranslator` | 100.00% | 98% | 91.67% | 89% |
 | `MySqlDatabaseModelFactory` | 100.00% | 94% | 92.31% | 78% |
+| `MySqlDiagnosticScopeId` | 100.00% | 98% | N/A | N/A |
 | `MySqlExecutionStrategy` | 100.00% | 98% | 75.00% | 73% |
 | `MySqlGuidMethodTranslator` | 100.00% | 98% | 100.00% | 98% |
 | `MySqlJsonValueComparers` | 88.10% | 86% | 88.37% | 85% |
@@ -98,6 +98,7 @@ package summary attributes.
 | `MySqlMigrationsSqlGenerator` | 92.02% | 89% | 74.94% | 72% |
 | `MySqlQuerySqlGenerator` | 96.13% | 95% | 87.00% | 68% |
 | `MySqlSequenceValueGenerator` | 91.67% | 89% | 70.00% | 68% |
+| `MySqlSqlTokenValidator` | 100.00% | 98% | 100.00% | 98% |
 | `MySqlSqlTranslatingExpressionVisitor` | 93.27% | 91% | 84.17% | 82% |
 | `MySqlStringMethodTranslator` | 98.28% | 96% | 87.84% | 85% |
 | `MySqlTemporalMemberTranslator` | 98.31% | 96% | 82.70% | 80% |
@@ -111,6 +112,9 @@ The assembly floors retain roughly two percentage points of measurement
 headroom from their original calibration. Critical-class floors retain a
 smaller, deliberate buffer below the fresh measured values while preventing
 each split query translator from hiding behind aggregate provider coverage.
+Branch-free critical classes declare `minimumBranchPercent` as `null`. The
+checker renders that state as `N/A`, rejects numeric zero-percent floors, and
+fails if instrumentation later discovers a branch without a positive budget.
 
 ### Consequences
 
@@ -241,6 +245,13 @@ The 2026-07-29 accepted union measured:
   seven split method/member translators using a fresh full test-run union.
 - 2026-07-31: Amended by D-023 to enforce the complete coverage union in the
   weekly and manually dispatched exhaustive CI lane.
+- 2026-08-01: Removed the `MySqlConnectionStringRedactor` policy entry after
+  invalid-configuration diagnostics stopped serializing any connection-string
+  representation and the now-consumerless component was deleted.
+- 2026-08-01: Added a 98% line floor for the branch-free
+  `MySqlDiagnosticScopeId` and 98% line and branch floors for
+  `MySqlSqlTokenValidator` after a fresh unit-test coverage run measured every
+  instrumentable dimension at 100%.
 
 ### Implementation References
 

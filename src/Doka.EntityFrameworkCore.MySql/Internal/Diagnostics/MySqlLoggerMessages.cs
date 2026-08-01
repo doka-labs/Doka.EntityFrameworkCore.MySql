@@ -5,11 +5,11 @@ internal static class MySqlLoggerMessages
     // Failure emitters record the exception type as structured data but do not
     // attach the exception object. Driver exception messages can contain SQL or
     // connection metadata and therefore do not belong in provider-owned logs.
-    private static readonly Action<ILogger, string, string, string, Exception?> s_invalidConfiguration =
-        LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, MySqlConfigurationFailureReason, string, Exception?>
+        s_invalidConfiguration = LoggerMessage.Define<MySqlConfigurationFailureReason, string>(
             LogLevel.Error,
             MySqlEventId.InvalidConfiguration,
-            "{Message} ConnectionPath={ConnectionPath} RedactedConnectionString={RedactedConnectionString}");
+            "MySQL provider configuration is invalid. Reason={Reason} ConnectionPath={ConnectionPath}");
 
     private static readonly Action<ILogger, string, string, string, string, Exception?> s_unsupportedServerVersion =
         LoggerMessage.Define<string, string, string, string>(
@@ -25,41 +25,51 @@ internal static class MySqlLoggerMessages
             MySqlEventId.SchemaUnsupported,
             "MySQL schema configuration is not supported. Scope={Scope} Reason={Reason} Remediation={Remediation}");
 
-    private static readonly Action<ILogger, string, string, string, Exception?> s_keyOrIndexMaxLengthRequired =
-        LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, string, string, Exception?> s_keyOrIndexMaxLengthRequired =
+        LoggerMessage.Define<string, string>(
             LogLevel.Error,
             MySqlEventId.KeyOrIndexMaxLengthRequired,
-            "The keyed or indexed {PropertyKind} property '{EntityType}.{Property}' must declare an explicit max length.");
+            "A keyed or indexed {PropertyKind} property must declare an explicit max length. "
+            + "ObjectScopeId={ObjectScopeId}");
 
-    private static readonly Action<ILogger, string, string, int, int, Exception?> s_implicitDecimalPrecisionDefaulted =
-        LoggerMessage.Define<string, string, int, int>(
+    private static readonly Action<ILogger, string, int, int, Exception?> s_implicitDecimalPrecisionDefaulted =
+        LoggerMessage.Define<string, int, int>(
             LogLevel.Warning,
             MySqlEventId.ImplicitDecimalPrecisionDefaulted,
-            "The decimal property '{EntityType}.{Property}' does not declare an explicit precision/scale. The provider default 'decimal({DefaultPrecision},{DefaultScale})' will be used.");
+            "A decimal property does not declare an explicit precision/scale. "
+            + "ObjectScopeId={ObjectScopeId} "
+            + "DefaultPrecision={DefaultPrecision} DefaultScale={DefaultScale}");
 
     private static readonly Action<ILogger, int, int, double, string, Exception?> s_retryAttempt =
         LoggerMessage.Define<int, int, double, string>(
             LogLevel.Warning,
             MySqlEventId.RetryAttempt,
-            "Retrying transient MySQL operation. Attempt={Attempt} MaxRetryCount={MaxRetryCount} DelayMs={DelayMs} ExceptionType={ExceptionType}");
+            "Retrying transient MySQL operation. Attempt={Attempt} "
+            + "MaxRetryCount={MaxRetryCount} DelayMs={DelayMs} "
+            + "ExceptionType={ExceptionType}");
 
     private static readonly Action<ILogger, int, int, string, Exception?> s_retryLimitExceeded =
         LoggerMessage.Define<int, int, string>(
             LogLevel.Error,
             MySqlEventId.RetryLimitExceeded,
-            "MySQL retry budget exhausted. Attempts={Attempts} MaxRetryCount={MaxRetryCount} ExceptionType={ExceptionType}");
+            "MySQL retry budget exhausted. Attempts={Attempts} "
+            + "MaxRetryCount={MaxRetryCount} ExceptionType={ExceptionType}");
 
     private static readonly Action<ILogger, string, int, string, Exception?> s_softCancellation =
         LoggerMessage.Define<string, int, string>(
             LogLevel.Information,
             MySqlEventId.SoftCancellation,
-            "MySQL command cancellation completed through the soft-cancel path. ExecuteMethod={ExecuteMethod} CommandTimeout={CommandTimeout} ConnectionState={ConnectionState}");
+            "MySQL command cancellation completed through the soft-cancel path. "
+            + "ExecuteMethod={ExecuteMethod} CommandTimeout={CommandTimeout} "
+            + "ConnectionState={ConnectionState}");
 
     private static readonly Action<ILogger, string, int, string, Exception?> s_hardCancellation =
         LoggerMessage.Define<string, int, string>(
             LogLevel.Warning,
             MySqlEventId.HardCancellation,
-            "MySQL command cancellation escalated to the hard-cancel path. ExecuteMethod={ExecuteMethod} CommandTimeout={CommandTimeout} ConnectionState={ConnectionState}");
+            "MySQL command cancellation escalated to the hard-cancel path. "
+            + "ExecuteMethod={ExecuteMethod} CommandTimeout={CommandTimeout} "
+            + "ConnectionState={ConnectionState}");
 
     private static readonly Action<ILogger, string, int, string, string, Exception?> s_commandTimeoutExhausted =
         LoggerMessage.Define<string, int, string, string>(
@@ -77,17 +87,20 @@ internal static class MySqlLoggerMessages
             + "TransactionId={TransactionId} ConnectionState={ConnectionState} "
             + "ExceptionType={ExceptionType} Guidance={Guidance}");
 
-    private static readonly Action<ILogger, string, string, Exception?> s_missingSpatialPackageDuringScaffolding =
-        LoggerMessage.Define<string, string>(
+    private static readonly Action<ILogger, string, Exception?> s_missingSpatialPackageDuringScaffolding =
+        LoggerMessage.Define<string>(
             LogLevel.Warning,
             MySqlEventId.MissingSpatialPackageDuringScaffolding,
-            "Skipping spatial column during reverse engineering because the optional Doka.EntityFrameworkCore.MySql.NetTopologySuite package is not active in the design-time service graph. Table={Table} Column={Column}");
+            "Skipping a spatial column during reverse engineering because the optional "
+            + "Doka.EntityFrameworkCore.MySql.NetTopologySuite package is not active in the "
+            + "design-time service graph. ObjectScopeId={ObjectScopeId}");
 
     private static readonly Action<ILogger, string, string, Exception?> s_invalidSpatialIndexConfiguration =
         LoggerMessage.Define<string, string>(
             LogLevel.Error,
             MySqlEventId.InvalidSpatialIndexConfiguration,
-            "Spatial index configuration violates the supported provider contract. Index={Index} Reason={Reason}");
+            "Spatial index configuration violates the supported provider contract. "
+            + "ObjectScopeId={ObjectScopeId} Reason={Reason}");
 
     private static readonly Action<ILogger, string, Exception?> s_missingSpatialTranslation =
         LoggerMessage.Define<string>(
@@ -99,25 +112,36 @@ internal static class MySqlLoggerMessages
         LoggerMessage.Define<int, int>(
             LogLevel.Warning,
             MySqlEventId.SpatialSridMismatchDetected,
-            "ST_Distance arguments declare different SRIDs (FirstSrid={FirstSrid}, SecondSrid={SecondSrid}). MySQL rejects the mismatch with a hard error; MariaDB treats both inputs as Cartesian and returns a numerically meaningless result. Use ST_Transform or align the SRIDs before invoking Distance.");
+            "ST_Distance arguments declare different SRIDs "
+            + "(FirstSrid={FirstSrid}, SecondSrid={SecondSrid}). "
+            + "MySQL rejects the mismatch with a hard error; MariaDB treats "
+            + "both inputs as Cartesian and returns a numerically meaningless result. "
+            + "Use ST_Transform or align the SRIDs before invoking Distance.");
 
-    private static readonly Action<ILogger, string, string, string, Exception?>
-        s_foreignKeyPrincipalTableNotScaffolded = LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, string, Exception?> s_foreignKeyPrincipalTableNotScaffolded =
+        LoggerMessage.Define<string>(
             LogLevel.Warning,
             MySqlEventId.ForeignKeyPrincipalTableNotScaffolded,
-            "Skipping foreign key '{ForeignKeyName}' on table '{TableName}' because principal table '{PrincipalTableName}' is not included in the scaffolding filter.");
+            "Skipping a foreign key because its principal table is not included in the "
+            + "scaffolding filter. ObjectScopeId={ObjectScopeId}");
 
     private static readonly Action<ILogger, int, int, int, Exception?> s_bulkInsertParameterCountCapped =
         LoggerMessage.Define<int, int, int>(
             LogLevel.Warning,
             MySqlEventId.BulkInsertParameterCountCapped,
-            "Multi-row INSERT batch split at the MySQL prepared-statement parameter limit. EffectiveBatchSize={EffectiveBatchSize} ProjectedParameterCount={ProjectedParameterCount} MaxParameterCount={MaxParameterCount}");
+            "Multi-row INSERT batch split at the MySQL prepared-statement "
+            + "parameter limit. EffectiveBatchSize={EffectiveBatchSize} "
+            + "ProjectedParameterCount={ProjectedParameterCount} "
+            + "MaxParameterCount={MaxParameterCount}");
 
     private static readonly Action<ILogger, int, int, int, Exception?> s_bulkInsertPacketSizeCapped =
         LoggerMessage.Define<int, int, int>(
             LogLevel.Warning,
             MySqlEventId.BulkInsertPacketSizeCapped,
-            "Multi-row INSERT batch split at the conservative max_allowed_packet budget. EffectiveBatchSize={EffectiveBatchSize} EstimatedPacketSizeBytes={EstimatedPacketSizeBytes} MaxPacketSizeBytes={MaxPacketSizeBytes}");
+            "Multi-row INSERT batch split at the conservative max_allowed_packet "
+            + "budget. EffectiveBatchSize={EffectiveBatchSize} "
+            + "EstimatedPacketSizeBytes={EstimatedPacketSizeBytes} "
+            + "MaxPacketSizeBytes={MaxPacketSizeBytes}");
 
     private static readonly Action<ILogger, string, string, Exception?> s_lockReleaseFailed =
         LoggerMessage.Define<string, string>(
@@ -149,10 +173,20 @@ internal static class MySqlLoggerMessages
 
     public static void InvalidConfiguration(
         ILogger logger,
-        string message,
-        string connectionPath,
-        string redactedConnectionString
-    ) => s_invalidConfiguration(logger, message, connectionPath, redactedConnectionString, null);
+        MySqlConfigurationFailureReason reason,
+        string connectionPath
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionPath);
+
+        if (!Enum.IsDefined(reason))
+        {
+            throw new ArgumentOutOfRangeException(nameof(reason));
+        }
+
+        s_invalidConfiguration(logger, reason, connectionPath, null);
+    }
 
     // Order-preserving provider-support snapshot for the resolved-version log
     // payload. Each entry reports Native, Emulated, or UnsupportedByEngine rather
@@ -223,7 +257,23 @@ internal static class MySqlLoggerMessages
         string entityType,
         string property,
         string propertyKind
-    ) => s_keyOrIndexMaxLengthRequired(logger, propertyKind, entityType, property, null);
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(entityType);
+        ArgumentNullException.ThrowIfNull(property);
+
+        if (!logger.IsEnabled(LogLevel.Error))
+        {
+            return;
+        }
+
+        s_keyOrIndexMaxLengthRequired(
+            logger,
+            propertyKind,
+            MySqlDiagnosticScopeId.Create(entityType, property),
+            null);
+    }
 
     public static void ImplicitDecimalPrecisionDefaulted(
         ILogger logger,
@@ -231,7 +281,24 @@ internal static class MySqlLoggerMessages
         string property,
         int defaultPrecision,
         int defaultScale
-    ) => s_implicitDecimalPrecisionDefaulted(logger, entityType, property, defaultPrecision, defaultScale, null);
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(entityType);
+        ArgumentNullException.ThrowIfNull(property);
+
+        if (!logger.IsEnabled(LogLevel.Warning))
+        {
+            return;
+        }
+
+        s_implicitDecimalPrecisionDefaulted(
+            logger,
+            MySqlDiagnosticScopeId.Create(entityType, property),
+            defaultPrecision,
+            defaultScale,
+            null);
+    }
 
     public static void RetryAttempt(
         ILogger logger,
@@ -332,7 +399,9 @@ internal static class MySqlLoggerMessages
             transactionId,
             connectionState,
             exception.GetType().Name,
-            "Use Database.CreateExecutionStrategy().ExecuteInTransaction(...) or ExecuteInTransactionAsync(..., verifySucceeded: ...) to verify whether the commit succeeded.",
+            "Use Database.CreateExecutionStrategy().ExecuteInTransaction(...) or "
+            + "ExecuteInTransactionAsync(..., verifySucceeded: ...) to verify whether "
+            + "the commit succeeded.",
             null);
     }
 
@@ -344,7 +413,18 @@ internal static class MySqlLoggerMessages
     {
         ArgumentNullException.ThrowIfNull(logger);
 
-        s_missingSpatialPackageDuringScaffolding(logger, table, column, null);
+        ArgumentNullException.ThrowIfNull(table);
+        ArgumentNullException.ThrowIfNull(column);
+
+        if (!logger.IsEnabled(LogLevel.Warning))
+        {
+            return;
+        }
+
+        s_missingSpatialPackageDuringScaffolding(
+            logger,
+            MySqlDiagnosticScopeId.Create(table, column),
+            null);
     }
 
     public static void InvalidSpatialIndexConfiguration(
@@ -355,7 +435,18 @@ internal static class MySqlLoggerMessages
     {
         ArgumentNullException.ThrowIfNull(logger);
 
-        s_invalidSpatialIndexConfiguration(logger, index, reason, null);
+        ArgumentNullException.ThrowIfNull(index);
+
+        if (!logger.IsEnabled(LogLevel.Error))
+        {
+            return;
+        }
+
+        s_invalidSpatialIndexConfiguration(
+            logger,
+            MySqlDiagnosticScopeId.Create(index),
+            reason,
+            null);
     }
 
     public static void MissingSpatialTranslation(
@@ -389,7 +480,19 @@ internal static class MySqlLoggerMessages
     {
         ArgumentNullException.ThrowIfNull(logger);
 
-        s_foreignKeyPrincipalTableNotScaffolded(logger, foreignKeyName, tableName, principalTableName, null);
+        ArgumentNullException.ThrowIfNull(foreignKeyName);
+        ArgumentNullException.ThrowIfNull(tableName);
+        ArgumentNullException.ThrowIfNull(principalTableName);
+
+        if (!logger.IsEnabled(LogLevel.Warning))
+        {
+            return;
+        }
+
+        s_foreignKeyPrincipalTableNotScaffolded(
+            logger,
+            MySqlDiagnosticScopeId.Create(foreignKeyName, tableName, principalTableName),
+            null);
     }
 
     public static void BulkInsertParameterCountCapped(

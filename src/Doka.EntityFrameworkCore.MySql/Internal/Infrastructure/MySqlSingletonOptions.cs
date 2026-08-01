@@ -103,7 +103,7 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
         {
             LogConfigurationMismatch(
                 options,
-                "The configured MySQL server version changed for the shared service provider.");
+                MySqlConfigurationFailureReason.ServerVersionChanged);
             throw new InvalidOperationException(
                 "The configured MySQL server version changed for the shared service provider.");
         }
@@ -112,7 +112,7 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
         {
             LogConfigurationMismatch(
                 options,
-                "The configured MySQL retry settings changed for the shared service provider.");
+                MySqlConfigurationFailureReason.RetrySettingsChanged);
             throw new InvalidOperationException(
                 "The configured MySQL retry settings changed for the shared service provider.");
         }
@@ -121,7 +121,7 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
         {
             LogConfigurationMismatch(
                 options,
-                "The configured MySQL GUID format changed for the shared service provider.");
+                MySqlConfigurationFailureReason.GuidFormatChanged);
             throw new InvalidOperationException(
                 "The configured MySQL GUID format changed for the shared service provider.");
         }
@@ -130,7 +130,7 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
         {
             LogConfigurationMismatch(
                 options,
-                "The configured MySQL connection path changed for the shared service provider.");
+                MySqlConfigurationFailureReason.ConnectionPathChanged);
             throw new InvalidOperationException(
                 "The configured MySQL connection path changed for the shared service provider.");
         }
@@ -138,7 +138,7 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
 
     private void LogConfigurationMismatch(
         IDbContextOptions options,
-        string message
+        MySqlConfigurationFailureReason reason
     )
     {
         var loggerFactory = options.FindExtension<CoreOptionsExtension>()
@@ -151,8 +151,7 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
 
         MySqlLoggerMessages.InvalidConfiguration(
             loggerFactory.CreateLogger(MySqlLoggerCategory.Configuration),
-            message,
-            UsesDataSource ? nameof(MySqlDataSource) : "ConnectionStringOrDbConnection",
-            "<not-logged>");
+            reason,
+            UsesDataSource ? nameof(MySqlDataSource) : "ConnectionStringOrDbConnection");
     }
 }

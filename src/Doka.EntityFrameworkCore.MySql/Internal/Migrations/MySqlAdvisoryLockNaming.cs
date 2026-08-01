@@ -48,10 +48,7 @@ internal static class MySqlAdvisoryLockNaming
         // 16 hex chars (8 bytes from SHA-256) keep collision probability
         // negligible for the small set of databases an application is
         // realistically deployed against.
-        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(databaseName));
-        var suffix = Convert
-            .ToHexString(hashBytes.AsSpan(0, 8))
-            .ToLowerInvariant();
+        var suffix = MySqlDiagnosticScopeId.Create(databaseName);
 
         return LockNamePrefix + suffix;
     }
@@ -67,10 +64,6 @@ internal static class MySqlAdvisoryLockNaming
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(lockName);
 
-        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(lockName));
-
-        return Convert
-            .ToHexString(hashBytes.AsSpan(0, 8))
-            .ToLowerInvariant();
+        return MySqlDiagnosticScopeId.Create(lockName);
     }
 }

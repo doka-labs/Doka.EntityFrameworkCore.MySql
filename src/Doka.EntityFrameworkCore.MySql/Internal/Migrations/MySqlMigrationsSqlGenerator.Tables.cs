@@ -18,7 +18,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return;
         }
 
-        ValidateIdentifier(charSet, MySqlAnnotationNames.CharSet);
+        MySqlSqlTokenValidator.ValidateIdentifier(charSet, MySqlAnnotationNames.CharSet);
 
         builder
             .Append("ALTER DATABASE CHARACTER SET = ")
@@ -143,7 +143,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         if (!string.IsNullOrWhiteSpace(charSet))
         {
-            ValidateIdentifier(charSet, MySqlAnnotationNames.CharSet);
+            MySqlSqlTokenValidator.ValidateIdentifier(charSet, MySqlAnnotationNames.CharSet);
             builder
                 .Append(" CHARACTER SET ")
                 .Append(charSet);
@@ -151,7 +151,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         if (!string.IsNullOrWhiteSpace(collation))
         {
-            ValidateIdentifier(collation, MySqlAnnotationNames.Collation);
+            MySqlSqlTokenValidator.ValidateIdentifier(collation, MySqlAnnotationNames.Collation);
             builder
                 .Append(" COLLATE ")
                 .Append(collation);
@@ -159,7 +159,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         if (!string.IsNullOrWhiteSpace(storageEngine))
         {
-            ValidateIdentifier(storageEngine, MySqlAnnotationNames.StorageEngine);
+            MySqlSqlTokenValidator.ValidateIdentifier(storageEngine, MySqlAnnotationNames.StorageEngine);
             builder
                 .Append(" ENGINE = ")
                 .Append(storageEngine);
@@ -170,30 +170,6 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             builder
                 .Append(" COMMENT = ")
                 .Append(MySqlSqlLiteralGenerator.GenerateDdlComment(comment));
-        }
-    }
-
-    /// <summary>
-    /// Validates that the annotation value contains only characters that are safe to
-    /// embed verbatim into generated DDL. MySQL charset and storage-engine identifiers
-    /// are ASCII letters, digits, and underscores (e.g. <c>utf8mb4</c>, <c>InnoDB</c>).
-    /// Values originate from developer-controlled model configuration, but we guard
-    /// against accidental injection of unexpected characters at DDL generation time.
-    /// </summary>
-    private static void ValidateIdentifier(
-        string value,
-        string annotationName
-    )
-    {
-        foreach (var ch in value)
-        {
-            if (!(char.IsLetterOrDigit(ch) || ch == '_'))
-            {
-                throw new InvalidOperationException(
-                    $"The value configured for '{annotationName}' ('{value}') contains invalid characters. "
-                    + "MySQL charset and storage-engine identifiers must use ASCII letters, "
-                    + "digits, or underscores only.");
-            }
         }
     }
 

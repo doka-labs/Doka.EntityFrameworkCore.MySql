@@ -3,6 +3,21 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed partial class MySqlQuerySqlGenerator
 {
     /// <summary>
+    /// Enforces the provider's bounded collation grammar before the relational
+    /// base generator embeds the token verbatim in SQL.
+    /// </summary>
+    protected override Expression VisitCollate(
+        CollateExpression collateExpression
+    )
+    {
+        ArgumentNullException.ThrowIfNull(collateExpression);
+
+        MySqlSqlTokenValidator.ValidateIdentifier(collateExpression.Collation, MySqlAnnotationNames.Collation);
+
+        return base.VisitCollate(collateExpression);
+    }
+
+    /// <summary>
     /// Translates EF Core's <c>SqlUnaryExpression</c> Convert operator into a MySQL-valid
     /// <c>CAST(... AS target)</c>. The base generator uses the type-mapping's column-level
     /// <c>StoreType</c> verbatim, which produces MySQL-invalid syntax: <c>CAST(x AS int)</c>,

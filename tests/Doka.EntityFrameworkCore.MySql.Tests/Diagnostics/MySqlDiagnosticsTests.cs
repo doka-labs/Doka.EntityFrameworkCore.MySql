@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 public sealed class MySqlDiagnosticsTests
 {
     [Fact]
-    public void Invalid_configuration_logging_redacts_connection_string_secrets()
+    public void Invalid_configuration_logging_uses_bounded_fields_only()
     {
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
@@ -25,7 +25,14 @@ public sealed class MySqlDiagnosticsTests
         Assert.Equal(MySqlEventId.InvalidConfiguration.Id, entry.EventId.Id);
         Assert.Equal(LogLevel.Error, entry.LogLevel);
         Assert.Equal(MySqlLoggerCategory.Configuration, entry.Category);
-        Assert.Contains("Password=***", entry.Message, StringComparison.Ordinal);
+        Assert.Equal(
+            MySqlConfigurationFailureReason.MissingServerVersion,
+            entry.State["Reason"]);
+        Assert.Equal("ConnectionString", entry.State["ConnectionPath"]);
+        Assert.DoesNotContain("Server=", entry.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Database=", entry.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("User ID=", entry.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Password=", entry.Message, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("super-secret", entry.Message, StringComparison.Ordinal);
     }
 
@@ -100,6 +107,9 @@ public sealed class MySqlDiagnosticsTests
         Assert.Equal(DbLoggerCategory.Model.Validation.Name, entry.Category);
         Assert.Equal(LogLevel.Error, entry.LogLevel);
         Assert.Contains("explicit max length", entry.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Entity", entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Code", entry.Message, StringComparison.Ordinal);
+        Assert.Matches("^[0-9a-f]{16}$", Assert.IsType<string>(entry.State["ObjectScopeId"]));
     }
 
     /// <summary>
@@ -123,7 +133,11 @@ public sealed class MySqlDiagnosticsTests
 
         Assert.Equal(DbLoggerCategory.Model.Validation.Name, entry.Category);
         Assert.Equal(LogLevel.Warning, entry.LogLevel);
-        Assert.Contains("decimal(18,2)", entry.Message, StringComparison.Ordinal);
+        Assert.Equal(18, entry.State["DefaultPrecision"]);
+        Assert.Equal(2, entry.State["DefaultScale"]);
+        Assert.DoesNotContain("Entity", entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Amount", entry.Message, StringComparison.Ordinal);
+        Assert.Matches("^[0-9a-f]{16}$", Assert.IsType<string>(entry.State["ObjectScopeId"]));
     }
 
     /// <summary>

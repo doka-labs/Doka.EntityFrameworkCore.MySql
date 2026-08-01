@@ -17,6 +17,11 @@ Initial release line preparing the first publishable `10.0.x` package.
   the explicit `MySqlServerVersionCompatibilityMode.AllowUnsupported`
   opt-in. Legacy, unvalidated, and future lines remain executable without
   a support guarantee and emit `MySqlEventId.UnsupportedServerVersion`.
+- Object-bearing provider diagnostics now expose a stable 16-character
+  `ObjectScopeId` instead of raw model or database object names. Invalid
+  configuration events expose a bounded `Reason` value and no longer carry
+  caller-provided messages or connection-string representations. Detailed
+  validation errors remain available through the thrown exception.
 
 ### Added
 
@@ -42,9 +47,10 @@ Initial release line preparing the first publishable `10.0.x` package.
 - Engine-aware REGEXP dialect (`REGEXP_LIKE(...)` on MySQL, infix `REGEXP` on MariaDB)
 - Full-text search via `MATCH(col) AGAINST(term [IN BOOLEAN MODE])` with sentinel-rewrite SQL generation
 - MariaDB `INVISIBLE` column support (10.3.3+) via `IsInvisible()` fluent API
-- DDL hardening: `CharSet` and `StorageEngine` identifier validation to prevent injection via model metadata; JSON-path property-name escaping for single quotes and backslashes
+- SQL-generation hardening: shared ASCII grammar-token validation for
+  charsets, storage engines, and query, table, and column collations;
+  JSON-path property-name escaping for single quotes and backslashes
 - Transient-exception detection with depth-limited inner-exception traversal for retrying execution strategies
-- Connection-string redaction for safe diagnostic logging
 - Stable `MySqlEventId` catalog and seven logger categories (`Configuration`, `Query`, `Update`, `Migrations`, `Scaffolding`, `Resilience`, `Spatial`)
 - Trim-aware runtime surface; NativeAOT readiness deferred until upstream EF Core stabilizes the precompiled-query workflow (see ADR D-017)
 

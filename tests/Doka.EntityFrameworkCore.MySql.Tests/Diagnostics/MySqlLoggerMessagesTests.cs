@@ -146,6 +146,112 @@ public sealed class MySqlLoggerMessagesTests
             entry => Assert.Contains("InvalidOperationException", entry.RenderedMessage, StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Verifies that every object-bearing provider diagnostic replaces raw
+    /// metadata with an opaque, structured scope identifier.
+    /// </summary>
+    [Fact]
+    public void Object_diagnostics_do_not_serialize_raw_metadata_names()
+    {
+        const string secret = "DOKA_SECRET";
+
+        var logger = new CapturingLogger();
+
+        MySqlLoggerMessages.KeyOrIndexMaxLengthRequired(
+            logger,
+            $"{secret}_ENTITY",
+            $"{secret}_PROPERTY",
+            "text");
+        MySqlLoggerMessages.ImplicitDecimalPrecisionDefaulted(
+            logger,
+            $"{secret}_ENTITY",
+            $"{secret}_DECIMAL",
+            18,
+            2);
+        MySqlLoggerMessages.MissingSpatialPackageDuringScaffolding(
+            logger,
+            $"{secret}_TABLE",
+            $"{secret}_COLUMN");
+        MySqlLoggerMessages.InvalidSpatialIndexConfiguration(
+            logger,
+            $"{secret}_INDEX",
+            "must target exactly one property");
+        MySqlLoggerMessages.ForeignKeyPrincipalTableNotScaffolded(
+            logger,
+            $"{secret}_FOREIGN_KEY",
+            $"{secret}_TABLE",
+            $"{secret}_PRINCIPAL_TABLE");
+
+        Assert.Equal(5, logger.Entries.Count);
+
+        Assert.All(logger.Entries, entry =>
+        {
+            Assert.DoesNotContain(secret, entry.RenderedMessage, StringComparison.Ordinal);
+
+            var state = Assert.IsAssignableFrom<IReadOnlyList<KeyValuePair<string, object?>>>(entry.State);
+            var scopeId = Assert.IsType<string>(
+                Assert.Single(state, item => item.Key == "ObjectScopeId").Value);
+
+            Assert.Matches("^[0-9a-f]{16}$", scopeId);
+            Assert.DoesNotContain(
+                state,
+                item => item.Value?.ToString()?.Contains(secret, StringComparison.Ordinal) == true);
+        });
+    }
+
+    /// <summary>
+    /// Verifies that invalid-configuration events expose a bounded reason code
+    /// rather than caller-provided diagnostic prose.
+    /// </summary>
+    [Fact]
+    public void Invalid_configuration_diagnostic_uses_bounded_reason_code()
+    {
+        var logger = new CapturingLogger();
+
+        MySqlLoggerMessages.InvalidConfiguration(
+            logger,
+            MySqlConfigurationFailureReason.IndexNameTooLong,
+            "ModelValidation");
+
+        var entry = Assert.Single(logger.Entries);
+        var state = Assert.IsType<IReadOnlyList<KeyValuePair<string, object?>>>(entry.State, exactMatch: false);
+
+        Assert.Equal(
+            MySqlConfigurationFailureReason.IndexNameTooLong,
+            Assert.Single(state, item => item.Key == "Reason").Value);
+        Assert.DoesNotContain(state, item => item.Key == "Message");
+        Assert.DoesNotContain(state, item => item.Key == "RedactedConnectionString");
+    }
+
+    /// <summary>
+    /// Verifies that length-prefix framing prevents ambiguous component tuples
+    /// from receiving the same diagnostic scope identifier.
+    /// </summary>
+    [Fact]
+    public void Diagnostic_scope_ids_preserve_component_boundaries()
+    {
+        var first = MySqlDiagnosticScopeId.Create("ab", "c");
+        var second = MySqlDiagnosticScopeId.Create("a", "bc");
+
+        Assert.NotEqual(first, second);
+        Assert.Equal(first, MySqlDiagnosticScopeId.Create("ab", "c"));
+    }
+
+    /// <summary>
+    /// Verifies that every scope-id overload rejects a missing logical
+    /// component instead of hashing an ambiguous sentinel.
+    /// </summary>
+    [Fact]
+    public void Diagnostic_scope_ids_reject_null_components()
+    {
+        Assert.Throws<ArgumentNullException>(() => MySqlDiagnosticScopeId.Create(null!));
+        Assert.Throws<ArgumentNullException>(() => MySqlDiagnosticScopeId.Create(null!, "b"));
+        Assert.Throws<ArgumentNullException>(() => MySqlDiagnosticScopeId.Create("a", null!));
+        Assert.Throws<ArgumentNullException>(() => MySqlDiagnosticScopeId.Create(null!, "b", "c"));
+        Assert.Throws<ArgumentNullException>(() => MySqlDiagnosticScopeId.Create("a", null!, "c"));
+        Assert.Throws<ArgumentNullException>(() => MySqlDiagnosticScopeId.Create("a", "b", null!));
+    }
+
     private sealed record LogEntry(
         LogLevel Level,
         EventId EventId,

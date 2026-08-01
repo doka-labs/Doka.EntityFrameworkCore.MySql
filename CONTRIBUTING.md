@@ -222,4 +222,4 @@ Use [GitHub Issues](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/
 - a minimal reproduction (connection configuration, model snippet, query)
 - the generated SQL if applicable (`query.ToQueryString()` works for `IQueryable`)
 
-For security vulnerabilities, see [SECURITY.md](.github/SECURITY.md).
+For security vulnerabilities, see [SECURITY.md](SECURITY.md).

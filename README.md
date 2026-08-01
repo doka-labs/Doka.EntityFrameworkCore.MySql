@@ -392,4 +392,5 @@ MIT -- see [LICENSE](LICENSE).
 - [Host integration examples](docs/host-integration-examples.md)
 - [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
-- [Security policy](.github/SECURITY.md)
+- [Security policy](SECURITY.md)
+- [Threat model](docs/security/threat-model.md)

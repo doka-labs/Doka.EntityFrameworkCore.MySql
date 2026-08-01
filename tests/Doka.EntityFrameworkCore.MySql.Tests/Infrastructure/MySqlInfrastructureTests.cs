@@ -3,74 +3,10 @@ using Microsoft.EntityFrameworkCore.Update;
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
-/// Tests for infrastructure components: ConnectionStringRedactor, OptionsExtension.Validate,
-/// UpdateSqlGenerator SQL output, SpatialTypeSupport utilities.
+/// Tests provider update SQL generation and spatial type-support utilities.
 /// </summary>
 public sealed class MySqlInfrastructureTests
 {
-    // ======================================================================
-    // -- MySqlConnectionStringRedactor --
-    // ======================================================================
-
-    /// <summary>Normal connection string has password redacted.</summary>
-    [Fact]
-    public void Redactor_masks_password_in_normal_connection_string()
-    {
-        var redacted = MySqlConnectionStringRedactor.Redact(
-            "Server=localhost;Database=doka;User ID=root;Password=secret123;");
-
-        Assert.Contains("***", redacted, StringComparison.Ordinal);
-        Assert.DoesNotContain("secret123", redacted, StringComparison.Ordinal);
-    }
-
-    /// <summary>Null connection string returns the none sentinel.</summary>
-    [Fact]
-    public void Redactor_returns_none_for_null()
-    {
-        var result = MySqlConnectionStringRedactor.Redact(null);
-        Assert.Equal("<none>", result);
-    }
-
-    /// <summary>Empty connection string returns the none sentinel.</summary>
-    [Fact]
-    public void Redactor_returns_none_for_empty()
-    {
-        var result = MySqlConnectionStringRedactor.Redact(string.Empty);
-        Assert.Equal("<none>", result);
-    }
-
-    /// <summary>Whitespace-only connection string returns the none sentinel.</summary>
-    [Fact]
-    public void Redactor_returns_none_for_whitespace()
-    {
-        var result = MySqlConnectionStringRedactor.Redact("   ");
-        Assert.Equal("<none>", result);
-    }
-
-    /// <summary>Malformed connection string returns the redacted sentinel.</summary>
-    [Fact]
-    public void Redactor_returns_redacted_for_malformed_string()
-    {
-        // A string that MySqlConnectionStringBuilder can't parse should be caught.
-        var result = MySqlConnectionStringRedactor.Redact("not=a;valid;connection=;string=;;;===");
-
-        // Should either redact successfully or return the fallback.
-        Assert.DoesNotContain("not=a", result, StringComparison.Ordinal);
-    }
-
-    /// <summary>Connection string without password still works.</summary>
-    [Fact]
-    public void Redactor_handles_connection_string_without_password()
-    {
-        var result = MySqlConnectionStringRedactor.Redact("Server=localhost;Database=doka;User ID=root;");
-
-        Assert.Contains("Server", result, StringComparison.OrdinalIgnoreCase);
-    }
-
-    // ======================================================================
-    // -- MySqlUpdateSqlGenerator -- SQL output --
-    // ======================================================================
-
     /// <summary>UpdateSqlGenerator resolves from DI and is the correct type.</summary>
     [Fact]
     public void UpdateSqlGenerator_resolves_as_MySql_type()
@@ -83,10 +19,6 @@ public sealed class MySqlInfrastructureTests
             generator.GetType()
                 .Name);
     }
-
-    // ======================================================================
-    // -- MySqlSpatialTypeSupport --
-    // ======================================================================
 
     /// <summary>NTS Point is recognized as spatial CLR type.</summary>
     [Fact]

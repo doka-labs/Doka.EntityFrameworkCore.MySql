@@ -67,7 +67,7 @@ def _validate_threshold(
     label: str,
     metrics: CoverageMetrics,
     minimum_line_percent: float,
-    minimum_branch_percent: float,
+    minimum_branch_percent: float | None,
 ) -> tuple[str, list[str]]:
     """Render one result line and return every threshold violation."""
     errors: list[str] = []
@@ -79,19 +79,32 @@ def _validate_threshold(
             f"{minimum_line_percent:.2f}%."
         )
 
-    if metrics.branches_valid == 0 and minimum_branch_percent > 0:
-        errors.append(f"{label} has no instrumented branches.")
-    elif metrics.branch_percent < minimum_branch_percent:
-        errors.append(
-            f"{label} branch coverage {metrics.branch_percent:.2f}% is below "
-            f"{minimum_branch_percent:.2f}%."
-        )
+    if minimum_branch_percent is None:
+        minimum_branch_display = "N/A"
+        if metrics.branches_valid > 0:
+            errors.append(
+                f"{label} has instrumented branches but declares no branch floor."
+            )
+    else:
+        minimum_branch_display = f"{minimum_branch_percent:.2f}%"
+        if minimum_branch_percent <= 0:
+            errors.append(
+                f"{label} branch floor must be greater than zero or null for "
+                "a branch-free surface."
+            )
+        elif metrics.branches_valid == 0:
+            errors.append(f"{label} has no instrumented branches.")
+        elif metrics.branch_percent < minimum_branch_percent:
+            errors.append(
+                f"{label} branch coverage {metrics.branch_percent:.2f}% is below "
+                f"{minimum_branch_percent:.2f}%."
+            )
 
     result = (
         f"{label}: lines {metrics.lines_covered}/{metrics.lines_valid} "
         f"({metrics.line_percent:.2f}%, minimum {minimum_line_percent:.2f}%); "
         f"branches {metrics.branches_covered}/{metrics.branches_valid} "
-        f"({metrics.branch_percent:.2f}%, minimum {minimum_branch_percent:.2f}%)"
+        f"({metrics.branch_percent:.2f}%, minimum {minimum_branch_display})"
     )
     return result, errors
 
@@ -225,6 +238,7 @@ def evaluate(
             )
             continue
 
+        branch_floor = critical_class["minimumBranchPercent"]
         result, threshold_errors = _validate_threshold(
             f"critical class {class_name}",
             _metrics(
@@ -233,7 +247,7 @@ def evaluate(
                 for line in class_element.iter("line")
             ),
             float(critical_class["minimumLinePercent"]),
-            float(critical_class["minimumBranchPercent"]),
+            None if branch_floor is None else float(branch_floor),
         )
         lines.append(result)
         errors.extend(threshold_errors)

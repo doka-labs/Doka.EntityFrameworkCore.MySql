@@ -54,6 +54,15 @@ Events raised during EF Core model validation intentionally use
 configuration and category filters remain effective. The stable `EventId`
 continues to identify the provider subsystem independently of category.
 
+Events `1003`, `1004`, `1403`, `1600`, and `1601` correlate affected model or
+database objects through a stable 16-character `ObjectScopeId`. They never emit
+the raw entity, property, constraint, table, column, or index name. Event `1001`
+uses the bounded `Reason` vocabulary from
+`MySqlConfigurationFailureReason` and a bounded `ConnectionPath`; it does not
+emit caller-provided messages or any connection-string representation. The
+exception thrown to the calling application retains the detailed validation
+message needed to correct the configuration.
+
 <a id="mysql-migration-lock-failure"></a>
 
 ## 2. Migration Lock Stuck Procedure

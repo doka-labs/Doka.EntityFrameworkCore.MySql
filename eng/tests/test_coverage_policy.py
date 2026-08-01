@@ -97,6 +97,42 @@ class CoveragePolicyTests(unittest.TestCase):
 
         self.assertTrue(any("ambiguous source fragments" in error for error in errors))
 
+    def test_accepts_branch_free_surface_with_no_branch_floor(self) -> None:
+        """Represent a branch-free critical surface explicitly as not applicable."""
+        lines, errors = self._evaluate(
+            class_elements=(
+                '<class name="Provider.Critical" filename="Critical.cs"><lines>'
+                '<line number="1" hits="1" />'
+                '<line number="2" hits="1" />'
+                "</lines></class>"
+                '<class name="Provider.Helper" filename="Helper.cs"><lines>'
+                '<line number="1" hits="1" branch="true" '
+                'condition-coverage="100% (2/2)" />'
+                "</lines></class>"
+            ),
+            critical_minimum_branch_percent=None,
+        )
+
+        self.assertEqual([], errors)
+        self.assertIn("branches 0/0", lines[1])
+        self.assertIn("minimum N/A", lines[1])
+
+    def test_rejects_missing_or_zero_floor_for_instrumented_branches(self) -> None:
+        """Require a positive numeric floor whenever a critical branch exists."""
+        _, missing_floor_errors = self._evaluate(
+            critical_minimum_branch_percent=None,
+        )
+        _, zero_floor_errors = self._evaluate(
+            critical_minimum_branch_percent=0,
+        )
+
+        self.assertTrue(
+            any("declares no branch floor" in error for error in missing_floor_errors)
+        )
+        self.assertTrue(
+            any("greater than zero" in error for error in zero_floor_errors)
+        )
+
     def _evaluate(
         self,
         *,
@@ -106,6 +142,7 @@ class CoveragePolicyTests(unittest.TestCase):
         line_hits: tuple[int, int] = (1, 1),
         branch_fraction: str = "50% (1/2)",
         class_elements: str | None = None,
+        critical_minimum_branch_percent: int | None = 50,
     ) -> tuple[list[str], list[str]]:
         """Build one focused report and policy fixture, then evaluate it."""
         with tempfile.TemporaryDirectory(prefix="doka-coverage-policy-") as directory:
@@ -146,7 +183,7 @@ class CoveragePolicyTests(unittest.TestCase):
                                 "assembly": "Provider",
                                 "name": "Provider.Critical",
                                 "minimumLinePercent": 100,
-                                "minimumBranchPercent": 50,
+                                "minimumBranchPercent": critical_minimum_branch_percent,
                             }
                         ],
                     }
