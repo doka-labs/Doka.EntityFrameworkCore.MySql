@@ -7,6 +7,8 @@ import argparse
 import hashlib
 import json
 import math
+import os
+import platform
 import statistics
 import subprocess
 import sys
@@ -271,6 +273,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
     families = contract.get("familyBudgets")
     workloads = contract.get("workloads")
     requirements = contract.get("coverageRequirements")
+    host_preconditions = contract.get("hostPreconditions")
     historical_budgets = contract.get("historicalBudgets")
     benchmark_controls = contract.get("benchmarkDotNetControls")
     soak_budgets = contract.get("soakBudgets")
@@ -285,12 +288,39 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise PerformanceEvidenceError("Performance contract must define workloads.")
     if not isinstance(requirements, dict) or not requirements:
         raise PerformanceEvidenceError("Performance contract must define coverageRequirements.")
+    if not isinstance(host_preconditions, dict):
+        raise PerformanceEvidenceError("Performance contract must define hostPreconditions.")
     if not isinstance(historical_budgets, dict):
         raise PerformanceEvidenceError("Performance contract must define historicalBudgets.")
     if not isinstance(benchmark_controls, list) or not benchmark_controls:
         raise PerformanceEvidenceError("Performance contract must define benchmarkDotNetControls.")
     if not isinstance(soak_budgets, dict):
         raise PerformanceEvidenceError("Performance contract must define soakBudgets.")
+
+    maximum_load_ratio = finite_number(
+        host_preconditions.get("maximumOneMinuteLoadAveragePerProcessor"),
+        "hostPreconditions.maximumOneMinuteLoadAveragePerProcessor",
+        minimum=0,
+    )
+    if maximum_load_ratio <= 0 or maximum_load_ratio > 1:
+        raise PerformanceEvidenceError(
+            "Host one-minute load ratio must be greater than 0 and at most 1."
+        )
+    for key in ("quiescenceWaitTimeoutSeconds", "quiescenceProbeIntervalSeconds"):
+        value = finite_number(
+            host_preconditions.get(key),
+            f"hostPreconditions.{key}",
+            minimum=1,
+        )
+        if not value.is_integer():
+            raise PerformanceEvidenceError(f"hostPreconditions.{key} must be an integer.")
+    if (
+        host_preconditions["quiescenceProbeIntervalSeconds"]
+        > host_preconditions["quiescenceWaitTimeoutSeconds"]
+    ):
+        raise PerformanceEvidenceError(
+            "Host quiescence probe interval exceeds its wait timeout."
+        )
 
     for target_id, target_contract in targets.items():
         if not isinstance(target_contract, dict):
@@ -483,6 +513,137 @@ def validate_contract(contract: dict[str, Any]) -> None:
         finite_number(soak_budgets.get(key), f"soakBudgets.{key}", minimum=0)
 
 
+def resolve_processor_identity() -> str:
+    """Return a stable processor model without adding a platform dependency."""
+    override = os.environ.get("DOKA_BENCHMARK_PROCESSOR")
+    if override and override.strip():
+        return override.strip()
+
+    if sys.platform == "darwin":
+        try:
+            result = subprocess.run(
+                ["sysctl", "-n", "machdep.cpu.brand_string"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            if result.stdout.strip():
+                return result.stdout.strip()
+        except (OSError, subprocess.CalledProcessError):
+            pass
+
+    if sys.platform.startswith("linux"):
+        try:
+            for line in Path("/proc/cpuinfo").read_text(encoding="utf-8").splitlines():
+                key, separator, value = line.partition(":")
+                if separator and key.strip() in ("model name", "Hardware", "Processor"):
+                    if value.strip():
+                        return value.strip()
+        except OSError:
+            pass
+
+    return platform.processor().strip() or platform.machine().strip() or "unknown"
+
+
+def capture_host_preflight(contract: dict[str, Any]) -> dict[str, Any]:
+    """Capture and evaluate the quiescence boundary before measurement starts."""
+    validate_contract(contract)
+    processor_count = os.cpu_count()
+    if processor_count is None or processor_count <= 0:
+        raise PerformanceEvidenceError("The benchmark host exposes no processor count.")
+
+    try:
+        load_average_1m, load_average_5m, load_average_15m = os.getloadavg()
+    except (AttributeError, OSError) as error:
+        raise PerformanceEvidenceError(
+            "The benchmark host does not expose Unix load averages."
+        ) from error
+
+    maximum_ratio = finite_number(
+        contract["hostPreconditions"]["maximumOneMinuteLoadAveragePerProcessor"],
+        "hostPreconditions.maximumOneMinuteLoadAveragePerProcessor",
+        minimum=0,
+    )
+    ratio = load_average_1m / processor_count
+    success = ratio <= maximum_ratio
+
+    return {
+        "schemaVersion": 1,
+        "kind": "performance-host-preflight",
+        "contractVersion": contract["contractVersion"],
+        "generatedUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "processor": resolve_processor_identity(),
+        "processorCount": processor_count,
+        "loadAverage1Minute": load_average_1m,
+        "loadAverage5Minutes": load_average_5m,
+        "loadAverage15Minutes": load_average_15m,
+        "loadAverage1MinutePerProcessor": ratio,
+        "maximumLoadAverage1MinutePerProcessor": maximum_ratio,
+        "success": success,
+    }
+
+
+def validate_host_preflight(
+    report: dict[str, Any],
+    contract: dict[str, Any],
+    *,
+    maximum_age_hours: float | None,
+) -> dict[str, Any]:
+    """Reject stale, overloaded, or contract-drifting host preflight evidence."""
+    if (
+        report.get("schemaVersion") != 1
+        or report.get("kind") != "performance-host-preflight"
+    ):
+        raise PerformanceEvidenceError("Host preflight schema or kind is invalid.")
+    if report.get("contractVersion") != contract["contractVersion"]:
+        raise PerformanceEvidenceError("Host preflight contractVersion does not match.")
+
+    required_current_timestamp(
+        report,
+        "generatedUtc",
+        "hostPreflight",
+        maximum_age_hours,
+    )
+    required_string(report, "processor", "hostPreflight")
+    processor_count = required_positive_integer(report, "processorCount", "hostPreflight")
+    load_average_1m = finite_number(
+        report.get("loadAverage1Minute"),
+        "hostPreflight.loadAverage1Minute",
+        minimum=0,
+    )
+    for key in ("loadAverage5Minutes", "loadAverage15Minutes"):
+        finite_number(report.get(key), f"hostPreflight.{key}", minimum=0)
+
+    actual_ratio = finite_number(
+        report.get("loadAverage1MinutePerProcessor"),
+        "hostPreflight.loadAverage1MinutePerProcessor",
+        minimum=0,
+    )
+    expected_ratio = load_average_1m / processor_count
+    if not close_enough(actual_ratio, expected_ratio):
+        raise PerformanceEvidenceError(
+            "Host preflight load ratio does not match load and processor count."
+        )
+
+    actual_maximum = finite_number(
+        report.get("maximumLoadAverage1MinutePerProcessor"),
+        "hostPreflight.maximumLoadAverage1MinutePerProcessor",
+        minimum=0,
+    )
+    expected_maximum = float(
+        contract["hostPreconditions"]["maximumOneMinuteLoadAveragePerProcessor"]
+    )
+    if actual_maximum != expected_maximum:
+        raise PerformanceEvidenceError("Host preflight load ceiling does not match the contract.")
+    if report.get("success") is not True or actual_ratio > actual_maximum:
+        raise PerformanceEvidenceError(
+            "Benchmark host is not quiescent: one-minute load per processor "
+            f"is {actual_ratio:.4f}, maximum is {actual_maximum:.4f}."
+        )
+
+    return report
+
+
 def applicable_workloads(contract: dict[str, Any], profile: str) -> list[dict[str, Any]]:
     """Return the exact workload set required for one profile."""
     profiles = contract["profiles"]
@@ -576,6 +737,30 @@ def validate_workload_report(
         "processorCount",
         "workloadReport.environment",
     )
+    for key in (
+        "hostLoadAverage1Minute",
+        "hostLoadAverage5Minutes",
+        "hostLoadAverage15Minutes",
+        "hostLoadAverage1MinutePerProcessor",
+        "maximumHostLoadAverage1MinutePerProcessor",
+    ):
+        finite_number(
+            environment.get(key),
+            f"workloadReport.environment.{key}",
+            minimum=0,
+        )
+
+    expected_maximum_load = float(
+        contract["hostPreconditions"]["maximumOneMinuteLoadAveragePerProcessor"]
+    )
+    if environment["maximumHostLoadAverage1MinutePerProcessor"] != expected_maximum_load:
+        raise PerformanceEvidenceError(
+            "workloadReport.environment host-load ceiling does not match the contract."
+        )
+    if environment["hostLoadAverage1MinutePerProcessor"] > expected_maximum_load:
+        raise PerformanceEvidenceError(
+            "workloadReport.environment records a non-quiescent benchmark host."
+        )
     target_contract = contract["requiredTargets"][target]
     expected_family = target_contract["engineFamily"]
     if environment["engineFamily"] != expected_family:
@@ -1415,6 +1600,65 @@ def validate_environment_compatibility(
         )
 
 
+def validate_host_workload_binding(
+    host_preflight: dict[str, Any],
+    workload_environment: dict[str, Any],
+) -> None:
+    """Bind workload metadata to the exact accepted host preflight."""
+    exact_fields = {
+        "processor": "processor",
+        "processorCount": "processorCount",
+    }
+    numeric_fields = {
+        "loadAverage1Minute": "hostLoadAverage1Minute",
+        "loadAverage5Minutes": "hostLoadAverage5Minutes",
+        "loadAverage15Minutes": "hostLoadAverage15Minutes",
+        "loadAverage1MinutePerProcessor": "hostLoadAverage1MinutePerProcessor",
+        "maximumLoadAverage1MinutePerProcessor": (
+            "maximumHostLoadAverage1MinutePerProcessor"
+        ),
+    }
+
+    for host_key, environment_key in exact_fields.items():
+        if host_preflight.get(host_key) != workload_environment.get(environment_key):
+            raise PerformanceEvidenceError(
+                f"Host preflight and workload environment disagree on '{host_key}'."
+            )
+
+    for host_key, environment_key in numeric_fields.items():
+        host_value = finite_number(
+            host_preflight.get(host_key),
+            f"hostPreflight.{host_key}",
+            minimum=0,
+        )
+        environment_value = finite_number(
+            workload_environment.get(environment_key),
+            f"workloadReport.environment.{environment_key}",
+            minimum=0,
+        )
+        if not close_enough(host_value, environment_value):
+            raise PerformanceEvidenceError(
+                f"Host preflight and workload environment disagree on '{host_key}'."
+            )
+
+
+def validate_bdn_workload_environment(
+    bdn_host: dict[str, Any],
+    workload_environment: dict[str, Any],
+) -> None:
+    """Reject same-run controls produced on a different processor or architecture."""
+    if bdn_host.get("ProcessorName") != workload_environment.get("processor"):
+        raise PerformanceEvidenceError(
+            "BenchmarkDotNet and workload evidence report different processors."
+        )
+    if bdn_host.get("Architecture") != workload_environment.get("processArchitecture"):
+        raise PerformanceEvidenceError(
+            "BenchmarkDotNet and workload evidence report different process architectures."
+        )
+    if str(bdn_host.get("Configuration", "")).upper() != "RELEASE":
+        raise PerformanceEvidenceError("BenchmarkDotNet evidence was not built in Release mode.")
+
+
 def evaluate(
     args: argparse.Namespace,
 ) -> dict[str, Any]:
@@ -1422,10 +1666,17 @@ def evaluate(
     contract_path = Path(args.contract)
     workload_path = Path(args.workloads)
     bdn_path = Path(args.bdn)
+    host_path = Path(args.host)
     soak_path = Path(args.soak) if args.soak else None
     baseline_path = Path(args.baseline)
     contract = load_json(contract_path)
     validate_contract(contract)
+
+    host_preflight = validate_host_preflight(
+        load_json(host_path),
+        contract,
+        maximum_age_hours=float(contract["evidenceMaximumAgeHours"]),
+    )
 
     workload_report = load_json(workload_path)
     normalized_workloads = validate_workload_report(
@@ -1435,6 +1686,7 @@ def evaluate(
         target=args.target,
         profile=args.profile,
     )
+    validate_host_workload_binding(host_preflight, workload_report["environment"])
     absolute_checks = validate_absolute_budgets(normalized_workloads, contract)
 
     bdn = load_json(bdn_path)
@@ -1448,6 +1700,13 @@ def evaluate(
     )
     if bdn.get("success") is not True:
         raise PerformanceEvidenceError("BenchmarkDotNet control evidence is not successful.")
+    bdn_host_environment = bdn.get("hostEnvironment")
+    if not isinstance(bdn_host_environment, dict):
+        raise PerformanceEvidenceError("BenchmarkDotNet evidence has no host environment.")
+    validate_bdn_workload_environment(
+        bdn_host_environment,
+        workload_report["environment"],
+    )
 
     profile_contract = contract["profiles"][args.profile]
     normalized_soak: list[dict[str, Any]] = []
@@ -1501,6 +1760,7 @@ def evaluate(
 
     artifact_hashes = {
         "contract": sha256(contract_path),
+        "hostPreflight": sha256(host_path),
         "workloads": sha256(workload_path),
         "benchmarkDotNet": sha256(bdn_path),
     }
@@ -1521,9 +1781,11 @@ def evaluate(
         "sourceHash": workload_report["sourceHash"],
         "runnerClass": workload_report["runnerClass"],
         "environment": workload_report["environment"],
+        "hostPreflight": host_preflight,
         "baselineVersion": baseline_version,
         "artifactHashes": artifact_hashes,
         "rawReports": bdn.get("rawReports"),
+        "benchmarkDotNetHostEnvironment": bdn_host_environment,
         "benchmarkDotNetControls": bdn.get("controls"),
         "absoluteChecks": absolute_checks,
         "historicalChecks": historical_checks,
@@ -1588,10 +1850,39 @@ def validate_seed_evaluation(
         "processorCount",
         "seedEvaluation.environment",
     )
+    for key in (
+        "hostLoadAverage1Minute",
+        "hostLoadAverage5Minutes",
+        "hostLoadAverage15Minutes",
+        "hostLoadAverage1MinutePerProcessor",
+        "maximumHostLoadAverage1MinutePerProcessor",
+    ):
+        finite_number(
+            environment.get(key),
+            f"seedEvaluation.environment.{key}",
+            minimum=0,
+        )
     if environment["serverImage"] != contract["requiredTargets"][target]["serverImage"]:
         raise PerformanceEvidenceError(
             f"Seed input target '{target}' has the wrong server image."
         )
+
+    host_preflight = evaluation.get("hostPreflight")
+    if not isinstance(host_preflight, dict):
+        raise PerformanceEvidenceError("Seed input has no host preflight evidence.")
+    validate_host_preflight(
+        host_preflight,
+        contract,
+        maximum_age_hours=maximum_age_hours,
+    )
+    validate_host_workload_binding(host_preflight, environment)
+
+    bdn_host_environment = evaluation.get("benchmarkDotNetHostEnvironment")
+    if not isinstance(bdn_host_environment, dict):
+        raise PerformanceEvidenceError(
+            "Seed input has no BenchmarkDotNet host environment."
+        )
+    validate_bdn_workload_environment(bdn_host_environment, environment)
 
     workloads = evaluation.get("workloads")
     if not isinstance(workloads, list):
@@ -1679,7 +1970,13 @@ def validate_seed_evaluation(
     artifact_hashes = evaluation.get("artifactHashes")
     if not isinstance(artifact_hashes, dict):
         raise PerformanceEvidenceError("Seed input has no artifact hashes.")
-    expected_hash_keys = {"contract", "workloads", "benchmarkDotNet", "soak"}
+    expected_hash_keys = {
+        "contract",
+        "hostPreflight",
+        "workloads",
+        "benchmarkDotNet",
+        "soak",
+    }
     if set(artifact_hashes) != expected_hash_keys:
         raise PerformanceEvidenceError("Seed artifact hash matrix is incomplete.")
     for key in expected_hash_keys:
@@ -1842,9 +2139,13 @@ def seed_baseline(args: argparse.Namespace) -> dict[str, Any]:
                     "seedEvaluation",
                 ),
                 "environment": evaluation.get("environment"),
+                "hostPreflight": evaluation.get("hostPreflight"),
                 "sourceEvidenceSha256": sha256(Path(evidence_path)),
                 "artifactHashes": evaluation.get("artifactHashes"),
                 "rawReports": evaluation.get("rawReports"),
+                "benchmarkDotNetHostEnvironment": evaluation.get(
+                    "benchmarkDotNetHostEnvironment"
+                ),
                 "benchmarkDotNetControls": evaluation.get("benchmarkDotNetControls"),
                 "soakScenarios": evaluation.get("soakScenarios"),
                 "workloads": evaluation.get("workloads"),
@@ -2001,6 +2302,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     evaluate_parser = subparsers.add_parser("evaluate")
     add_common_identity_arguments(evaluate_parser)
+    evaluate_parser.add_argument("--host", required=True)
     evaluate_parser.add_argument("--workloads", required=True)
     evaluate_parser.add_argument("--soak")
     evaluate_parser.add_argument("--bdn", required=True)
@@ -2023,6 +2325,10 @@ def build_parser() -> argparse.ArgumentParser:
     source_hash_parser = subparsers.add_parser("source-hash")
     source_hash_parser.add_argument("--repo", required=True)
 
+    host_parser = subparsers.add_parser("host-preflight")
+    host_parser.add_argument("--contract", required=True)
+    host_parser.add_argument("--output", required=True)
+
     return parser
 
 
@@ -2034,6 +2340,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "source-hash":
             print(repository_source_hash(Path(args.repo)))
+            return 0
+        if args.command == "host-preflight":
+            contract = load_json(Path(args.contract))
+            payload = capture_host_preflight(contract)
+            write_json(Path(args.output), payload)
+            if payload["success"] is not True:
+                print(
+                    "Performance host preflight failed: one-minute load per "
+                    f"processor is {payload['loadAverage1MinutePerProcessor']:.4f}, "
+                    "maximum is "
+                    f"{payload['maximumLoadAverage1MinutePerProcessor']:.4f}.",
+                    file=sys.stderr,
+                )
+                return 1
+            print(f"Performance host preflight passed: {args.output}")
             return 0
         if args.command == "validate-bdn":
             contract = load_json(Path(args.contract))

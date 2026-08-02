@@ -8,6 +8,16 @@ public static class Program
     {
         try
         {
+            if (TryReadWorkloadDiagnosticArguments(
+                    args,
+                    out var workloadId,
+                    out var workloadDiagnosticOutput))
+            {
+                return await PerformanceWorkloadRunner
+                    .RunDiagnosticAsync(workloadDiagnosticOutput, workloadId)
+                    .ConfigureAwait(false);
+            }
+
             if (TryReadOutputArgument(args, "--workloads", out var workloadOutput))
             {
                 return await PerformanceWorkloadRunner
@@ -73,6 +83,34 @@ public static class Program
         }
 
         outputPath = Path.GetFullPath(args[1]);
+        return true;
+    }
+
+    private static bool TryReadWorkloadDiagnosticArguments(
+        string[] args,
+        out string workloadId,
+        out string outputPath
+    )
+    {
+        workloadId = string.Empty;
+        outputPath = string.Empty;
+
+        if (args.Length == 0
+            || !string.Equals(args[0], "--workload", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (args.Length != 3
+            || string.IsNullOrWhiteSpace(args[1])
+            || string.IsNullOrWhiteSpace(args[2]))
+        {
+            throw new ArgumentException(
+                "--workload requires exactly one workload ID and one output path.");
+        }
+
+        workloadId = args[1];
+        outputPath = Path.GetFullPath(args[2]);
         return true;
     }
 }

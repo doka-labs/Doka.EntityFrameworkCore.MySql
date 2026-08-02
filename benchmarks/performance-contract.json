@@ -1,7 +1,12 @@
 {
   "schemaVersion": 2,
-  "contractVersion": "2026-07-30",
+  "contractVersion": "2026-08-02",
   "evidenceMaximumAgeHours": 12,
+  "hostPreconditions": {
+    "maximumOneMinuteLoadAveragePerProcessor": 0.4,
+    "quiescenceWaitTimeoutSeconds": 300,
+    "quiescenceProbeIntervalSeconds": 10
+  },
   "requiredTargets": {
     "mysql84": {
       "engineFamily": "MySQL",

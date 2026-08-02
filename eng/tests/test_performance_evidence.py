@@ -119,6 +119,41 @@ class PerformanceEvidenceTests(unittest.TestCase):
                 profile="scorecard",
             )
 
+    def test_diagnostic_workload_report_cannot_satisfy_release_evidence(self) -> None:
+        """Keep targeted root-cause measurements outside the release contract."""
+        report = self._workload_report("mysql84")
+        report["kind"] = "performance-workload-diagnostic"
+        report["workloads"] = report["workloads"][:1]
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "schema or kind",
+        ):
+            performance_evidence.validate_workload_report(
+                report,
+                self.contract,
+                run_id="run-1",
+                target="mysql84",
+                profile="scorecard",
+            )
+
+    def test_host_preflight_rejects_an_overloaded_runner(self) -> None:
+        """Reject a finite but non-quiescent host before latency is measured."""
+        report = self._host_preflight()
+        report["loadAverage1Minute"] = 3
+        report["loadAverage1MinutePerProcessor"] = 0.375
+        report["success"] = False
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "not quiescent",
+        ):
+            performance_evidence.validate_host_preflight(
+                report,
+                self.contract,
+                maximum_age_hours=12,
+            )
+
     def test_workload_report_rejects_operations_per_sample_drift(self) -> None:
         """Reject evidence that normalizes a workload with an unapproved batch size."""
         report = self._workload_report("mysql84")
@@ -388,6 +423,21 @@ class PerformanceEvidenceTests(unittest.TestCase):
                 baseline,
             )
 
+    def test_benchmarkdotnet_host_must_match_workload_processor(self) -> None:
+        """Reject same-run controls captured under a different host identity."""
+        environment = self._workload_report("mysql84")["environment"]
+        bdn_host = self._bdn_report()["HostEnvironmentInfo"]
+        bdn_host["ProcessorName"] = "different CPU"
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "different processors",
+        ):
+            performance_evidence.validate_bdn_workload_environment(
+                bdn_host,
+                environment,
+            )
+
     def test_seed_requires_both_engine_targets(self) -> None:
         """Reject a baseline seed that could hide one representative engine family."""
         with tempfile.TemporaryDirectory(prefix="doka-performance-seed-") as directory:
@@ -458,6 +508,9 @@ class PerformanceEvidenceTests(unittest.TestCase):
 
     def _workload_report(self, target: str) -> dict[str, Any]:
         """Build a complete scorecard workload report for one target."""
+        maximum_host_load = self.contract["hostPreconditions"][
+            "maximumOneMinuteLoadAveragePerProcessor"
+        ]
         workloads = []
         profile = self.contract["profiles"]["scorecard"]
 
@@ -509,6 +562,11 @@ class PerformanceEvidenceTests(unittest.TestCase):
                 "processArchitecture": "X64",
                 "processor": "test CPU",
                 "processorCount": 8,
+                "hostLoadAverage1Minute": 0.5,
+                "hostLoadAverage5Minutes": 0.5,
+                "hostLoadAverage15Minutes": 0.5,
+                "hostLoadAverage1MinutePerProcessor": 0.0625,
+                "maximumHostLoadAverage1MinutePerProcessor": maximum_host_load,
                 "engineFamily": self.contract["requiredTargets"][target]["engineFamily"],
                 "serverVersion": (
                     "11.8.8-MariaDB"
@@ -518,6 +576,27 @@ class PerformanceEvidenceTests(unittest.TestCase):
                 "serverImage": self.contract["requiredTargets"][target]["serverImage"],
             },
             "workloads": workloads,
+        }
+
+    def _host_preflight(self) -> dict[str, Any]:
+        """Build a passing host-preflight fixture bound to the test CPU."""
+        maximum_host_load = self.contract["hostPreconditions"][
+            "maximumOneMinuteLoadAveragePerProcessor"
+        ]
+
+        return {
+            "schemaVersion": 1,
+            "kind": "performance-host-preflight",
+            "contractVersion": self.contract["contractVersion"],
+            "generatedUtc": datetime.now(timezone.utc).isoformat(),
+            "processor": "test CPU",
+            "processorCount": 8,
+            "loadAverage1Minute": 0.5,
+            "loadAverage5Minutes": 0.5,
+            "loadAverage15Minutes": 0.5,
+            "loadAverage1MinutePerProcessor": 0.0625,
+            "maximumLoadAverage1MinutePerProcessor": maximum_host_load,
+            "success": True,
         }
 
     def _soak_report(self, target: str) -> dict[str, Any]:
@@ -698,8 +777,10 @@ class PerformanceEvidenceTests(unittest.TestCase):
             "sourceHash": "a" * 64,
             "generatedUtc": datetime.now(timezone.utc).isoformat(),
             "environment": report["environment"],
+            "hostPreflight": self._host_preflight(),
             "artifactHashes": {
                 "contract": performance_evidence.sha256(self._contract_path),
+                "hostPreflight": "f" * 64,
                 "workloads": "b" * 64,
                 "benchmarkDotNet": "c" * 64,
                 "soak": "d" * 64,
@@ -709,6 +790,9 @@ class PerformanceEvidenceTests(unittest.TestCase):
                     "path": "results/fixture-report-full.json",
                     "sha256": "e" * 64,
                 },
+            ],
+            "benchmarkDotNetHostEnvironment": self._bdn_report()[
+                "HostEnvironmentInfo"
             ],
             "benchmarkDotNetControls": [
                 {

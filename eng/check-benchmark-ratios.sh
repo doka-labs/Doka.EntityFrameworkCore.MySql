@@ -36,13 +36,14 @@ fi
 for target in "${required_targets[@]}"; do
     report_dir="${benchmarks_root}/${target}/reports/${run_id}"
     evidence_dir="${report_dir}/evidence"
+    host_evidence="${evidence_dir}/host-preflight.json"
     workload_evidence="${evidence_dir}/workload-evidence.json"
     soak_evidence="${evidence_dir}/soak-evidence.json"
     gate_bdn_evidence="${evidence_dir}/gate-benchmarkdotnet-evidence.json"
     gate_evaluation="${evidence_dir}/gate-performance-evaluation.json"
 
-    if [[ ! -f "${workload_evidence}" ]]; then
-        echo "SKIP [${target}] current-run workload evidence is missing." >&2
+    if [[ ! -f "${host_evidence}" || ! -f "${workload_evidence}" ]]; then
+        echo "SKIP [${target}] current-run host or workload evidence is missing." >&2
         skips=$(( skips + 1 ))
         continue
     fi
@@ -63,6 +64,7 @@ for target in "${required_targets[@]}"; do
         python3 "${evidence_tool}" evaluate
         --contract "${contract}"
         --baseline "${baseline}"
+        --host "${host_evidence}"
         --workloads "${workload_evidence}"
         --bdn "${gate_bdn_evidence}"
         --run-id "${run_id}"

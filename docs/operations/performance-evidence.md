@@ -3,12 +3,13 @@
 This runbook describes the reproducible performance gate defined by
 [D-019](../decisions/D-019-performance-gate-architecture.md).
 
-The release-qualified path has four independent controls:
+The release-qualified path has five independent controls:
 
-1. BenchmarkDotNet same-run controls and allocation evidence.
-2. A complete named workload matrix with raw samples and tail statistics.
-3. Absolute and runner-specific historical budgets.
-4. Sustained resource invariants for caches, buffers, connections, locks,
+1. A persisted host-quiescence and processor-identity preflight.
+2. BenchmarkDotNet same-run controls and allocation evidence.
+3. A complete named workload matrix with raw samples and tail statistics.
+4. Absolute and runner-specific historical budgets.
+5. Sustained resource invariants for caches, buffers, connections, locks,
    process memory, and concurrent throughput.
 
 No single control substitutes for another.
@@ -20,13 +21,18 @@ No single control substitutes for another.
 - Python 3.10 or later;
 - the exact MySQL 8.4 and MariaDB 11.8 images declared in
   `benchmarks/performance-contract.json`;
-- an idle machine with a stable power and thermal state for accepted local
-  measurements.
+- a stable power and thermal state for accepted local measurements.
+
+The wrapper mechanically requires a one-minute load average no greater than
+`0.40` per logical processor. After a build, it waits for at most five minutes
+for this boundary. A still-busy host fails before any benchmark starts. This
+preflight supplements rather than infers power and thermal stability.
 
 Do not compare latency from different runner classes. The gate matches
 baselines by target, profile, and runner class. It additionally requires an
-exact match for runtime, OS, architecture, processor, processor count, and
-server image. A matching runner label alone is not sufficient.
+exact match for runtime, OS, architecture, concrete processor model, processor
+count, and server image. BenchmarkDotNet must report that same processor and
+process architecture. A matching runner label alone is not sufficient.
 
 ## Profiles
 
@@ -68,12 +74,13 @@ The wrapper:
 1. resolves exactly one container on the target port and verifies its
    digest-pinned image;
 2. verifies and builds the current source;
-3. runs all BenchmarkDotNet benchmarks;
-4. rejects failed or incomplete BDN reports;
-5. executes the named workload matrix and records `SELECT VERSION()`;
-6. executes soak scenarios when the profile requires them;
-7. evaluates statistics and budgets;
-8. writes a human-readable summary only after every gate passes.
+3. waits for and persists the contract-owned host-quiescence boundary;
+4. runs all BenchmarkDotNet benchmarks;
+5. rejects failed, incomplete, or host-mismatched BDN reports;
+6. executes the named workload matrix and records `SELECT VERSION()`;
+7. executes soak scenarios when the profile requires them;
+8. evaluates statistics and budgets;
+9. writes a human-readable summary only after every gate passes.
 
 Use a new `DOKA_BENCHMARK_RUN_ID` for every run. A non-empty current-run
 directory fails instead of reusing old artifacts.
@@ -86,6 +93,7 @@ Each target writes:
 artifacts/benchmarks/<target>/reports/<run-id>/
 |-- evidence/
 |   |-- benchmarkdotnet-evidence.json
+|   |-- host-preflight.json
 |   |-- performance-evaluation.json
 |   |-- performance-summary.md
 |   |-- soak-evidence.json
@@ -94,9 +102,11 @@ artifacts/benchmarks/<target>/reports/<run-id>/
     `-- *-report-full.json
 ```
 
-`benchmarkdotnet-evidence.json` records a SHA-256 digest for every raw BDN
-report. `performance-evaluation.json` also hashes the contract, workload
-report, BDN evidence, and soak report.
+`host-preflight.json` records the concrete processor, logical processor count,
+one-, five-, and fifteen-minute load averages, the normalized one-minute load,
+and its contract ceiling. `benchmarkdotnet-evidence.json` records a SHA-256
+digest for every raw BDN report. `performance-evaluation.json` hashes the host
+preflight, contract, workload report, BDN evidence, and soak report.
 
 The workload report contains both the Git commit and a source hash. The source
 hash covers `HEAD`, tracked modifications, and untracked source files while
@@ -241,6 +251,12 @@ Treat excessive noise as invalid evidence. Check competing processes, power
 state, thermal throttling, container activity, and database readiness. Do not
 raise historical budgets to make a noisy sample pass.
 
+### Host preflight failure
+
+Stop CPU-heavy applications or wait for unrelated work to finish. The failed
+preflight remains in the run directory with the observed load values. Do not
+override the processor model or raise the load ceiling to admit a busy run.
+
 ### Absolute budget failure
 
 Look for a changed algorithm, accidental client evaluation, unexpectedly
@@ -254,6 +270,21 @@ Reproduce on the same runner class. Compare workload samples, environment
 metadata, allocation, collections, and source identity. Fix a confirmed
 regression. Replace a baseline only when the new behavior is intentionally
 accepted and documented.
+
+For root-cause analysis, the benchmark executable can measure one exact
+contract workload without rerunning the complete matrix:
+
+```bash
+dotnet artifacts/bin/Doka.EntityFrameworkCore.MySql.Benchmarks/release/\
+Doka.EntityFrameworkCore.MySql.Benchmarks.dll \
+  --workload <workload-id> <diagnostic-output.json>
+```
+
+Set the same `DOKA_BENCHMARK_*` identity variables used by the scorecard before
+running the command. The output kind is
+`performance-workload-diagnostic`; the evaluator deliberately rejects it as
+release evidence. A diagnostic result can explain a failure, but only a fresh
+complete matrix can close the gate.
 
 ### Soak failure
 

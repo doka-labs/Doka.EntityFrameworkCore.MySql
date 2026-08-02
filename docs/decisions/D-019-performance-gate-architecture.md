@@ -33,7 +33,12 @@ complete release evidence:
   allocation, collection, or retained-memory baseline;
 - cache bounds, pooled-buffer ownership, connection cleanup, advisory-lock
   cleanup, working-set stabilization, and sustained concurrent throughput were
-  not release gates.
+  not release gates;
+- an overloaded host could complete most of a scorecard before historical
+  latency comparison exposed that its measurements were not comparable;
+- macOS workload evidence identified every Apple Silicon processor only as
+  `Arm64`, and same-run BenchmarkDotNet host identity was not cross-checked
+  against the workload process.
 
 Performance evidence must prove that the provider is not the limiting factor
 for its supported engine families. It must remain reviewable, reproducible, and
@@ -47,6 +52,8 @@ changes.
 - Tail latency, managed allocation, garbage collection, and retained memory
   need persisted raw evidence.
 - Missing, stale, malformed, noisy, or failing measurements must stop the gate.
+- Host load and concrete processor identity must be accepted before timing
+  starts, and every measurement layer must agree on that host.
 - Absolute limits and historical regression limits serve different purposes
   and must both be enforced.
 - Sustained resource ownership needs explicit invariants outside
@@ -139,13 +146,26 @@ driver or server allocation.
 Every evaluation records:
 
 - run ID, target, profile, Git commit, and exact working-tree source hash;
-- stable runner class;
+- stable runner class and concrete processor model;
 - .NET runtime, OS, architecture, processor, processor count, and exact server
   image;
+- one-, five-, and fifteen-minute pre-measurement load averages, the
+  one-minute load per logical processor, and its contract ceiling;
 - engine family and the server-observed `SELECT VERSION()` value;
 - raw BenchmarkDotNet report paths and SHA-256 hashes;
 - workload, soak, contract, and derived-evidence hashes;
 - all absolute and historical verdicts.
+
+The wrapper builds first, then waits up to five minutes for the one-minute load
+average to fall to at most `0.40` per logical processor. This ceiling remains
+below the `0.50` to `0.75` range in which the same code produced materially
+different latency during controlled reproduction. The wrapper persists that
+preflight and exports the exact values into the workload process. The evaluator
+binds both artifacts and also requires BenchmarkDotNet to report the same
+processor and process architecture in a Release build. A targeted
+single-workload diagnostic report uses a distinct kind that the release
+evaluator rejects; it supports root-cause analysis without weakening matrix
+completeness.
 
 The source hash excludes only the generated baseline output. This avoids a
 self-referential digest while binding measurements made during code review to
@@ -227,6 +247,8 @@ success.
   statistics.
 - Good, because failures, missing targets, stale runs, noisy measurements, and
   weakened report budgets fail closed.
+- Good, because a busy or ambiguously identified host fails before it can
+  produce misleading latency evidence.
 - Good, because absolute, historical, and sustained-resource regressions are
   separately diagnosable.
 - Bad, because accepting a new runner class requires one reviewed dual-engine
@@ -267,6 +289,8 @@ python3 -m unittest \
 ```
 
 - Run a scorecard and soak pass for each engine with one stable runner class.
+- Confirm each run persists a successful host preflight and matching
+  BenchmarkDotNet/workload processor identity.
 - Validate the accepted baseline and re-evaluate the same current run in
   compare mode.
 - Run the strict cross-target gate and confirm two passes with no skipped
@@ -346,6 +370,9 @@ A baseline update requires:
 - 2026-07-30: Replaced the ratio-only gate with named workload, raw evidence,
   runner-specific baseline, absolute and historical budget, source identity,
   hard-failure, and sustained-resource contracts.
+- 2026-08-02: Added fail-closed host quiescence, concrete processor identity,
+  BenchmarkDotNet/workload host binding, and diagnostic-only single-workload
+  reproduction.
 
 ### Implementation References
 

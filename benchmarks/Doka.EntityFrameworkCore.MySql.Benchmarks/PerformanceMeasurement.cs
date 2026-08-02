@@ -143,11 +143,48 @@ internal sealed class PerformanceEnvironmentEvidence
 
     public int ProcessorCount { get; init; } = Environment.ProcessorCount;
 
+    public double HostLoadAverage1Minute { get; init; } = RequiredEnvironmentNumber(
+        "DOKA_BENCHMARK_HOST_LOAD_AVERAGE_1M");
+
+    public double HostLoadAverage5Minutes { get; init; } = RequiredEnvironmentNumber(
+        "DOKA_BENCHMARK_HOST_LOAD_AVERAGE_5M");
+
+    public double HostLoadAverage15Minutes { get; init; } = RequiredEnvironmentNumber(
+        "DOKA_BENCHMARK_HOST_LOAD_AVERAGE_15M");
+
+    public double HostLoadAverage1MinutePerProcessor { get; init; } = RequiredEnvironmentNumber(
+        "DOKA_BENCHMARK_HOST_LOAD_RATIO_1M");
+
+    public double MaximumHostLoadAverage1MinutePerProcessor { get; init; } = RequiredEnvironmentNumber(
+        "DOKA_BENCHMARK_HOST_LOAD_MAXIMUM_RATIO_1M");
+
     public string EngineFamily { get; init; } = string.Empty;
 
     public string ServerVersion { get; init; } = string.Empty;
 
     public string ServerImage { get; init; } = string.Empty;
+
+    private static double RequiredEnvironmentNumber(
+        string name
+    )
+    {
+        var value = Environment.GetEnvironmentVariable(name);
+
+        if (string.IsNullOrWhiteSpace(value)
+            || !double.TryParse(
+                value,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var parsed)
+            || !double.IsFinite(parsed)
+            || parsed < 0)
+        {
+            throw new InvalidOperationException(
+                $"Required environment variable '{name}' is not a finite non-negative number.");
+        }
+
+        return parsed;
+    }
 }
 
 internal sealed class PerformanceWorkloadResult

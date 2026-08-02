@@ -125,6 +125,10 @@ class BenchmarkGateTests(unittest.TestCase):
             json.dumps(workload_report),
             encoding="utf-8",
         )
+        (evidence_directory / "host-preflight.json").write_text(
+            json.dumps(fixture._host_preflight()),
+            encoding="utf-8",
+        )
 
         report_path = results_directory / "Doka.Benchmarks-report-full.json"
         report_path.write_text(

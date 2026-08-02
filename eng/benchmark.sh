@@ -29,6 +29,7 @@ benchmark_source_hash="${DOKA_BENCHMARK_SOURCE_HASH:-${benchmark_source_hash}}"
 benchmark_artifacts_dir="${repo_root}/artifacts/benchmarks/${benchmark_target}"
 benchmark_report_dir="${benchmark_artifacts_dir}/reports/${benchmark_run_id}"
 benchmark_evidence_dir="${benchmark_report_dir}/evidence"
+host_evidence="${benchmark_evidence_dir}/host-preflight.json"
 bdn_evidence="${benchmark_evidence_dir}/benchmarkdotnet-evidence.json"
 workload_evidence="${benchmark_evidence_dir}/workload-evidence.json"
 soak_evidence="${benchmark_evidence_dir}/soak-evidence.json"
@@ -314,6 +315,55 @@ ensure_fresh_run_directory() {
     mkdir -p "${benchmark_evidence_dir}"
 }
 
+run_host_preflight() {
+    # Latency evidence is meaningful only when unrelated host work is bounded.
+    # Persist the exact precondition and export it into the workload report so
+    # the evaluator can bind both artifacts instead of trusting shell state.
+    local started_at
+    local current_time
+    local elapsed_seconds
+    local wait_timeout_seconds
+    local probe_interval_seconds
+
+    wait_timeout_seconds="$(
+        jq -er '.hostPreconditions.quiescenceWaitTimeoutSeconds' "${performance_contract}"
+    )"
+    probe_interval_seconds="$(
+        jq -er '.hostPreconditions.quiescenceProbeIntervalSeconds' "${performance_contract}"
+    )"
+    started_at="$(date +%s)"
+
+    until python3 "${evidence_tool}" host-preflight \
+        --contract "${performance_contract}" \
+        --output "${host_evidence}"; do
+        current_time="$(date +%s)"
+        elapsed_seconds=$(( current_time - started_at ))
+
+        if (( elapsed_seconds >= wait_timeout_seconds )); then
+            echo "Benchmark host did not become quiescent within ${wait_timeout_seconds} seconds." >&2
+            exit 1
+        fi
+
+        echo "Waiting for benchmark host quiescence..."
+        sleep "${probe_interval_seconds}"
+    done
+
+    export DOKA_BENCHMARK_PROCESSOR
+    DOKA_BENCHMARK_PROCESSOR="$(jq -er '.processor' "${host_evidence}")"
+    export DOKA_BENCHMARK_HOST_LOAD_AVERAGE_1M
+    DOKA_BENCHMARK_HOST_LOAD_AVERAGE_1M="$(jq -er '.loadAverage1Minute' "${host_evidence}")"
+    export DOKA_BENCHMARK_HOST_LOAD_AVERAGE_5M
+    DOKA_BENCHMARK_HOST_LOAD_AVERAGE_5M="$(jq -er '.loadAverage5Minutes' "${host_evidence}")"
+    export DOKA_BENCHMARK_HOST_LOAD_AVERAGE_15M
+    DOKA_BENCHMARK_HOST_LOAD_AVERAGE_15M="$(jq -er '.loadAverage15Minutes' "${host_evidence}")"
+    export DOKA_BENCHMARK_HOST_LOAD_RATIO_1M
+    DOKA_BENCHMARK_HOST_LOAD_RATIO_1M="$(jq -er '.loadAverage1MinutePerProcessor' "${host_evidence}")"
+    export DOKA_BENCHMARK_HOST_LOAD_MAXIMUM_RATIO_1M
+    DOKA_BENCHMARK_HOST_LOAD_MAXIMUM_RATIO_1M="$(
+        jq -er '.maximumLoadAverage1MinutePerProcessor' "${host_evidence}"
+    )"
+}
+
 run_benchmarkdotnet() {
     dotnet "${benchmark_assembly}" \
         --filter '*' \
@@ -349,6 +399,7 @@ evaluate_current_run() {
         python3 "${evidence_tool}" evaluate
         --contract "${performance_contract}"
         --baseline "${baseline_manifest}"
+        --host "${host_evidence}"
         --workloads "${workload_evidence}"
         --bdn "${bdn_evidence}"
         --run-id "${benchmark_run_id}"
@@ -378,6 +429,7 @@ write_summary() {
         echo "- commit: ${benchmark_commit}"
         echo "- sourceHash: ${benchmark_source_hash}"
         echo "- reportsDirectory: ${benchmark_report_dir}"
+        echo "- hostPreflightEvidence: ${host_evidence}"
         echo "- benchmarkDotNetEvidence: ${bdn_evidence}"
         echo "- workloadEvidence: ${workload_evidence}"
         echo "- soakEvidence: ${soak_evidence}"
@@ -408,8 +460,14 @@ run_benchmarks() {
         --tl:off \
         -m:1
 
-    run_benchmarkdotnet
+    # Build activity is intentionally outside the quiescence boundary.
+    run_host_preflight
+
+    # Run provider workloads immediately after the accepted host snapshot.
+    # BenchmarkDotNet creates sustained CPU load of its own and therefore runs
+    # only after the latency and allocation matrix has completed.
     run_workload_matrix
+    run_benchmarkdotnet
     run_soak_if_required
     evaluate_current_run
     write_summary

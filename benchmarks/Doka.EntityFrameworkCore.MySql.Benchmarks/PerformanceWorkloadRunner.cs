@@ -11,6 +11,33 @@ internal static class PerformanceWorkloadRunner
     public static async Task<int> RunAsync(
         string outputPath,
         CancellationToken cancellationToken = default
+    ) => await RunAsync(
+            outputPath,
+            workloadId: null,
+            cancellationToken)
+        .ConfigureAwait(false);
+
+    /// <summary>
+    /// Measures one contract workload for root-cause analysis. The resulting
+    /// diagnostic report has a distinct kind and cannot satisfy the complete
+    /// scorecard validator.
+    /// </summary>
+    public static async Task<int> RunDiagnosticAsync(
+        string outputPath,
+        string workloadId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workloadId);
+
+        return await RunAsync(outputPath, workloadId, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<int> RunAsync(
+        string outputPath,
+        string? workloadId,
+        CancellationToken cancellationToken
     )
     {
         var contract = PerformanceContract.Load();
@@ -22,6 +49,17 @@ internal static class PerformanceWorkloadRunner
         using var catalog = PerformanceWorkloadCatalog.Create();
         var definitions = ApplicableDefinitions(contract, profileName);
         ValidateCatalog(contract.Workloads, catalog.Workloads);
+
+        if (workloadId is not null)
+        {
+            definitions =
+            [
+                definitions.SingleOrDefault(definition =>
+                    string.Equals(definition.Id, workloadId, StringComparison.Ordinal))
+                ?? throw new InvalidDataException(
+                    $"Performance contract does not define applicable workload '{workloadId}'."),
+            ];
+        }
 
         var results = new List<PerformanceWorkloadResult>(definitions.Count);
 
@@ -41,6 +79,9 @@ internal static class PerformanceWorkloadRunner
 
         var report = new PerformanceRunReport
         {
+            Kind = workloadId is null
+                ? "performance-workloads"
+                : "performance-workload-diagnostic",
             ContractVersion = contract.ContractVersion,
             RunId = RequiredEnvironmentVariable("DOKA_BENCHMARK_RUN_ID"),
             Target = BenchmarkEnvironment.TargetIdValue,

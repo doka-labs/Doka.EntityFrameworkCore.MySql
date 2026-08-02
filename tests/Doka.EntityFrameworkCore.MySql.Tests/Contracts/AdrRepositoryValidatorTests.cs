@@ -65,6 +65,42 @@ public sealed class AdrRepositoryValidatorTests
             "DOKA_BENCHMARK_SERVER_IMAGE",
             benchmarkScript,
             StringComparison.Ordinal);
+        Assert.Contains(
+            "host-preflight",
+            benchmarkScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "--host \"${host_evidence}\"",
+            benchmarkGateScript,
+            StringComparison.Ordinal);
+
+        var hostPreflightIndex = benchmarkScript.IndexOf(
+            "    run_host_preflight\n",
+            StringComparison.Ordinal);
+        var workloadMatrixIndex = benchmarkScript.IndexOf(
+            "    run_workload_matrix\n",
+            StringComparison.Ordinal);
+        var benchmarkDotNetIndex = benchmarkScript.IndexOf(
+            "    run_benchmarkdotnet\n",
+            StringComparison.Ordinal);
+
+        Assert.True(
+            hostPreflightIndex >= 0
+            && workloadMatrixIndex > hostPreflightIndex
+            && benchmarkDotNetIndex > workloadMatrixIndex,
+            "Provider workloads must run after host preflight and before "
+            + "BenchmarkDotNet adds sustained host load.");
+
+        var workloadRunner = File.ReadAllText(
+            Path.Combine(
+                repositoryRoot,
+                "benchmarks",
+                "Doka.EntityFrameworkCore.MySql.Benchmarks",
+                "PerformanceWorkloadRunner.cs"));
+        Assert.Contains(
+            "performance-workload-diagnostic",
+            workloadRunner,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("benchmark_container_name", benchmarkScript, StringComparison.Ordinal);
 
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
