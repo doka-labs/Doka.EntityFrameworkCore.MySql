@@ -332,7 +332,7 @@ public sealed partial class
 internal static class TakeThenOrderByRankQuery
 {
     /// <summary>
-    /// Builds the query shared by the TPC and TPT conformance contracts.
+    /// Builds the query shared by the inheritance conformance contracts.
     /// </summary>
     public static IQueryable<string> Create(
         ISetSource source

@@ -12,7 +12,9 @@ validator_assets="${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.AdrV
 runtime_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj"
 spatial_project_root="${repo_root}/src/Doka.EntityFrameworkCore.MySql.NetTopologySuite"
 spatial_project="${spatial_project_root}/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj"
-audit_dir="${repo_root}/artifacts/ci-audit"
+# Release candidates override this path so the exact audit outputs that passed
+# the shared quality contract are retained inside the immutable evidence root.
+audit_dir="${DOKA_QUALITY_AUDIT_DIR:-${repo_root}/artifacts/ci-audit}"
 mode="full"
 
 print_usage() {

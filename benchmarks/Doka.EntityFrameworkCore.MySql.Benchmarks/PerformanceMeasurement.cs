@@ -18,6 +18,8 @@ internal sealed class PerformanceContract
 
     public Dictionary<string, PerformanceProfileContract> Profiles { get; init; } = [];
 
+    public PerformanceCalibrationContract Calibration { get; init; } = new();
+
     public List<PerformanceWorkloadDefinition> Workloads { get; init; } = [];
 
     public SoakBudgetContract SoakBudgets { get; init; } = new();
@@ -55,9 +57,23 @@ internal sealed class PerformanceProfileContract
 
     public int ExpensiveMeasurementSamples { get; init; }
 
+    public int MinimumMeasurementDurationMilliseconds { get; init; }
+
     public int MinimumValidSamples { get; init; }
 
     public int MinimumBenchmarkDotNetSamples { get; init; }
+
+    public int CalibrationSamplesPerPulse { get; init; }
+
+    public int CalibrationIntervalSamples { get; init; }
+
+    public int MaximumWorkloadMatrixDurationSeconds { get; init; }
+
+    public int MaximumTotalDurationSeconds { get; init; }
+
+    public int MaximumWorkloadDurationSeconds { get; init; }
+
+    public double MaximumCalibrationRelativeStandardError { get; init; }
 
     public int SoakIterations { get; init; }
 
@@ -66,6 +82,13 @@ internal sealed class PerformanceProfileContract
     public bool BaselineRequired { get; init; }
 
     public bool SoakRequired { get; init; }
+}
+
+internal sealed class PerformanceCalibrationContract
+{
+    public List<string> CpuFamilies { get; init; } = [];
+
+    public List<string> DatabaseFamilies { get; init; } = [];
 }
 
 internal sealed class PerformanceWorkloadDefinition
@@ -79,6 +102,10 @@ internal sealed class PerformanceWorkloadDefinition
     public bool Smoke { get; init; }
 
     public int OperationsPerSample { get; init; } = 1;
+
+    public int? MinimumWarmupOperations { get; init; }
+
+    public int? MeasurementSamples { get; init; }
 }
 
 internal sealed class SoakBudgetContract
@@ -100,7 +127,7 @@ internal sealed class SoakBudgetContract
 
 internal sealed class PerformanceRunReport
 {
-    public int SchemaVersion { get; init; } = 2;
+    public int SchemaVersion { get; init; } = 3;
 
     public string Kind { get; init; } = "performance-workloads";
 
@@ -155,14 +182,32 @@ internal sealed class PerformanceEnvironmentEvidence
     public double HostLoadAverage1MinutePerProcessor { get; init; } = RequiredEnvironmentNumber(
         "DOKA_BENCHMARK_HOST_LOAD_RATIO_1M");
 
-    public double MaximumHostLoadAverage1MinutePerProcessor { get; init; } = RequiredEnvironmentNumber(
-        "DOKA_BENCHMARK_HOST_LOAD_MAXIMUM_RATIO_1M");
+    public string HostAdmissionMetric { get; init; } = RequiredEnvironmentString(
+        "DOKA_BENCHMARK_HOST_ADMISSION_METRIC");
+
+    public double InitialHostCpuUtilization { get; init; } = RequiredEnvironmentNumber(
+        "DOKA_BENCHMARK_HOST_CPU_UTILIZATION");
+
+    public double MaximumInitialHostCpuUtilization { get; init; } = RequiredEnvironmentNumber(
+        "DOKA_BENCHMARK_HOST_MAXIMUM_CPU_UTILIZATION");
 
     public string EngineFamily { get; init; } = string.Empty;
 
     public string ServerVersion { get; init; } = string.Empty;
 
     public string ServerImage { get; init; } = string.Empty;
+
+    private static string RequiredEnvironmentString(
+        string name
+    )
+    {
+        var value = Environment.GetEnvironmentVariable(name);
+
+        return !string.IsNullOrWhiteSpace(value)
+            ? value
+            : throw new InvalidOperationException(
+                $"Required environment variable '{name}' is empty.");
+    }
 
     private static double RequiredEnvironmentNumber(
         string name
@@ -201,6 +246,8 @@ internal sealed class PerformanceWorkloadResult
 
     public long Checksum { get; init; }
 
+    public DateTimeOffset MeasuredUtc { get; init; }
+
     public double MedianNanoseconds { get; init; }
 
     public double P95Nanoseconds { get; init; }
@@ -208,6 +255,18 @@ internal sealed class PerformanceWorkloadResult
     public double P99Nanoseconds { get; init; }
 
     public double StandardErrorNanoseconds { get; init; }
+
+    public string CalibrationKind { get; init; } = string.Empty;
+
+    public double CalibrationMedianNanoseconds { get; init; }
+
+    public double CalibrationStandardErrorNanoseconds { get; init; }
+
+    public double NormalizedMedian { get; init; }
+
+    public double NormalizedP95 { get; init; }
+
+    public double NormalizedP99 { get; init; }
 
     public long AllocatedBytesPerOperation { get; init; }
 
@@ -220,6 +279,37 @@ internal sealed class PerformanceWorkloadResult
     public double Gen2CollectionsPer1000 { get; init; }
 
     public List<double> SamplesNanoseconds { get; init; } = [];
+
+    public List<double> CalibrationNanoseconds { get; init; } = [];
+
+    public List<double> CalibrationPulseNanoseconds { get; init; } = [];
+
+    public List<int> CalibrationPulseIndices { get; init; } = [];
+
+    public List<double> NormalizedSamples { get; init; } = [];
+}
+
+internal sealed class PerformanceWorkloadCheckpoint
+{
+    public int SchemaVersion { get; init; } = 1;
+
+    public string Kind { get; init; } = "performance-workload-checkpoint";
+
+    public string ContractVersion { get; init; } = string.Empty;
+
+    public string RunId { get; init; } = string.Empty;
+
+    public string Target { get; init; } = string.Empty;
+
+    public string Profile { get; init; } = string.Empty;
+
+    public string Commit { get; init; } = string.Empty;
+
+    public string SourceHash { get; init; } = string.Empty;
+
+    public string RunnerClass { get; init; } = string.Empty;
+
+    public PerformanceWorkloadResult Workload { get; init; } = new();
 }
 
 internal sealed class SoakRunReport
@@ -292,13 +382,40 @@ internal static class PerformanceReportWriter
         }
 
         Directory.CreateDirectory(directory);
+        var temporaryPath = Path.Combine(
+            directory,
+            $".{Path.GetFileName(outputPath)}.{Guid.NewGuid():N}.tmp");
 
-        await using var stream = File.Create(outputPath);
-        await JsonSerializer
-            .SerializeAsync(stream, value, s_serializerOptions, cancellationToken)
-            .ConfigureAwait(false);
-        await stream
-            .WriteAsync("\n"u8.ToArray(), cancellationToken)
-            .ConfigureAwait(false);
+        try
+        {
+            await using (var stream = File.Create(temporaryPath))
+            {
+                await JsonSerializer
+                    .SerializeAsync(stream, value, s_serializerOptions, cancellationToken)
+                    .ConfigureAwait(false);
+                await stream
+                    .WriteAsync("\n"u8.ToArray(), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            // A deadline may interrupt serialization. Publishing only by an
+            // atomic same-directory rename prevents partial JSON from looking
+            // like reusable evidence on the next invocation.
+            File.Move(temporaryPath, outputPath, overwrite: true);
+        }
+        finally
+        {
+            File.Delete(temporaryPath);
+        }
+    }
+
+    public static T Read<T>(
+        string path
+    )
+    {
+        using var stream = File.OpenRead(path);
+
+        return JsonSerializer.Deserialize<T>(stream, s_serializerOptions)
+            ?? throw new InvalidDataException($"Performance artifact '{path}' is empty.");
     }
 }

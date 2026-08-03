@@ -34,8 +34,11 @@ complete release evidence:
 - cache bounds, pooled-buffer ownership, connection cleanup, advisory-lock
   cleanup, working-set stabilization, and sustained concurrent throughput were
   not release gates;
-- an overloaded host could complete most of a scorecard before historical
-  latency comparison exposed that its measurements were not comparable;
+- ordinary desktop activity made raw historical latency too sensitive, while
+  requiring an artificially idle workstation made the gate operationally
+  brittle;
+- a hung build, benchmark child, or later release stage could consume an
+  unbounded amount of time and discard already completed evidence;
 - macOS workload evidence identified every Apple Silicon processor only as
   `Arm64`, and same-run BenchmarkDotNet host identity was not cross-checked
   against the workload process.
@@ -52,8 +55,13 @@ changes.
 - Tail latency, managed allocation, garbage collection, and retained memory
   need persisted raw evidence.
 - Missing, stale, malformed, noisy, or failing measurements must stop the gate.
-- Host load and concrete processor identity must be accepted before timing
-  starts, and every measurement layer must agree on that host.
+- Genuine initial CPU saturation and concrete processor identity must be
+  accepted before timing starts, and every measurement layer must agree on
+  that host.
+- Historical latency must distinguish provider drift from contention that
+  equally affects a directly adjacent control path.
+- Every long-running boundary needs a hard deadline, complete process-tree
+  cleanup, and source-bound continuation evidence.
 - Absolute limits and historical regression limits serve different purposes
   and must both be enforced.
 - Sustained resource ownership needs explicit invariants outside
@@ -112,18 +120,25 @@ and cannot qualify a release.
 ### Measurement and evidence integrity
 
 BenchmarkDotNet remains the isolated microbenchmark layer for same-run
-controls. It uses the full JSON exporter, the memory diagnoser, Release builds,
-and stop-on-first-error behavior. The host process also returns non-zero for:
+controls. The release gate selects only the methods named by the checked-in
+control contract; the complete benchmark suite remains available for manual
+investigation. It uses the full JSON exporter, the memory diagnoser, Release
+builds, and stop-on-first-error behavior. The host process also returns
+non-zero for:
 
 - no benchmark summaries;
 - critical validation errors;
 - any unsuccessful benchmark report;
 - an exception in a workload or soak run.
 
-The named-workload runner persists every raw sample and derives median, p95,
+The named-workload runner persists every raw sample and an adjacent calibration
+pulse. CPU-only families use a deterministic CPU control; database families
+use a live `SELECT 1` round-trip. It derives raw and normalized median, p95,
 p99, and standard error using documented linear interpolation. The Python gate
 recomputes each statistic from the samples and rejects a mismatch, a non-finite
-number, a missing matrix cell, or excessive relative standard error.
+number, a missing matrix cell, excessive normalized relative standard error,
+or unstable calibration. A pulse reused for several nearby workload samples is
+counted once when calibration error is calculated.
 
 Fast, idempotent work uses a fixed, checked-in operations-per-sample value. The
 runner times the complete batch and normalizes latency, allocation, and
@@ -131,17 +146,22 @@ collection counts per operation. This keeps timer resolution and loop overhead
 from dominating sub-microsecond paths while preserving deterministic workload
 identity. Tail statistics for these paths describe the distribution of
 per-operation-normalized batch samples, not individual OS scheduling pauses.
-Scorecard evidence requires 256 samples with at most 25% relative standard
-error; stress requires 512 samples with at most 15%. These counts provide
-enough individual observations to retain several measurements in the p99 tail
-instead of deriving it from an undersized expensive-workload sample.
+Scorecard evidence requires 256 samples for ordinary cells and 128 for
+expensive cells, with at most 25% relative standard error. Stress requires 512
+and 256 respectively, with at most 15% relative standard error. Every release
+profile therefore retains at least 100 individual observations for p99 without
+forcing large database writes to repeat at the same population as cheap
+in-process work.
 
 Managed allocation uses the precise process allocation counter around the
 measured operation. Preparation and cleanup are outside that window. Garbage
 collection counts cover the same operation window. Retained bytes are measured
-after forced full collections before and after the workload series. These
-metrics describe managed process behavior; they do not claim to measure native
-driver or server allocation.
+after forced full collections before and after the workload series. That
+process-global heap delta is retained as a diagnostic, not a per-workload
+budget, because unrelated finalization and runtime activity can change it. The
+sustained managed-heap and working-set soak invariant is the hard
+retained-memory gate. These metrics describe managed process behavior; they do
+not claim to measure native driver or server allocation.
 
 Every evaluation records:
 
@@ -149,20 +169,24 @@ Every evaluation records:
 - stable runner class and concrete processor model;
 - .NET runtime, OS, architecture, processor, processor count, and exact server
   image;
-- one-, five-, and fifteen-minute pre-measurement load averages, the
-  one-minute load per logical processor, and its contract ceiling;
+- one-, five-, and fifteen-minute load averages as diagnostics, plus initial
+  process CPU utilization and its admission ceiling;
 - engine family and the server-observed `SELECT VERSION()` value;
 - raw BenchmarkDotNet report paths and SHA-256 hashes;
 - workload, soak, contract, and derived-evidence hashes;
 - all absolute and historical verdicts.
 
-The wrapper builds first, then waits up to five minutes for the one-minute load
-average to fall to at most `0.40` per logical processor. This ceiling remains
-below the `0.50` to `0.75` range in which the same code produced materially
-different latency during controlled reproduction. The wrapper persists that
-preflight and exports the exact values into the workload process. The evaluator
-binds both artifacts and also requires BenchmarkDotNet to report the same
-processor and process architecture in a Release build. A targeted
+The wrapper builds first, then samples process CPU utilization and rejects only
+genuine initial saturation above `0.90`. Unix load average remains diagnostic
+because it can include runnable desktop and media-decoding threads that do not
+represent provider contention. The wrapper persists that preflight and exports
+the exact values into the workload process. Adjacent calibration then removes
+ordinary current-run CPU or local-database contention from historical latency
+comparisons. Calibration is a one-sided nuisance adjustment: a slower current
+control can discount contention, but a faster control cannot make an unchanged
+or faster provider path appear slower. The evaluator binds both artifacts and
+also requires BenchmarkDotNet to report the same processor and process
+architecture in a Release build. A targeted
 single-workload diagnostic report uses a distinct kind that the release
 evaluator rejects; it supports root-cause analysis without weakening matrix
 completeness.
@@ -191,16 +215,29 @@ reused runner label cannot hide hardware or runtime drift.
 
 | Metric | Maximum relative to accepted baseline |
 |---|---:|
-| Median | 1.25x |
-| p95 | 1.35x |
-| p99 | 1.50x |
-| Allocated bytes per operation | 1.15x |
-| Retained bytes | 1.25x plus 8 MiB noise allowance |
-| Gen 0, Gen 1, and Gen 2 collections | 1.25x plus 250 per 1,000 allowance |
+| Normalized median | 1.15x |
+| Normalized p95 | 1.25x |
+| Normalized p99 exceedance threshold | 1.40x |
+| Allocated bytes per operation | 1.10x |
 
-Both layers must pass. An absolute budget cannot replace historical
-comparison, and a favorable historical comparison cannot excuse an absolute
-safety violation.
+Raw median, p95, and p99 retain broad absolute disaster ceilings. Managed
+allocation has both an absolute and a historical ceiling. Collection counts
+and raw retained-heap delta remain persisted diagnostics; the sustained soak
+invariants enforce actual resource ownership. The historical p99 verdict
+persists its sample count, exceedance count and rate, exact p-value, expected
+one-percent exceedance probability, and one-percent significance level. Both
+latency layers must pass. An absolute budget cannot replace normalized
+historical comparison, and a favorable historical comparison cannot excuse an
+absolute safety violation.
+
+Normalized median and p95 remain direct point-estimate budgets. A normalized
+p99 above 1.40 times its accepted baseline triggers two bounded independent
+confirmations. The triggering population is excluded from the verdict to avoid
+selection bias. The combined confirmation population is rejected only when
+the exact one-sided binomial probability of its threshold exceedance count is
+below 0.01 under the expected p99 exceedance probability of 0.01. This keeps
+the tail gate sensitive to sustained regressions without treating the ordinary
+one-percent tail as a deterministic failure.
 
 The accepted baseline contains one complete MySQL 8.4 and MariaDB 11.8 pair
 for each runner class. Replacing a pair requires successful seed evaluations
@@ -239,6 +276,16 @@ The release-candidate path copies the complete raw performance evidence into
 its release evidence directory and re-evaluates both targets before reporting
 success.
 
+Smoke, scorecard, and stress runs have hard total deadlines of 10 minutes,
+30 minutes, and two hours. The deadline helper owns a new process group,
+forwards operator termination, and escalates from cooperative termination to a
+forced stop so BenchmarkDotNet or shell descendants cannot survive the run.
+Each completed workload is atomically checkpointed against contract version,
+run ID, target, profile, commit, source hash, runner class, workload ID, and
+family. A resumed run can therefore lose at most the workload that was active
+at interruption. The release candidate has a two-hour default deadline and
+uses digest-verified source-bound receipts at every major stage.
+
 ### Consequences
 
 - Good, because a release must prove complete named behavior rather than the
@@ -247,8 +294,11 @@ success.
   statistics.
 - Good, because failures, missing targets, stale runs, noisy measurements, and
   weakened report budgets fail closed.
-- Good, because a busy or ambiguously identified host fails before it can
-  produce misleading latency evidence.
+- Good, because a saturated or ambiguously identified host fails before it can
+  produce misleading evidence, while ordinary workstation activity is
+  normalized beside each workload.
+- Good, because hard deadlines clean up complete process trees and verified
+  checkpoints retain completed work.
 - Good, because absolute, historical, and sustained-resource regressions are
   separately diagnosable.
 - Bad, because accepting a new runner class requires one reviewed dual-engine
@@ -290,7 +340,8 @@ python3 -m unittest \
 
 - Run a scorecard and soak pass for each engine with one stable runner class.
 - Confirm each run persists a successful host preflight and matching
-  BenchmarkDotNet/workload processor identity.
+  BenchmarkDotNet/workload processor identity, adjacent calibration samples,
+  and source-bound workload checkpoints.
 - Validate the accepted baseline and re-evaluate the same current run in
   compare mode.
 - Run the strict cross-target gate and confirm two passes with no skipped
@@ -373,6 +424,11 @@ A baseline update requires:
 - 2026-08-02: Added fail-closed host quiescence, concrete processor identity,
   BenchmarkDotNet/workload host binding, and diagnostic-only single-workload
   reproduction.
+- 2026-08-03: Replaced idle-host dependence with workload-local CPU/database
+  calibration, normalized historical latency, contract-selected
+  BenchmarkDotNet controls, hard process-tree deadlines, atomic workload
+  checkpoints, digest-verified release-stage continuation, and exact
+  confirmation testing for historical p99 exceedances.
 
 ### Implementation References
 

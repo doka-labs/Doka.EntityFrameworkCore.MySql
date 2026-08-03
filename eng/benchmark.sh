@@ -6,6 +6,11 @@
 
 set -euo pipefail
 
+# The CLI otherwise attempts to contact a long-lived MSBuild server before it
+# emits build output. Disabling that server keeps local and CI qualification
+# isolated and lets the outer deadline own the complete process tree.
+export DOTNET_CLI_USE_MSBUILD_SERVER=0
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 benchmark_project="${repo_root}/benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks"
 benchmark_project="${benchmark_project}/Doka.EntityFrameworkCore.MySql.Benchmarks.csproj"
@@ -14,12 +19,16 @@ benchmark_assembly="${benchmark_assembly}/Doka.EntityFrameworkCore.MySql.Benchma
 performance_contract="${repo_root}/benchmarks/performance-contract.json"
 baseline_manifest="${DOKA_BENCHMARK_BASELINE_PATH:-${repo_root}/benchmarks/baselines/doka-benchmark-baseline.json}"
 evidence_tool="${repo_root}/eng/performance_evidence.py"
+deadline_tool="${repo_root}/eng/run_with_deadline.py"
 compose_file="${repo_root}/docker/compose.yml"
-compose_command=(docker compose -f "${compose_file}")
 benchmark_profile="${DOKA_BENCHMARK_PROFILE:-smoke}"
 benchmark_target="${DOKA_BENCHMARK_TARGET:-mysql84}"
 benchmark_run_id="${DOKA_BENCHMARK_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
+repo_fingerprint="$(printf '%s' "${repo_root}" | cksum | awk '{print $1}')"
+compose_project_name="${DOKA_BENCHMARK_COMPOSE_PROJECT_NAME:-doka-benchmark-${repo_fingerprint}-${benchmark_target}}"
+compose_command=(docker compose -p "${compose_project_name}" -f "${compose_file}")
 baseline_mode="${DOKA_BENCHMARK_BASELINE_MODE:-compare}"
+resume_mode="${DOKA_BENCHMARK_RESUME:-0}"
 runner_class="${DOKA_BENCHMARK_RUNNER_CLASS:-local-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)}"
 benchmark_commit="${DOKA_BENCHMARK_COMMIT:-$(git -C "${repo_root}" rev-parse HEAD)}"
 benchmark_source_hash="$(
@@ -32,6 +41,9 @@ benchmark_evidence_dir="${benchmark_report_dir}/evidence"
 host_evidence="${benchmark_evidence_dir}/host-preflight.json"
 bdn_evidence="${benchmark_evidence_dir}/benchmarkdotnet-evidence.json"
 workload_evidence="${benchmark_evidence_dir}/workload-evidence.json"
+workload_checkpoint_dir="${benchmark_artifacts_dir}/checkpoints/${benchmark_run_id}"
+tail_confirmation_plan="${benchmark_evidence_dir}/tail-confirmation-plan.json"
+tail_confirmation_dir="${benchmark_evidence_dir}/tail-confirmations"
 soak_evidence="${benchmark_evidence_dir}/soak-evidence.json"
 evaluation_evidence="${benchmark_evidence_dir}/performance-evaluation.json"
 summary_file="${benchmark_evidence_dir}/performance-summary.md"
@@ -44,6 +56,25 @@ benchmark_target_host=""
 benchmark_target_port=""
 benchmark_compose_service=""
 verified_server_image=""
+
+# Re-execute the complete benchmark driver below a profile-owned wall-clock
+# deadline. The helper owns a new process group, so timeout cleanup includes
+# BenchmarkDotNet and any database client descendants rather than only Bash.
+if [[ "${DOKA_BENCHMARK_DEADLINE_ACTIVE:-0}" != "1" ]]; then
+    maximum_total_duration_seconds="$(
+        jq -er \
+            --arg profile "${benchmark_profile}" \
+            '.profiles[$profile].maximumTotalDurationSeconds' \
+            "${performance_contract}"
+    )"
+
+    export DOKA_BENCHMARK_DEADLINE_ACTIVE=1
+    export DOKA_BENCHMARK_RUN_ID="${benchmark_run_id}"
+    exec python3 "${deadline_tool}" \
+        --seconds "${maximum_total_duration_seconds}" \
+        --label "${benchmark_profile} performance qualification" \
+        -- bash "$0" "$@"
+fi
 
 print_usage() {
     cat <<'EOF'
@@ -63,8 +94,11 @@ Environment:
   DOKA_BENCHMARK_TARGET=mysql84|mariadb118
   DOKA_BENCHMARK_PROFILE=smoke|scorecard|stress
   DOKA_BENCHMARK_BASELINE_MODE=compare|seed
+  DOKA_BENCHMARK_RESUME=0|1
   DOKA_BENCHMARK_RUNNER_CLASS=<stable comparable runner identity>
   DOKA_BENCHMARK_SOURCE_HASH=<optional exact 64-character source digest>
+  DOKA_BENCHMARK_COMPOSE_PROJECT_NAME=<owned Compose project>
+  DOKA_BENCHMARK_PORT=<published target port; use 0 for a dynamic port>
 EOF
 }
 
@@ -74,7 +108,7 @@ cleanup() {
     if [[ "${should_stop_stack_on_exit}" -eq 1 ]]; then
         set +e
         echo "Stopping bundled benchmark Compose stack..."
-        "${compose_command[@]}" down
+        "${compose_command[@]}" down --volumes --remove-orphans
         local down_exit_code=$?
         set -e
 
@@ -125,14 +159,16 @@ configure_benchmark_target() {
         mysql84)
             benchmark_target_display_name="MySQL 8.4"
             benchmark_target_host="127.0.0.1"
-            benchmark_target_port="33068"
+            benchmark_target_port="${DOKA_BENCHMARK_PORT:-33068}"
             benchmark_compose_service="mysql84"
+            export DOKA_MYSQL84_PORT="${benchmark_target_port}"
             ;;
         mariadb118)
             benchmark_target_display_name="MariaDB 11.8"
             benchmark_target_host="127.0.0.1"
-            benchmark_target_port="33069"
+            benchmark_target_port="${DOKA_BENCHMARK_PORT:-33069}"
             benchmark_compose_service="mariadb118"
+            export DOKA_MARIADB118_PORT="${benchmark_target_port}"
             ;;
         *)
             echo "Unsupported benchmark target '${benchmark_target}'." >&2
@@ -160,6 +196,11 @@ validate_configuration() {
             ;;
     esac
 
+    if [[ "${resume_mode}" != "0" && "${resume_mode}" != "1" ]]; then
+        echo "DOKA_BENCHMARK_RESUME must be 0 or 1." >&2
+        exit 1
+    fi
+
     if [[ ! "${benchmark_run_id}" =~ ^[0-9A-Za-z._-]+$ ]]; then
         echo "Benchmark run ID '${benchmark_run_id}' contains unsupported characters." >&2
         exit 1
@@ -167,6 +208,17 @@ validate_configuration() {
 
     if [[ ! "${runner_class}" =~ ^[0-9A-Za-z._-]+$ ]]; then
         echo "Benchmark runner class '${runner_class}' contains unsupported characters." >&2
+        exit 1
+    fi
+
+    if [[ ! "${compose_project_name}" =~ ^[a-z0-9][a-z0-9_-]+$ ]]; then
+        echo "Benchmark Compose project '${compose_project_name}' is invalid." >&2
+        exit 1
+    fi
+
+    if [[ ! "${benchmark_target_port}" =~ ^[0-9]+$ ]] \
+        || (( 10#${benchmark_target_port} > 65535 )); then
+        echo "Benchmark port '${benchmark_target_port}' is invalid." >&2
         exit 1
     fi
 
@@ -249,7 +301,7 @@ verify_benchmark_container_identity() {
 
     port_matches="$("${compose_command[@]}" ps -q "${benchmark_compose_service}" 2>/dev/null || true)"
 
-    if [[ -z "${port_matches}" ]]; then
+    if [[ -z "${port_matches}" && "${mode}" == "test-only" ]]; then
         port_matches="$(
             docker ps \
                 --filter "publish=${benchmark_target_port}" \
@@ -295,78 +347,113 @@ verify_benchmark_container_identity() {
 start_compose_stack() {
     echo "Starting bundled benchmark target ${benchmark_target_display_name}..."
     "${compose_command[@]}" up -d "${benchmark_compose_service}"
+
+    if [[ "${benchmark_target_port}" == "0" ]]; then
+        local port_output
+        port_output="$("${compose_command[@]}" port "${benchmark_compose_service}" 3306)"
+        benchmark_target_port="${port_output##*:}"
+    fi
+
+    export DOKA_BENCHMARK_DATABASE_PORT="${benchmark_target_port}"
 }
 
 stop_compose_stack() {
     echo "Stopping bundled benchmark Compose stack..."
-    "${compose_command[@]}" down
+    "${compose_command[@]}" down --volumes --remove-orphans
 }
 
 ensure_fresh_run_directory() {
-    # Historical comparison may read baselines, but current-run artifacts are
-    # never reused or merged with output from an earlier execution.
     if [[ -d "${benchmark_report_dir}" ]] \
         && find "${benchmark_report_dir}" -mindepth 1 -print -quit | grep -q .; then
-        echo "Current-run benchmark directory '${benchmark_report_dir}' is not empty." >&2
-        echo "Use a new DOKA_BENCHMARK_RUN_ID; stale artifacts are never reused." >&2
+        if [[ "${resume_mode}" != "1" ]]; then
+            echo "Current-run benchmark directory '${benchmark_report_dir}' is not empty." >&2
+            echo "Use a new run ID, or explicitly resume the same identity with DOKA_BENCHMARK_RESUME=1." >&2
+            exit 1
+        fi
+
+        echo "Resuming benchmark run ${benchmark_run_id}; checkpoints remain identity-validated."
+    elif [[ "${resume_mode}" != "1" \
+        && -d "${workload_checkpoint_dir}" \
+        && -n "$(find "${workload_checkpoint_dir}" -mindepth 1 -print -quit)" ]]; then
+        echo "Workload checkpoints already exist for run ${benchmark_run_id}." >&2
+        echo "Use a new run ID, or explicitly resume the same identity." >&2
         exit 1
     fi
 
     mkdir -p "${benchmark_evidence_dir}"
+    mkdir -p "${workload_checkpoint_dir}"
+}
+
+capture_host_preflight() {
+    # Reject only genuine initial saturation. Workload-local calibration, not
+    # a demand for an idle workstation, normalizes ordinary background work.
+    local output_path="$1"
+
+    python3 "${evidence_tool}" host-preflight \
+        --contract "${performance_contract}" \
+        --output "${output_path}"
+
+    export DOKA_BENCHMARK_PROCESSOR
+    DOKA_BENCHMARK_PROCESSOR="$(jq -er '.processor' "${output_path}")"
+    export DOKA_BENCHMARK_HOST_LOAD_AVERAGE_1M
+    DOKA_BENCHMARK_HOST_LOAD_AVERAGE_1M="$(jq -er '.loadAverage1Minute' "${output_path}")"
+    export DOKA_BENCHMARK_HOST_LOAD_AVERAGE_5M
+    DOKA_BENCHMARK_HOST_LOAD_AVERAGE_5M="$(jq -er '.loadAverage5Minutes' "${output_path}")"
+    export DOKA_BENCHMARK_HOST_LOAD_AVERAGE_15M
+    DOKA_BENCHMARK_HOST_LOAD_AVERAGE_15M="$(jq -er '.loadAverage15Minutes' "${output_path}")"
+    export DOKA_BENCHMARK_HOST_LOAD_RATIO_1M
+    DOKA_BENCHMARK_HOST_LOAD_RATIO_1M="$(jq -er '.loadAverage1MinutePerProcessor' "${output_path}")"
+    export DOKA_BENCHMARK_HOST_ADMISSION_METRIC
+    DOKA_BENCHMARK_HOST_ADMISSION_METRIC="$(jq -er '.admissionMetric' "${output_path}")"
+    export DOKA_BENCHMARK_HOST_CPU_UTILIZATION
+    DOKA_BENCHMARK_HOST_CPU_UTILIZATION="$(jq -er '.initialCpuUtilization' "${output_path}")"
+    export DOKA_BENCHMARK_HOST_MAXIMUM_CPU_UTILIZATION
+    DOKA_BENCHMARK_HOST_MAXIMUM_CPU_UTILIZATION="$(
+        jq -er '.maximumInitialCpuUtilization' "${output_path}"
+    )"
 }
 
 run_host_preflight() {
-    # Latency evidence is meaningful only when unrelated host work is bounded.
-    # Persist the exact precondition and export it into the workload report so
-    # the evaluator can bind both artifacts instead of trusting shell state.
-    local started_at
-    local current_time
-    local elapsed_seconds
-    local wait_timeout_seconds
-    local probe_interval_seconds
-
-    wait_timeout_seconds="$(
-        jq -er '.hostPreconditions.quiescenceWaitTimeoutSeconds' "${performance_contract}"
-    )"
-    probe_interval_seconds="$(
-        jq -er '.hostPreconditions.quiescenceProbeIntervalSeconds' "${performance_contract}"
-    )"
-    started_at="$(date +%s)"
-
-    until python3 "${evidence_tool}" host-preflight \
-        --contract "${performance_contract}" \
-        --output "${host_evidence}"; do
-        current_time="$(date +%s)"
-        elapsed_seconds=$(( current_time - started_at ))
-
-        if (( elapsed_seconds >= wait_timeout_seconds )); then
-            echo "Benchmark host did not become quiescent within ${wait_timeout_seconds} seconds." >&2
-            exit 1
-        fi
-
-        echo "Waiting for benchmark host quiescence..."
-        sleep "${probe_interval_seconds}"
-    done
-
-    export DOKA_BENCHMARK_PROCESSOR
-    DOKA_BENCHMARK_PROCESSOR="$(jq -er '.processor' "${host_evidence}")"
-    export DOKA_BENCHMARK_HOST_LOAD_AVERAGE_1M
-    DOKA_BENCHMARK_HOST_LOAD_AVERAGE_1M="$(jq -er '.loadAverage1Minute' "${host_evidence}")"
-    export DOKA_BENCHMARK_HOST_LOAD_AVERAGE_5M
-    DOKA_BENCHMARK_HOST_LOAD_AVERAGE_5M="$(jq -er '.loadAverage5Minutes' "${host_evidence}")"
-    export DOKA_BENCHMARK_HOST_LOAD_AVERAGE_15M
-    DOKA_BENCHMARK_HOST_LOAD_AVERAGE_15M="$(jq -er '.loadAverage15Minutes' "${host_evidence}")"
-    export DOKA_BENCHMARK_HOST_LOAD_RATIO_1M
-    DOKA_BENCHMARK_HOST_LOAD_RATIO_1M="$(jq -er '.loadAverage1MinutePerProcessor' "${host_evidence}")"
-    export DOKA_BENCHMARK_HOST_LOAD_MAXIMUM_RATIO_1M
-    DOKA_BENCHMARK_HOST_LOAD_MAXIMUM_RATIO_1M="$(
-        jq -er '.maximumLoadAverage1MinutePerProcessor' "${host_evidence}"
-    )"
+    capture_host_preflight "${host_evidence}"
 }
 
 run_benchmarkdotnet() {
+    if [[ "${resume_mode}" == "1" && -d "${benchmark_report_dir}/results" ]]; then
+        local archive_directory="${benchmark_artifacts_dir}/resume-archives/${benchmark_run_id}"
+        local archive_path="${archive_directory}/results-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+
+        mkdir -p "${archive_directory}"
+        mv "${benchmark_report_dir}/results" "${archive_path}"
+        echo "Archived incomplete BenchmarkDotNet output to ${archive_path}."
+    fi
+
+    local benchmark_filters=(--filter)
+    local benchmark_name
+
+    while IFS= read -r benchmark_name; do
+        if [[ ! "${benchmark_name}" =~ ^[A-Za-z_][A-Za-z0-9_.]*$ ]]; then
+            echo "Invalid BenchmarkDotNet control name '${benchmark_name}'." >&2
+            exit 1
+        fi
+
+        benchmark_filters+=("*${benchmark_name}*")
+    done < <(
+        jq -r \
+            '.benchmarkDotNetControls[]
+             | [.type + "." + .method,
+                (if has("baselineMethod") then .type + "." + .baselineMethod else empty end)]
+             | .[]' \
+            "${performance_contract}" \
+            | sort -u
+    )
+
+    if (( ${#benchmark_filters[@]} == 1 )); then
+        echo "The performance contract defines no BenchmarkDotNet controls." >&2
+        exit 1
+    fi
+
     dotnet "${benchmark_assembly}" \
-        --filter '*' \
+        "${benchmark_filters[@]}" \
         --artifacts "${benchmark_report_dir}"
 
     # Validate raw BenchmarkDotNet output before any summarized evaluation can
@@ -382,6 +469,78 @@ run_benchmarkdotnet() {
 
 run_workload_matrix() {
     dotnet "${benchmark_assembly}" --workloads "${workload_evidence}"
+}
+
+confirm_historical_tail_if_required() {
+    if [[ "${baseline_mode}" != "compare" ]]; then
+        return 0
+    fi
+
+    python3 "${evidence_tool}" plan-tail-confirmation \
+        --contract "${performance_contract}" \
+        --baseline "${baseline_manifest}" \
+        --workloads "${workload_evidence}" \
+        --run-id "${benchmark_run_id}" \
+        --target "${benchmark_target}" \
+        --profile "${benchmark_profile}" \
+        --output "${tail_confirmation_plan}"
+
+    local workload_count
+    workload_count="$(jq -er '.workloads | length' "${tail_confirmation_plan}")"
+    if (( workload_count == 0 )); then
+        return 0
+    fi
+
+    # A single p99 observation can be dominated by a scheduler or server
+    # maintenance burst. Confirm only the failing normalized tail on two fresh
+    # admitted snapshots and merge their calibrated samples before enforcement.
+    mkdir -p "${tail_confirmation_dir}"
+    local confirmation_arguments=()
+    local workload_index
+    local workload_id
+    local safe_workload_id
+    local confirmation_runs
+    local run_index
+    local confirmation_host
+    local confirmation_report
+
+    for (( workload_index = 0; workload_index < workload_count; workload_index++ )); do
+        workload_id="$(
+            jq -er ".workloads[${workload_index}].workloadId" \
+                "${tail_confirmation_plan}"
+        )"
+        confirmation_runs="$(
+            jq -er ".workloads[${workload_index}].confirmationRuns" \
+                "${tail_confirmation_plan}"
+        )"
+        safe_workload_id="${workload_id//[^0-9A-Za-z._-]/_}"
+
+        for (( run_index = 1; run_index <= confirmation_runs; run_index++ )); do
+            confirmation_host="${tail_confirmation_dir}/${safe_workload_id}.${run_index}.host.json"
+            confirmation_report="${tail_confirmation_dir}/${safe_workload_id}.${run_index}.json"
+
+            capture_host_preflight "${confirmation_host}"
+            dotnet "${benchmark_assembly}" \
+                --workload "${workload_id}" \
+                "${confirmation_report}"
+            confirmation_arguments+=(
+                --confirmation "${confirmation_report}"
+                --confirmation-host "${confirmation_host}"
+            )
+        done
+    done
+
+    local merged_workloads="${benchmark_evidence_dir}/workload-evidence.merged.json"
+    python3 "${evidence_tool}" merge-tail-confirmations \
+        --contract "${performance_contract}" \
+        --workloads "${workload_evidence}" \
+        --plan "${tail_confirmation_plan}" \
+        --run-id "${benchmark_run_id}" \
+        --target "${benchmark_target}" \
+        --profile "${benchmark_profile}" \
+        --output "${merged_workloads}" \
+        "${confirmation_arguments[@]}"
+    mv "${merged_workloads}" "${workload_evidence}"
 }
 
 run_soak_if_required() {
@@ -432,6 +591,9 @@ write_summary() {
         echo "- hostPreflightEvidence: ${host_evidence}"
         echo "- benchmarkDotNetEvidence: ${bdn_evidence}"
         echo "- workloadEvidence: ${workload_evidence}"
+        echo "- workloadCheckpointDirectory: ${workload_checkpoint_dir}"
+        echo "- tailConfirmationPlan: ${tail_confirmation_plan}"
+        echo "- tailConfirmationDirectory: ${tail_confirmation_dir}"
         echo "- soakEvidence: ${soak_evidence}"
         echo "- evaluationEvidence: ${evaluation_evidence}"
         echo
@@ -452,6 +614,7 @@ run_benchmarks() {
     export DOKA_BENCHMARK_COMMIT="${benchmark_commit}"
     export DOKA_BENCHMARK_SOURCE_HASH="${benchmark_source_hash}"
     export DOKA_BENCHMARK_SERVER_IMAGE="${verified_server_image}"
+    export DOKA_BENCHMARK_CHECKPOINT_DIRECTORY="${workload_checkpoint_dir}"
 
     dotnet restore "${benchmark_project}" --tl:off
     dotnet build "${benchmark_project}" \
@@ -460,13 +623,14 @@ run_benchmarks() {
         --tl:off \
         -m:1
 
-    # Build activity is intentionally outside the quiescence boundary.
+    # Build activity is intentionally outside the host-admission boundary.
     run_host_preflight
 
     # Run provider workloads immediately after the accepted host snapshot.
     # BenchmarkDotNet creates sustained CPU load of its own and therefore runs
     # only after the latency and allocation matrix has completed.
     run_workload_matrix
+    confirm_historical_tail_if_required
     run_benchmarkdotnet
     run_soak_if_required
     evaluate_current_run
@@ -475,6 +639,7 @@ run_benchmarks() {
 
 configure_benchmark_target
 validate_configuration
+export DOKA_BENCHMARK_DATABASE_PORT="${benchmark_target_port}"
 
 if (( $# > 1 )); then
     print_usage >&2

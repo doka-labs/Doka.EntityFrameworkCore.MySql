@@ -15,6 +15,7 @@ import json
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -32,7 +33,41 @@ REQUIRED_PACKAGES = (
     "MySqlConnector",
 )
 INTEGRATION_MATRIX_EVIDENCE = Path("integration/compatibility-matrix-evidence.json")
+RUNTIME_POSTURE_EVIDENCE = Path("runtime/runtime-posture-evidence.json")
+RECONCILIATION_EVIDENCE = Path("release-candidate-reconciliation.json")
+PERFORMANCE_REUSE_EVIDENCE = Path("performance/reuse-evidence.json")
+PERFORMANCE_TARGETS = ("mariadb118", "mysql84")
+PERFORMANCE_INPUT_PREFIXES = ("benchmarks/", "docker/", "src/")
+PERFORMANCE_INPUT_FILES = {
+    ".config/dotnet-tools.json",
+    "Directory.Build.props",
+    "Directory.Build.targets",
+    "Directory.Packages.props",
+    "NuGet.config",
+    "global.json",
+    "eng/benchmark.sh",
+    "eng/check-benchmark-ratios.sh",
+    "eng/performance_evidence.py",
+    "eng/verify-dotnet.sh",
+}
+REQUIRED_RECONCILIATION_GATES = (
+    "source-identity",
+    "adr-validation",
+    "repository-quality",
+    "repository-tests",
+    "live-specification",
+    "integration-configuration-failure",
+    "migration-deployment",
+    "runtime-full-trim",
+    "coverage-union",
+    "package-contract",
+    "vulnerability-audit",
+    "sbom",
+    "performance-memory",
+    "publication-readiness",
+)
 SEMANTIC_VERSION_TAG = re.compile(r"v[0-9]+[.][0-9]+[.][0-9]+(?:[-.][0-9A-Za-z.-]+)?")
+SHA256_DIGEST = re.compile(r"[0-9a-f]{64}")
 
 
 class EvidenceError(RuntimeError):
@@ -65,6 +100,63 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def clean_performance_source_hash(commit: str) -> str:
+    """Return the benchmark source hash for an unchanged commit checkout."""
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise EvidenceError(f"Invalid performance source commit: {commit}")
+
+    digest = hashlib.sha256()
+    digest.update(b"doka-performance-source-v1\0")
+    digest.update(commit.encode("ascii"))
+    digest.update(b"\0tracked-patch\0")
+    return digest.hexdigest()
+
+
+def changed_paths(repo: Path, base_commit: str, current_commit: str) -> list[str]:
+    """Return the canonical tracked delta between two repository commits."""
+    output = run_command(
+        "git",
+        "diff",
+        "--name-only",
+        "--diff-filter=ACDMRTUXB",
+        f"{base_commit}..{current_commit}",
+        "--",
+        cwd=repo,
+    )
+    return sorted(path for path in output.splitlines() if path)
+
+
+def is_performance_input(path: str) -> bool:
+    """Return whether a repository path can affect measured provider behavior."""
+    if path in PERFORMANCE_INPUT_FILES:
+        return True
+    if path.startswith(PERFORMANCE_INPUT_PREFIXES):
+        return True
+
+    # Root build configuration is performance input even when a new file did
+    # not exist when this contract was authored.
+    return "/" not in path and (
+        path.startswith("Directory.Build.")
+        or path.endswith((".sln", ".slnx"))
+    )
+
+
+def commit_is_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
+    """Return whether Git proves a direct ancestry relation between commits."""
+    result = subprocess.run(
+        ("git", "merge-base", "--is-ancestor", ancestor, descendant),
+        cwd=repo,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode in (0, 1):
+        return result.returncode == 0
+
+    message = result.stderr.strip() or result.stdout.strip()
+    raise EvidenceError(f"Unable to validate performance evidence ancestry: {message}")
 
 
 def portable_path(path: Path, root: Path) -> str:
@@ -100,7 +192,14 @@ def collect_artifacts(root: Path) -> list[dict[str, Any]]:
     self-hashing; the detached checksum binds the manifest separately.
     """
     artifacts: list[dict[str, Any]] = []
-    for path in sorted(root.rglob("*")):
+    # pathlib sorts by path components, which places a directory named
+    # ``sbom`` before its sibling ``sbom-components``. Manifest verification
+    # uses the portable path string as its canonical ordering contract, so the
+    # inventory must apply that same comparison while it is constructed.
+    for path in sorted(
+        root.rglob("*"),
+        key=lambda candidate: portable_path(candidate, root),
+    ):
         if path.is_symlink():
             raise EvidenceError(f"Symbolic links are not allowed in release evidence: {path}")
         if not path.is_file() or path.name in (MANIFEST_NAME, CHECKSUM_NAME):
@@ -227,6 +326,351 @@ def validate_integration_configuration_matrix(root: Path) -> dict[str, Any]:
     }
 
 
+def validate_runtime_posture(
+    root: Path,
+    run_id: str,
+    source_commit: str,
+) -> dict[str, Any]:
+    """Require an executed ordinary and full-trim runtime contract.
+
+    A successful publish is insufficient: the evidence must bind the executed
+    host-specific binary, immutable engine image, and clean source identity to
+    the same run that owns the release candidate.
+    """
+    path = root / RUNTIME_POSTURE_EVIDENCE
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exception:
+        raise EvidenceError(f"Unable to read runtime posture evidence: {path}") from exception
+
+    if payload.get("schemaVersion") != 1 or payload.get("runId") != run_id:
+        raise EvidenceError("Runtime posture evidence does not match the release-candidate run.")
+
+    source = payload.get("source", {})
+    if source.get("commit") != source_commit or source.get("treeState") != "clean":
+        raise EvidenceError("Runtime posture evidence does not bind the clean release source.")
+
+    target = payload.get("target", {})
+    target_image = target.get("image", "")
+    _, separator, image_digest = target_image.rpartition("@sha256:")
+    if (
+        target.get("targetId") != "mysql84"
+        or separator == ""
+        or not SHA256_DIGEST.fullmatch(image_digest)
+    ):
+        raise EvidenceError("Runtime posture evidence does not bind the digest-pinned MySQL 8.4 target.")
+
+    publish = payload.get("publish", {})
+    if (
+        payload.get("configuration") != "Release"
+        or payload.get("ordinaryExecution") != "pass"
+        or publish.get("selfContained") is not True
+        or publish.get("publishTrimmed") is not True
+        or publish.get("trimMode") != "full"
+        or publish.get("status") != "pass"
+        or payload.get("trimmedExecution") != "pass"
+    ):
+        raise EvidenceError("Runtime posture evidence does not prove the complete full-trim execution contract.")
+
+    executable = payload.get("executable", {})
+    if (
+        not SHA256_DIGEST.fullmatch(str(executable.get("sha256", "")))
+        or not isinstance(executable.get("sizeBytes"), int)
+        or executable["sizeBytes"] <= 0
+    ):
+        raise EvidenceError("Runtime posture evidence does not bind the executed trimmed binary.")
+
+    runtime_identifier = payload.get("runtimeIdentifier")
+    dotnet_sdk = payload.get("dotnetSdk")
+    if not isinstance(runtime_identifier, str) or not runtime_identifier:
+        raise EvidenceError("Runtime posture evidence is missing its runtime identifier.")
+    if not isinstance(dotnet_sdk, str) or not dotnet_sdk:
+        raise EvidenceError("Runtime posture evidence is missing its .NET SDK identity.")
+
+    return {
+        "targetId": "mysql84",
+        "image": target_image,
+        "runtimeIdentifier": runtime_identifier,
+        "dotnetSdk": dotnet_sdk,
+        "publishTrimmed": True,
+        "trimMode": "full",
+        "selfContained": True,
+        "ordinaryExecution": "pass",
+        "trimmedExecution": "pass",
+        "executableSha256": executable["sha256"],
+        "executableSizeBytes": executable["sizeBytes"],
+    }
+
+
+def load_performance_evaluation(root: Path, target: str) -> tuple[Path, dict[str, Any]]:
+    """Load and structurally validate one strict scorecard evaluation."""
+    path = root / "performance" / target / "evidence" / "gate-performance-evaluation.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exception:
+        raise EvidenceError(f"Unable to read performance evaluation: {path}") from exception
+
+    if (
+        payload.get("schemaVersion") != 3
+        or payload.get("target") != target
+        or payload.get("profile") != "scorecard"
+        or payload.get("mode") != "compare"
+        or payload.get("success") is not True
+    ):
+        raise EvidenceError(f"Performance evaluation is not a passing strict scorecard: {path}")
+
+    run_id = payload.get("runId")
+    commit = payload.get("commit")
+    source_hash = payload.get("sourceHash")
+    if not isinstance(run_id, str) or not run_id:
+        raise EvidenceError(f"Performance evaluation is missing its run identity: {path}")
+    if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise EvidenceError(f"Performance evaluation is missing its source commit: {path}")
+    if source_hash != clean_performance_source_hash(commit):
+        raise EvidenceError(f"Performance evaluation does not bind a clean source checkout: {path}")
+
+    target_root = path.parents[1]
+    artifact_hashes = payload.get("artifactHashes")
+    if not isinstance(artifact_hashes, dict):
+        raise EvidenceError(f"Performance evaluation is missing artifact hashes: {path}")
+
+    evidence_artifacts = {
+        "benchmarkDotNet": target_root / "evidence" / "gate-benchmarkdotnet-evidence.json",
+        "hostPreflight": target_root / "evidence" / "host-preflight.json",
+        "soak": target_root / "evidence" / "soak-evidence.json",
+        "workloads": target_root / "evidence" / "workload-evidence.json",
+    }
+    for artifact_id, artifact_path in evidence_artifacts.items():
+        if (
+            not artifact_path.is_file()
+            or artifact_path.is_symlink()
+            or artifact_hashes.get(artifact_id) != sha256(artifact_path)
+        ):
+            raise EvidenceError(
+                f"Performance evaluation artifact '{artifact_id}' failed integrity validation: {artifact_path}"
+            )
+
+    raw_reports = payload.get("rawReports")
+    if not isinstance(raw_reports, list) or not raw_reports:
+        raise EvidenceError(f"Performance evaluation contains no raw benchmark reports: {path}")
+    for report in raw_reports:
+        if not isinstance(report, dict):
+            raise EvidenceError(f"Performance evaluation contains an invalid raw report entry: {path}")
+        relative_path = report.get("path")
+        if not isinstance(relative_path, str) or not relative_path:
+            raise EvidenceError(f"Performance evaluation contains a raw report without a path: {path}")
+        report_path = target_root / relative_path
+        try:
+            report_path.resolve().relative_to(target_root.resolve())
+        except ValueError as exception:
+            raise EvidenceError(f"Performance raw report escapes its target root: {relative_path}") from exception
+        if (
+            not report_path.is_file()
+            or report_path.is_symlink()
+            or report.get("sha256") != sha256(report_path)
+        ):
+            raise EvidenceError(f"Performance raw report failed integrity validation: {report_path}")
+
+    return path, payload
+
+
+def validate_performance_evidence(
+    root: Path,
+    repo: Path,
+    run_id: str,
+    source_commit: str,
+) -> dict[str, Any]:
+    """Validate fresh or explicitly reusable performance and memory evidence."""
+    evaluations = {
+        target: load_performance_evaluation(root, target)
+        for target in PERFORMANCE_TARGETS
+    }
+    evaluation_payloads = [payload for _, payload in evaluations.values()]
+    measured_commits = {payload["commit"] for payload in evaluation_payloads}
+    measured_source_hashes = {payload["sourceHash"] for payload in evaluation_payloads}
+    measured_run_ids = {payload["runId"] for payload in evaluation_payloads}
+    if len(measured_commits) != 1 or len(measured_source_hashes) != 1 or len(measured_run_ids) != 1:
+        raise EvidenceError("Performance targets do not share one source and run identity.")
+
+    measured_commit = next(iter(measured_commits))
+    measured_source_hash = next(iter(measured_source_hashes))
+    measured_run_id = next(iter(measured_run_ids))
+    reuse_path = root / PERFORMANCE_REUSE_EVIDENCE
+
+    if measured_commit == source_commit:
+        if measured_run_id != run_id:
+            raise EvidenceError("Fresh performance evidence does not match the release-candidate run.")
+        if reuse_path.exists():
+            raise EvidenceError("Fresh performance evidence must not contain a reuse receipt.")
+        return {
+            "reused": False,
+            "measuredCommit": measured_commit,
+            "measuredRunId": measured_run_id,
+            "targets": list(PERFORMANCE_TARGETS),
+        }
+
+    try:
+        receipt = json.loads(reuse_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exception:
+        raise EvidenceError("Performance evidence from another commit requires a valid reuse receipt.") from exception
+
+    if (
+        receipt.get("schemaVersion") != 1
+        or receipt.get("runId") != run_id
+        or receipt.get("sourceCommit") != source_commit
+        or receipt.get("reusedRunId") != measured_run_id
+        or receipt.get("reusedSourceCommit") != measured_commit
+        or receipt.get("reusedSourceHash") != measured_source_hash
+    ):
+        raise EvidenceError("Performance reuse receipt does not match the candidate and measured source identities.")
+    if not commit_is_ancestor(repo, measured_commit, source_commit):
+        raise EvidenceError("Reused performance evidence does not originate from an ancestor commit.")
+
+    actual_changed_paths = changed_paths(repo, measured_commit, source_commit)
+    if receipt.get("changedPaths") != actual_changed_paths:
+        raise EvidenceError("Performance reuse receipt does not contain the exact source delta.")
+    relevant_changes = [path for path in actual_changed_paths if is_performance_input(path)]
+    if relevant_changes:
+        raise EvidenceError(
+            "Performance evidence cannot be reused after performance input changes: "
+            + ", ".join(relevant_changes)
+        )
+
+    target_receipts = receipt.get("targets")
+    if not isinstance(target_receipts, list):
+        raise EvidenceError("Performance reuse receipt does not contain target receipts.")
+    expected_target_receipts = [
+        {
+            "target": target,
+            "evaluationSha256": sha256(evaluations[target][0]),
+        }
+        for target in PERFORMANCE_TARGETS
+    ]
+    if target_receipts != expected_target_receipts:
+        raise EvidenceError("Performance reuse target receipts do not match the copied evaluations.")
+
+    return {
+        "reused": True,
+        "measuredCommit": measured_commit,
+        "measuredRunId": measured_run_id,
+        "targets": list(PERFORMANCE_TARGETS),
+        "changedPaths": actual_changed_paths,
+    }
+
+
+def reuse_performance_evidence(
+    repo: Path,
+    source_root: Path,
+    root: Path,
+    run_id: str,
+) -> None:
+    """Copy reusable scorecards only when Git proves their inputs unchanged."""
+    repo = repo.resolve()
+    source_root = source_root.resolve()
+    root = root.resolve()
+    source_performance = source_root / "performance"
+    destination_performance = root / "performance"
+    if destination_performance.exists():
+        raise EvidenceError(f"Performance destination already exists: {destination_performance}")
+    if (source_performance / "reuse-evidence.json").exists():
+        raise EvidenceError("Chained performance evidence reuse is not allowed.")
+    for path in source_performance.rglob("*"):
+        if path.is_symlink():
+            raise EvidenceError(f"Symbolic links are not allowed in reusable performance evidence: {path}")
+
+    evaluations = {
+        target: load_performance_evaluation(source_root, target)
+        for target in PERFORMANCE_TARGETS
+    }
+    payloads = [payload for _, payload in evaluations.values()]
+    measured_commits = {payload["commit"] for payload in payloads}
+    measured_source_hashes = {payload["sourceHash"] for payload in payloads}
+    measured_run_ids = {payload["runId"] for payload in payloads}
+    if len(measured_commits) != 1 or len(measured_source_hashes) != 1 or len(measured_run_ids) != 1:
+        raise EvidenceError("Reusable performance targets do not share one source and run identity.")
+
+    measured_commit = next(iter(measured_commits))
+    measured_source_hash = next(iter(measured_source_hashes))
+    measured_run_id = next(iter(measured_run_ids))
+    source_commit = run_command("git", "rev-parse", "HEAD", cwd=repo)
+    if run_command("git", "status", "--porcelain", "--untracked-files=all", cwd=repo):
+        raise EvidenceError("Performance reuse requires a clean Git worktree.")
+    if measured_commit == source_commit:
+        raise EvidenceError("Performance evidence already belongs to the current commit; run it as fresh evidence.")
+    if not commit_is_ancestor(repo, measured_commit, source_commit):
+        raise EvidenceError("Reusable performance evidence does not originate from an ancestor commit.")
+
+    source_delta = changed_paths(repo, measured_commit, source_commit)
+    relevant_changes = [path for path in source_delta if is_performance_input(path)]
+    if relevant_changes:
+        raise EvidenceError(
+            "Performance evidence cannot be reused after performance input changes: "
+            + ", ".join(relevant_changes)
+        )
+
+    destination_performance.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source_performance, destination_performance)
+    target_receipts = [
+        {
+            "target": target,
+            "evaluationSha256": sha256(
+                destination_performance / target / "evidence" / "gate-performance-evaluation.json"
+            ),
+        }
+        for target in PERFORMANCE_TARGETS
+    ]
+    receipt = {
+        "schemaVersion": 1,
+        "runId": run_id,
+        "sourceCommit": source_commit,
+        "reusedRunId": measured_run_id,
+        "reusedSourceCommit": measured_commit,
+        "reusedSourceHash": measured_source_hash,
+        "changedPaths": source_delta,
+        "performanceInputChanges": [],
+        "targets": target_receipts,
+    }
+    (destination_performance / "reuse-evidence.json").write_text(
+        json.dumps(receipt, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def validate_reconciliation(
+    root: Path,
+    run_id: str,
+    source_commit: str,
+) -> dict[str, str]:
+    """Require one exhaustive, duplicate-free release-contract index."""
+    path = root / RECONCILIATION_EVIDENCE
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exception:
+        raise EvidenceError(f"Unable to read release reconciliation: {path}") from exception
+
+    if (
+        payload.get("schemaVersion") != 1
+        or payload.get("runId") != run_id
+        or payload.get("sourceCommit") != source_commit
+    ):
+        raise EvidenceError("Release reconciliation does not match the candidate source and run.")
+
+    gates = payload.get("gates")
+    if not isinstance(gates, list):
+        raise EvidenceError("Release reconciliation does not contain a gate inventory.")
+
+    actual_gate_ids = tuple(gate.get("id") for gate in gates if isinstance(gate, dict))
+    if actual_gate_ids != REQUIRED_RECONCILIATION_GATES:
+        raise EvidenceError(
+            "Release reconciliation gate mismatch. "
+            f"Expected={list(REQUIRED_RECONCILIATION_GATES)}; actual={list(actual_gate_ids)}"
+        )
+    if any(gate.get("status") != "pass" for gate in gates):
+        raise EvidenceError("Release reconciliation contains a non-passing gate.")
+
+    return {gate["id"]: gate["status"] for gate in gates}
+
+
 def validate_release_packages(artifacts: list[dict[str, Any]], release_version: str) -> None:
     """Require exactly the two version-aligned packages and symbol packages.
 
@@ -344,7 +788,23 @@ def write_manifest(args: argparse.Namespace) -> None:
     validate_release_packages(artifacts, args.release_version)
     engines = collect_engines(root)
     integration_matrix = validate_integration_configuration_matrix(root)
+    runtime_posture = validate_runtime_posture(root, args.run_id, source["commit"])
+    performance_evidence = validate_performance_evidence(
+        root,
+        repo,
+        args.run_id,
+        source["commit"],
+    )
+    reconciliation = validate_reconciliation(root, args.run_id, source["commit"])
     dependencies = collect_dependencies(dependency_graph)
+    dotnet_sdk = run_command("dotnet", "--version", cwd=repo)
+
+    mysql84_engine = next(engine for engine in engines if engine["targetId"] == "mysql84")
+    if runtime_posture["image"] != mysql84_engine["image"]:
+        raise EvidenceError("Runtime posture and matrix evidence disagree on the MySQL 8.4 image.")
+    if runtime_posture["dotnetSdk"] != dotnet_sdk:
+        raise EvidenceError("Runtime posture and manifest evidence disagree on the .NET SDK.")
+
     roles: dict[str, int] = {}
     for artifact in artifacts:
         roles[artifact["role"]] = roles.get(artifact["role"], 0) + 1
@@ -361,11 +821,14 @@ def write_manifest(args: argparse.Namespace) -> None:
         "source": source,
         "workflow": workflow_identity(args.run_id),
         "toolchain": {
-            "dotnetSdk": run_command("dotnet", "--version", cwd=repo),
+            "dotnetSdk": dotnet_sdk,
             "resolvedPackages": dependencies,
         },
         "engines": engines,
         "integrationConfigurationMatrix": integration_matrix,
+        "runtimePosture": runtime_posture,
+        "performanceEvidence": performance_evidence,
+        "verificationReconciliation": reconciliation,
         "artifacts": artifacts,
         "artifactCountsByRole": dict(sorted(roles.items())),
     }
@@ -452,6 +915,15 @@ def parse_arguments() -> argparse.Namespace:
     generate.add_argument("--expected-ref", default="")
     generate.add_argument("--require-tag", action="store_true")
 
+    reuse_performance = subparsers.add_parser(
+        "reuse-performance",
+        help="Reuse immutable performance evidence after fail-closed source-delta validation.",
+    )
+    reuse_performance.add_argument("--repo", type=Path, required=True)
+    reuse_performance.add_argument("--source-root", type=Path, required=True)
+    reuse_performance.add_argument("--root", type=Path, required=True)
+    reuse_performance.add_argument("--run-id", required=True)
+
     verify = subparsers.add_parser("verify", help="Verify existing release evidence.")
     verify.add_argument("--root", type=Path, required=True)
     verify.add_argument("--repo", type=Path)
@@ -466,6 +938,13 @@ def main() -> int:
         if args.command == "generate":
             write_manifest(args)
             verify_manifest(args.root, args.repo)
+        elif args.command == "reuse-performance":
+            reuse_performance_evidence(
+                args.repo,
+                args.source_root,
+                args.root,
+                args.run_id,
+            )
         else:
             verify_manifest(args.root, args.repo)
     except EvidenceError as exception:

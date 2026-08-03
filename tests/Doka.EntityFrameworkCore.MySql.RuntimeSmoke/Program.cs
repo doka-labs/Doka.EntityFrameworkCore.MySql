@@ -164,8 +164,24 @@ public static class Program
         string databaseName
     )
     {
-        return
-            $"Server={RuntimeSmokeHost};Port={RuntimeSmokePort};Database={databaseName};User ID={RuntimeSmokeUser};Password={RuntimeSmokePassword};";
+        var configuredConnectionString = Environment.GetEnvironmentVariable(
+            "DOKA_RUNTIME_SMOKE_CONNECTION_STRING");
+        if (!string.IsNullOrWhiteSpace(configuredConnectionString))
+        {
+            // Release candidates own an isolated container on a dynamic port.
+            // Replacing only the database keeps credentials and transport
+            // options in the runner-owned connection contract.
+            var configuredBuilder = new MySqlConnectionStringBuilder(configuredConnectionString)
+            {
+                Database = databaseName,
+            };
+
+            return configuredBuilder.ConnectionString;
+        }
+
+        return $"Server={RuntimeSmokeHost};Port={RuntimeSmokePort};"
+            + $"Database={databaseName};User ID={RuntimeSmokeUser};"
+            + $"Password={RuntimeSmokePassword};";
     }
 
     private static async Task ResetDatabaseAsync(

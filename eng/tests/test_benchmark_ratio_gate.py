@@ -97,30 +97,26 @@ class BenchmarkGateTests(unittest.TestCase):
         for workload in workload_report["workloads"]:
             definition = definitions[workload["id"]]
             sample_count = (
-                smoke_profile["expensiveMeasurementSamples"]
-                if definition.get("cost", "standard") == "expensive"
-                else smoke_profile["measurementSamples"]
+                performance_test_helpers.performance_evidence.expected_measurement_sample_count(
+                    smoke_profile,
+                    definition,
+                )
             )
             samples = [
                 float(100 + (index * 10))
                 for index in range(sample_count)
             ]
-            workload["warmupSamples"] = smoke_profile["warmupSamples"]
+            workload["warmupSamples"] = (
+                performance_test_helpers.performance_evidence.expected_warmup_sample_count(
+                    smoke_profile,
+                    definition,
+                )
+            )
             workload["sampleCount"] = sample_count
-            workload["samplesNanoseconds"] = samples
-            workload["medianNanoseconds"] = evidence.percentile(
-                samples,
-                0.5,
-            )
-            workload["p95Nanoseconds"] = evidence.percentile(
-                samples,
-                0.95,
-            )
-            workload["p99Nanoseconds"] = evidence.percentile(
-                samples,
-                0.99,
-            )
-            workload["standardErrorNanoseconds"] = evidence.standard_error(samples)
+            workload["calibrationNanoseconds"] = [100.0] * sample_count
+            workload["calibrationPulseNanoseconds"] = [100.0] * sample_count
+            workload["calibrationPulseIndices"] = list(range(sample_count))
+            fixture._replace_workload_samples(workload, samples)
         (evidence_directory / "workload-evidence.json").write_text(
             json.dumps(workload_report),
             encoding="utf-8",

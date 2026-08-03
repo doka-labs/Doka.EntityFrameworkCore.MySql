@@ -3,14 +3,16 @@
 This runbook describes the reproducible performance gate defined by
 [D-019](../decisions/D-019-performance-gate-architecture.md).
 
-The release-qualified path has five independent controls:
+The release-qualified path has six independent controls:
 
-1. A persisted host-quiescence and processor-identity preflight.
+1. A persisted initial CPU-saturation and processor-identity preflight.
 2. BenchmarkDotNet same-run controls and allocation evidence.
-3. A complete named workload matrix with raw samples and tail statistics.
-4. Absolute and runner-specific historical budgets.
+3. A complete named workload matrix with raw and adjacent calibration samples.
+4. Raw absolute and calibration-normalized historical budgets.
 5. Sustained resource invariants for caches, buffers, connections, locks,
    process memory, and concurrent throughput.
+6. Hard deadlines and source-bound checkpoints for safe interruption and
+   verified continuation.
 
 No single control substitutes for another.
 
@@ -21,12 +23,19 @@ No single control substitutes for another.
 - Python 3.10 or later;
 - the exact MySQL 8.4 and MariaDB 11.8 images declared in
   `benchmarks/performance-contract.json`;
-- a stable power and thermal state for accepted local measurements.
+- a representative power and thermal state for accepted local measurements.
 
-The wrapper mechanically requires a one-minute load average no greater than
-`0.40` per logical processor. After a build, it waits for at most five minutes
-for this boundary. A still-busy host fails before any benchmark starts. This
-preflight supplements rather than infers power and thermal stability.
+The wrapper samples process CPU utilization before measurement and rejects
+only initial utilization above `0.90`. It does not require an idle workstation
+or gate on Unix load average because those values can include unrelated
+runnable or media-decoding work. Load averages remain diagnostic evidence.
+Every workload records an adjacent control pulse: CPU-only families use a
+deterministic CPU control, while database families use a live `SELECT 1`
+round-trip. Historical latency comparisons use workload/control ratios, so
+ordinary contention affecting both paths does not appear as provider drift.
+The adjustment is deliberately one-sided: a slower current control can
+discount external contention, while a faster current control never amplifies
+the provider metric into an artificial regression.
 
 Do not compare latency from different runner classes. The gate matches
 baselines by target, profile, and runner class. It additionally requires an
@@ -39,15 +48,23 @@ process architecture. A matching runner label alone is not sufficient.
 | Profile | Purpose | Workload samples | Soak | Baseline |
 |---|---|---:|---|---|
 | `smoke` | Fast harness and contract check | 1 to 3 | Optional | Not required |
-| `scorecard` | Release evidence | 256 | Required | Required |
-| `stress` | Extended investigation | 512 | Required | Required |
+| `scorecard` | Release evidence | 256; 128 expensive | Required | Required |
+| `stress` | Extended investigation | 512; 256 expensive | Required | Required |
 
 Only `scorecard` and `stress` execute the complete 55-cell workload matrix.
-The scorecard accepts at most 25% relative standard error; stress accepts at
-most 15%. Fast, idempotent operations use fixed contract-owned batches so
-timer resolution and loop overhead cannot dominate per-operation tail
-statistics. Tail outliers remain in p95 and p99 and must pass their independent
-absolute and historical budgets.
+Expensive cells retain at least 100 observations for p99 while avoiding a
+second full population of large writes. The scorecard accepts at most 25%
+relative standard error; stress accepts at most 15%. Fast, idempotent
+operations use fixed contract-owned batches so timer resolution and loop
+overhead cannot dominate per-operation tail statistics. Tail outliers remain
+in raw p95 and p99 and must pass their independent absolute budgets. Normalized
+p95 must pass its matching historical point budget. A normalized p99 point
+estimate above its historical threshold triggers two bounded confirmations.
+The triggering population is excluded from the verdict. The two independent
+confirmation populations fail only when an exact one-sided binomial tail test
+establishes an exceedance rate above one percent at the one-percent
+significance level. Smoke, scorecard, and stress have hard total deadlines of
+10 minutes, 30 minutes, and two hours respectively.
 
 ## Run one target
 
@@ -74,16 +91,22 @@ The wrapper:
 1. resolves exactly one container on the target port and verifies its
    digest-pinned image;
 2. verifies and builds the current source;
-3. waits for and persists the contract-owned host-quiescence boundary;
-4. runs all BenchmarkDotNet benchmarks;
-5. rejects failed, incomplete, or host-mismatched BDN reports;
-6. executes the named workload matrix and records `SELECT VERSION()`;
-7. executes soak scenarios when the profile requires them;
-8. evaluates statistics and budgets;
-9. writes a human-readable summary only after every gate passes.
+3. captures and persists the contract-owned host-admission boundary;
+4. executes the named workload matrix with adjacent calibration pulses;
+5. runs only the BenchmarkDotNet methods referenced by the checked-in control
+   contract;
+6. rejects failed, incomplete, or host-mismatched BDN reports;
+7. records the observed engine version from `SELECT VERSION()`;
+8. executes soak scenarios when the profile requires them;
+9. evaluates statistics and budgets;
+10. writes a human-readable summary only after every gate passes.
 
 Use a new `DOKA_BENCHMARK_RUN_ID` for every run. A non-empty current-run
-directory fails instead of reusing old artifacts.
+directory fails instead of reusing old artifacts. To continue an interrupted
+run, use the same identity with `DOKA_BENCHMARK_RESUME=1`. Completed workload
+checkpoints are accepted only when contract version, target, profile, commit,
+source hash, runner class, workload ID, and family all match. Incomplete
+BenchmarkDotNet output is archived before that phase restarts.
 
 ## Evidence layout
 
@@ -100,13 +123,25 @@ artifacts/benchmarks/<target>/reports/<run-id>/
 |   `-- workload-evidence.json
 `-- results/
     `-- *-report-full.json
+
+artifacts/benchmarks/<target>/checkpoints/<run-id>/
+`-- <workload-id-sha256>.json
 ```
 
 `host-preflight.json` records the concrete processor, logical processor count,
-one-, five-, and fifteen-minute load averages, the normalized one-minute load,
-and its contract ceiling. `benchmarkdotnet-evidence.json` records a SHA-256
+one-, five-, and fifteen-minute load averages, initial process CPU utilization,
+and its admission ceiling. `benchmarkdotnet-evidence.json` records a SHA-256
 digest for every raw BDN report. `performance-evaluation.json` hashes the host
 preflight, contract, workload report, BDN evidence, and soak report.
+
+Each workload row contains raw samples, calibration pulse samples, the pulse
+index used by every workload sample, normalized samples, and recomputed raw and
+normalized statistics. A calibration pulse reused for several adjacent
+workload samples remains one observation for calibration-error calculations.
+Raw retained-heap delta is persisted as a diagnostic, not used as a workload
+budget: it is process-global and can include unrelated finalization or runtime
+activity. Retained-memory correctness is enforced by the sustained working-set
+and managed-heap soak invariant.
 
 The workload report contains both the Git commit and a source hash. The source
 hash covers `HEAD`, tracked modifications, and untracked source files while
@@ -211,8 +246,8 @@ Download and review:
 - source commit and source hash;
 - exact server images;
 - runtime, OS, CPU, architecture, and processor count;
-- median, p95, p99, relative standard error, allocation, retained bytes, and
-  collection counts;
+- raw and normalized median, p95, p99, relative standard error, calibration
+  stability, allocation, retained-byte diagnostics, and collection counts;
 - absolute and soak verdicts;
 - raw report SHA-256 hashes.
 
@@ -253,9 +288,10 @@ raise historical budgets to make a noisy sample pass.
 
 ### Host preflight failure
 
-Stop CPU-heavy applications or wait for unrelated work to finish. The failed
-preflight remains in the run directory with the observed load values. Do not
-override the processor model or raise the load ceiling to admit a busy run.
+The host was already CPU-saturated before measurement. Stop the process that
+owns the saturation or wait for it to finish. The failed preflight remains in
+the run directory with the observed CPU utilization. Do not override the
+processor model or raise the ceiling to admit a saturated run.
 
 ### Absolute budget failure
 
@@ -267,9 +303,11 @@ decision review.
 ### Historical budget failure
 
 Reproduce on the same runner class. Compare workload samples, environment
-metadata, allocation, collections, and source identity. Fix a confirmed
-regression. Replace a baseline only when the new behavior is intentionally
-accepted and documented.
+metadata, allocation, collections, source identity, and the persisted p99 tail
+test. A p99 point estimate alone is not a failure: the runner automatically
+collects two bounded confirmation populations before applying the exact test.
+Fix a confirmed regression. Replace a baseline only when the new behavior is
+intentionally accepted and documented.
 
 For root-cause analysis, the benchmark executable can measure one exact
 contract workload without rerunning the complete matrix:
@@ -301,6 +339,14 @@ cross-target gate, and copies the raw report trees into:
 ```text
 artifacts/release-candidate/<run-id>/performance/
 ```
+
+The complete release candidate has a two-hour default deadline. Every finished
+stage writes a source-bound receipt outside the portable candidate directory.
+Continue a safely interrupted run with the same
+`DOKA_RELEASE_CANDIDATE_RUN_ID` and
+`DOKA_RELEASE_CANDIDATE_RESUME=1`. A stage is skipped only after every artifact
+digest in its receipt is recomputed successfully. Partial output from an
+unfinished stage is archived before that stage restarts.
 
 `DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1` is a development-loop bypass. Any
 evidence produced with that bypass is not release eligible.

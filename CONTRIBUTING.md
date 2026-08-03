@@ -143,15 +143,20 @@ publication-readiness gates):
 ```
 
 The script is the single deterministic pre-tag checkpoint. Exit `0` signals
-"safe to tag"; exit non-zero stops the release. The final
+"safe to tag"; exit non-zero stops the release. The complete process has a
+two-hour default deadline. A repeated invocation with the same run ID and
+`DOKA_RELEASE_CANDIDATE_RESUME=1` reuses a stage only after its source-bound
+receipt and every retained artifact digest have been verified. The final
 publication-readiness check invokes the official EF Core relational compliance
 assertions and requires zero provider-owned specification debt.
 
-The performance gate requires the complete 55-cell scorecard, raw median,
-p95/p99, standard-error, allocation and GC evidence, same-run BenchmarkDotNet
-controls, absolute and runner-specific historical budgets, and six sustained
-resource invariants. It runs against both `mysql84` and `mariadb118`, so Docker
-and an accepted baseline for the runner class must be available.
+The performance gate requires the complete 55-cell scorecard, raw and
+calibration-normalized median and p95/p99 evidence, standard error, allocation
+and GC evidence, the exact contract-owned BenchmarkDotNet controls, absolute
+and runner-specific historical budgets, and six sustained resource invariants.
+It runs against both `mysql84` and `mariadb118`, so Docker and an accepted
+baseline for the runner class must be available. Each engine scorecard has a
+hard 30-minute deadline and persists source-bound per-workload checkpoints.
 
 Dev-loop bypass (only for iteration that does not aim to ship):
 `DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1 ./eng/release-candidate.sh` skips the

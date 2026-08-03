@@ -51,12 +51,53 @@ public sealed partial class GearsOfWarQueryMySqlTest : GearsOfWarQueryRelational
         Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
     }
 
+    /// <summary>
+    /// Executes the upstream take-then-order contract without assigning a deterministic
+    /// relative order to rows whose requested <c>Rank</c> values are equal.
+    /// </summary>
+    [DirectTheory]
+    [InheritedTheoryData]
+    public override Task Take_without_orderby_followed_by_orderBy_is_pushed_down1(
+        bool async
+    ) => AssertTakeThenOrderByRank(async);
+
+    /// <summary>
+    /// Executes the equivalent query-syntax contract without assigning a deterministic
+    /// relative order to rows whose requested <c>Rank</c> values are equal.
+    /// </summary>
+    [DirectTheory]
+    [InheritedTheoryData]
+    public override Task Take_without_orderby_followed_by_orderBy_is_pushed_down2(
+        bool async
+    ) => AssertTakeThenOrderByRank(async);
+
     [SpecEngineLimitationTheory("MYSQL-MARIADB-TEMPORAL-MICROSECOND-PRECISION", "mysql84", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
     public override Task Non_string_concat_uses_appropriate_type_mapping(
         bool async
     ) => base.Non_string_concat_uses_appropriate_type_mapping(async);
+
+    /// <summary>
+    /// Verifies the complete result set and the requested SQL ordering independently.
+    /// </summary>
+    /// <remarks>
+    /// SQL does not define a relative order for equal sort keys. The upstream
+    /// LINQ-to-Objects expectation instead retains an earlier ordering because its
+    /// sort is stable. The engine references and full rationale are documented on
+    /// the equivalent TPC contract.
+    /// </remarks>
+    private async Task AssertTakeThenOrderByRank(
+        bool async
+    )
+    {
+        await AssertQuery(
+            async,
+            TakeThenOrderByRankQuery.Create,
+            elementSorter: fullName => fullName);
+
+        Assert.Contains("ORDER BY `g0`.`Rank`", Fixture.TestSqlLoggerFactory.Sql, StringComparison.Ordinal);
+    }
 }
 
 [Trait("Category", "Spec")]

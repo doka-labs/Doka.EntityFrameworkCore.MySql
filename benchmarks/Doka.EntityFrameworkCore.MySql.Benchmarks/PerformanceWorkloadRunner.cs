@@ -43,6 +43,18 @@ internal static class PerformanceWorkloadRunner
         var contract = PerformanceContract.Load();
         var profileName = BenchmarkProfiles.Current;
         var profile = GetProfile(contract, profileName);
+        var runId = RequiredEnvironmentVariable("DOKA_BENCHMARK_RUN_ID");
+        var commit = RequiredEnvironmentVariable("DOKA_BENCHMARK_COMMIT");
+        var sourceHash = RequiredEnvironmentVariable("DOKA_BENCHMARK_SOURCE_HASH");
+        var runnerClass = RequiredEnvironmentVariable("DOKA_BENCHMARK_RUNNER_CLASS");
+        var checkpointDirectory = workloadId is null
+            ? Environment.GetEnvironmentVariable("DOKA_BENCHMARK_CHECKPOINT_DIRECTORY")
+            : null;
+        using var runTimeoutSource = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken);
+        runTimeoutSource.CancelAfter(
+            TimeSpan.FromSeconds(profile.MaximumWorkloadMatrixDurationSeconds));
+        var runCancellationToken = runTimeoutSource.Token;
 
         BenchmarkEnvironment.EnsureInitialized();
 
@@ -65,16 +77,65 @@ internal static class PerformanceWorkloadRunner
 
         foreach (var definition in definitions)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            runCancellationToken.ThrowIfCancellationRequested();
+
+            if (TryLoadCheckpoint(
+                    checkpointDirectory,
+                    contract.ContractVersion,
+                    runId,
+                    profileName,
+                    commit,
+                    sourceHash,
+                    runnerClass,
+                    definition,
+                    out var checkpointResult))
+            {
+                Console.WriteLine($"Reusing completed performance workload {definition.Id}.");
+                results.Add(checkpointResult);
+                continue;
+            }
+
             Console.WriteLine($"Running performance workload {definition.Id}...");
 
             var workload = catalog.Workloads[definition.Id];
-            var sampleCount = string.Equals(definition.Cost, "expensive", StringComparison.Ordinal)
+            var profileSampleCount = string.Equals(definition.Cost, "expensive", StringComparison.Ordinal)
                 ? profile.ExpensiveMeasurementSamples
                 : profile.MeasurementSamples;
-            var result = await MeasureAsync(workload, definition, profile.WarmupSamples, sampleCount, cancellationToken)
+            // Tail-sensitive, allocation-free workloads can require a larger
+            // contract-owned population than stateful database operations.
+            var sampleCount = definition.MeasurementSamples ?? profileSampleCount;
+            var warmupSamples = GetWarmupSampleCount(definition, profile.WarmupSamples);
+            var calibrationKind = PerformanceCalibration.ResolveKind(
+                contract.Calibration,
+                definition.Family);
+            using var workloadTimeoutSource = CancellationTokenSource.CreateLinkedTokenSource(
+                runCancellationToken);
+            workloadTimeoutSource.CancelAfter(
+                TimeSpan.FromSeconds(profile.MaximumWorkloadDurationSeconds));
+            var result = await MeasureAsync(
+                    workload,
+                    definition,
+                    warmupSamples,
+                    sampleCount,
+                    profile.MinimumMeasurementDurationMilliseconds,
+                    calibrationKind,
+                    profile.CalibrationSamplesPerPulse,
+                    profile.CalibrationIntervalSamples,
+                    profile.MaximumCalibrationRelativeStandardError,
+                    workloadTimeoutSource.Token)
                 .ConfigureAwait(false);
             results.Add(result);
+
+            await WriteCheckpointAsync(
+                    checkpointDirectory,
+                    contract.ContractVersion,
+                    runId,
+                    profileName,
+                    commit,
+                    sourceHash,
+                    runnerClass,
+                    result)
+                .ConfigureAwait(false);
         }
 
         var report = new PerformanceRunReport
@@ -83,19 +144,19 @@ internal static class PerformanceWorkloadRunner
                 ? "performance-workloads"
                 : "performance-workload-diagnostic",
             ContractVersion = contract.ContractVersion,
-            RunId = RequiredEnvironmentVariable("DOKA_BENCHMARK_RUN_ID"),
+            RunId = runId,
             Target = BenchmarkEnvironment.TargetIdValue,
             Profile = profileName,
-            Commit = RequiredEnvironmentVariable("DOKA_BENCHMARK_COMMIT"),
-            SourceHash = RequiredEnvironmentVariable("DOKA_BENCHMARK_SOURCE_HASH"),
-            RunnerClass = RequiredEnvironmentVariable("DOKA_BENCHMARK_RUNNER_CLASS"),
+            Commit = commit,
+            SourceHash = sourceHash,
+            RunnerClass = runnerClass,
             GeneratedUtc = DateTimeOffset.UtcNow,
             StopwatchFrequency = Stopwatch.Frequency,
             Environment = new PerformanceEnvironmentEvidence
             {
                 EngineFamily = BenchmarkEnvironment.EngineFamilyValue,
                 ServerVersion = await BenchmarkEnvironment
-                    .ReadServerVersionAsync(cancellationToken)
+                    .ReadServerVersionAsync(runCancellationToken)
                     .ConfigureAwait(false),
                 ServerImage = RequiredEnvironmentVariable("DOKA_BENCHMARK_SERVER_IMAGE"),
             },
@@ -103,10 +164,35 @@ internal static class PerformanceWorkloadRunner
         };
 
         await PerformanceReportWriter
-            .WriteAsync(outputPath, report, cancellationToken)
+            .WriteAsync(outputPath, report, runCancellationToken)
             .ConfigureAwait(false);
 
         return 0;
+    }
+
+    private static int GetWarmupSampleCount(
+        PerformanceWorkloadDefinition definition,
+        int profileWarmupSamples
+    )
+    {
+        if (definition.MinimumWarmupOperations is not int minimumWarmupOperations)
+        {
+            return profileWarmupSamples;
+        }
+
+        if (minimumWarmupOperations <= 0)
+        {
+            throw new InvalidDataException(
+                $"Workload '{definition.Id}' has a non-positive minimum warmup operation count.");
+        }
+
+        // Batched in-memory workloads can exhaust the profile warmup before
+        // tiered JIT promotes their hot paths. The contract-owned operation
+        // floor keeps that transition outside the measured tail percentiles.
+        var operationBoundSamples = checked((minimumWarmupOperations + definition.OperationsPerSample - 1)
+            / definition.OperationsPerSample);
+
+        return Math.Max(profileWarmupSamples, operationBoundSamples);
     }
 
     public static void WriteApplicableWorkloadIds(
@@ -126,18 +212,36 @@ internal static class PerformanceWorkloadRunner
         PerformanceWorkload workload,
         PerformanceWorkloadDefinition definition,
         int warmupSamples,
-        int sampleCount,
+        int minimumSampleCount,
+        int minimumMeasurementDurationMilliseconds,
+        string calibrationKind,
+        int calibrationSamplesPerPulse,
+        int calibrationIntervalSamples,
+        double maximumCalibrationRelativeStandardError,
         CancellationToken cancellationToken
     )
     {
-        if (sampleCount <= 0)
+        if (minimumSampleCount <= 0)
         {
             throw new InvalidDataException($"Workload '{workload.Id}' has a non-positive sample count.");
+        }
+
+        if (minimumMeasurementDurationMilliseconds < 0)
+        {
+            throw new InvalidDataException(
+                $"Workload '{workload.Id}' has a negative minimum measurement duration.");
         }
 
         if (definition.OperationsPerSample <= 0)
         {
             throw new InvalidDataException($"Workload '{workload.Id}' has a non-positive operations-per-sample value.");
+        }
+
+        if (calibrationSamplesPerPulse <= 0
+            || calibrationIntervalSamples <= 0)
+        {
+            throw new InvalidDataException(
+                $"Workload '{workload.Id}' has an invalid calibration profile.");
         }
 
         for (var index = 0; index < warmupSamples; index++)
@@ -162,15 +266,38 @@ internal static class PerformanceWorkloadRunner
         }
 
         var retainedBefore = ReadManagedHeapSizeAfterFullCollection();
-        var samples = new List<double>(sampleCount);
+        var samples = new List<double>(minimumSampleCount);
+        var calibrationSamples = new List<double>(minimumSampleCount);
+        var calibrationPulses = new List<double>();
+        var calibrationPulseIndices = new List<int>(minimumSampleCount);
+        var normalizedSamples = new List<double>(minimumSampleCount);
+        var minimumMeasurementTicks = checked(
+            (long)Math.Ceiling(
+                minimumMeasurementDurationMilliseconds
+                * Stopwatch.Frequency
+                / 1000d));
+        long measuredTicks = 0;
         long allocatedBytes = 0;
         var gen0Collections = 0;
         var gen1Collections = 0;
         var gen2Collections = 0;
         long checksum = 0;
+        double currentCalibrationNanoseconds = 0;
 
-        for (var index = 0; index < sampleCount; index++)
+        while (samples.Count < minimumSampleCount
+               || measuredTicks < minimumMeasurementTicks)
         {
+            if (samples.Count % calibrationIntervalSamples == 0)
+            {
+                currentCalibrationNanoseconds = await PerformanceCalibration
+                    .MeasurePulseAsync(
+                        calibrationKind,
+                        calibrationSamplesPerPulse,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                calibrationPulses.Add(currentCalibrationNanoseconds);
+            }
+
             await PrepareAsync(workload, cancellationToken)
                 .ConfigureAwait(false);
 
@@ -205,6 +332,7 @@ internal static class PerformanceWorkloadRunner
             }
 
             checksum = unchecked(checksum + sampleChecksum);
+            measuredTicks = checked(measuredTicks + elapsed);
             var nanoseconds = elapsed * (1_000_000_000d / Stopwatch.Frequency) / definition.OperationsPerSample;
 
             if (!double.IsFinite(nanoseconds)
@@ -215,6 +343,9 @@ internal static class PerformanceWorkloadRunner
             }
 
             samples.Add(nanoseconds);
+            calibrationSamples.Add(currentCalibrationNanoseconds);
+            calibrationPulseIndices.Add(calibrationPulses.Count - 1);
+            normalizedSamples.Add(nanoseconds / currentCalibrationNanoseconds);
         }
 
         // Use the same finalizer-draining boundary on both sides. Otherwise,
@@ -222,30 +353,169 @@ internal static class PerformanceWorkloadRunner
         // memory even though their owners were disposed by CleanupAsync.
         var retainedAfter = ReadManagedHeapSizeAfterFullCollection();
         var retainedBytes = Math.Max(0, retainedAfter - retainedBefore);
-        var measuredOperations = checked((long)sampleCount * definition.OperationsPerSample);
+        var measuredSampleCount = samples.Count;
+        var measuredOperations = checked((long)measuredSampleCount * definition.OperationsPerSample);
         var sortedSamples = samples
             .Order()
             .ToArray();
+        var sortedCalibrationPulses = calibrationPulses
+            .Order()
+            .ToArray();
+        var sortedNormalizedSamples = normalizedSamples
+            .Order()
+            .ToArray();
+        var calibrationMedian = Percentile(sortedCalibrationPulses, 0.5);
+        var calibrationStandardError = StandardError(calibrationPulses);
+        var calibrationRelativeStandardError = calibrationStandardError / calibrationMedian;
+
+        if (calibrationRelativeStandardError > maximumCalibrationRelativeStandardError)
+        {
+            throw new InvalidOperationException(
+                $"Workload '{workload.Id}' calibration relative standard error "
+                + $"{calibrationRelativeStandardError:F6} exceeds "
+                + $"{maximumCalibrationRelativeStandardError:F6}.");
+        }
 
         return new PerformanceWorkloadResult
         {
             Id = definition.Id,
             Family = definition.Family,
             WarmupSamples = warmupSamples,
-            SampleCount = sampleCount,
+            SampleCount = measuredSampleCount,
             OperationsPerSample = definition.OperationsPerSample,
             Checksum = checksum,
+            MeasuredUtc = DateTimeOffset.UtcNow,
             MedianNanoseconds = Percentile(sortedSamples, 0.5),
             P95Nanoseconds = Percentile(sortedSamples, 0.95),
             P99Nanoseconds = Percentile(sortedSamples, 0.99),
             StandardErrorNanoseconds = StandardError(samples),
+            CalibrationKind = calibrationKind,
+            CalibrationMedianNanoseconds = calibrationMedian,
+            CalibrationStandardErrorNanoseconds = calibrationStandardError,
+            NormalizedMedian = Percentile(sortedNormalizedSamples, 0.5),
+            NormalizedP95 = Percentile(sortedNormalizedSamples, 0.95),
+            NormalizedP99 = Percentile(sortedNormalizedSamples, 0.99),
             AllocatedBytesPerOperation = allocatedBytes / measuredOperations,
             RetainedBytes = retainedBytes,
             Gen0CollectionsPer1000 = gen0Collections * 1000d / measuredOperations,
             Gen1CollectionsPer1000 = gen1Collections * 1000d / measuredOperations,
             Gen2CollectionsPer1000 = gen2Collections * 1000d / measuredOperations,
             SamplesNanoseconds = samples,
+            CalibrationNanoseconds = calibrationSamples,
+            CalibrationPulseNanoseconds = calibrationPulses,
+            CalibrationPulseIndices = calibrationPulseIndices,
+            NormalizedSamples = normalizedSamples,
         };
+    }
+
+    private static bool TryLoadCheckpoint(
+        string? checkpointDirectory,
+        string contractVersion,
+        string runId,
+        string profile,
+        string commit,
+        string sourceHash,
+        string runnerClass,
+        PerformanceWorkloadDefinition definition,
+        out PerformanceWorkloadResult result
+    )
+    {
+        result = new PerformanceWorkloadResult();
+
+        if (string.IsNullOrWhiteSpace(checkpointDirectory))
+        {
+            return false;
+        }
+
+        var path = GetCheckpointPath(checkpointDirectory, definition.Id);
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        PerformanceWorkloadCheckpoint checkpoint;
+
+        try
+        {
+            checkpoint = PerformanceReportWriter.Read<PerformanceWorkloadCheckpoint>(path);
+        }
+        catch (Exception exception) when (exception is IOException or JsonException)
+        {
+            throw new InvalidDataException(
+                $"Performance checkpoint '{path}' cannot be read.",
+                exception);
+        }
+
+        if (checkpoint.SchemaVersion != 1
+            || !string.Equals(
+                checkpoint.Kind,
+                "performance-workload-checkpoint",
+                StringComparison.Ordinal)
+            || !string.Equals(checkpoint.ContractVersion, contractVersion, StringComparison.Ordinal)
+            || !string.Equals(checkpoint.RunId, runId, StringComparison.Ordinal)
+            || !string.Equals(checkpoint.Target, BenchmarkEnvironment.TargetIdValue, StringComparison.Ordinal)
+            || !string.Equals(checkpoint.Profile, profile, StringComparison.Ordinal)
+            || !string.Equals(checkpoint.Commit, commit, StringComparison.Ordinal)
+            || !string.Equals(checkpoint.SourceHash, sourceHash, StringComparison.Ordinal)
+            || !string.Equals(checkpoint.RunnerClass, runnerClass, StringComparison.Ordinal)
+            || !string.Equals(checkpoint.Workload.Id, definition.Id, StringComparison.Ordinal)
+            || !string.Equals(checkpoint.Workload.Family, definition.Family, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                $"Performance checkpoint '{path}' does not match the current run identity.");
+        }
+
+        result = checkpoint.Workload;
+        return true;
+    }
+
+    private static async Task WriteCheckpointAsync(
+        string? checkpointDirectory,
+        string contractVersion,
+        string runId,
+        string profile,
+        string commit,
+        string sourceHash,
+        string runnerClass,
+        PerformanceWorkloadResult result
+    )
+    {
+        if (string.IsNullOrWhiteSpace(checkpointDirectory))
+        {
+            return;
+        }
+
+        var checkpoint = new PerformanceWorkloadCheckpoint
+        {
+            ContractVersion = contractVersion,
+            RunId = runId,
+            Target = BenchmarkEnvironment.TargetIdValue,
+            Profile = profile,
+            Commit = commit,
+            SourceHash = sourceHash,
+            RunnerClass = runnerClass,
+            Workload = result,
+        };
+        var path = GetCheckpointPath(checkpointDirectory, result.Id);
+
+        // Persisting a completed result is intentionally independent from the
+        // elapsed run deadline. The small atomic write makes the next run lose
+        // at most the workload that was still executing at cancellation time.
+        await PerformanceReportWriter
+            .WriteAsync(path, checkpoint, CancellationToken.None)
+            .ConfigureAwait(false);
+    }
+
+    private static string GetCheckpointPath(
+        string checkpointDirectory,
+        string workloadId
+    )
+    {
+        var digest = System.Security.Cryptography.SHA256.HashData(
+            Encoding.UTF8.GetBytes(workloadId));
+        var fileName = $"{Convert.ToHexStringLower(digest)}.json";
+
+        return Path.Combine(checkpointDirectory, fileName);
     }
 
     private static ValueTask PrepareAsync(

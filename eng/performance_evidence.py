@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import math
@@ -36,6 +37,10 @@ COMPARABLE_ENVIRONMENT_FIELDS = (
     "serverVersion",
     "serverImage",
 )
+P99_CONFIRMATION_RUNS = 2
+P99_EXPECTED_EXCEEDANCE_PROBABILITY = 0.01
+P99_SIGNIFICANCE_LEVEL = 0.01
+HOST_ADMISSION_METRIC = "initial-process-cpu-utilization"
 
 
 class PerformanceEvidenceError(RuntimeError):
@@ -176,6 +181,52 @@ def required_positive_integer(payload: dict[str, Any], key: str, label: str) -> 
     return value
 
 
+def non_negative_integer(value: Any, label: str) -> int:
+    """Read an integer index that may point at the first array element."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise PerformanceEvidenceError(f"{label} must be a non-negative integer.")
+
+    return value
+
+
+def expected_warmup_sample_count(
+    profile_contract: dict[str, Any],
+    workload_definition: dict[str, Any],
+) -> int:
+    """Derive the contract-owned warmup batch count for one workload."""
+    profile_samples = int(profile_contract["warmupSamples"])
+    minimum_operations = workload_definition.get("minimumWarmupOperations")
+
+    if minimum_operations is None:
+        return profile_samples
+
+    operations_per_sample = int(workload_definition.get("operationsPerSample", 1))
+    operation_bound_samples = (
+        int(minimum_operations) + operations_per_sample - 1
+    ) // operations_per_sample
+
+    return max(profile_samples, operation_bound_samples)
+
+
+def expected_measurement_sample_count(
+    profile_contract: dict[str, Any],
+    workload_definition: dict[str, Any],
+) -> int:
+    """Derive the contract-owned measurement population for one workload."""
+    profile_field = (
+        "expensiveMeasurementSamples"
+        if workload_definition.get("cost", "standard") == "expensive"
+        else "measurementSamples"
+    )
+
+    return int(
+        workload_definition.get(
+            "measurementSamples",
+            profile_contract[profile_field],
+        )
+    )
+
+
 def required_sha256(payload: dict[str, Any], key: str, label: str) -> str:
     """Read a lower-case SHA-256 digest field."""
     value = required_string(payload, key, label)
@@ -258,8 +309,8 @@ def require_identity(
 
 def validate_contract(contract: dict[str, Any]) -> None:
     """Validate uniqueness, references, and required dimension coverage."""
-    if contract.get("schemaVersion") != 2:
-        raise PerformanceEvidenceError("Performance contract schemaVersion must be 2.")
+    if contract.get("schemaVersion") != 3:
+        raise PerformanceEvidenceError("Performance contract schemaVersion must be 3.")
 
     required_string(contract, "contractVersion", "contract")
     finite_number(
@@ -274,6 +325,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
     workloads = contract.get("workloads")
     requirements = contract.get("coverageRequirements")
     host_preconditions = contract.get("hostPreconditions")
+    calibration = contract.get("calibration")
     historical_budgets = contract.get("historicalBudgets")
     benchmark_controls = contract.get("benchmarkDotNetControls")
     soak_budgets = contract.get("soakBudgets")
@@ -290,6 +342,8 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise PerformanceEvidenceError("Performance contract must define coverageRequirements.")
     if not isinstance(host_preconditions, dict):
         raise PerformanceEvidenceError("Performance contract must define hostPreconditions.")
+    if not isinstance(calibration, dict):
+        raise PerformanceEvidenceError("Performance contract must define calibration.")
     if not isinstance(historical_budgets, dict):
         raise PerformanceEvidenceError("Performance contract must define historicalBudgets.")
     if not isinstance(benchmark_controls, list) or not benchmark_controls:
@@ -297,29 +351,18 @@ def validate_contract(contract: dict[str, Any]) -> None:
     if not isinstance(soak_budgets, dict):
         raise PerformanceEvidenceError("Performance contract must define soakBudgets.")
 
-    maximum_load_ratio = finite_number(
-        host_preconditions.get("maximumOneMinuteLoadAveragePerProcessor"),
-        "hostPreconditions.maximumOneMinuteLoadAveragePerProcessor",
+    if host_preconditions.get("admissionMetric") != HOST_ADMISSION_METRIC:
+        raise PerformanceEvidenceError(
+            "Host admission metric must use initial process CPU utilization."
+        )
+    maximum_initial_cpu = finite_number(
+        host_preconditions.get("maximumInitialCpuUtilization"),
+        "hostPreconditions.maximumInitialCpuUtilization",
         minimum=0,
     )
-    if maximum_load_ratio <= 0 or maximum_load_ratio > 1:
+    if maximum_initial_cpu <= 0 or maximum_initial_cpu > 1:
         raise PerformanceEvidenceError(
-            "Host one-minute load ratio must be greater than 0 and at most 1."
-        )
-    for key in ("quiescenceWaitTimeoutSeconds", "quiescenceProbeIntervalSeconds"):
-        value = finite_number(
-            host_preconditions.get(key),
-            f"hostPreconditions.{key}",
-            minimum=1,
-        )
-        if not value.is_integer():
-            raise PerformanceEvidenceError(f"hostPreconditions.{key} must be an integer.")
-    if (
-        host_preconditions["quiescenceProbeIntervalSeconds"]
-        > host_preconditions["quiescenceWaitTimeoutSeconds"]
-    ):
-        raise PerformanceEvidenceError(
-            "Host quiescence probe interval exceeds its wait timeout."
+            "Host initial CPU utilization must be greater than 0 and at most 1."
         )
 
     for target_id, target_contract in targets.items():
@@ -336,6 +379,11 @@ def validate_contract(contract: dict[str, Any]) -> None:
         "expensiveMeasurementSamples",
         "minimumValidSamples",
         "minimumBenchmarkDotNetSamples",
+        "calibrationSamplesPerPulse",
+        "calibrationIntervalSamples",
+        "maximumWorkloadMatrixDurationSeconds",
+        "maximumTotalDurationSeconds",
+        "maximumWorkloadDurationSeconds",
         "soakIterations",
         "soakConcurrency",
     )
@@ -354,9 +402,24 @@ def validate_contract(contract: dict[str, Any]) -> None:
                 raise PerformanceEvidenceError(
                     f"profiles.{profile_name}.{key} must be an integer."
                 )
+        minimum_measurement_duration = finite_number(
+            profile_contract.get("minimumMeasurementDurationMilliseconds"),
+            f"profiles.{profile_name}.minimumMeasurementDurationMilliseconds",
+            minimum=0,
+        )
+        if not minimum_measurement_duration.is_integer():
+            raise PerformanceEvidenceError(
+                f"profiles.{profile_name}.minimumMeasurementDurationMilliseconds "
+                "must be an integer."
+            )
         finite_number(
             profile_contract.get("maximumRelativeStandardError"),
             f"profiles.{profile_name}.maximumRelativeStandardError",
+            minimum=0,
+        )
+        finite_number(
+            profile_contract.get("maximumCalibrationRelativeStandardError"),
+            f"profiles.{profile_name}.maximumCalibrationRelativeStandardError",
             minimum=0,
         )
         for key in ("baselineRequired", "soakRequired"):
@@ -371,13 +434,20 @@ def validate_contract(contract: dict[str, Any]) -> None:
             raise PerformanceEvidenceError(
                 f"profiles.{profile_name}.minimumValidSamples exceeds a sample count."
             )
+        if profile_contract["baselineRequired"] and min(
+            profile_contract["measurementSamples"],
+            profile_contract["expensiveMeasurementSamples"],
+        ) < 100:
+            raise PerformanceEvidenceError(
+                f"profiles.{profile_name} requires at least 100 observations "
+                "for historical p99 evidence."
+            )
 
     family_budget_fields = (
         "medianNanoseconds",
         "p95Nanoseconds",
         "p99Nanoseconds",
         "allocatedBytes",
-        "retainedBytes",
         "gen2CollectionsPer1000",
     )
     for family_name, family_budget in families.items():
@@ -401,11 +471,10 @@ def validate_contract(contract: dict[str, Any]) -> None:
             )
 
     ratio_fields = (
-        "medianRatio",
-        "p95Ratio",
-        "p99Ratio",
+        "normalizedMedianRatio",
+        "normalizedP95Ratio",
+        "normalizedP99Ratio",
         "allocatedBytesRatio",
-        "retainedBytesRatio",
         "gen0Ratio",
         "gen1Ratio",
         "gen2Ratio",
@@ -416,11 +485,30 @@ def validate_contract(contract: dict[str, Any]) -> None:
             f"historicalBudgets.{key}",
             minimum=1,
         )
-    for key in ("retainedBytesAllowance", "genCollectionAllowancePer1000"):
+    for key in ("genCollectionAllowancePer1000",):
         finite_number(
             historical_budgets.get(key),
             f"historicalBudgets.{key}",
             minimum=0,
+        )
+
+    calibration_families: list[str] = []
+    for key in ("cpuFamilies", "databaseFamilies"):
+        values = calibration.get(key)
+        if not isinstance(values, list) or not values:
+            raise PerformanceEvidenceError(f"calibration.{key} must be a non-empty array.")
+        for value in values:
+            if not isinstance(value, str) or value not in families:
+                raise PerformanceEvidenceError(
+                    f"calibration.{key} contains unknown family '{value}'."
+                )
+            calibration_families.append(value)
+
+    if len(calibration_families) != len(set(calibration_families)):
+        raise PerformanceEvidenceError("Calibration families must be disjoint.")
+    if set(calibration_families) != set(families):
+        raise PerformanceEvidenceError(
+            "Calibration must classify every performance family exactly once."
         )
 
     workload_ids: list[str] = []
@@ -450,6 +538,28 @@ def validate_contract(contract: dict[str, Any]) -> None:
             raise PerformanceEvidenceError(
                 f"Workload '{workload_id}' operationsPerSample must be an integer."
             )
+        minimum_warmup_operations = workload.get("minimumWarmupOperations")
+        if minimum_warmup_operations is not None:
+            minimum_warmup_operations = finite_number(
+                minimum_warmup_operations,
+                f"Workload '{workload_id}'.minimumWarmupOperations",
+                minimum=1,
+            )
+            if not minimum_warmup_operations.is_integer():
+                raise PerformanceEvidenceError(
+                    f"Workload '{workload_id}' minimumWarmupOperations must be an integer."
+                )
+        measurement_samples = workload.get("measurementSamples")
+        if measurement_samples is not None:
+            measurement_samples = finite_number(
+                measurement_samples,
+                f"Workload '{workload_id}'.measurementSamples",
+                minimum=1,
+            )
+            if not measurement_samples.is_integer():
+                raise PerformanceEvidenceError(
+                    f"Workload '{workload_id}' measurementSamples must be an integer."
+                )
         workload_ids.append(workload_id)
 
     duplicates = sorted(
@@ -545,8 +655,55 @@ def resolve_processor_identity() -> str:
     return platform.processor().strip() or platform.machine().strip() or "unknown"
 
 
+def parse_process_cpu_utilization(
+    output: str,
+    processor_count: int,
+) -> float:
+    """Normalize summed process CPU percentages across the available processors."""
+    if processor_count <= 0:
+        raise PerformanceEvidenceError("Processor count must be positive.")
+
+    try:
+        percentages = [
+            float(line.strip())
+            for line in output.splitlines()
+            if line.strip()
+        ]
+    except ValueError as error:
+        raise PerformanceEvidenceError(
+            "Unable to parse process CPU utilization."
+        ) from error
+    if not percentages or any(
+        not math.isfinite(value) or value < 0
+        for value in percentages
+    ):
+        raise PerformanceEvidenceError("Process CPU utilization is incomplete or invalid.")
+
+    return sum(percentages) / (processor_count * 100.0)
+
+
+def capture_process_cpu_utilization(processor_count: int) -> float:
+    """Measure active process CPU without treating runnable desktop threads as load."""
+    environment = os.environ.copy()
+    environment["LC_ALL"] = "C"
+    try:
+        result = subprocess.run(
+            ["ps", "-A", "-o", "%cpu="],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise PerformanceEvidenceError(
+            "Unable to capture process CPU utilization."
+        ) from error
+
+    return parse_process_cpu_utilization(result.stdout, processor_count)
+
+
 def capture_host_preflight(contract: dict[str, Any]) -> dict[str, Any]:
-    """Capture and evaluate the quiescence boundary before measurement starts."""
+    """Capture a fail-fast saturation check before calibrated measurement starts."""
     validate_contract(contract)
     processor_count = os.cpu_count()
     if processor_count is None or processor_count <= 0:
@@ -559,16 +716,17 @@ def capture_host_preflight(contract: dict[str, Any]) -> dict[str, Any]:
             "The benchmark host does not expose Unix load averages."
         ) from error
 
-    maximum_ratio = finite_number(
-        contract["hostPreconditions"]["maximumOneMinuteLoadAveragePerProcessor"],
-        "hostPreconditions.maximumOneMinuteLoadAveragePerProcessor",
+    maximum_cpu_utilization = finite_number(
+        contract["hostPreconditions"]["maximumInitialCpuUtilization"],
+        "hostPreconditions.maximumInitialCpuUtilization",
         minimum=0,
     )
     ratio = load_average_1m / processor_count
-    success = ratio <= maximum_ratio
+    cpu_utilization = capture_process_cpu_utilization(processor_count)
+    success = cpu_utilization <= maximum_cpu_utilization
 
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 3,
         "kind": "performance-host-preflight",
         "contractVersion": contract["contractVersion"],
         "generatedUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -578,7 +736,9 @@ def capture_host_preflight(contract: dict[str, Any]) -> dict[str, Any]:
         "loadAverage5Minutes": load_average_5m,
         "loadAverage15Minutes": load_average_15m,
         "loadAverage1MinutePerProcessor": ratio,
-        "maximumLoadAverage1MinutePerProcessor": maximum_ratio,
+        "admissionMetric": HOST_ADMISSION_METRIC,
+        "initialCpuUtilization": cpu_utilization,
+        "maximumInitialCpuUtilization": maximum_cpu_utilization,
         "success": success,
     }
 
@@ -591,7 +751,7 @@ def validate_host_preflight(
 ) -> dict[str, Any]:
     """Reject stale, overloaded, or contract-drifting host preflight evidence."""
     if (
-        report.get("schemaVersion") != 1
+        report.get("schemaVersion") != 3
         or report.get("kind") != "performance-host-preflight"
     ):
         raise PerformanceEvidenceError("Host preflight schema or kind is invalid.")
@@ -625,20 +785,31 @@ def validate_host_preflight(
             "Host preflight load ratio does not match load and processor count."
         )
 
-    actual_maximum = finite_number(
-        report.get("maximumLoadAverage1MinutePerProcessor"),
-        "hostPreflight.maximumLoadAverage1MinutePerProcessor",
+    if report.get("admissionMetric") != HOST_ADMISSION_METRIC:
+        raise PerformanceEvidenceError("Host preflight admission metric is invalid.")
+    cpu_utilization = finite_number(
+        report.get("initialCpuUtilization"),
+        "hostPreflight.initialCpuUtilization",
+        minimum=0,
+    )
+    maximum_cpu_utilization = finite_number(
+        report.get("maximumInitialCpuUtilization"),
+        "hostPreflight.maximumInitialCpuUtilization",
         minimum=0,
     )
     expected_maximum = float(
-        contract["hostPreconditions"]["maximumOneMinuteLoadAveragePerProcessor"]
+        contract["hostPreconditions"]["maximumInitialCpuUtilization"]
     )
-    if actual_maximum != expected_maximum:
-        raise PerformanceEvidenceError("Host preflight load ceiling does not match the contract.")
-    if report.get("success") is not True or actual_ratio > actual_maximum:
+    if maximum_cpu_utilization != expected_maximum:
+        raise PerformanceEvidenceError("Host preflight CPU ceiling is invalid.")
+    if (
+        report.get("success") is not True
+        or cpu_utilization > maximum_cpu_utilization
+    ):
         raise PerformanceEvidenceError(
-            "Benchmark host is not quiescent: one-minute load per processor "
-            f"is {actual_ratio:.4f}, maximum is {actual_maximum:.4f}."
+            "Benchmark host is initially CPU-saturated: utilization "
+            f"is {cpu_utilization:.4f}, maximum is "
+            f"{maximum_cpu_utilization:.4f}."
         )
 
     return report
@@ -681,6 +852,247 @@ def standard_error(values: Sequence[float]) -> float:
     return statistics.stdev(values) / math.sqrt(len(values))
 
 
+def binomial_survival_probability(
+    sample_count: int,
+    exceedance_count: int,
+    expected_probability: float,
+) -> float:
+    """Return the exact probability of observing at least this many exceedances."""
+    if sample_count <= 0:
+        raise PerformanceEvidenceError("A binomial tail requires at least one sample.")
+    if exceedance_count < 0 or exceedance_count > sample_count:
+        raise PerformanceEvidenceError("The binomial exceedance count is invalid.")
+    if expected_probability <= 0 or expected_probability >= 1:
+        raise PerformanceEvidenceError("The binomial probability must be between zero and one.")
+    if exceedance_count == 0:
+        return 1.0
+
+    log_term = (
+        math.lgamma(sample_count + 1)
+        - math.lgamma(exceedance_count + 1)
+        - math.lgamma(sample_count - exceedance_count + 1)
+        + exceedance_count * math.log(expected_probability)
+        + (sample_count - exceedance_count) * math.log1p(-expected_probability)
+    )
+    term = math.exp(log_term)
+    probability = term
+
+    for observed_count in range(exceedance_count, sample_count):
+        term *= (
+            (sample_count - observed_count)
+            / (observed_count + 1)
+            * expected_probability
+            / (1 - expected_probability)
+        )
+        probability += term
+
+    return min(1.0, probability)
+
+
+def calibration_adjustment_factor(
+    workload_id: str,
+    current_workload: dict[str, Any],
+    baseline_workload: dict[str, Any],
+) -> float:
+    """Discount slower controls without amplifying a faster control into a regression."""
+    current_calibration = finite_number(
+        current_workload.get("calibrationMedianNanoseconds"),
+        f"current.{workload_id}.calibrationMedianNanoseconds",
+        minimum=0.000001,
+    )
+    baseline_calibration = finite_number(
+        baseline_workload.get("calibrationMedianNanoseconds"),
+        f"baseline.{workload_id}.calibrationMedianNanoseconds",
+        minimum=0.000001,
+    )
+
+    return min(current_calibration / baseline_calibration, 1.0)
+
+
+def historical_p99_check(
+    workload_id: str,
+    workload: dict[str, Any],
+    baseline_workload: dict[str, Any],
+    contract: dict[str, Any],
+) -> dict[str, Any]:
+    """Test whether normalized tail exceedances establish a p99 regression."""
+    policy = contract["historicalBudgets"]
+    ratio = finite_number(
+        policy.get("normalizedP99Ratio"),
+        "historicalBudgets.normalizedP99Ratio",
+        minimum=1,
+    )
+    baseline_value = finite_number(
+        baseline_workload.get("normalizedP99"),
+        f"baseline.{workload_id}.normalizedP99",
+        minimum=0,
+    )
+    maximum = baseline_value * ratio
+    adjustment_factor = calibration_adjustment_factor(
+        workload_id,
+        workload,
+        baseline_workload,
+    )
+    samples_payload = workload.get("_normalizedSamples")
+    if samples_payload is None:
+        samples_payload = workload.get("normalizedSamples")
+    if not isinstance(samples_payload, list) or not samples_payload:
+        raise PerformanceEvidenceError(
+            f"Current workload '{workload_id}' has no normalized p99 samples."
+        )
+    samples = [
+        finite_number(
+            sample,
+            f"current.{workload_id}.normalizedSamples[{index}]",
+            minimum=0.000001,
+        )
+        for index, sample in enumerate(samples_payload)
+    ]
+    observed = finite_number(
+        workload.get("normalizedP99"),
+        f"current.{workload_id}.normalizedP99",
+        minimum=0,
+    )
+    recomputed_observed = percentile(sorted(samples), 0.99)
+    if not close_enough(observed, recomputed_observed):
+        raise PerformanceEvidenceError(
+            f"Current workload '{workload_id}' normalized p99 does not match its samples."
+        )
+
+    adjusted_samples = [
+        sample * adjustment_factor
+        for sample in samples
+    ]
+    actual = percentile(sorted(adjusted_samples), 0.99)
+    exceedance_count = sum(sample > maximum for sample in adjusted_samples)
+    p_value = binomial_survival_probability(
+        len(samples),
+        exceedance_count,
+        P99_EXPECTED_EXCEEDANCE_PROBABILITY,
+    )
+    passed = p_value >= P99_SIGNIFICANCE_LEVEL
+
+    return {
+        "workloadId": workload_id,
+        "metric": "normalizedP99",
+        "baseline": baseline_value,
+        "observed": observed,
+        "actual": actual,
+        "maximum": maximum,
+        "calibrationAdjustmentFactor": adjustment_factor,
+        "sampleCount": len(samples),
+        "exceedanceCount": exceedance_count,
+        "exceedanceRate": exceedance_count / len(samples),
+        "expectedExceedanceProbability": P99_EXPECTED_EXCEEDANCE_PROBABILITY,
+        "pValue": p_value,
+        "significanceLevel": P99_SIGNIFICANCE_LEVEL,
+        "passed": passed,
+    }
+
+
+def validate_confirmed_p99_check(
+    workload_id: str,
+    current_workload: dict[str, Any],
+    baseline_workload: dict[str, Any],
+    confirmation: dict[str, Any],
+    contract: dict[str, Any],
+) -> dict[str, Any]:
+    """Recompute an independent p99 confirmation and bind it to its trigger."""
+    confirmation_runs = required_positive_integer(
+        confirmation,
+        "confirmationRuns",
+        f"tailConfirmation.{workload_id}",
+    )
+    if confirmation_runs != P99_CONFIRMATION_RUNS:
+        raise PerformanceEvidenceError(
+            f"Tail confirmation '{workload_id}' has the wrong run count."
+        )
+    original_sample_count = required_positive_integer(
+        confirmation,
+        "originalSampleCount",
+        f"tailConfirmation.{workload_id}",
+    )
+    if original_sample_count != current_workload.get("sampleCount"):
+        raise PerformanceEvidenceError(
+            f"Tail confirmation '{workload_id}' sample trigger drifted."
+        )
+    original_p99 = finite_number(
+        confirmation.get("originalNormalizedP99"),
+        f"tailConfirmation.{workload_id}.originalNormalizedP99",
+        minimum=0,
+    )
+    current_p99 = finite_number(
+        current_workload.get("normalizedP99"),
+        f"current.{workload_id}.normalizedP99",
+        minimum=0,
+    )
+    if not close_enough(original_p99, current_p99):
+        raise PerformanceEvidenceError(
+            f"Tail confirmation '{workload_id}' p99 trigger drifted."
+        )
+
+    confirmation_p99 = finite_number(
+        confirmation.get("confirmationNormalizedP99"),
+        f"tailConfirmation.{workload_id}.confirmationNormalizedP99",
+        minimum=0,
+    )
+    check = historical_p99_check(
+        workload_id,
+        {
+            "normalizedP99": confirmation_p99,
+            "normalizedSamples": confirmation.get("normalizedSamples"),
+            "calibrationMedianNanoseconds": confirmation.get(
+                "confirmationCalibrationMedianNanoseconds"
+            ),
+        },
+        baseline_workload,
+        contract,
+    )
+    expected_values = {
+        "confirmationSampleCount": check["sampleCount"],
+        "exceedanceCount": check["exceedanceCount"],
+    }
+    for key, expected in expected_values.items():
+        if confirmation.get(key) != expected:
+            raise PerformanceEvidenceError(
+                f"Tail confirmation '{workload_id}' {key} drifted."
+            )
+    for key, expected in (
+        ("maximumNormalizedP99", check["maximum"]),
+        (
+            "calibrationAdjustmentFactor",
+            check["calibrationAdjustmentFactor"],
+        ),
+        ("exceedanceRate", check["exceedanceRate"]),
+        (
+            "expectedExceedanceProbability",
+            check["expectedExceedanceProbability"],
+        ),
+        ("pValue", check["pValue"]),
+        ("significanceLevel", check["significanceLevel"]),
+    ):
+        actual = finite_number(
+            confirmation.get(key),
+            f"tailConfirmation.{workload_id}.{key}",
+            minimum=0,
+        )
+        if not close_enough(actual, expected):
+            raise PerformanceEvidenceError(
+                f"Tail confirmation '{workload_id}' {key} drifted."
+            )
+    if confirmation.get("passed") is not check["passed"]:
+        raise PerformanceEvidenceError(
+            f"Tail confirmation '{workload_id}' verdict drifted."
+        )
+
+    return {
+        **check,
+        "triggerActual": current_p99,
+        "confirmationRequired": True,
+        "confirmationRuns": confirmation_runs,
+    }
+
+
 def close_enough(actual: float, expected: float) -> bool:
     """Compare derived floating-point evidence with a tight serialization tolerance."""
     return math.isclose(actual, expected, rel_tol=1e-9, abs_tol=1e-6)
@@ -704,7 +1116,7 @@ def validate_workload_report(
         profile=profile,
         contract_version=contract_version,
     )
-    if report.get("schemaVersion") != 2 or report.get("kind") != "performance-workloads":
+    if report.get("schemaVersion") != 3 or report.get("kind") != "performance-workloads":
         raise PerformanceEvidenceError("Workload report schema or kind is invalid.")
 
     required_commit(report, "commit", "workloadReport")
@@ -742,7 +1154,6 @@ def validate_workload_report(
         "hostLoadAverage5Minutes",
         "hostLoadAverage15Minutes",
         "hostLoadAverage1MinutePerProcessor",
-        "maximumHostLoadAverage1MinutePerProcessor",
     ):
         finite_number(
             environment.get(key),
@@ -750,16 +1161,30 @@ def validate_workload_report(
             minimum=0,
         )
 
-    expected_maximum_load = float(
-        contract["hostPreconditions"]["maximumOneMinuteLoadAveragePerProcessor"]
-    )
-    if environment["maximumHostLoadAverage1MinutePerProcessor"] != expected_maximum_load:
+    admission_metric = environment.get("hostAdmissionMetric")
+    if admission_metric != HOST_ADMISSION_METRIC:
         raise PerformanceEvidenceError(
-            "workloadReport.environment host-load ceiling does not match the contract."
+            "workloadReport.environment host admission metric is invalid."
         )
-    if environment["hostLoadAverage1MinutePerProcessor"] > expected_maximum_load:
+    cpu_utilization = finite_number(
+        environment.get("initialHostCpuUtilization"),
+        "workloadReport.environment.initialHostCpuUtilization",
+        minimum=0,
+    )
+    maximum_cpu_utilization = finite_number(
+        environment.get("maximumInitialHostCpuUtilization"),
+        "workloadReport.environment.maximumInitialHostCpuUtilization",
+        minimum=0,
+    )
+    expected_maximum_cpu = float(
+        contract["hostPreconditions"]["maximumInitialCpuUtilization"]
+    )
+    if (
+        maximum_cpu_utilization != expected_maximum_cpu
+        or cpu_utilization > maximum_cpu_utilization
+    ):
         raise PerformanceEvidenceError(
-            "workloadReport.environment records a non-quiescent benchmark host."
+            "workloadReport.environment records an initially saturated benchmark host."
         )
     target_contract = contract["requiredTargets"][target]
     expected_family = target_contract["engineFamily"]
@@ -834,7 +1259,10 @@ def validate_workload_report(
             "warmupSamples",
             workload_id,
         )
-        expected_warmup_samples = int(profile_contract["warmupSamples"])
+        expected_warmup_samples = expected_warmup_sample_count(
+            profile_contract,
+            definition,
+        )
         if warmup_samples != expected_warmup_samples:
             raise PerformanceEvidenceError(
                 f"Workload '{workload_id}' has {warmup_samples} warmups, "
@@ -842,16 +1270,20 @@ def validate_workload_report(
             )
 
         sample_count = required_positive_integer(entry, "sampleCount", workload_id)
-        sample_count_field = (
-            "expensiveMeasurementSamples"
-            if definition.get("cost", "standard") == "expensive"
-            else "measurementSamples"
+        measured_utc = required_current_timestamp(
+            entry,
+            "measuredUtc",
+            workload_id,
+            float(contract["evidenceMaximumAgeHours"]),
         )
-        expected_sample_count = int(profile_contract[sample_count_field])
-        if sample_count != expected_sample_count:
+        expected_sample_count = expected_measurement_sample_count(
+            profile_contract,
+            definition,
+        )
+        if sample_count < expected_sample_count:
             raise PerformanceEvidenceError(
                 f"Workload '{workload_id}' has {sample_count} samples, "
-                f"expected {expected_sample_count}."
+                f"expected at least {expected_sample_count}."
             )
 
         operations_per_sample = required_positive_integer(
@@ -877,7 +1309,138 @@ def validate_workload_report(
             finite_number(sample, f"{workload_id}.samplesNanoseconds[{index}]", minimum=0.000001)
             for index, sample in enumerate(samples_payload)
         ]
+        calibration_kind = required_string(entry, "calibrationKind", workload_id)
+        cpu_families = set(contract["calibration"]["cpuFamilies"])
+        expected_calibration_kind = (
+            "cpu"
+            if definition["family"] in cpu_families
+            else "database"
+        )
+        if calibration_kind != expected_calibration_kind:
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' reports calibrationKind="
+                f"'{calibration_kind}', expected '{expected_calibration_kind}'."
+            )
+
+        calibration_payload = entry.get("calibrationNanoseconds")
+        calibration_pulse_payload = entry.get("calibrationPulseNanoseconds")
+        calibration_pulse_index_payload = entry.get("calibrationPulseIndices")
+        normalized_payload = entry.get("normalizedSamples")
+        if (
+            not isinstance(calibration_payload, list)
+            or len(calibration_payload) != sample_count
+        ):
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' calibration array does not match sampleCount."
+            )
+        if (
+            not isinstance(normalized_payload, list)
+            or len(normalized_payload) != sample_count
+        ):
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' normalized array does not match sampleCount."
+            )
+        if not isinstance(calibration_pulse_payload, list) or not calibration_pulse_payload:
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' has no calibration pulse evidence."
+            )
+        if (
+            not isinstance(calibration_pulse_index_payload, list)
+            or len(calibration_pulse_index_payload) != sample_count
+        ):
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' calibration pulse index array does not match sampleCount."
+            )
+        calibration_samples = [
+            finite_number(
+                sample,
+                f"{workload_id}.calibrationNanoseconds[{index}]",
+                minimum=0.000001,
+            )
+            for index, sample in enumerate(calibration_payload)
+        ]
+        calibration_pulses = [
+            finite_number(
+                sample,
+                f"{workload_id}.calibrationPulseNanoseconds[{index}]",
+                minimum=0.000001,
+            )
+            for index, sample in enumerate(calibration_pulse_payload)
+        ]
+        calibration_pulse_indices = [
+            non_negative_integer(
+                value,
+                f"{workload_id}.calibrationPulseIndices[{index}]",
+            )
+            for index, value in enumerate(calibration_pulse_index_payload)
+        ]
+        if calibration_pulse_indices[0] != 0:
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' does not start with calibration pulse zero."
+            )
+        maximum_interval = int(profile_contract["calibrationIntervalSamples"])
+        samples_per_pulse: dict[int, int] = {}
+        previous_pulse_index = 0
+        for sample_index, pulse_index in enumerate(calibration_pulse_indices):
+            if pulse_index >= len(calibration_pulses):
+                raise PerformanceEvidenceError(
+                    f"Workload '{workload_id}' calibration pulse index {pulse_index} is out of range."
+                )
+            if pulse_index not in (previous_pulse_index, previous_pulse_index + 1):
+                raise PerformanceEvidenceError(
+                    f"Workload '{workload_id}' calibration pulse indices are not sequential."
+                )
+            if not close_enough(
+                calibration_samples[sample_index],
+                calibration_pulses[pulse_index],
+            ):
+                raise PerformanceEvidenceError(
+                    f"Workload '{workload_id}' sample {sample_index} is not bound to its calibration pulse."
+                )
+            samples_per_pulse[pulse_index] = samples_per_pulse.get(pulse_index, 0) + 1
+            previous_pulse_index = pulse_index
+        if set(samples_per_pulse) != set(range(len(calibration_pulses))):
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' contains an unused calibration pulse."
+            )
+        if any(count > maximum_interval for count in samples_per_pulse.values()):
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' reuses a calibration pulse for too many samples."
+            )
+        normalized_samples = [
+            finite_number(
+                sample,
+                f"{workload_id}.normalizedSamples[{index}]",
+                minimum=0.000001,
+            )
+            for index, sample in enumerate(normalized_payload)
+        ]
+        recomputed_normalized = [
+            sample / calibration
+            for sample, calibration in zip(samples, calibration_samples)
+        ]
+        for index, (actual, expected) in enumerate(
+            zip(normalized_samples, recomputed_normalized)
+        ):
+            if not close_enough(actual, expected):
+                raise PerformanceEvidenceError(
+                    f"Workload '{workload_id}' normalizedSamples[{index}]="
+                    f"{actual}, recomputed value is {expected}."
+                )
+
+        measurement_duration_nanoseconds = sum(samples) * operations_per_sample
+        minimum_measurement_duration_nanoseconds = (
+            int(profile_contract["minimumMeasurementDurationMilliseconds"])
+            * 1_000_000
+        )
+        if measurement_duration_nanoseconds < minimum_measurement_duration_nanoseconds:
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' measured {measurement_duration_nanoseconds} ns, "
+                f"expected at least {minimum_measurement_duration_nanoseconds} ns."
+            )
         sorted_samples = sorted(samples)
+        sorted_calibration_pulses = sorted(calibration_pulses)
+        sorted_normalized_samples = sorted(normalized_samples)
         derived = {
             "medianNanoseconds": percentile(sorted_samples, 0.5),
             "p95Nanoseconds": percentile(sorted_samples, 0.95),
@@ -892,8 +1455,29 @@ def validate_workload_report(
                     f"recomputed value is {expected_value}."
                 )
 
+        calibrated = {
+            "calibrationMedianNanoseconds": percentile(
+                sorted_calibration_pulses,
+                0.5,
+            ),
+            "calibrationStandardErrorNanoseconds": standard_error(
+                calibration_pulses
+            ),
+            "normalizedMedian": percentile(sorted_normalized_samples, 0.5),
+            "normalizedP95": percentile(sorted_normalized_samples, 0.95),
+            "normalizedP99": percentile(sorted_normalized_samples, 0.99),
+        }
+        for key, expected_value in calibrated.items():
+            actual_value = finite_number(entry.get(key), f"{workload_id}.{key}", minimum=0)
+            if not close_enough(actual_value, expected_value):
+                raise PerformanceEvidenceError(
+                    f"Workload '{workload_id}' reports {key}={actual_value}, "
+                    f"recomputed value is {expected_value}."
+                )
+
+        normalized_standard_error = standard_error(normalized_samples)
         relative_standard_error = (
-            derived["standardErrorNanoseconds"] / derived["medianNanoseconds"]
+            normalized_standard_error / calibrated["normalizedMedian"]
         )
         maximum_relative_standard_error = finite_number(
             profile_contract.get("maximumRelativeStandardError"),
@@ -905,6 +1489,24 @@ def validate_workload_report(
                 f"Workload '{workload_id}' has relative standard error "
                 f"{relative_standard_error:.6f}, maximum is "
                 f"{maximum_relative_standard_error:.6f}."
+            )
+        calibration_relative_standard_error = (
+            calibrated["calibrationStandardErrorNanoseconds"]
+            / calibrated["calibrationMedianNanoseconds"]
+        )
+        maximum_calibration_relative_standard_error = finite_number(
+            profile_contract.get("maximumCalibrationRelativeStandardError"),
+            f"profiles.{profile}.maximumCalibrationRelativeStandardError",
+            minimum=0,
+        )
+        if (
+            calibration_relative_standard_error
+            > maximum_calibration_relative_standard_error
+        ):
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' calibration relative standard error "
+                f"{calibration_relative_standard_error:.6f}, maximum is "
+                f"{maximum_calibration_relative_standard_error:.6f}."
             )
 
         metrics: dict[str, float] = {}
@@ -922,14 +1524,35 @@ def validate_workload_report(
                 "id": workload_id,
                 "family": definition["family"],
                 "sampleCount": sample_count,
+                "measuredUtc": measured_utc.isoformat().replace("+00:00", "Z"),
                 "operationsPerSample": operations_per_sample,
+                "measurementDurationNanoseconds": measurement_duration_nanoseconds,
                 "relativeStandardError": relative_standard_error,
+                "calibrationKind": calibration_kind,
+                "calibrationRelativeStandardError": calibration_relative_standard_error,
+                "normalizedStandardError": normalized_standard_error,
+                "_normalizedSamples": normalized_samples,
                 **derived,
+                **calibrated,
                 **metrics,
             }
         )
 
     return normalized
+
+
+def public_workload_metrics(
+    workloads: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Remove validator-only sample arrays from persisted normalized evidence."""
+    return [
+        {
+            key: value
+            for key, value in workload.items()
+            if not key.startswith("_")
+        }
+        for workload in workloads
+    ]
 
 
 def validate_soak_report(
@@ -1222,8 +1845,6 @@ def validate_absolute_budgets(
         "p95Nanoseconds": "p95Nanoseconds",
         "p99Nanoseconds": "p99Nanoseconds",
         "allocatedBytes": "allocatedBytesPerOperation",
-        "retainedBytes": "retainedBytes",
-        "gen2CollectionsPer1000": "gen2CollectionsPer1000",
     }
 
     for workload in workloads:
@@ -1484,8 +2105,8 @@ def load_matching_baseline(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Load the unique accepted baseline for target, profile, and runner class."""
     baseline = load_json(baseline_path)
-    if baseline.get("schemaVersion") != 2:
-        raise PerformanceEvidenceError("Baseline schemaVersion must be 2.")
+    if baseline.get("schemaVersion") != 3:
+        raise PerformanceEvidenceError("Baseline schemaVersion must be 3.")
     if baseline.get("baselineState") != "accepted":
         raise PerformanceEvidenceError("Baseline state must be accepted.")
     if baseline.get("contractVersion") != contract["contractVersion"]:
@@ -1511,10 +2132,572 @@ def load_matching_baseline(
     return baseline, matches[0]
 
 
+def historical_p99_confirmation_candidates(
+    current: Sequence[dict[str, Any]],
+    baseline_entry: dict[str, Any],
+    contract: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Identify isolated p99 regressions that require independent confirmation."""
+    baseline_workloads = baseline_entry.get("workloads")
+    if not isinstance(baseline_workloads, list):
+        raise PerformanceEvidenceError("Accepted baseline entry has no workloads.")
+
+    baseline_by_id = {
+        workload.get("id"): workload
+        for workload in baseline_workloads
+        if isinstance(workload, dict) and isinstance(workload.get("id"), str)
+    }
+    policy = contract["historicalBudgets"]
+    ratio = finite_number(
+        policy.get("normalizedP99Ratio"),
+        "historicalBudgets.normalizedP99Ratio",
+        minimum=1,
+    )
+    candidates: list[dict[str, Any]] = []
+
+    for workload in current:
+        workload_id = workload["id"]
+        baseline_workload = baseline_by_id.get(workload_id)
+        if not isinstance(baseline_workload, dict):
+            raise PerformanceEvidenceError(
+                f"Accepted baseline has no workload '{workload_id}'."
+            )
+
+        observed = finite_number(
+            workload.get("normalizedP99"),
+            f"current.{workload_id}.normalizedP99",
+            minimum=0,
+        )
+        adjustment_factor = calibration_adjustment_factor(
+            workload_id,
+            workload,
+            baseline_workload,
+        )
+        actual = observed * adjustment_factor
+        baseline_value = finite_number(
+            baseline_workload.get("normalizedP99"),
+            f"baseline.{workload_id}.normalizedP99",
+            minimum=0,
+        )
+        baseline_calibration = finite_number(
+            baseline_workload.get("calibrationMedianNanoseconds"),
+            f"baseline.{workload_id}.calibrationMedianNanoseconds",
+            minimum=0.000001,
+        )
+        maximum = baseline_value * ratio
+        if actual > maximum:
+            candidates.append(
+                {
+                    "workloadId": workload_id,
+                    "baseline": baseline_value,
+                    "baselineCalibrationMedianNanoseconds": baseline_calibration,
+                    "observed": observed,
+                    "actual": actual,
+                    "maximum": maximum,
+                    "calibrationAdjustmentFactor": adjustment_factor,
+                    "confirmationRuns": P99_CONFIRMATION_RUNS,
+                }
+            )
+
+    return sorted(candidates, key=lambda candidate: candidate["workloadId"])
+
+
+def plan_tail_confirmation(args: argparse.Namespace) -> dict[str, Any]:
+    """Plan bounded reruns only for current p99 values outside historical budgets."""
+    contract = load_json(Path(args.contract))
+    validate_contract(contract)
+    report = load_json(Path(args.workloads))
+    normalized = validate_workload_report(
+        report,
+        contract,
+        run_id=args.run_id,
+        target=args.target,
+        profile=args.profile,
+    )
+    validate_absolute_budgets(normalized, contract)
+
+    candidates: list[dict[str, Any]] = []
+    baseline_version: str | None = None
+    profile_contract = contract["profiles"][args.profile]
+    if profile_contract["baselineRequired"]:
+        baseline, matching_entry = load_matching_baseline(
+            Path(args.baseline),
+            contract,
+            target=args.target,
+            profile=args.profile,
+            runner_class=report["runnerClass"],
+        )
+        baseline_version = required_string(baseline, "baselineVersion", "baseline")
+        baseline_environment = matching_entry.get("environment")
+        if not isinstance(baseline_environment, dict):
+            raise PerformanceEvidenceError(
+                "Accepted baseline entry has no environment evidence."
+            )
+        validate_environment_compatibility(
+            report["environment"],
+            baseline_environment,
+        )
+        candidates = historical_p99_confirmation_candidates(
+            normalized,
+            matching_entry,
+            contract,
+        )
+
+    return {
+        "schemaVersion": 1,
+        "kind": "performance-tail-confirmation-plan",
+        "contractVersion": contract["contractVersion"],
+        "runId": args.run_id,
+        "target": args.target,
+        "profile": args.profile,
+        "commit": report["commit"],
+        "sourceHash": report["sourceHash"],
+        "runnerClass": report["runnerClass"],
+        "baselineVersion": baseline_version,
+        "workloads": candidates,
+    }
+
+
+def merge_workload_tail_samples(
+    original: dict[str, Any],
+    confirmations: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
+    """Merge independently measured samples and recompute every derived metric."""
+    entries = [original, *confirmations]
+    operations_per_sample = required_positive_integer(
+        original,
+        "operationsPerSample",
+        f"workload.{original.get('id')}",
+    )
+    samples: list[float] = []
+    calibration_samples: list[float] = []
+    calibration_pulses: list[float] = []
+    calibration_pulse_indices: list[int] = []
+    normalized_samples: list[float] = []
+    measured_operations = 0
+
+    for entry in entries:
+        if entry.get("id") != original.get("id"):
+            raise PerformanceEvidenceError("Tail confirmation workload IDs disagree.")
+        if entry.get("operationsPerSample") != operations_per_sample:
+            raise PerformanceEvidenceError(
+                f"Tail confirmation '{original.get('id')}' operationsPerSample disagrees."
+            )
+        entry_samples = entry.get("samplesNanoseconds")
+        if not isinstance(entry_samples, list) or not entry_samples:
+            raise PerformanceEvidenceError(
+                f"Tail confirmation '{original.get('id')}' has no samples."
+            )
+        samples.extend(
+            finite_number(
+                sample,
+                f"tailConfirmation.{original.get('id')}.sample",
+                minimum=0.000001,
+            )
+            for sample in entry_samples
+        )
+        entry_calibration = entry.get("calibrationNanoseconds")
+        entry_calibration_pulses = entry.get("calibrationPulseNanoseconds")
+        entry_calibration_pulse_indices = entry.get("calibrationPulseIndices")
+        entry_normalized = entry.get("normalizedSamples")
+        if (
+            not isinstance(entry_calibration, list)
+            or len(entry_calibration) != len(entry_samples)
+            or not isinstance(entry_calibration_pulses, list)
+            or not entry_calibration_pulses
+            or not isinstance(entry_calibration_pulse_indices, list)
+            or len(entry_calibration_pulse_indices) != len(entry_samples)
+            or not isinstance(entry_normalized, list)
+            or len(entry_normalized) != len(entry_samples)
+        ):
+            raise PerformanceEvidenceError(
+                f"Tail confirmation '{original.get('id')}' calibration evidence disagrees."
+            )
+        pulse_offset = len(calibration_pulses)
+        calibration_pulses.extend(
+            finite_number(
+                sample,
+                f"tailConfirmation.{original.get('id')}.calibrationPulse",
+                minimum=0.000001,
+            )
+            for sample in entry_calibration_pulses
+        )
+        calibration_pulse_indices.extend(
+            non_negative_integer(
+                value,
+                f"tailConfirmation.{original.get('id')}.calibrationPulseIndex",
+            )
+            + pulse_offset
+            for value in entry_calibration_pulse_indices
+        )
+        calibration_samples.extend(
+            finite_number(
+                sample,
+                f"tailConfirmation.{original.get('id')}.calibration",
+                minimum=0.000001,
+            )
+            for sample in entry_calibration
+        )
+        normalized_samples.extend(
+            finite_number(
+                sample,
+                f"tailConfirmation.{original.get('id')}.normalized",
+                minimum=0.000001,
+            )
+            for sample in entry_normalized
+        )
+        measured_operations += len(entry_samples) * operations_per_sample
+
+    sorted_samples = sorted(samples)
+    merged = copy.deepcopy(original)
+    merged["sampleCount"] = len(samples)
+    merged["checksum"] = sum(int(entry.get("checksum", 0)) for entry in entries)
+    merged["medianNanoseconds"] = percentile(sorted_samples, 0.5)
+    merged["p95Nanoseconds"] = percentile(sorted_samples, 0.95)
+    merged["p99Nanoseconds"] = percentile(sorted_samples, 0.99)
+    merged["standardErrorNanoseconds"] = standard_error(samples)
+    merged["samplesNanoseconds"] = samples
+    sorted_calibration_pulses = sorted(calibration_pulses)
+    sorted_normalized = sorted(normalized_samples)
+    merged["calibrationMedianNanoseconds"] = percentile(
+        sorted_calibration_pulses,
+        0.5,
+    )
+    merged["calibrationStandardErrorNanoseconds"] = standard_error(
+        calibration_pulses
+    )
+    merged["normalizedMedian"] = percentile(sorted_normalized, 0.5)
+    merged["normalizedP95"] = percentile(sorted_normalized, 0.95)
+    merged["normalizedP99"] = percentile(sorted_normalized, 0.99)
+    merged["calibrationNanoseconds"] = calibration_samples
+    merged["calibrationPulseNanoseconds"] = calibration_pulses
+    merged["calibrationPulseIndices"] = calibration_pulse_indices
+    merged["normalizedSamples"] = normalized_samples
+
+    for metric in (
+        "allocatedBytesPerOperation",
+        "gen0CollectionsPer1000",
+        "gen1CollectionsPer1000",
+        "gen2CollectionsPer1000",
+    ):
+        weighted_total = 0.0
+        for entry in entries:
+            entry_samples = entry["samplesNanoseconds"]
+            entry_operations = len(entry_samples) * operations_per_sample
+            weighted_total += finite_number(
+                entry.get(metric),
+                f"tailConfirmation.{original.get('id')}.{metric}",
+                minimum=0,
+            ) * entry_operations
+        merged[metric] = weighted_total / measured_operations
+
+    merged["retainedBytes"] = max(
+        finite_number(
+            entry.get("retainedBytes"),
+            f"tailConfirmation.{original.get('id')}.retainedBytes",
+            minimum=0,
+        )
+        for entry in entries
+    )
+    return merged
+
+
+def merge_tail_confirmations(args: argparse.Namespace) -> dict[str, Any]:
+    """Validate bounded reruns and merge them into the canonical workload report."""
+    contract = load_json(Path(args.contract))
+    validate_contract(contract)
+    original_report = load_json(Path(args.workloads))
+    original_normalized = validate_workload_report(
+        original_report,
+        contract,
+        run_id=args.run_id,
+        target=args.target,
+        profile=args.profile,
+    )
+    original_by_id = {
+        workload["id"]: workload
+        for workload in original_report["workloads"]
+    }
+    normalized_by_id = {
+        workload["id"]: workload
+        for workload in original_normalized
+    }
+
+    plan_path = Path(args.plan)
+    plan = load_json(plan_path)
+    if (
+        plan.get("schemaVersion") != 1
+        or plan.get("kind") != "performance-tail-confirmation-plan"
+    ):
+        raise PerformanceEvidenceError("Tail confirmation plan schema or kind is invalid.")
+    require_identity(
+        plan,
+        label="tailConfirmationPlan",
+        run_id=args.run_id,
+        target=args.target,
+        profile=args.profile,
+        contract_version=contract["contractVersion"],
+    )
+    for key in ("commit", "sourceHash", "runnerClass"):
+        if plan.get(key) != original_report.get(key):
+            raise PerformanceEvidenceError(
+                f"Tail confirmation plan and workload report disagree on '{key}'."
+            )
+
+    planned_workloads = plan.get("workloads")
+    if not isinstance(planned_workloads, list) or not planned_workloads:
+        raise PerformanceEvidenceError("Tail confirmation plan has no workloads.")
+    planned_by_id: dict[str, dict[str, Any]] = {}
+    expected_confirmation_count = 0
+    for index, candidate in enumerate(planned_workloads):
+        if not isinstance(candidate, dict):
+            raise PerformanceEvidenceError(
+                f"tailConfirmationPlan.workloads[{index}] must be an object."
+            )
+        workload_id = required_string(
+            candidate,
+            "workloadId",
+            f"tailConfirmationPlan.workloads[{index}]",
+        )
+        if workload_id in planned_by_id or workload_id not in original_by_id:
+            raise PerformanceEvidenceError(
+                f"Tail confirmation plan contains invalid workload '{workload_id}'."
+            )
+        confirmation_runs = required_positive_integer(
+            candidate,
+            "confirmationRuns",
+            f"tailConfirmationPlan.{workload_id}",
+        )
+        if confirmation_runs != P99_CONFIRMATION_RUNS:
+            raise PerformanceEvidenceError(
+                f"Tail confirmation plan requires {confirmation_runs} runs for "
+                f"'{workload_id}', expected {P99_CONFIRMATION_RUNS}."
+            )
+        original_p99 = normalized_by_id[workload_id]["normalizedP99"]
+        planned_observed = finite_number(
+            candidate.get("observed"),
+            f"{workload_id}.observed",
+            minimum=0,
+        )
+        if not close_enough(
+            planned_observed,
+            original_p99,
+        ):
+            raise PerformanceEvidenceError(
+                f"Tail confirmation plan observed value for '{workload_id}' drifted."
+            )
+        adjustment_factor = finite_number(
+            candidate.get("calibrationAdjustmentFactor"),
+            f"{workload_id}.calibrationAdjustmentFactor",
+            minimum=0.000001,
+        )
+        if adjustment_factor > 1:
+            raise PerformanceEvidenceError(
+                f"Tail confirmation plan adjustment for '{workload_id}' is invalid."
+            )
+        planned_actual = finite_number(
+            candidate.get("actual"),
+            f"{workload_id}.actual",
+            minimum=0,
+        )
+        if not close_enough(planned_actual, planned_observed * adjustment_factor):
+            raise PerformanceEvidenceError(
+                f"Tail confirmation plan actual value for '{workload_id}' drifted."
+            )
+        planned_by_id[workload_id] = candidate
+        expected_confirmation_count += confirmation_runs
+
+    confirmation_paths = [Path(path) for path in args.confirmation]
+    host_paths = [Path(path) for path in args.confirmation_host]
+    if (
+        len(confirmation_paths) != expected_confirmation_count
+        or len(host_paths) != expected_confirmation_count
+    ):
+        raise PerformanceEvidenceError(
+            "Tail confirmation report and host-preflight counts do not match the plan."
+        )
+
+    confirmations_by_id: dict[str, list[dict[str, Any]]] = {
+        workload_id: []
+        for workload_id in planned_by_id
+    }
+    confirmation_artifacts: list[dict[str, Any]] = []
+    for confirmation_path, host_path in zip(
+        confirmation_paths,
+        host_paths,
+        strict=True,
+    ):
+        report = load_json(confirmation_path)
+        require_identity(
+            report,
+            label="tailConfirmation",
+            run_id=args.run_id,
+            target=args.target,
+            profile=args.profile,
+            contract_version=contract["contractVersion"],
+        )
+        if (
+            report.get("schemaVersion") != 3
+            or report.get("kind") != "performance-workload-diagnostic"
+        ):
+            raise PerformanceEvidenceError(
+                f"Tail confirmation '{confirmation_path}' schema or kind is invalid."
+            )
+        for key in ("commit", "sourceHash", "runnerClass"):
+            if report.get(key) != original_report.get(key):
+                raise PerformanceEvidenceError(
+                    f"Tail confirmation '{confirmation_path}' disagrees on '{key}'."
+                )
+
+        host = validate_host_preflight(
+            load_json(host_path),
+            contract,
+            maximum_age_hours=float(contract["evidenceMaximumAgeHours"]),
+        )
+        environment = report.get("environment")
+        if not isinstance(environment, dict):
+            raise PerformanceEvidenceError(
+                f"Tail confirmation '{confirmation_path}' has no environment."
+            )
+        validate_host_workload_binding(host, environment)
+
+        entries = report.get("workloads")
+        if not isinstance(entries, list) or len(entries) != 1:
+            raise PerformanceEvidenceError(
+                f"Tail confirmation '{confirmation_path}' must contain one workload."
+            )
+        workload = entries[0]
+        if not isinstance(workload, dict):
+            raise PerformanceEvidenceError(
+                f"Tail confirmation '{confirmation_path}' workload is invalid."
+            )
+        workload_id = required_string(workload, "id", "tailConfirmation.workload")
+        if workload_id not in planned_by_id:
+            raise PerformanceEvidenceError(
+                f"Tail confirmation contains unplanned workload '{workload_id}'."
+            )
+
+        synthetic_report = copy.deepcopy(report)
+        synthetic_report["kind"] = "performance-workloads"
+        synthetic_report["workloads"] = [
+            workload if entry_id == workload_id else copy.deepcopy(entry)
+            for entry_id, entry in original_by_id.items()
+        ]
+        validate_workload_report(
+            synthetic_report,
+            contract,
+            run_id=args.run_id,
+            target=args.target,
+            profile=args.profile,
+        )
+        confirmations_by_id[workload_id].append(workload)
+        confirmation_artifacts.append(
+            {
+                "workloadId": workload_id,
+                "reportSha256": sha256(confirmation_path),
+                "hostPreflightSha256": sha256(host_path),
+            }
+        )
+
+    merged_report = copy.deepcopy(original_report)
+    merged_by_id = {
+        workload["id"]: workload
+        for workload in merged_report["workloads"]
+    }
+    confirmation_results: list[dict[str, Any]] = []
+    for workload_id, candidate in planned_by_id.items():
+        confirmations = confirmations_by_id[workload_id]
+        if len(confirmations) != candidate["confirmationRuns"]:
+            raise PerformanceEvidenceError(
+                f"Tail confirmation '{workload_id}' does not satisfy the planned run count."
+            )
+        # The original population selected this workload for confirmation. It
+        # must not also influence the verdict, or selection bias would make an
+        # ordinary high tail more likely to fail its own confirmation.
+        merged = merge_workload_tail_samples(
+            confirmations[0],
+            confirmations[1:],
+        )
+        maximum = finite_number(
+            candidate.get("maximum"),
+            f"tailConfirmationPlan.{workload_id}.maximum",
+            minimum=0,
+        )
+        p99_check = historical_p99_check(
+            workload_id,
+            merged,
+            {
+                "normalizedP99": candidate.get("baseline"),
+                "calibrationMedianNanoseconds": candidate.get(
+                    "baselineCalibrationMedianNanoseconds"
+                ),
+            },
+            contract,
+        )
+        if not close_enough(p99_check["maximum"], maximum):
+            raise PerformanceEvidenceError(
+                f"Tail confirmation plan maximum for '{workload_id}' drifted."
+            )
+        confirmation_results.append(
+            {
+                "workloadId": workload_id,
+                "confirmationRuns": len(confirmations),
+                "originalSampleCount": original_by_id[workload_id]["sampleCount"],
+                "confirmationSampleCount": merged["sampleCount"],
+                "originalNormalizedP99": original_by_id[workload_id]["normalizedP99"],
+                "confirmationNormalizedP99": merged["normalizedP99"],
+                "confirmationCalibrationMedianNanoseconds": merged[
+                    "calibrationMedianNanoseconds"
+                ],
+                "maximumNormalizedP99": maximum,
+                "calibrationAdjustmentFactor": p99_check[
+                    "calibrationAdjustmentFactor"
+                ],
+                "exceedanceCount": p99_check["exceedanceCount"],
+                "exceedanceRate": p99_check["exceedanceRate"],
+                "expectedExceedanceProbability": p99_check[
+                    "expectedExceedanceProbability"
+                ],
+                "pValue": p99_check["pValue"],
+                "significanceLevel": p99_check["significanceLevel"],
+                "normalizedSamples": merged["normalizedSamples"],
+                "passed": p99_check["passed"],
+            }
+        )
+        if not p99_check["passed"]:
+            raise PerformanceEvidenceError(
+                f"Confirmed historical p99 regression for '{workload_id}': "
+                f"{p99_check['exceedanceCount']} of {p99_check['sampleCount']} "
+                f"samples exceeded {maximum}; p-value {p99_check['pValue']}."
+            )
+
+    merged_report["generatedUtc"] = (
+        datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
+    merged_report["workloads"] = [
+        merged_by_id[workload["id"]]
+        for workload in original_report["workloads"]
+    ]
+    merged_report["tailConfirmations"] = {
+        "planSha256": sha256(plan_path),
+        "artifacts": confirmation_artifacts,
+        "results": confirmation_results,
+    }
+    validate_workload_report(
+        merged_report,
+        contract,
+        run_id=args.run_id,
+        target=args.target,
+        profile=args.profile,
+    )
+    return merged_report
+
+
 def validate_historical_budgets(
     current: Sequence[dict[str, Any]],
     baseline_entry: dict[str, Any],
     contract: dict[str, Any],
+    tail_confirmations: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Compare current metrics with the accepted matching historical record."""
     baseline_workloads = baseline_entry.get("workloads")
@@ -1536,14 +2719,9 @@ def validate_historical_budgets(
 
     policy = contract["historicalBudgets"]
     metrics = {
-        "medianNanoseconds": ("medianRatio", 0.0),
-        "p95Nanoseconds": ("p95Ratio", 0.0),
-        "p99Nanoseconds": ("p99Ratio", 0.0),
+        "normalizedMedian": ("normalizedMedianRatio", 0.0),
+        "normalizedP95": ("normalizedP95Ratio", 0.0),
         "allocatedBytesPerOperation": ("allocatedBytesRatio", 0.0),
-        "retainedBytes": ("retainedBytesRatio", float(policy["retainedBytesAllowance"])),
-        "gen0CollectionsPer1000": ("gen0Ratio", float(policy["genCollectionAllowancePer1000"])),
-        "gen1CollectionsPer1000": ("gen1Ratio", float(policy["genCollectionAllowancePer1000"])),
-        "gen2CollectionsPer1000": ("gen2Ratio", float(policy["genCollectionAllowancePer1000"])),
     }
     checks: list[dict[str, Any]] = []
 
@@ -1551,7 +2729,7 @@ def validate_historical_budgets(
         current_workload = current_by_id[workload_id]
         baseline_workload = baseline_by_id[workload_id]
         for metric, (ratio_key, allowance) in metrics.items():
-            current_value = finite_number(
+            observed_value = finite_number(
                 current_workload.get(metric),
                 f"current.{workload_id}.{metric}",
                 minimum=0,
@@ -1563,14 +2741,26 @@ def validate_historical_budgets(
             )
             ratio = finite_number(policy.get(ratio_key), f"historicalBudgets.{ratio_key}", minimum=1)
             maximum = max(baseline_value * ratio, baseline_value + allowance)
+            adjustment_factor = (
+                calibration_adjustment_factor(
+                    workload_id,
+                    current_workload,
+                    baseline_workload,
+                )
+                if metric.startswith("normalized")
+                else 1.0
+            )
+            current_value = observed_value * adjustment_factor
             passed = current_value <= maximum
             checks.append(
                 {
                     "workloadId": workload_id,
                     "metric": metric,
                     "baseline": baseline_value,
+                    "observed": observed_value,
                     "actual": current_value,
                     "maximum": maximum,
+                    "calibrationAdjustmentFactor": adjustment_factor,
                     "passed": passed,
                 }
             )
@@ -1580,7 +2770,215 @@ def validate_historical_budgets(
                     f"{current_value} > {maximum} from baseline {baseline_value}."
                 )
 
+    confirmation_candidates = historical_p99_confirmation_candidates(
+        current,
+        baseline_entry,
+        contract,
+    )
+    candidate_ids = {
+        candidate["workloadId"]
+        for candidate in confirmation_candidates
+    }
+    confirmation_by_id: dict[str, dict[str, Any]] = {}
+    if candidate_ids:
+        if not isinstance(tail_confirmations, dict):
+            raise PerformanceEvidenceError(
+                "Historical p99 candidates require independent confirmations."
+            )
+        results = tail_confirmations.get("results")
+        artifacts = tail_confirmations.get("artifacts")
+        required_sha256(tail_confirmations, "planSha256", "tailConfirmations")
+        if not isinstance(results, list) or not isinstance(artifacts, list):
+            raise PerformanceEvidenceError("Tail confirmation evidence is incomplete.")
+        for index, result in enumerate(results):
+            if not isinstance(result, dict):
+                raise PerformanceEvidenceError(
+                    f"tailConfirmations.results[{index}] must be an object."
+                )
+            workload_id = required_string(
+                result,
+                "workloadId",
+                f"tailConfirmations.results[{index}]",
+            )
+            if workload_id in confirmation_by_id:
+                raise PerformanceEvidenceError(
+                    f"Tail confirmation contains duplicate '{workload_id}'."
+                )
+            confirmation_by_id[workload_id] = result
+        if set(confirmation_by_id) != candidate_ids:
+            raise PerformanceEvidenceError(
+                "Tail confirmation result matrix does not match current p99 candidates."
+            )
+        artifact_counts = {
+            workload_id: 0
+            for workload_id in candidate_ids
+        }
+        for index, artifact in enumerate(artifacts):
+            if not isinstance(artifact, dict):
+                raise PerformanceEvidenceError(
+                    f"tailConfirmations.artifacts[{index}] must be an object."
+                )
+            workload_id = required_string(
+                artifact,
+                "workloadId",
+                f"tailConfirmations.artifacts[{index}]",
+            )
+            if workload_id not in artifact_counts:
+                raise PerformanceEvidenceError(
+                    f"Tail confirmation contains unplanned artifact '{workload_id}'."
+                )
+            required_sha256(
+                artifact,
+                "reportSha256",
+                f"tailConfirmations.artifacts[{index}]",
+            )
+            required_sha256(
+                artifact,
+                "hostPreflightSha256",
+                f"tailConfirmations.artifacts[{index}]",
+            )
+            artifact_counts[workload_id] += 1
+        if any(
+            count != P99_CONFIRMATION_RUNS
+            for count in artifact_counts.values()
+        ):
+            raise PerformanceEvidenceError(
+                "Tail confirmation artifact counts do not match the required runs."
+            )
+    elif tail_confirmations is not None:
+        raise PerformanceEvidenceError(
+            "Tail confirmation evidence exists without a current p99 candidate."
+        )
+
+    for workload_id in sorted(current_by_id):
+        current_workload = current_by_id[workload_id]
+        baseline_workload = baseline_by_id[workload_id]
+        if workload_id in confirmation_by_id:
+            p99_check = validate_confirmed_p99_check(
+                workload_id,
+                current_workload,
+                baseline_workload,
+                confirmation_by_id[workload_id],
+                contract,
+            )
+        else:
+            p99_check = {
+                **historical_p99_check(
+                    workload_id,
+                    current_workload,
+                    baseline_workload,
+                    contract,
+                ),
+                "confirmationRequired": False,
+            }
+        checks.append(p99_check)
+        if not p99_check["passed"]:
+            raise PerformanceEvidenceError(
+                f"Historical budget failed for '{workload_id}' normalizedP99: "
+                f"{p99_check['exceedanceCount']} of {p99_check['sampleCount']} "
+                f"samples exceeded {p99_check['maximum']}; p-value "
+                f"{p99_check['pValue']} is below "
+                f"{p99_check['significanceLevel']}."
+            )
+
     return checks
+
+
+def collect_gc_diagnostics(
+    current: Sequence[dict[str, Any]],
+    baseline_entry: dict[str, Any] | None,
+    contract: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Compare GC policy outcomes without treating them as provider regressions."""
+    diagnostics: list[dict[str, Any]] = []
+
+    for workload in current:
+        maximum = finite_number(
+            contract["familyBudgets"][workload["family"]].get(
+                "gen2CollectionsPer1000"
+            ),
+            f"familyBudgets.{workload['family']}.gen2CollectionsPer1000",
+            minimum=0,
+        )
+        observed = finite_number(
+            workload.get("gen2CollectionsPer1000"),
+            f"current.{workload['id']}.gen2CollectionsPer1000",
+            minimum=0,
+        )
+        diagnostics.append(
+            {
+                "workloadId": workload["id"],
+                "metric": "gen2CollectionsPer1000",
+                "referenceKind": "absolute",
+                "observed": observed,
+                "referenceMaximum": maximum,
+                "withinReferenceRange": observed <= maximum,
+            }
+        )
+
+    if baseline_entry is None:
+        return diagnostics
+
+    baseline_workloads = baseline_entry.get("workloads")
+    if not isinstance(baseline_workloads, list):
+        raise PerformanceEvidenceError("Accepted baseline entry has no workloads.")
+    baseline_by_id = {
+        workload.get("id"): workload
+        for workload in baseline_workloads
+        if isinstance(workload, dict) and isinstance(workload.get("id"), str)
+    }
+    policy = contract["historicalBudgets"]
+    allowance = finite_number(
+        policy.get("genCollectionAllowancePer1000"),
+        "historicalBudgets.genCollectionAllowancePer1000",
+        minimum=0,
+    )
+    metric_ratios = {
+        "gen0CollectionsPer1000": "gen0Ratio",
+        "gen1CollectionsPer1000": "gen1Ratio",
+        "gen2CollectionsPer1000": "gen2Ratio",
+    }
+
+    for workload in current:
+        workload_id = workload["id"]
+        baseline_workload = baseline_by_id.get(workload_id)
+        if not isinstance(baseline_workload, dict):
+            raise PerformanceEvidenceError(
+                f"Accepted baseline has no workload '{workload_id}'."
+            )
+        for metric, ratio_key in metric_ratios.items():
+            observed = finite_number(
+                workload.get(metric),
+                f"current.{workload_id}.{metric}",
+                minimum=0,
+            )
+            baseline_value = finite_number(
+                baseline_workload.get(metric),
+                f"baseline.{workload_id}.{metric}",
+                minimum=0,
+            )
+            ratio = finite_number(
+                policy.get(ratio_key),
+                f"historicalBudgets.{ratio_key}",
+                minimum=1,
+            )
+            maximum = max(
+                baseline_value * ratio,
+                baseline_value + allowance,
+            )
+            diagnostics.append(
+                {
+                    "workloadId": workload_id,
+                    "metric": metric,
+                    "referenceKind": "historical",
+                    "baseline": baseline_value,
+                    "observed": observed,
+                    "referenceMaximum": maximum,
+                    "withinReferenceRange": observed <= maximum,
+                }
+            )
+
+    return diagnostics
 
 
 def validate_environment_compatibility(
@@ -1614,9 +3012,6 @@ def validate_host_workload_binding(
         "loadAverage5Minutes": "hostLoadAverage5Minutes",
         "loadAverage15Minutes": "hostLoadAverage15Minutes",
         "loadAverage1MinutePerProcessor": "hostLoadAverage1MinutePerProcessor",
-        "maximumLoadAverage1MinutePerProcessor": (
-            "maximumHostLoadAverage1MinutePerProcessor"
-        ),
     }
 
     for host_key, environment_key in exact_fields.items():
@@ -1639,6 +3034,36 @@ def validate_host_workload_binding(
         if not close_enough(host_value, environment_value):
             raise PerformanceEvidenceError(
                 f"Host preflight and workload environment disagree on '{host_key}'."
+            )
+
+    if (
+        host_preflight.get("admissionMetric")
+        != workload_environment.get("hostAdmissionMetric")
+    ):
+        raise PerformanceEvidenceError(
+            "Host preflight and workload environment disagree on 'admissionMetric'."
+        )
+    for host_key, environment_key in (
+        ("initialCpuUtilization", "initialHostCpuUtilization"),
+        (
+            "maximumInitialCpuUtilization",
+            "maximumInitialHostCpuUtilization",
+        ),
+    ):
+        host_value = finite_number(
+            host_preflight.get(host_key),
+            f"hostPreflight.{host_key}",
+            minimum=0,
+        )
+        environment_value = finite_number(
+            workload_environment.get(environment_key),
+            f"workloadReport.environment.{environment_key}",
+            minimum=0,
+        )
+        if not close_enough(host_value, environment_value):
+            raise PerformanceEvidenceError(
+                "Host preflight and workload environment disagree on "
+                f"'{host_key}'."
             )
 
 
@@ -1733,6 +3158,7 @@ def evaluate(
         )
 
     historical_checks: list[dict[str, Any]] = []
+    baseline_entry: dict[str, Any] | None = None
     baseline_version: str | None = None
     if args.mode == "compare" and profile_contract["baselineRequired"]:
         baseline, matching_entry = load_matching_baseline(
@@ -1756,7 +3182,15 @@ def evaluate(
             normalized_workloads,
             matching_entry,
             contract,
+            workload_report.get("tailConfirmations"),
         )
+        baseline_entry = matching_entry
+
+    gc_diagnostics = collect_gc_diagnostics(
+        normalized_workloads,
+        baseline_entry,
+        contract,
+    )
 
     artifact_hashes = {
         "contract": sha256(contract_path),
@@ -1768,7 +3202,7 @@ def evaluate(
         artifact_hashes["soak"] = sha256(soak_path)
 
     return {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "kind": "performance-evaluation",
         "contractVersion": contract["contractVersion"],
         "runId": args.run_id,
@@ -1789,7 +3223,9 @@ def evaluate(
         "benchmarkDotNetControls": bdn.get("controls"),
         "absoluteChecks": absolute_checks,
         "historicalChecks": historical_checks,
-        "workloads": normalized_workloads,
+        "gcDiagnostics": gc_diagnostics,
+        "tailConfirmations": workload_report.get("tailConfirmations"),
+        "workloads": public_workload_metrics(normalized_workloads),
         "soakScenarios": normalized_soak,
     }
 
@@ -1802,7 +3238,7 @@ def validate_seed_evaluation(
     maximum_age_hours: float | None = None,
 ) -> None:
     """Reject a seed record that is incomplete or cannot reproduce its verdicts."""
-    if evaluation.get("schemaVersion") != 2 or evaluation.get("kind") != "performance-evaluation":
+    if evaluation.get("schemaVersion") != 3 or evaluation.get("kind") != "performance-evaluation":
         raise PerformanceEvidenceError("Seed input is not a performance evaluation.")
     if evaluation.get("success") is not True or evaluation.get("mode") != "seed":
         raise PerformanceEvidenceError("Seed input must be a successful seed-mode evaluation.")
@@ -1855,7 +3291,8 @@ def validate_seed_evaluation(
         "hostLoadAverage5Minutes",
         "hostLoadAverage15Minutes",
         "hostLoadAverage1MinutePerProcessor",
-        "maximumHostLoadAverage1MinutePerProcessor",
+        "initialHostCpuUtilization",
+        "maximumInitialHostCpuUtilization",
     ):
         finite_number(
             environment.get(key),
@@ -2042,26 +3479,43 @@ def validate_normalized_workloads(
             "sampleCount",
             f"{label}.{workload_id}",
         )
-        sample_count_field = (
-            "expensiveMeasurementSamples"
-            if expected[workload_id].get("cost", "standard") == "expensive"
-            else "measurementSamples"
+        expected_sample_count = expected_measurement_sample_count(
+            contract["profiles"][profile],
+            expected[workload_id],
         )
-        expected_sample_count = int(
-            contract["profiles"][profile][sample_count_field]
-        )
-        if sample_count != expected_sample_count:
+        if sample_count < expected_sample_count:
             raise PerformanceEvidenceError(
                 f"{label} workload '{workload_id}' has the wrong sampleCount."
             )
-        median = finite_number(
-            workload.get("medianNanoseconds"),
-            f"{label}.{workload_id}.medianNanoseconds",
+        measurement_duration_nanoseconds = workload.get(
+            "measurementDurationNanoseconds"
+        )
+        if measurement_duration_nanoseconds is not None:
+            actual_measurement_duration = finite_number(
+                measurement_duration_nanoseconds,
+                f"{label}.{workload_id}.measurementDurationNanoseconds",
+                minimum=0,
+            )
+            minimum_measurement_duration = (
+                int(
+                    contract["profiles"][profile][
+                        "minimumMeasurementDurationMilliseconds"
+                    ]
+                )
+                * 1_000_000
+            )
+            if actual_measurement_duration < minimum_measurement_duration:
+                raise PerformanceEvidenceError(
+                    f"{label} workload '{workload_id}' has insufficient measurement duration."
+                )
+        normalized_median = finite_number(
+            workload.get("normalizedMedian"),
+            f"{label}.{workload_id}.normalizedMedian",
             minimum=0.000001,
         )
-        standard_error_value = finite_number(
-            workload.get("standardErrorNanoseconds"),
-            f"{label}.{workload_id}.standardErrorNanoseconds",
+        normalized_standard_error = finite_number(
+            workload.get("normalizedStandardError"),
+            f"{label}.{workload_id}.normalizedStandardError",
             minimum=0,
         )
         relative_error = finite_number(
@@ -2070,7 +3524,10 @@ def validate_normalized_workloads(
             minimum=0,
         )
         if (
-            not close_enough(relative_error, standard_error_value / median)
+            not close_enough(
+                relative_error,
+                normalized_standard_error / normalized_median,
+            )
             or relative_error > maximum_relative_error
         ):
             raise PerformanceEvidenceError(
@@ -2088,9 +3545,43 @@ def validate_normalized_workloads(
             raise PerformanceEvidenceError(
                 f"{label} workload '{workload_id}' has the wrong operationsPerSample."
             )
+        calibration_kind = required_string(
+            workload,
+            "calibrationKind",
+            f"{label}.{workload_id}",
+        )
+        expected_calibration_kind = (
+            "cpu"
+            if workload["family"] in contract["calibration"]["cpuFamilies"]
+            else "database"
+        )
+        if calibration_kind != expected_calibration_kind:
+            raise PerformanceEvidenceError(
+                f"{label} workload '{workload_id}' has the wrong calibrationKind."
+            )
+        calibration_relative_error = finite_number(
+            workload.get("calibrationRelativeStandardError"),
+            f"{label}.{workload_id}.calibrationRelativeStandardError",
+            minimum=0,
+        )
+        maximum_calibration_relative_error = float(
+            contract["profiles"][profile][
+                "maximumCalibrationRelativeStandardError"
+            ]
+        )
+        if calibration_relative_error > maximum_calibration_relative_error:
+            raise PerformanceEvidenceError(
+                f"{label} workload '{workload_id}' has unstable calibration."
+            )
         for key in (
+            "medianNanoseconds",
             "p95Nanoseconds",
             "p99Nanoseconds",
+            "standardErrorNanoseconds",
+            "calibrationMedianNanoseconds",
+            "calibrationStandardErrorNanoseconds",
+            "normalizedP95",
+            "normalizedP99",
             "allocatedBytesPerOperation",
             "retainedBytes",
             "gen0CollectionsPer1000",
@@ -2192,7 +3683,7 @@ def seed_baseline(args: argparse.Namespace) -> dict[str, Any]:
     combined_entries = retained_entries + baseline_entries
 
     return {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "baselineVersion": args.version,
         "baselineState": "accepted",
         "contractVersion": contract["contractVersion"],
@@ -2214,8 +3705,8 @@ def validate_baseline_file(args: argparse.Namespace) -> dict[str, Any]:
     contract = load_json(Path(args.contract))
     validate_contract(contract)
     baseline = load_json(Path(args.baseline))
-    if baseline.get("schemaVersion") != 2 or baseline.get("baselineState") != "accepted":
-        raise PerformanceEvidenceError("Baseline must use schemaVersion 2 and state accepted.")
+    if baseline.get("schemaVersion") != 3 or baseline.get("baselineState") != "accepted":
+        raise PerformanceEvidenceError("Baseline must use schemaVersion 3 and state accepted.")
     if baseline.get("contractVersion") != contract["contractVersion"]:
         raise PerformanceEvidenceError("Baseline contractVersion does not match.")
 
@@ -2244,7 +3735,7 @@ def validate_baseline_file(args: argparse.Namespace) -> dict[str, Any]:
         validate_seed_evaluation(
             {
                 **entry,
-                "schemaVersion": 2,
+                "schemaVersion": 3,
                 "kind": "performance-evaluation",
                 "contractVersion": contract["contractVersion"],
                 "mode": "seed",
@@ -2273,7 +3764,7 @@ def validate_baseline_file(args: argparse.Namespace) -> dict[str, Any]:
             )
 
     return {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "kind": "baseline-validation",
         "baselineVersion": required_string(baseline, "baselineVersion", "baseline"),
         "success": True,
@@ -2308,6 +3799,22 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_parser.add_argument("--bdn", required=True)
     evaluate_parser.add_argument("--baseline", required=True)
     evaluate_parser.add_argument("--mode", choices=("compare", "seed"), required=True)
+
+    tail_plan_parser = subparsers.add_parser("plan-tail-confirmation")
+    add_common_identity_arguments(tail_plan_parser)
+    tail_plan_parser.add_argument("--workloads", required=True)
+    tail_plan_parser.add_argument("--baseline", required=True)
+
+    tail_merge_parser = subparsers.add_parser("merge-tail-confirmations")
+    add_common_identity_arguments(tail_merge_parser)
+    tail_merge_parser.add_argument("--workloads", required=True)
+    tail_merge_parser.add_argument("--plan", required=True)
+    tail_merge_parser.add_argument("--confirmation", action="append", required=True)
+    tail_merge_parser.add_argument(
+        "--confirmation-host",
+        action="append",
+        required=True,
+    )
 
     seed_parser = subparsers.add_parser("seed")
     seed_parser.add_argument("--contract", required=True)
@@ -2347,10 +3854,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             write_json(Path(args.output), payload)
             if payload["success"] is not True:
                 print(
-                    "Performance host preflight failed: one-minute load per "
-                    f"processor is {payload['loadAverage1MinutePerProcessor']:.4f}, "
+                    "Performance host preflight failed: initial process CPU "
+                    f"utilization is {payload['initialCpuUtilization']:.4f}, "
                     "maximum is "
-                    f"{payload['maximumLoadAverage1MinutePerProcessor']:.4f}.",
+                    f"{payload['maximumInitialCpuUtilization']:.4f}.",
                     file=sys.stderr,
                 )
                 return 1
@@ -2368,6 +3875,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.command == "evaluate":
             payload = evaluate(args)
+        elif args.command == "plan-tail-confirmation":
+            payload = plan_tail_confirmation(args)
+        elif args.command == "merge-tail-confirmations":
+            payload = merge_tail_confirmations(args)
         elif args.command == "seed":
             payload = seed_baseline(args)
             write_json(Path(args.baseline), payload)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import math
 import subprocess
 import tempfile
 import unittest
@@ -42,6 +43,358 @@ class PerformanceEvidenceTests(unittest.TestCase):
     def test_contract_covers_every_declared_matrix_dimension(self) -> None:
         """Accept the checked-in contract only when every coverage token has a workload."""
         performance_evidence.validate_contract(self.contract)
+
+    def test_json_comparer_warmup_reaches_the_contract_operation_floor(self) -> None:
+        """Keep tiered-JIT promotion outside JSON comparer tail measurements."""
+        definitions = {
+            definition["id"]: definition
+            for definition in self.contract["workloads"]
+        }
+        profile = self.contract["profiles"]["scorecard"]
+
+        self.assertEqual(
+            128,
+            performance_evidence.expected_warmup_sample_count(
+                profile,
+                definitions["json.compare.node.equal.bytes-65536"],
+            ),
+        )
+        self.assertEqual(
+            256,
+            performance_evidence.expected_warmup_sample_count(
+                profile,
+                definitions["json.compare.node.late-mismatch.bytes-65536"],
+            ),
+        )
+
+    def test_json_element_tail_population_exceeds_the_profile_default(self) -> None:
+        """Keep isolated scheduler bursts from dominating element-comparer p99."""
+        definition = next(
+            definition
+            for definition in self.contract["workloads"]
+            if definition["id"] == "json.compare.element.late-mismatch.bytes-65536"
+        )
+
+        self.assertEqual(
+            1024,
+            performance_evidence.expected_measurement_sample_count(
+                self.contract["profiles"]["scorecard"],
+                definition,
+            ),
+        )
+
+    def test_expensive_workloads_keep_p99_population_without_full_matrix_cost(self) -> None:
+        """Retain at least 100 tail observations without repeating large writes 256 times."""
+        definition = next(
+            definition
+            for definition in self.contract["workloads"]
+            if definition["id"] == "write.savechanges.async.rows-10000.batch-default"
+        )
+
+        self.assertEqual(
+            128,
+            performance_evidence.expected_measurement_sample_count(
+                self.contract["profiles"]["scorecard"],
+                definition,
+            ),
+        )
+        self.assertEqual(
+            256,
+            performance_evidence.expected_measurement_sample_count(
+                self.contract["profiles"]["stress"],
+                definition,
+            ),
+        )
+
+    def test_resilience_tail_population_excludes_tiered_jit_and_short_bursts(self) -> None:
+        """Keep query startup and isolated host bursts outside resilience p99."""
+        definitions = [
+            definition
+            for definition in self.contract["workloads"]
+            if definition["family"] == "resilience"
+        ]
+        profile = self.contract["profiles"]["scorecard"]
+
+        self.assertEqual(4, len(definitions))
+        for definition in definitions:
+            with self.subTest(workload=definition["id"]):
+                self.assertEqual(
+                    512,
+                    performance_evidence.expected_warmup_sample_count(
+                        profile,
+                        definition,
+                    ),
+                )
+                self.assertEqual(
+                    8192,
+                    performance_evidence.expected_measurement_sample_count(
+                        profile,
+                        definition,
+                    ),
+                )
+
+    def test_only_out_of_budget_p99_values_require_confirmation(self) -> None:
+        """Plan bounded reruns without repeating an otherwise green matrix."""
+        current = [
+            {
+                "id": "stable",
+                "normalizedP99": 139.0,
+                "calibrationMedianNanoseconds": 10.0,
+            },
+            {
+                "id": "tail",
+                "normalizedP99": 141.0,
+                "calibrationMedianNanoseconds": 10.0,
+            },
+        ]
+        baseline = {
+            "workloads": [
+                {
+                    "id": "stable",
+                    "normalizedP99": 100.0,
+                    "calibrationMedianNanoseconds": 10.0,
+                },
+                {
+                    "id": "tail",
+                    "normalizedP99": 100.0,
+                    "calibrationMedianNanoseconds": 10.0,
+                },
+            ],
+        }
+
+        candidates = performance_evidence.historical_p99_confirmation_candidates(
+            current,
+            baseline,
+            self.contract,
+        )
+
+        self.assertEqual(1, len(candidates))
+        self.assertEqual("tail", candidates[0]["workloadId"])
+        self.assertEqual(2, candidates[0]["confirmationRuns"])
+
+    def test_p99_gate_accepts_an_insignificant_number_of_tail_exceedances(self) -> None:
+        """Do not classify ordinary one-percent tail variation as a regression."""
+        samples = [100.0] * 1028 + [200.0] * 16
+        workload = {
+            "normalizedP99": performance_evidence.percentile(
+                sorted(samples),
+                0.99,
+            ),
+            "normalizedSamples": samples,
+            "calibrationMedianNanoseconds": 10.0,
+        }
+
+        check = performance_evidence.historical_p99_check(
+            "tail",
+            workload,
+            {
+                "normalizedP99": 100.0,
+                "calibrationMedianNanoseconds": 10.0,
+            },
+            self.contract,
+        )
+
+        self.assertGreater(check["actual"], check["maximum"])
+        self.assertEqual(16, check["exceedanceCount"])
+        self.assertGreater(check["pValue"], check["significanceLevel"])
+        self.assertTrue(check["passed"])
+
+    def test_p99_gate_rejects_a_statistically_significant_tail_regression(self) -> None:
+        """Reject sustained excess tail latency across a complete sample population."""
+        samples = [100.0] * 960 + [200.0] * 40
+        workload = {
+            "normalizedP99": performance_evidence.percentile(
+                sorted(samples),
+                0.99,
+            ),
+            "normalizedSamples": samples,
+            "calibrationMedianNanoseconds": 10.0,
+        }
+
+        check = performance_evidence.historical_p99_check(
+            "tail",
+            workload,
+            {
+                "normalizedP99": 100.0,
+                "calibrationMedianNanoseconds": 10.0,
+            },
+            self.contract,
+        )
+
+        self.assertEqual(40, check["exceedanceCount"])
+        self.assertLess(check["pValue"], check["significanceLevel"])
+        self.assertFalse(check["passed"])
+
+    def test_confirmed_p99_gate_binds_independent_samples_to_the_trigger(self) -> None:
+        """Recompute confirmation evidence without reusing the selected population."""
+        samples = [100.0] * 658 + [200.0] * 10
+        confirmation_p99 = performance_evidence.percentile(
+            sorted(samples),
+            0.99,
+        )
+        check = performance_evidence.historical_p99_check(
+            "tail",
+            {
+                "normalizedP99": confirmation_p99,
+                "normalizedSamples": samples,
+                "calibrationMedianNanoseconds": 10.0,
+            },
+            {
+                "normalizedP99": 100.0,
+                "calibrationMedianNanoseconds": 10.0,
+            },
+            self.contract,
+        )
+        confirmation = {
+            "confirmationRuns": 2,
+            "originalSampleCount": 128,
+            "confirmationSampleCount": len(samples),
+            "originalNormalizedP99": 200.0,
+            "confirmationNormalizedP99": confirmation_p99,
+            "confirmationCalibrationMedianNanoseconds": 10.0,
+            "maximumNormalizedP99": check["maximum"],
+            "calibrationAdjustmentFactor": check[
+                "calibrationAdjustmentFactor"
+            ],
+            "exceedanceCount": check["exceedanceCount"],
+            "exceedanceRate": check["exceedanceRate"],
+            "expectedExceedanceProbability": check[
+                "expectedExceedanceProbability"
+            ],
+            "pValue": check["pValue"],
+            "significanceLevel": check["significanceLevel"],
+            "normalizedSamples": samples,
+            "passed": check["passed"],
+        }
+
+        validated = performance_evidence.validate_confirmed_p99_check(
+            "tail",
+            {
+                "sampleCount": 128,
+                "normalizedP99": 200.0,
+            },
+            {
+                "normalizedP99": 100.0,
+                "calibrationMedianNanoseconds": 10.0,
+            },
+            confirmation,
+            self.contract,
+        )
+
+        self.assertEqual(200.0, validated["triggerActual"])
+        self.assertEqual(confirmation_p99, validated["actual"])
+        self.assertTrue(validated["confirmationRequired"])
+        self.assertTrue(validated["passed"])
+
+    def test_historical_gate_never_penalizes_a_faster_control_path(self) -> None:
+        """Use calibration only to discount contention, never to invent slowdown."""
+        report = self._workload_report("mysql84")
+        baseline_workloads = performance_evidence.validate_workload_report(
+            report,
+            self.contract,
+            run_id="run-1",
+            target="mysql84",
+            profile="scorecard",
+        )
+        current_workloads = copy.deepcopy(baseline_workloads)
+        workload = current_workloads[0]
+        workload["calibrationMedianNanoseconds"] /= 2
+        workload["normalizedMedian"] *= 2
+        workload["normalizedP95"] *= 2
+        workload["normalizedP99"] *= 2
+        workload["normalizedStandardError"] *= 2
+        workload["_normalizedSamples"] = [
+            sample * 2
+            for sample in workload["_normalizedSamples"]
+        ]
+
+        checks = performance_evidence.validate_historical_budgets(
+            current_workloads,
+            {"workloads": baseline_workloads},
+            self.contract,
+        )
+
+        workload_checks = [
+            check
+            for check in checks
+            if check["workloadId"] == workload["id"]
+        ]
+        self.assertTrue(all(check["passed"] for check in workload_checks))
+        self.assertEqual(
+            {0.5, 1.0},
+            {
+                check["calibrationAdjustmentFactor"]
+                for check in workload_checks
+            },
+        )
+
+    def test_tail_confirmation_recomputes_combined_statistics_and_memory(self) -> None:
+        """Bind a confirmed verdict to all original and repeated samples."""
+        def workload(samples: list[float], allocated_bytes: float) -> dict[str, Any]:
+            sorted_samples = sorted(samples)
+            calibration = [10.0] * len(samples)
+            normalized = [sample / 10.0 for sample in samples]
+            sorted_normalized = sorted(normalized)
+            return {
+                "id": "tail",
+                "operationsPerSample": 1,
+                "checksum": len(samples),
+                "samplesNanoseconds": samples,
+                "sampleCount": len(samples),
+                "medianNanoseconds": performance_evidence.percentile(
+                    sorted_samples,
+                    0.5,
+                ),
+                "p95Nanoseconds": performance_evidence.percentile(
+                    sorted_samples,
+                    0.95,
+                ),
+                "p99Nanoseconds": performance_evidence.percentile(
+                    sorted_samples,
+                    0.99,
+                ),
+                "standardErrorNanoseconds": performance_evidence.standard_error(samples),
+                "calibrationKind": "cpu",
+                "calibrationMedianNanoseconds": 10.0,
+                "calibrationStandardErrorNanoseconds": 0.0,
+                "normalizedMedian": performance_evidence.percentile(
+                    sorted_normalized,
+                    0.5,
+                ),
+                "normalizedP95": performance_evidence.percentile(
+                    sorted_normalized,
+                    0.95,
+                ),
+                "normalizedP99": performance_evidence.percentile(
+                    sorted_normalized,
+                    0.99,
+                ),
+                "allocatedBytesPerOperation": allocated_bytes,
+                "retainedBytes": allocated_bytes,
+                "gen0CollectionsPer1000": allocated_bytes / 10,
+                "gen1CollectionsPer1000": 0.0,
+                "gen2CollectionsPer1000": 0.0,
+                "calibrationNanoseconds": calibration,
+                "calibrationPulseNanoseconds": [10.0],
+                "calibrationPulseIndices": [0] * len(samples),
+                "normalizedSamples": normalized,
+            }
+
+        original = workload([10.0, 20.0], 100.0)
+        confirmations = [
+            workload([30.0, 40.0], 200.0),
+            workload([50.0, 60.0], 300.0),
+        ]
+
+        merged = performance_evidence.merge_workload_tail_samples(
+            original,
+            confirmations,
+        )
+
+        self.assertEqual(6, merged["sampleCount"])
+        self.assertEqual(35.0, merged["medianNanoseconds"])
+        self.assertEqual(200.0, merged["allocatedBytesPerOperation"])
+        self.assertEqual(300.0, merged["retainedBytes"])
 
     def test_source_hash_tracks_code_but_excludes_the_generated_baseline(self) -> None:
         """Bind evidence to dirty source without making baseline generation self-referential."""
@@ -138,21 +491,93 @@ class PerformanceEvidenceTests(unittest.TestCase):
             )
 
     def test_host_preflight_rejects_an_overloaded_runner(self) -> None:
-        """Reject a finite but non-quiescent host before latency is measured."""
+        """Reject genuine CPU saturation before calibrated measurement starts."""
         report = self._host_preflight()
-        report["loadAverage1Minute"] = 3
-        report["loadAverage1MinutePerProcessor"] = 0.375
+        report["initialCpuUtilization"] = 0.95
         report["success"] = False
 
         with self.assertRaisesRegex(
             performance_evidence.PerformanceEvidenceError,
-            "not quiescent",
+            "initially CPU-saturated",
         ):
             performance_evidence.validate_host_preflight(
                 report,
                 self.contract,
                 maximum_age_hours=12,
             )
+
+    def test_cpu_admission_accepts_desktop_load_without_cpu_saturation(self) -> None:
+        """Do not reject browser and window-server threads as CPU saturation."""
+        report = self._host_preflight()
+        report.update(
+            {
+                "schemaVersion": 3,
+                "admissionMetric": performance_evidence.HOST_ADMISSION_METRIC,
+                "initialCpuUtilization": 0.2,
+                "maximumInitialCpuUtilization": 0.9,
+                "loadAverage1Minute": 12.0,
+                "loadAverage1MinutePerProcessor": 1.5,
+            }
+        )
+
+        performance_evidence.validate_host_preflight(
+            report,
+            self.contract,
+            maximum_age_hours=12,
+        )
+
+    def test_cpu_admission_rejects_actual_cpu_saturation(self) -> None:
+        """Keep genuine host contention outside latency measurements."""
+        report = self._host_preflight()
+        report.update(
+            {
+                "schemaVersion": 3,
+                "admissionMetric": performance_evidence.HOST_ADMISSION_METRIC,
+                "initialCpuUtilization": 0.95,
+                "maximumInitialCpuUtilization": 0.9,
+                "success": False,
+            }
+        )
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "initially CPU-saturated",
+        ):
+            performance_evidence.validate_host_preflight(
+                report,
+                self.contract,
+                maximum_age_hours=12,
+            )
+
+    def test_process_cpu_percentages_are_normalized_by_processor_count(self) -> None:
+        """Interpret ps percentages as aggregate capacity rather than load average."""
+        utilization = performance_evidence.parse_process_cpu_utilization(
+            "100.0\n50.0\n",
+            8,
+        )
+
+        self.assertEqual(0.1875, utilization)
+
+    def test_workload_report_binds_cpu_admission_without_load_rejection(self) -> None:
+        """Accept high desktop load only when the bound CPU admission passed."""
+        report = self._workload_report("mysql84")
+        report["environment"].update(
+            {
+                "hostAdmissionMetric": performance_evidence.HOST_ADMISSION_METRIC,
+                "initialHostCpuUtilization": 0.2,
+                "maximumInitialHostCpuUtilization": 0.9,
+                "hostLoadAverage1Minute": 12.0,
+                "hostLoadAverage1MinutePerProcessor": 1.5,
+            }
+        )
+
+        performance_evidence.validate_workload_report(
+            report,
+            self.contract,
+            run_id="run-1",
+            target="mysql84",
+            profile="scorecard",
+        )
 
     def test_workload_report_rejects_operations_per_sample_drift(self) -> None:
         """Reject evidence that normalizes a workload with an unapproved batch size."""
@@ -179,6 +604,24 @@ class PerformanceEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(
             performance_evidence.PerformanceEvidenceError,
             "warmups",
+        ):
+            performance_evidence.validate_workload_report(
+                report,
+                self.contract,
+                run_id="run-1",
+                target="mysql84",
+                profile="scorecard",
+            )
+
+    def test_workload_report_rejects_an_insufficient_measurement_window(self) -> None:
+        """Reject a large sample count that covers too little measured time."""
+        report = self._workload_report("mysql84")
+        entry = report["workloads"][0]
+        self._replace_workload_samples(entry, [1.0] * entry["sampleCount"])
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "expected at least",
         ):
             performance_evidence.validate_workload_report(
                 report,
@@ -260,12 +703,8 @@ class PerformanceEvidenceTests(unittest.TestCase):
         """Reject a statistically unstable workload even when every sample is finite."""
         report = self._workload_report("mysql84")
         entry = report["workloads"][0]
-        samples = [1.0] * (entry["sampleCount"] - 1) + [10000.0]
-        entry["samplesNanoseconds"] = samples
-        entry["medianNanoseconds"] = performance_evidence.percentile(sorted(samples), 0.5)
-        entry["p95Nanoseconds"] = performance_evidence.percentile(sorted(samples), 0.95)
-        entry["p99Nanoseconds"] = performance_evidence.percentile(sorted(samples), 0.99)
-        entry["standardErrorNanoseconds"] = performance_evidence.standard_error(samples)
+        samples = [8_000_000.0] * (entry["sampleCount"] - 1) + [10_000_000_000.0]
+        self._replace_workload_samples(entry, samples)
 
         with self.assertRaisesRegex(
             performance_evidence.PerformanceEvidenceError,
@@ -296,6 +735,47 @@ class PerformanceEvidenceTests(unittest.TestCase):
             "Absolute budget failed",
         ):
             performance_evidence.validate_absolute_budgets(workloads, self.contract)
+
+    def test_gc_policy_variance_is_diagnostic_not_a_provider_failure(self) -> None:
+        """Retain GC evidence without attributing host policy choices to the provider."""
+        report = self._workload_report("mysql84")
+        workloads = performance_evidence.validate_workload_report(
+            report,
+            self.contract,
+            run_id="run-1",
+            target="mysql84",
+            profile="scorecard",
+        )
+        baseline_entry = {"workloads": copy.deepcopy(workloads)}
+        workload = workloads[0]
+        workload["gen0CollectionsPer1000"] = 1000000
+        workload["gen1CollectionsPer1000"] = 1000000
+        workload["gen2CollectionsPer1000"] = 1000000
+
+        performance_evidence.validate_absolute_budgets(workloads, self.contract)
+        performance_evidence.validate_historical_budgets(
+            workloads,
+            baseline_entry,
+            self.contract,
+        )
+        diagnostics = performance_evidence.collect_gc_diagnostics(
+            workloads,
+            baseline_entry,
+            self.contract,
+        )
+
+        workload_diagnostics = [
+            diagnostic
+            for diagnostic in diagnostics
+            if diagnostic["workloadId"] == workload["id"]
+        ]
+        self.assertEqual(4, len(workload_diagnostics))
+        self.assertTrue(
+            all(
+                diagnostic["withinReferenceRange"] is False
+                for diagnostic in workload_diagnostics
+            )
+        )
 
     def test_soak_report_rejects_resource_failure(self) -> None:
         """Reject a failed cleanup invariant even when all scenario rows are present."""
@@ -408,6 +888,128 @@ class PerformanceEvidenceTests(unittest.TestCase):
                 self.contract,
             )
 
+    def test_historical_gate_normalizes_matching_background_slowdown(self) -> None:
+        """Accept host slowdown only when the adjacent control slows equally."""
+        baseline_report = self._workload_report("mysql84")
+        baseline_workloads = performance_evidence.validate_workload_report(
+            baseline_report,
+            self.contract,
+            run_id="run-1",
+            target="mysql84",
+            profile="scorecard",
+        )
+        current_report = copy.deepcopy(baseline_report)
+
+        for entry in current_report["workloads"]:
+            entry["samplesNanoseconds"] = [
+                sample * 2
+                for sample in entry["samplesNanoseconds"]
+            ]
+            entry["calibrationNanoseconds"] = [
+                sample * 2
+                for sample in entry["calibrationNanoseconds"]
+            ]
+            entry["calibrationPulseNanoseconds"] = [
+                sample * 2
+                for sample in entry["calibrationPulseNanoseconds"]
+            ]
+            entry["medianNanoseconds"] *= 2
+            entry["p95Nanoseconds"] *= 2
+            entry["p99Nanoseconds"] *= 2
+            entry["standardErrorNanoseconds"] *= 2
+            entry["calibrationMedianNanoseconds"] *= 2
+            entry["calibrationStandardErrorNanoseconds"] *= 2
+
+        current_workloads = performance_evidence.validate_workload_report(
+            current_report,
+            self.contract,
+            run_id="run-1",
+            target="mysql84",
+            profile="scorecard",
+        )
+
+        checks = performance_evidence.validate_historical_budgets(
+            current_workloads,
+            {"workloads": baseline_workloads},
+            self.contract,
+        )
+
+        self.assertTrue(all(check["passed"] for check in checks))
+        self.assertGreater(
+            current_workloads[0]["p99Nanoseconds"],
+            baseline_workloads[0]["p99Nanoseconds"],
+        )
+        self.assertEqual(
+            current_workloads[0]["normalizedP99"],
+            baseline_workloads[0]["normalizedP99"],
+        )
+
+    def test_historical_gate_rejects_provider_only_slowdown(self) -> None:
+        """Reject latency growth when its adjacent control remains stable."""
+        baseline_report = self._workload_report("mysql84")
+        baseline_workloads = performance_evidence.validate_workload_report(
+            baseline_report,
+            self.contract,
+            run_id="run-1",
+            target="mysql84",
+            profile="scorecard",
+        )
+        current_report = copy.deepcopy(baseline_report)
+        entry = current_report["workloads"][0]
+        self._replace_workload_samples(
+            entry,
+            [sample * 2 for sample in entry["samplesNanoseconds"]],
+        )
+        current_workloads = performance_evidence.validate_workload_report(
+            current_report,
+            self.contract,
+            run_id="run-1",
+            target="mysql84",
+            profile="scorecard",
+        )
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "normalizedMedian",
+        ):
+            performance_evidence.validate_historical_budgets(
+                current_workloads,
+                {"workloads": baseline_workloads},
+                self.contract,
+            )
+
+    def test_retained_heap_delta_is_not_a_hard_workload_budget(self) -> None:
+        """Leave retained-memory verdicts to the sustained resource invariants."""
+        report = self._workload_report("mysql84")
+        workloads = performance_evidence.validate_workload_report(
+            report,
+            self.contract,
+            run_id="run-1",
+            target="mysql84",
+            profile="scorecard",
+        )
+        baseline_entry = {"workloads": copy.deepcopy(workloads)}
+        workloads[0]["retainedBytes"] = 1024**4
+
+        absolute_checks = performance_evidence.validate_absolute_budgets(
+            workloads,
+            self.contract,
+        )
+        historical_checks = performance_evidence.validate_historical_budgets(
+            workloads,
+            baseline_entry,
+            self.contract,
+        )
+
+        self.assertNotIn(
+            "retainedBytes",
+            {check["metric"] for check in absolute_checks},
+        )
+        self.assertNotIn(
+            "retainedBytes",
+            {check["metric"] for check in historical_checks},
+        )
+
     def test_historical_gate_rejects_environment_drift(self) -> None:
         """Reject a matching runner label when its measured hardware has changed."""
         current = self._workload_report("mysql84")["environment"]
@@ -508,43 +1110,93 @@ class PerformanceEvidenceTests(unittest.TestCase):
 
     def _workload_report(self, target: str) -> dict[str, Any]:
         """Build a complete scorecard workload report for one target."""
-        maximum_host_load = self.contract["hostPreconditions"][
-            "maximumOneMinuteLoadAveragePerProcessor"
+        maximum_initial_cpu = self.contract["hostPreconditions"][
+            "maximumInitialCpuUtilization"
         ]
         workloads = []
         profile = self.contract["profiles"]["scorecard"]
 
         for definition in self.contract["workloads"]:
-            sample_count = (
-                profile["expensiveMeasurementSamples"]
-                if definition.get("cost", "standard") == "expensive"
-                else profile["measurementSamples"]
+            sample_count = performance_evidence.expected_measurement_sample_count(
+                profile,
+                definition,
             )
-            samples = [float(100 + (index * 10)) for index in range(sample_count)]
+            operations_per_sample = definition.get("operationsPerSample", 1)
+            minimum_duration_nanoseconds = (
+                profile["minimumMeasurementDurationMilliseconds"]
+                * 1_000_000
+            )
+            minimum_sample_nanoseconds = (
+                minimum_duration_nanoseconds
+                / sample_count
+                / operations_per_sample
+            )
+            sample_base = max(100.0, minimum_sample_nanoseconds * 1.05)
+            samples = [sample_base + (index % 10) for index in range(sample_count)]
             sorted_samples = sorted(samples)
+            calibration_samples = [100.0] * sample_count
+            calibration_interval = profile["calibrationIntervalSamples"]
+            calibration_pulses = [
+                100.0
+                for _ in range(math.ceil(sample_count / calibration_interval))
+            ]
+            calibration_pulse_indices = [
+                index // calibration_interval
+                for index in range(sample_count)
+            ]
+            normalized_samples = [sample / 100.0 for sample in samples]
+            sorted_normalized_samples = sorted(normalized_samples)
+            calibration_kind = (
+                "cpu"
+                if definition["family"] in self.contract["calibration"]["cpuFamilies"]
+                else "database"
+            )
             workloads.append(
                 {
                     "id": definition["id"],
                     "family": definition["family"],
-                    "warmupSamples": 5,
+                    "warmupSamples": performance_evidence.expected_warmup_sample_count(
+                        profile,
+                        definition,
+                    ),
                     "sampleCount": len(samples),
-                    "operationsPerSample": definition.get("operationsPerSample", 1),
+                    "operationsPerSample": operations_per_sample,
                     "checksum": 1,
+                    "measuredUtc": datetime.now(timezone.utc).isoformat(),
                     "medianNanoseconds": performance_evidence.percentile(sorted_samples, 0.5),
                     "p95Nanoseconds": performance_evidence.percentile(sorted_samples, 0.95),
                     "p99Nanoseconds": performance_evidence.percentile(sorted_samples, 0.99),
                     "standardErrorNanoseconds": performance_evidence.standard_error(samples),
+                    "calibrationKind": calibration_kind,
+                    "calibrationMedianNanoseconds": 100.0,
+                    "calibrationStandardErrorNanoseconds": 0.0,
+                    "normalizedMedian": performance_evidence.percentile(
+                        sorted_normalized_samples,
+                        0.5,
+                    ),
+                    "normalizedP95": performance_evidence.percentile(
+                        sorted_normalized_samples,
+                        0.95,
+                    ),
+                    "normalizedP99": performance_evidence.percentile(
+                        sorted_normalized_samples,
+                        0.99,
+                    ),
                     "allocatedBytesPerOperation": 1000,
                     "retainedBytes": 0,
                     "gen0CollectionsPer1000": 0,
                     "gen1CollectionsPer1000": 0,
                     "gen2CollectionsPer1000": 0,
                     "samplesNanoseconds": samples,
+                    "calibrationNanoseconds": calibration_samples,
+                    "calibrationPulseNanoseconds": calibration_pulses,
+                    "calibrationPulseIndices": calibration_pulse_indices,
+                    "normalizedSamples": normalized_samples,
                 }
             )
 
         return {
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "kind": "performance-workloads",
             "contractVersion": self.contract["contractVersion"],
             "runId": "run-1",
@@ -566,7 +1218,9 @@ class PerformanceEvidenceTests(unittest.TestCase):
                 "hostLoadAverage5Minutes": 0.5,
                 "hostLoadAverage15Minutes": 0.5,
                 "hostLoadAverage1MinutePerProcessor": 0.0625,
-                "maximumHostLoadAverage1MinutePerProcessor": maximum_host_load,
+                "hostAdmissionMetric": performance_evidence.HOST_ADMISSION_METRIC,
+                "initialHostCpuUtilization": 0.2,
+                "maximumInitialHostCpuUtilization": maximum_initial_cpu,
                 "engineFamily": self.contract["requiredTargets"][target]["engineFamily"],
                 "serverVersion": (
                     "11.8.8-MariaDB"
@@ -578,14 +1232,62 @@ class PerformanceEvidenceTests(unittest.TestCase):
             "workloads": workloads,
         }
 
+    @staticmethod
+    def _replace_workload_samples(
+        entry: dict[str, Any],
+        samples: list[float],
+    ) -> None:
+        """Replace raw samples while keeping every derived statistic coherent."""
+        calibration_samples = entry["calibrationNanoseconds"]
+        normalized_samples = [
+            sample / calibration
+            for sample, calibration in zip(samples, calibration_samples)
+        ]
+        sorted_samples = sorted(samples)
+        sorted_normalized_samples = sorted(normalized_samples)
+
+        entry.update(
+            {
+                "samplesNanoseconds": samples,
+                "normalizedSamples": normalized_samples,
+                "medianNanoseconds": performance_evidence.percentile(
+                    sorted_samples,
+                    0.5,
+                ),
+                "p95Nanoseconds": performance_evidence.percentile(
+                    sorted_samples,
+                    0.95,
+                ),
+                "p99Nanoseconds": performance_evidence.percentile(
+                    sorted_samples,
+                    0.99,
+                ),
+                "standardErrorNanoseconds": performance_evidence.standard_error(
+                    samples
+                ),
+                "normalizedMedian": performance_evidence.percentile(
+                    sorted_normalized_samples,
+                    0.5,
+                ),
+                "normalizedP95": performance_evidence.percentile(
+                    sorted_normalized_samples,
+                    0.95,
+                ),
+                "normalizedP99": performance_evidence.percentile(
+                    sorted_normalized_samples,
+                    0.99,
+                ),
+            }
+        )
+
     def _host_preflight(self) -> dict[str, Any]:
         """Build a passing host-preflight fixture bound to the test CPU."""
-        maximum_host_load = self.contract["hostPreconditions"][
-            "maximumOneMinuteLoadAveragePerProcessor"
+        maximum_initial_cpu = self.contract["hostPreconditions"][
+            "maximumInitialCpuUtilization"
         ]
 
         return {
-            "schemaVersion": 1,
+            "schemaVersion": 3,
             "kind": "performance-host-preflight",
             "contractVersion": self.contract["contractVersion"],
             "generatedUtc": datetime.now(timezone.utc).isoformat(),
@@ -595,7 +1297,9 @@ class PerformanceEvidenceTests(unittest.TestCase):
             "loadAverage5Minutes": 0.5,
             "loadAverage15Minutes": 0.5,
             "loadAverage1MinutePerProcessor": 0.0625,
-            "maximumLoadAverage1MinutePerProcessor": maximum_host_load,
+            "admissionMetric": performance_evidence.HOST_ADMISSION_METRIC,
+            "initialCpuUtilization": 0.2,
+            "maximumInitialCpuUtilization": maximum_initial_cpu,
             "success": True,
         }
 
@@ -764,7 +1468,7 @@ class PerformanceEvidenceTests(unittest.TestCase):
             profile="scorecard",
         )
         return {
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "kind": "performance-evaluation",
             "contractVersion": self.contract["contractVersion"],
             "runId": "run-1",

@@ -58,6 +58,12 @@ public sealed class AdrRepositoryValidatorTests
             benchmarkScript,
             StringComparison.Ordinal);
         Assert.Contains(
+            "compose_command=(docker compose -p \"${compose_project_name}\"",
+            benchmarkScript,
+            StringComparison.Ordinal);
+        Assert.Contains("DOKA_BENCHMARK_DATABASE_PORT", benchmarkScript, StringComparison.Ordinal);
+        Assert.Contains("down --volumes --remove-orphans", benchmarkScript, StringComparison.Ordinal);
+        Assert.Contains(
             "docker inspect --format '{{.Config.Image}}'",
             benchmarkScript,
             StringComparison.Ordinal);
@@ -67,6 +73,10 @@ public sealed class AdrRepositoryValidatorTests
             StringComparison.Ordinal);
         Assert.Contains(
             "host-preflight",
+            benchmarkScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "DOKA_BENCHMARK_HOST_CPU_UTILIZATION",
             benchmarkScript,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -80,6 +90,9 @@ public sealed class AdrRepositoryValidatorTests
         var workloadMatrixIndex = benchmarkScript.IndexOf(
             "    run_workload_matrix\n",
             StringComparison.Ordinal);
+        var tailConfirmationIndex = benchmarkScript.IndexOf(
+            "    confirm_historical_tail_if_required\n",
+            StringComparison.Ordinal);
         var benchmarkDotNetIndex = benchmarkScript.IndexOf(
             "    run_benchmarkdotnet\n",
             StringComparison.Ordinal);
@@ -87,9 +100,13 @@ public sealed class AdrRepositoryValidatorTests
         Assert.True(
             hostPreflightIndex >= 0
             && workloadMatrixIndex > hostPreflightIndex
-            && benchmarkDotNetIndex > workloadMatrixIndex,
-            "Provider workloads must run after host preflight and before "
-            + "BenchmarkDotNet adds sustained host load.");
+            && tailConfirmationIndex > workloadMatrixIndex
+            && benchmarkDotNetIndex > tailConfirmationIndex,
+            "Provider workloads and targeted tail confirmation must run after "
+            + "host preflight and before BenchmarkDotNet adds sustained host load.");
+        Assert.Contains("plan-tail-confirmation", benchmarkScript, StringComparison.Ordinal);
+        Assert.Contains("merge-tail-confirmations", benchmarkScript, StringComparison.Ordinal);
+        Assert.Contains("--workload \"${workload_id}\"", benchmarkScript, StringComparison.Ordinal);
 
         var workloadRunner = File.ReadAllText(
             Path.Combine(
@@ -102,6 +119,31 @@ public sealed class AdrRepositoryValidatorTests
             workloadRunner,
             StringComparison.Ordinal);
         Assert.DoesNotContain("benchmark_container_name", benchmarkScript, StringComparison.Ordinal);
+
+        var benchmarkTarget = File.ReadAllText(
+            Path.Combine(
+                repositoryRoot,
+                "benchmarks",
+                "Doka.EntityFrameworkCore.MySql.Benchmarks",
+                "BenchmarkDatabaseTarget.cs"));
+        Assert.Contains("DOKA_BENCHMARK_DATABASE_PORT", benchmarkTarget, StringComparison.Ordinal);
+
+        var performanceIndex = releaseCandidateScript.IndexOf(
+            "run_benchmark_and_gate\n",
+            StringComparison.Ordinal);
+        var repositoryQualityIndex = releaseCandidateScript.IndexOf(
+            "run_repository_quality_gate\n",
+            StringComparison.Ordinal);
+        var repositoryTestIndex = releaseCandidateScript.IndexOf(
+            "run_repository_test_gate\n",
+            StringComparison.Ordinal);
+        Assert.True(
+            performanceIndex >= 0
+            && repositoryQualityIndex > performanceIndex
+            && repositoryTestIndex > repositoryQualityIndex,
+            "Release performance must run before build and database-heavy verification "
+            + "can contaminate its host snapshot.");
+        Assert.Contains("DOKA_BENCHMARK_PORT=0", releaseCandidateScript, StringComparison.Ordinal);
 
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
         Assert.Contains(
@@ -149,6 +191,62 @@ public sealed class AdrRepositoryValidatorTests
             StringComparison.Ordinal);
         Assert.Contains("run: bash eng/quality-gates.sh", workflow, StringComparison.Ordinal);
         Assert.Contains("run: bash eng/test-migration-deployment.sh", workflow, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Keeps ordinary execution, full trimming, trimmed execution, and the
+    /// resulting immutable evidence inside every release-candidate contract.
+    /// </summary>
+    [Fact]
+    public void Runtime_posture_gate_is_wired_into_release_candidates()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var runtimePosture = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "test-runtime-posture.sh"));
+        var releaseCandidate = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "release-candidate.sh"));
+        var releaseEvidence = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "release_evidence.py"));
+        var workflow = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+
+        Assert.Contains("-p:PublishTrimmed=true", runtimePosture, StringComparison.Ordinal);
+        Assert.Contains("-p:TrimMode=full", runtimePosture, StringComparison.Ordinal);
+        Assert.Contains("write_runtime_evidence", runtimePosture, StringComparison.Ordinal);
+        Assert.Contains("runtime-posture-evidence.json", runtimePosture, StringComparison.Ordinal);
+        Assert.Contains("run_runtime_posture_gate", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains("run_repository_quality_gate", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains(
+            "DOKA_QUALITY_AUDIT_DIR=\"${audit_dir}\"",
+            releaseCandidate,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "DOKA_RUNTIME_POSTURE_EVIDENCE_DIR=\"${runtime_dir}\"",
+            releaseCandidate,
+            StringComparison.Ordinal);
+        Assert.Contains("validate_runtime_posture", releaseEvidence, StringComparison.Ordinal);
+        Assert.Contains("validate_reconciliation", releaseEvidence, StringComparison.Ordinal);
+        Assert.Contains("DOKA_RUNTIME_TARGET_IMAGE", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("mysql_container_name", runtimePosture, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Prevents an omitted local version override from expanding an empty
+    /// array under the nounset semantics of the Bash version shipped by macOS.
+    /// </summary>
+    [Fact]
+    public void Release_candidate_optional_version_is_nounset_safe()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var releaseCandidate = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "release-candidate.sh"));
+
+        Assert.Contains("run_with_release_version()", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains(
+            "command_arguments+=(\"-p:PackageVersion=${release_version_override}\")",
+            releaseCandidate,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("${version_arguments[@]}", releaseCandidate, StringComparison.Ordinal);
     }
 
     [Fact]

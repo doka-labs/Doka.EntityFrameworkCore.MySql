@@ -80,6 +80,17 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
         self.assertTrue(manifest["integrationConfigurationMatrix"]["fullConfigurationMatrixRequired"])
         self.assertEqual("", manifest["integrationConfigurationMatrix"]["testFilter"])
+        self.assertTrue(manifest["runtimePosture"]["publishTrimmed"])
+        self.assertEqual("full", manifest["runtimePosture"]["trimMode"])
+        self.assertFalse(manifest["performanceEvidence"]["reused"])
+        self.assertEqual(
+            list(release_evidence.PERFORMANCE_TARGETS),
+            manifest["performanceEvidence"]["targets"],
+        )
+        self.assertEqual(
+            list(release_evidence.REQUIRED_RECONCILIATION_GATES),
+            list(manifest["verificationReconciliation"]),
+        )
 
     def test_generate_rejects_dirty_release_source(self) -> None:
         """Reject a tag whose checked-out source differs from the reviewed commit."""
@@ -164,6 +175,106 @@ class ReleaseEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(release_evidence.EvidenceError, "not marked as the required"):
             self._generate()
 
+    def test_generate_rejects_incomplete_runtime_posture(self) -> None:
+        """Reject publish-only evidence that never executes the trimmed binary."""
+        path = self.root / release_evidence.RUNTIME_POSTURE_EVIDENCE
+        evidence = json.loads(path.read_text(encoding="utf-8"))
+        evidence["trimmedExecution"] = "not-run"
+        path.write_text(json.dumps(evidence), encoding="utf-8")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "full-trim execution"):
+            self._generate()
+
+    def test_generate_rejects_runtime_evidence_from_another_run(self) -> None:
+        """Reject a green runtime artifact copied from an earlier candidate."""
+        path = self.root / release_evidence.RUNTIME_POSTURE_EVIDENCE
+        evidence = json.loads(path.read_text(encoding="utf-8"))
+        evidence["runId"] = "earlier-run"
+        path.write_text(json.dumps(evidence), encoding="utf-8")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "does not match"):
+            self._generate()
+
+    def test_generate_rejects_failed_performance_scorecard(self) -> None:
+        """Reject a retained scorecard whose strict evaluation did not pass."""
+        path = (
+            self.root
+            / "performance"
+            / "mysql84"
+            / "evidence"
+            / "gate-performance-evaluation.json"
+        )
+        evidence = json.loads(path.read_text(encoding="utf-8"))
+        evidence["success"] = False
+        path.write_text(json.dumps(evidence), encoding="utf-8")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "passing strict scorecard"):
+            self._generate()
+
+    def test_reuse_performance_accepts_an_unrelated_source_delta(self) -> None:
+        """Retain expensive scorecards when only release evidence code changed."""
+        measured_commit = release_evidence.run_command("git", "rev-parse", "HEAD", cwd=self.repo)
+        prior_root = self.root / "prior"
+        self._write_performance_evidence(prior_root, "prior-run", measured_commit)
+
+        release_directory = self.repo / "eng"
+        release_directory.mkdir()
+        (release_directory / "release_evidence.py").write_text("# validation change\n", encoding="ascii")
+        self._git("add", "eng/release_evidence.py")
+        self._git("commit", "-m", "test: change release validation")
+
+        candidate_root = self.root / "candidate"
+        release_evidence.reuse_performance_evidence(
+            self.repo,
+            prior_root,
+            candidate_root,
+            "candidate-run",
+        )
+
+        current_commit = release_evidence.run_command("git", "rev-parse", "HEAD", cwd=self.repo)
+        summary = release_evidence.validate_performance_evidence(
+            candidate_root,
+            self.repo,
+            "candidate-run",
+            current_commit,
+        )
+        receipt = json.loads(
+            (candidate_root / release_evidence.PERFORMANCE_REUSE_EVIDENCE).read_text(encoding="utf-8")
+        )
+        self.assertTrue(summary["reused"])
+        self.assertEqual(["eng/release_evidence.py"], receipt["changedPaths"])
+        self.assertEqual([], receipt["performanceInputChanges"])
+
+    def test_reuse_performance_rejects_a_provider_source_delta(self) -> None:
+        """Never bind an earlier measurement to changed provider behavior."""
+        measured_commit = release_evidence.run_command("git", "rev-parse", "HEAD", cwd=self.repo)
+        prior_root = self.root / "prior"
+        self._write_performance_evidence(prior_root, "prior-run", measured_commit)
+
+        source_directory = self.repo / "src"
+        source_directory.mkdir()
+        (source_directory / "Provider.cs").write_text("internal sealed class Provider { }\n", encoding="ascii")
+        self._git("add", "src/Provider.cs")
+        self._git("commit", "-m", "test: change provider source")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "performance input changes"):
+            release_evidence.reuse_performance_evidence(
+                self.repo,
+                prior_root,
+                self.root / "candidate",
+                "candidate-run",
+            )
+
+    def test_generate_rejects_incomplete_reconciliation(self) -> None:
+        """Reject a candidate whose final index silently omits one named gate."""
+        path = self.root / release_evidence.RECONCILIATION_EVIDENCE
+        evidence = json.loads(path.read_text(encoding="utf-8"))
+        evidence["gates"] = evidence["gates"][:-1]
+        path.write_text(json.dumps(evidence), encoding="utf-8")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "gate mismatch"):
+            self._generate()
+
     def test_generate_rejects_unexpected_release_package(self) -> None:
         """Reject stale or unrelated package files before they enter the manifest."""
         package = self.root / "packages" / "Doka.EntityFrameworkCore.MySql.1.2.2.nupkg"
@@ -243,8 +354,10 @@ class ReleaseEvidenceTests(unittest.TestCase):
         """Write the minimum complete package, dependency, and engine matrix."""
         packages = self.root / "packages"
         sbom = self.root / "sbom"
+        sbom_components = self.root / "sbom-components" / "runtime"
         packages.mkdir(parents=True)
         sbom.mkdir(parents=True)
+        sbom_components.mkdir(parents=True)
         for package_id in (
             "Doka.EntityFrameworkCore.MySql",
             "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
@@ -252,6 +365,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
             (packages / f"{package_id}.1.2.3.nupkg").write_bytes(f"{package_id} package".encode("ascii"))
             (packages / f"{package_id}.1.2.3.snupkg").write_bytes(f"{package_id} symbols".encode("ascii"))
         (sbom / "manifest.spdx.json").write_text('{"spdxVersion":"SPDX-2.3"}\n', encoding="ascii")
+        (sbom_components / "project.assets.json").write_text("{}\n", encoding="ascii")
 
         dependencies = {
             "version": 1,
@@ -347,6 +461,112 @@ class ReleaseEvidenceTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+
+        source_commit = release_evidence.run_command("git", "rev-parse", "HEAD", cwd=self.repo)
+        runtime_directory = self.root / "runtime"
+        runtime_directory.mkdir()
+        (runtime_directory / "runtime-posture-evidence.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "runId": "test-run",
+                    "source": {
+                        "commit": source_commit,
+                        "treeState": "clean",
+                    },
+                    "target": {
+                        "targetId": "mysql84",
+                        "image": f"mysql:8.4.10@sha256:{'8' * 64}",
+                    },
+                    "runtimeIdentifier": "linux-x64",
+                    "dotnetSdk": release_evidence.run_command(
+                        "dotnet",
+                        "--version",
+                        cwd=self.repo,
+                    ),
+                    "configuration": "Release",
+                    "ordinaryExecution": "pass",
+                    "publish": {
+                        "selfContained": True,
+                        "publishTrimmed": True,
+                        "trimMode": "full",
+                        "status": "pass",
+                    },
+                    "trimmedExecution": "pass",
+                    "executable": {
+                        "sha256": "a" * 64,
+                        "sizeBytes": 4096,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (self.root / "release-candidate-reconciliation.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "runId": "test-run",
+                    "sourceCommit": source_commit,
+                    "gates": [
+                        {"id": gate_id, "status": "pass"}
+                        for gate_id in release_evidence.REQUIRED_RECONCILIATION_GATES
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self._write_performance_evidence(self.root, "test-run", source_commit)
+
+    def _write_performance_evidence(
+        self,
+        root: Path,
+        run_id: str,
+        source_commit: str,
+    ) -> None:
+        """Write minimal internally hashed scorecards for both release targets."""
+        source_hash = release_evidence.clean_performance_source_hash(source_commit)
+        for target in release_evidence.PERFORMANCE_TARGETS:
+            target_root = root / "performance" / target
+            evidence_directory = target_root / "evidence"
+            results_directory = target_root / "results"
+            evidence_directory.mkdir(parents=True)
+            results_directory.mkdir()
+
+            evidence_files = {
+                "benchmarkDotNet": evidence_directory / "gate-benchmarkdotnet-evidence.json",
+                "hostPreflight": evidence_directory / "host-preflight.json",
+                "soak": evidence_directory / "soak-evidence.json",
+                "workloads": evidence_directory / "workload-evidence.json",
+            }
+            for artifact_id, path in evidence_files.items():
+                path.write_text(json.dumps({"kind": artifact_id}) + "\n", encoding="utf-8")
+
+            raw_report = results_directory / "Benchmark-report-full.json"
+            raw_report.write_text('{"benchmarks":[]}\n', encoding="ascii")
+            evaluation = {
+                "schemaVersion": 3,
+                "runId": run_id,
+                "target": target,
+                "profile": "scorecard",
+                "mode": "compare",
+                "success": True,
+                "commit": source_commit,
+                "sourceHash": source_hash,
+                "artifactHashes": {
+                    artifact_id: release_evidence.sha256(path)
+                    for artifact_id, path in evidence_files.items()
+                },
+                "rawReports": [
+                    {
+                        "path": "results/Benchmark-report-full.json",
+                        "sha256": release_evidence.sha256(raw_report),
+                    }
+                ],
+            }
+            (evidence_directory / "gate-performance-evaluation.json").write_text(
+                json.dumps(evaluation),
+                encoding="utf-8",
+            )
 
     def _git(self, *arguments: str) -> None:
         """Run one fixture-local Git mutation with output kept out of test logs."""

@@ -82,10 +82,42 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - local path: `./eng/release-candidate.sh`
   - source gates: clean worktree, exact commit/ref, and exactly one matching
     `v<package-version>` tag
+  - repository quality gate: the complete shared `quality-gates.sh` contract,
+    including formatting, analyzers, public examples, README compilation,
+    dependency audits, and migration-model verification
+  - performance gate: isolated run-owned Compose projects and dynamic ports;
+    scorecards run before the repository build and database-heavy verification
+    so their initial host snapshot is not contaminated by the release workflow
+    itself; host admission uses active-process CPU instead of Unix
+    load average, which can count runnable desktop and video-decoding threads;
+    adjacent deterministic CPU or live database calibration pulses normalize
+    historical latency per workload; an isolated normalized historical p99
+    failure is confirmed by two targeted calibrated measurements before the
+    combined population is gated; raw latency and managed allocation remain
+    hard workload gates, while process-global retained-heap delta and
+    Gen0/Gen1/Gen2 collection counts are retained as diagnostics; sustained
+    retained-memory behavior remains a hard soak invariant
+  - bounded execution and recovery: engine scorecards have contract-owned hard
+    deadlines and source-bound per-workload checkpoints; the complete release
+    candidate has a two-hour default deadline and source-bound per-stage
+    receipts; resumed stages are reused only after every retained artifact
+    digest passes readback, and incomplete outputs are archived before retry
+  - performance recovery: a failed later gate may reuse an earlier candidate's
+    complete scorecards by setting
+    `DOKA_RELEASE_CANDIDATE_REUSE_PERFORMANCE_FROM` to its evidence root; reuse
+    is accepted only when both engine evaluations and their retained artifacts
+    pass integrity validation, the measured commit is an ancestor of the new
+    candidate, and Git proves that no provider, benchmark, dependency, build,
+    or container input changed; the new candidate retains an exhaustive source
+    delta and per-target evaluation hashes in `performance/reuse-evidence.json`
   - integration gate: unfiltered configuration and failure matrix across
     `mysql84`, `mariadb114`, and `mariadb118`
   - functional live gate: specification and standalone `Category=Live`
     contracts on all three supported engines
+  - runtime posture gate: ordinary execution plus an executed self-contained
+    binary published with `PublishTrimmed=true` and `TrimMode=full`
+  - reconciliation gate: every named release contract must be present and
+    passing before the immutable manifest can be generated
   - hosted proof: GitHub artifact attestation for packages and the canonical
     evidence manifest, followed by hosted verification readback
   - retained evidence:
@@ -98,6 +130,8 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/release-candidate/<run-id>/audit/...`
     - `artifacts/release-candidate/<run-id>/integration/...`
     - `artifacts/release-candidate/<run-id>/migration-deployment/...`
+    - `artifacts/release-candidate/<run-id>/runtime/...`
+    - `artifacts/release-candidate/<run-id>/release-candidate-reconciliation.json`
     - `artifacts/release-candidate/<run-id>/sbom/...`
 - Migration deployment:
   - workflow: `.github/workflows/ci.yml`

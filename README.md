@@ -308,12 +308,13 @@ and MariaDB 11.8. It covers sync and async execution, compiled queries, retry,
 diagnostic listeners, context and connection pooling, concurrency, data sizes,
 batch sizes, JSON, spatial materialization, migrations, and HiLo allocation.
 
-Scorecard evidence includes raw samples, median, p95, p99, standard error,
-managed allocation, GC counts, retained memory, exact environment identity,
-pre-measurement host quiescence, and SHA-256 hashes. The CPU model and
-BenchmarkDotNet host must match the workload host. Absolute limits,
-matching-runner historical budgets, and six sustained resource invariants must
-all pass.
+Scorecard evidence includes raw and workload-local calibration samples,
+median, p95, p99, standard error, managed allocation, GC counts, retained
+memory diagnostics, exact environment identity, initial CPU admission, and
+SHA-256 hashes. The CPU model and BenchmarkDotNet host must match the workload
+host. Raw absolute limits, calibration-normalized matching-runner historical
+budgets, allocation limits, and six sustained resource invariants must all
+pass.
 
 Run a fast structural check:
 

@@ -6,15 +6,25 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-runtime_smoke_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke/Doka.EntityFrameworkCore.MySql.RuntimeSmoke.csproj"
+runtime_smoke_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke"
+runtime_smoke_project+="/Doka.EntityFrameworkCore.MySql.RuntimeSmoke.csproj"
 compose_file="${repo_root}/docker/compose.yml"
-compose_command=(docker compose -f "${compose_file}")
+runtime_run_id="${DOKA_RUNTIME_POSTURE_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
+repo_fingerprint="$(printf '%s' "${repo_root}" | cksum | awk '{print $1}')"
+compose_run_id="$(printf '%s' "${runtime_run_id}" | tr '[:upper:]' '[:lower:]')"
+compose_project_name="${DOKA_RUNTIME_COMPOSE_PROJECT_NAME:-doka-runtime-${repo_fingerprint}-${compose_run_id}}"
+compose_command=(docker compose -p "${compose_project_name}" -f "${compose_file}")
 wait_timeout_seconds=60
 wait_interval_seconds=2
+health_status_format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}'
 mysql_host="127.0.0.1"
-mysql_port="33068"
-mysql_container_name="doka-mysql84"
+mysql_port="${DOKA_RUNTIME_MYSQL_PORT:-33068}"
 runtime_smoke_name="Doka.EntityFrameworkCore.MySql.RuntimeSmoke"
+runtime_artifacts_root="${DOKA_RUNTIME_POSTURE_ARTIFACTS_ROOT:-${repo_root}/artifacts/runtime-smoke}"
+runtime_evidence_dir="${DOKA_RUNTIME_POSTURE_EVIDENCE_DIR:-${runtime_artifacts_root}/${runtime_run_id}}"
+trimmed_output_dir="${DOKA_RUNTIME_POSTURE_PUBLISH_DIR:-${runtime_evidence_dir}/trimmed}"
+runtime_summary_file="${runtime_evidence_dir}/runtime-posture-summary.md"
+runtime_evidence_file="${runtime_evidence_dir}/runtime-posture-evidence.json"
 mode="ensure-up"
 should_stop_stack_on_exit=0
 
@@ -40,7 +50,7 @@ cleanup() {
     if [[ "${should_stop_stack_on_exit}" -eq 1 ]]; then
         set +e
         echo "Stopping bundled runtime-posture Compose stack..."
-        "${compose_command[@]}" down
+        "${compose_command[@]}" down --volumes --remove-orphans
         local down_exit_code=$?
         set -e
 
@@ -87,12 +97,23 @@ wait_for_mysql() {
     local current_time
     local elapsed_seconds
     local health_status
+    local mysql_container_id
 
     echo "Waiting for MySQL 8.4 runtime-smoke target on ${mysql_host}:${mysql_port}..."
     start_time="$(date +%s)"
 
     while true; do
-        health_status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${mysql_container_name}" 2>/dev/null || true)"
+        mysql_container_id="$("${compose_command[@]}" ps -q mysql84 2>/dev/null || true)"
+        health_status=""
+        if [[ -n "${mysql_container_id}" ]]; then
+            health_status="$(
+                docker inspect \
+                    --format "${health_status_format}" \
+                    "${mysql_container_id}" \
+                    2>/dev/null \
+                    || true
+            )"
+        fi
 
         # Require both container health and host reachability; either signal on
         # its own can race the first client connection.
@@ -114,13 +135,28 @@ wait_for_mysql() {
 }
 
 start_compose_stack() {
+    local published_endpoint
+    local runtime_connection_string
+
     echo "Starting bundled runtime-posture MySQL 8.4 Compose service..."
+    export DOKA_MYSQL84_PORT="${mysql_port}"
     "${compose_command[@]}" up -d mysql84
+
+    if [[ "${mysql_port}" == "0" ]]; then
+        published_endpoint="$("${compose_command[@]}" port mysql84 3306)"
+        mysql_port="${published_endpoint##*:}"
+    fi
+
+    # The smoke application accepts an override so an owned release run can
+    # use an ephemeral host port instead of colliding with a developer stack.
+    runtime_connection_string="Server=${mysql_host};Port=${mysql_port};"
+    runtime_connection_string+="User ID=root;Password=root_password;"
+    export DOKA_RUNTIME_SMOKE_CONNECTION_STRING="${runtime_connection_string}"
 }
 
 stop_compose_stack() {
     echo "Stopping bundled runtime-posture Compose stack..."
-    "${compose_command[@]}" down
+    "${compose_command[@]}" down --volumes --remove-orphans
 }
 
 resolve_runtime_identifier() {
@@ -156,15 +192,130 @@ runtime_smoke_executable_path() {
     echo "${publish_dir}/${runtime_smoke_name}"
 }
 
+sha256_file() {
+    local path="$1"
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "${path}" | awk '{print $1}'
+        return
+    fi
+
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "${path}" | awk '{print $1}'
+        return
+    fi
+
+    echo "sha256sum or shasum is required to bind runtime-posture evidence." >&2
+    exit 1
+}
+
+resolve_runtime_target_image() {
+    local mysql_container_id
+
+    if [[ -n "${DOKA_RUNTIME_TARGET_IMAGE:-}" ]]; then
+        echo "${DOKA_RUNTIME_TARGET_IMAGE}"
+        return
+    fi
+
+    mysql_container_id="$("${compose_command[@]}" ps -q mysql84 2>/dev/null || true)"
+    if [[ -n "${mysql_container_id}" ]]; then
+        docker inspect --format '{{.Config.Image}}' "${mysql_container_id}"
+        return
+    fi
+
+    # The test-only mode can target a database owned by the caller. Keep the
+    # missing identity visible instead of guessing which image is listening.
+    echo "unknown"
+}
+
+prepare_runtime_output() {
+    if [[ -d "${trimmed_output_dir}" \
+        && -n "$(find "${trimmed_output_dir}" -mindepth 1 -print -quit)" ]]; then
+        echo "Runtime publish directory already contains artifacts: ${trimmed_output_dir}" >&2
+        echo "Use a new DOKA_RUNTIME_POSTURE_RUN_ID so stale binaries cannot enter the evidence." >&2
+        exit 1
+    fi
+
+    mkdir -p "${runtime_evidence_dir}" "${trimmed_output_dir}"
+}
+
+write_runtime_evidence() {
+    local runtime_identifier="$1"
+    local trimmed_executable="$2"
+    local executable_sha256
+    local executable_size
+    local source_commit
+    local source_tree_state
+    local target_image
+
+    executable_sha256="$(sha256_file "${trimmed_executable}")"
+    executable_size="$(wc -c < "${trimmed_executable}" | tr -d ' ')"
+    source_commit="$(git -C "${repo_root}" rev-parse HEAD)"
+    source_tree_state="clean"
+    if [[ -n "$(git -C "${repo_root}" status --porcelain --untracked-files=all)" ]]; then
+        source_tree_state="dirty"
+    fi
+    target_image="$(resolve_runtime_target_image)"
+
+    cat > "${runtime_summary_file}" <<EOF
+# Runtime posture summary
+
+- generatedUtc: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+- runId: ${runtime_run_id}
+- sourceCommit: ${source_commit}
+- sourceTreeState: ${source_tree_state}
+- target: mysql84
+- targetImage: ${target_image}
+- runtimeIdentifier: ${runtime_identifier}
+- ordinaryExecution: pass
+- fullTrimPublish: pass
+- trimmedExecution: pass
+- executableSha256: ${executable_sha256}
+
+The ordinary application and the self-contained binary published with
+PublishTrimmed=true and TrimMode=full both executed the provider smoke contract.
+EOF
+
+    cat > "${runtime_evidence_file}" <<EOF
+{
+  "schemaVersion": 1,
+  "generatedUtc": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "runId": "${runtime_run_id}",
+  "source": {
+    "commit": "${source_commit}",
+    "treeState": "${source_tree_state}"
+  },
+  "target": {
+    "targetId": "mysql84",
+    "image": "${target_image}"
+  },
+  "runtimeIdentifier": "${runtime_identifier}",
+  "dotnetSdk": "$(dotnet --version)",
+  "configuration": "Release",
+  "ordinaryExecution": "pass",
+  "publish": {
+    "selfContained": true,
+    "publishTrimmed": true,
+    "trimMode": "full",
+    "status": "pass"
+  },
+  "trimmedExecution": "pass",
+  "executable": {
+    "sha256": "${executable_sha256}",
+    "sizeBytes": ${executable_size}
+  }
+}
+EOF
+}
+
 run_runtime_posture() {
     local runtime_identifier
-    local trimmed_output_dir
     local trimmed_executable
 
     runtime_identifier="$(resolve_runtime_identifier)"
-    trimmed_output_dir="${repo_root}/artifacts/runtime-smoke/trimmed"
     trimmed_executable="$(runtime_smoke_executable_path "${trimmed_output_dir}")"
 
+    prepare_runtime_output
     "${repo_root}/eng/verify-dotnet.sh"
 
     dotnet restore "${runtime_smoke_project}"
@@ -183,6 +334,8 @@ run_runtime_posture() {
         --disable-build-servers
 
     "${trimmed_executable}"
+
+    write_runtime_evidence "${runtime_identifier}" "${trimmed_executable}"
 
     # NativeAOT publish + smoke is intentionally not run. EF Core 10 NativeAOT
     # is upstream-experimental (Microsoft Learn); the provider's Design.Internal
@@ -242,3 +395,6 @@ case "${mode}" in
 esac
 
 run_runtime_posture
+
+echo "Runtime posture gate passed."
+echo "Evidence: ${runtime_evidence_file}"

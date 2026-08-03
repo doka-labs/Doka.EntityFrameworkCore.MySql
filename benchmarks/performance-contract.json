@@ -1,11 +1,10 @@
 {
-  "schemaVersion": 2,
-  "contractVersion": "2026-08-02",
+  "schemaVersion": 3,
+  "contractVersion": "2026-08-03",
   "evidenceMaximumAgeHours": 12,
   "hostPreconditions": {
-    "maximumOneMinuteLoadAveragePerProcessor": 0.4,
-    "quiescenceWaitTimeoutSeconds": 300,
-    "quiescenceProbeIntervalSeconds": 10
+    "admissionMetric": "initial-process-cpu-utilization",
+    "maximumInitialCpuUtilization": 0.9
   },
   "requiredTargets": {
     "mysql84": {
@@ -24,9 +23,16 @@
       "warmupSamples": 1,
       "measurementSamples": 3,
       "expensiveMeasurementSamples": 1,
+      "minimumMeasurementDurationMilliseconds": 0,
       "minimumValidSamples": 1,
       "minimumBenchmarkDotNetSamples": 1,
       "maximumRelativeStandardError": 1.0,
+      "calibrationSamplesPerPulse": 3,
+      "calibrationIntervalSamples": 1,
+      "maximumCalibrationRelativeStandardError": 1.0,
+      "maximumWorkloadMatrixDurationSeconds": 300,
+      "maximumTotalDurationSeconds": 600,
+      "maximumWorkloadDurationSeconds": 60,
       "soakIterations": 64,
       "soakConcurrency": 4,
       "baselineRequired": false,
@@ -35,10 +41,17 @@
     "scorecard": {
       "warmupSamples": 5,
       "measurementSamples": 256,
-      "expensiveMeasurementSamples": 256,
+      "expensiveMeasurementSamples": 128,
+      "minimumMeasurementDurationMilliseconds": 2000,
       "minimumValidSamples": 32,
       "minimumBenchmarkDotNetSamples": 3,
       "maximumRelativeStandardError": 0.25,
+      "calibrationSamplesPerPulse": 5,
+      "calibrationIntervalSamples": 32,
+      "maximumCalibrationRelativeStandardError": 0.5,
+      "maximumWorkloadMatrixDurationSeconds": 1200,
+      "maximumTotalDurationSeconds": 1800,
+      "maximumWorkloadDurationSeconds": 120,
       "soakIterations": 2048,
       "soakConcurrency": 16,
       "baselineRequired": true,
@@ -47,23 +60,46 @@
     "stress": {
       "warmupSamples": 10,
       "measurementSamples": 512,
-      "expensiveMeasurementSamples": 512,
+      "expensiveMeasurementSamples": 256,
+      "minimumMeasurementDurationMilliseconds": 5000,
       "minimumValidSamples": 64,
       "minimumBenchmarkDotNetSamples": 3,
       "maximumRelativeStandardError": 0.15,
+      "calibrationSamplesPerPulse": 7,
+      "calibrationIntervalSamples": 32,
+      "maximumCalibrationRelativeStandardError": 0.35,
+      "maximumWorkloadMatrixDurationSeconds": 3600,
+      "maximumTotalDurationSeconds": 7200,
+      "maximumWorkloadDurationSeconds": 300,
       "soakIterations": 10000,
       "soakConcurrency": 32,
       "baselineRequired": true,
       "soakRequired": true
     }
   },
+  "calibration": {
+    "cpuFamilies": [
+      "json-comparer",
+      "migration",
+      "model",
+      "translation"
+    ],
+    "databaseFamilies": [
+      "concurrency",
+      "hilo",
+      "json-materialization",
+      "projection",
+      "query",
+      "resilience",
+      "spatial",
+      "write"
+    ]
+  },
   "historicalBudgets": {
-    "medianRatio": 1.25,
-    "p95Ratio": 1.35,
-    "p99Ratio": 1.5,
-    "allocatedBytesRatio": 1.15,
-    "retainedBytesRatio": 1.25,
-    "retainedBytesAllowance": 8388608,
+    "normalizedMedianRatio": 1.15,
+    "normalizedP95Ratio": 1.25,
+    "normalizedP99Ratio": 1.4,
+    "allocatedBytesRatio": 1.1,
     "genCollectionAllowancePer1000": 250,
     "gen0Ratio": 1.25,
     "gen1Ratio": 1.25,
@@ -75,7 +111,6 @@
       "p95Nanoseconds": 500000000,
       "p99Nanoseconds": 750000000,
       "allocatedBytes": 50331648,
-      "retainedBytes": 16777216,
       "gen2CollectionsPer1000": 500
     },
     "query": {
@@ -83,7 +118,6 @@
       "p95Nanoseconds": 100000000,
       "p99Nanoseconds": 200000000,
       "allocatedBytes": 1048576,
-      "retainedBytes": 4194304,
       "gen2CollectionsPer1000": 100
     },
     "resilience": {
@@ -91,7 +125,6 @@
       "p95Nanoseconds": 100000000,
       "p99Nanoseconds": 200000000,
       "allocatedBytes": 1048576,
-      "retainedBytes": 4194304,
       "gen2CollectionsPer1000": 100
     },
     "concurrency": {
@@ -99,7 +132,6 @@
       "p95Nanoseconds": 300000000,
       "p99Nanoseconds": 500000000,
       "allocatedBytes": 8388608,
-      "retainedBytes": 8388608,
       "gen2CollectionsPer1000": 250
     },
     "projection": {
@@ -107,7 +139,6 @@
       "p95Nanoseconds": 50000000,
       "p99Nanoseconds": 100000000,
       "allocatedBytes": 1048576,
-      "retainedBytes": 4194304,
       "gen2CollectionsPer1000": 100
     },
     "json-comparer": {
@@ -115,7 +146,6 @@
       "p95Nanoseconds": 20000000,
       "p99Nanoseconds": 50000000,
       "allocatedBytes": 1048576,
-      "retainedBytes": 4194304,
       "gen2CollectionsPer1000": 100
     },
     "json-materialization": {
@@ -123,7 +153,6 @@
       "p95Nanoseconds": 50000000,
       "p99Nanoseconds": 100000000,
       "allocatedBytes": 2097152,
-      "retainedBytes": 4194304,
       "gen2CollectionsPer1000": 100
     },
     "spatial": {
@@ -131,7 +160,6 @@
       "p95Nanoseconds": 50000000,
       "p99Nanoseconds": 100000000,
       "allocatedBytes": 4194304,
-      "retainedBytes": 8388608,
       "gen2CollectionsPer1000": 100
     },
     "write": {
@@ -139,7 +167,6 @@
       "p95Nanoseconds": 6000000000,
       "p99Nanoseconds": 10000000000,
       "allocatedBytes": 134217728,
-      "retainedBytes": 33554432,
       "gen2CollectionsPer1000": 2500
     },
     "translation": {
@@ -147,7 +174,6 @@
       "p95Nanoseconds": 25000000,
       "p99Nanoseconds": 50000000,
       "allocatedBytes": 1048576,
-      "retainedBytes": 4194304,
       "gen2CollectionsPer1000": 100
     },
     "migration": {
@@ -155,7 +181,6 @@
       "p95Nanoseconds": 25000000,
       "p99Nanoseconds": 50000000,
       "allocatedBytes": 2097152,
-      "retainedBytes": 4194304,
       "gen2CollectionsPer1000": 100
     },
     "hilo": {
@@ -163,7 +188,6 @@
       "p95Nanoseconds": 4000000000,
       "p99Nanoseconds": 6000000000,
       "allocatedBytes": 67108864,
-      "retainedBytes": 16777216,
       "gen2CollectionsPer1000": 250
     }
   },
@@ -290,19 +314,27 @@
     {
       "id": "resilience.query.async.retry-off.listener-off",
       "family": "resilience",
-      "smoke": true
+      "smoke": true,
+      "minimumWarmupOperations": 512,
+      "measurementSamples": 8192
     },
     {
       "id": "resilience.query.async.retry-on.listener-off",
-      "family": "resilience"
+      "family": "resilience",
+      "minimumWarmupOperations": 512,
+      "measurementSamples": 8192
     },
     {
       "id": "resilience.query.async.retry-off.listener-on",
-      "family": "resilience"
+      "family": "resilience",
+      "minimumWarmupOperations": 512,
+      "measurementSamples": 8192
     },
     {
       "id": "resilience.query.async.retry-on.listener-on",
-      "family": "resilience"
+      "family": "resilience",
+      "minimumWarmupOperations": 512,
+      "measurementSamples": 8192
     },
     {
       "id": "concurrency.query.async.contexts-1.pool-both",
@@ -335,44 +367,57 @@
     {
       "id": "json.compare.element.equal.bytes-1024",
       "family": "json-comparer",
-      "operationsPerSample": 1024
+      "operationsPerSample": 16384,
+      "minimumWarmupOperations": 4096,
+      "measurementSamples": 1024
     },
     {
       "id": "json.compare.element.equal.bytes-65536",
       "family": "json-comparer",
       "smoke": true,
-      "operationsPerSample": 256
+      "operationsPerSample": 4096,
+      "minimumWarmupOperations": 4096,
+      "measurementSamples": 1024
     },
     {
       "id": "json.compare.element.early-mismatch.bytes-65536",
       "family": "json-comparer",
-      "operationsPerSample": 4096
+      "operationsPerSample": 32768,
+      "minimumWarmupOperations": 4096,
+      "measurementSamples": 1024
     },
     {
       "id": "json.compare.element.late-mismatch.bytes-65536",
       "family": "json-comparer",
-      "operationsPerSample": 256
+      "operationsPerSample": 4096,
+      "minimumWarmupOperations": 4096,
+      "measurementSamples": 1024
     },
     {
       "id": "json.compare.element.equal.bytes-1048576",
       "family": "json-comparer",
       "cost": "expensive",
-      "operationsPerSample": 32
+      "operationsPerSample": 256,
+      "minimumWarmupOperations": 4096,
+      "measurementSamples": 1024
     },
     {
       "id": "json.compare.node.equal.bytes-65536",
       "family": "json-comparer",
-      "operationsPerSample": 32
+      "operationsPerSample": 32,
+      "minimumWarmupOperations": 4096
     },
     {
       "id": "json.compare.node.early-mismatch.bytes-65536",
       "family": "json-comparer",
-      "operationsPerSample": 32
+      "operationsPerSample": 32,
+      "minimumWarmupOperations": 4096
     },
     {
       "id": "json.compare.node.late-mismatch.bytes-65536",
       "family": "json-comparer",
-      "operationsPerSample": 16
+      "operationsPerSample": 16,
+      "minimumWarmupOperations": 4096
     },
     {
       "id": "json.materialize.async.rows-1",

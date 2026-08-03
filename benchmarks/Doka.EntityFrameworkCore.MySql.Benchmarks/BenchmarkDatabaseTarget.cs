@@ -3,6 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 internal sealed class BenchmarkDatabaseTarget
 {
     private const string BenchmarkTargetVariable = "DOKA_BENCHMARK_TARGET";
+    private const string BenchmarkPortVariable = "DOKA_BENCHMARK_DATABASE_PORT";
     private const string MySql84TargetId = "mysql84";
     private const string MariaDb118TargetId = "mariadb118";
 
@@ -76,7 +77,7 @@ internal sealed class BenchmarkDatabaseTarget
                 "MySQL",
                 new Version(8, 4, 0),
                 host: "127.0.0.1",
-                port: 33068,
+                port: ResolvePort(33068),
                 isMariaDb: false);
         }
 
@@ -88,12 +89,32 @@ internal sealed class BenchmarkDatabaseTarget
                 "MariaDB",
                 new Version(11, 8, 0),
                 host: "127.0.0.1",
-                port: 33069,
+                port: ResolvePort(33069),
                 isMariaDb: true);
         }
 
         throw new InvalidOperationException(
             $"Unsupported benchmark target '{configuredTarget}'. "
             + $"Set {BenchmarkTargetVariable} to '{MySql84TargetId}' or '{MariaDb118TargetId}'.");
+    }
+
+    private static int ResolvePort(
+        int defaultPort
+    )
+    {
+        var configuredPort = Environment.GetEnvironmentVariable(BenchmarkPortVariable);
+
+        if (string.IsNullOrWhiteSpace(configuredPort))
+        {
+            return defaultPort;
+        }
+
+        if (int.TryParse(configuredPort, out var port)
+            && port is > 0 and <= 65535)
+        {
+            return port;
+        }
+
+        throw new InvalidOperationException($"{BenchmarkPortVariable} must be a TCP port between 1 and 65535.");
     }
 }
