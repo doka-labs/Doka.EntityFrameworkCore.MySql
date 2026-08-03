@@ -89,7 +89,15 @@ GitHub Actions. Pull-request contributors can modify scripts and project files
 executed by CI. Untrusted validation workflows therefore require read-only
 repository permissions, immutable third-party action references, and no access
 to release credentials. Release-write permissions belong only to separately
-controlled publication workflows.
+controlled publication workflows. NuGet publication runs manually from trusted
+`main`, obtains only a short-lived OIDC credential, and accepts a candidate run
+only when its repository, workflow, successful attempt, source commit, semantic
+tag, manifest, package metadata, and hosted attestations agree. Attestation
+verification pins the signer workflow, signer and source commit, tagged source
+ref, and GitHub-hosted runner class rather than trusting repository ownership
+alone. Public readback independently derives the Portable PDB lookup key and
+SHA-256 checksum from each candidate assembly; it does not trust upload success
+or primary-package visibility as proof that NuGet.org indexed matching symbols.
 
 ## Security Invariants and Controls
 
@@ -158,6 +166,13 @@ controlled publication workflows.
 - Workflow permissions follow least privilege.
 - Builds, packages, SBOMs, checksums, and release evidence are reproducible and
   cross-checked before publication.
+- Candidate qualification and NuGet publication are separate manual workflows;
+  publication rejects stale, side-branch, failed, cross-repository, or
+  conflicting same-version artifacts before requesting an OIDC credential.
+- Public-package readback compares canonical payload content, downloads the
+  exact checksum-bound Portable PDBs from NuGet.org's symbol server, restores
+  both exact package versions into an empty cache, and executes the provider
+  and spatial runtime contract against the pinned MySQL 8.4 image.
 - Test, benchmark, and generated evidence never substitute for the shipped
   source revision they claim to validate.
 - Bundled database services publish repository-known test credentials on IPv4
@@ -179,6 +194,8 @@ The security test and review inventory includes:
   schema changes.
 - A mutable dependency, action, image, or artifact replacing repository or
   package evidence.
+- A replayed candidate run ID, moved tag, stale `main` commit, or partial NuGet
+  publication acquiring authority for different package bytes.
 
 ## Assumptions and Residual Ownership
 

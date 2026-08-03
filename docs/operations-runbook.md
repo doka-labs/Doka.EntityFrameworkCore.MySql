@@ -432,7 +432,116 @@ safe.
 - Microsoft, [Managing Migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/managing),
   retrieved 2026-07-28.
 
-## 8. Observability and Alert Response
+## 8. NuGet Release-Candidate Publication
+
+Package publication is intentionally separate from qualification. Never upload
+one of the locally generated packages manually: only the hosted candidate has
+the workflow identity and attestations accepted by the publication boundary.
+
+### One-time configuration
+
+The repository environment is named `nuget`. It contains only the environment
+secret `NUGET_USER`, whose value is the personal NuGet.org username that belongs
+to the `doka-labs` organization. It is restricted to the `main` branch because
+the publication workflow executes reviewed tooling from trusted `main`; the
+selected candidate separately proves that its release tag identifies that same
+commit.
+
+Create one NuGet.org Trusted Publishing policy after
+`.github/workflows/nuget-publish.yml` is present on `main`:
+
+| Field | Value |
+|---|---|
+| Policy owner | `doka-labs` |
+| Repository owner | `doka-labs` |
+| Repository | `Doka.EntityFrameworkCore.MySql` |
+| Workflow file | `nuget-publish.yml` |
+| Environment | `nuget` |
+
+Do not create or store a long-lived NuGet API key. `NuGet/login` exchanges the
+workflow's GitHub OIDC token for a one-hour key only after candidate, manifest,
+package, and remote-state verification have passed.
+
+GitHub artifact attestations and environment reviewers require a public
+repository on GitHub Free, Pro, or Team. A private repository needs GitHub
+Enterprise Cloud for attestations; its plan must also expose the selected
+environment protections. Before the first candidate, confirm that the hosted
+`release-candidate` run can create and verify attestations. When required
+reviewers are available, add the maintainer who authorizes publication and
+disable administrator bypass. Do not disable self-review when that maintainer
+is the repository's only release operator.
+
+### Qualification and publication procedure
+
+1. Confirm that `main` is clean, pushed, and green in the ordinary CI lanes.
+2. Create and push exactly one annotated semantic tag at that commit, for
+   example `v10.0.0-rc.1`.
+3. Manually run `release-candidate` with that tag selected in the workflow
+   branch/tag dropdown.
+4. Wait for the complete candidate run to succeed. Record the numeric run ID
+   from its `/actions/runs/<run-id>` URL and inspect its summary and retained
+   evidence before continuing.
+5. Manually run `nuget-publish` from `main` with:
+   - `candidate_run_id`: the successful candidate run ID
+   - `release_tag`: the exact tag from step 2
+   - `confirmation`: `publish <release-tag>`
+6. Retain the `nuget-publication-evidence-<release-tag>` artifact after the
+   workflow proves package payloads, public Portable PDB retrieval, isolated
+   restore, and runtime readback.
+
+The workflow rejects a candidate from another repository, commit, tag,
+workflow, attempt, or failed run. It also rejects a candidate once `main` has
+advanced. Produce a new candidate version instead of publishing stale evidence.
+
+### Retry and partial-publication recovery
+
+NuGet package versions are immutable and the two package pushes are not an
+atomic transaction. If a network or symbol-server error interrupts the run,
+dispatch the same publication request again. The preflight downloads any
+existing primary package and compares a canonical content digest with the
+candidate. A matching provider package allows the spatial step to resume; any
+same-version payload conflict stops before a new key is requested.
+
+Only symbol uploads use `--skip-duplicate`. The NuGet symbol endpoint documents
+HTTP 409 while the same ID and version are still pending, and permits another
+submission after publication. Treating that pending response as idempotent does
+not weaken the immutable primary-package comparison.
+
+Symbol validation and indexing are asynchronous. NuGet documents completion as
+normally taking less than 15 minutes and directs publishers to investigate a
+symbol package still pending after one hour. The workflow therefore polls for
+at most one hour. It derives each public symbol URL and SHA-256 header from the
+candidate DLL, then requires the downloaded Portable PDB to match the checksum
+sealed into that assembly. A primary package becoming visible is not sufficient
+publication evidence when its symbols remain unavailable.
+
+Never use `--skip-duplicate` to bypass a primary-package conflict. If NuGet.org
+contains different bytes, preserve the failed workflow evidence, stop the
+release, and select a new prerelease version after root-cause review.
+
+### Primary sources
+
+- NuGet, [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing),
+  retrieved 2026-08-03.
+- NuGet, [Publish packages](https://learn.microsoft.com/en-us/nuget/nuget-org/publish-a-package),
+  retrieved 2026-08-03.
+- NuGet,
+  [Symbol packages](https://learn.microsoft.com/en-us/nuget/create-packages/symbol-packages-snupkg),
+  retrieved 2026-08-03.
+- NuGet,
+  [Symbol package publish resource](https://learn.microsoft.com/en-us/nuget/api/symbol-package-publish-resource),
+  retrieved 2026-08-03.
+- .NET,
+  [SSQP key conventions](https://github.com/dotnet/symstore/blob/main/docs/specs/SSQP_Key_Conventions.md),
+  retrieved 2026-08-03.
+- GitHub,
+  [Artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations),
+  retrieved 2026-08-03.
+- GitHub,
+  [Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments),
+  retrieved 2026-08-03.
+
+## 9. Observability and Alert Response
 
 The machine-readable contract is
 `docs/operations/observability-contract.json`. Dashboard and alert automation

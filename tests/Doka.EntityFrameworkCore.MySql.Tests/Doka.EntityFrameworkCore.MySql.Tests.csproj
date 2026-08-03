@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../eng/Doka.EntityFrameworkCore.MySql.AdrValidator/Doka.EntityFrameworkCore.MySql.AdrValidator.csproj" />
+    <ProjectReference Include="../../eng/Doka.EntityFrameworkCore.MySql.NuGetSymbolReadback/Doka.EntityFrameworkCore.MySql.NuGetSymbolReadback.csproj" />
     <ProjectReference Include="../../eng/Doka.EntityFrameworkCore.MySql.SpecificationContract/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj" />
     <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj" />
     <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj" />

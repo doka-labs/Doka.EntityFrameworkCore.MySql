@@ -75,7 +75,7 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
 
 ### Tested
 
-- 625 unit tests and 396 provider-local functional tests
+- 628 unit tests and 396 provider-local functional tests
 - Upstream specification contracts covering 29,745 MySQL 8.4,
   29,409 MariaDB 11.4, and 29,410 MariaDB 11.8 test cases
 - 162 discovered live integration cases: 157 supported-matrix cases and five

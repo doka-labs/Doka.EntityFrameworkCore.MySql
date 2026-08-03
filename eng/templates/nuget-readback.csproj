@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Both references are deliberately external. The readback script copies
+      this project outside the repository so MSBuild cannot substitute a local
+      ProjectReference or inherit the repository's central package graph.
+    -->
+    <PackageReference
+        Include="Doka.EntityFrameworkCore.MySql"
+        Version="$(DokaPackageVersion)" />
+    <PackageReference
+        Include="Doka.EntityFrameworkCore.MySql.NetTopologySuite"
+        Version="$(DokaPackageVersion)" />
+  </ItemGroup>
+</Project>

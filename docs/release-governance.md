@@ -137,6 +137,43 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/release-candidate/<run-id>/runtime/...`
     - `artifacts/release-candidate/<run-id>/release-candidate-reconciliation.json`
     - `artifacts/release-candidate/<run-id>/sbom/...`
+- Manual NuGet publication and public readback:
+  - workflow: `.github/workflows/nuget-publish.yml`
+  - cadence: manually dispatched from trusted `main` after one successful
+    release-candidate run for the exact current commit and release tag
+  - explicit inputs: candidate workflow run ID, semantic release tag, and the
+    literal confirmation `publish <release-tag>`
+  - environment: `nuget`, restricted to the `main` branch
+  - credential: a NuGet.org short-lived API key exchanged from GitHub OIDC
+    immediately before the first push; no persistent NuGet API key is stored
+  - candidate binding: completed successful `release-candidate.yml` run,
+    immutable artifact readback, canonical manifest verification, exact
+    current `main` commit, exactly one matching semantic tag, matching hosted
+    workflow identity, and GitHub artifact-attestation verification constrained
+    to the candidate workflow, tagged source ref, source and signer digests,
+    and a GitHub-hosted runner
+  - package binding: exact IDs and versions inside each nuspec, source commit
+    and repository metadata, exact-version spatial dependency, and both symbol
+    packages
+  - safe retry: an absent package may be published; an existing package may be
+    resumed only when its canonical ZIP payload matches the candidate after
+    excluding NuGet.org's repository-owned `.signature.p7s` entry; conflicting
+    same-version content fails before login
+  - publication order: provider, provider symbols, spatial extension, spatial
+    symbols; primary packages never use `--skip-duplicate`, while symbol-only
+    uploads accept the endpoint's documented HTTP 409 pending state
+  - public readback: bounded NuGet V3 and symbol-server polling, canonical
+    package comparison, Portable PDB retrieval using the candidate DLL's SSQP
+    key and SHA-256 checksum, empty-cache restore from NuGet.org only, and
+    execution of the basic and spatial compiled-model runtime contract against
+    the candidate's pinned MySQL 8.4 image
+  - retained evidence:
+    - `validated-candidate.json`
+    - `publication-preflight.json`
+    - `symbol-readback-manifest.json`
+    - `nuget-publication-readback.json`
+    - `consumer-runtime-readback.json`
+    - downloaded public package and Portable PDB payloads
 - Migration deployment:
   - workflow: `.github/workflows/ci.yml`
   - local path: `./eng/test-migration-deployment.sh`
@@ -357,8 +394,9 @@ This governance baseline:
 - Azure Database for MySQL live validation remains an external canary when
   credentials become available; the provider contract does not depend on that
   account existing
-- NuGet publication and post-publication package install/readback remain
-  explicit release operations; Aurora MySQL is outside the advertised matrix
+- NuGet publication and post-publication install/readback are explicit,
+  manually authorized release operations; Aurora MySQL is outside the
+  advertised matrix
 
 ## Immutable Evidence Contract
 
@@ -380,3 +418,18 @@ inherit stale evidence from an earlier candidate.
   <https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations>
 - GitHub, [`actions/attest`](https://github.com/actions/attest), retrieved
   2026-07-31.
+- NuGet, [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing),
+  retrieved 2026-08-03.
+- NuGet, [`NuGet/login`](https://github.com/NuGet/login), retrieved
+  2026-08-03.
+- NuGet, [`dotnet nuget push`](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-nuget-push),
+  retrieved 2026-08-03.
+- NuGet,
+  [Symbol packages](https://learn.microsoft.com/en-us/nuget/create-packages/symbol-packages-snupkg),
+  retrieved 2026-08-03.
+- NuGet,
+  [Symbol package publish resource](https://learn.microsoft.com/en-us/nuget/api/symbol-package-publish-resource),
+  retrieved 2026-08-03.
+- .NET,
+  [SSQP key conventions](https://github.com/dotnet/symstore/blob/main/docs/specs/SSQP_Key_Conventions.md),
+  retrieved 2026-08-03.

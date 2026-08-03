@@ -249,6 +249,103 @@ public sealed class AdrRepositoryValidatorTests
         Assert.DoesNotContain("${version_arguments[@]}", releaseCandidate, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Keeps publication separate from candidate qualification and proves the
+    /// manual OIDC path fails closed around immutable evidence and public
+    /// package and symbol readback.
+    /// </summary>
+    [Fact]
+    public void Nuget_publication_requires_a_tag_bound_candidate_and_fresh_consumer_readback()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var workflow = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "nuget-publish.yml"));
+        var publication = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "nuget_publication.py"));
+        var symbolReadback = File.ReadAllText(
+            Path.Combine(
+                repositoryRoot,
+                "eng",
+                "Doka.EntityFrameworkCore.MySql.NuGetSymbolReadback",
+                "SymbolReadbackManifestBuilder.cs"));
+        var readback = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "test-nuget-readback.sh"));
+
+        Assert.Contains("  workflow_dispatch:", workflow, StringComparison.Ordinal);
+        Assert.Contains("candidate_run_id:", workflow, StringComparison.Ordinal);
+        Assert.Contains("release_tag:", workflow, StringComparison.Ordinal);
+        Assert.Contains("confirmation:", workflow, StringComparison.Ordinal);
+        Assert.Contains("environment:\n      name: nuget", workflow, StringComparison.Ordinal);
+        Assert.Contains("id-token: write", workflow, StringComparison.Ordinal);
+        Assert.Contains(
+            "uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841",
+            workflow,
+            StringComparison.Ordinal);
+        Assert.Contains("--trusted-ref \"refs/heads/main\"", workflow, StringComparison.Ordinal);
+        Assert.Contains("--trusted-commit \"${DOKA_TRUSTED_MAIN_COMMIT}\"", workflow, StringComparison.Ordinal);
+        Assert.Contains("gh attestation verify", workflow, StringComparison.Ordinal);
+        Assert.Contains(
+            "--signer-workflow \"${GITHUB_REPOSITORY}/.github/workflows/release-candidate.yml\"",
+            workflow,
+            StringComparison.Ordinal);
+        Assert.Contains("--signer-digest \"${DOKA_SOURCE_COMMIT}\"", workflow, StringComparison.Ordinal);
+        Assert.Contains("--source-ref \"refs/tags/${DOKA_RELEASE_TAG}\"", workflow, StringComparison.Ordinal);
+        Assert.Contains("--source-digest \"${DOKA_SOURCE_COMMIT}\"", workflow, StringComparison.Ordinal);
+        Assert.Contains("--deny-self-hosted-runners", workflow, StringComparison.Ordinal);
+        Assert.Contains("nuget_publication.py preflight", workflow, StringComparison.Ordinal);
+        Assert.Contains("nuget_publication.py readback", workflow, StringComparison.Ordinal);
+        Assert.Contains("--symbol-manifest", workflow, StringComparison.Ordinal);
+        Assert.Contains("--timeout-seconds 3600", workflow, StringComparison.Ordinal);
+        Assert.Contains("test-nuget-readback.sh", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("secrets.NUGET_API_KEY", workflow, StringComparison.Ordinal);
+        Assert.Contains("--api-key \"${NUGET_API_KEY}\"", workflow, StringComparison.Ordinal);
+
+        var providerPackageStep = workflow.IndexOf("- name: Publish provider package", StringComparison.Ordinal);
+        var providerSymbolsStep = workflow.IndexOf("- name: Publish provider symbols", StringComparison.Ordinal);
+        var spatialPackageStep = workflow.IndexOf("- name: Publish spatial package", StringComparison.Ordinal);
+        var spatialSymbolsStep = workflow.IndexOf("- name: Publish spatial symbols", StringComparison.Ordinal);
+
+        Assert.True(
+            providerPackageStep >= 0
+            && providerSymbolsStep > providerPackageStep
+            && spatialPackageStep > providerSymbolsStep
+            && spatialSymbolsStep > spatialPackageStep);
+        Assert.DoesNotContain(
+            "--skip-duplicate",
+            workflow[providerPackageStep..providerSymbolsStep],
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "--skip-duplicate",
+            workflow[spatialPackageStep..spatialSymbolsStep],
+            StringComparison.Ordinal);
+        Assert.Equal(
+            2,
+            workflow.Split("--skip-duplicate", StringSplitOptions.None).Length - 1);
+
+        Assert.Contains(
+            "Candidate source is not the current trusted main commit",
+            publication,
+            StringComparison.Ordinal);
+        Assert.Contains("conflicting bytes", publication, StringComparison.Ordinal);
+        Assert.Contains("conflicting symbols", publication, StringComparison.Ordinal);
+        Assert.Contains("exact provider release version", publication, StringComparison.Ordinal);
+        Assert.Contains(
+            "https://symbols.nuget.org/download/symbols",
+            symbolReadback,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ReadPdbChecksumDebugDirectoryData",
+            symbolReadback,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "--source \"https://api.nuget.org/v3/index.json\"",
+            readback,
+            StringComparison.Ordinal);
+        Assert.Contains("--no-cache", readback, StringComparison.Ordinal);
+        Assert.Contains("CompiledModelAccessor.cs", readback, StringComparison.Ordinal);
+        Assert.Contains("CompiledModels", readback, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Tiered_ci_preserves_fast_and_exhaustive_verification_lanes()
     {
