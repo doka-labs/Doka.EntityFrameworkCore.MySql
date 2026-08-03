@@ -34,6 +34,21 @@ class CommitMessageTests(unittest.TestCase):
 
         self.assertEqual([], validate_commit_message.validate_commit_message(message))
 
+    def test_verbose_diff_after_git_scissors_is_ignored(self) -> None:
+        """Ignore the uncommitted diff Git appends to a verbose editor buffer."""
+        message = VALID_MESSAGE + """# ------------------------ >8 ------------------------
+# Do not modify or remove the line above.
+diff --git a/eng/example.py b/eng/example.py
+index 1111111..2222222 100644
+--- a/eng/example.py
++++ b/eng/example.py
+@@ -1 +1 @@
+-old source line that is not commit-message prose
++new source line that is deliberately longer than seventy-two characters to prove the diff is ignored
+"""
+
+        self.assertEqual([], validate_commit_message.validate_commit_message(message))
+
     def test_missing_rationale_change_separator_is_rejected(self) -> None:
         """Require the blank line whose absence caused the observed history drift."""
         message = """fix(provider): harden resource identity

@@ -18,6 +18,7 @@ from typing import Sequence
 
 
 MAX_LINE_LENGTH = 72
+GIT_SCISSORS_MARKER = "------------------------ >8 ------------------------"
 SUBJECT_PATTERN = re.compile(
     r"^(?:build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)"
     r"(?:\([a-z0-9][a-z0-9.-]*\))?!?: [a-z0-9].+$"
@@ -96,13 +97,21 @@ def validate_commit_message(message: str) -> list[str]:
 
 
 def _committed_lines(message: str) -> list[str]:
-    """Normalize line endings and discard Git comment lines and trailing blanks."""
+    """Return content Git will retain after comments and verbose diff cleanup.
+
+    Git invokes ``commit-msg`` before it removes the verbose diff below its
+    reserved scissors line. Stopping at that boundary prevents staged source
+    lines from being validated as commit-message prose.
+    """
     normalized = message.replace("\r\n", "\n").replace("\r", "\n")
-    lines = [
-        line
-        for line in normalized.split("\n")
-        if not line.lstrip().startswith("#")
-    ]
+    lines: list[str] = []
+
+    for line in normalized.split("\n"):
+        if line.strip().endswith(GIT_SCISSORS_MARKER):
+            break
+
+        if not line.lstrip().startswith("#"):
+            lines.append(line)
 
     while lines and lines[-1] == "":
         lines.pop()
