@@ -11,4 +11,14 @@
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Every database-backed sample receives the same isolated database and
+      engine-selection contract. Keeping this plumbing shared makes the
+      scenario code copyable without duplicating credentials and port logic.
+    -->
+    <Compile Include="$(MSBuildThisFileDirectory)ExampleDatabaseConfiguration.cs"
+             Link="ExampleDatabaseConfiguration.cs" />
+  </ItemGroup>
 </Project>

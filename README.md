@@ -44,16 +44,20 @@ This provider is designed for teams that need:
 
 ## Installation
 
+The repository is prepared for the `10.0.0-rc.1` prerelease. Once published,
+install it with an explicit version so NuGet does not restrict resolution to
+stable packages.
+
 **Main provider:**
 
 ```bash
-dotnet add package Doka.EntityFrameworkCore.MySql
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.1
 ```
 
 **Optional spatial extension** (NetTopologySuite integration -- only install if you use spatial types):
 
 ```bash
-dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.1
 ```
 
 ## Supported Engines
@@ -170,12 +174,12 @@ Transient detection covers `MySqlException` with known retryable error codes, `S
 ```csharp
 // Default for the whole provider
 options.UseMySql(connectionString, serverVersion, mysql =>
-    mysql.DefaultGuidFormat(MySqlGuidFormat.Char36));
+    mysql.DefaultGuidFormat(Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Char36));
 
 // Or per property
-modelBuilder.Entity<Order>()
+modelBuilder.Entity<OrderWithGuid>()
     .Property(o => o.Id)
-    .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+    .HasMySqlGuidFormat(Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Binary16);
 ```
 
 Both `binary(16)` and `char(36)` round-trip through `Guid` CLR values without manual conversion.
@@ -197,6 +201,7 @@ public class Document
 {
     public int Id { get; set; }
     public JsonNode? Payload { get; set; }
+    public string SearchDocument { get; set; } = "{}";
 }
 ```
 
@@ -214,7 +219,7 @@ var articles = context.Articles
     .ToList();
 
 var depth = context.Documents
-    .Select(d => EF.Functions.JsonDepth(d.Payload))
+    .Select(d => EF.Functions.JsonDepth(d.SearchDocument))
     .FirstOrDefault();
 ```
 
@@ -240,11 +245,15 @@ options.UseMySql(connectionString, serverVersion, mysql =>
 modelBuilder.Entity<Place>()
     .Property(p => p.Location)
     .HasColumnType("point")
-    .HasAnnotation("Doka:MySql:SpatialReferenceSystemId", 4326);
+    .HasSrid(4326);
+
+modelBuilder.Entity<Place>()
+    .HasIndex(p => p.Location)
+    .IsSpatial();
 
 // Query
 var nearby = context.Places
-    .Where(p => p.Location.Distance(origin) < 5000)
+    .Where(p => EF.Functions.DistanceSphere(p.Location, origin) < 5000)
     .ToList();
 ```
 
@@ -281,8 +290,11 @@ The provider ships with:
   Shared test helpers and log sinks.
 - `benchmarks/`
   `BenchmarkDotNet` scorecard harness with reviewable baselines.
-- `examples/`
-  Runnable samples for CRUD, inheritance patterns, JSON columns, generated columns, GUID formats, relationships, retry / resilience, spatial queries, migrations workflow, multi-tenancy, bulk operations, character sets, and Docker integration.
+- [`examples/`](examples/README.md)
+  Runnable, invariant-checking samples for CRUD, inheritance patterns, JSON
+  columns, generated columns, GUID formats, relationships, retry / resilience,
+  spatial queries, migrations workflow, multi-tenancy, bulk operations,
+  character sets, Docker integration, and host observability.
 - `docker/compose.yml`
   Optional, explicitly selected MySQL 8.4, MariaDB 11.4, and MariaDB 11.8 debugging stack. The canonical integration and specification tests own short-lived containers through Testcontainers.
 - `eng/`
@@ -298,6 +310,7 @@ The provider ships with:
 dotnet build Doka.EntityFrameworkCore.MySql.slnx
 ./eng/test.sh
 ./eng/test-integration.sh   # requires Docker; owns and cleans up its databases
+./eng/test-examples.sh      # release-only live example matrix; owns its containers
 bash eng/check-publication-readiness.sh   # must pass before tag or publication
 ```
 

@@ -112,6 +112,9 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     delta and per-target evaluation hashes in `performance/reuse-evidence.json`
   - integration gate: unfiltered configuration and failure matrix across
     `mysql84`, `mariadb114`, and `mariadb118`
+  - executable-documentation gate: all nine database-backed feature examples
+    execute their own scenario invariants against every supported engine in an
+    isolated Compose project with dynamic ports and verified cleanup
   - functional live gate: specification and standalone `Category=Live`
     contracts on all three supported engines
   - runtime posture gate: ordinary execution plus an executed self-contained
@@ -129,6 +132,7 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/release-candidate/<run-id>/packages/...`
     - `artifacts/release-candidate/<run-id>/audit/...`
     - `artifacts/release-candidate/<run-id>/integration/...`
+    - `artifacts/release-candidate/<run-id>/integration/examples/live-example-matrix-evidence.json`
     - `artifacts/release-candidate/<run-id>/migration-deployment/...`
     - `artifacts/release-candidate/<run-id>/runtime/...`
     - `artifacts/release-candidate/<run-id>/release-candidate-reconciliation.json`

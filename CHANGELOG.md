@@ -7,7 +7,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-Initial release line preparing the first publishable `10.0.x` package.
+No changes yet.
+
+## [10.0.0-rc.1] - 2026-08-03
+
+First public release candidate for the `10.0.x` package line.
+
+Install the release candidate explicitly because NuGet excludes prerelease
+packages from normal stable-version resolution:
+
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.1
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.1
+```
 
 ### Changed (breaking)
 
@@ -63,14 +75,15 @@ Initial release line preparing the first publishable `10.0.x` package.
 
 ### Tested
 
-- 586 unit tests and 377 provider-local functional tests
+- 625 unit tests and 396 provider-local functional tests
 - Upstream specification contracts covering 29,745 MySQL 8.4,
   29,409 MariaDB 11.4, and 29,410 MariaDB 11.8 test cases
-- 133 live integration cases across the supported matrix, including five
+- 162 discovered live integration cases: 157 supported-matrix cases and five
   explicit skips reserved for the external-only MySQL 8.0 baseline
 - Live integration coverage against MySQL 8.4 LTS, MariaDB 11.4 LTS, and
   MariaDB 11.8 LTS, plus an external-only opt-in MySQL 8.0 compatibility
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.1...HEAD
+[10.0.0-rc.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.1

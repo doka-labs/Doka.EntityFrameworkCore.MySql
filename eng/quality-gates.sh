@@ -80,6 +80,9 @@ dotnet build "${solution}" \
     --tl:off \
     -m:1
 
+echo "Validating executable example contracts..."
+PYTHONDONTWRITEBYTECODE=1 python3 "${repo_root}/eng/example_contract.py" --root "${repo_root}"
+
 if [[ "${mode}" == "fast" ]]; then
     echo "Fast quality gates passed."
     exit 0

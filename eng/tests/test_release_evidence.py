@@ -80,6 +80,8 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
         self.assertTrue(manifest["integrationConfigurationMatrix"]["fullConfigurationMatrixRequired"])
         self.assertEqual("", manifest["integrationConfigurationMatrix"]["testFilter"])
+        self.assertEqual(27, manifest["liveExampleMatrix"]["runCount"])
+        self.assertTrue(manifest["liveExampleMatrix"]["cleanupCompleted"])
         self.assertTrue(manifest["runtimePosture"]["publishTrimmed"])
         self.assertEqual("full", manifest["runtimePosture"]["trimMode"])
         self.assertFalse(manifest["performanceEvidence"]["reused"])
@@ -173,6 +175,43 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path.write_text(json.dumps(evidence), encoding="utf-8")
 
         with self.assertRaisesRegex(release_evidence.EvidenceError, "not marked as the required"):
+            self._generate()
+
+    def test_generate_rejects_failed_live_example(self) -> None:
+        """Reject a public example whose runtime invariant failed."""
+        path = self.root / release_evidence.LIVE_EXAMPLE_MATRIX_EVIDENCE
+        evidence = json.loads(path.read_text(encoding="utf-8"))
+        evidence["results"][0]["exitCode"] = 1
+        evidence["results"][0]["status"] = "fail"
+        evidence["passedCount"] = 26
+        evidence["failedCount"] = 1
+        evidence["matrixExitCode"] = 1
+        path.write_text(json.dumps(evidence), encoding="utf-8")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "did not pass"):
+            self._generate()
+
+    def test_generate_rejects_live_example_cleanup_failure(self) -> None:
+        """Reject green examples that leaked their test-owned infrastructure."""
+        path = self.root / release_evidence.LIVE_EXAMPLE_MATRIX_EVIDENCE
+        evidence = json.loads(path.read_text(encoding="utf-8"))
+        evidence["cleanup"]["completed"] = False
+        evidence["cleanup"]["exitCode"] = 1
+        evidence["cleanup"]["volumesRemoved"] = False
+        path.write_text(json.dumps(evidence), encoding="utf-8")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "not completely removed"):
+            self._generate()
+
+    def test_generate_rejects_live_example_image_conflict(self) -> None:
+        """Reject example evidence executed against a different engine image."""
+        path = self.root / release_evidence.LIVE_EXAMPLE_MATRIX_EVIDENCE
+        evidence = json.loads(path.read_text(encoding="utf-8"))
+        evidence["engines"][0]["imageReference"] = f"mariadb:11.4@sha256:{'9' * 64}"
+        evidence["engines"][0]["imageId"] = f"sha256:{'9' * 64}"
+        path.write_text(json.dumps(evidence), encoding="utf-8")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "image identity conflicts"):
             self._generate()
 
     def test_generate_rejects_incomplete_runtime_posture(self) -> None:
@@ -457,6 +496,48 @@ class ReleaseEvidenceTests(unittest.TestCase):
                     "testFilter": "",
                     "fullConfigurationMatrixRequired": True,
                     "testExitCode": 0,
+                }
+            ),
+            encoding="utf-8",
+        )
+        example_directory = integration_directory / "examples"
+        example_directory.mkdir()
+        example_engines = [
+            {
+                "target": target_id,
+                "endpoint": f"127.0.0.1:{40000 + index}",
+                "imageReference": image,
+                "imageId": f"sha256:{image.rpartition('@sha256:')[2]}",
+            }
+            for index, (target_id, (_, _, image)) in enumerate(sorted(identities.items()))
+        ]
+        example_results = [
+            {
+                "target": target_id,
+                "example": example,
+                "exitCode": 0,
+                "status": "pass",
+            }
+            for target_id in release_evidence.REQUIRED_ENGINE_TARGETS
+            for example in release_evidence.REQUIRED_LIVE_EXAMPLES
+        ]
+        (example_directory / "live-example-matrix-evidence.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "runId": "test-run",
+                    "expectedCount": len(example_results),
+                    "completedCount": len(example_results),
+                    "passedCount": len(example_results),
+                    "failedCount": 0,
+                    "matrixExitCode": 0,
+                    "cleanup": {
+                        "completed": True,
+                        "exitCode": 0,
+                        "volumesRemoved": True,
+                    },
+                    "engines": example_engines,
+                    "results": example_results,
                 }
             ),
             encoding="utf-8",

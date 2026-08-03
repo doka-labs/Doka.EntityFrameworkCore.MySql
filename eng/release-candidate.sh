@@ -323,6 +323,14 @@ run_integration_configuration_and_failure_gate() {
     DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=1 \
     DOKA_TEST_DATABASE_EVIDENCE_FILE="${integration_dir}/test-database-evidence.json" \
         bash "${repo_root}/eng/test-integration.sh"
+
+    # The examples are public product documentation. Execute their own
+    # invariants against every supported engine after the infrastructure
+    # contracts pass; this is intentionally a release gate, not a push gate.
+    DOKA_EXAMPLE_RUN_ID="${release_candidate_run_id}" \
+    DOKA_EXAMPLE_TARGETS="mysql84,mariadb114,mariadb118" \
+    DOKA_EXAMPLE_EVIDENCE_DIR="${integration_dir}/examples" \
+        bash "${repo_root}/eng/test-examples.sh"
 }
 
 run_migration_deployment_gate() {
@@ -414,8 +422,9 @@ write_changelog() {
         echo
         echo "## Repo-local release-hardening note"
         echo
-        echo "This changelog records specification, integration, migration deployment,"
-        echo "runtime, coverage, package, audit, benchmark, and SBOM evidence."
+        echo "This changelog records specification, integration, live-example,"
+        echo "migration deployment, runtime, coverage, package, audit, benchmark,"
+        echo "and SBOM evidence."
         echo "The evidence manifest binds these files to their exact source and dependency identities."
     } > "${changelog_file}"
 }
@@ -476,6 +485,7 @@ write_reconciliation() {
     require_evidence_file "${specification_dir}/mariadb114/test-database-evidence.json"
     require_evidence_file "${specification_dir}/mariadb118/test-database-evidence.json"
     require_evidence_file "${integration_dir}/compatibility-matrix-evidence.json"
+    require_evidence_file "${integration_dir}/examples/live-example-matrix-evidence.json"
     require_evidence_file \
         "${migration_deployment_root}/${release_candidate_run_id}/migration-deployment-evidence.json"
     require_evidence_file "${runtime_dir}/runtime-posture-evidence.json"
@@ -498,6 +508,7 @@ write_reconciliation() {
     { "id": "repository-tests", "status": "pass" },
     { "id": "live-specification", "status": "pass" },
     { "id": "integration-configuration-failure", "status": "pass" },
+    { "id": "live-examples", "status": "pass" },
     { "id": "migration-deployment", "status": "pass" },
     { "id": "runtime-full-trim", "status": "pass" },
     { "id": "coverage-union", "status": "pass" },

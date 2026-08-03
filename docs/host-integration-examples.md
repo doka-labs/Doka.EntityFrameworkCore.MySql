@@ -1,6 +1,8 @@
 # Host Integration Examples
 
-These examples are Phase 4 documentation deliverables. They demonstrate host-level integration around `Doka.EntityFrameworkCore.MySql` without adding `OpenTelemetry` or `Serilog` dependencies to the provider packages themselves.
+These examples demonstrate host-level integration around
+`Doka.EntityFrameworkCore.MySql` without adding `OpenTelemetry` or `Serilog`
+dependencies to the provider packages themselves.
 
 The runnable sample lives in [Doka.EntityFrameworkCore.MySql.HostExamples.csproj](../examples/Doka.EntityFrameworkCore.MySql.HostExamples/Doka.EntityFrameworkCore.MySql.HostExamples.csproj).
 

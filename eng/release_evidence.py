@@ -33,6 +33,7 @@ REQUIRED_PACKAGES = (
     "MySqlConnector",
 )
 INTEGRATION_MATRIX_EVIDENCE = Path("integration/compatibility-matrix-evidence.json")
+LIVE_EXAMPLE_MATRIX_EVIDENCE = Path("integration/examples/live-example-matrix-evidence.json")
 RUNTIME_POSTURE_EVIDENCE = Path("runtime/runtime-posture-evidence.json")
 RECONCILIATION_EVIDENCE = Path("release-candidate-reconciliation.json")
 PERFORMANCE_REUSE_EVIDENCE = Path("performance/reuse-evidence.json")
@@ -50,6 +51,17 @@ PERFORMANCE_INPUT_FILES = {
     "eng/performance_evidence.py",
     "eng/verify-dotnet.sh",
 }
+REQUIRED_LIVE_EXAMPLES = (
+    "BulkOperations",
+    "CharSetAndCollation",
+    "DockerIntegration",
+    "GeneratedColumns",
+    "GuidFormats",
+    "JsonColumns",
+    "MultiTenancy",
+    "PerformanceBestPractices",
+    "SpatialQueries",
+)
 REQUIRED_RECONCILIATION_GATES = (
     "source-identity",
     "adr-validation",
@@ -57,6 +69,7 @@ REQUIRED_RECONCILIATION_GATES = (
     "repository-tests",
     "live-specification",
     "integration-configuration-failure",
+    "live-examples",
     "migration-deployment",
     "runtime-full-trim",
     "coverage-union",
@@ -323,6 +336,105 @@ def validate_integration_configuration_matrix(root: Path) -> dict[str, Any]:
         "testFilter": "",
         "fullConfigurationMatrixRequired": True,
         "testExitCode": 0,
+    }
+
+
+def validate_live_example_matrix(
+    root: Path,
+    run_id: str,
+    engines: list[dict[str, str]],
+) -> dict[str, Any]:
+    """Require every public live example to pass on every supported engine.
+
+    Building examples protects API compatibility. This evidence additionally
+    proves that each advertised scenario completed its runtime invariant and
+    that the test-owned database resources were removed afterwards.
+    """
+    path = root / LIVE_EXAMPLE_MATRIX_EVIDENCE
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exception:
+        raise EvidenceError(f"Unable to read live example matrix evidence: {path}") from exception
+
+    expected_pairs = {
+        (target, example)
+        for target in REQUIRED_ENGINE_TARGETS
+        for example in REQUIRED_LIVE_EXAMPLES
+    }
+    expected_count = len(expected_pairs)
+    if payload.get("schemaVersion") != 1 or payload.get("runId") != run_id:
+        raise EvidenceError("Live example evidence does not match the release-candidate run.")
+    if (
+        payload.get("expectedCount") != expected_count
+        or payload.get("completedCount") != expected_count
+        or payload.get("passedCount") != expected_count
+        or payload.get("failedCount") != 0
+        or payload.get("matrixExitCode") != 0
+    ):
+        raise EvidenceError("The complete live example matrix did not pass.")
+
+    cleanup = payload.get("cleanup", {})
+    if (
+        cleanup.get("completed") is not True
+        or cleanup.get("exitCode") != 0
+        or cleanup.get("volumesRemoved") is not True
+    ):
+        raise EvidenceError("Live example resources were not completely removed.")
+
+    expected_images = {engine["targetId"]: engine["image"] for engine in engines}
+    actual_targets: set[str] = set()
+    for engine in payload.get("engines", []):
+        if not isinstance(engine, dict):
+            raise EvidenceError("Live example evidence contains an invalid engine entry.")
+
+        target = engine.get("target")
+        image_reference = engine.get("imageReference")
+        image_id = engine.get("imageId")
+        endpoint = engine.get("endpoint")
+        if target in actual_targets or target not in expected_images:
+            raise EvidenceError(f"Live example evidence contains an unexpected target: {target}")
+        if image_reference != expected_images[target]:
+            raise EvidenceError(f"Live example image identity conflicts for {target}.")
+
+        _, separator, digest = str(image_reference).rpartition("@sha256:")
+        if (
+            separator == ""
+            or not SHA256_DIGEST.fullmatch(digest)
+            or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(image_id))
+        ):
+            raise EvidenceError(f"Live example image ID is not immutable for {target}.")
+        if not isinstance(endpoint, str) or not re.fullmatch(r"127[.]0[.]0[.]1:[0-9]{1,5}", endpoint):
+            raise EvidenceError(f"Live example endpoint is invalid for {target}.")
+
+        actual_targets.add(target)
+
+    if actual_targets != set(REQUIRED_ENGINE_TARGETS):
+        raise EvidenceError("Live example evidence does not cover every supported engine.")
+
+    actual_pairs: set[tuple[str, str]] = set()
+    results = payload.get("results")
+    if not isinstance(results, list) or len(results) != expected_count:
+        raise EvidenceError("Live example evidence contains an incomplete result inventory.")
+
+    for result in results:
+        if not isinstance(result, dict):
+            raise EvidenceError("Live example evidence contains an invalid result entry.")
+
+        pair = (result.get("target"), result.get("example"))
+        if pair in actual_pairs or pair not in expected_pairs:
+            raise EvidenceError(f"Live example evidence contains an unexpected result: {pair}")
+        if result.get("exitCode") != 0 or result.get("status") != "pass":
+            raise EvidenceError(f"Live example did not pass: {pair}")
+        actual_pairs.add(pair)
+
+    if actual_pairs != expected_pairs:
+        raise EvidenceError("Live example evidence does not cover every required scenario.")
+
+    return {
+        "targets": list(REQUIRED_ENGINE_TARGETS),
+        "examples": list(REQUIRED_LIVE_EXAMPLES),
+        "runCount": expected_count,
+        "cleanupCompleted": True,
     }
 
 
@@ -788,6 +900,7 @@ def write_manifest(args: argparse.Namespace) -> None:
     validate_release_packages(artifacts, args.release_version)
     engines = collect_engines(root)
     integration_matrix = validate_integration_configuration_matrix(root)
+    live_example_matrix = validate_live_example_matrix(root, args.run_id, engines)
     runtime_posture = validate_runtime_posture(root, args.run_id, source["commit"])
     performance_evidence = validate_performance_evidence(
         root,
@@ -826,6 +939,7 @@ def write_manifest(args: argparse.Namespace) -> None:
         },
         "engines": engines,
         "integrationConfigurationMatrix": integration_matrix,
+        "liveExampleMatrix": live_example_matrix,
         "runtimePosture": runtime_posture,
         "performanceEvidence": performance_evidence,
         "verificationReconciliation": reconciliation,
