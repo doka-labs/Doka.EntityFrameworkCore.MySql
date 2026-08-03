@@ -1,15 +1,15 @@
 using Doka.EntityFrameworkCore.MySql;
+using Doka.EntityFrameworkCore.MySql.Examples;
 using Microsoft.EntityFrameworkCore;
 
 // -- Inheritance Patterns with Doka.EntityFrameworkCore.MySql --
 //
 // Demonstrates: TPH with discriminator, OwnsOne (same-table owned type).
 
-var connectionString = Environment.GetEnvironmentVariable("DOKA_MYSQL_CONNECTION_STRING")
-    ?? "Server=localhost;Port=33068;Database=inheritance_example;User ID=root;Password=root_password;";
+var database = ExampleDatabaseConfiguration.Create("doka_example_inheritance_patterns");
 
 var options = new DbContextOptionsBuilder<InheritanceContext>()
-    .UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)))
+    .UseMySql(database.ConnectionString, database.ServerVersion)
     .Options;
 
 using var context = new InheritanceContext(options);

@@ -23,14 +23,19 @@ compose_command=(docker compose -p "${compose_project_name}" -f "${compose_file}
 example_projects=(
     "BulkOperations"
     "CharSetAndCollation"
+    "CrudOperations"
     "DockerIntegration"
     "GeneratedColumns"
+    "GettingStarted"
     "GuidFormats"
+    "InheritancePatterns"
     "JsonColumns"
     "MultiTenancy"
     "PerformanceBestPractices"
+    "Relationships"
     "SpatialQueries"
 )
+sentinel_database="doka_example_sentinel"
 
 selected_targets=()
 matrix_exit_code=0
@@ -48,7 +53,7 @@ Environment:
   DOKA_EXAMPLE_EVIDENCE_DIR=<evidence output directory>
   DOKA_EXAMPLE_RUN_ID=<stable run identity>
 
-The default exercises all nine database-backed examples against the complete
+The default exercises all thirteen live-matrix examples against the complete
 supported engine matrix. A subset is useful for local diagnosis; release
 qualification always supplies the complete matrix explicitly.
 EOF
@@ -152,6 +157,74 @@ build_examples() {
     done
 }
 
+database_client() {
+    local target="$1"
+
+    case "${target}" in
+        mysql84)
+            printf '%s\n' "mysql"
+            ;;
+        mariadb114|mariadb118)
+            printf '%s\n' "mariadb"
+            ;;
+        *)
+            echo "Unsupported example target '${target}'." >&2
+            return 1
+            ;;
+    esac
+}
+
+initialize_sentinel_catalog() {
+    # The environment connection string intentionally names a non-example
+    # catalog. A runnable example may reuse its endpoint and credentials, but
+    # must replace this catalog before any EnsureDeleted call can execute.
+    local target="$1"
+    local container_id
+    local client
+
+    container_id="$("${compose_command[@]}" ps -q "${target}")"
+    client="$(database_client "${target}")"
+
+    docker exec \
+        --env "MYSQL_PWD=root_password" \
+        "${container_id}" \
+        "${client}" \
+        --user=root \
+        --execute="
+            CREATE DATABASE IF NOT EXISTS \`${sentinel_database}\`;
+            CREATE TABLE IF NOT EXISTS \`${sentinel_database}\`.Sentinel (Id INT PRIMARY KEY);
+            DELETE FROM \`${sentinel_database}\`.Sentinel;
+            INSERT INTO \`${sentinel_database}\`.Sentinel (Id) VALUES (1);
+        "
+}
+
+verify_sentinel_catalog() {
+    # Checking the marker, rather than only catalog existence, also catches an
+    # example that drops and silently recreates the caller-selected database.
+    local target="$1"
+    local container_id
+    local client
+    local marker_count
+
+    container_id="$("${compose_command[@]}" ps -q "${target}")"
+    client="$(database_client "${target}")"
+    marker_count="$(
+        docker exec \
+            --env "MYSQL_PWD=root_password" \
+            "${container_id}" \
+            "${client}" \
+            --batch \
+            --skip-column-names \
+            --user=root \
+            --execute="SELECT COUNT(*) FROM \`${sentinel_database}\`.Sentinel WHERE Id = 1;"
+    )"
+
+    if [[ "${marker_count}" != "1" ]]; then
+        echo "${target}: example modified the protected sentinel catalog." >&2
+        return 1
+    fi
+}
+
 run_example_matrix() {
     # Execute every selected target even after one example fails. The complete
     # result inventory makes a red release run actionable in one pass.
@@ -186,7 +259,8 @@ run_example_matrix() {
     for target in "${selected_targets[@]}"; do
         endpoint="$("${compose_command[@]}" port "${target}" 3306)"
         port="${endpoint##*:}"
-        connection_string="Server=127.0.0.1;Port=${port};User ID=root;Password=root_password;"
+        connection_string="Server=127.0.0.1;Port=${port};Database=${sentinel_database};User ID=root;Password=root_password;"
+        initialize_sentinel_catalog "${target}" || return $?
 
         for example_name in "${example_projects[@]}"; do
             project="${repo_root}/examples/${example_name}/${example_name}.csproj"
@@ -202,6 +276,10 @@ run_example_matrix() {
                     --no-restore
             example_exit_code=$?
             set -e
+
+            if ! verify_sentinel_catalog "${target}"; then
+                example_exit_code=1
+            fi
 
             printf '%s\t%s\t%s\n' \
                 "${target}" \

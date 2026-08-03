@@ -1,4 +1,5 @@
 using Doka.EntityFrameworkCore.MySql;
+using Doka.EntityFrameworkCore.MySql.Examples;
 using Microsoft.EntityFrameworkCore;
 
 // -- Relationships with Doka.EntityFrameworkCore.MySql --
@@ -6,11 +7,10 @@ using Microsoft.EntityFrameworkCore;
 // Demonstrates: 1:N (Blog -> Posts), M:N (Student <-> Course),
 // self-referencing (Employee -> Manager), Include/ThenInclude.
 
-var connectionString = Environment.GetEnvironmentVariable("DOKA_MYSQL_CONNECTION_STRING")
-    ?? "Server=localhost;Port=33068;Database=relationships_example;User ID=root;Password=root_password;";
+var database = ExampleDatabaseConfiguration.Create("doka_example_relationships");
 
 var options = new DbContextOptionsBuilder<RelContext>()
-    .UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)))
+    .UseMySql(database.ConnectionString, database.ServerVersion)
     .Options;
 
 using var context = new RelContext(options);

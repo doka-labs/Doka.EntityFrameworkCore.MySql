@@ -39,7 +39,7 @@ This provider is designed for teams that need:
 
 ### Building From Source
 
-- .NET 10 SDK (version `10.0.300` or later)
+- .NET SDK `10.0.302` (the exact version declared by `global.json`)
 - Docker -- only required to run the live integration and benchmark suites
 
 ## Installation

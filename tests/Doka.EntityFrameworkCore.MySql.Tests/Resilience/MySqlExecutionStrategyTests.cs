@@ -120,6 +120,57 @@ public sealed class MySqlExecutionStrategyTests
         Assert.True(detector.ShouldRetryOn(new SocketException((int)SocketError.TimedOut)));
     }
 
+    /// <summary>
+    /// Verifies that a wrapped cancellation executes the synchronous delegate
+    /// once and emits the cancellation diagnostic instead of a retry attempt.
+    /// </summary>
+    [Fact]
+    public void Retrying_execution_strategy_does_not_replay_wrapped_sync_cancellation()
+    {
+        var sink = new TestLogSink();
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
+        using var context = new ExecutionStrategyContext(CreateOptions(enableRetry: true, loggerFactory));
+        var strategy = context.Database.CreateExecutionStrategy();
+        var attempts = 0;
+        var exception = new IOException("transport wrapper", new OperationCanceledException("cancelled operation"));
+
+        var actual = Assert.Throws<IOException>(() => strategy.Execute<int>(() =>
+        {
+            attempts++;
+            throw exception;
+        }));
+
+        Assert.Same(exception, actual);
+        Assert.Equal(1, attempts);
+        Assert.Contains(
+            sink.Entries,
+            entry => entry.EventId.Id == MySqlEventId.HardCancellation.Id
+                && entry.Category == MySqlLoggerCategory.Resilience);
+        Assert.DoesNotContain(sink.Entries, entry => entry.EventId.Id == MySqlEventId.RetryAttempt.Id);
+    }
+
+    /// <summary>
+    /// Verifies that a wrapped cancellation executes the asynchronous delegate
+    /// once while an ordinary I/O failure remains retryable.
+    /// </summary>
+    [Fact]
+    public async Task Retrying_execution_strategy_does_not_replay_wrapped_async_cancellation()
+    {
+        await using var context = new ExecutionStrategyContext(CreateOptions(enableRetry: true));
+        var strategy = context.Database.CreateExecutionStrategy();
+        var attempts = 0;
+        var exception = new IOException("transport wrapper", new OperationCanceledException("cancelled operation"));
+
+        var actual = await Assert.ThrowsAsync<IOException>(() => strategy.ExecuteAsync<int>(() =>
+        {
+            attempts++;
+            return Task.FromException<int>(exception);
+        }));
+
+        Assert.Same(exception, actual);
+        Assert.Equal(1, attempts);
+    }
+
     private static DbContextOptions<ExecutionStrategyContext> CreateOptions(
         bool enableRetry,
         ILoggerFactory? loggerFactory = null

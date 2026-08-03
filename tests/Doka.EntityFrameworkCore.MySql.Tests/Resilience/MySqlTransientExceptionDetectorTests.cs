@@ -27,6 +27,28 @@ public sealed class MySqlTransientExceptionDetectorTests
     public void OperationCanceledException_is_not_retryable() =>
         Assert.False(_detector.ShouldRetryOn(new OperationCanceledException()));
 
+    /// <summary>A retryable outer I/O failure cannot hide an inner cancellation.</summary>
+    [Fact]
+    public void IOException_wrapping_cancellation_is_not_retryable()
+    {
+        var exception = new IOException("transport wrapper", new OperationCanceledException("cancelled operation"));
+
+        Assert.True(_detector.IsCancellation(exception));
+        Assert.False(_detector.ShouldRetryOn(exception));
+    }
+
+    /// <summary>A retryable connector error cannot hide an inner cancellation.</summary>
+    [Fact]
+    public void MySqlException_wrapping_cancellation_is_not_retryable()
+    {
+        var exception = CreateMySqlException(
+            MySqlErrorCode.UnableToConnectToHost,
+            new OperationCanceledException("cancelled operation"));
+
+        Assert.True(_detector.IsCancellation(exception));
+        Assert.False(_detector.ShouldRetryOn(exception));
+    }
+
     // -- TimeoutException (not retryable via ShouldRetryOn) --
 
     /// <summary>TimeoutException is not retryable (handled separately as command timeout).</summary>
@@ -122,17 +144,23 @@ public sealed class MySqlTransientExceptionDetectorTests
     }
 
     private static MySqlException CreateMySqlException(MySqlErrorCode code)
+        => CreateMySqlException(code, innerException: null);
+
+    private static MySqlException CreateMySqlException(
+        MySqlErrorCode code,
+        Exception? innerException
+    )
     {
-        // MySqlConnector exposes ctor(MySqlErrorCode, string) as internal; reflection is the
-        // only test-time path that lets us drive every IsKnownRetryableErrorCode arm without
-        // a real server round-trip.
+        // MySqlConnector keeps error-code construction internal. Reflection is
+        // the only test-time path that can cover its complete classification
+        // surface without manufacturing a real server failure.
         var ctor = typeof(MySqlException).GetConstructor(
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
             binder: null,
-            types: [typeof(MySqlErrorCode), typeof(string)],
+            types: [typeof(MySqlErrorCode), typeof(string), typeof(Exception)],
             modifiers: null);
 
         Assert.NotNull(ctor);
-        return (MySqlException)ctor.Invoke([code, $"test:{code}"]);
+        return (MySqlException)ctor.Invoke([code, $"test:{code}", innerException]);
     }
 }

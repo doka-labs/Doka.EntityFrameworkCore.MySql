@@ -51,7 +51,12 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: 10.0.x
+          global-json-file: global.json
+
+      # Keep the exact SDK check independent from setup-dotnet so a runner
+      # image or resolver change fails before any publication credential exists.
+      - name: Verify approved .NET SDK
+        run: bash ./eng/verify-dotnet.sh
 
       - name: Validate manual publication request
         env:

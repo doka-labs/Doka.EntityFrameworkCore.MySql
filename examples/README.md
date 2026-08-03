@@ -1,10 +1,11 @@
 # Runnable Examples
 
 The examples exercise public provider APIs through focused, runnable projects.
-Every project must compile. The nine database-backed feature-matrix examples
-also fail when their advertised round-trip or query invariant is not satisfied.
+Every project must compile. The thirteen live-matrix examples also fail when
+their advertised round-trip, query, or database-isolation invariant is not
+satisfied.
 
-The release-candidate gate executes the nine database-backed feature examples
+The release-candidate gate executes the thirteen live-matrix examples
 against MySQL 8.4, MariaDB 11.4, and MariaDB 11.8. Run the same isolated matrix
 locally with:
 
@@ -38,7 +39,8 @@ docker compose -f docker/compose.yml up -d mariadb114
 Accepted target values are `mysql84`, `mariadb114`, and `mariadb118`. Supply a
 custom endpoint through `DOKA_EXAMPLE_CONNECTION_STRING`. The examples always
 replace its database name with an example-owned name before creating or
-deleting data.
+deleting data. The live gate supplies a populated sentinel catalog and verifies
+after every example that neither the catalog nor its marker was modified.
 
 Use disposable development infrastructure only. An interrupted process can
 leave its isolated example database behind for inspection.

@@ -45,9 +45,23 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self._git("remote", "add", "origin", "https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql.git")
         # Evidence remains ignored so negative tests can mutate it without
         # turning an artifact-integrity failure into a source-dirty failure.
+        dotnet_sdk = release_evidence.run_command("dotnet", "--version", cwd=self.repo)
         (self.repo / ".gitignore").write_text("/evidence/\n", encoding="ascii")
+        (self.repo / "global.json").write_text(
+            json.dumps(
+                {
+                    "sdk": {
+                        "version": dotnet_sdk,
+                        "rollForward": "disable",
+                        "allowPrerelease": False,
+                    }
+                }
+            )
+            + "\n",
+            encoding="ascii",
+        )
         (self.repo / "source.txt").write_text("reviewed source\n", encoding="ascii")
-        self._git("add", ".gitignore", "source.txt")
+        self._git("add", ".gitignore", "global.json", "source.txt")
         self._git("commit", "-m", "test: seed release source")
         self._git("tag", "v1.2.3")
         self._write_complete_evidence()
@@ -69,6 +83,10 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertIn("integration/test-database-evidence.json", paths)
         self.assertEqual("refs/tags/v1.2.3", manifest["source"]["ref"])
         self.assertEqual("clean", manifest["source"]["treeState"])
+        self.assertEqual(
+            manifest["toolchain"]["approvedDotnetSdk"],
+            manifest["toolchain"]["dotnetSdk"],
+        )
         self.assertEqual("2.5.0", manifest["toolchain"]["resolvedPackages"]["MySqlConnector"])
         self.assertEqual(
             list(release_evidence.REQUIRED_ENGINE_TARGETS),
@@ -80,7 +98,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
         self.assertTrue(manifest["integrationConfigurationMatrix"]["fullConfigurationMatrixRequired"])
         self.assertEqual("", manifest["integrationConfigurationMatrix"]["testFilter"])
-        self.assertEqual(27, manifest["liveExampleMatrix"]["runCount"])
+        self.assertEqual(39, manifest["liveExampleMatrix"]["runCount"])
         self.assertTrue(manifest["liveExampleMatrix"]["cleanupCompleted"])
         self.assertTrue(manifest["runtimePosture"]["publishTrimmed"])
         self.assertEqual("full", manifest["runtimePosture"]["trimMode"])
@@ -100,6 +118,16 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
         with self.assertRaisesRegex(release_evidence.EvidenceError, "clean Git worktree"):
             self._generate()
+
+    def test_sdk_contract_rejects_roll_forward(self) -> None:
+        """Reject a release toolchain contract that can select a newer SDK."""
+        path = self.repo / "global.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["sdk"]["rollForward"] = "latestFeature"
+        path.write_text(json.dumps(payload) + "\n", encoding="ascii")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "disable .NET SDK roll-forward"):
+            release_evidence.approved_dotnet_sdk(self.repo)
 
     def test_verify_rejects_artifact_tampering(self) -> None:
         """Reject package bytes changed after the canonical manifest was generated."""

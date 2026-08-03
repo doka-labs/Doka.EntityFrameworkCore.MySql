@@ -4,12 +4,13 @@ Demonstrates row-level tenant isolation with:
 
 - a context-bound global query filter
 - automatic tenant assignment for new rows
-- a write guard that rejects cross-tenant changes
+- one write guard shared by every synchronous and asynchronous save overload
 - a tenant-local unique key
 
-The example writes the same external identifier for two tenants, then proves
-that one tenant sees only its own row while an administrative unfiltered query
-sees both.
+The example writes the same external identifiers for two tenants through all
+four EF Core save overloads. It proves that one tenant sees only its own rows,
+that an administrative unfiltered query sees all rows, and that every overload
+rejects an explicit cross-tenant write.
 
 ```bash
 dotnet run --project examples/MultiTenancy/MultiTenancy.csproj

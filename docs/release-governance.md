@@ -82,6 +82,10 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - local path: `./eng/release-candidate.sh`
   - source gates: clean worktree, exact commit/ref, and exactly one matching
     `v<package-version>` tag
+  - toolchain gate: every hosted job installs the exact stable SDK declared in
+    `global.json`; roll-forward is disabled, release evidence binds the approved
+    and observed identities, and Dependabot proposes SDK changes as reviewed
+    pull requests
   - repository quality gate: the complete shared `quality-gates.sh` contract,
     including formatting, analyzers, public examples, README compilation,
     dependency audits, and migration-model verification
@@ -112,9 +116,10 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     delta and per-target evaluation hashes in `performance/reuse-evidence.json`
   - integration gate: unfiltered configuration and failure matrix across
     `mysql84`, `mariadb114`, and `mariadb118`
-  - executable-documentation gate: all nine database-backed feature examples
-    execute their own scenario invariants against every supported engine in an
-    isolated Compose project with dynamic ports and verified cleanup
+  - executable-documentation gate: all thirteen live-matrix examples execute
+    their own scenario invariants against every supported engine in an isolated
+    Compose project with dynamic ports, protected sentinel-catalog readback,
+    and verified cleanup
   - functional live gate: specification and standalone `Category=Live`
     contracts on all three supported engines
   - runtime posture gate: ordinary execution plus an executed self-contained
@@ -418,6 +423,11 @@ inherit stale evidence from an earlier candidate.
   <https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations>
 - GitHub, [`actions/attest`](https://github.com/actions/attest), retrieved
   2026-07-31.
+- GitHub, [`actions/setup-dotnet`](https://github.com/actions/setup-dotnet),
+  retrieved 2026-08-03.
+- GitHub,
+  [Dependabot supported ecosystems and repositories](https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories),
+  retrieved 2026-08-03.
 - NuGet, [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing),
   retrieved 2026-08-03.
 - NuGet, [`NuGet/login`](https://github.com/NuGet/login), retrieved

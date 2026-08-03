@@ -66,6 +66,48 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
                 : NormalizeConnectionString(connectionString));
     }
 
+    /// <summary>
+    /// Creates one lifecycle connection without reducing an object-based
+    /// configuration to its serializable connection string.
+    /// </summary>
+    internal MySqlLifecycleConnection CreateLifecycleConnection(
+        string connectionString
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        if (_optionsExtension.DataSource is not null)
+        {
+            var configuredConnection = _optionsExtension.DataSource.CreateConnection();
+
+            if (string.Equals(configuredConnection.ConnectionString, connectionString, StringComparison.Ordinal))
+            {
+                return MySqlLifecycleConnection.Own(configuredConnection);
+            }
+
+            try
+            {
+                return MySqlLifecycleConnection.Own(configuredConnection.CloneWith(connectionString));
+            }
+            finally
+            {
+                configuredConnection.Dispose();
+            }
+        }
+
+        if (_optionsExtension.Connection is MySqlConnection mySqlConnection)
+        {
+            return MySqlLifecycleConnection.Own(mySqlConnection.CloneWith(connectionString));
+        }
+
+        return _optionsExtension.Connection is not null
+            // A provider cannot manufacture an equivalent arbitrary
+            // DbConnection. Borrow the configured object so its custom TLS,
+            // authentication, interception, and command behavior remain active.
+            ? MySqlLifecycleConnection.Borrow(_optionsExtension.Connection, connectionString)
+            : MySqlLifecycleConnection.Own(_driverFacade.CreateConnection(connectionString));
+    }
+
     protected override DbTransaction ConnectionBeginTransaction(
         IsolationLevel isolationLevel
     ) => base.ConnectionBeginTransaction(NormalizeIsolationLevel(isolationLevel));

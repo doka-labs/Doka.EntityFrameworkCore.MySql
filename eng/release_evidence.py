@@ -54,12 +54,16 @@ PERFORMANCE_INPUT_FILES = {
 REQUIRED_LIVE_EXAMPLES = (
     "BulkOperations",
     "CharSetAndCollation",
+    "CrudOperations",
     "DockerIntegration",
     "GeneratedColumns",
+    "GettingStarted",
     "GuidFormats",
+    "InheritancePatterns",
     "JsonColumns",
     "MultiTenancy",
     "PerformanceBestPractices",
+    "Relationships",
     "SpatialQueries",
 )
 REQUIRED_RECONCILIATION_GATES = (
@@ -104,6 +108,28 @@ def run_command(*arguments: str, cwd: Path | None = None) -> str:
         message = result.stderr.strip() or result.stdout.strip()
         raise EvidenceError(f"Command failed ({' '.join(arguments)}): {message}")
     return result.stdout.strip()
+
+
+def approved_dotnet_sdk(repo: Path) -> str:
+    """Return the exact SDK identity approved by the repository contract."""
+    path = repo / "global.json"
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exception:
+        raise EvidenceError(f"Unable to read the repository SDK contract: {path}") from exception
+
+    sdk = payload.get("sdk", {})
+    version = sdk.get("version")
+
+    if not isinstance(version, str) or re.fullmatch(r"[0-9]+[.][0-9]+[.][0-9]+", version) is None:
+        raise EvidenceError("global.json must declare one exact stable .NET SDK version.")
+    if sdk.get("rollForward") != "disable":
+        raise EvidenceError("global.json must disable .NET SDK roll-forward.")
+    if sdk.get("allowPrerelease") is not False:
+        raise EvidenceError("global.json must reject prerelease .NET SDK selection.")
+
+    return version
 
 
 def sha256(path: Path) -> str:
@@ -910,7 +936,12 @@ def write_manifest(args: argparse.Namespace) -> None:
     )
     reconciliation = validate_reconciliation(root, args.run_id, source["commit"])
     dependencies = collect_dependencies(dependency_graph)
+    approved_sdk = approved_dotnet_sdk(repo)
     dotnet_sdk = run_command("dotnet", "--version", cwd=repo)
+
+    if dotnet_sdk != approved_sdk:
+        raise EvidenceError(
+            f"The active .NET SDK {dotnet_sdk} does not match the approved SDK {approved_sdk}.")
 
     mysql84_engine = next(engine for engine in engines if engine["targetId"] == "mysql84")
     if runtime_posture["image"] != mysql84_engine["image"]:
@@ -934,6 +965,7 @@ def write_manifest(args: argparse.Namespace) -> None:
         "source": source,
         "workflow": workflow_identity(args.run_id),
         "toolchain": {
+            "approvedDotnetSdk": approved_sdk,
             "dotnetSdk": dotnet_sdk,
             "resolvedPackages": dependencies,
         },
@@ -974,6 +1006,13 @@ def verify_manifest(root: Path, repo: Path | None) -> None:
     if checksum_parts != [sha256(manifest_path), MANIFEST_NAME]:
         raise EvidenceError("The detached release evidence checksum does not match the manifest.")
 
+    toolchain = manifest.get("toolchain", {})
+    approved_sdk = toolchain.get("approvedDotnetSdk")
+    observed_sdk = toolchain.get("dotnetSdk")
+
+    if not isinstance(approved_sdk, str) or approved_sdk != observed_sdk:
+        raise EvidenceError("Release evidence does not bind the observed SDK to the approved SDK.")
+
     expected = manifest.get("artifacts", [])
     if expected != sorted(expected, key=lambda artifact: artifact.get("path", "")):
         raise EvidenceError("Manifest artifacts are not in canonical path order.")
@@ -1000,6 +1039,12 @@ def verify_manifest(root: Path, repo: Path | None) -> None:
         raise EvidenceError(f"Evidence inventory drift. Missing={missing}; untracked={untracked}")
 
     if repo is not None:
+        repository_sdk = approved_dotnet_sdk(repo)
+        active_sdk = run_command("dotnet", "--version", cwd=repo)
+
+        if approved_sdk != repository_sdk or observed_sdk != active_sdk:
+            raise EvidenceError("The manifest .NET SDK identity does not match the current repository contract.")
+
         source = manifest.get("source", {})
         current_commit = run_command("git", "rev-parse", "HEAD", cwd=repo)
         if source.get("commit") != current_commit:

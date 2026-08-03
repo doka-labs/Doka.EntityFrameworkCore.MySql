@@ -1,15 +1,15 @@
 using Doka.EntityFrameworkCore.MySql;
+using Doka.EntityFrameworkCore.MySql.Examples;
 using Microsoft.EntityFrameworkCore;
 
 // -- CRUD Operations with Doka.EntityFrameworkCore.MySql --
 //
 // Demonstrates: Add, Update, Delete, Query with filtering, sorting, and pagination.
 
-var connectionString = Environment.GetEnvironmentVariable("DOKA_MYSQL_CONNECTION_STRING")
-    ?? "Server=localhost;Port=33068;Database=crud_example;User ID=root;Password=root_password;";
+var database = ExampleDatabaseConfiguration.Create("doka_example_crud_operations");
 
 var options = new DbContextOptionsBuilder<CrudContext>()
-    .UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)))
+    .UseMySql(database.ConnectionString, database.ServerVersion)
     .Options;
 
 using var context = new CrudContext(options);

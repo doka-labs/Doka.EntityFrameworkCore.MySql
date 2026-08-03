@@ -94,7 +94,14 @@ CONTRACTS = (
     ExampleContract(
         "MultiTenancy",
         "MultiTenancy.csproj",
-        ("HasQueryFilter", "IgnoreQueryFilters", "EnforceTenantOwnership"),
+        (
+            "HasQueryFilter",
+            "IgnoreQueryFilters",
+            "EnforceTenantOwnership",
+            "public override int SaveChanges(",
+            "public override Task<int> SaveChangesAsync(",
+            "AssertMismatchedTenantRejected",
+        ),
         invariant_checking=True,
     ),
     ExampleContract(
@@ -166,6 +173,11 @@ def validate_example(examples_root: Path, contract: ExampleContract) -> list[str
     for token in contract.required_tokens:
         if token not in source_text:
             errors.append(f"{contract.directory}: required scenario token is missing: {token}")
+
+    if "EnsureDeleted" in source_text and "ExampleDatabaseConfiguration.Create" not in source_text:
+        errors.append(
+            f"{contract.directory}: destructive lifecycle bypasses the shared database isolation"
+        )
 
     if contract.invariant_checking:
         for token in (
@@ -256,7 +268,7 @@ def main() -> int:
     invariant_count = sum(contract.invariant_checking for contract in CONTRACTS)
     print(
         f"Validated {len(CONTRACTS)} runnable examples, including "
-        f"{invariant_count} live invariant contracts."
+        f"{invariant_count} self-validating scenario contracts."
     )
     return 0
 

@@ -53,7 +53,7 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
         {
             return _innerStrategy.Execute(state, operation, verifySucceeded);
         }
-        catch (OperationCanceledException exception) when (LogCancellation(exception, diagnostic))
+        catch (Exception exception) when (LogCancellation(exception, diagnostic))
         {
             throw;
         }
@@ -87,7 +87,7 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
         {
             return await _innerStrategy.ExecuteAsync(state, operation, verifySucceeded, cancellationToken);
         }
-        catch (OperationCanceledException exception) when (LogCancellation(exception, diagnostic))
+        catch (Exception exception) when (LogCancellation(exception, diagnostic))
         {
             throw;
         }
@@ -151,11 +151,16 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
     }
 
     private bool LogCancellation(
-        OperationCanceledException exception,
+        Exception exception,
         DiagnosticContext diagnostic
     )
     {
         ArgumentNullException.ThrowIfNull(exception);
+
+        if (!_transientExceptionDetector.IsCancellation(exception))
+        {
+            return false;
+        }
 
         var connectionStateName = diagnostic.ConnectionStateName;
         var isHardPath = diagnostic.ConnectionState is ConnectionState.Broken or ConnectionState.Closed;

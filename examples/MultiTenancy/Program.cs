@@ -15,19 +15,47 @@ try
 {
     await lifecycleContext.Database.EnsureCreatedAsync(cancellationToken);
 
-    // Reusing the external ID proves that uniqueness is scoped to a tenant,
-    // rather than accidentally becoming global across every customer.
-    await using (var tenantA = new TenantContext(options, "tenant-a"))
+    // Exercise every EF Core save overload through a valid tenant write. The
+    // overload matrix is part of the reusable isolation pattern, not merely a
+    // test convenience, because callers may choose sync or async persistence.
+    // Each tenant also reuses the same external IDs, proving that uniqueness
+    // is scoped to a tenant rather than accidentally becoming global.
+    using (var syncDefault = new TenantContext(options, "tenant-a"))
     {
-        tenantA.Documents.Add(new TenantDocument { ExternalId = "shared", Title = "Tenant A document" });
-        await tenantA.SaveChangesAsync(cancellationToken);
+        syncDefault.Documents.Add(new TenantDocument { ExternalId = "sync", Title = "Tenant A sync" });
+        syncDefault.SaveChanges();
     }
 
-    await using (var tenantB = new TenantContext(options, "tenant-b"))
+    using (var syncBoolean = new TenantContext(options, "tenant-b"))
     {
-        tenantB.Documents.Add(new TenantDocument { ExternalId = "shared", Title = "Tenant B document" });
-        await tenantB.SaveChangesAsync(cancellationToken);
+        syncBoolean.Documents.Add(new TenantDocument { ExternalId = "sync", Title = "Tenant B sync" });
+        syncBoolean.SaveChanges(acceptAllChangesOnSuccess: true);
     }
+
+    await using (var asyncDefault = new TenantContext(options, "tenant-a"))
+    {
+        asyncDefault.Documents.Add(new TenantDocument { ExternalId = "async", Title = "Tenant A async" });
+        await asyncDefault.SaveChangesAsync(cancellationToken);
+    }
+
+    await using (var asyncBoolean = new TenantContext(options, "tenant-b"))
+    {
+        asyncBoolean.Documents.Add(new TenantDocument { ExternalId = "async", Title = "Tenant B async" });
+        await asyncBoolean.SaveChangesAsync(acceptAllChangesOnSuccess: true, cancellationToken);
+    }
+
+    AssertMismatchedTenantRejected(options, context => context.SaveChanges());
+    AssertMismatchedTenantRejected(
+        options,
+        context => context.SaveChanges(acceptAllChangesOnSuccess: true));
+    await AssertMismatchedTenantRejectedAsync(
+        options,
+        (context, token) => context.SaveChangesAsync(token),
+        cancellationToken);
+    await AssertMismatchedTenantRejectedAsync(
+        options,
+        (context, token) => context.SaveChangesAsync(acceptAllChangesOnSuccess: true, token),
+        cancellationToken);
 
     await using var verificationContext = new TenantContext(options, "tenant-a");
     var visibleDocuments = await verificationContext.Documents
@@ -39,7 +67,7 @@ try
         .AsNoTracking()
         .CountAsync(cancellationToken);
 
-    if (visibleDocuments is not ["Tenant A document"] || totalDocuments != 2)
+    if (visibleDocuments.Count != 2 || totalDocuments != 4)
     {
         throw new InvalidOperationException("The tenant query filter did not isolate the expected row.");
     }
@@ -50,6 +78,61 @@ try
 finally
 {
     await lifecycleContext.Database.EnsureDeletedAsync(cancellationToken);
+}
+
+static void AssertMismatchedTenantRejected(
+    DbContextOptions<TenantContext> options,
+    Action<TenantContext> save
+)
+{
+    using var context = CreateMismatchedTenantContext(options);
+
+    try
+    {
+        save(context);
+    }
+    catch (TenantBoundaryViolationException)
+    {
+        return;
+    }
+
+    throw new InvalidOperationException("A synchronous save overload bypassed the tenant write boundary.");
+}
+
+static async Task AssertMismatchedTenantRejectedAsync(
+    DbContextOptions<TenantContext> options,
+    Func<TenantContext, CancellationToken, Task<int>> save,
+    CancellationToken cancellationToken
+)
+{
+    await using var context = CreateMismatchedTenantContext(options);
+
+    try
+    {
+        _ = await save(context, cancellationToken);
+    }
+    catch (TenantBoundaryViolationException)
+    {
+        return;
+    }
+
+    throw new InvalidOperationException("An asynchronous save overload bypassed the tenant write boundary.");
+}
+
+static TenantContext CreateMismatchedTenantContext(
+    DbContextOptions<TenantContext> options
+)
+{
+    var context = new TenantContext(options, "tenant-a");
+    context.Documents.Add(
+        new TenantDocument
+        {
+            TenantId = "tenant-b",
+            ExternalId = Guid.NewGuid().ToString("N"),
+            Title = "Rejected cross-tenant write",
+        });
+
+    return context;
 }
 
 internal sealed class TenantContext : DbContext
@@ -67,6 +150,25 @@ internal sealed class TenantContext : DbContext
 
     public DbSet<TenantDocument> Documents => Set<TenantDocument>();
 
+    public override int SaveChanges()
+    {
+        EnforceTenantOwnership();
+
+        // Call the boolean base overload directly. Calling base.SaveChanges()
+        // would dispatch back through this class's boolean override and run the
+        // ownership scan twice for one persistence operation.
+        return base.SaveChanges(acceptAllChangesOnSuccess: true);
+    }
+
+    public override int SaveChanges(
+        bool acceptAllChangesOnSuccess
+    )
+    {
+        EnforceTenantOwnership();
+
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
     public override Task<int> SaveChangesAsync(
         CancellationToken cancellationToken = default
     )
@@ -74,7 +176,23 @@ internal sealed class TenantContext : DbContext
         // Query filters protect reads only. Validate writes separately so an
         // attached entity cannot cross the tenant boundary unnoticed.
         EnforceTenantOwnership();
-        return base.SaveChangesAsync(cancellationToken);
+        // Bypass the convenience overload for the same single-scan guarantee
+        // as the synchronous path.
+        return base.SaveChangesAsync(
+            acceptAllChangesOnSuccess: true,
+            cancellationToken);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default
+    )
+    {
+        EnforceTenantOwnership();
+
+        return base.SaveChangesAsync(
+            acceptAllChangesOnSuccess,
+            cancellationToken);
     }
 
     protected override void OnModelCreating(
@@ -112,10 +230,24 @@ internal sealed class TenantContext : DbContext
             if (entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted
                 && !string.Equals(entry.Entity.TenantId, _tenantId, StringComparison.Ordinal))
             {
-                throw new InvalidOperationException("A tenant context cannot write another tenant's row.");
+                throw new TenantBoundaryViolationException();
             }
         }
     }
+}
+
+/// <summary>
+/// Identifies an attempted write across the context's tenant boundary without
+/// coupling callers to exception-message text.
+/// </summary>
+internal sealed class TenantBoundaryViolationException : InvalidOperationException
+{
+    /// <summary>
+    /// Initializes the exception with the stable tenant-boundary diagnostic.
+    /// </summary>
+    public TenantBoundaryViolationException()
+        : base("A tenant context cannot write another tenant's row.")
+    { }
 }
 
 internal sealed class TenantDocument

@@ -13,15 +13,10 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
                                         END
                                         """;
 
-    private readonly IMySqlDriverFacade _driverFacade;
-
     public MySqlRelationalDatabaseCreator(
-        RelationalDatabaseCreatorDependencies dependencies,
-        IMySqlDriverFacade driverFacade
+        RelationalDatabaseCreatorDependencies dependencies
     ) : base(dependencies)
-    {
-        _driverFacade = driverFacade ?? throw new ArgumentNullException(nameof(driverFacade));
-    }
+    { }
 
     public override bool Exists()
     {
@@ -34,9 +29,11 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         // current schema state.
         try
         {
-            using var connection = CreateServerConnection();
-            connection.Open();
-            return SchemaExists(connection);
+            var databaseName = GetDatabaseName();
+            using var lease = CreateServerConnection();
+            lease.Open();
+            var connection = lease.Connection;
+            return SchemaExists(connection, databaseName);
         }
         catch (MySqlException exception)
         {
@@ -55,11 +52,13 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
     {
         try
         {
-            await using var connection = CreateServerConnection();
-            await connection
+            var databaseName = GetDatabaseName();
+            await using var lease = CreateServerConnection();
+            await lease
                 .OpenAsync(cancellationToken)
                 .ConfigureAwait(false);
-            return await SchemaExistsAsync(connection, cancellationToken)
+            var connection = lease.Connection;
+            return await SchemaExistsAsync(connection, databaseName, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (MySqlException exception)
@@ -73,8 +72,9 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         }
     }
 
-    private bool SchemaExists(
-        DbConnection connection
+    private static bool SchemaExists(
+        DbConnection connection,
+        string databaseName
     )
     {
         using var command = connection.CreateCommand();
@@ -82,15 +82,16 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
             "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = @name";
         var parameter = command.CreateParameter();
         parameter.ParameterName = "@name";
-        parameter.Value = GetDatabaseName();
+        parameter.Value = databaseName;
         command.Parameters.Add(parameter);
 
         var result = command.ExecuteScalar();
         return result is not null && Convert.ToInt64(result, CultureInfo.InvariantCulture) > 0;
     }
 
-    private async Task<bool> SchemaExistsAsync(
+    private static async Task<bool> SchemaExistsAsync(
         DbConnection connection,
+        string databaseName,
         CancellationToken cancellationToken
     )
     {
@@ -98,7 +99,7 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         command.CommandText = "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = @name";
         var parameter = command.CreateParameter();
         parameter.ParameterName = "@name";
-        parameter.Value = GetDatabaseName();
+        parameter.Value = databaseName;
         command.Parameters.Add(parameter);
 
         var result = await command
@@ -109,11 +110,13 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
 
     public override void Create()
     {
-        using var connection = CreateServerConnection();
-        connection.Open();
+        var commandText = BuildCreateDatabaseSql();
+        using var lease = CreateServerConnection();
+        lease.Open();
+        var connection = lease.Connection;
 
         using var command = connection.CreateCommand();
-        command.CommandText = BuildCreateDatabaseSql();
+        command.CommandText = commandText;
         command.ExecuteNonQuery();
     }
 
@@ -121,13 +124,15 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         CancellationToken cancellationToken = default
     )
     {
-        await using var connection = CreateServerConnection();
-        await connection
+        var commandText = BuildCreateDatabaseSql();
+        await using var lease = CreateServerConnection();
+        await lease
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+        var connection = lease.Connection;
 
         await using var command = connection.CreateCommand();
-        command.CommandText = BuildCreateDatabaseSql();
+        command.CommandText = commandText;
         await command
             .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -135,11 +140,13 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
 
     public override void Delete()
     {
-        using var connection = CreateServerConnection();
-        connection.Open();
+        var commandText = BuildDropDatabaseSql();
+        using var lease = CreateServerConnection();
+        lease.Open();
+        var connection = lease.Connection;
 
         using var command = connection.CreateCommand();
-        command.CommandText = BuildDropDatabaseSql();
+        command.CommandText = commandText;
         command.ExecuteNonQuery();
     }
 
@@ -147,13 +154,15 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         CancellationToken cancellationToken = default
     )
     {
-        await using var connection = CreateServerConnection();
-        await connection
+        var commandText = BuildDropDatabaseSql();
+        await using var lease = CreateServerConnection();
+        await lease
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+        var connection = lease.Connection;
 
         await using var command = connection.CreateCommand();
-        command.CommandText = BuildDropDatabaseSql();
+        command.CommandText = commandText;
         await command
             .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -161,8 +170,9 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
 
     public override bool HasTables()
     {
-        using var connection = CreateDatabaseConnection();
-        connection.Open();
+        using var lease = CreateDatabaseConnection();
+        lease.Open();
+        var connection = lease.Connection;
 
         using var command = connection.CreateCommand();
         command.CommandText = HasTablesSql;
@@ -176,10 +186,11 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         CancellationToken cancellationToken = default
     )
     {
-        await using var connection = CreateDatabaseConnection();
-        await connection
+        await using var lease = CreateDatabaseConnection();
+        await lease
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+        var connection = lease.Connection;
 
         await using var command = connection.CreateCommand();
         command.CommandText = HasTablesSql;
@@ -191,9 +202,16 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         return MySqlScalarConvert.ToBoolean(result);
     }
 
-    private DbConnection CreateDatabaseConnection() => _driverFacade.CreateConnection(GetConnectionString());
+    private MySqlLifecycleConnection CreateDatabaseConnection()
+        => GetProviderConnection().CreateLifecycleConnection(GetConnectionString());
 
-    private DbConnection CreateServerConnection() => _driverFacade.CreateConnection(CreateServerConnectionString());
+    private MySqlLifecycleConnection CreateServerConnection()
+        => GetProviderConnection().CreateLifecycleConnection(CreateServerConnectionString());
+
+    private MySqlRelationalConnection GetProviderConnection()
+        => Dependencies.Connection as MySqlRelationalConnection
+            ?? throw new InvalidOperationException(
+                "The Doka MySQL database creator requires the provider relational connection.");
 
     private string BuildCreateDatabaseSql()
         => "CREATE DATABASE IF NOT EXISTS "
@@ -288,8 +306,8 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
     {
         try
         {
-            using var connection = CreateServerConnection();
-            connection.Open();
+            using var lease = CreateServerConnection();
+            lease.Open();
 
             return true;
         }
@@ -305,8 +323,8 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
     {
         try
         {
-            await using var connection = CreateServerConnection();
-            await connection
+            await using var lease = CreateServerConnection();
+            await lease
                 .OpenAsync(cancellationToken)
                 .ConfigureAwait(false);
 

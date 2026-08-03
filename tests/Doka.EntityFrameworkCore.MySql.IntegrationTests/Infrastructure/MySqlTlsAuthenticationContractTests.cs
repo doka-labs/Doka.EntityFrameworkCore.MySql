@@ -1,4 +1,6 @@
 using System.Net;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
@@ -14,6 +16,9 @@ public sealed class MySqlTlsAuthenticationContractTests
     private const string PasswordUser = "doka_password_contract";
     private const string ClientCertificateUser = "doka_x509_contract";
     private const string CertificateValidationUser = "doka_certificate_contract";
+    private const string LifecycleCallbackUser = "doka_lifecycle_callbacks";
+    private const string InitialLifecyclePassword = "doka_lifecycle_password_1";
+    private const string RotatedLifecyclePassword = "doka_lifecycle_password_2";
     private const string TestPassword = "doka_test_password";
     private readonly TlsDatabaseFixture _fixture;
 
@@ -86,6 +91,250 @@ public sealed class MySqlTlsAuthenticationContractTests
                 serverVersion,
                 expectedPasswordPlugin)
             .ConfigureAwait(false);
+        await AssertConnectionLifecycleCallbacksAsync(
+                endpoint.ConnectionString,
+                tlsOptions,
+                serverVersion)
+            .ConfigureAwait(false);
+        await AssertDataSourceLifecycleCallbacksAsync(
+                endpoint.ConnectionString,
+                tlsOptions,
+                serverVersion)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task AssertConnectionLifecycleCallbacksAsync(
+        string administrativeConnectionString,
+        TestDatabaseTlsOptions tlsOptions,
+        MySqlServerVersion serverVersion
+    )
+    {
+        var databaseName = $"doka_connection_callbacks_{Guid.NewGuid():N}"[..48];
+        var builder = CreateLifecycleConnectionString(
+            administrativeConnectionString,
+            databaseName);
+        var password = builder.Password;
+        builder.Password = string.Empty;
+        using var clientCertificate = X509Certificate2.CreateFromPemFile(
+            tlsOptions.ClientCertificateFile,
+            tlsOptions.ClientKeyFile);
+        using var certificateAuthority = X509CertificateLoader.LoadCertificateFromFile(
+            tlsOptions.CaCertificateFile);
+        var certificateCallbackCount = 0;
+        var clientCertificateCallbackCount = 0;
+        var passwordCallbackCount = 0;
+        await using var connection = new MySqlConnection(builder.ConnectionString)
+        {
+            RemoteCertificateValidationCallback = (_, certificate, _, errors) =>
+            {
+                Interlocked.Increment(ref certificateCallbackCount);
+                return ValidateTestServerCertificate(
+                    certificate,
+                    errors,
+                    certificateAuthority);
+            },
+            ProvideClientCertificatesCallback = certificates =>
+            {
+                Interlocked.Increment(ref clientCertificateCallbackCount);
+                certificates.Add(clientCertificate);
+                return ValueTask.CompletedTask;
+            },
+            ProvidePasswordCallback = _ =>
+            {
+                Interlocked.Increment(ref passwordCallbackCount);
+                return password;
+            },
+        };
+        var options = new DbContextOptionsBuilder<SecurityContractContext>()
+            .UseMySql(connection, serverVersion)
+            .Options;
+
+        await AssertLifecycleOperationsAsync(options)
+            .ConfigureAwait(false);
+
+        Assert.True(certificateCallbackCount >= 6);
+        Assert.True(clientCertificateCallbackCount >= 6);
+        Assert.True(passwordCallbackCount >= 6);
+        Assert.Equal(ConnectionState.Closed, connection.State);
+    }
+
+    private static async Task AssertDataSourceLifecycleCallbacksAsync(
+        string administrativeConnectionString,
+        TestDatabaseTlsOptions tlsOptions,
+        MySqlServerVersion serverVersion
+    )
+    {
+        var databaseName = $"doka_data_source_callbacks_{Guid.NewGuid():N}"[..48];
+        var builder = CreateLifecycleConnectionString(administrativeConnectionString, databaseName);
+        builder.UserID = LifecycleCallbackUser;
+        builder.Password = string.Empty;
+        using var clientCertificate = X509Certificate2.CreateFromPemFile(
+            tlsOptions.ClientCertificateFile,
+            tlsOptions.ClientKeyFile);
+        using var certificateAuthority = X509CertificateLoader.LoadCertificateFromFile(tlsOptions.CaCertificateFile);
+        var certificateCallbackCount = 0;
+        var clientCertificateCallbackCount = 0;
+        var passwordProviderCount = 0;
+        var connectionOpenedCallbackCount = 0;
+        var currentPassword = InitialLifecyclePassword;
+        var rotatedPasswordPublished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var administrativeConnection = new MySqlConnection(administrativeConnectionString);
+        await administrativeConnection
+            .OpenAsync()
+            .ConfigureAwait(false);
+        await DropUserAsync(administrativeConnection, LifecycleCallbackUser)
+            .ConfigureAwait(false);
+        await CreateLifecycleCallbackUserAsync(administrativeConnection)
+            .ConfigureAwait(false);
+
+        try
+        {
+            await using var dataSource = new MySqlDataSourceBuilder(builder.ConnectionString)
+                .UseRemoteCertificateValidationCallback((
+                    _,
+                    certificate,
+                    _,
+                    errors
+                ) =>
+                {
+                    Interlocked.Increment(ref certificateCallbackCount);
+                    return ValidateTestServerCertificate(certificate, errors, certificateAuthority);
+                })
+                .UseClientCertificatesCallback(certificates =>
+                {
+                    Interlocked.Increment(ref clientCertificateCallbackCount);
+                    certificates.Add(clientCertificate);
+                    return ValueTask.CompletedTask;
+                })
+                .UsePeriodicPasswordProvider(
+                    (
+                        _,
+                        _
+                    ) =>
+                    {
+                        Interlocked.Increment(ref passwordProviderCount);
+                        var password = Volatile.Read(ref currentPassword);
+
+                        if (password == RotatedLifecyclePassword)
+                        {
+                            rotatedPasswordPublished.TrySetResult();
+                        }
+
+                        return ValueTask.FromResult(password);
+                    },
+                    TimeSpan.FromMilliseconds(50),
+                    TimeSpan.FromMilliseconds(50))
+                .UseConnectionOpenedCallback((
+                    _,
+                    _
+                ) =>
+                {
+                    Interlocked.Increment(ref connectionOpenedCallbackCount);
+                    return ValueTask.CompletedTask;
+                })
+                .Build();
+            var options = new DbContextOptionsBuilder<SecurityContractContext>().UseMySql(dataSource, serverVersion)
+                .Options;
+
+            await AssertLifecycleOperationsAsync(options)
+                .ConfigureAwait(false);
+            await RotateLifecycleCallbackPasswordAsync(administrativeConnection)
+                .ConfigureAwait(false);
+            Volatile.Write(ref currentPassword, RotatedLifecyclePassword);
+            await rotatedPasswordPublished
+                .Task.WaitAsync(TimeSpan.FromSeconds(10))
+                .ConfigureAwait(false);
+            await AssertLifecycleOperationsAsync(options)
+                .ConfigureAwait(false);
+
+            Assert.True(certificateCallbackCount >= 12);
+            Assert.True(clientCertificateCallbackCount >= 12);
+            Assert.True(passwordProviderCount >= 2);
+            Assert.True(connectionOpenedCallbackCount >= 12);
+        }
+        finally
+        {
+            await DropUserAsync(administrativeConnection, LifecycleCallbackUser)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private static MySqlConnectionStringBuilder CreateLifecycleConnectionString(
+        string administrativeConnectionString,
+        string databaseName
+    ) => new(administrativeConnectionString)
+    {
+        Database = databaseName,
+        Pooling = false,
+        SslCa = string.Empty,
+        SslMode = MySqlSslMode.Required,
+    };
+
+    private static bool ValidateTestServerCertificate(
+        X509Certificate? certificate,
+        SslPolicyErrors errors,
+        X509Certificate2 certificateAuthority
+    )
+    {
+        if (certificate is null
+            || (errors & (SslPolicyErrors.RemoteCertificateNameMismatch
+                          | SslPolicyErrors.RemoteCertificateNotAvailable)) != 0)
+        {
+            return false;
+        }
+
+        using var serverCertificate = new X509Certificate2(certificate);
+        using var chain = new X509Chain();
+        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+        chain.ChainPolicy.CustomTrustStore.Add(certificateAuthority);
+        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+
+        return chain.Build(serverCertificate);
+    }
+
+    private static async Task AssertLifecycleOperationsAsync(
+        DbContextOptions<SecurityContractContext> options
+    )
+    {
+        await using var context = new SecurityContractContext(options);
+        var creator = context.GetService<IRelationalDatabaseCreator>();
+
+        try
+        {
+            Assert.False(
+                await creator
+                    .ExistsAsync()
+                    .ConfigureAwait(false));
+            await creator
+                .CreateAsync()
+                .ConfigureAwait(false);
+            Assert.True(
+                await creator
+                    .ExistsAsync()
+                    .ConfigureAwait(false));
+            Assert.False(
+                await creator
+                    .HasTablesAsync()
+                    .ConfigureAwait(false));
+            await creator
+                .DeleteAsync()
+                .ConfigureAwait(false);
+            Assert.False(
+                await creator
+                    .ExistsAsync()
+                    .ConfigureAwait(false));
+        }
+        finally
+        {
+            if (await creator
+                    .ExistsAsync()
+                    .ConfigureAwait(false))
+            {
+                await creator
+                    .DeleteAsync()
+                    .ConfigureAwait(false);
+            }
+        }
     }
 
     private static async Task AssertVerifiedTransportAsync(
@@ -264,6 +513,38 @@ public sealed class MySqlTlsAuthenticationContractTests
         await using var grantCommand = connection.CreateCommand();
         grantCommand.CommandText = $"GRANT SELECT ON `doka_provider`.* TO '{user}'@'%';";
         _ = await grantCommand
+            .ExecuteNonQueryAsync()
+            .ConfigureAwait(false);
+    }
+
+    private static async Task CreateLifecycleCallbackUserAsync(
+        MySqlConnection connection
+    )
+    {
+        await using (var createCommand = connection.CreateCommand())
+        {
+            createCommand.CommandText = $"CREATE USER '{LifecycleCallbackUser}'@'%' "
+                + $"IDENTIFIED BY '{InitialLifecyclePassword}' REQUIRE X509;";
+            _ = await createCommand
+                .ExecuteNonQueryAsync()
+                .ConfigureAwait(false);
+        }
+
+        await using var grantCommand = connection.CreateCommand();
+        grantCommand.CommandText = $"GRANT CREATE, DROP, SELECT ON *.* TO '{LifecycleCallbackUser}'@'%';";
+        _ = await grantCommand
+            .ExecuteNonQueryAsync()
+            .ConfigureAwait(false);
+    }
+
+    private static async Task RotateLifecycleCallbackPasswordAsync(
+        MySqlConnection connection
+    )
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"ALTER USER '{LifecycleCallbackUser}'@'%' "
+            + $"IDENTIFIED BY '{RotatedLifecyclePassword}';";
+        _ = await command
             .ExecuteNonQueryAsync()
             .ConfigureAwait(false);
     }

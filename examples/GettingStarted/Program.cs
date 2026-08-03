@@ -1,4 +1,5 @@
 using Doka.EntityFrameworkCore.MySql;
+using Doka.EntityFrameworkCore.MySql.Examples;
 using Microsoft.EntityFrameworkCore;
 
 // -- Getting Started with Doka.EntityFrameworkCore.MySql --
@@ -10,13 +11,10 @@ using Microsoft.EntityFrameworkCore;
 //
 // Prerequisites: A running MySQL 8.4 instance (use docker-compose.yml)
 
-var connectionString = Environment.GetEnvironmentVariable("DOKA_MYSQL_CONNECTION_STRING")
-    ?? "Server=localhost;Port=33068;Database=getting_started;User ID=root;Password=root_password;";
-
-var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
+var database = ExampleDatabaseConfiguration.Create("doka_example_getting_started");
 
 var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
-optionsBuilder.UseMySql(connectionString, serverVersion);
+optionsBuilder.UseMySql(database.ConnectionString, database.ServerVersion);
 
 using var context = new AppDbContext(optionsBuilder.Options);
 

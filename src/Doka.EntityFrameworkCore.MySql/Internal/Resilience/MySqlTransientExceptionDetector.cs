@@ -4,40 +4,33 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
 {
     private const int MaxInnerExceptionDepth = 20;
 
+    [Flags]
+    private enum TerminalCondition
+    {
+        None = 0,
+        Cancellation = 1,
+        CommandTimeout = 2,
+    }
+
+    public bool IsCancellation(
+        Exception exception
+    ) => (ClassifyTerminalConditions(exception) & TerminalCondition.Cancellation) != 0;
+
     public bool IsCommandTimeout(
         Exception exception
-    )
-    {
-        ArgumentNullException.ThrowIfNull(exception);
-
-        var current = exception;
-        var depth = 0;
-
-        while (current is not null
-               && depth < MaxInnerExceptionDepth)
-        {
-            if (current is MySqlException { ErrorCode: MySqlErrorCode.CommandTimeoutExpired })
-            {
-                return true;
-            }
-
-            if (current is TimeoutException)
-            {
-                return true;
-            }
-
-            current = current.InnerException;
-            depth++;
-        }
-
-        return false;
-    }
+    ) => (ClassifyTerminalConditions(exception) & TerminalCondition.CommandTimeout) != 0;
 
     public bool ShouldRetryOn(
         Exception exception
     )
     {
-        ArgumentNullException.ThrowIfNull(exception);
+        // Cancellation and command timeout are terminal classifications for
+        // the whole bounded chain. Resolve them before a transient outer
+        // wrapper can short-circuit traversal and schedule another attempt.
+        if (ClassifyTerminalConditions(exception) != TerminalCondition.None)
+        {
+            return false;
+        }
 
         var current = exception;
         var depth = 0;
@@ -45,16 +38,6 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
         while (current is not null
                && depth < MaxInnerExceptionDepth)
         {
-            if (current is OperationCanceledException)
-            {
-                return false;
-            }
-
-            if (IsCommandTimeout(current))
-            {
-                return false;
-            }
-
             if (current is MySqlException mySqlException)
             {
                 return IsKnownRetryableErrorCode(mySqlException.ErrorCode) || mySqlException.IsTransient;
@@ -70,6 +53,37 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
         }
 
         return false;
+    }
+
+    private static TerminalCondition ClassifyTerminalConditions(
+        Exception exception
+    )
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        var classification = TerminalCondition.None;
+        var current = exception;
+        var depth = 0;
+
+        while (current is not null
+               && depth < MaxInnerExceptionDepth)
+        {
+            if (current is OperationCanceledException)
+            {
+                classification |= TerminalCondition.Cancellation;
+            }
+
+            if (current is TimeoutException
+                || current is MySqlException { ErrorCode: MySqlErrorCode.CommandTimeoutExpired })
+            {
+                classification |= TerminalCondition.CommandTimeout;
+            }
+
+            current = current.InnerException;
+            depth++;
+        }
+
+        return classification;
     }
 
     private static bool IsKnownRetryableErrorCode(

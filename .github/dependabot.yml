@@ -19,6 +19,24 @@ updates:
       - dependencies
       - github-actions
 
+  # global.json is the immutable build and publication toolchain contract.
+  # SDK changes therefore arrive as reviewable pull requests and must pass the
+  # same exact-version, release-evidence, and repository gates as source edits.
+  - package-ecosystem: dotnet-sdk
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - dotnet-sdk
+
   - package-ecosystem: nuget
     directory: /
     schedule:

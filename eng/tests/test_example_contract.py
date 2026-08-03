@@ -88,6 +88,20 @@ class ExampleContractTests(unittest.TestCase):
 
         self.assertIn("Example: required scenario token is missing: RequiredProviderApi", errors)
 
+    def test_destructive_lifecycle_requires_shared_database_isolation(self) -> None:
+        """Reject deletion paths that can retain an operator-supplied catalog."""
+        (self.directory / "Program.cs").write_text(
+            "RequiredProviderApi();\ncontext.Database.EnsureDeleted();\n",
+            encoding="ascii",
+        )
+
+        errors = example_contract.validate_example(self.examples_root, self.contract)
+
+        self.assertIn(
+            "Example: destructive lifecycle bypasses the shared database isolation",
+            errors,
+        )
+
     def test_undeclared_project_fails_inventory(self) -> None:
         """Require new example projects to acquire an explicit contract."""
         undeclared = self.examples_root / "Undeclared"
