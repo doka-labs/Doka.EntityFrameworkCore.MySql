@@ -407,6 +407,8 @@ MIT -- see [LICENSE](LICENSE).
 - [Release governance and diagnostics catalog](docs/release-governance.md)
 - [Host integration examples](docs/host-integration-examples.md)
 - [Contributing](CONTRIBUTING.md)
+- [Support](SUPPORT.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Changelog](CHANGELOG.md)
 - [Security policy](SECURITY.md)
 - [Threat model](docs/security/threat-model.md)

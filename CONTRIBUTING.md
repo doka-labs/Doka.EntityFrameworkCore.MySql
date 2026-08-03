@@ -1,6 +1,9 @@
 # Contributing
 
-Contributions are welcome. Please read this document before opening a pull request.
+Contributions are welcome. Please read this document and the
+[Code of Conduct](CODE_OF_CONDUCT.md) before opening a pull request. Support
+questions and private reporting channels are routed through
+[SUPPORT.md](SUPPORT.md).
 
 ## Prerequisites
 
@@ -234,7 +237,9 @@ Post-v1.0 the project will additionally adopt `PackageValidation` (built-in to .
 
 ## Reporting Issues
 
-Use [GitHub Issues](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/issues) for bug reports and feature requests. Include:
+Use [GitHub Issues](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/issues)
+for bug reports and feature requests. The complete support scope and reporting
+requirements are documented in [SUPPORT.md](SUPPORT.md). Include:
 
 - the engine and version you are running against (MySQL 8.x or MariaDB 11.x)
 - a minimal reproduction (connection configuration, model snippet, query)
