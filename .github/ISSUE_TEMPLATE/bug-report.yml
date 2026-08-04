@@ -1,0 +1,172 @@
+name: Bug report
+description: Report a reproducible defect in the supported provider matrix.
+title: "bug: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve Doka.EntityFrameworkCore.MySql.
+
+        Do not disclose vulnerabilities or sensitive data in a public issue.
+        Follow the [security policy](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/security/policy)
+        for private reporting. Remove credentials, connection strings, personal
+        data, internal host names, and other secrets from all examples and logs.
+
+  - type: textarea
+    id: defect
+    attributes:
+      label: Defect summary
+      description: Describe the provider behavior that is incorrect.
+      placeholder: A concise description of the observed defect.
+    validations:
+      required: true
+
+  - type: input
+    id: provider-version
+    attributes:
+      label: Provider version
+      description: Provide the exact Doka.EntityFrameworkCore.MySql package version.
+      placeholder: 10.0.0-rc.1
+    validations:
+      required: true
+
+  - type: input
+    id: ef-core-version
+    attributes:
+      label: EF Core version
+      description: Provide the exact Microsoft.EntityFrameworkCore version.
+      placeholder: 10.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: dotnet-version
+    attributes:
+      label: .NET version
+      description: Provide the runtime or SDK version used by the reproducer.
+      placeholder: 10.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: connector-version
+    attributes:
+      label: MySqlConnector version
+      description: Provide the exact MySqlConnector package version.
+      placeholder: 2.6.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: engine-family
+    attributes:
+      label: Database engine
+      description: Select the server family on which the defect occurs.
+      options:
+        - MySQL
+        - MariaDB
+    validations:
+      required: true
+
+  - type: input
+    id: engine-version
+    attributes:
+      label: Database engine version
+      description: Provide the complete server version reported by the engine.
+      placeholder: MySQL 8.4.6 or MariaDB 11.8.3
+    validations:
+      required: true
+
+  - type: input
+    id: deployment-topology
+    attributes:
+      label: Deployment topology
+      description: Identify relevant hosting, proxy, cluster, pooler, or container details.
+      placeholder: Local Docker, managed service, Galera, MaxScale, or direct server
+
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system and architecture
+      description: Provide the environment that runs the application or reproducer.
+      placeholder: Ubuntu 24.04 x64, Windows Server 2025 x64, or macOS 15 arm64
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Minimal reproduction
+      description: Provide the smallest model, query, migration, or repository that reproduces the behavior.
+      placeholder: Include complete steps and a minimal code sample or link to a minimal repository.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Describe the provider contract or result you expected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Describe what happened, including the exception type when applicable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: generated-sql
+    attributes:
+      label: Generated SQL
+      description: Include the redacted SQL when it helps explain the defect.
+      render: sql
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Relevant diagnostics
+      description: Include redacted logs or stack traces that are necessary to reproduce or diagnose the defect.
+      render: shell
+
+  - type: dropdown
+    id: regression
+    attributes:
+      label: Regression status
+      description: State whether the same scenario worked with an earlier provider version.
+      options:
+        - Yes, this worked in an earlier version
+        - No, this has never worked
+        - Unknown
+    validations:
+      required: true
+
+  - type: input
+    id: last-working-version
+    attributes:
+      label: Last known working version
+      description: If this is a regression, provide the newest provider version known to work.
+      placeholder: Not applicable or exact version
+
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: Submission checklist
+      options:
+        - label: I searched existing issues for the same behavior.
+          required: true
+        - label: I reduced the report to a minimal, reproducible case.
+          required: true
+        - label: I removed credentials, personal data, internal host names, and other sensitive values.
+          required: true
+        - label: This report is not a security vulnerability.
+          required: true
+        - label: >-
+            I agree to follow the
+            [Code of Conduct](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/CODE_OF_CONDUCT.md).
+          required: true

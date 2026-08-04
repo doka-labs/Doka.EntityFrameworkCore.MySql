@@ -1,0 +1,10 @@
+# Public reports must enter through a structured form so maintainers receive the
+# minimum evidence needed for safe routing and reproducible triage.
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/security/policy
+    about: Do not disclose vulnerabilities, credentials, or sensitive data in a public issue.
+  - name: Read the support and routing policy
+    url: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/SUPPORT.md
+    about: Check supported requests, required evidence, and upstream ownership before opening an issue.

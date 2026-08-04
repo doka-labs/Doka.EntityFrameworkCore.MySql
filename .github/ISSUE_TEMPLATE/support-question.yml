@@ -1,0 +1,130 @@
+name: Support question
+description: Ask a usage or configuration question about the supported provider matrix.
+title: "support: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read the [support policy](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/SUPPORT.md)
+        before submitting a question. General database administration,
+        application architecture, and unsupported deployment platforms are not
+        maintained provider contracts.
+
+        Do not disclose vulnerabilities or sensitive data in a public issue.
+        Follow the [security policy](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/security/policy)
+        for private reporting.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: State the provider usage or configuration question and the outcome you need.
+      placeholder: What are you trying to accomplish, and where are you blocked?
+    validations:
+      required: true
+
+  - type: input
+    id: provider-version
+    attributes:
+      label: Provider version
+      description: Provide the exact Doka.EntityFrameworkCore.MySql package version.
+      placeholder: 10.0.0-rc.1
+    validations:
+      required: true
+
+  - type: input
+    id: ef-core-version
+    attributes:
+      label: EF Core version
+      description: Provide the exact Microsoft.EntityFrameworkCore version.
+      placeholder: 10.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: dotnet-version
+    attributes:
+      label: .NET version
+      description: Provide the runtime or SDK version used by the application.
+      placeholder: 10.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: connector-version
+    attributes:
+      label: MySqlConnector version
+      description: Provide the exact MySqlConnector package version.
+      placeholder: 2.6.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: engine-family
+    attributes:
+      label: Database engine
+      description: Select the server family used by the application.
+      options:
+        - MySQL
+        - MariaDB
+    validations:
+      required: true
+
+  - type: input
+    id: engine-version
+    attributes:
+      label: Database engine version
+      description: Provide the complete server version reported by the engine.
+      placeholder: MySQL 8.4.6 or MariaDB 11.8.3
+    validations:
+      required: true
+
+  - type: textarea
+    id: relevant-configuration
+    attributes:
+      label: Relevant configuration
+      description: >-
+        Provide the smallest redacted options, model, or host configuration
+        needed to understand the question.
+      placeholder: Remove credentials, connection strings, personal data, and internal host names.
+    validations:
+      required: true
+
+  - type: textarea
+    id: attempts
+    attributes:
+      label: What have you tried?
+      description: Describe the documentation, examples, APIs, or alternatives already evaluated.
+    validations:
+      required: true
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: Minimal sample
+      description: Add a minimal code sample or repository when it clarifies the question.
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Relevant diagnostics
+      description: Include only redacted SQL, logs, or exception details needed to understand the question.
+      render: shell
+
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: Submission checklist
+      options:
+        - label: I checked the README, examples, support policy, and existing issues.
+          required: true
+        - label: I removed credentials, personal data, internal host names, and other sensitive values.
+          required: true
+        - label: This question is not a security vulnerability.
+          required: true
+        - label: >-
+            I agree to follow the
+            [Code of Conduct](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/CODE_OF_CONDUCT.md).
+          required: true

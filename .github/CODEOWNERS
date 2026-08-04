@@ -1,0 +1,3 @@
+# Keep repository-wide ownership explicit so every pull request requests review
+# from the team responsible for the provider's public and release contracts.
+* @doka-labs/core-maintainers

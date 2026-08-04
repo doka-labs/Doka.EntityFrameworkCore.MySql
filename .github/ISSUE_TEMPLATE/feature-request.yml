@@ -1,0 +1,115 @@
+name: Feature request
+description: Propose a provider capability or compatibility improvement.
+title: "feature: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the consumer problem before proposing an API or implementation.
+        Requests are evaluated against EF Core behavior, provider ownership,
+        supported engines, maintainability, compatibility, and runtime cost.
+
+        Use the [security policy](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/security/policy)
+        instead when the request would disclose a vulnerability.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Consumer problem
+      description: Explain the concrete limitation, use case, and impact without assuming a particular implementation.
+      placeholder: What can a provider consumer not express, execute, or operate safely today?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider-surface
+    attributes:
+      label: Provider surface
+      description: Select the primary provider area affected by the request.
+      options:
+        - Query translation
+        - Type mapping
+        - Migrations and database lifecycle
+        - Reverse engineering and scaffolding
+        - Spatial support
+        - Connections, transactions, and resilience
+        - Diagnostics and observability
+        - Configuration and public API
+        - Documentation and examples
+        - Other provider behavior
+    validations:
+      required: true
+
+  - type: dropdown
+    id: engine-scope
+    attributes:
+      label: Database engine scope
+      description: Identify whether the capability depends on an engine family.
+      options:
+        - Engine-independent or both families
+        - MySQL
+        - MariaDB
+        - Not yet determined
+    validations:
+      required: true
+
+  - type: input
+    id: engine-version
+    attributes:
+      label: Relevant engine version
+      description: Provide an exact version when the request depends on a server capability.
+      placeholder: Not applicable or exact MySQL or MariaDB version
+
+  - type: textarea
+    id: proposed-contract
+    attributes:
+      label: Desired provider contract
+      description: Describe the observable behavior or public contract that would solve the problem.
+      placeholder: Explain what the provider should do from a consumer's perspective.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe current workarounds, upstream capabilities, or alternative designs and their limitations.
+
+  - type: dropdown
+    id: compatibility-impact
+    attributes:
+      label: Compatibility impact
+      description: Indicate whether the request may change SQL, metadata, migrations, or public API.
+      options:
+        - Additive behavior only
+        - Existing behavior may need to change
+        - Public API change may be required
+        - Not yet determined
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Supporting evidence
+      description: Link relevant EF Core contracts, engine documentation, examples, benchmarks, or minimal code.
+
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: Submission checklist
+      options:
+        - label: I searched existing issues and documentation for this capability.
+          required: true
+        - label: >-
+            This request concerns provider behavior rather than general database
+            administration or application design.
+          required: true
+        - label: This request does not disclose a security vulnerability or sensitive data.
+          required: true
+        - label: >-
+            I agree to follow the
+            [Code of Conduct](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/CODE_OF_CONDUCT.md).
+          required: true
