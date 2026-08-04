@@ -21,14 +21,23 @@ public sealed class AdrRepositoryValidatorTests
         AssertShellGate(Path.Combine(repositoryRoot, "eng", "quality-gates.sh"), "dotnet format");
 
         var releaseCandidateScript = File.ReadAllText(Path.Combine(repositoryRoot, "eng", "release-candidate.sh"));
+        var normalizedReleaseCandidateScript = NormalizeShellLayout(releaseCandidateScript);
         Assert.Contains(
             "dotnet tool run sbom-tool --allow-roll-forward -- Generate",
-            releaseCandidateScript,
+            normalizedReleaseCandidateScript,
             StringComparison.Ordinal);
-        Assert.Contains("-bc \"${sbom_components_dir}\"", releaseCandidateScript, StringComparison.Ordinal);
-        Assert.Contains("cp \"${runtime_assets}\"", releaseCandidateScript, StringComparison.Ordinal);
-        Assert.Contains("cp \"${spatial_assets}\"", releaseCandidateScript, StringComparison.Ordinal);
-        Assert.DoesNotContain("-bc \"${repo_root}\"", releaseCandidateScript, StringComparison.Ordinal);
+        Assert.Contains("-bc \"${sbom_components_dir}\"", normalizedReleaseCandidateScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "cp \"${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql/project.assets.json\" "
+            + "\"${sbom_components_dir}/runtime/project.assets.json\"",
+            normalizedReleaseCandidateScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "cp \"${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.NetTopologySuite/project.assets.json\" "
+            + "\"${sbom_components_dir}/spatial/project.assets.json\"",
+            normalizedReleaseCandidateScript,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("-bc \"${repo_root}\"", normalizedReleaseCandidateScript, StringComparison.Ordinal);
         Assert.Contains(
             "DOKA_BENCHMARK_RUN_ID=\"${release_candidate_run_id}\"",
             releaseCandidateScript,
@@ -128,20 +137,24 @@ public sealed class AdrRepositoryValidatorTests
                 "BenchmarkDatabaseTarget.cs"));
         Assert.Contains("DOKA_BENCHMARK_DATABASE_PORT", benchmarkTarget, StringComparison.Ordinal);
 
-        var performanceIndex = releaseCandidateScript.IndexOf(
-            "run_benchmark_and_gate\n",
+        var mysqlPerformanceIndex = normalizedReleaseCandidateScript.IndexOf(
+            "run_named_stage \"performance-mysql84\" run_performance_mysql84",
             StringComparison.Ordinal);
-        var repositoryQualityIndex = releaseCandidateScript.IndexOf(
-            "run_repository_quality_gate\n",
+        var mariadbPerformanceIndex = normalizedReleaseCandidateScript.IndexOf(
+            "run_named_stage \"performance-mariadb118\" run_performance_mariadb118",
             StringComparison.Ordinal);
-        var repositoryTestIndex = releaseCandidateScript.IndexOf(
-            "run_repository_test_gate\n",
+        var repositoryQualityIndex = normalizedReleaseCandidateScript.IndexOf(
+            "run_named_stage \"quality\" run_repository_quality_gate",
+            StringComparison.Ordinal);
+        var repositoryTestIndex = normalizedReleaseCandidateScript.IndexOf(
+            "run_named_stage \"repository-tests\" run_repository_test_gate",
             StringComparison.Ordinal);
         Assert.True(
-            performanceIndex >= 0
-            && repositoryQualityIndex > performanceIndex
+            mysqlPerformanceIndex >= 0
+            && mariadbPerformanceIndex > mysqlPerformanceIndex
+            && repositoryQualityIndex > mariadbPerformanceIndex
             && repositoryTestIndex > repositoryQualityIndex,
-            "Release performance must run before build and database-heavy verification "
+            "Both release performance engines must run before build and database-heavy verification "
             + "can contaminate its host snapshot.");
         Assert.Contains("DOKA_BENCHMARK_PORT=0", releaseCandidateScript, StringComparison.Ordinal);
 
@@ -260,6 +273,7 @@ public sealed class AdrRepositoryValidatorTests
         var repositoryRoot = FindRepositoryRoot();
         var workflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "nuget-publish.yml"));
+        var normalizedWorkflow = NormalizeShellLayout(workflow);
         var publication = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "nuget_publication.py"));
         var symbolReadback = File.ReadAllText(
@@ -286,7 +300,7 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("gh attestation verify", workflow, StringComparison.Ordinal);
         Assert.Contains(
             "--signer-workflow \"${GITHUB_REPOSITORY}/.github/workflows/release-candidate.yml\"",
-            workflow,
+            normalizedWorkflow,
             StringComparison.Ordinal);
         Assert.Contains("--signer-digest \"${DOKA_SOURCE_COMMIT}\"", workflow, StringComparison.Ordinal);
         Assert.Contains("--source-ref \"refs/tags/${DOKA_RELEASE_TAG}\"", workflow, StringComparison.Ordinal);
@@ -1264,6 +1278,23 @@ public sealed class AdrRepositoryValidatorTests
         Assert.True(failFast >= 0, $"{path} must enable fail-fast shell behavior.");
         Assert.True(validator > failFast, $"{path} must invoke the ADR validator.");
         Assert.True(followingCommand > validator, $"{path} must validate ADRs before '{firstFollowingCommand}'.");
+    }
+
+    /// <summary>
+    /// Removes shell continuations and incidental whitespace so repository
+    /// contracts validate command semantics instead of source formatting.
+    /// </summary>
+    private static string NormalizeShellLayout(
+        string content
+    )
+    {
+        var withoutContinuations = content
+            .Replace("\\\r\n", " ", StringComparison.Ordinal)
+            .Replace("\\\n", " ", StringComparison.Ordinal);
+
+        return string.Join(
+            " ",
+            withoutContinuations.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     }
 
     private static string FindRepositoryRoot()

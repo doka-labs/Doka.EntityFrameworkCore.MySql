@@ -810,31 +810,10 @@ run_named_stage() {
 }
 
 run_all_stages() {
-    run_named_stage "quality" run_repository_quality_gate "${audit_dir}"
-    run_named_stage \
-        "repository-tests" \
-        run_repository_test_gate \
-        "${coverage_input_dir}/repo-tests"
-    run_named_stage "specification" run_specification_gate "${specification_dir}"
-    run_named_stage \
-        "integration" \
-        run_integration_configuration_and_failure_gate \
-        "${integration_dir}" \
-        "${coverage_input_dir}/integration"
-    run_named_stage \
-        "migration-deployment" \
-        run_migration_deployment_gate \
-        "${migration_deployment_root}"
-    run_named_stage "runtime" run_runtime_posture_gate "${runtime_dir}"
-    run_named_stage "coverage" run_coverage_gate "${coverage_merged_dir}"
-    run_named_stage \
-        "package" \
-        run_pack \
-        "${packages_dir}" \
-        "${dependency_graph_file}" \
-        "${sbom_components_dir}"
-    run_named_stage "sbom" run_sbom_stage "${sbom_dir}"
-
+    # The monolithic local path shares one host across every stage. Capture
+    # performance evidence before build and database gates can warm caches or
+    # introduce competing load. Hosted qualification additionally isolates
+    # each performance engine in its own matrix job.
     if [[ -n "${performance_reuse_source}" ]]; then
         local mysql_performance_complete=0
         local mariadb_performance_complete=0
@@ -863,6 +842,31 @@ run_all_stages() {
             run_performance_mariadb118 \
             "${performance_dir}/mariadb118"
     fi
+
+    run_named_stage "quality" run_repository_quality_gate "${audit_dir}"
+    run_named_stage \
+        "repository-tests" \
+        run_repository_test_gate \
+        "${coverage_input_dir}/repo-tests"
+    run_named_stage "specification" run_specification_gate "${specification_dir}"
+    run_named_stage \
+        "integration" \
+        run_integration_configuration_and_failure_gate \
+        "${integration_dir}" \
+        "${coverage_input_dir}/integration"
+    run_named_stage \
+        "migration-deployment" \
+        run_migration_deployment_gate \
+        "${migration_deployment_root}"
+    run_named_stage "runtime" run_runtime_posture_gate "${runtime_dir}"
+    run_named_stage "coverage" run_coverage_gate "${coverage_merged_dir}"
+    run_named_stage \
+        "package" \
+        run_pack \
+        "${packages_dir}" \
+        "${dependency_graph_file}" \
+        "${sbom_components_dir}"
+    run_named_stage "sbom" run_sbom_stage "${sbom_dir}"
 
     run_named_stage \
         "complete" \
