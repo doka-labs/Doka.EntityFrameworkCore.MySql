@@ -98,6 +98,11 @@ ref, and GitHub-hosted runner class rather than trusting repository ownership
 alone. Public readback independently derives the Portable PDB lookup key and
 SHA-256 checksum from each candidate assembly; it does not trust upload success
 or primary-package visibility as proof that NuGet.org indexed matching symbols.
+Repository write authority is isolated in a final job that starts only after
+all NuGet readback succeeds. That job independently verifies the local and
+remote annotated tag, stages exact notes and sealed assets in a draft, reads
+every asset back by digest, and requires GitHub release immutability after
+publication. It has no authority to create tags or replace conflicting assets.
 
 ## Security Invariants and Controls
 
@@ -173,6 +178,10 @@ or primary-package visibility as proof that NuGet.org indexed matching symbols.
   exact checksum-bound Portable PDBs from NuGet.org's symbol server, restores
   both exact package versions into an empty cache, and executes the provider
   and spatial runtime contract against the pinned MySQL 8.4 image.
+- GitHub release finalization receives repository write permission only after
+  that public readback. It requires the exact annotated tag and source commit,
+  rejects conflicting drafts or assets, and accepts a retry only after complete
+  metadata, digest, immutability, prerelease, and latest-release readback.
 - Test, benchmark, and generated evidence never substitute for the shipped
   source revision they claim to validate.
 - Bundled database services publish repository-known test credentials on IPv4
@@ -196,6 +205,9 @@ The security test and review inventory includes:
   package evidence.
 - A replayed candidate run ID, moved tag, stale `main` commit, or partial NuGet
   publication acquiring authority for different package bytes.
+- A moved or lightweight release tag, substituted draft asset, or conflicting
+  pre-existing release acquiring authority from an otherwise valid NuGet
+  publication.
 
 ## Assumptions and Residual Ownership
 

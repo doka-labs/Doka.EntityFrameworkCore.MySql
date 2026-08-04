@@ -289,3 +289,77 @@ jobs:
           path: ${{ runner.temp }}/publication-evidence
           if-no-files-found: error
           retention-days: 90
+
+  # Keep repository write authority outside the NuGet credential boundary.
+  # This job cannot start until package, symbol, restore, and runtime readback
+  # have all succeeded in the publication job above.
+  finalize-github-release:
+    needs: publish-and-read-back
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      actions: read
+      contents: write
+
+    steps:
+      - name: Checkout trusted release tooling and annotated tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Initialize GitHub release evidence
+        run: mkdir -p "${RUNNER_TEMP}/github-release-evidence"
+
+      - name: Download immutable candidate artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.0
+        with:
+          name: release-candidate-artifacts
+          path: ${{ runner.temp }}/candidate
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.candidate_run_id }}
+
+      - name: Download verified NuGet publication evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.0
+        with:
+          name: nuget-publication-evidence-${{ inputs.release_tag }}
+          path: ${{ runner.temp }}/publication-evidence
+
+      - name: Prepare deterministic GitHub release plan
+        env:
+          DOKA_CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        run: |
+          run_attempt="$(
+            jq -er \
+              '.run_attempt | select(type == "number")' \
+              "${RUNNER_TEMP}/publication-evidence/candidate-run.json"
+          )"
+          candidate_root="${RUNNER_TEMP}/candidate/github-${DOKA_CANDIDATE_RUN_ID}-${run_attempt}"
+
+          python3 eng/github_release.py prepare \
+            --repository "${GITHUB_REPOSITORY}" \
+            --candidate-root "${candidate_root}" \
+            --publication-evidence "${RUNNER_TEMP}/publication-evidence" \
+            --changelog "${GITHUB_WORKSPACE}/CHANGELOG.md" \
+            --output "${RUNNER_TEMP}/github-release-evidence/github-release-plan.json"
+
+      # The helper verifies the local and remote annotated tag before creating
+      # a draft. Matching drafts resume without clobbering assets; every asset
+      # is downloaded and hashed before the draft is published.
+      - name: Publish and read back immutable GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 eng/github_release.py publish \
+            --repo "${GITHUB_WORKSPACE}" \
+            --plan "${RUNNER_TEMP}/github-release-evidence/github-release-plan.json" \
+            --output "${RUNNER_TEMP}/github-release-evidence/github-release-readback.json"
+
+      - name: Upload GitHub release finalization evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: github-release-evidence-${{ inputs.release_tag }}
+          path: ${{ runner.temp }}/github-release-evidence
+          if-no-files-found: error
+          retention-days: 90

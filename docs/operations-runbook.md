@@ -432,7 +432,7 @@ safe.
 - Microsoft, [Managing Migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/managing),
   retrieved 2026-07-28.
 
-## 8. NuGet Release-Candidate Publication
+## 8. NuGet and GitHub Release-Candidate Publication
 
 Package publication is intentionally separate from qualification. Never upload
 one of the locally generated packages manually: only the hosted candidate has
@@ -485,15 +485,47 @@ is the repository's only release operator.
    - `candidate_run_id`: the successful candidate run ID
    - `release_tag`: the exact tag from step 2
    - `confirmation`: `publish <release-tag>`
-6. Retain the `nuget-publication-evidence-<release-tag>` artifact after the
-   workflow proves package payloads, public Portable PDB retrieval, isolated
-   restore, and runtime readback.
+6. Wait for the separate `finalize-github-release` job. It starts only after
+   the NuGet package, symbol, isolated restore, and runtime readback have all
+   succeeded. The job creates or resumes a matching draft, uploads the exact
+   packages, symbols, SBOMs, candidate evidence, and publication evidence,
+   reads every asset back, and publishes the immutable GitHub release.
+7. Retain both `nuget-publication-evidence-<release-tag>` and
+   `github-release-evidence-<release-tag>`. The latter contains the
+   deterministic release plan and the verified public release receipt.
 
 The workflow rejects a candidate from another repository, commit, tag,
 workflow, attempt, or failed run. It also rejects a candidate once `main` has
 advanced. Produce a new candidate version instead of publishing stale evidence.
 
-### Retry and partial-publication recovery
+### GitHub release finalization and recovery
+
+The finalization job has the workflow's only `contents: write` permission. It
+does not receive the NuGet OIDC permission. Before any release mutation, it
+requires the local and remote tag to be annotated and to resolve to the exact
+published source commit. It never creates, moves, or replaces a tag.
+
+Release notes are the exact dated version section from `CHANGELOG.md`. Release
+assets are the checksum-bound packages and symbols, candidate manifest and
+checksum, candidate summary and reconciliation, resolved package inventory,
+all SBOMs, and the five successful NuGet publication receipts. A prerelease
+version is published as a GitHub prerelease and never becomes `latest`; a
+stable version is not a prerelease and must become `latest`.
+
+Retries are conflict safe. An absent release becomes a draft. A matching
+partial draft receives only missing assets. An already published release is an
+idempotent success only when its metadata, notes, asset names, sizes, payload
+hashes, immutability state, and latest-release classification all match. Any
+unexpected asset, changed payload, changed notes, moved or lightweight tag, or
+other metadata conflict stops the job. The helper neither deletes assets nor
+uses a clobber operation.
+
+If finalization stops on a conflict, preserve the draft and both evidence
+artifacts. Diagnose the conflicting remote state before making a manual
+change. Rerun the same dispatch only after the remote draft matches the sealed
+candidate; otherwise create a new release-candidate version.
+
+### NuGet retry and partial-publication recovery
 
 NuGet package versions are immutable and the two package pushes are not an
 atomic transaction. If a network or symbol-server error interrupts the run,
@@ -540,6 +572,12 @@ release, and select a new prerelease version after root-cause review.
 - GitHub,
   [Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments),
   retrieved 2026-08-03.
+- GitHub,
+  [Immutable releases](https://docs.github.com/en/repositories/releasing-projects-on-github/immutable-releases),
+  retrieved 2026-08-04.
+- GitHub CLI,
+  [`gh release create`](https://cli.github.com/manual/gh_release_create),
+  retrieved 2026-08-04.
 
 ## 9. Observability and Alert Response
 

@@ -1,4 +1,4 @@
-"""Regression tests for immutable SDK selection in hosted workflows."""
+"""Regression tests for hosted release-workflow security boundaries."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 class ReleaseWorkflowPolicyTests(unittest.TestCase):
-    """Keep all hosted .NET jobs on the reviewed global.json contract."""
+    """Keep hosted release jobs on reviewed identity and permission contracts."""
 
     def setUp(self) -> None:
         """Resolve the repository workflow directory."""
@@ -54,6 +54,44 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("directory: /", section)
         self.assertIn("interval: weekly", section)
         self.assertIn("open-pull-requests-limit: 1", section)
+
+    def test_github_release_finalization_follows_public_nuget_readback(self) -> None:
+        """Confine repository write authority to the post-readback job."""
+        text = (self.workflows / "nuget-publish.yml").read_text(encoding="utf-8")
+        job_start = text.index("  finalize-github-release:")
+        job = text[job_start:]
+
+        self.assertEqual(1, text.count("contents: write"))
+        self.assertIn("needs: publish-and-read-back", job)
+        self.assertIn("actions: read", job)
+        self.assertIn("contents: write", job)
+        self.assertNotIn("id-token: write", job)
+        self.assertNotIn("attestations: read", job)
+        self.assertNotIn("environment:", job)
+        self.assertLess(
+            text.index("bash eng/test-nuget-readback.sh"),
+            job_start,
+        )
+
+    def test_github_release_finalization_preserves_verified_evidence(self) -> None:
+        """Require the final job to consume and retain both evidence domains."""
+        text = (self.workflows / "nuget-publish.yml").read_text(encoding="utf-8")
+        job = text[text.index("  finalize-github-release:") :]
+
+        self.assertIn("nuget-publication-evidence-${{ inputs.release_tag }}", job)
+        self.assertIn("python3 eng/github_release.py prepare", job)
+        self.assertIn("python3 eng/github_release.py publish", job)
+        self.assertIn("github-release-plan.json", job)
+        self.assertIn("github-release-readback.json", job)
+        self.assertIn("github-release-evidence-${{ inputs.release_tag }}", job)
+
+    def test_github_release_helper_cannot_create_tags_or_replace_assets(self) -> None:
+        """Keep tag creation and destructive asset replacement out of scope."""
+        text = (self.repo / "eng" / "github_release.py").read_text(encoding="utf-8")
+
+        self.assertIn('"--verify-tag"', text)
+        self.assertNotIn('"--clobber"', text)
+        self.assertNotIn('"--target"', text)
 
 
 if __name__ == "__main__":

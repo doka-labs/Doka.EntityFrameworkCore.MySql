@@ -179,6 +179,23 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `nuget-publication-readback.json`
     - `consumer-runtime-readback.json`
     - downloaded public package and Portable PDB payloads
+  - GitHub release finalization: a separate dependent job receives the
+    workflow's only `contents: write` permission after every NuGet public
+    readback passes; it has no OIDC or attestation permission
+  - tag authority: local and remote annotated tags must both resolve to the
+    exact published source commit; the finalizer cannot create, move, or
+    replace tags
+  - release assembly: exact `CHANGELOG.md` notes and checksum-bound packages,
+    symbols, SBOMs, candidate evidence, and publication evidence are staged in
+    a draft, independently downloaded and hashed, then published
+  - retry policy: matching partial drafts resume with missing assets only;
+    matching immutable releases are idempotent; unexpected metadata, assets,
+    payloads, or release classification fail without clobbering remote state
+  - classification: prerelease versions are GitHub prereleases and are not
+    `latest`; stable versions must be non-prerelease and `latest`
+  - retained GitHub release evidence:
+    - `github-release-plan.json`
+    - `github-release-readback.json`
 - Migration deployment:
   - workflow: `.github/workflows/ci.yml`
   - local path: `./eng/test-migration-deployment.sh`
