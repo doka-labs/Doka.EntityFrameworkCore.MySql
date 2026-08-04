@@ -37,6 +37,7 @@ except ModuleNotFoundError:
 
 
 SCHEMA_VERSION = 1
+PUBLICATION_RECEIPT_SCHEMA_VERSION = 2
 PROVIDER_PACKAGE_ID = "Doka.EntityFrameworkCore.MySql"
 SPATIAL_PACKAGE_ID = "Doka.EntityFrameworkCore.MySql.NetTopologySuite"
 CANDIDATE_WORKFLOW = "release-candidate"
@@ -144,6 +145,52 @@ def package_paths(root: Path, version: str) -> dict[str, dict[str, Path]]:
             "symbols": packages / package_file_name(SPATIAL_PACKAGE_ID, version, "snupkg"),
         },
     }
+
+
+def require_candidate_root(root: Path) -> Path:
+    """Return one regular, non-symlinked candidate evidence directory."""
+    absolute = root.absolute()
+    if not absolute.is_dir() or absolute.is_symlink():
+        raise PublicationError(f"Candidate root is missing or non-regular: {root}")
+    return absolute.resolve()
+
+
+def resolve_candidate_path(root: Path, value: Any, label: str) -> Path:
+    """Resolve one canonical relative receipt path below the candidate root."""
+    candidate_root = require_candidate_root(root)
+    raw = str(value)
+    path = PurePosixPath(raw)
+    if (
+        not raw
+        or "\\" in raw
+        or path.is_absolute()
+        or ".." in path.parts
+        or raw != path.as_posix()
+    ):
+        raise PublicationError(f"{label} is not a canonical relative path: {raw}")
+
+    candidate = candidate_root.joinpath(*path.parts)
+    if not candidate.is_file() or candidate.is_symlink():
+        raise PublicationError(f"{label} is missing or non-regular: {raw}")
+
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(candidate_root)
+    except ValueError as exception:
+        raise PublicationError(f"{label} escapes the candidate root: {raw}") from exception
+    return resolved
+
+
+def sha256_file(path: Path) -> str:
+    """Hash one regular file without loading an entire package into memory."""
+    if not path.is_file() or path.is_symlink():
+        raise PublicationError(f"File is missing or non-regular: {path}")
+
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def safe_zip_entries(package: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
@@ -270,7 +317,8 @@ def validate_package_metadata(
     source_commit: str,
 ) -> dict[str, dict[str, str]]:
     """Bind package-internal metadata to the manifest and tagged source."""
-    resolved = package_paths(root, version)
+    candidate_root = require_candidate_root(root)
+    resolved = package_paths(candidate_root, version)
     result: dict[str, dict[str, str]] = {}
     for role, package_id in (("provider", PROVIDER_PACKAGE_ID), ("spatial", SPATIAL_PACKAGE_ID)):
         primary = resolved[role]["package"]
@@ -304,9 +352,12 @@ def validate_package_metadata(
 
         result[role] = {
             "id": package_id,
-            "package": str(primary.resolve()),
-            "symbols": str(symbols.resolve()),
+            # Receipts cross runner and job boundaries. Canonical relative paths
+            # keep the receipt portable while the digest fields retain identity.
+            "package": primary.relative_to(candidate_root).as_posix(),
+            "symbols": symbols.relative_to(candidate_root).as_posix(),
             "contentDigest": canonical_package_digest(primary),
+            "symbolsSha256": sha256_file(symbols),
         }
 
         if role == "spatial":
@@ -321,6 +372,96 @@ def validate_package_metadata(
                 )
 
     return result
+
+
+def validate_portable_receipt(
+    receipt: dict[str, Any],
+    candidate_root: Path,
+) -> dict[str, dict[str, Path]]:
+    """Revalidate a portable candidate receipt at a new trust boundary."""
+    root = require_candidate_root(candidate_root)
+    run_id = str(receipt.get("candidateRunId", ""))
+    run_attempt = str(receipt.get("candidateRunAttempt", ""))
+    candidate_id = f"github-{run_id}"
+    version = str(receipt.get("releaseVersion", ""))
+    release_tag = str(receipt.get("releaseTag", ""))
+    repository = str(receipt.get("repository", ""))
+    source_commit = str(receipt.get("sourceCommit", ""))
+    if (
+        receipt.get("schemaVersion") != PUBLICATION_RECEIPT_SCHEMA_VERSION
+        or not RUN_ID.fullmatch(run_id)
+        or not RUN_ID.fullmatch(run_attempt)
+        or receipt.get("releaseCandidateRunId") != candidate_id
+        or root.name != candidate_id
+        or receipt.get("trustedRef") != "refs/heads/main"
+        or release_tag != f"v{version}"
+        or not release_evidence.SEMANTIC_VERSION_TAG.fullmatch(release_tag)
+        or normalize_repository(repository) != repository.lower()
+        or not SHA1.fullmatch(source_commit)
+        or not isinstance(receipt.get("mysql84Image"), str)
+        or not receipt["mysql84Image"]
+    ):
+        raise PublicationError("Publication receipt candidate identity is invalid.")
+
+    packages = receipt.get("packages")
+    expected_roles = {"provider": PROVIDER_PACKAGE_ID, "spatial": SPATIAL_PACKAGE_ID}
+    if not isinstance(packages, dict) or set(packages) != set(expected_roles):
+        raise PublicationError("Publication receipt package inventory is invalid.")
+
+    resolved: dict[str, dict[str, Path]] = {}
+    for role, package_id in expected_roles.items():
+        package = packages.get(role)
+        expected_keys = {"id", "package", "symbols", "contentDigest", "symbolsSha256"}
+        if not isinstance(package, dict) or set(package) != expected_keys:
+            raise PublicationError(f"Publication receipt package entry is invalid: {role}")
+
+        expected_primary = f"packages/{package_file_name(package_id, version, 'nupkg')}"
+        expected_symbols = f"packages/{package_file_name(package_id, version, 'snupkg')}"
+        if (
+            package.get("id") != package_id
+            or package.get("package") != expected_primary
+            or package.get("symbols") != expected_symbols
+            or not SHA256.fullmatch(str(package.get("contentDigest", "")))
+            or not SHA256.fullmatch(str(package.get("symbolsSha256", "")))
+        ):
+            raise PublicationError(f"Publication receipt package identity is invalid: {role}")
+
+        primary = resolve_candidate_path(root, package["package"], f"{role} package")
+        symbols = resolve_candidate_path(root, package["symbols"], f"{role} symbols")
+        if canonical_package_digest(primary) != package["contentDigest"]:
+            raise PublicationError(f"Candidate package digest mismatch: {role}")
+        if sha256_file(symbols) != package["symbolsSha256"]:
+            raise PublicationError(f"Candidate symbol digest mismatch: {role}")
+        resolved[role] = {"package": primary, "symbols": symbols}
+
+    try:
+        release_evidence.verify_manifest(root, None)
+    except release_evidence.EvidenceError as exception:
+        raise PublicationError(str(exception)) from exception
+
+    manifest = read_json(root / release_evidence.MANIFEST_NAME, "release manifest")
+    source = manifest.get("source") or {}
+    workflow = manifest.get("workflow") or {}
+    expected_workflow_ref = (
+        f"{repository}/{CANDIDATE_WORKFLOW_PATH}@refs/tags/{release_tag}"
+    )
+    if (
+        manifest.get("releaseCandidateRunId") != candidate_id
+        or manifest.get("releaseVersion") != version
+        or source.get("commit") != source_commit
+        or source.get("ref") != f"refs/tags/{release_tag}"
+        or source.get("tag") != release_tag
+        or normalize_repository(str(source.get("repository", ""))) != repository.lower()
+        or workflow.get("provider") != "github-actions"
+        or str(workflow.get("runId", "")) != run_id
+        or str(workflow.get("runAttempt", "")) != run_attempt
+        or workflow.get("workflow") != CANDIDATE_WORKFLOW
+        or workflow.get("workflowRef") != expected_workflow_ref
+        or str(workflow.get("repository", "")).lower() != repository.lower()
+    ):
+        raise PublicationError("Publication receipt disagrees with its release manifest.")
+
+    return resolved
 
 
 def validate_run_metadata(
@@ -351,7 +492,7 @@ def validate_run_metadata(
 def validate_candidate(args: argparse.Namespace) -> None:
     """Validate one downloaded candidate and emit a publication receipt."""
     repo = args.repo.resolve()
-    root = args.root.resolve()
+    root = require_candidate_root(args.root)
     repository = args.repository
     release_tag = args.release_tag
     trusted_ref = args.trusted_ref
@@ -430,7 +571,10 @@ def validate_candidate(args: argparse.Namespace) -> None:
     ):
         raise PublicationError("Candidate manifest workflow identity does not match the hosted run.")
 
-    expected_candidate_id = f"github-{run_id}-{run_attempt}"
+    # GitHub retains the run ID across job reruns. The attempt remains a
+    # separately verified manifest field so a rerun can repair one failed stage
+    # without changing the candidate artifact identity.
+    expected_candidate_id = f"github-{run_id}"
     if manifest.get("releaseCandidateRunId") != expected_candidate_id or root.name != expected_candidate_id:
         raise PublicationError("Candidate evidence root does not match its hosted run identity.")
 
@@ -443,7 +587,7 @@ def validate_candidate(args: argparse.Namespace) -> None:
         raise PublicationError("Candidate manifest does not contain the MySQL 8.4 image identity.")
 
     receipt = {
-        "schemaVersion": SCHEMA_VERSION,
+        "schemaVersion": PUBLICATION_RECEIPT_SCHEMA_VERSION,
         "candidateRunId": run_id,
         "candidateRunAttempt": run_attempt,
         "releaseCandidateRunId": expected_candidate_id,
@@ -456,16 +600,17 @@ def validate_candidate(args: argparse.Namespace) -> None:
         "packages": packages,
     }
     write_json(args.output.resolve(), receipt)
+    resolved_packages = package_paths(root, version)
     append_github_outputs(
         args.github_output.resolve() if args.github_output else None,
         {
             "release_version": version,
             "source_commit": source_commit,
             "mysql84_image": str(mysql84["image"]),
-            "provider_package": packages["provider"]["package"],
-            "provider_symbols": packages["provider"]["symbols"],
-            "spatial_package": packages["spatial"]["package"],
-            "spatial_symbols": packages["spatial"]["symbols"],
+            "provider_package": str(resolved_packages["provider"]["package"]),
+            "provider_symbols": str(resolved_packages["provider"]["symbols"]),
+            "spatial_package": str(resolved_packages["spatial"]["package"]),
+            "spatial_symbols": str(resolved_packages["spatial"]["symbols"]),
         },
     )
 
@@ -631,14 +776,23 @@ def symbol_states(
 
 def remote_states(
     receipt: dict[str, Any],
+    candidate_root: Path,
     fetcher: Callable[[str, float], bytes | None] = fetch_remote_package,
     timeout_seconds: float = 30,
 ) -> dict[str, dict[str, Any]]:
     """Classify both package versions as absent or matching the candidate."""
     version = str(receipt["releaseVersion"])
+    package_map = {
+        role: resolve_candidate_path(
+            candidate_root,
+            receipt["packages"][role]["package"],
+            f"{role} package",
+        )
+        for role in ("provider", "spatial")
+    }
     states: dict[str, dict[str, Any]] = {}
     for role, package_id in (("provider", PROVIDER_PACKAGE_ID), ("spatial", SPATIAL_PACKAGE_ID)):
-        candidate_path = Path(receipt["packages"][role]["package"])
+        candidate_path = package_map[role]
         candidate_digest = canonical_package_digest(candidate_path)
         url = remote_package_url(package_id, version)
         remote = fetcher(url, timeout_seconds)
@@ -675,12 +829,17 @@ def remote_states(
 def preflight(args: argparse.Namespace) -> None:
     """Record remote state before requesting the short-lived publish key."""
     receipt = read_json(args.receipt.resolve(), "validated candidate receipt")
+    package_map = validate_portable_receipt(receipt, args.candidate_root)
     symbol_manifest = read_json(args.symbol_manifest.resolve(), "symbol readback manifest")
     symbol_entries = validated_symbol_entries(
         symbol_manifest,
         str(receipt["releaseVersion"]),
     )
-    states = remote_states(receipt, timeout_seconds=args.timeout_seconds)
+    states = remote_states(
+        receipt,
+        args.candidate_root,
+        timeout_seconds=args.timeout_seconds,
+    )
     symbols = symbol_states(symbol_entries, timeout_seconds=args.timeout_seconds)
     for role, package_id in (("provider", PROVIDER_PACKAGE_ID), ("spatial", SPATIAL_PACKAGE_ID)):
         if symbols[package_id]["status"] == "matching" and states[role]["status"] == "absent":
@@ -698,6 +857,9 @@ def preflight(args: argparse.Namespace) -> None:
         "symbols": symbols,
     }
     write_json(args.output.resolve(), output)
+    publication_required = any(
+        state["status"] == "absent" for state in (*states.values(), *symbols.values())
+    )
     append_github_outputs(
         args.github_output.resolve() if args.github_output else None,
         {
@@ -709,6 +871,11 @@ def preflight(args: argparse.Namespace) -> None:
             "spatial_symbols_published": str(
                 symbols[SPATIAL_PACKAGE_ID]["status"] == "matching"
             ).lower(),
+            "publication_required": str(publication_required).lower(),
+            "provider_package": str(package_map["provider"]["package"]),
+            "provider_symbols": str(package_map["provider"]["symbols"]),
+            "spatial_package": str(package_map["spatial"]["package"]),
+            "spatial_symbols": str(package_map["spatial"]["symbols"]),
         },
     )
 
@@ -716,6 +883,7 @@ def preflight(args: argparse.Namespace) -> None:
 def readback(args: argparse.Namespace) -> None:
     """Wait for public packages and symbols, then persist byte-level proof."""
     receipt = read_json(args.receipt.resolve(), "validated candidate receipt")
+    validate_portable_receipt(receipt, args.candidate_root)
     symbol_manifest = read_json(args.symbol_manifest.resolve(), "symbol readback manifest")
     symbol_entries = validated_symbol_entries(
         symbol_manifest,
@@ -726,7 +894,11 @@ def readback(args: argparse.Namespace) -> None:
 
     while True:
         try:
-            states = remote_states(receipt, timeout_seconds=min(args.request_timeout_seconds, 30))
+            states = remote_states(
+                receipt,
+                args.candidate_root,
+                timeout_seconds=min(args.request_timeout_seconds, 30),
+            )
             symbols = symbol_states(
                 symbol_entries,
                 timeout_seconds=min(args.request_timeout_seconds, 30),
@@ -859,6 +1031,7 @@ def parse_arguments() -> argparse.Namespace:
         "preflight", help="Classify existing NuGet.org package versions."
     )
     preflight_parser.add_argument("--receipt", type=Path, required=True)
+    preflight_parser.add_argument("--candidate-root", type=Path, required=True)
     preflight_parser.add_argument("--symbol-manifest", type=Path, required=True)
     preflight_parser.add_argument("--output", type=Path, required=True)
     preflight_parser.add_argument("--github-output", type=Path)
@@ -868,6 +1041,7 @@ def parse_arguments() -> argparse.Namespace:
         "readback", help="Wait for and verify published package payloads."
     )
     readback_parser.add_argument("--receipt", type=Path, required=True)
+    readback_parser.add_argument("--candidate-root", type=Path, required=True)
     readback_parser.add_argument("--symbol-manifest", type=Path, required=True)
     readback_parser.add_argument("--output-dir", type=Path, required=True)
     readback_parser.add_argument("--output", type=Path, required=True)

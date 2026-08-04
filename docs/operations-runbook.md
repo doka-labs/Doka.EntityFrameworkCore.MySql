@@ -525,7 +525,7 @@ dated changelog heading, tag, and tag message must identify the same version.
 For example, after replacing the version with the next unused value:
 
 ```bash
-release_version="10.0.0-rc.2"
+release_version="10.0.0-rc.3"
 release_tag="v${release_version}"
 
 git tag -s "${release_tag}" "${release_commit}" \
@@ -544,19 +544,28 @@ never move, replace, or reuse it after it reaches the remote repository.
 1. Open GitHub Actions and select the `release-candidate` workflow.
 2. Choose `Run workflow`, then select the exact value of `release_tag` in the
    branch/tag field.
-3. Wait for the complete workflow to succeed. A failed candidate has no
-   publication authority.
-4. Inspect the workflow summary and retained evidence. Record the numeric run
-   ID from the successful run URL:
+3. Wait for the complete workflow DAG to succeed. A failed candidate has no
+   publication authority. The DAG runs independent foundation and engine
+   contracts in parallel, assembles exactly eleven required stage receipts,
+   and grants OIDC and attestation permissions only to the final attestation
+   job.
+4. If one job fails transiently, use GitHub's `Re-run failed jobs` or rerun that
+   specific job from the existing workflow run. The stable candidate identity
+   remains the numeric workflow run ID; the new run attempt may reuse only
+   checksum-verified stage artifacts from that same run ID and source commit.
+   Do not start a new workflow dispatch merely to recover one failed stage.
+5. Inspect the workflow summary, the exact stage-selection receipts, and
+   retained evidence. Record the numeric run ID from the successful run URL:
 
    ```text
    https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/<candidate-run-id>
    ```
 
-The hosted workflow reruns the complete release-candidate contract, binds the
-result to the tagged source commit, attests the packages and canonical
-manifest, verifies the attestation, and uploads the immutable candidate
-artifact.
+The hosted workflow binds the assembled result to the tagged source commit,
+attests the packages and canonical manifest, verifies the attestation, and
+uploads an attempt-qualified immutable candidate artifact. Its resolver rejects
+artifacts from another run, a future attempt, an expired artifact, a digest
+mismatch, an ambiguous stage, an unsafe ZIP entry, or an incomplete stage set.
 
 #### 5. Publish from trusted `main`
 
@@ -573,11 +582,21 @@ displayed candidate run ID and tag match the reviewed release.
 
 #### 6. Verify public readback and finalize the release
 
-Wait for both publication jobs to succeed. `publish-and-read-back` publishes
-the provider and spatial packages, validates their symbols, restores them into
-an empty isolated consumer, and executes the runtime contract. Only then may
-`finalize-github-release` create or resume the matching draft, verify every
-asset by readback, and publish the immutable GitHub release.
+Wait for all four publication jobs to succeed:
+
+1. `validate-candidate` verifies the exact candidate artifact, source identity,
+   packages, attestations, and pre-publication remote state without requesting
+   a NuGet credential.
+2. `publish` repeats the remote-state preflight, enters the protected `nuget`
+   environment, obtains the short-lived OIDC credential, and performs only the
+   package writes still proven necessary.
+3. `readback` has no OIDC or repository-write permission. It validates both
+   packages and symbols, restores them into an empty isolated consumer, and
+   executes the runtime contract against the supported MySQL image.
+4. `finalize-github-release` receives the workflow's only `contents: write`
+   permission after readback succeeds. It creates or resumes the matching
+   draft, verifies every asset by readback, and publishes the immutable GitHub
+   release.
 
 Before unfreezing `main`, confirm all of the following:
 
@@ -586,15 +605,21 @@ Before unfreezing `main`, confirm all of the following:
 - The GitHub release points to `release_tag` and contains the expected assets.
 - A prerelease is marked as a prerelease and is not `latest`; a stable release
   is not marked as a prerelease and is `latest`.
-- `nuget-publication-evidence-<release-tag>` and
-  `github-release-evidence-<release-tag>` are retained. The latter contains the
-  deterministic release plan and verified public release receipt.
+- `nuget-validation-evidence-attempt-<attempt>`,
+  `nuget-publish-evidence-attempt-<attempt>`, and
+  `nuget-readback-evidence-attempt-<attempt>` are retained.
+- `github-release-evidence-<release-tag>-attempt-<attempt>` is retained and
+  contains the deterministic release plan and verified public release receipt.
 
 #### 7. Recover without changing release identity
 
-- If the candidate fails because of transient hosted infrastructure and no
-  candidate input must change, rerun `release-candidate` on the same tag and
-  use only the new successful run ID.
+- If one candidate job fails because of transient hosted infrastructure and no
+  candidate input must change, rerun the failed or specific job from the
+  existing workflow run. GitHub retains the same run ID, source SHA, and source
+  ref while incrementing the run attempt. Successful stages are reused only
+  after exact artifact and receipt verification.
+- A new manual dispatch creates a new candidate run ID. It cannot reuse stage
+  artifacts from the earlier run and must qualify the complete candidate again.
 - If any source, package, documentation, configuration, dependency, or release
   automation change is required, prepare a new release commit and version,
   repeat the green-`main` gate, and create a new signed tag. Do not repair the
@@ -606,8 +631,10 @@ Before unfreezing `main`, confirm all of the following:
   Do not publish local packages or alter remote assets to make the retry pass.
 
 The workflow rejects a candidate from another repository, commit, tag,
-workflow, attempt, or failed run. It also rejects a candidate once `main` has
-advanced. Produce a new candidate version instead of publishing stale evidence.
+workflow, or failed run. Candidate assembly accepts earlier attempts only from
+the same run ID and only when every required stage receipt and artifact digest
+matches. Publication also rejects a candidate once `main` has advanced. Produce
+a new candidate version instead of publishing stale evidence.
 
 ### GitHub release finalization and recovery
 
@@ -680,6 +707,18 @@ release, and select a new prerelease version after root-cause review.
 - GitHub,
   [Artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations),
   retrieved 2026-08-03.
+- GitHub,
+  [Re-running workflows and jobs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs),
+  retrieved 2026-08-04.
+- GitHub,
+  [Workflow artifacts](https://docs.github.com/en/actions/concepts/workflows-and-actions/workflow-artifacts),
+  retrieved 2026-08-04.
+- GitHub,
+  [OpenID Connect reference](https://docs.github.com/en/actions/reference/security/oidc),
+  retrieved 2026-08-04.
+- GitHub,
+  [OIDC security hardening](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-cloud-providers),
+  retrieved 2026-08-04.
 - GitHub,
   [Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments),
   retrieved 2026-08-03.

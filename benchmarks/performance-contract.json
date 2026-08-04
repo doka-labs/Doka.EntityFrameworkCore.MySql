@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 3,
-  "contractVersion": "2026-08-03",
+  "schemaVersion": 4,
+  "contractVersion": "2026-08-04",
   "evidenceMaximumAgeHours": 12,
   "hostPreconditions": {
     "admissionMetric": "initial-process-cpu-utilization",
@@ -75,6 +75,17 @@
       "soakConcurrency": 32,
       "baselineRequired": true,
       "soakRequired": true
+    }
+  },
+  "timeoutPolicies": {
+    "expensive-standard": {
+      "minimumWorkloadTimeoutSeconds": 180
+    },
+    "large-write": {
+      "minimumWorkloadTimeoutSeconds": 300
+    },
+    "hilo-contention": {
+      "minimumWorkloadTimeoutSeconds": 240
     }
   },
   "calibration": {
@@ -309,7 +320,8 @@
     {
       "id": "query.materialize.async.compiled.rows-1000.pool-both",
       "family": "query",
-      "cost": "expensive"
+      "cost": "expensive",
+      "timeoutPolicy": "expensive-standard"
     },
     {
       "id": "resilience.query.async.retry-off.listener-off",
@@ -348,12 +360,14 @@
     {
       "id": "concurrency.query.async.contexts-16.pool-both",
       "family": "concurrency",
-      "cost": "expensive"
+      "cost": "expensive",
+      "timeoutPolicy": "expensive-standard"
     },
     {
       "id": "concurrency.query.async.contexts-16.pool-none",
       "family": "concurrency",
-      "cost": "expensive"
+      "cost": "expensive",
+      "timeoutPolicy": "expensive-standard"
     },
     {
       "id": "projection.full.sync.rows-100",
@@ -397,6 +411,7 @@
       "id": "json.compare.element.equal.bytes-1048576",
       "family": "json-comparer",
       "cost": "expensive",
+      "timeoutPolicy": "expensive-standard",
       "operationsPerSample": 256,
       "minimumWarmupOperations": 4096,
       "measurementSamples": 1024
@@ -431,7 +446,8 @@
     {
       "id": "json.materialize.async.rows-1000",
       "family": "json-materialization",
-      "cost": "expensive"
+      "cost": "expensive",
+      "timeoutPolicy": "expensive-standard"
     },
     {
       "id": "json.materialize.sync.rows-100",
@@ -449,7 +465,8 @@
     {
       "id": "spatial.materialize.async.rows-1000",
       "family": "spatial",
-      "cost": "expensive"
+      "cost": "expensive",
+      "timeoutPolicy": "expensive-standard"
     },
     {
       "id": "spatial.materialize.sync.rows-100",
@@ -466,12 +483,14 @@
     {
       "id": "write.savechanges.sync.rows-1000.batch-default",
       "family": "write",
-      "cost": "expensive"
+      "cost": "expensive",
+      "timeoutPolicy": "expensive-standard"
     },
     {
       "id": "write.savechanges.sync.rows-10000.batch-default",
       "family": "write",
-      "cost": "expensive"
+      "cost": "expensive",
+      "timeoutPolicy": "large-write"
     },
     {
       "id": "write.savechanges.async.rows-10.batch-default",
@@ -485,22 +504,26 @@
     {
       "id": "write.savechanges.async.rows-1000.batch-default",
       "family": "write",
-      "cost": "expensive"
+      "cost": "expensive",
+      "timeoutPolicy": "expensive-standard"
     },
     {
       "id": "write.savechanges.async.rows-10000.batch-default",
       "family": "write",
-      "cost": "expensive"
+      "cost": "expensive",
+      "timeoutPolicy": "large-write"
     },
     {
       "id": "write.savechanges.async.rows-1000.batch-32",
       "family": "write",
-      "cost": "expensive"
+      "cost": "expensive",
+      "timeoutPolicy": "expensive-standard"
     },
     {
       "id": "write.savechanges.async.rows-1000.batch-256",
       "family": "write",
-      "cost": "expensive"
+      "cost": "expensive",
+      "timeoutPolicy": "expensive-standard"
     },
     {
       "id": "translation.corpus.full",
@@ -526,13 +549,13 @@
       "id": "hilo.insert.sync.contexts-10.rows-1000",
       "family": "hilo",
       "cost": "expensive",
-      "minimumWorkloadTimeoutSeconds": 240
+      "timeoutPolicy": "hilo-contention"
     },
     {
       "id": "hilo.insert.async.contexts-10.rows-1000",
       "family": "hilo",
       "cost": "expensive",
-      "minimumWorkloadTimeoutSeconds": 240
+      "timeoutPolicy": "hilo-contention"
     }
   ],
   "benchmarkDotNetControls": [

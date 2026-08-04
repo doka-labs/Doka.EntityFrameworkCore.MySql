@@ -243,55 +243,19 @@ def validate_candidate_receipt(
     receipt: dict[str, Any],
     repository: str,
     candidate_root: Path,
-) -> None:
-    """Validate the complete receipt emitted by candidate authorization."""
-    run_id = str(receipt.get("candidateRunId", ""))
-    run_attempt = str(receipt.get("candidateRunAttempt", ""))
-    expected_candidate_id = f"github-{run_id}-{run_attempt}"
-    version = str(receipt.get("releaseVersion", ""))
-    tag = str(receipt.get("releaseTag", ""))
-    source_commit = str(receipt.get("sourceCommit", ""))
-    if (
-        receipt.get("schemaVersion") != nuget_publication.SCHEMA_VERSION
-        or not nuget_publication.RUN_ID.fullmatch(run_id)
-        or not nuget_publication.RUN_ID.fullmatch(run_attempt)
-        or receipt.get("releaseCandidateRunId") != expected_candidate_id
-        or candidate_root.name != expected_candidate_id
-        or receipt.get("repository") != repository
-        or receipt.get("trustedRef") != "refs/heads/main"
-        or tag != f"v{version}"
-        or not release_evidence.SEMANTIC_VERSION_TAG.fullmatch(tag)
-        or not SHA1.fullmatch(source_commit)
-        or not isinstance(receipt.get("mysql84Image"), str)
-        or not receipt["mysql84Image"]
-    ):
+) -> dict[str, dict[str, Path]]:
+    """Revalidate the portable publication receipt before repository writes."""
+    if str(receipt.get("repository", "")).lower() != repository.lower():
         raise GitHubReleaseError(
-            "Publication receipt does not match the selected candidate identity."
+            "Publication receipt does not match the selected repository."
         )
 
-    packages = receipt.get("packages")
-    if not isinstance(packages, dict) or set(packages) != {
-        role for role, _ in PACKAGE_IDENTITIES
-    }:
-        raise GitHubReleaseError("Publication receipt package inventory is invalid.")
-
-    for role, package_id in PACKAGE_IDENTITIES:
-        package = packages.get(role)
-        if not isinstance(package, dict):
-            raise GitHubReleaseError(
-                f"Publication receipt package entry is invalid: {role}"
-            )
-        if (
-            package.get("id") != package_id
-            or Path(str(package.get("package", ""))).name
-            != nuget_publication.package_file_name(package_id, version, "nupkg")
-            or Path(str(package.get("symbols", ""))).name
-            != nuget_publication.package_file_name(package_id, version, "snupkg")
-            or not SHA256.fullmatch(str(package.get("contentDigest", "")))
-        ):
-            raise GitHubReleaseError(
-                f"Publication receipt package identity is invalid: {role}"
-            )
+    try:
+        return nuget_publication.validate_portable_receipt(receipt, candidate_root)
+    except nuget_publication.PublicationError as exception:
+        raise GitHubReleaseError(
+            f"Publication receipt validation failed: {exception}"
+        ) from exception
 
 
 def validate_candidate_package_digests(
@@ -555,7 +519,7 @@ def build_release_plan(
         publication_evidence / "validated-candidate.json",
         "validated candidate receipt",
     )
-    validate_candidate_receipt(receipt, repository, candidate_root)
+    package_map = validate_candidate_receipt(receipt, repository, candidate_root)
     manifest = read_json(
         candidate_root / release_evidence.MANIFEST_NAME,
         "release-candidate manifest",
@@ -592,7 +556,6 @@ def build_release_plan(
         manifest_artifacts[path] = entry
 
     candidate_paths: list[Path] = []
-    package_map = nuget_publication.package_paths(candidate_root, version)
     validate_candidate_package_digests(receipt, package_map)
     for package in package_map.values():
         for path in package.values():

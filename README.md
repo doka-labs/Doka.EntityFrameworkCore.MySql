@@ -47,20 +47,20 @@ This provider is designed for teams that need:
 
 ## Installation
 
-The repository is prepared for the `10.0.0-rc.2` prerelease. Once published,
+The repository is prepared for the `10.0.0-rc.3` prerelease. Once published,
 install it with an explicit version so NuGet does not restrict resolution to
 stable packages.
 
 **Main provider:**
 
 ```bash
-dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.2
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.3
 ```
 
 **Optional spatial extension** (NetTopologySuite integration -- only install if you use spatial types):
 
 ```bash
-dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.2
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.3
 ```
 
 ## Supported Engines

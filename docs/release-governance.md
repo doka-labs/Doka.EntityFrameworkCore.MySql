@@ -96,25 +96,43 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - repository quality gate: the complete shared `quality-gates.sh` contract,
     including formatting, analyzers, public examples, README compilation,
     dependency audits, and migration-model verification
+  - hosted DAG: preflight validates the release identity and recovery tooling;
+    the foundation matrix runs quality, repository tests, and packaging; the
+    engine matrix runs specification, integration, migration/deployment,
+    runtime, and one performance stage per supported release engine with a
+    maximum of three concurrent jobs; coverage consumes the repository and
+    integration receipts, SBOM generation consumes the package receipt, and
+    assembly accepts exactly the eleven required qualification receipts before
+    the final attestation job can start
+  - stable identity and controlled resume: the candidate root is keyed to
+    `github.run_id`, while `github.run_attempt` appears only in immutable hosted
+    artifact names and stage receipts; a rerun within the same workflow run may
+    select the newest valid receipt for each required stage from the current or
+    an earlier attempt, but a different workflow run cannot contribute evidence
+  - artifact restoration: resolver jobs list only artifacts from the same
+    workflow run, bind the selected artifact ID, name, attempt, and GitHub
+    SHA-256 digest, then perform traversal- and symlink-safe ZIP extraction;
+    missing, expired, ambiguous, future-attempt, digest-mismatched, or
+    conflicting artifacts fail closed
+  - least privilege: the workflow defaults to `contents: read`; only jobs that
+    resolve same-run evidence receive `actions: read`, and only the final
+    attestation job receives `id-token: write` and `attestations: write`
   - performance gate: isolated run-owned Compose projects and dynamic ports;
-    scorecards run before the repository build and database-heavy verification
-    so their initial host snapshot is not contaminated by the release workflow
-    itself; host admission uses active-process CPU instead of Unix
-    load average, which can count runnable desktop and video-decoding threads;
-    adjacent deterministic CPU or live database calibration pulses normalize
-    historical latency per workload; an isolated normalized historical p99
-    failure is confirmed by two targeted calibrated measurements before the
-    combined population is gated; raw latency and managed allocation remain
-    hard workload gates, while process-global retained-heap delta and
-    Gen0/Gen1/Gen2 collection counts are retained as diagnostics; sustained
-    retained-memory behavior remains a hard soak invariant
-  - bounded execution and recovery: engine scorecards have contract-owned hard
-    deadlines and source-bound per-workload checkpoints; the complete release
-    candidate has a two-hour default deadline and source-bound per-stage
-    receipts; resumed stages are reused only after every retained artifact
-    digest passes readback, and incomplete outputs are archived before retry
-  - performance recovery: a failed later gate may reuse an earlier candidate's
-    complete scorecards by setting
+    host admission uses active-process CPU instead of Unix load average, which
+    can count runnable desktop and video-decoding threads; adjacent deterministic
+    CPU or live database calibration pulses normalize historical latency per
+    workload; an isolated normalized historical p99 failure is confirmed by two
+    targeted calibrated measurements before the combined population is gated;
+    raw latency and managed allocation remain hard workload gates, while
+    process-global retained-heap delta and Gen0/Gen1/Gen2 collection counts are
+    retained as diagnostics; sustained retained-memory behavior remains a hard
+    soak invariant
+  - bounded execution: every hosted job has its own timeout and every expensive
+    benchmark uses a named contract-owned workload policy; source-bound
+    checkpoints retain completed samples so a later failure does not silently
+    discard valid measurements
+  - local recovery fallback: a manually diagnosed later failure may reuse an
+    earlier candidate's complete scorecards by setting
     `DOKA_RELEASE_CANDIDATE_REUSE_PERFORMANCE_FROM` to its evidence root; reuse
     is accepted only when both engine evaluations and their retained artifacts
     pass integrity validation, the measured commit is an ancestor of the new
@@ -149,12 +167,27 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/release-candidate/<run-id>/runtime/...`
     - `artifacts/release-candidate/<run-id>/release-candidate-reconciliation.json`
     - `artifacts/release-candidate/<run-id>/sbom/...`
+    - `artifacts/release-candidate-checkpoints/<run-id>/receipts/...`
+    - `artifacts/release-candidate/<run-id>/audit/*-artifact-selection.json`
 - Manual NuGet publication and public readback:
   - workflow: `.github/workflows/nuget-publish.yml`
   - cadence: manually dispatched from trusted `main` after one successful
     release-candidate run for the exact current commit and release tag
   - explicit inputs: candidate workflow run ID, semantic release tag, and the
     literal confirmation `publish <release-tag>`
+  - validation boundary: `validate-candidate` downloads one exact
+    attempt-qualified candidate artifact, verifies its workflow, repository,
+    tag, commit, manifest, packages, attestations, and current public NuGet
+    state, then emits immutable validation evidence
+  - publication boundary: only `publish` enters the `nuget` environment and
+    receives `id-token: write`; it repeats the authoritative remote-state
+    preflight immediately before OIDC exchange and package push
+  - readback boundary: `readback` has no environment, OIDC, or repository-write
+    permission; it proves package, symbol, restore, and runtime behavior from
+    the public endpoints and emits the complete publication receipt set
+  - finalization boundary: `finalize-github-release` receives only
+    `contents: write`, consumes the exact successful readback artifact, and
+    cannot publish a release before every public readback contract passes
   - environment: `nuget`, restricted to the `main` branch
   - credential: a NuGet.org short-lived API key exchanged from GitHub OIDC
     immediately before the first push; no persistent NuGet API key is stored
@@ -186,6 +219,11 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `nuget-publication-readback.json`
     - `consumer-runtime-readback.json`
     - downloaded public package and Portable PDB payloads
+  - retained hosted artifacts:
+    - `nuget-validation-evidence-attempt-<attempt>`
+    - `nuget-publish-evidence-attempt-<attempt>`
+    - `nuget-readback-evidence-attempt-<attempt>`
+    - `github-release-evidence-<release-tag>-attempt-<attempt>`
   - GitHub release finalization: a separate dependent job receives the
     workflow's only `contents: write` permission after every NuGet public
     readback passes; it has no OIDC or attestation permission
@@ -438,13 +476,23 @@ SHA-256 digest, byte count, and role. A detached checksum protects the manifest
 before the hosted workflow attests it.
 
 Verification enumerates the directory again and fails on changed, missing, or
-additional files. The release directory must be new and empty, so reruns cannot
-inherit stale evidence from an earlier candidate.
+additional files. Every stage writes into a run-owned location and every hosted
+artifact upload is immutable. A restore starts from an empty output directory
+and accepts only an exact same-run receipt and digest selection. Final assembly
+enumerates the expected evidence tree and rejects every additional file.
 
 ### Primary sources
 
 - GitHub, "Use artifact attestations", retrieved 2026-07-31:
   <https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations>
+- GitHub, "Re-running workflows and jobs", retrieved 2026-08-04:
+  <https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs>
+- GitHub, "Workflow artifacts", retrieved 2026-08-04:
+  <https://docs.github.com/en/actions/concepts/workflows-and-actions/workflow-artifacts>
+- GitHub, "OpenID Connect reference", retrieved 2026-08-04:
+  <https://docs.github.com/en/actions/reference/security/oidc>
+- GitHub, "OIDC security hardening", retrieved 2026-08-04:
+  <https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-cloud-providers>
 - GitHub, [`actions/attest`](https://github.com/actions/attest), retrieved
   2026-07-31.
 - GitHub, [`actions/setup-dotnet`](https://github.com/actions/setup-dotnet),
@@ -453,7 +501,7 @@ inherit stale evidence from an earlier candidate.
   [Dependabot supported ecosystems and repositories](https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories),
   retrieved 2026-08-03.
 - NuGet, [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing),
-  retrieved 2026-08-03.
+  retrieved 2026-08-04.
 - NuGet, [`NuGet/login`](https://github.com/NuGet/login), retrieved
   2026-08-03.
 - NuGet, [`dotnet nuget push`](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-nuget-push),

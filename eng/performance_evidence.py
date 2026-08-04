@@ -228,13 +228,25 @@ def expected_measurement_sample_count(
 
 
 def expected_workload_timeout_seconds(
+    timeout_policies: dict[str, Any],
     profile_contract: dict[str, Any],
     workload_definition: dict[str, Any],
 ) -> int:
-    """Resolve the bounded workload deadline without weakening stricter profiles."""
+    """Resolve a named hang deadline without weakening stricter profiles."""
+    policy_name = workload_definition.get("timeoutPolicy")
+    policy_timeout = 0
+    if policy_name is not None:
+        policy = timeout_policies.get(policy_name)
+        if not isinstance(policy, dict):
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_definition.get('id')}' references unknown "
+                f"timeout policy '{policy_name}'."
+            )
+        policy_timeout = int(policy["minimumWorkloadTimeoutSeconds"])
+
     return max(
         int(profile_contract["maximumWorkloadDurationSeconds"]),
-        int(workload_definition.get("minimumWorkloadTimeoutSeconds", 0)),
+        policy_timeout,
     )
 
 
@@ -320,8 +332,8 @@ def require_identity(
 
 def validate_contract(contract: dict[str, Any]) -> None:
     """Validate uniqueness, references, and required dimension coverage."""
-    if contract.get("schemaVersion") != 3:
-        raise PerformanceEvidenceError("Performance contract schemaVersion must be 3.")
+    if contract.get("schemaVersion") != 4:
+        raise PerformanceEvidenceError("Performance contract schemaVersion must be 4.")
 
     required_string(contract, "contractVersion", "contract")
     finite_number(
@@ -332,6 +344,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
 
     targets = contract.get("requiredTargets")
     profiles = contract.get("profiles")
+    timeout_policies = contract.get("timeoutPolicies")
     families = contract.get("familyBudgets")
     workloads = contract.get("workloads")
     requirements = contract.get("coverageRequirements")
@@ -345,6 +358,10 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise PerformanceEvidenceError("Performance contract must define requiredTargets.")
     if not isinstance(profiles, dict) or not profiles:
         raise PerformanceEvidenceError("Performance contract must define profiles.")
+    if not isinstance(timeout_policies, dict) or not timeout_policies:
+        raise PerformanceEvidenceError(
+            "Performance contract must define timeoutPolicies."
+        )
     if not isinstance(families, dict) or not families:
         raise PerformanceEvidenceError("Performance contract must define familyBudgets.")
     if not isinstance(workloads, list) or not workloads:
@@ -428,6 +445,24 @@ def validate_contract(contract: dict[str, Any]) -> None:
             f"profiles.{profile_name}.maximumRelativeStandardError",
             minimum=0,
         )
+
+    for policy_name, timeout_policy in timeout_policies.items():
+        if not isinstance(policy_name, str) or not policy_name:
+            raise PerformanceEvidenceError("Timeout policy names must be non-empty strings.")
+        if not isinstance(timeout_policy, dict):
+            raise PerformanceEvidenceError(
+                f"timeoutPolicies.{policy_name} must be an object."
+            )
+        policy_timeout = finite_number(
+            timeout_policy.get("minimumWorkloadTimeoutSeconds"),
+            f"timeoutPolicies.{policy_name}.minimumWorkloadTimeoutSeconds",
+            minimum=1,
+        )
+        if not policy_timeout.is_integer():
+            raise PerformanceEvidenceError(
+                f"timeoutPolicies.{policy_name}.minimumWorkloadTimeoutSeconds "
+                "must be an integer."
+            )
         finite_number(
             profile_contract.get("maximumCalibrationRelativeStandardError"),
             f"profiles.{profile_name}.maximumCalibrationRelativeStandardError",
@@ -523,6 +558,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
         )
 
     workload_ids: list[str] = []
+    consumed_timeout_policies: set[str] = set()
     for index, workload in enumerate(workloads):
         if not isinstance(workload, dict):
             raise PerformanceEvidenceError(f"contract.workloads[{index}] must be an object.")
@@ -532,10 +568,27 @@ def validate_contract(contract: dict[str, Any]) -> None:
             raise PerformanceEvidenceError(
                 f"Workload '{workload_id}' references unknown budget family '{family}'."
             )
-        if workload.get("cost", "standard") not in ("standard", "expensive"):
+        workload_cost = workload.get("cost", "standard")
+        if workload_cost not in ("standard", "expensive"):
             raise PerformanceEvidenceError(
                 f"Workload '{workload_id}' has an unknown cost class."
             )
+        timeout_policy_name = workload.get("timeoutPolicy")
+        if workload_cost == "expensive" and not isinstance(timeout_policy_name, str):
+            raise PerformanceEvidenceError(
+                f"Expensive workload '{workload_id}' must reference a timeoutPolicy."
+            )
+        if timeout_policy_name is not None:
+            if workload_cost != "expensive":
+                raise PerformanceEvidenceError(
+                    f"Standard workload '{workload_id}' must not reference a timeoutPolicy."
+                )
+            if timeout_policy_name not in timeout_policies:
+                raise PerformanceEvidenceError(
+                    f"Workload '{workload_id}' references unknown timeout policy "
+                    f"'{timeout_policy_name}'."
+                )
+            consumed_timeout_policies.add(timeout_policy_name)
         if "smoke" in workload and not isinstance(workload["smoke"], bool):
             raise PerformanceEvidenceError(
                 f"Workload '{workload_id}' smoke must be a boolean."
@@ -571,22 +624,12 @@ def validate_contract(contract: dict[str, Any]) -> None:
                 raise PerformanceEvidenceError(
                     f"Workload '{workload_id}' measurementSamples must be an integer."
                 )
-        minimum_workload_timeout = workload.get("minimumWorkloadTimeoutSeconds")
-        if minimum_workload_timeout is not None:
-            minimum_workload_timeout = finite_number(
-                minimum_workload_timeout,
-                f"Workload '{workload_id}'.minimumWorkloadTimeoutSeconds",
-                minimum=1,
-            )
-            if not minimum_workload_timeout.is_integer():
-                raise PerformanceEvidenceError(
-                    f"Workload '{workload_id}' minimumWorkloadTimeoutSeconds "
-                    "must be an integer."
-                )
+        if timeout_policy_name is not None:
             for profile_name, profile_contract in profiles.items():
                 if profile_name == "smoke" and workload.get("smoke") is not True:
                     continue
                 if expected_workload_timeout_seconds(
+                    timeout_policies,
                     profile_contract,
                     workload,
                 ) > profile_contract["maximumWorkloadMatrixDurationSeconds"]:
@@ -595,6 +638,16 @@ def validate_contract(contract: dict[str, Any]) -> None:
                         f"'{profile_name}' matrix deadline."
                     )
         workload_ids.append(workload_id)
+
+    unused_timeout_policies = sorted(
+        set(timeout_policies) - consumed_timeout_policies
+    )
+    if unused_timeout_policies:
+        raise PerformanceEvidenceError(
+            "Performance contract contains unused timeout policies: "
+            + ", ".join(unused_timeout_policies)
+            + "."
+        )
 
     duplicates = sorted(
         workload_id

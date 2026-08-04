@@ -161,7 +161,7 @@ class GitHubReleaseTests(unittest.TestCase):
         """Create one checksum-bound candidate and publication receipt set."""
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
-        self.candidate = self.root / "github-12345-1"
+        self.candidate = self.root / "github-12345"
         self.publication = self.root / "publication-evidence"
         self.changelog = self.root / "CHANGELOG.md"
         self.candidate.mkdir()
@@ -224,8 +224,21 @@ class GitHubReleaseTests(unittest.TestCase):
             "releaseVersion": self._VERSION,
             "source": {
                 "repository": self._REPOSITORY,
+                "ref": f"refs/tags/{self._TAG}",
                 "tag": self._TAG,
                 "commit": self._COMMIT,
+            },
+            "workflow": {
+                "provider": "github-actions",
+                "runId": "12345",
+                "runAttempt": "1",
+                "workflow": nuget_publication.CANDIDATE_WORKFLOW,
+                "workflowRef": (
+                    f"{self._REPOSITORY}/"
+                    f"{nuget_publication.CANDIDATE_WORKFLOW_PATH}"
+                    f"@refs/tags/{self._TAG}"
+                ),
+                "repository": self._REPOSITORY,
             },
             "toolchain": {
                 "approvedDotnetSdk": "10.0.302",
@@ -249,15 +262,16 @@ class GitHubReleaseTests(unittest.TestCase):
             paths = package_map[role]
             receipt_packages[role] = {
                 "id": package_id,
-                "package": f"/candidate/{paths['package'].name}",
-                "symbols": f"/candidate/{paths['symbols'].name}",
+                "package": paths["package"].relative_to(self.candidate).as_posix(),
+                "symbols": paths["symbols"].relative_to(self.candidate).as_posix(),
                 "contentDigest": nuget_publication.canonical_package_digest(
                     paths["package"]
                 ),
+                "symbolsSha256": nuget_publication.sha256_file(paths["symbols"]),
             }
 
         receipt: dict[str, object] = {
-            "schemaVersion": nuget_publication.SCHEMA_VERSION,
+            "schemaVersion": nuget_publication.PUBLICATION_RECEIPT_SCHEMA_VERSION,
             "candidateRunId": "12345",
             "candidateRunAttempt": "1",
             "repository": self._REPOSITORY,

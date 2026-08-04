@@ -18,6 +18,8 @@ internal sealed class PerformanceContract
 
     public Dictionary<string, PerformanceProfileContract> Profiles { get; init; } = [];
 
+    public Dictionary<string, PerformanceTimeoutPolicyContract> TimeoutPolicies { get; init; } = [];
+
     public PerformanceCalibrationContract Calibration { get; init; } = new();
 
     public List<PerformanceWorkloadDefinition> Workloads { get; init; } = [];
@@ -91,6 +93,11 @@ internal sealed class PerformanceCalibrationContract
     public List<string> DatabaseFamilies { get; init; } = [];
 }
 
+internal sealed class PerformanceTimeoutPolicyContract
+{
+    public int MinimumWorkloadTimeoutSeconds { get; init; }
+}
+
 internal sealed class PerformanceWorkloadDefinition
 {
     public string Id { get; init; } = string.Empty;
@@ -107,7 +114,7 @@ internal sealed class PerformanceWorkloadDefinition
 
     public int? MeasurementSamples { get; init; }
 
-    public int? MinimumWorkloadTimeoutSeconds { get; init; }
+    public string? TimeoutPolicy { get; init; }
 }
 
 internal sealed class SoakBudgetContract

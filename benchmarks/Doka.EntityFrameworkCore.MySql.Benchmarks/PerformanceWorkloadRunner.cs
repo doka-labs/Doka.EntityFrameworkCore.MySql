@@ -108,11 +108,20 @@ internal static class PerformanceWorkloadRunner
             var calibrationKind = PerformanceCalibration.ResolveKind(
                 contract.Calibration,
                 definition.Family);
-            // Per-workload deadlines detect stalled execution. They are distinct
-            // from the latency and allocation budgets evaluated after measurement.
+            // Named policies keep hang detection centrally reviewable. These
+            // deadlines never replace the post-measurement performance budgets.
+            var timeoutPolicySeconds = definition.TimeoutPolicy is null
+                ? 0
+                : contract.TimeoutPolicies.TryGetValue(
+                    definition.TimeoutPolicy,
+                    out var timeoutPolicy)
+                    ? timeoutPolicy.MinimumWorkloadTimeoutSeconds
+                    : throw new InvalidDataException(
+                        $"Performance workload '{definition.Id}' references unknown "
+                        + $"timeout policy '{definition.TimeoutPolicy}'.");
             var workloadTimeoutSeconds = Math.Max(
                 profile.MaximumWorkloadDurationSeconds,
-                definition.MinimumWorkloadTimeoutSeconds ?? 0);
+                timeoutPolicySeconds);
             using var workloadTimeoutSource = CancellationTokenSource.CreateLinkedTokenSource(
                 runCancellationToken);
             workloadTimeoutSource.CancelAfter(

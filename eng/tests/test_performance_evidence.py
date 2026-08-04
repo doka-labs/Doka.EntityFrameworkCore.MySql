@@ -106,38 +106,100 @@ class PerformanceEvidenceTests(unittest.TestCase):
             ),
         )
 
-    def test_large_hilo_workloads_raise_only_the_shorter_profile_timeout(self) -> None:
-        """Keep large write populations bounded without weakening stress deadlines."""
-        definition = next(
-            definition
+    def test_fixed_large_write_populations_have_bounded_timeout_floors(self) -> None:
+        """Keep every fixed large write population complete on hosted runners."""
+        definitions = {
+            definition["id"]: definition
             for definition in self.contract["workloads"]
-            if definition["id"] == "hilo.insert.async.contexts-10.rows-1000"
-        )
+        }
+        expected_floors = {
+            "hilo.insert.async.contexts-10.rows-1000": 240,
+            "hilo.insert.sync.contexts-10.rows-1000": 240,
+            "write.savechanges.async.rows-10000.batch-default": 300,
+            "write.savechanges.sync.rows-10000.batch-default": 300,
+        }
 
-        self.assertEqual(
-            240,
-            performance_evidence.expected_workload_timeout_seconds(
-                self.contract["profiles"]["scorecard"],
-                definition,
-            ),
-        )
-        self.assertEqual(
-            300,
-            performance_evidence.expected_workload_timeout_seconds(
-                self.contract["profiles"]["stress"],
-                definition,
-            ),
-        )
+        for workload_id, expected_floor in expected_floors.items():
+            with self.subTest(workload=workload_id):
+                definition = definitions[workload_id]
 
-    def test_workload_timeout_floor_must_be_positive_and_matrix_bounded(self) -> None:
-        """Reject disabled or ineffective workload-local deadline declarations."""
+                self.assertEqual(
+                    expected_floor,
+                    performance_evidence.expected_workload_timeout_seconds(
+                        self.contract["timeoutPolicies"],
+                        self.contract["profiles"]["scorecard"],
+                        definition,
+                    ),
+                )
+                self.assertEqual(
+                    300,
+                    performance_evidence.expected_workload_timeout_seconds(
+                        self.contract["timeoutPolicies"],
+                        self.contract["profiles"]["stress"],
+                        definition,
+                    ),
+                )
+
+    def test_every_expensive_workload_uses_a_named_timeout_policy(self) -> None:
+        """Keep expensive workload hang deadlines exhaustive and centralized."""
+        expensive = [
+            workload
+            for workload in self.contract["workloads"]
+            if workload.get("cost") == "expensive"
+        ]
+
+        self.assertTrue(expensive)
+        self.assertTrue(all("timeoutPolicy" in workload for workload in expensive))
+
+    def test_expensive_workload_without_timeout_policy_is_rejected(self) -> None:
+        """Reject additions that silently inherit an unsuitable short deadline."""
         contract = copy.deepcopy(self.contract)
         workload = next(
             workload
             for workload in contract["workloads"]
-            if workload["id"] == "model.cold.small"
+            if workload.get("cost") == "expensive"
         )
-        workload["minimumWorkloadTimeoutSeconds"] = 0
+        del workload["timeoutPolicy"]
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "must reference a timeoutPolicy",
+        ):
+            performance_evidence.validate_contract(contract)
+
+    def test_unknown_and_unused_timeout_policies_are_rejected(self) -> None:
+        """Reject drift between declarations and their active consumers."""
+        contract = copy.deepcopy(self.contract)
+        workload = next(
+            workload
+            for workload in contract["workloads"]
+            if workload.get("cost") == "expensive"
+        )
+        workload["timeoutPolicy"] = "unknown"
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "references unknown timeout policy",
+        ):
+            performance_evidence.validate_contract(contract)
+
+        contract = copy.deepcopy(self.contract)
+        contract["timeoutPolicies"]["unused"] = {
+            "minimumWorkloadTimeoutSeconds": 180,
+        }
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "unused timeout policies: unused",
+        ):
+            performance_evidence.validate_contract(contract)
+
+    def test_timeout_policy_must_be_positive_and_matrix_bounded(self) -> None:
+        """Reject disabled or ineffective named hang deadlines."""
+        contract = copy.deepcopy(self.contract)
+        contract["timeoutPolicies"]["expensive-standard"][
+            "minimumWorkloadTimeoutSeconds"
+        ] = 0
 
         with self.assertRaisesRegex(
             performance_evidence.PerformanceEvidenceError,
@@ -145,11 +207,13 @@ class PerformanceEvidenceTests(unittest.TestCase):
         ):
             performance_evidence.validate_contract(contract)
 
-        workload["minimumWorkloadTimeoutSeconds"] = 301
+        contract["timeoutPolicies"]["expensive-standard"][
+            "minimumWorkloadTimeoutSeconds"
+        ] = 1201
 
         with self.assertRaisesRegex(
             performance_evidence.PerformanceEvidenceError,
-            "timeout exceeds the 'smoke' matrix deadline",
+            "timeout exceeds the 'scorecard' matrix deadline",
         ):
             performance_evidence.validate_contract(contract)
 

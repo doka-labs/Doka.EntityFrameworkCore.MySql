@@ -67,12 +67,21 @@ significance level. Smoke, scorecard, and stress have hard total deadlines of
 10 minutes, 30 minutes, and two hours respectively.
 
 The profile workload deadline is a hang detector, not a performance budget.
-A workload whose fixed population necessarily performs substantially more
-database I/O may declare `minimumWorkloadTimeoutSeconds`. The runner uses the
-larger of that floor and the profile deadline, while the contract validator
-requires the result to remain below the matrix deadline. This does not alter
-the sample population, absolute budgets, normalized historical budgets,
-allocation limits, or GC limits.
+Every expensive workload references a named entry from `timeoutPolicies`.
+The runner uses the larger of that policy's floor and the profile deadline,
+while the contract validator rejects missing, unknown, unused, non-positive,
+or matrix-breaking policies. This does not alter the sample population,
+absolute budgets, normalized historical budgets, allocation limits, or GC
+limits.
+
+The fixed 10,000-row synchronous and asynchronous `SaveChanges` populations
+use a 300-second floor. Their scorecard population still contains 128
+independent observations. The large synchronous and asynchronous HiLo
+populations use the `hilo-contention` policy and its 240-second floor. The
+remaining expensive workloads share the 180-second `expensive-standard`
+policy. These centralized declarations keep host scheduling and database
+cleanup inside the hang deadline without turning the deadline into a latency
+budget.
 
 ## Run one target
 
@@ -348,8 +357,14 @@ cross-target gate, and copies the raw report trees into:
 artifacts/release-candidate/<run-id>/performance/
 ```
 
-The complete release candidate has a two-hour default deadline. Every finished
-stage writes a source-bound receipt outside the portable candidate directory.
+Each hosted release-candidate job has its own bounded workflow timeout. The
+performance runner additionally enforces the selected profile deadline and the
+named workload timeout floor from `timeoutPolicies`; it uses the stricter of
+those two limits. This keeps expensive workloads bounded without imposing one
+global deadline on unrelated release stages.
+
+Every finished stage writes a source-bound receipt outside the portable
+candidate directory.
 Continue a safely interrupted run with the same
 `DOKA_RELEASE_CANDIDATE_RUN_ID` and
 `DOKA_RELEASE_CANDIDATE_RESUME=1`. A stage is skipped only after every artifact

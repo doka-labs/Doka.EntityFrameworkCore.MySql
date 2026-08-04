@@ -20,6 +20,8 @@ functional_test_project="${functional_test_project}/Doka.EntityFrameworkCore.MyS
 specification_contract_project="${repo_root}/eng/Doka.EntityFrameworkCore.MySql.SpecificationContract"
 specification_contract_project="${specification_contract_project}/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj"
 release_candidate_run_id="${DOKA_RELEASE_CANDIDATE_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
+release_run_attempt="${DOKA_RELEASE_RUN_ATTEMPT:-1}"
+release_runner_identity="${DOKA_RELEASE_RUNNER_IDENTITY:-local}"
 release_candidate_dir="${repo_root}/artifacts/release-candidate/${release_candidate_run_id}"
 packages_dir="${release_candidate_dir}/packages"
 audit_dir="${release_candidate_dir}/audit"
@@ -43,6 +45,20 @@ release_version_override="${DOKA_RELEASE_VERSION:-}"
 performance_reuse_source="${DOKA_RELEASE_CANDIDATE_REUSE_PERFORMANCE_FROM:-}"
 resume_mode="${DOKA_RELEASE_CANDIDATE_RESUME:-0}"
 maximum_release_duration_seconds="${DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS:-7200}"
+selected_stage="all"
+release_source_ref=""
+release_tag=""
+release_version=""
+spatial_release_version=""
+
+if (( $# > 0 )); then
+    if [[ "$#" != "2" || "$1" != "--stage" ]]; then
+        echo "Usage: $0 [--stage <stage>]" >&2
+        exit 1
+    fi
+
+    selected_stage="$2"
+fi
 
 if [[ ! "${maximum_release_duration_seconds}" =~ ^[1-9][0-9]*$ ]]; then
     echo "DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS must be a positive integer." >&2
@@ -51,6 +67,17 @@ fi
 
 if [[ "${resume_mode}" != "0" && "${resume_mode}" != "1" ]]; then
     echo "DOKA_RELEASE_CANDIDATE_RESUME must be 0 or 1." >&2
+    exit 1
+fi
+
+if [[ ! "${release_run_attempt}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "DOKA_RELEASE_RUN_ATTEMPT must be a positive integer." >&2
+    exit 1
+fi
+
+if [[ -z "${release_runner_identity}" \
+    || ! "${release_runner_identity}" =~ ^[0-9A-Za-z._:/-]+$ ]]; then
+    echo "DOKA_RELEASE_RUNNER_IDENTITY must be a non-empty ASCII identity." >&2
     exit 1
 fi
 
@@ -76,7 +103,16 @@ validate_release_source() {
         exit 1
     fi
 
+    release_source_ref="${DOKA_RELEASE_EXPECTED_REF:-}"
+    if [[ -z "${release_source_ref}" ]]; then
+        release_source_ref="$(git symbolic-ref -q HEAD || true)"
+    fi
+    if [[ -z "${release_source_ref}" ]]; then
+        release_source_ref="detached/$(git rev-parse HEAD)"
+    fi
+
     if [[ "${require_release_tag}" != "1" ]]; then
+        release_tag="not-required"
         return 0
     fi
 
@@ -87,7 +123,6 @@ validate_release_source() {
         exit 1
     fi
 
-    local release_tag
     release_tag="$(printf '%s\n' "${version_tags}" | sed '/^$/d')"
     if [[ -z "${release_version_override}" ]]; then
         release_version_override="${release_tag#v}"
@@ -96,9 +131,8 @@ validate_release_source() {
         exit 1
     fi
 
-    if [[ -n "${DOKA_RELEASE_EXPECTED_REF:-}" \
-        && "${DOKA_RELEASE_EXPECTED_REF}" != "refs/tags/${release_tag}" ]]; then
-        echo "Expected release ref ${DOKA_RELEASE_EXPECTED_REF} does not match refs/tags/${release_tag}." >&2
+    if [[ "${release_source_ref}" != "refs/tags/${release_tag}" ]]; then
+        echo "Expected release ref ${release_source_ref} does not match refs/tags/${release_tag}." >&2
         exit 1
     fi
 }
@@ -136,6 +170,12 @@ require_command() {
     fi
 }
 
+performance_contract_sha256() {
+    python3 -c \
+        'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' \
+        "${repo_root}/benchmarks/performance-contract.json"
+}
+
 stage_is_complete() {
     local stage="$1"
     local checkpoint="${stage_checkpoint_dir}/${stage}.json"
@@ -144,12 +184,25 @@ stage_is_complete() {
         return 1
     fi
 
-    if ! python3 "${stage_checkpoint_tool}" verify \
-        --repo "${repo_root}" \
-        --root "${release_candidate_dir}" \
-        --checkpoint-directory "${stage_checkpoint_dir}" \
-        --run-id "${release_candidate_run_id}" \
-        --stage "${stage}"; then
+    local command=(
+        python3 "${stage_checkpoint_tool}" verify
+        --repo "${repo_root}"
+        --root "${release_candidate_dir}"
+        --checkpoint-directory "${stage_checkpoint_dir}"
+        --run-id "${release_candidate_run_id}"
+        --source-ref "${release_source_ref}"
+        --release-tag "${release_tag}"
+        --maximum-run-attempt "${release_run_attempt}"
+        --stage "${stage}"
+    )
+    if [[ "${stage}" == performance-* ]]; then
+        command+=(
+            --engine "${stage#performance-}"
+            --contract-sha256 "$(performance_contract_sha256)"
+        )
+    fi
+
+    if ! "${command[@]}"; then
         echo "Release-stage checkpoint '${stage}' is invalid; refusing an unsafe resume." >&2
         exit 1
     fi
@@ -160,19 +213,71 @@ stage_is_complete() {
 
 write_stage_checkpoint() {
     local stage="$1"
-    shift
+    local started_utc="$2"
+    shift 2
     local command=(
         python3 "${stage_checkpoint_tool}" write
         --repo "${repo_root}"
         --root "${release_candidate_dir}"
         --checkpoint-directory "${stage_checkpoint_dir}"
         --run-id "${release_candidate_run_id}"
+        --source-ref "${release_source_ref}"
+        --release-tag "${release_tag}"
+        --run-attempt "${release_run_attempt}"
+        --runner-identity "${release_runner_identity}"
+        --started-utc "${started_utc}"
         --stage "${stage}"
     )
     local artifact
 
+    if [[ "${stage}" == performance-* ]]; then
+        command+=(
+            --engine "${stage#performance-}"
+            --contract-sha256 "$(performance_contract_sha256)"
+        )
+    fi
+
     for artifact in "$@"; do
         command+=(--artifact "${artifact}")
+    done
+
+    "${command[@]}"
+}
+
+verify_required_stage_set() {
+    local include_complete="${1:-0}"
+    local expected_stages=(
+        quality
+        repository-tests
+        specification
+        integration
+        migration-deployment
+        runtime
+        coverage
+        package
+        sbom
+        performance-mysql84
+        performance-mariadb118
+    )
+
+    if [[ "${include_complete}" == "1" ]]; then
+        expected_stages+=(complete)
+    fi
+    local command=(
+        python3 "${stage_checkpoint_tool}" verify-set
+        --repo "${repo_root}"
+        --root "${release_candidate_dir}"
+        --checkpoint-directory "${stage_checkpoint_dir}"
+        --run-id "${release_candidate_run_id}"
+        --source-ref "${release_source_ref}"
+        --release-tag "${release_tag}"
+        --maximum-run-attempt "${release_run_attempt}"
+        --performance-contract-sha256 "$(performance_contract_sha256)"
+    )
+    local stage
+
+    for stage in "${expected_stages[@]}"; do
+        command+=(--expected-stage "${stage}")
     done
 
     "${command[@]}"
@@ -241,9 +346,21 @@ run_with_release_version() {
 
 run_pack() {
     mkdir -p "${packages_dir}"
+    mkdir -p "${sbom_components_dir}/runtime" "${sbom_components_dir}/spatial"
 
     dotnet restore "${runtime_project}" --tl:off
     dotnet restore "${spatial_project}" --tl:off
+
+    # Bind the exact restored dependency graphs to the package stage. SBOM
+    # generation must consume these immutable candidate-local copies rather
+    # than mutable obj files that another build can replace later.
+    cp \
+        "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql/project.assets.json" \
+        "${sbom_components_dir}/runtime/project.assets.json"
+    cp \
+        "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.NetTopologySuite/project.assets.json" \
+        "${sbom_components_dir}/spatial/project.assets.json"
+
     run_with_release_version \
         dotnet build "${runtime_project}" --configuration Release --no-restore --tl:off -m:1
     run_with_release_version \
@@ -360,12 +477,10 @@ run_coverage_gate() {
 run_sbom() {
     local release_version="$1"
     local sbom_timeout="${DOKA_SBOM_TIMEOUT:-300}"
-    local runtime_assets="${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql/project.assets.json"
-    local spatial_assets="${repo_root}/artifacts/obj"
-    spatial_assets="${spatial_assets}/Doka.EntityFrameworkCore.MySql.NetTopologySuite/project.assets.json"
+    local runtime_assets="${sbom_components_dir}/runtime/project.assets.json"
+    local spatial_assets="${sbom_components_dir}/spatial/project.assets.json"
 
     mkdir -p "${sbom_dir}"
-    mkdir -p "${sbom_components_dir}/runtime" "${sbom_components_dir}/spatial"
 
     if [[ ! -f "${runtime_assets}" || ! -f "${spatial_assets}" ]]; then
         echo "Release package dependency assets are missing; run_pack must complete before SBOM generation." >&2
@@ -375,9 +490,6 @@ run_sbom() {
     # Component detection consumes the exact restored graphs of the two
     # released packages. This excludes stale, test, and benchmark graphs while
     # retaining all direct and transitive package dependencies.
-    cp "${runtime_assets}" "${sbom_components_dir}/runtime/project.assets.json"
-    cp "${spatial_assets}" "${sbom_components_dir}/spatial/project.assets.json"
-
     dotnet tool restore
 
     # The pinned SBOM tool targets an older supported .NET runtime. The CLI
@@ -522,78 +634,244 @@ write_reconciliation() {
 EOF
 }
 
-run_benchmark_and_gate() {
+run_performance_engine() {
+    local engine="$1"
     local skip="${DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS:-0}"
     local compose_run_id
 
-    if [[ -n "${performance_reuse_source}" ]]; then
-        if [[ "${skip}" == "1" ]]; then
-            echo "Performance evidence reuse and benchmark skipping cannot be combined." >&2
-            exit 1
-        fi
-
-        archive_incomplete_stage "performance-reuse" "${performance_dir}"
-
-        # Reuse is not a trust-based copy. The evidence helper verifies both
-        # strict scorecards, their artifact hashes, the original clean source
-        # hash, Git ancestry, and the complete changed-path set. Any provider,
-        # benchmark, dependency, build, or container input change fails closed.
-        python3 "${repo_root}/eng/release_evidence.py" reuse-performance \
-            --repo "${repo_root}" \
-            --source-root "${performance_reuse_source}" \
-            --root "${release_candidate_dir}" \
-            --run-id "${release_candidate_run_id}"
-        return 0
-    fi
-
     if [[ "${skip}" == "1" ]]; then
-        echo "Benchmark gate skipped via DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1."
-        echo "This bypass is for dev-loop iteration only; the resulting evidence is not release-eligible." >&2
-        return 0
+        echo "A release performance stage cannot be completed while benchmarks are skipped." >&2
+        exit 1
     fi
 
-    local engines=("mysql84" "mariadb118")
-    local engine_stage
     compose_run_id="$(
         printf '%s' "${release_candidate_run_id}" \
             | tr '[:upper:]' '[:lower:]' \
             | tr '.' '-'
     )"
 
-    for engine in "${engines[@]}"; do
-        engine_stage="performance-${engine}"
-        if stage_is_complete "${engine_stage}"; then
-            continue
-        fi
+    echo "Running benchmark scorecard and soak evidence against ${engine}..."
+    DOKA_BENCHMARK_PROFILE=scorecard \
+        DOKA_BENCHMARK_TARGET="${engine}" \
+        DOKA_BENCHMARK_RUN_ID="${release_candidate_run_id}" \
+        DOKA_BENCHMARK_RESUME="${resume_mode}" \
+        DOKA_BENCHMARK_COMPOSE_PROJECT_NAME="doka-benchmark-${compose_run_id}-${engine}" \
+        DOKA_BENCHMARK_PORT=0 \
+        "${repo_root}/eng/benchmark.sh" --up-run-down
 
-        archive_incomplete_stage \
-            "${engine_stage}" \
-            "${performance_dir}/${engine}"
-        echo "Running benchmark scorecard and soak evidence against ${engine}..."
-        DOKA_BENCHMARK_PROFILE=scorecard \
-            DOKA_BENCHMARK_TARGET="${engine}" \
-            DOKA_BENCHMARK_RUN_ID="${release_candidate_run_id}" \
-            DOKA_BENCHMARK_RESUME="${resume_mode}" \
-            DOKA_BENCHMARK_COMPOSE_PROJECT_NAME="doka-benchmark-${compose_run_id}-${engine}" \
-            DOKA_BENCHMARK_PORT=0 \
-            "${repo_root}/eng/benchmark.sh" --up-run-down
+    mkdir -p "${performance_dir}"
+    cp -R \
+        "${repo_root}/artifacts/benchmarks/${engine}/reports/${release_candidate_run_id}" \
+        "${performance_dir}/${engine}"
+}
 
-        mkdir -p "${performance_dir}"
-        cp -R \
-            "${repo_root}/artifacts/benchmarks/${engine}/reports/${release_candidate_run_id}" \
-            "${performance_dir}/${engine}"
-        write_stage_checkpoint \
-            "${engine_stage}" \
-            "${performance_dir}/${engine}"
-    done
+run_performance_mysql84() {
+    run_performance_engine "mysql84"
+}
+
+run_performance_mariadb118() {
+    run_performance_engine "mariadb118"
+}
+
+reuse_performance_evidence() {
+    if [[ "${DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS:-0}" == "1" ]]; then
+        echo "Performance evidence reuse and benchmark skipping cannot be combined." >&2
+        exit 1
+    fi
+
+    if [[ -f "${stage_checkpoint_dir}/performance-mysql84.json" \
+        || -f "${stage_checkpoint_dir}/performance-mariadb118.json" ]]; then
+        echo "Performance reuse cannot overwrite an existing engine receipt." >&2
+        exit 1
+    fi
+
+    archive_incomplete_stage "performance-reuse" "${performance_dir}"
+    local started_utc
+    started_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+    # Reuse is not a trust-based copy. The evidence helper verifies both
+    # strict scorecards, their artifact hashes, the original clean source
+    # hash, Git ancestry, and the complete changed-path set. Any provider,
+    # benchmark, dependency, build, or container input change fails closed.
+    python3 "${repo_root}/eng/release_evidence.py" reuse-performance \
+        --repo "${repo_root}" \
+        --source-root "${performance_reuse_source}" \
+        --root "${release_candidate_dir}" \
+        --run-id "${release_candidate_run_id}"
+
+    write_stage_checkpoint \
+        "performance-mysql84" \
+        "${started_utc}" \
+        "${performance_dir}/mysql84"
+    write_stage_checkpoint \
+        "performance-mariadb118" \
+        "${started_utc}" \
+        "${performance_dir}/mariadb118"
+}
+
+run_combined_performance_gate() {
+    local scratch_root
+    scratch_root="$(mktemp -d "${TMPDIR:-/tmp}/doka-release-performance.XXXXXX")"
+    mkdir -p "${scratch_root}/mysql84/reports" "${scratch_root}/mariadb118/reports"
+    cp -R \
+        "${performance_dir}/mysql84" \
+        "${scratch_root}/mysql84/reports/${release_candidate_run_id}"
+    cp -R \
+        "${performance_dir}/mariadb118" \
+        "${scratch_root}/mariadb118/reports/${release_candidate_run_id}"
 
     echo "Re-evaluating the complete performance and memory gate..."
-    DOKA_BENCHMARK_PROFILE=scorecard \
+    if ! DOKA_BENCHMARK_PROFILE=scorecard \
         DOKA_BENCHMARK_GATE_STRICT=1 \
         DOKA_BENCHMARK_GATE_RUN_ID="${release_candidate_run_id}" \
         bash "${repo_root}/eng/check-benchmark-ratios.sh" \
-            "${repo_root}/artifacts/benchmarks"
+            "${scratch_root}"; then
+        rm -rf -- "${scratch_root}"
+        return 1
+    fi
 
+    rm -rf -- "${scratch_root}"
+}
+
+resolve_release_version() {
+    release_version="$(package_version_from_file "Doka.EntityFrameworkCore.MySql")"
+    spatial_release_version="$(
+        package_version_from_file "Doka.EntityFrameworkCore.MySql.NetTopologySuite"
+    )"
+
+    if [[ "${spatial_release_version}" != "${release_version}" ]]; then
+        echo "Provider package version ${release_version} does not match spatial package ${spatial_release_version}." >&2
+        exit 1
+    fi
+
+    if [[ -n "${release_version_override}" \
+        && "${release_version}" != "${release_version_override}" ]]; then
+        echo "Packed version ${release_version} does not match requested version ${release_version_override}." >&2
+        exit 1
+    fi
+}
+
+run_sbom_stage() {
+    resolve_release_version
+    run_sbom "${release_version}"
+}
+
+run_finalization_stage() {
+    # Finalization consumes only verified stage receipts. It never infers
+    # completion from a directory that merely happens to contain files.
+    verify_required_stage_set
+    run_combined_performance_gate
+    resolve_release_version
+    write_changelog "${release_version}"
+
+    local package_count
+    package_count="$(
+        find "${packages_dir}" \
+            -maxdepth 1 \
+            -type f \
+            -name '*.nupkg' \
+            ! -name '*.symbols.nupkg' \
+            | wc -l \
+            | tr -d ' '
+    )"
+    local sbom_file_count
+    sbom_file_count="$(find "${sbom_dir}" -type f | wc -l | tr -d ' ')"
+
+    if [[ "${package_count}" -lt 2 ]]; then
+        echo "Expected release-candidate packaging to produce both provider packages." >&2
+        exit 1
+    fi
+
+    if [[ "${sbom_file_count}" -eq 0 ]]; then
+        echo "No SBOM files were generated under ${sbom_dir}." >&2
+        exit 1
+    fi
+
+    bash "${repo_root}/eng/check-publication-readiness.sh"
+    write_reconciliation
+    write_summary "${release_version}" "${package_count}"
+    write_evidence "${release_version}"
+}
+
+run_named_stage() {
+    local stage="$1"
+    local runner="$2"
+    shift 2
+
+    if stage_is_complete "${stage}"; then
+        return 0
+    fi
+
+    archive_incomplete_stage "${stage}" "$@"
+    local started_utc
+    started_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    "${runner}"
+    write_stage_checkpoint "${stage}" "${started_utc}" "$@"
+}
+
+run_all_stages() {
+    run_named_stage "quality" run_repository_quality_gate "${audit_dir}"
+    run_named_stage \
+        "repository-tests" \
+        run_repository_test_gate \
+        "${coverage_input_dir}/repo-tests"
+    run_named_stage "specification" run_specification_gate "${specification_dir}"
+    run_named_stage \
+        "integration" \
+        run_integration_configuration_and_failure_gate \
+        "${integration_dir}" \
+        "${coverage_input_dir}/integration"
+    run_named_stage \
+        "migration-deployment" \
+        run_migration_deployment_gate \
+        "${migration_deployment_root}"
+    run_named_stage "runtime" run_runtime_posture_gate "${runtime_dir}"
+    run_named_stage "coverage" run_coverage_gate "${coverage_merged_dir}"
+    run_named_stage \
+        "package" \
+        run_pack \
+        "${packages_dir}" \
+        "${dependency_graph_file}" \
+        "${sbom_components_dir}"
+    run_named_stage "sbom" run_sbom_stage "${sbom_dir}"
+
+    if [[ -n "${performance_reuse_source}" ]]; then
+        local mysql_performance_complete=0
+        local mariadb_performance_complete=0
+
+        if stage_is_complete "performance-mysql84"; then
+            mysql_performance_complete=1
+        fi
+        if stage_is_complete "performance-mariadb118"; then
+            mariadb_performance_complete=1
+        fi
+
+        if [[ "${mysql_performance_complete}" != "${mariadb_performance_complete}" ]]; then
+            echo "Reused performance evidence must have checkpoints for both engines or neither engine." >&2
+            exit 1
+        fi
+        if [[ "${mysql_performance_complete}" == "0" ]]; then
+            reuse_performance_evidence
+        fi
+    else
+        run_named_stage \
+            "performance-mysql84" \
+            run_performance_mysql84 \
+            "${performance_dir}/mysql84"
+        run_named_stage \
+            "performance-mariadb118" \
+            run_performance_mariadb118 \
+            "${performance_dir}/mariadb118"
+    fi
+
+    run_named_stage \
+        "complete" \
+        run_finalization_stage \
+        "${changelog_file}" \
+        "${summary_file}" \
+        "${reconciliation_file}" \
+        "${release_candidate_dir}/release-candidate-evidence.json" \
+        "${release_candidate_dir}/release-candidate-evidence.sha256"
 }
 
 write_evidence() {
@@ -627,6 +905,17 @@ require_command jq
 require_command python3
 cd "${repo_root}"
 
+case "${selected_stage}" in
+    all | quality | repository-tests | specification | integration \
+        | migration-deployment | runtime | coverage | package | sbom \
+        | performance-mysql84 | performance-mariadb118 | finalize)
+        ;;
+    *)
+        echo "Unknown release-candidate stage '${selected_stage}'." >&2
+        exit 1
+        ;;
+esac
+
 # Do not reorder these gates without updating the evidence contract. The final
 # manifest inventory must observe every retained artifact and must be written
 # only after publication readiness has passed.
@@ -634,6 +923,7 @@ validate_release_source
 prepare_release_directory
 
 if stage_is_complete "complete"; then
+    verify_required_stage_set 1
     python3 "${repo_root}/eng/release_evidence.py" verify \
         --root "${release_candidate_dir}" \
         --repo "${repo_root}"
@@ -642,144 +932,76 @@ if stage_is_complete "complete"; then
 fi
 
 "${repo_root}/eng/verify-dotnet.sh"
-"${repo_root}/eng/validate-adrs.sh"
-
-if ! stage_is_complete "performance"; then
-    run_benchmark_and_gate
-    write_stage_checkpoint "performance" "${performance_dir}"
+if [[ "${selected_stage}" == "all" || "${selected_stage}" == "quality" ]]; then
+    "${repo_root}/eng/validate-adrs.sh"
 fi
 
-if ! stage_is_complete "quality"; then
-    archive_incomplete_stage "quality" "${audit_dir}"
-    run_repository_quality_gate
-    write_stage_checkpoint "quality" "${audit_dir}"
-fi
-
-if ! stage_is_complete "repository-tests"; then
-    archive_incomplete_stage \
-        "repository-tests" \
-        "${coverage_input_dir}/repo-tests"
-    run_repository_test_gate
-    write_stage_checkpoint \
-        "repository-tests" \
-        "${coverage_input_dir}/repo-tests"
-fi
-
-if ! stage_is_complete "specification"; then
-    archive_incomplete_stage "specification" "${specification_dir}"
-    run_specification_gate
-    write_stage_checkpoint "specification" "${specification_dir}"
-fi
-
-if ! stage_is_complete "integration"; then
-    archive_incomplete_stage \
-        "integration" \
-        "${integration_dir}" \
-        "${coverage_input_dir}/integration"
-    run_integration_configuration_and_failure_gate
-    write_stage_checkpoint \
-        "integration" \
-        "${integration_dir}" \
-        "${coverage_input_dir}/integration"
-fi
-
-if ! stage_is_complete "migration-deployment"; then
-    archive_incomplete_stage \
-        "migration-deployment" \
-        "${migration_deployment_root}"
-    run_migration_deployment_gate
-    write_stage_checkpoint \
-        "migration-deployment" \
-        "${migration_deployment_root}"
-fi
-
-if ! stage_is_complete "runtime"; then
-    archive_incomplete_stage "runtime" "${runtime_dir}"
-    run_runtime_posture_gate
-    write_stage_checkpoint "runtime" "${runtime_dir}"
-fi
-
-if ! stage_is_complete "coverage"; then
-    archive_incomplete_stage "coverage" "${coverage_merged_dir}"
-    run_coverage_gate
-    write_stage_checkpoint "coverage" "${coverage_merged_dir}"
-fi
-
-if ! stage_is_complete "package"; then
-    archive_incomplete_stage \
-        "package" \
-        "${packages_dir}" \
-        "${dependency_graph_file}"
-    run_pack
-    write_stage_checkpoint \
-        "package" \
-        "${packages_dir}" \
-        "${dependency_graph_file}"
-fi
-
-release_version="$(package_version_from_file "Doka.EntityFrameworkCore.MySql")"
-spatial_release_version="$(package_version_from_file "Doka.EntityFrameworkCore.MySql.NetTopologySuite")"
-
-if [[ "${spatial_release_version}" != "${release_version}" ]]; then
-    echo "Provider package version ${release_version} does not match spatial package ${spatial_release_version}." >&2
-    exit 1
-fi
-
-if [[ -n "${release_version_override}" && "${release_version}" != "${release_version_override}" ]]; then
-    echo "Packed version ${release_version} does not match requested version ${release_version_override}." >&2
-    exit 1
-fi
-
-if ! stage_is_complete "sbom"; then
-    archive_incomplete_stage \
-        "sbom" \
-        "${sbom_dir}" \
-        "${sbom_components_dir}"
-    run_sbom "${release_version}"
-    write_stage_checkpoint \
-        "sbom" \
-        "${sbom_dir}" \
-        "${sbom_components_dir}"
-fi
-
-archive_incomplete_stage \
-    "finalization" \
-    "${changelog_file}" \
-    "${summary_file}" \
-    "${reconciliation_file}" \
-    "${release_candidate_dir}/release-candidate-evidence.json" \
-    "${release_candidate_dir}/release-candidate-evidence.sha256"
-write_changelog "${release_version}"
-
-package_count="$(
-    find "${packages_dir}" \
-        -maxdepth 1 \
-        -type f \
-        -name '*.nupkg' \
-        ! -name '*.symbols.nupkg' \
-        | wc -l \
-        | tr -d ' '
-)"
-sbom_file_count="$(find "${sbom_dir}" -type f | wc -l | tr -d ' ')"
-
-if [[ "${package_count}" -lt 2 ]]; then
-    echo "Expected release-candidate packaging to produce both provider packages." >&2
-    exit 1
-fi
-
-if [[ "${sbom_file_count}" -eq 0 ]]; then
-    echo "No SBOM files were generated under ${sbom_dir}." >&2
-    exit 1
-fi
-
-bash "${repo_root}/eng/check-publication-readiness.sh"
-write_reconciliation
-write_summary "${release_version}" "${package_count}"
-write_evidence "${release_version}"
-write_stage_checkpoint \
-    "complete" \
-    "${changelog_file}" \
-    "${summary_file}" \
-    "${reconciliation_file}" \
-    "${release_candidate_dir}/release-candidate-evidence.json" \
-    "${release_candidate_dir}/release-candidate-evidence.sha256"
+case "${selected_stage}" in
+    all)
+        run_all_stages
+        ;;
+    quality)
+        run_named_stage "quality" run_repository_quality_gate "${audit_dir}"
+        ;;
+    repository-tests)
+        run_named_stage \
+            "repository-tests" \
+            run_repository_test_gate \
+            "${coverage_input_dir}/repo-tests"
+        ;;
+    specification)
+        run_named_stage "specification" run_specification_gate "${specification_dir}"
+        ;;
+    integration)
+        run_named_stage \
+            "integration" \
+            run_integration_configuration_and_failure_gate \
+            "${integration_dir}" \
+            "${coverage_input_dir}/integration"
+        ;;
+    migration-deployment)
+        run_named_stage \
+            "migration-deployment" \
+            run_migration_deployment_gate \
+            "${migration_deployment_root}"
+        ;;
+    runtime)
+        run_named_stage "runtime" run_runtime_posture_gate "${runtime_dir}"
+        ;;
+    coverage)
+        run_named_stage "coverage" run_coverage_gate "${coverage_merged_dir}"
+        ;;
+    package)
+        run_named_stage \
+            "package" \
+            run_pack \
+            "${packages_dir}" \
+            "${dependency_graph_file}" \
+            "${sbom_components_dir}"
+        ;;
+    sbom)
+        run_named_stage "sbom" run_sbom_stage "${sbom_dir}"
+        ;;
+    performance-mysql84)
+        run_named_stage \
+            "performance-mysql84" \
+            run_performance_mysql84 \
+            "${performance_dir}/mysql84"
+        ;;
+    performance-mariadb118)
+        run_named_stage \
+            "performance-mariadb118" \
+            run_performance_mariadb118 \
+            "${performance_dir}/mariadb118"
+        ;;
+    finalize)
+        run_named_stage \
+            "complete" \
+            run_finalization_stage \
+            "${changelog_file}" \
+            "${summary_file}" \
+            "${reconciliation_file}" \
+            "${release_candidate_dir}/release-candidate-evidence.json" \
+            "${release_candidate_dir}/release-candidate-evidence.sha256"
+        ;;
+esac

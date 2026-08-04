@@ -9,6 +9,30 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 No changes yet.
 
+## [10.0.0-rc.3] - 2026-08-04
+
+This release candidate supersedes `10.0.0-rc.2` after hosted qualification
+exposed the same undersized hang deadline for the fixed 10,000-row
+`SaveChanges` evidence populations.
+
+Install the release candidate explicitly because NuGet excludes prerelease
+packages from normal stable-version resolution:
+
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.3
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.3
+```
+
+### Fixed
+
+- Preserve all 128 independent scorecard observations for both 10,000-row
+  `SaveChanges` workloads while assigning their fixed database work a bounded
+  300-second hang deadline. Latency, allocation, GC, and historical-regression
+  budgets remain unchanged.
+- Cover every fixed large write population with one regression contract so a
+  synchronous, asynchronous, SaveChanges, or HiLo variant cannot silently lose
+  its workload-local deadline.
+
 ## [10.0.0-rc.2] - 2026-08-04
 
 This release candidate supersedes `10.0.0-rc.1` after hosted qualification
@@ -113,6 +137,7 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.2...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.3...HEAD
+[10.0.0-rc.3]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.3
 [10.0.0-rc.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.2
 [10.0.0-rc.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.1

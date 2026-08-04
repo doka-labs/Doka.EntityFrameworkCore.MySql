@@ -283,8 +283,10 @@ forced stop so BenchmarkDotNet or shell descendants cannot survive the run.
 Each completed workload is atomically checkpointed against contract version,
 run ID, target, profile, commit, source hash, runner class, workload ID, and
 family. A resumed run can therefore lose at most the workload that was active
-at interruption. The release candidate has a two-hour default deadline and
-uses digest-verified source-bound receipts at every major stage.
+at interruption. Expensive workloads use reviewed, named timeout floors from
+the performance contract, while every hosted release stage has its own bounded
+workflow timeout. The release candidate uses digest-verified, source-bound
+receipts at every major stage instead of one global deadline.
 
 ### Consequences
 

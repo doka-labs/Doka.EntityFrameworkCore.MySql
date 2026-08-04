@@ -148,7 +148,9 @@ class NuGetPublicationTests(unittest.TestCase):
     def test_preflight_allows_absent_packages_and_matching_retry(self) -> None:
         """Permit first publication and a byte-identical partial retry."""
         receipt = self._receipt()
-        provider_bytes = Path(receipt["packages"]["provider"]["package"]).read_bytes()
+        provider_bytes = (
+            self.root / str(receipt["packages"]["provider"]["package"])
+        ).read_bytes()
 
         def fetcher(url: str, _: float) -> bytes | None:
             if url == nuget_publication.remote_package_url(
@@ -158,7 +160,11 @@ class NuGetPublicationTests(unittest.TestCase):
                 return provider_bytes
             return None
 
-        states = nuget_publication.remote_states(receipt, fetcher=fetcher)
+        states = nuget_publication.remote_states(
+            receipt,
+            self.root,
+            fetcher=fetcher,
+        )
 
         self.assertEqual("matching", states["provider"]["status"])
         self.assertEqual("absent", states["spatial"]["status"])
@@ -177,13 +183,16 @@ class NuGetPublicationTests(unittest.TestCase):
         ):
             nuget_publication.remote_states(
                 receipt,
+                self.root,
                 fetcher=lambda _url, _timeout: conflicting,
             )
 
     def test_preflight_rejects_spatial_without_provider(self) -> None:
         """Reject an impossible dependency publication order before login."""
         receipt = self._receipt()
-        spatial_bytes = Path(receipt["packages"]["spatial"]["package"]).read_bytes()
+        spatial_bytes = (
+            self.root / str(receipt["packages"]["spatial"]["package"])
+        ).read_bytes()
 
         def fetcher(url: str, _: float) -> bytes | None:
             if url == nuget_publication.remote_package_url(
@@ -197,7 +206,50 @@ class NuGetPublicationTests(unittest.TestCase):
             nuget_publication.PublicationError,
             "without its required provider",
         ):
-            nuget_publication.remote_states(receipt, fetcher=fetcher)
+            nuget_publication.remote_states(
+                receipt,
+                self.root,
+                fetcher=fetcher,
+            )
+
+    def test_candidate_paths_reject_absolute_and_traversal_values(self) -> None:
+        """Reject receipt paths that cannot remain portable across runners."""
+        invalid_paths = (
+            str(self.packages / "candidate.nupkg"),
+            "../packages/candidate.nupkg",
+            "packages/../candidate.nupkg",
+            "packages\\candidate.nupkg",
+        )
+
+        for value in invalid_paths:
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(
+                    nuget_publication.PublicationError,
+                    "canonical relative path",
+                ):
+                    nuget_publication.resolve_candidate_path(
+                        self.root,
+                        value,
+                        "candidate package",
+                    )
+
+    def test_candidate_paths_reject_symlinked_files(self) -> None:
+        """Reject a receipt file that redirects outside immutable evidence."""
+        with tempfile.TemporaryDirectory() as outside_directory:
+            outside = Path(outside_directory) / "candidate.nupkg"
+            outside.write_bytes(b"untrusted package")
+            link = self.root / "linked-candidate.nupkg"
+            link.symlink_to(outside)
+
+            with self.assertRaisesRegex(
+                nuget_publication.PublicationError,
+                "missing or non-regular",
+            ):
+                nuget_publication.resolve_candidate_path(
+                    self.root,
+                    link.name,
+                    "candidate package",
+                )
 
     def test_symbol_readback_requires_exact_public_portable_pdb_bytes(self) -> None:
         """Accept only the symbol bytes whose checksum is sealed into the DLL."""
@@ -300,7 +352,7 @@ class NuGetPublicationTests(unittest.TestCase):
         release_tag = f"v{self._VERSION}"
         self._git(repository_root, "tag", release_tag)
 
-        candidate_root = self.root / "github-123-1"
+        candidate_root = self.root / "github-123"
         candidate_packages = candidate_root / "packages"
         candidate_packages.mkdir(parents=True)
         self._write_package_at(
@@ -316,7 +368,7 @@ class NuGetPublicationTests(unittest.TestCase):
         )
 
         manifest = {
-            "releaseCandidateRunId": "github-123-1",
+            "releaseCandidateRunId": "github-123",
             "releaseVersion": self._VERSION,
             "source": {
                 "commit": source_commit,
@@ -457,24 +509,24 @@ class NuGetPublicationTests(unittest.TestCase):
             "sourceCommit": self._COMMIT,
             "packages": {
                 "provider": {
-                    "package": str(
-                        self.packages
+                    "package": (
+                        Path("packages")
                         / nuget_publication.package_file_name(
                             nuget_publication.PROVIDER_PACKAGE_ID,
                             self._VERSION,
                             "nupkg",
                         )
-                    ),
+                    ).as_posix(),
                 },
                 "spatial": {
-                    "package": str(
-                        self.packages
+                    "package": (
+                        Path("packages")
                         / nuget_publication.package_file_name(
                             nuget_publication.SPATIAL_PACKAGE_ID,
                             self._VERSION,
                             "nupkg",
                         )
-                    ),
+                    ).as_posix(),
                 },
             },
         }
