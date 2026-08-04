@@ -108,22 +108,55 @@ internal static class PerformanceWorkloadRunner
             var calibrationKind = PerformanceCalibration.ResolveKind(
                 contract.Calibration,
                 definition.Family);
+            // Per-workload deadlines detect stalled execution. They are distinct
+            // from the latency and allocation budgets evaluated after measurement.
+            var workloadTimeoutSeconds = Math.Max(
+                profile.MaximumWorkloadDurationSeconds,
+                definition.MinimumWorkloadTimeoutSeconds ?? 0);
             using var workloadTimeoutSource = CancellationTokenSource.CreateLinkedTokenSource(
                 runCancellationToken);
             workloadTimeoutSource.CancelAfter(
-                TimeSpan.FromSeconds(profile.MaximumWorkloadDurationSeconds));
-            var result = await MeasureAsync(
-                    workload,
-                    definition,
-                    warmupSamples,
-                    sampleCount,
-                    profile.MinimumMeasurementDurationMilliseconds,
-                    calibrationKind,
-                    profile.CalibrationSamplesPerPulse,
-                    profile.CalibrationIntervalSamples,
-                    profile.MaximumCalibrationRelativeStandardError,
-                    workloadTimeoutSource.Token)
-                .ConfigureAwait(false);
+                TimeSpan.FromSeconds(workloadTimeoutSeconds));
+            PerformanceWorkloadResult result;
+
+            try
+            {
+                result = await MeasureAsync(
+                        workload,
+                        definition,
+                        warmupSamples,
+                        sampleCount,
+                        profile.MinimumMeasurementDurationMilliseconds,
+                        calibrationKind,
+                        profile.CalibrationSamplesPerPulse,
+                        profile.CalibrationIntervalSamples,
+                        profile.MaximumCalibrationRelativeStandardError,
+                        workloadTimeoutSource.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException exception)
+                when (!cancellationToken.IsCancellationRequested)
+            {
+                if (runTimeoutSource.IsCancellationRequested)
+                {
+                    throw new TimeoutException(
+                        $"Performance workload matrix exceeded its "
+                        + $"{profile.MaximumWorkloadMatrixDurationSeconds}-second deadline while running "
+                        + $"'{definition.Id}'.",
+                        exception);
+                }
+
+                if (workloadTimeoutSource.IsCancellationRequested)
+                {
+                    throw new TimeoutException(
+                        $"Performance workload '{definition.Id}' exceeded its "
+                        + $"{workloadTimeoutSeconds}-second deadline for profile '{profileName}'.",
+                        exception);
+                }
+
+                throw;
+            }
+
             results.Add(result);
 
             await WriteCheckpointAsync(

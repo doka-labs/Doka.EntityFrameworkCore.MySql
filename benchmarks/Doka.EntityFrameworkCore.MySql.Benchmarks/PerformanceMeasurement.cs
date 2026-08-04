@@ -106,6 +106,8 @@ internal sealed class PerformanceWorkloadDefinition
     public int? MinimumWarmupOperations { get; init; }
 
     public int? MeasurementSamples { get; init; }
+
+    public int? MinimumWorkloadTimeoutSeconds { get; init; }
 }
 
 internal sealed class SoakBudgetContract

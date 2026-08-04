@@ -66,6 +66,14 @@ establishes an exceedance rate above one percent at the one-percent
 significance level. Smoke, scorecard, and stress have hard total deadlines of
 10 minutes, 30 minutes, and two hours respectively.
 
+The profile workload deadline is a hang detector, not a performance budget.
+A workload whose fixed population necessarily performs substantially more
+database I/O may declare `minimumWorkloadTimeoutSeconds`. The runner uses the
+larger of that floor and the profile deadline, while the contract validator
+requires the result to remain below the matrix deadline. This does not alter
+the sample population, absolute budgets, normalized historical budgets,
+allocation limits, or GC limits.
+
 ## Run one target
 
 Run against an already available Compose target:

@@ -525,12 +525,14 @@
     {
       "id": "hilo.insert.sync.contexts-10.rows-1000",
       "family": "hilo",
-      "cost": "expensive"
+      "cost": "expensive",
+      "minimumWorkloadTimeoutSeconds": 240
     },
     {
       "id": "hilo.insert.async.contexts-10.rows-1000",
       "family": "hilo",
-      "cost": "expensive"
+      "cost": "expensive",
+      "minimumWorkloadTimeoutSeconds": 240
     }
   ],
   "benchmarkDotNetControls": [

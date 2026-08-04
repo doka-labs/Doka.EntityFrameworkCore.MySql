@@ -429,6 +429,10 @@ A baseline update requires:
   BenchmarkDotNet controls, hard process-tree deadlines, atomic workload
   checkpoints, digest-verified release-stage continuation, and exact
   confirmation testing for historical p99 exceedances.
+- 2026-08-04: Added contract-validated workload timeout floors for fixed large
+  I/O populations and explicit matrix-versus-workload timeout diagnostics.
+  Sampling, statistical, allocation, and historical regression budgets remain
+  unchanged, so existing accepted baselines remain compatible.
 
 ### Implementation References
 

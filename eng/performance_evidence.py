@@ -227,6 +227,17 @@ def expected_measurement_sample_count(
     )
 
 
+def expected_workload_timeout_seconds(
+    profile_contract: dict[str, Any],
+    workload_definition: dict[str, Any],
+) -> int:
+    """Resolve the bounded workload deadline without weakening stricter profiles."""
+    return max(
+        int(profile_contract["maximumWorkloadDurationSeconds"]),
+        int(workload_definition.get("minimumWorkloadTimeoutSeconds", 0)),
+    )
+
+
 def required_sha256(payload: dict[str, Any], key: str, label: str) -> str:
     """Read a lower-case SHA-256 digest field."""
     value = required_string(payload, key, label)
@@ -560,6 +571,29 @@ def validate_contract(contract: dict[str, Any]) -> None:
                 raise PerformanceEvidenceError(
                     f"Workload '{workload_id}' measurementSamples must be an integer."
                 )
+        minimum_workload_timeout = workload.get("minimumWorkloadTimeoutSeconds")
+        if minimum_workload_timeout is not None:
+            minimum_workload_timeout = finite_number(
+                minimum_workload_timeout,
+                f"Workload '{workload_id}'.minimumWorkloadTimeoutSeconds",
+                minimum=1,
+            )
+            if not minimum_workload_timeout.is_integer():
+                raise PerformanceEvidenceError(
+                    f"Workload '{workload_id}' minimumWorkloadTimeoutSeconds "
+                    "must be an integer."
+                )
+            for profile_name, profile_contract in profiles.items():
+                if profile_name == "smoke" and workload.get("smoke") is not True:
+                    continue
+                if expected_workload_timeout_seconds(
+                    profile_contract,
+                    workload,
+                ) > profile_contract["maximumWorkloadMatrixDurationSeconds"]:
+                    raise PerformanceEvidenceError(
+                        f"Workload '{workload_id}' timeout exceeds the "
+                        f"'{profile_name}' matrix deadline."
+                    )
         workload_ids.append(workload_id)
 
     duplicates = sorted(

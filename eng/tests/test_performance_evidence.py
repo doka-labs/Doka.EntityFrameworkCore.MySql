@@ -106,6 +106,53 @@ class PerformanceEvidenceTests(unittest.TestCase):
             ),
         )
 
+    def test_large_hilo_workloads_raise_only_the_shorter_profile_timeout(self) -> None:
+        """Keep large write populations bounded without weakening stress deadlines."""
+        definition = next(
+            definition
+            for definition in self.contract["workloads"]
+            if definition["id"] == "hilo.insert.async.contexts-10.rows-1000"
+        )
+
+        self.assertEqual(
+            240,
+            performance_evidence.expected_workload_timeout_seconds(
+                self.contract["profiles"]["scorecard"],
+                definition,
+            ),
+        )
+        self.assertEqual(
+            300,
+            performance_evidence.expected_workload_timeout_seconds(
+                self.contract["profiles"]["stress"],
+                definition,
+            ),
+        )
+
+    def test_workload_timeout_floor_must_be_positive_and_matrix_bounded(self) -> None:
+        """Reject disabled or ineffective workload-local deadline declarations."""
+        contract = copy.deepcopy(self.contract)
+        workload = next(
+            workload
+            for workload in contract["workloads"]
+            if workload["id"] == "model.cold.small"
+        )
+        workload["minimumWorkloadTimeoutSeconds"] = 0
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "minimumWorkloadTimeoutSeconds",
+        ):
+            performance_evidence.validate_contract(contract)
+
+        workload["minimumWorkloadTimeoutSeconds"] = 301
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "timeout exceeds the 'smoke' matrix deadline",
+        ):
+            performance_evidence.validate_contract(contract)
+
     def test_resilience_tail_population_excludes_tiered_jit_and_short_bursts(self) -> None:
         """Keep query startup and isolated host bursts outside resilience p99."""
         definitions = [
