@@ -166,12 +166,13 @@ Dev-loop bypass (only for iteration that does not aim to ship):
 benchmark and gate step. The resulting evidence is explicitly not
 release-eligible.
 
-Once the script returns `0`, tag manually:
-
-```bash
-git tag v<version>
-git push --tags
-```
+A successful local run is necessary pre-tag evidence, but it does not authorize
+publication. Continue with the canonical
+[release procedure](docs/operations-runbook.md#qualification-and-publication-procedure).
+That procedure requires an exact green `main` commit, a signed and annotated
+tag, hosted candidate attestations, explicit NuGet publication authorization,
+and public package and GitHub release readback. Never use `git push --tags` for
+a release.
 
 ## Code Style
 

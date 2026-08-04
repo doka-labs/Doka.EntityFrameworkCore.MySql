@@ -1,9 +1,10 @@
 # Runnable Examples
 
 The examples exercise public provider APIs through focused, runnable projects.
-Every project must compile. The thirteen live-matrix examples also fail when
-their advertised round-trip, query, or database-isolation invariant is not
-satisfied.
+Every project must compile. Thirteen database-backed examples run against the
+supported live engine matrix; nine of those additionally fail when an explicit
+scenario invariant is not satisfied. The live runner also verifies after every
+example that the caller-selected sentinel catalog remains intact.
 
 The release-candidate gate executes the thirteen live-matrix examples
 against MySQL 8.4, MariaDB 11.4, and MariaDB 11.8. Run the same isolated matrix

@@ -11,6 +11,13 @@ This document freezes the reviewable governance baseline for:
 - repo-local evidence paths
 - PR review obligations tied to the planning contract
 
+The canonical operator sequence from a reviewed, green `main` commit through
+signed tagging, hosted qualification, NuGet readback, and immutable GitHub
+publication is maintained in the
+[operations runbook](operations-runbook.md#qualification-and-publication-procedure).
+This document defines the underlying evidence and policy contracts; it does not
+replace that ordered release procedure.
+
 ## Repo-Local Evidence Paths
 
 The release-hardening evidence model is intentionally explicit and repeatable:

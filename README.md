@@ -5,7 +5,9 @@
 [![NuGet NetTopologySuite](https://img.shields.io/nuget/v/Doka.EntityFrameworkCore.MySql.NetTopologySuite.svg)](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql.NetTopologySuite)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-`Doka.EntityFrameworkCore.MySql` is an Entity Framework Core 10 provider for MySQL-compatible databases. It targets MySQL 8.4 LTS and MariaDB 11.4 / 11.8 LTS on top of the [`MySqlConnector`](https://mysqlconnector.net) ADO.NET driver.
+`Doka.EntityFrameworkCore.MySql` is an Entity Framework Core 10 provider for
+MySQL and MariaDB. It targets MySQL 8.4 LTS and MariaDB 11.4 / 11.8 LTS on top
+of the [`MySqlConnector`](https://mysqlconnector.net) ADO.NET driver.
 
 The main goal is release responsiveness for `.NET 10` and `EF Core 10`
 together with a maintainability- and performance-first architecture: separate
@@ -40,32 +42,33 @@ This provider is designed for teams that need:
 ### Building From Source
 
 - .NET SDK `10.0.302` (the exact version declared by `global.json`)
-- Docker -- only required to run the live integration and benchmark suites
+- Docker -- required only for the live integration, live example, benchmark,
+  and release-candidate matrices
 
 ## Installation
 
-The repository is prepared for the `10.0.0-rc.1` prerelease. Once published,
+The repository is prepared for the `10.0.0-rc.2` prerelease. Once published,
 install it with an explicit version so NuGet does not restrict resolution to
 stable packages.
 
 **Main provider:**
 
 ```bash
-dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.1
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.2
 ```
 
 **Optional spatial extension** (NetTopologySuite integration -- only install if you use spatial types):
 
 ```bash
-dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.1
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.2
 ```
 
 ## Supported Engines
 
-| Engine        | Versions             | Native JSON | Native Sequences   | `RETURNING`  |
-|---------------|----------------------|-------------|--------------------|--------------|
-| MySQL         | 8.4 LTS              | yes         | emulated (table)   | n/a          |
-| MariaDB       | 11.4 LTS, 11.8 LTS   | alias       | yes (10.3+)        | yes (10.5+)  |
+| Engine | Versions | Native JSON | Native sequences | `RETURNING` |
+| --- | --- | --- | --- | --- |
+| MySQL | 8.4 LTS | yes | emulated (table) | no (engine limitation) |
+| MariaDB | 11.4 LTS, 11.8 LTS | alias | yes (10.3+) | yes (10.5+) |
 
 Engine facts and provider support are separate internal contracts. Runtime
 diagnostics report each provider capability as `Native`, `Emulated`, or
@@ -286,15 +289,21 @@ The provider ships with:
   EF-pipeline tests: model validation, SQL generation, type mapping, migrations, scaffolding.
 - `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests`
   Self-provisioning live-database tests against MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
+- `tests/Doka.EntityFrameworkCore.MySql.SpecificationAdapters`
+  Engine-specific adapters for the upstream EF Core specification contracts.
+- `tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke`
+  Standalone trim, migration-bundle, and packaged-consumer runtime probes.
 - `tests/Doka.EntityFrameworkCore.MySql.TestUtilities`
   Shared test helpers and log sinks.
 - `benchmarks/`
   `BenchmarkDotNet` scorecard harness with reviewable baselines.
 - [`examples/`](examples/README.md)
-  Runnable, invariant-checking samples for CRUD, inheritance patterns, JSON
-  columns, generated columns, GUID formats, relationships, retry / resilience,
-  spatial queries, migrations workflow, multi-tenancy, bulk operations,
-  character sets, Docker integration, and host observability.
+  Sixteen runnable public-API samples. Thirteen participate in the supported
+  live engine matrix; nine also enforce explicit scenario invariants. The
+  catalog covers CRUD, inheritance patterns, JSON columns, generated columns,
+  GUID formats, relationships, retry / resilience, spatial queries, migrations
+  workflow, multi-tenancy, bulk operations, character sets, Docker integration,
+  performance guidance, and host observability.
 - `docker/compose.yml`
   Optional, explicitly selected MySQL 8.4, MariaDB 11.4, and MariaDB 11.8 debugging stack. The canonical integration and specification tests own short-lived containers through Testcontainers.
 - `eng/`
@@ -382,9 +391,16 @@ This repository ships that variant for each affected test/benchmark project, so 
 
 ## Compatibility and Hosted Targets
 
-The provider targets the self-hosted MySQL 8.4 LTS line and the MariaDB 11.x LTS line.
+The advertised support matrix covers self-hosted MySQL 8.4 LTS and MariaDB
+11.4 / 11.8 LTS.
 
-**Azure Database for MySQL** is considered possible future validation work. Because Azure Database for MySQL is a managed MySQL Community distribution, it inherits capability behavior from the self-hosted MySQL profile; a dedicated compatibility mode would only be introduced if observed runtime behavior required one. No hosted Azure workflow is active until credentials are provisioned.
+**Azure Database for MySQL** is not in the advertised support matrix. It is a
+future external-canary target when test credentials become available; no
+compatibility guarantee is inferred from the self-hosted MySQL profile. Until
+that validation exists, a deployment whose reported engine version is outside
+the supported table must use the explicit `AllowUnsupported` compatibility
+path and receives no support guarantee. A branded API or dedicated mode would
+be introduced only if observed runtime behavior required one.
 
 **Amazon Aurora MySQL** is intentionally out of scope for this project.
 
@@ -405,6 +421,7 @@ MIT -- see [LICENSE](LICENSE).
 ## Further Reading
 
 - [Release governance and diagnostics catalog](docs/release-governance.md)
+- [Operations and release runbook](docs/operations-runbook.md)
 - [Host integration examples](docs/host-integration-examples.md)
 - [Contributing](CONTRIBUTING.md)
 - [Support](SUPPORT.md)

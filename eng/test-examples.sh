@@ -396,7 +396,8 @@ write_evidence() {
         echo "- failedRuns: ${failed_count}"
         echo "- cleanupCompleted: ${cleanup_completed}"
         echo
-        echo "Each example owns its database and verifies a scenario-specific invariant."
+        echo "Each example owns its database; nine examples also verify an explicit" \
+            "scenario invariant."
     } > "${summary_file}"
 }
 

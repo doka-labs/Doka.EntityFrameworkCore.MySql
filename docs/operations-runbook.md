@@ -473,26 +473,137 @@ is the repository's only release operator.
 
 ### Qualification and publication procedure
 
-1. Confirm that `main` is clean, pushed, and green in the ordinary CI lanes.
-2. Create and push exactly one annotated semantic tag at that commit, for
-   example `v10.0.0-rc.1`.
-3. Manually run `release-candidate` with that tag selected in the workflow
-   branch/tag dropdown.
-4. Wait for the complete candidate run to succeed. Record the numeric run ID
-   from its `/actions/runs/<run-id>` URL and inspect its summary and retained
-   evidence before continuing.
-5. Manually run `nuget-publish` from `main` with:
-   - `candidate_run_id`: the successful candidate run ID
-   - `release_tag`: the exact tag from step 2
-   - `confirmation`: `publish <release-tag>`
-6. Wait for the separate `finalize-github-release` job. It starts only after
-   the NuGet package, symbol, isolated restore, and runtime readback have all
-   succeeded. The job creates or resumes a matching draft, uploads the exact
-   packages, symbols, SBOMs, candidate evidence, and publication evidence,
-   reads every asset back, and publishes the immutable GitHub release.
-7. Retain both `nuget-publication-evidence-<release-tag>` and
-   `github-release-evidence-<release-tag>`. The latter contains the
-   deterministic release plan and the verified public release receipt.
+This is the canonical operator sequence for every prerelease and stable
+publication. In the examples below, `release_version` has no leading `v`, while
+`release_tag` is the corresponding Git tag. Always select the next unused
+semantic version; do not copy the example version without checking the remote
+repository and NuGet.org.
+
+#### 1. Establish the release source
+
+1. Complete the version, dated `CHANGELOG.md` section, public API, package
+   metadata, and release-note changes before selecting the reviewed release
+   commit.
+2. Merge the release commit into protected `main`. Independent maintainer
+   approval is the normal path. A documented bootstrap or emergency bypass is
+   an exceptional recovery mechanism, not a routine substitute for review.
+3. Update the local `main`, confirm that the worktree is clean, and record the
+   exact source commit:
+
+   ```bash
+   git fetch origin main --tags
+   git switch main
+   git merge --ff-only origin/main
+   git status --short
+
+   release_commit="$(git rev-parse HEAD)"
+   test "${release_commit}" = "$(git rev-parse origin/main)"
+   ```
+
+   `git status --short` must produce no output, and the final comparison must
+   exit successfully.
+
+#### 2. Qualify and freeze `main`
+
+Wait for the following checks on `release_commit` to complete successfully:
+
+- `quality-gates`
+- `repo-tests`
+- `integration-smoke`
+- CodeQL and every other code-scanning check required by the active `main`
+  ruleset
+
+Resolve every release blocker before continuing. Once the exact commit is
+green, freeze `main` operationally until publication completes. Any later
+commit makes the candidate stale, even if that commit changes only
+documentation or automation.
+
+#### 3. Create the release tag
+
+Create one signed, annotated tag at `release_commit`. The package version,
+dated changelog heading, tag, and tag message must identify the same version.
+For example, after replacing the version with the next unused value:
+
+```bash
+release_version="10.0.0-rc.2"
+release_tag="v${release_version}"
+
+git tag -s "${release_tag}" "${release_commit}" \
+  -m "Doka.EntityFrameworkCore.MySql ${release_version}"
+git tag -v "${release_tag}"
+test "$(git rev-list -n 1 "${release_tag}")" = "${release_commit}"
+git push origin "refs/tags/${release_tag}"
+```
+
+Verify the signature and target before pushing. Push only the intended tag;
+never use `git push --tags` for a release. A tag is immutable release identity:
+never move, replace, or reuse it after it reaches the remote repository.
+
+#### 4. Produce the hosted candidate
+
+1. Open GitHub Actions and select the `release-candidate` workflow.
+2. Choose `Run workflow`, then select the exact value of `release_tag` in the
+   branch/tag field.
+3. Wait for the complete workflow to succeed. A failed candidate has no
+   publication authority.
+4. Inspect the workflow summary and retained evidence. Record the numeric run
+   ID from the successful run URL:
+
+   ```text
+   https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/<candidate-run-id>
+   ```
+
+The hosted workflow reruns the complete release-candidate contract, binds the
+result to the tagged source commit, attests the packages and canonical
+manifest, verifies the attestation, and uploads the immutable candidate
+artifact.
+
+#### 5. Publish from trusted `main`
+
+Keep `main` frozen. In GitHub Actions, manually run `nuget-publish` from
+`main` with these exact inputs:
+
+- `candidate_run_id`: the numeric ID of the successful candidate run
+- `release_tag`: the exact `release_tag` selected for that run
+- `confirmation`: `publish <release-tag>`
+
+The workflow must run from `main`; selecting the release tag for this second
+workflow is invalid. Approve the `nuget` environment deployment only after the
+displayed candidate run ID and tag match the reviewed release.
+
+#### 6. Verify public readback and finalize the release
+
+Wait for both publication jobs to succeed. `publish-and-read-back` publishes
+the provider and spatial packages, validates their symbols, restores them into
+an empty isolated consumer, and executes the runtime contract. Only then may
+`finalize-github-release` create or resume the matching draft, verify every
+asset by readback, and publish the immutable GitHub release.
+
+Before unfreezing `main`, confirm all of the following:
+
+- Both primary packages and both symbol packages passed public readback.
+- The isolated basic and spatial consumer contracts passed.
+- The GitHub release points to `release_tag` and contains the expected assets.
+- A prerelease is marked as a prerelease and is not `latest`; a stable release
+  is not marked as a prerelease and is `latest`.
+- `nuget-publication-evidence-<release-tag>` and
+  `github-release-evidence-<release-tag>` are retained. The latter contains the
+  deterministic release plan and verified public release receipt.
+
+#### 7. Recover without changing release identity
+
+- If the candidate fails because of transient hosted infrastructure and no
+  candidate input must change, rerun `release-candidate` on the same tag and
+  use only the new successful run ID.
+- If any source, package, documentation, configuration, dependency, or release
+  automation change is required, prepare a new release commit and version,
+  repeat the green-`main` gate, and create a new signed tag. Do not repair the
+  old candidate by moving its tag.
+- If `main` advances before publication, discard the stale candidate and
+  produce a new version and candidate from the new green `main` commit.
+- If NuGet or GitHub finalization fails after a partial public write, preserve
+  the workflow evidence and follow the conflict-safe retry procedures below.
+  Do not publish local packages or alter remote assets to make the retry pass.
 
 The workflow rejects a candidate from another repository, commit, tag,
 workflow, attempt, or failed run. It also rejects a candidate once `main` has

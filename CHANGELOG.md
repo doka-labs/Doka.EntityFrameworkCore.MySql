@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 No changes yet.
 
+## [10.0.0-rc.2] - 2026-08-04
+
+This release candidate supersedes `10.0.0-rc.1` after hosted qualification
+exposed an undersized per-workload deadline for the fixed large HiLo evidence
+population.
+
+Install the release candidate explicitly because NuGet excludes prerelease
+packages from normal stable-version resolution:
+
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.2
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.2
+```
+
+### Fixed
+
+- Preserve the complete large HiLo evidence population while applying bounded
+  workload-local timeout floors on shared hosted runners. Sample counts,
+  latency budgets, allocation budgets, GC budgets, and regression budgets
+  remain unchanged.
+
+### Documentation
+
+- Define the canonical green-`main`, signed-tag, hosted-candidate, NuGet
+  publication, public-readback, and immutable-release procedure.
+- Reconcile installation, supported-engine, hosted-target, example, and
+  project-layout guidance with the current provider contract.
+
 ## [10.0.0-rc.1] - 2026-08-03
 
 First public release candidate for the `10.0.x` package line.
@@ -85,5 +113,6 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.2...HEAD
+[10.0.0-rc.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.2
 [10.0.0-rc.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.1
