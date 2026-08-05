@@ -1,5 +1,6 @@
 using System.IO;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification;
@@ -39,6 +40,17 @@ public class SpecDispositionContractTests
     private static readonly string[] s_officialEfCoreHosts =
     [
         "github.com",
+    ];
+
+    private static readonly string[] s_publicBoundaryHeadings =
+    [
+        "General LINQ window-function API",
+        "`StringComparison` overloads in translated queries",
+        "Database-local relational schemas",
+        "MariaDB CTE data modification",
+        "Compiled-query wrappers for raw SQL and temporal roots",
+        "MariaDB temporal structural migrations",
+        "MySQL emulated-temporal cascade actions",
     ];
 
     /// <summary>
@@ -229,6 +241,49 @@ public class SpecDispositionContractTests
             Assert.False(string.IsNullOrWhiteSpace(RequiredString(workaround, "implementation")));
             Assert.False(string.IsNullOrWhiteSpace(RequiredString(workaround, "verification")));
             ValidatePrimarySources(workaround, s_officialDatabaseVendorHosts);
+        }
+    }
+
+    /// <summary>
+    /// Keeps the public external-limitations inventory synchronized with every active
+    /// engine and EF Core disposition while excluding structural non-applicability.
+    /// </summary>
+    [Fact]
+    public void External_limitations_document_matches_active_external_dispositions()
+    {
+        using var ledger = LoadLedger();
+        var documentationPath = Path.Combine(
+            FindRepositoryRoot(),
+            "docs",
+            "limitations.md");
+        Assert.True(
+            File.Exists(documentationPath),
+            $"External limitations document not found at '{documentationPath}'.");
+
+        var documentation = File.ReadAllText(documentationPath);
+        var dispositions = ledger.RootElement
+            .GetProperty("activeDispositions")
+            .EnumerateArray()
+            .ToArray();
+
+        foreach (var disposition in dispositions.Where(
+                     item => RequiredString(item, "classification") is
+                         "engine-limitation" or "framework-limitation"))
+        {
+            var id = RequiredString(disposition, "id");
+            AssertDocumentedLimitation(documentation, $"### `{id}`");
+        }
+
+        foreach (var disposition in dispositions.Where(
+                     item => RequiredString(item, "classification") == "not-applicable"))
+        {
+            var id = RequiredString(disposition, "id");
+            Assert.DoesNotContain($"`{id}`", documentation, StringComparison.Ordinal);
+        }
+
+        foreach (var heading in s_publicBoundaryHeadings)
+        {
+            AssertDocumentedLimitation(documentation, $"### {heading}");
         }
     }
 
@@ -515,6 +570,64 @@ public class SpecDispositionContractTests
             "SpecDispositions.json");
         Assert.True(File.Exists(path), $"Specification disposition ledger not found at '{path}'.");
         return JsonDocument.Parse(File.ReadAllText(path));
+    }
+
+    private static int CountOccurrences(
+        string text,
+        string value
+    )
+    {
+        var count = 0;
+        var startIndex = 0;
+
+        while ((startIndex = text.IndexOf(value, startIndex, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            startIndex += value.Length;
+        }
+
+        return count;
+    }
+
+    private static void AssertDocumentedLimitation(
+        string documentation,
+        string heading
+    )
+    {
+        Assert.Equal(1, CountOccurrences(documentation, heading));
+
+        var section = GetMarkdownSection(documentation, heading);
+        Assert.Contains("- **Primary source", section, StringComparison.Ordinal);
+        Assert.Matches(
+            new Regex(
+                @"retrieved\s+20\d{2}-\d{2}-\d{2}",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1)),
+            section);
+    }
+
+    private static string GetMarkdownSection(
+        string documentation,
+        string heading
+    )
+    {
+        var start = documentation.IndexOf(heading, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Missing Markdown heading '{heading}'.");
+
+        var nextLevelThree = documentation.IndexOf(
+            "\n### ",
+            start + heading.Length,
+            StringComparison.Ordinal);
+        var nextLevelTwo = documentation.IndexOf(
+            "\n## ",
+            start + heading.Length,
+            StringComparison.Ordinal);
+        var end = new[] { nextLevelThree, nextLevelTwo }
+            .Where(index => index >= 0)
+            .DefaultIfEmpty(documentation.Length)
+            .Min();
+
+        return documentation[start..end];
     }
 
     private static MethodInfo[] SpecificationMethods() =>

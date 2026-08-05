@@ -455,6 +455,7 @@ MIT -- see [LICENSE](LICENSE).
 - [Release governance and diagnostics catalog](docs/release-governance.md)
 - [Operations and release runbook](docs/operations-runbook.md)
 - [Host integration examples](docs/host-integration-examples.md)
+- [External engine and EF Core limitations](docs/limitations.md)
 - [Temporal tables and common table expressions](docs/temporal-tables-and-ctes.md)
 - [Contributing](CONTRIBUTING.md)
 - [Support](SUPPORT.md)

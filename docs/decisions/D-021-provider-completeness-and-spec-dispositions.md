@@ -166,86 +166,18 @@ version-bound files below `Specification/Contracts/` additionally enforce:
 The provider baseline is now zero. Internal scheduling metadata remains
 development bookkeeping; it does not create or amend an architecture decision.
 
-### Active engine limitations
+### Public external-limitations inventory
 
-The ledger contains 15 engine dispositions covering 418 exact methods and
-discovered test IDs. Each one records official vendor evidence, an unmasked
-probe, a provider-workaround assessment, and a re-evaluation trigger.
+External engine and EF Core limitations are current facts rather than
+architecture decisions. Their complete readable inventory, exact affected
+targets, primary sources, and retrieval dates therefore live in
+`docs/limitations.md`.
 
-#### MDB-CORRELATED-DERIVED-TABLE
-
-MariaDB documents that a subquery in the `FROM` clause cannot be correlated. Its complete JOIN
-grammar for the supported 11.4 and 11.8 lines contains no `LATERAL` production. The affected
-JSON collection shapes require per-outer-row composition after operations such as filtering,
-ordering, pagination, or nested collection shaping. MariaDB can correlate a direct
-`JSON_TABLE` invocation with a preceding table, and the provider uses that capability where
-possible, but it cannot preserve that correlation through the required derived-table boundary.
-
-Primary sources, retrieved 2026-07-29:
-
-- MariaDB, "Subquery Limitations":
-  (see Sources)
-- MariaDB, "JOIN Syntax":
-  (see Sources)
-
-#### MDB-JSON-TABLE-SUBDOCUMENT
-
-MariaDB documents that `JSON_TABLE` cannot extract a JSON subdocument into a JSON result column.
-The two affected custom-naming projections require the complete owned JSON value for EF Core
-materialization. Scalar-by-scalar extraction does not preserve an arbitrary nested owned graph.
-
-Primary source, retrieved 2026-07-27:
-
-- MariaDB, "JSON_TABLE":
-  (see Sources)
-
-The exact methods, probe outcomes, target set, and re-evaluation predicates live in the
-machine-readable ledger and are intentionally not duplicated here.
-
-#### Spatial server operations
-
-The spatial contract has six target-specific dispositions:
-
-- geometry normalization and component-order reversal are absent from the
-  exhaustive MySQL 8.4 and MariaDB 11.x spatial function inventories;
-- MySQL 8.4 has no `ST_Relate` operation for an arbitrary DE-9IM pattern;
-- MariaDB 11.4 and 11.8 cannot represent the NTS buffer quadrant-segment
-  strategy;
-- MariaDB provides `ST_Collect` and `ST_IsValid` only from MariaDB 12.0.
-
-The ledger records each affected method, exact target, unmasked probe result,
-official vendor source retrieved on 2026-07-29, workaround assessment, and
-re-evaluation trigger.
-
-#### Other exact server boundaries
-
-The remaining engine dispositions cover:
-
-- filtered indexes and immediate self-referencing foreign-key deletes;
-- native JSON-document validation and scalar stored functions;
-- microsecond temporal storage, empty Point values, and Z/M ordinates.
-
-These boundaries account for 38 exact methods. They remain dispositions only
-where MySQL or MariaDB cannot represent the requested server behavior. The
-provider implementation remains responsible for every translation or
-semantics-preserving rewrite that the engines can execute.
-
-### Active upstream EF Core limitations
-
-The ledger contains 25 upstream-framework dispositions covering 210 provider
-methods and 281 exact discovered test IDs. They cover bulk-update entity
-projection, grouping pushdown, non-leaf TPC updates, JSON projection,
-inheritance set operations, query grouping and join boundaries, change
-tracking, and EF Core complex-type behavior.
-
-Of those methods, 113 retain an upstream method-level skip. The inherited-skip
-gate requires every one to be named by an executable framework disposition.
-Every other upstream skip is activated by the provider and must execute.
-
-Every entry links to an official `dotnet/efcore` issue or source location,
-records exact test IDs, and carries an unmasked probe across all supported
-targets. Framework dispositions are accepted only when the failure occurs
-before a provider-owned SQL tree can supply the missing behavior.
+The machine-readable disposition ledger remains authoritative for executable
+test methods, discovered test IDs, probes, workaround assessments, and
+re-evaluation predicates. A contract test keeps every active engine and
+framework disposition present exactly once in the public inventory and keeps
+structural `not-applicable` dispositions out of it.
 
 ### Provider workarounds chosen over skips
 
@@ -349,12 +281,16 @@ specification corpus; D-021 governs how exceptions are classified and enforced.
 - 2026-07-30: Corrected under-specified upstream ordering assertions without
   adding skips or production tie-breakers, then repeated the complete
   six-target matrix with exact TRX reconciliation and zero failures.
+- 2026-08-05: Moved the mutable external-limitations inventory to the public
+  limitations document while retaining this decision as the classification
+  and evidence-governance contract.
 
 ### Implementation References
 
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/SpecDispositions.json`
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/SpecDispositionContractTests.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts/`
+- `docs/limitations.md`
 - `eng/check-spec-contract.sh`
 - `eng/check-spec-discovery.sh`
 - `eng/check-spec-results.sh`

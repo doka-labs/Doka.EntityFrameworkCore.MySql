@@ -156,10 +156,14 @@ thresholds and caches the frozen profile per `(family, version)`.
   later releases use the MySQL-compatible `STORED` alias.
 - The MariaDB JSON-column emulation requires `JSON_VALID` and therefore starts
   at 10.2.3. Earlier releases fail explicitly instead of receiving invalid DDL.
-- Diagnostic-only flags for window functions, DateTime6, generated invisible
-  primary keys, INTERSECT/EXCEPT, and full-text indexes were removed. D-024
-  reintroduces CTE and system-versioning capabilities only where the provider
-  has active production consumers for version routing.
+- Unconsumed internal flags for window functions, DateTime6, generated
+  invisible primary keys, INTERSECT/EXCEPT, and full-text indexes were removed.
+  This removed dead routing metadata, not database or provider functionality.
+  These features remain available where documented by the supported engines
+  and provider surface. The public limitations inventory records their exact
+  engine boundaries separately. D-024 reintroduces CTE and system-versioning
+  capabilities only because they have active production consumers for
+  version-specific routing.
 - `Savepoints` remains because `MySqlRelationalTransaction` actively consumes
   the corresponding provider capability.
 - `IMySqlTransientExceptionDetector.ShouldRetryOn` lost its unused `ServerCapabilities` parameter; the detector never branched on capabilities and the parameter was already dead.
@@ -197,6 +201,9 @@ thresholds and caches the frozen profile per `(family, version)`.
 - 2026-07-30: Separated engine facts from provider support and removed unconsumed capability metadata.
 - 2026-08-04: D-024 amended the decision with consumed CTE and temporal
   capabilities backed by explicit engine-version boundaries.
+- 2026-08-05: Clarified that the five removed entries were unconsumed
+  provider metadata, not removed feature support, and linked the public
+  external-limitations inventory.
 
 ### Implementation References
 
@@ -205,6 +212,7 @@ thresholds and caches the frozen profile per `(family, version)`.
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Capabilities/ProviderCapability.cs`
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Capabilities/ProviderProfile.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.Tests/Contracts/ArchitectureConformanceTests.cs`
+- `docs/limitations.md`
 
 ### Sources
 
