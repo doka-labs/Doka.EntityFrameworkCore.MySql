@@ -141,6 +141,14 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
 
         foreach (var table in sortedTables)
         {
+            ApplyTemporalConfiguration(
+                table,
+                entityBuilders[table],
+                entityPropertyBuilders);
+        }
+
+        foreach (var table in sortedTables)
+        {
             var entityBuilder = entityBuilders[table];
 
             if (table.PrimaryKey is not null
@@ -340,6 +348,63 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
         }
 
         return modelBuilder.FinalizeModel();
+    }
+
+    private static void ApplyTemporalConfiguration(
+        DatabaseTable table,
+        EntityTypeBuilder entityBuilder,
+        Dictionary<(DatabaseTable Table, DatabaseColumn Column), PropertyBuilder> propertyBuilders
+    )
+    {
+        if (table.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)
+                ?.Value is not true)
+        {
+            return;
+        }
+
+        var periodStartColumnName = table.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodStartColumn)
+            ?.Value as string;
+
+        var periodEndColumnName = table.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodEndColumn)
+            ?.Value as string;
+
+        if (string.IsNullOrWhiteSpace(periodStartColumnName)
+            || string.IsNullOrWhiteSpace(periodEndColumnName))
+        {
+            throw new InvalidOperationException(
+                $"Temporal table '{table.Name}' does not expose both period-column names.");
+        }
+
+        var periodStartColumn = table.Columns.Single(column => string.Equals(
+            column.Name,
+            periodStartColumnName,
+            StringComparison.Ordinal));
+
+        var periodEndColumn = table.Columns.Single(column => string.Equals(
+            column.Name,
+            periodEndColumnName,
+            StringComparison.Ordinal));
+
+        var periodStartProperty = propertyBuilders[(table, periodStartColumn)];
+        var periodEndProperty = propertyBuilders[(table, periodEndColumn)];
+
+        entityBuilder.Metadata.SetMySqlTemporal(true);
+        entityBuilder.Metadata.SetMySqlTemporalPeriodStartPropertyName(periodStartProperty.Metadata.Name);
+        entityBuilder.Metadata.SetMySqlTemporalPeriodEndPropertyName(periodEndProperty.Metadata.Name);
+        periodStartProperty.ValueGeneratedOnAddOrUpdate();
+        periodEndProperty.ValueGeneratedOnAddOrUpdate();
+
+        if (table.FindAnnotation(MySqlAnnotationNames.TemporalSourceHistoryTable)
+                ?.Value is string historyTableName)
+        {
+            entityBuilder.Metadata.SetMySqlTemporalHistoryTableName(historyTableName);
+        }
+
+        if (table.FindAnnotation(MySqlAnnotationNames.TemporalSourceHistorySchema)
+                ?.Value is string historyTableSchema)
+        {
+            entityBuilder.Metadata.SetMySqlTemporalHistoryTableSchema(historyTableSchema);
+        }
     }
 
     private static void ApplyColumnConfiguration(

@@ -589,6 +589,20 @@
       "method": "TranslateRepresentativeCorpus",
       "metric": "allocatedBytes",
       "maximum": 163840
+    },
+    {
+      "id": "temporal-cte-query-generation-allocation",
+      "type": "TemporalProviderBenchmarks",
+      "method": "GenerateTemporalAndCteQuerySql",
+      "metric": "allocatedBytes",
+      "maximum": 262144
+    },
+    {
+      "id": "temporal-migration-generation-allocation",
+      "type": "TemporalProviderBenchmarks",
+      "method": "GenerateTemporalMigrationSql",
+      "metric": "allocatedBytes",
+      "maximum": 458752
     }
   ],
   "soakBudgets": {

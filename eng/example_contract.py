@@ -126,6 +126,18 @@ CONTRACTS = (
         ("UseNetTopologySuite", "HasSrid", "IsSpatial", "DistanceSphere"),
         invariant_checking=True,
     ),
+    ExampleContract(
+        "TemporalTablesAndCtes",
+        "TemporalTablesAndCtes.csproj",
+        (
+            "IsTemporal",
+            "TemporalAll",
+            "TemporalAsOf",
+            "FromSql",
+            "WITH RECURSIVE",
+        ),
+        invariant_checking=True,
+    ),
 )
 
 PLACEHOLDER_MARKERS = (

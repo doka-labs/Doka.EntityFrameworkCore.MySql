@@ -6,7 +6,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// the MariaDB JSON_VALID column set (empty on MySQL), and the lookup dictionaries the
 /// later loaders populate (tables, columns). Database-qualified lookups are shared by
 /// every selected database so cross-database foreign keys can be assembled after all
-/// table and column metadata has been loaded. Created once per selected database in a
+/// table and column metadata has been loaded. The shared history-table set prevents a
+/// recognized temporal implementation detail from resurfacing when multiple databases
+/// are scaffolded in a different order. Created once per selected database in a
 /// <see cref="MySqlDatabaseModelFactory.Create(DbConnection, DatabaseModelFactoryOptions)"/>
 /// call and discarded when the call returns; do not cache references to it.
 /// </summary>
@@ -21,7 +23,8 @@ internal sealed class ScaffoldingPipelineContext
         string databaseName,
         bool qualifyNamesWithSchema,
         Dictionary<(string DatabaseName, string TableName), DatabaseTable> databaseTables,
-        Dictionary<(string DatabaseName, string TableName, string ColumnName), DatabaseColumn> databaseColumns
+        Dictionary<(string DatabaseName, string TableName, string ColumnName), DatabaseColumn> databaseColumns,
+        HashSet<(string DatabaseName, string TableName)> temporalHistoryTables
     )
     {
         Connection = connection ?? throw new ArgumentNullException(nameof(connection));
@@ -35,6 +38,8 @@ internal sealed class ScaffoldingPipelineContext
         QualifyNamesWithSchema = qualifyNamesWithSchema;
         DatabaseTables = databaseTables ?? throw new ArgumentNullException(nameof(databaseTables));
         DatabaseColumns = databaseColumns ?? throw new ArgumentNullException(nameof(databaseColumns));
+        TemporalHistoryTables = temporalHistoryTables
+            ?? throw new ArgumentNullException(nameof(temporalHistoryTables));
     }
 
     public DbConnection Connection { get; }
@@ -61,4 +66,6 @@ internal sealed class ScaffoldingPipelineContext
     {
         get;
     }
+
+    public HashSet<(string DatabaseName, string TableName)> TemporalHistoryTables { get; }
 }

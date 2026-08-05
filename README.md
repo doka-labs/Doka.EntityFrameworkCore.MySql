@@ -65,10 +65,10 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
 
 ## Supported Engines
 
-| Engine | Versions | Native JSON | Native sequences | `RETURNING` |
-| --- | --- | --- | --- | --- |
-| MySQL | 8.4 LTS | yes | emulated (table) | no (engine limitation) |
-| MariaDB | 11.4 LTS, 11.8 LTS | alias | yes (10.3+) | yes (10.5+) |
+| Engine | Versions | Native JSON | Native sequences | `RETURNING` | CTEs | Temporal tables |
+| --- | --- | --- | --- | --- | --- | --- |
+| MySQL | 8.4 LTS | yes | emulated (table) | no (engine limitation) | native | emulated (InnoDB history and triggers) |
+| MariaDB | 11.4 LTS, 11.8 LTS | alias | yes (10.3+) | yes (10.5+) | native | native system versioning |
 
 Engine facts and provider support are separate internal contracts. Runtime
 diagnostics report each provider capability as `Native`, `Emulated`, or
@@ -87,6 +87,38 @@ var legacyVersion = MySqlServerVersion.MySql(
 
 The opt-in carries no support guarantee and emits the structured
 `MySqlEventId.UnsupportedServerVersion` warning at runtime.
+
+## Temporal Tables and CTEs
+
+System-versioned temporal tables use one public model and query API on every
+supported engine. MariaDB uses native system versioning; MySQL uses a
+provider-owned InnoDB history table and transactional triggers. Temporal query
+roots include `TemporalAsOf`, `TemporalAll`, `TemporalFromTo`,
+`TemporalBetween`, and `TemporalContainedIn` and are always no-tracking.
+
+```csharp
+modelBuilder.Entity<Employee>().ToTable(
+    "Employees",
+    table => table.IsTemporal(temporal =>
+    {
+        temporal.UseHistoryTable("EmployeeHistory");
+        temporal.HasPeriodStart("ValidFrom");
+        temporal.HasPeriodEnd("ValidTo");
+    }));
+
+var history = await context.Employees
+    .TemporalAll()
+    .OrderBy(employee => EF.Property<DateTime>(employee, "ValidFrom"))
+    .ToListAsync();
+```
+
+Non-recursive and recursive CTEs compose through EF Core's parameterized
+`FromSql` and `SqlQuery` roots. MySQL 8.4 also accepts CTEs in data-modification
+SQL. MariaDB 11.4 and 11.8 do not, which is reported as an engine boundary
+rather than a provider limitation.
+
+See [Temporal tables and common table expressions](docs/temporal-tables-and-ctes.md)
+for the complete contract, schema-safety rules, examples, and primary sources.
 
 ## Quick Start
 
@@ -298,12 +330,12 @@ The provider ships with:
 - `benchmarks/`
   `BenchmarkDotNet` scorecard harness with reviewable baselines.
 - [`examples/`](examples/README.md)
-  Sixteen runnable public-API samples. Thirteen participate in the supported
-  live engine matrix; nine also enforce explicit scenario invariants. The
+  Seventeen runnable public-API samples. Fourteen participate in the supported
+  live engine matrix; ten also enforce explicit scenario invariants. The
   catalog covers CRUD, inheritance patterns, JSON columns, generated columns,
   GUID formats, relationships, retry / resilience, spatial queries, migrations
   workflow, multi-tenancy, bulk operations, character sets, Docker integration,
-  performance guidance, and host observability.
+  temporal tables, recursive CTEs, performance guidance, and host observability.
 - `docker/compose.yml`
   Optional, explicitly selected MySQL 8.4, MariaDB 11.4, and MariaDB 11.8 debugging stack. The canonical integration and specification tests own short-lived containers through Testcontainers.
 - `eng/`
@@ -423,6 +455,7 @@ MIT -- see [LICENSE](LICENSE).
 - [Release governance and diagnostics catalog](docs/release-governance.md)
 - [Operations and release runbook](docs/operations-runbook.md)
 - [Host integration examples](docs/host-integration-examples.md)
+- [Temporal tables and common table expressions](docs/temporal-tables-and-ctes.md)
 - [Contributing](CONTRIBUTING.md)
 - [Support](SUPPORT.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)

@@ -45,7 +45,9 @@
       "supersedes": [],
       "supersededBy": [],
       "amends": [],
-      "amendedBy": []
+      "amendedBy": [
+        "D-024"
+      ]
     },
     {
       "id": "D-005",
@@ -264,6 +266,19 @@
       "amends": [
         "D-009",
         "D-018"
+      ],
+      "amendedBy": []
+    },
+    {
+      "id": "D-024",
+      "title": "Support native CTEs and portable temporal tables",
+      "status": "accepted",
+      "date": "2026-08-04",
+      "path": "docs/decisions/D-024-cte-and-temporal-table-contract.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [
+        "D-004"
       ],
       "amendedBy": []
     }

@@ -204,6 +204,7 @@ public sealed class IndexLoaderTests
             "test",
             false,
             [],
+            [],
             []);
 
         foreach (var tableName in tableNames)

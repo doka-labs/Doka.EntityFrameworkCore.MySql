@@ -7,7 +7,27 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-No changes yet.
+### Added
+
+- Add one portable system-versioned temporal-table model and query contract for
+  MySQL 8.4 and MariaDB 11.4 / 11.8. MariaDB uses native system versioning;
+  MySQL uses transactional InnoDB history tables and provider-owned triggers.
+- Add `TemporalAsOf`, `TemporalAll`, `TemporalFromTo`, `TemporalBetween`, and
+  `TemporalContainedIn` query roots with UTC boundary validation and mandatory
+  no-tracking semantics.
+- Add deterministic temporal migrations, native and emulated reverse
+  engineering, generated model-code round trips, schema-safety validation, and
+  live engine-matrix contracts.
+- Add complete non-recursive and recursive CTE conformance through EF Core's
+  parameterized, composable SQL query roots, including the documented
+  MariaDB 11.4 / 11.8 data-modification boundary.
+- Add a live temporal-table and recursive-CTE example to the release-candidate
+  matrix.
+
+### Documentation
+
+- Document the temporal and CTE support matrix, public APIs, schema lifecycle,
+  engine constraints, runnable verification, and retrieved primary sources.
 
 ## [10.0.0-rc.3] - 2026-08-04
 
@@ -127,10 +147,10 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
 
 ### Tested
 
-- 628 unit tests and 396 provider-local functional tests
+- 656 unit tests and 433 provider-local functional tests
 - Upstream specification contracts covering 29,745 MySQL 8.4,
   29,409 MariaDB 11.4, and 29,410 MariaDB 11.8 test cases
-- 162 discovered live integration cases: 157 supported-matrix cases and five
+- 169 discovered live integration cases: 164 supported-matrix cases and five
   explicit skips reserved for the external-only MySQL 8.0 baseline
 - Live integration coverage against MySQL 8.4 LTS, MariaDB 11.4 LTS, and
   MariaDB 11.8 LTS, plus an external-only opt-in MySQL 8.0 compatibility

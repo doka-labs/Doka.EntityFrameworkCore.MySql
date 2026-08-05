@@ -98,7 +98,11 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
         self.assertTrue(manifest["integrationConfigurationMatrix"]["fullConfigurationMatrixRequired"])
         self.assertEqual("", manifest["integrationConfigurationMatrix"]["testFilter"])
-        self.assertEqual(39, manifest["liveExampleMatrix"]["runCount"])
+        self.assertEqual(
+            len(release_evidence.REQUIRED_LIVE_EXAMPLES)
+            * len(release_evidence.REQUIRED_ENGINE_TARGETS),
+            manifest["liveExampleMatrix"]["runCount"],
+        )
         self.assertTrue(manifest["liveExampleMatrix"]["cleanupCompleted"])
         self.assertTrue(manifest["runtimePosture"]["publishTrimmed"])
         self.assertEqual("full", manifest["runtimePosture"]["trimMode"])

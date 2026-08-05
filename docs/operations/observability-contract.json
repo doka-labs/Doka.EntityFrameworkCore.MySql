@@ -134,6 +134,7 @@
         "MissingServerVersion",
         "RetrySettingsChanged",
         "ServerVersionChanged",
+        "TemporalTableInvalid",
         "UnsupportedServerVersion"
       ]
     },

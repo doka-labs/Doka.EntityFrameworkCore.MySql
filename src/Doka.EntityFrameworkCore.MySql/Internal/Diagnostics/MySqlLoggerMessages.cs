@@ -200,6 +200,8 @@ internal static class MySqlLoggerMessages
         ("VirtualGeneratedColumns", ProviderCapability.VirtualGeneratedColumns),
         ("StoredGeneratedColumns", ProviderCapability.StoredGeneratedColumns),
         ("SpatialColumnSridAttribute", ProviderCapability.SpatialColumnSridAttribute),
+        ("CommonTableExpressions", ProviderCapability.CommonTableExpressions),
+        ("TemporalTables", ProviderCapability.TemporalTables),
         ("Sequences", ProviderCapability.Sequences),
         ("RenameColumn", ProviderCapability.RenameColumn),
         ("LateralDerivedTables", ProviderCapability.LateralDerivedTables),

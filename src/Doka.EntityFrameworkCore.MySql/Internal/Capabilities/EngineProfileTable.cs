@@ -18,14 +18,17 @@ internal static class EngineProfileTable
 
     private static readonly Version s_mySql576 = new(5, 7, 6);
     private static readonly Version s_mySql578 = new(5, 7, 8);
+    private static readonly Version s_mySql801 = new(8, 0, 1);
     private static readonly Version s_mySql803 = new(8, 0, 3);
     private static readonly Version s_mySql804 = new(8, 0, 4);
     private static readonly Version s_mySql8013 = new(8, 0, 13);
     private static readonly Version s_mySql8014 = new(8, 0, 14);
     private static readonly Version s_mariaDb52 = new(5, 2, 0);
     private static readonly Version s_mariaDb1021 = new(10, 2, 1);
+    private static readonly Version s_mariaDb1022 = new(10, 2, 2);
     private static readonly Version s_mariaDb1023 = new(10, 2, 3);
     private static readonly Version s_mariaDb103 = new(10, 3, 0);
+    private static readonly Version s_mariaDb1034 = new(10, 3, 4);
     private static readonly Version s_mariaDb105 = new(10, 5, 0);
     private static readonly Version s_mariaDb1052 = new(10, 5, 2);
 
@@ -130,6 +133,11 @@ internal static class EngineProfileTable
             capabilities.Add(EngineCapability.NativeJsonType);
         }
 
+        if (IsAtLeast(version, s_mySql801))
+        {
+            capabilities.Add(EngineCapability.CommonTableExpressions);
+        }
+
         if (IsAtLeast(version, s_mySql803))
         {
             capabilities.Add(EngineCapability.RenameColumnSyntax);
@@ -175,6 +183,11 @@ internal static class EngineProfileTable
             capabilities.Add(EngineCapability.StoredGeneratedColumnUsesPersistentKeyword);
         }
 
+        if (IsAtLeast(version, s_mariaDb1022))
+        {
+            capabilities.Add(EngineCapability.CommonTableExpressions);
+        }
+
         if (IsAtLeast(version, s_mariaDb1023))
         {
             // The provider can preserve JSON column semantics with LONGTEXT and
@@ -185,6 +198,11 @@ internal static class EngineProfileTable
         if (IsAtLeast(version, s_mariaDb103))
         {
             capabilities.Add(EngineCapability.NativeSequences);
+        }
+
+        if (IsAtLeast(version, s_mariaDb1034))
+        {
+            capabilities.Add(EngineCapability.SystemVersionedTables);
         }
 
         if (IsAtLeast(version, s_mariaDb105))

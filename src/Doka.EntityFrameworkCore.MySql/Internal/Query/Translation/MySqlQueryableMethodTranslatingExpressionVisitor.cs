@@ -43,6 +43,159 @@ internal sealed class
         new MySqlQueryableMethodTranslatingExpressionVisitor(this);
 
     /// <summary>
+    /// Converts the public temporal query root into an ordinary relational select whose
+    /// table expressions carry the complete temporal operation. Deferring engine-specific
+    /// syntax to SQL generation keeps translation independent of the configured server family.
+    /// </summary>
+    protected override Expression VisitExtension(
+        Expression extensionExpression
+    )
+    {
+        if (extensionExpression is not MySqlTemporalQueryRootExpression temporalQueryRoot)
+        {
+            return base.VisitExtension(extensionExpression);
+        }
+
+        var entityType = temporalQueryRoot.EntityType;
+        var temporalEntityType = entityType.IsMySqlTemporal() ? entityType : entityType.GetRootType();
+
+        if (!temporalEntityType.IsMySqlTemporal())
+        {
+            throw new InvalidOperationException(
+                $"Temporal query operation '{temporalQueryRoot.Operation}' cannot be applied "
+                + $"to non-temporal entity type '{entityType.DisplayName()}'.");
+        }
+
+        var tableName = temporalEntityType.GetTableName()
+            ?? throw new InvalidOperationException(
+                $"Temporal entity type '{temporalEntityType.DisplayName()}' is not mapped to a table.");
+
+        var storeObject = StoreObjectIdentifier.Table(tableName, temporalEntityType.GetSchema());
+        var periodStartProperty = GetTemporalPeriodProperty(
+            temporalEntityType,
+            temporalEntityType.GetMySqlTemporalPeriodStartPropertyName(),
+            "start");
+
+        var periodEndProperty = GetTemporalPeriodProperty(
+            temporalEntityType,
+            temporalEntityType.GetMySqlTemporalPeriodEndPropertyName(),
+            "end");
+
+        var periodStartColumn = periodStartProperty.GetColumnName(storeObject)
+            ?? throw new InvalidOperationException(
+                $"Temporal period-start property '{periodStartProperty.Name}' has no table column mapping.");
+
+        var periodEndColumn = periodEndProperty.GetColumnName(storeObject)
+            ?? throw new InvalidOperationException(
+                $"Temporal period-end property '{periodEndProperty.Name}' has no table column mapping.");
+
+        var selectExpression = CreateSelect(entityType);
+        selectExpression = (SelectExpression)new TemporalAnnotationApplyingExpressionVisitor(
+            temporalQueryRoot,
+            temporalEntityType.GetMySqlTemporalHistoryTableName(),
+            temporalEntityType.GetMySqlTemporalHistoryTableSchema(),
+            periodStartColumn,
+            periodEndColumn).Visit(selectExpression);
+
+        return new ShapedQueryExpression(
+            selectExpression,
+            new RelationalStructuralTypeShaperExpression(
+                entityType,
+                new ProjectionBindingExpression(selectExpression, new ProjectionMember(), typeof(ValueBuffer)),
+                nullable: false));
+    }
+
+    private static IReadOnlyProperty GetTemporalPeriodProperty(
+        IReadOnlyEntityType entityType,
+        string? propertyName,
+        string boundaryName
+    )
+    {
+        if (propertyName is null
+            || entityType.FindProperty(propertyName) is not { } property)
+        {
+            throw new InvalidOperationException(
+                $"Temporal entity type '{entityType.DisplayName()}' has no valid period-{boundaryName} property.");
+        }
+
+        return property;
+    }
+
+    /// <summary>
+    /// Applies temporal metadata to every physical table in the generated select. This
+    /// mirrors EF Core's provider contract for table-sharing and inheritance query shapes.
+    /// </summary>
+    private sealed class TemporalAnnotationApplyingExpressionVisitor : ExpressionVisitor
+    {
+        private readonly MySqlTemporalQueryRootExpression _queryRoot;
+        private readonly string? _historyTableName;
+        private readonly string? _historyTableSchema;
+        private readonly string _periodStartColumn;
+        private readonly string _periodEndColumn;
+
+        public TemporalAnnotationApplyingExpressionVisitor(
+            MySqlTemporalQueryRootExpression queryRoot,
+            string? historyTableName,
+            string? historyTableSchema,
+            string periodStartColumn,
+            string periodEndColumn
+        )
+        {
+            _queryRoot = queryRoot;
+            _historyTableName = historyTableName;
+            _historyTableSchema = historyTableSchema;
+            _periodStartColumn = periodStartColumn;
+            _periodEndColumn = periodEndColumn;
+        }
+
+        protected override Expression VisitExtension(
+            Expression node
+        )
+        {
+            if (node is not TableExpression tableExpression)
+            {
+                return base.VisitExtension(node);
+            }
+
+            var annotatedTable = tableExpression
+                .AddAnnotation(MySqlAnnotationNames.TemporalOperation, _queryRoot.Operation)
+                .AddAnnotation(MySqlAnnotationNames.TemporalPeriodStartColumn, _periodStartColumn)
+                .AddAnnotation(MySqlAnnotationNames.TemporalPeriodEndColumn, _periodEndColumn);
+
+            if (_historyTableName is not null)
+            {
+                annotatedTable = annotatedTable.AddAnnotation(
+                    MySqlAnnotationNames.TemporalHistoryTable,
+                    _historyTableName);
+            }
+
+            if (_historyTableSchema is not null)
+            {
+                annotatedTable = annotatedTable.AddAnnotation(
+                    MySqlAnnotationNames.TemporalHistorySchema,
+                    _historyTableSchema);
+            }
+
+            if (_queryRoot.PointInTime is { } pointInTime)
+            {
+                annotatedTable = annotatedTable.AddAnnotation(MySqlAnnotationNames.TemporalPointInTime, pointInTime);
+            }
+
+            if (_queryRoot.From is { } from)
+            {
+                annotatedTable = annotatedTable.AddAnnotation(MySqlAnnotationNames.TemporalRangeStart, from);
+            }
+
+            if (_queryRoot.To is { } to)
+            {
+                annotatedTable = annotatedTable.AddAnnotation(MySqlAnnotationNames.TemporalRangeEnd, to);
+            }
+
+            return annotatedTable;
+        }
+    }
+
+    /// <summary>
     /// Keeps join-based query shapes as native multi-table deletes. Falling back to
     /// EF Core's key-subquery rewrite would make MySQL read the target table from a
     /// nested query and trigger error 1093 even though the native delete grammar can

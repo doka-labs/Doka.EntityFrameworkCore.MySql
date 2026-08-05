@@ -26,6 +26,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 MySqlAnnotationNames.Collation);
         }
 
+        if (TryAppendTemporalPeriodColumnDefinition(name, operation, builder))
+        {
+            return;
+        }
+
         if (IsMariaDbJsonAliasColumn(operation))
         {
             AppendMariaDbJsonAliasColumnDefinition(name, operation, builder);
@@ -80,6 +85,73 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     {
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
+
+        TryGetTemporalMigrationContract(
+            operation,
+            operation.Table,
+            sourceContract: true,
+            out var sourceTemporalContract);
+        TryGetTemporalMigrationContract(
+            operation,
+            operation.Table,
+            sourceContract: false,
+            out var targetTemporalContract);
+
+        if (sourceTemporalContract is null
+            && targetTemporalContract?.Support == ProviderSupportStatus.Native
+            && (IsTemporalPeriodColumn(
+                    operation.Name,
+                    operation,
+                    MySqlAnnotationNames.TemporalPeriodStartColumn)
+                || IsTemporalPeriodColumn(
+                    operation.Name,
+                    operation,
+                    MySqlAnnotationNames.TemporalPeriodEndColumn)))
+        {
+            // MariaDB requires both generated period columns, the period, and
+            // SYSTEM VERSIONING to be added by the same ALTER TABLE statement.
+            // The table-level transition emits that atomic native contract.
+            return;
+        }
+
+        if (sourceTemporalContract is not null
+            && targetTemporalContract is not null)
+        {
+            if (targetTemporalContract.Support == ProviderSupportStatus.Native)
+            {
+                ThrowNativeTemporalSchemaChangeNotSupported(
+                    operation.Table,
+                    $"add column '{operation.Name}'");
+            }
+
+            if (!terminate)
+            {
+                throw new InvalidOperationException(
+                    "A temporal ADD COLUMN operation using MySQL emulation must terminate its commands.");
+            }
+
+            AppendDropTemporalTriggers(operation.Table, operation.Schema, builder);
+            GenerateAddColumn(operation, model, builder, terminate: true);
+            AppendTemporalHistoryColumnAddition(operation, model, targetTemporalContract, builder);
+            AppendTemporalTriggersFromModel(
+                operation.Table,
+                operation.Schema,
+                model,
+                targetTemporalContract,
+                builder);
+            return;
+        }
+
+        GenerateAddColumn(operation, model, builder, terminate);
+    }
+
+    private void GenerateAddColumn(
+        AddColumnOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder,
+        bool terminate
+    )
+    {
 
         var requiresCommentSqlModeScope = RequiresDdlCommentSqlModeScope(operation.Comment);
         if (!requiresCommentSqlModeScope)
@@ -158,6 +230,49 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
+        TryGetTemporalMigrationContract(
+            operation,
+            operation.Table,
+            sourceContract: true,
+            out var sourceTemporalContract);
+        TryGetTemporalMigrationContract(
+            operation,
+            operation.Table,
+            sourceContract: false,
+            out var targetTemporalContract);
+
+        if (sourceTemporalContract is not null
+            && targetTemporalContract is not null)
+        {
+            if (targetTemporalContract.Support == ProviderSupportStatus.Native)
+            {
+                ThrowNativeTemporalSchemaChangeNotSupported(
+                    operation.Table,
+                    $"alter column '{operation.Name}'");
+            }
+
+            AppendDropTemporalTriggers(operation.Table, operation.Schema, builder);
+            GenerateAlterColumn(operation, model, builder);
+            AppendTemporalHistoryColumnAlteration(operation, model, targetTemporalContract, builder);
+            AppendTemporalTriggersFromModel(
+                operation.Table,
+                operation.Schema,
+                model,
+                targetTemporalContract,
+                builder);
+            return;
+        }
+
+        GenerateAlterColumn(operation, model, builder);
+    }
+
+    private void GenerateAlterColumn(
+        AlterColumnOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder
+    )
+    {
+
         if (RequiresGeneratedColumnRecreation(operation))
         {
             builder
@@ -215,6 +330,75 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         }
 
         EndStatement(builder);
+    }
+
+    protected override void Generate(
+        DropColumnOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder,
+        bool terminate = true
+    )
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(builder);
+
+        TryGetTemporalMigrationContract(
+            operation,
+            operation.Table,
+            sourceContract: true,
+            out var sourceTemporalContract);
+        TryGetTemporalMigrationContract(
+            operation,
+            operation.Table,
+            sourceContract: false,
+            out var targetTemporalContract);
+
+        if (sourceTemporalContract?.Support == ProviderSupportStatus.Native
+            && targetTemporalContract is null
+            && (IsTemporalPeriodColumn(
+                    operation.Name,
+                    operation,
+                    MySqlAnnotationNames.TemporalSourcePeriodStartColumn)
+                || IsTemporalPeriodColumn(
+                    operation.Name,
+                    operation,
+                    MySqlAnnotationNames.TemporalSourcePeriodEndColumn)))
+        {
+            // MariaDB requires the system-time period and both generated period
+            // columns to be removed by the same ALTER TABLE statement. The
+            // table-level transition owns that atomic native operation.
+            return;
+        }
+
+        if (sourceTemporalContract is not null
+            && targetTemporalContract is not null)
+        {
+            if (targetTemporalContract.Support == ProviderSupportStatus.Native)
+            {
+                ThrowNativeTemporalSchemaChangeNotSupported(
+                    operation.Table,
+                    $"drop column '{operation.Name}'");
+            }
+
+            if (!terminate)
+            {
+                throw new InvalidOperationException(
+                    "A temporal DROP COLUMN operation using MySQL emulation must terminate its commands.");
+            }
+
+            AppendDropTemporalTriggers(operation.Table, operation.Schema, builder);
+            base.Generate(operation, model, builder, terminate: true);
+            AppendTemporalHistoryColumnDrop(operation, targetTemporalContract, builder);
+            AppendTemporalTriggersFromModel(
+                operation.Table,
+                operation.Schema,
+                model,
+                targetTemporalContract,
+                builder);
+            return;
+        }
+
+        base.Generate(operation, model, builder, terminate);
     }
 
     protected override void ComputedColumnDefinition(

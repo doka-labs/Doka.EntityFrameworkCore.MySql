@@ -38,6 +38,14 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
+        TryGetTemporalMigrationContract(operation, out var temporalContract);
+
+        if (temporalContract?.Support == ProviderSupportStatus.Emulated && !terminate)
+        {
+            throw new InvalidOperationException(
+                "A temporal CREATE TABLE operation using MySQL emulation must terminate its commands.");
+        }
+
         var requiresCommentSqlModeScope = RequiresDdlCommentSqlModeScope(operation);
         if (requiresCommentSqlModeScope)
         {
@@ -60,11 +68,21 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             CreateTableColumns(operation, model, builder);
             CreateTableConstraints(operation, model, builder);
             AppendAutoIncrementSupportingIndex(operation, builder);
+
+            if (temporalContract?.Support == ProviderSupportStatus.Native)
+            {
+                AppendNativeTemporalPeriod(temporalContract, builder);
+            }
         }
 
         builder.Append(")");
 
         AppendTableOptions(operation, builder);
+
+        if (temporalContract is not null)
+        {
+            AppendTemporalTableOptions(operation, temporalContract, builder);
+        }
 
         if (terminate)
         {
@@ -76,6 +94,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             }
 
             EndStatement(builder);
+
+            if (temporalContract?.Support == ProviderSupportStatus.Emulated)
+            {
+                AppendTemporalEmulation(operation, temporalContract, builder);
+            }
         }
     }
 
@@ -87,6 +110,68 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     {
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
+
+        TryGetTemporalMigrationContract(
+            operation,
+            operation.Name,
+            sourceContract: true,
+            out var sourceTemporalContract);
+        TryGetTemporalMigrationContract(
+            operation,
+            operation.Name,
+            sourceContract: false,
+            out var targetTemporalContract);
+
+        if (sourceTemporalContract is null && targetTemporalContract is not null)
+        {
+            if (targetTemporalContract.Support == ProviderSupportStatus.Native)
+            {
+                AppendNativeTemporalActivation(
+                    operation.Name,
+                    operation.Schema,
+                    targetTemporalContract,
+                    builder);
+            }
+            else
+            {
+                AppendTemporalEmulation(
+                    operation.Name,
+                    operation.Schema,
+                    model,
+                    targetTemporalContract,
+                    builder);
+            }
+
+            return;
+        }
+
+        if (sourceTemporalContract is not null && targetTemporalContract is null)
+        {
+            if (sourceTemporalContract.Support == ProviderSupportStatus.Native)
+            {
+                AppendNativeTemporalDeactivation(
+                    operation.Name,
+                    operation.Schema,
+                    sourceTemporalContract,
+                    builder);
+            }
+            else
+            {
+                AppendDropTemporalTriggers(operation.Name, operation.Schema, builder);
+                AppendDropTemporalHistoryTable(sourceTemporalContract, builder);
+            }
+
+            return;
+        }
+
+        if (sourceTemporalContract?.Support == ProviderSupportStatus.Native
+            && targetTemporalContract?.Support == ProviderSupportStatus.Native
+            && !string.Equals(operation.Comment, operation.OldTable.Comment, StringComparison.Ordinal))
+        {
+            ThrowNativeTemporalSchemaChangeNotSupported(
+                operation.Name,
+                "alter its table comment");
+        }
 
         if (string.Equals(operation.Comment, operation.OldTable.Comment, StringComparison.Ordinal))
         {
@@ -196,14 +281,118 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return;
         }
 
+        TryGetTemporalMigrationContract(
+            operation,
+            operation.Name,
+            sourceContract: true,
+            out var sourceTemporalContract);
+        TryGetTemporalMigrationContract(
+            operation,
+            newName,
+            sourceContract: false,
+            out var targetTemporalContract);
+
+        if (sourceTemporalContract is not null
+            && targetTemporalContract?.Support == ProviderSupportStatus.Native)
+        {
+            ThrowNativeTemporalSchemaChangeNotSupported(
+                operation.Name,
+                $"rename the table to '{newName}'");
+        }
+
+        if (sourceTemporalContract?.Support == ProviderSupportStatus.Emulated
+            && targetTemporalContract?.Support == ProviderSupportStatus.Emulated)
+        {
+            AppendDropTemporalTriggers(operation.Name, operation.Schema, builder);
+            AppendRenameTable(
+                operation.Name,
+                operation.Schema,
+                newName,
+                newSchema,
+                builder);
+
+            if (!string.Equals(
+                    sourceTemporalContract.HistoryTable,
+                    targetTemporalContract.HistoryTable,
+                    StringComparison.Ordinal)
+                || !string.Equals(
+                    sourceTemporalContract.HistorySchema,
+                    targetTemporalContract.HistorySchema,
+                    StringComparison.Ordinal))
+            {
+                AppendRenameTable(
+                    sourceTemporalContract.HistoryTable!,
+                    sourceTemporalContract.HistorySchema,
+                    targetTemporalContract.HistoryTable!,
+                    targetTemporalContract.HistorySchema,
+                    builder);
+            }
+
+            AppendTemporalTriggersFromModel(
+                newName,
+                newSchema,
+                model,
+                targetTemporalContract,
+                builder);
+            return;
+        }
+
+        AppendRenameTable(
+            operation.Name,
+            operation.Schema,
+            newName,
+            newSchema,
+            builder);
+    }
+
+    private void AppendRenameTable(
+        string name,
+        string? schema,
+        string newName,
+        string? newSchema,
+        MigrationCommandListBuilder builder
+    )
+    {
         builder
             .Append("RENAME TABLE ")
-            .Append(DelimitMigrationIdentifier(operation.Name, operation.Schema))
+            .Append(DelimitMigrationIdentifier(name, schema))
             .Append(" TO ")
             .Append(DelimitMigrationIdentifier(newName, newSchema))
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
 
         builder.EndCommand();
+    }
+
+    protected override void Generate(
+        DropTableOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder,
+        bool terminate = true
+    )
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(builder);
+
+        TryGetTemporalMigrationContract(
+            operation,
+            operation.Name,
+            sourceContract: true,
+            out var sourceTemporalContract);
+
+        if (sourceTemporalContract?.Support == ProviderSupportStatus.Emulated && !terminate)
+        {
+            throw new InvalidOperationException(
+                "A temporal DROP TABLE operation using MySQL emulation must terminate its commands.");
+        }
+
+        base.Generate(operation, model, builder, terminate);
+
+        if (terminate && sourceTemporalContract?.Support == ProviderSupportStatus.Emulated)
+        {
+            // MySQL drops the provider-owned triggers together with the current
+            // table, but the external history table has its own lifecycle.
+            AppendDropTemporalHistoryTable(sourceTemporalContract, builder);
+        }
     }
 
     /// <summary>
@@ -225,6 +414,61 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     {
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
+
+        TryGetTemporalMigrationContract(
+            operation,
+            operation.Table,
+            sourceContract: true,
+            out var sourceTemporalContract);
+        TryGetTemporalMigrationContract(
+            operation,
+            operation.Table,
+            sourceContract: false,
+            out var targetTemporalContract);
+
+        if (sourceTemporalContract is not null
+            && targetTemporalContract is not null)
+        {
+            if (targetTemporalContract.Support == ProviderSupportStatus.Native)
+            {
+                ThrowNativeTemporalSchemaChangeNotSupported(
+                    operation.Table,
+                    $"rename column '{operation.Name}' to '{operation.NewName}'");
+            }
+
+            AppendDropTemporalTriggers(operation.Table, operation.Schema, builder);
+            GenerateRenameColumn(operation, model, builder);
+
+            builder
+                .Append("ALTER TABLE ")
+                .Append(DelimitMigrationIdentifier(
+                    targetTemporalContract.HistoryTable!,
+                    targetTemporalContract.HistorySchema))
+                .Append(" RENAME COLUMN ")
+                .Append(DelimitMigrationIdentifier(operation.Name))
+                .Append(" TO ")
+                .Append(DelimitMigrationIdentifier(operation.NewName))
+                .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+            EndStatement(builder);
+
+            AppendTemporalTriggersFromModel(
+                operation.Table,
+                operation.Schema,
+                model,
+                targetTemporalContract,
+                builder);
+            return;
+        }
+
+        GenerateRenameColumn(operation, model, builder);
+    }
+
+    private void GenerateRenameColumn(
+        RenameColumnOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder
+    )
+    {
 
         if (_mySqlSingletonOptions.Profile?.GetSupport(ProviderCapability.RenameColumn) == ProviderSupportStatus.Native)
         {

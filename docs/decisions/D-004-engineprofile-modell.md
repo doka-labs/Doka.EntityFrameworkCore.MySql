@@ -9,7 +9,7 @@ scope: "Engine capability modeling and version routing"
 supersedes: []
 superseded-by: []
 amends: []
-amended-by: []
+amended-by: [D-024]
 madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
@@ -156,10 +156,10 @@ thresholds and caches the frozen profile per `(family, version)`.
   later releases use the MySQL-compatible `STORED` alias.
 - The MariaDB JSON-column emulation requires `JSON_VALID` and therefore starts
   at 10.2.3. Earlier releases fail explicitly instead of receiving invalid DDL.
-- Diagnostic-only flags for CTEs, window functions, DateTime6, generated
-  invisible primary keys, INTERSECT/EXCEPT, system versioning, and full-text
-  indexes were removed. Their real behavior remains covered by specification
-  and integration tests rather than dead runtime metadata.
+- Diagnostic-only flags for window functions, DateTime6, generated invisible
+  primary keys, INTERSECT/EXCEPT, and full-text indexes were removed. D-024
+  reintroduces CTE and system-versioning capabilities only where the provider
+  has active production consumers for version routing.
 - `Savepoints` remains because `MySqlRelationalTransaction` actively consumes
   the corresponding provider capability.
 - `IMySqlTransientExceptionDetector.ShouldRetryOn` lost its unused `ServerCapabilities` parameter; the detector never branched on capabilities and the parameter was already dead.
@@ -195,6 +195,8 @@ thresholds and caches the frozen profile per `(family, version)`.
 - 2026-05-16: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
 - 2026-07-30: Separated engine facts from provider support and removed unconsumed capability metadata.
+- 2026-08-04: D-024 amended the decision with consumed CTE and temporal
+  capabilities backed by explicit engine-version boundaries.
 
 ### Implementation References
 

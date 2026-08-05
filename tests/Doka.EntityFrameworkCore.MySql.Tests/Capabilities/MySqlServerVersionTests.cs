@@ -30,6 +30,12 @@ public sealed class MySqlServerVersionTests
             serverVersion.Profile.GetSupport(ProviderCapability.StoredGeneratedColumns));
         Assert.Equal(
             ProviderSupportStatus.Native,
+            serverVersion.Profile.GetSupport(ProviderCapability.CommonTableExpressions));
+        Assert.Equal(
+            ProviderSupportStatus.Emulated,
+            serverVersion.Profile.GetSupport(ProviderCapability.TemporalTables));
+        Assert.Equal(
+            ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.SpatialColumnSridAttribute));
         Assert.Equal(ProviderSupportStatus.Emulated, serverVersion.Profile.GetSupport(ProviderCapability.Sequences));
         Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.RenameColumn));
@@ -183,6 +189,12 @@ public sealed class MySqlServerVersionTests
         Assert.Equal(
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.StoredGeneratedColumns));
+        Assert.Equal(
+            ProviderSupportStatus.Native,
+            serverVersion.Profile.GetSupport(ProviderCapability.CommonTableExpressions));
+        Assert.Equal(
+            ProviderSupportStatus.Native,
+            serverVersion.Profile.GetSupport(ProviderCapability.TemporalTables));
         Assert.Equal(
             ProviderSupportStatus.UnsupportedByEngine,
             serverVersion.Profile.GetSupport(ProviderCapability.SpatialColumnSridAttribute));

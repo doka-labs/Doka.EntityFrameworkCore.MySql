@@ -25,6 +25,12 @@ internal sealed record ProviderProfile(EngineProfile Engine)
         ProviderCapability.VirtualGeneratedColumns => NativeWhen(EngineCapability.VirtualGeneratedColumns),
         ProviderCapability.StoredGeneratedColumns => NativeWhen(EngineCapability.StoredGeneratedColumns),
         ProviderCapability.SpatialColumnSridAttribute => NativeWhen(EngineCapability.SpatialColumnSridAttribute),
+        ProviderCapability.CommonTableExpressions => NativeWhen(EngineCapability.CommonTableExpressions),
+        ProviderCapability.TemporalTables => Engine.Has(EngineCapability.SystemVersionedTables)
+            ? ProviderSupportStatus.Native
+            : Engine.Family == EngineFamily.MySql
+                ? ProviderSupportStatus.Emulated
+                : ProviderSupportStatus.UnsupportedByEngine,
         ProviderCapability.Sequences =>
             Engine.Has(EngineCapability.NativeSequences)
                 ? ProviderSupportStatus.Native

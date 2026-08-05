@@ -128,7 +128,9 @@ public sealed class MySqlScaffoldingRoundTripTests
 
         try
         {
-            using var serviceProvider = CreateDesignTimeServiceProvider();
+            await using var serviceProvider =
+                ScaffoldingTestServices.CreateDesignTimeServiceProvider(
+                    includeSpatialServices: true);
             using var scope = serviceProvider.CreateScope();
             var scopedServices = scope.ServiceProvider;
             var databaseOptions = new DatabaseModelFactoryOptions(
@@ -150,7 +152,7 @@ public sealed class MySqlScaffoldingRoundTripTests
                     connectionString,
                     databaseOptions,
                     new ModelReverseEngineerOptions(),
-                    CreateCodeGenerationOptions(connectionString));
+                    ScaffoldingTestServices.CreateCodeGenerationOptions(connectionString));
 
             AssertGeneratedModel(scaffoldedModel);
         }
@@ -172,7 +174,9 @@ public sealed class MySqlScaffoldingRoundTripTests
 
         try
         {
-            using var serviceProvider = CreateDesignTimeServiceProvider();
+            await using var serviceProvider =
+                ScaffoldingTestServices.CreateDesignTimeServiceProvider(
+                    includeSpatialServices: true);
             using var scope = serviceProvider.CreateScope();
             var scopedServices = scope.ServiceProvider;
             var databaseOptions = new DatabaseModelFactoryOptions(
@@ -200,7 +204,7 @@ public sealed class MySqlScaffoldingRoundTripTests
                     connectionString,
                     databaseOptions,
                     new ModelReverseEngineerOptions(),
-                    CreateCodeGenerationOptions(connectionString));
+                    ScaffoldingTestServices.CreateCodeGenerationOptions(connectionString));
 
             AssertIndexAndStoreGeneratedModel(scaffoldedModel);
         }
@@ -226,7 +230,9 @@ public sealed class MySqlScaffoldingRoundTripTests
         {
             var serverVersionText = await ReadServerVersionAsync(connectionString)
                 .ConfigureAwait(false);
-            await using var serviceProvider = CreateDesignTimeServiceProvider();
+            await using var serviceProvider =
+                ScaffoldingTestServices.CreateDesignTimeServiceProvider(
+                    includeSpatialServices: true);
             using var scope = serviceProvider.CreateScope();
             var scopedServices = scope.ServiceProvider;
             var databaseOptions = new DatabaseModelFactoryOptions(
@@ -252,7 +258,7 @@ public sealed class MySqlScaffoldingRoundTripTests
                     connectionString,
                     databaseOptions,
                     new ModelReverseEngineerOptions(),
-                    CreateCodeGenerationOptions(
+                    ScaffoldingTestServices.CreateCodeGenerationOptions(
                         connectionString,
                         contextName: "RuntimeSchemaContext",
                         suppressOnConfiguring: true));
@@ -280,35 +286,6 @@ public sealed class MySqlScaffoldingRoundTripTests
                 .ConfigureAwait(false);
         }
     }
-
-    private static ServiceProvider CreateDesignTimeServiceProvider()
-    {
-        var services = new ServiceCollection();
-
-        services.AddEntityFrameworkDokaMySqlDesignTime();
-        services.AddEntityFrameworkDokaMySqlNetTopologySuite();
-
-        return services.BuildServiceProvider(validateScopes: true);
-    }
-
-    private static ModelCodeGenerationOptions CreateCodeGenerationOptions(
-        string connectionString,
-        string contextName = "CoreSchemaContext",
-        bool suppressOnConfiguring = false
-    ) => new()
-    {
-        ContextName = contextName,
-        ContextNamespace = "Doka.Scaffolding",
-        ModelNamespace = "Doka.Scaffolding.Models",
-        RootNamespace = "Doka.Scaffolding",
-        Language = "C#",
-        ContextDir = "Generated",
-        ProjectDir = "Generated",
-        ConnectionString = connectionString,
-        SuppressConnectionStringWarning = true,
-        SuppressOnConfiguring = suppressOnConfiguring,
-        UseNullableReferenceTypes = true,
-    };
 
     private static void AssertDatabaseModel(
         DatabaseModel databaseModel

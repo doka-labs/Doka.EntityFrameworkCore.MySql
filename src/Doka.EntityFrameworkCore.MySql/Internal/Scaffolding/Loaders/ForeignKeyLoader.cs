@@ -51,7 +51,8 @@ internal static class ForeignKeyLoader
             var sourceDatabaseName = reader.GetString(0);
             var tableName = reader.GetString(1);
 
-            if (!context.TableFilter.Matches(tableName)
+            if (context.TemporalHistoryTables.Contains((sourceDatabaseName, tableName))
+                || !context.TableFilter.Matches(tableName)
                 || !context.TableLookup.TryGetValue(tableName, out var table))
             {
                 continue;
@@ -65,7 +66,8 @@ internal static class ForeignKeyLoader
                 var principalDatabaseName = reader.GetString(5);
                 var principalTableName = reader.GetString(6);
 
-                if (!context.DatabaseTables.TryGetValue(
+                if (context.TemporalHistoryTables.Contains((principalDatabaseName, principalTableName))
+                    || !context.DatabaseTables.TryGetValue(
                         (principalDatabaseName, principalTableName),
                         out var principalTable))
                 {

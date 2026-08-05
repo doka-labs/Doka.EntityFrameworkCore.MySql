@@ -172,6 +172,7 @@ internal sealed class ReadmeContext : DbContext
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Article> Articles => Set<Article>();
     public DbSet<Document> Documents => Set<Document>();
+    public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<Place> Places => Set<Place>();
 }
 
@@ -203,6 +204,12 @@ internal sealed class User
 {
     public int Id { get; set; }
     public string InternalNotes { get; set; } = string.Empty;
+}
+
+internal sealed class Employee
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
 }
 
 internal sealed class Place

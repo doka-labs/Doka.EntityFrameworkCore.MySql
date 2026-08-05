@@ -16,6 +16,8 @@ internal enum EngineCapability
     StoredGeneratedColumns,
     StoredGeneratedColumnUsesPersistentKeyword,
     SpatialColumnSridAttribute,
+    CommonTableExpressions,
+    SystemVersionedTables,
     NativeSequences,
     RenameColumnSyntax,
     RegexpLikeFunction,

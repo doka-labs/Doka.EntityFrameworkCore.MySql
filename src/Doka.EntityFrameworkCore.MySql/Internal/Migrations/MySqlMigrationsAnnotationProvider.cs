@@ -94,11 +94,11 @@ internal sealed class MySqlMigrationsAnnotationProvider : IMigrationsAnnotationP
 
     public IEnumerable<IAnnotation> ForRename(
         ITable table
-    ) => GetSupportedAnnotations(table);
+    ) => GetSupportedTableAnnotations(table);
 
     public IEnumerable<IAnnotation> ForRename(
         IColumn column
-    ) => GetSupportedAnnotations(column);
+    ) => GetSupportedColumnAnnotations(column);
 
     public IEnumerable<IAnnotation> ForRename(
         ITableIndex index
@@ -133,7 +133,12 @@ internal sealed class MySqlMigrationsAnnotationProvider : IMigrationsAnnotationP
                 or MySqlAnnotationNames.SpatialReferenceSystemId
                 or MySqlAnnotationNames.SpatialIndex
                 or MySqlAnnotationNames.FullTextIndex
-                or MySqlAnnotationNames.IndexPrefixLength);
+                or MySqlAnnotationNames.IndexPrefixLength
+                or MySqlAnnotationNames.IsTemporal
+                or MySqlAnnotationNames.TemporalHistoryTable
+                or MySqlAnnotationNames.TemporalHistorySchema
+                or MySqlAnnotationNames.TemporalPeriodStartColumn
+                or MySqlAnnotationNames.TemporalPeriodEndColumn);
     }
 
     private static List<IAnnotation> GetSupportedModelAnnotations(

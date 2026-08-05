@@ -159,6 +159,40 @@ public sealed class MySqlReverseEngineeringBaselineTests
     }
 
     /// <summary>
+    /// Verifies that recognized temporal metadata round-trips through the public
+    /// table-builder API instead of leaking provider-internal annotations.
+    /// </summary>
+    [Fact]
+    public void Reverse_engineering_emits_temporal_table_builder_contract()
+    {
+        var scaffoldedModel = ScaffoldModel(
+            CreateTemporalDatabaseModel(),
+            detectedServerVersionText: "8.4.6");
+        var contextCode = scaffoldedModel.ContextFile.Code;
+
+        Assert.Contains(
+            "tableBuilder.IsTemporal(temporalTableBuilder =>",
+            contextCode,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "temporalTableBuilder.UseHistoryTable(\"audit_entries_history\", \"temporal_metadata\")",
+            contextCode,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "temporalTableBuilder.HasPeriodStart(\"ValidFrom\")",
+            contextCode,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "temporalTableBuilder.HasPeriodEnd(\"ValidTo\")",
+            contextCode,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            MySqlAnnotationNames.IsTemporal,
+            contextCode,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies that textual GUID columns remain text properties unless the provider-specific
     /// reverse-engineering opt-in is enabled.
     /// </summary>
@@ -632,6 +666,51 @@ public sealed class MySqlReverseEngineeringBaselineTests
                 MaxValue = 700,
                 IsCyclic = true,
             });
+
+        return databaseModel;
+    }
+
+    private static DatabaseModel CreateTemporalDatabaseModel()
+    {
+        var databaseModel = new DatabaseModel
+        {
+            DatabaseName = "temporal_metadata",
+            Collation = "utf8mb4_0900_ai_ci",
+        };
+
+        var table = new DatabaseTable
+        {
+            Database = databaseModel,
+            Name = "audit_entries",
+        };
+
+        var idColumn = AddColumn(table, "Id", "int");
+
+        AddColumn(table, "Payload", "varchar(255)");
+        AddColumn(table, "ValidFrom", "datetime(6)");
+        AddColumn(table, "ValidTo", "datetime(6)");
+
+        table.PrimaryKey = new DatabasePrimaryKey
+        {
+            Table = table,
+            Name = "PK_audit_entries",
+            Columns = { idColumn },
+        };
+
+        table.SetAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal, true);
+        table.SetAnnotation(
+            MySqlAnnotationNames.TemporalSourceHistoryTable,
+            "audit_entries_history");
+        table.SetAnnotation(
+            MySqlAnnotationNames.TemporalSourceHistorySchema,
+            databaseModel.DatabaseName);
+        table.SetAnnotation(
+            MySqlAnnotationNames.TemporalSourcePeriodStartColumn,
+            "ValidFrom");
+        table.SetAnnotation(
+            MySqlAnnotationNames.TemporalSourcePeriodEndColumn,
+            "ValidTo");
+        databaseModel.Tables.Add(table);
 
         return databaseModel;
     }

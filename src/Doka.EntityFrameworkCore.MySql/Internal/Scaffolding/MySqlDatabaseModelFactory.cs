@@ -100,6 +100,7 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
                 new Dictionary<(string DatabaseName, string TableName), DatabaseTable>();
             var databaseColumns =
                 new Dictionary<(string DatabaseName, string TableName, string ColumnName), DatabaseColumn>();
+            var temporalHistoryTables = new HashSet<(string DatabaseName, string TableName)>();
             var pipelineContexts = new List<ScaffoldingPipelineContext>(databaseNames.Length);
 
             foreach (var selectedDatabaseName in databaseNames)
@@ -119,10 +120,12 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
                     selectedDatabaseName,
                     requestedDatabaseNames.Length > 0,
                     databaseTables,
-                    databaseColumns);
+                    databaseColumns,
+                    temporalHistoryTables);
 
                 TableLoader.Load(pipelineContext);
                 ColumnLoader.Load(pipelineContext);
+                TemporalTableLoader.Load(pipelineContext);
                 SequenceLoader.Load(pipelineContext);
                 PrimaryKeyLoader.Load(pipelineContext);
                 UniqueConstraintLoader.Load(pipelineContext);

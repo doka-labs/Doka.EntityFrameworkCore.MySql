@@ -104,6 +104,11 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
                     .GetCheckConstraints()
                     .OrderBy(checkConstraint => checkConstraint.Name, StringComparer.Ordinal)
                     .ToArray(),
+                IsTemporal = entityType.IsMySqlTemporal(),
+                TemporalHistoryTableName = entityType.GetMySqlTemporalHistoryTableName(),
+                TemporalHistoryTableSchema = entityType.GetMySqlTemporalHistoryTableSchema(),
+                TemporalPeriodStartPropertyName = entityType.GetMySqlTemporalPeriodStartPropertyName(),
+                TemporalPeriodEndPropertyName = entityType.GetMySqlTemporalPeriodEndPropertyName(),
                 ColumnOrders = entityType
                     .GetProperties()
                     .Select(property => new
@@ -118,6 +123,7 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
             .Where(configuration => configuration.PrimaryKey?.GetName() is not null
                 || configuration.AlternateKeys.Length > 0
                 || configuration.CheckConstraints.Length > 0
+                || configuration.IsTemporal
                 || configuration.ColumnOrders.Length > 0)
             .OrderBy(configuration => configuration.EntityType.Name, StringComparer.Ordinal)
             .ToArray();
@@ -211,7 +217,8 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
                     .Append(newline);
             }
 
-            if (configuration.CheckConstraints.Length == 0)
+            if (configuration.CheckConstraints.Length == 0
+                && !configuration.IsTemporal)
             {
                 continue;
             }
@@ -225,6 +232,17 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
                 .Append(newline)
                 .Append("            {")
                 .Append(newline);
+
+            if (configuration.IsTemporal)
+            {
+                AppendTemporalConfiguration(
+                    configurationCode,
+                    newline,
+                    configuration.TemporalHistoryTableName,
+                    configuration.TemporalHistoryTableSchema,
+                    configuration.TemporalPeriodStartPropertyName,
+                    configuration.TemporalPeriodEndPropertyName);
+            }
 
             foreach (var checkConstraint in configuration.CheckConstraints)
             {
@@ -244,6 +262,59 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
         }
 
         return code.Insert(insertionIndex, configurationCode.ToString());
+    }
+
+    private void AppendTemporalConfiguration(
+        StringBuilder configurationCode,
+        string newline,
+        string? historyTableName,
+        string? historyTableSchema,
+        string? periodStartPropertyName,
+        string? periodEndPropertyName
+    )
+    {
+        if (string.IsNullOrWhiteSpace(periodStartPropertyName)
+            || string.IsNullOrWhiteSpace(periodEndPropertyName))
+        {
+            throw new InvalidOperationException(
+                "A scaffolded temporal entity must expose both temporal period properties.");
+        }
+
+        configurationCode
+            .Append("                tableBuilder.IsTemporal(temporalTableBuilder =>")
+            .Append(newline)
+            .Append("                {")
+            .Append(newline);
+
+        if (!string.IsNullOrWhiteSpace(historyTableName))
+        {
+            configurationCode
+                .Append("                    temporalTableBuilder.UseHistoryTable(")
+                .Append(_csharpHelper.Literal(historyTableName));
+
+            if (!string.IsNullOrWhiteSpace(historyTableSchema))
+            {
+                configurationCode
+                    .Append(", ")
+                    .Append(_csharpHelper.Literal(historyTableSchema));
+            }
+
+            configurationCode
+                .Append(");")
+                .Append(newline);
+        }
+
+        configurationCode
+            .Append("                    temporalTableBuilder.HasPeriodStart(")
+            .Append(_csharpHelper.Literal(periodStartPropertyName))
+            .Append(");")
+            .Append(newline)
+            .Append("                    temporalTableBuilder.HasPeriodEnd(")
+            .Append(_csharpHelper.Literal(periodEndPropertyName))
+            .Append(");")
+            .Append(newline)
+            .Append("                });")
+            .Append(newline);
     }
 
     private static bool HasColumnOrderConfiguration(

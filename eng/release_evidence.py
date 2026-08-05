@@ -65,6 +65,7 @@ REQUIRED_LIVE_EXAMPLES = (
     "PerformanceBestPractices",
     "Relationships",
     "SpatialQueries",
+    "TemporalTablesAndCtes",
 )
 REQUIRED_RECONCILIATION_GATES = (
     "source-identity",

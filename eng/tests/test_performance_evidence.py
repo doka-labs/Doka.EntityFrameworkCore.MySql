@@ -946,7 +946,7 @@ class PerformanceEvidenceTests(unittest.TestCase):
             )
 
             self.assertTrue(evidence["success"])
-            self.assertEqual(4, len(evidence["controls"]))
+            self.assertEqual(6, len(evidence["controls"]))
             self.assertEqual(1, len(evidence["rawReports"]))
 
     def test_benchmarkdotnet_reports_reject_missing_statistics(self) -> None:
@@ -1557,6 +1557,18 @@ class PerformanceEvidenceTests(unittest.TestCase):
                     "TranslateRepresentativeCorpus",
                     100,
                     140000,
+                ),
+                benchmark(
+                    "TemporalProviderBenchmarks",
+                    "GenerateTemporalAndCteQuerySql",
+                    100,
+                    200000,
+                ),
+                benchmark(
+                    "TemporalProviderBenchmarks",
+                    "GenerateTemporalMigrationSql",
+                    100,
+                    400000,
                 ),
             ],
         }

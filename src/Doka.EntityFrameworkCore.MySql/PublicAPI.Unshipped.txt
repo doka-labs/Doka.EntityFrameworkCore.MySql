@@ -1,6 +1,7 @@
 #nullable enable
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MySqlDbContextOptionsBuilder(Microsoft.EntityFrameworkCore.DbContextOptionsBuilder! optionsBuilder) -> void
+Doka.EntityFrameworkCore.MySql.MySqlDbSetExtensions
 Doka.EntityFrameworkCore.MySql.MySqlDiagnostics
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.CancellationTotalMetricName = "doka_mysql_cancellation_total" -> string!
 const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.CancellationSpanName = "db.operation.cancel" -> string!
@@ -113,6 +114,11 @@ static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.JsonType(this M
 static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.Match(this Microsoft.EntityFrameworkCore.DbFunctions! functions, string! column, string! searchTerm) -> bool
 static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.MatchInBooleanMode(this Microsoft.EntityFrameworkCore.DbFunctions! functions, string! column, string! searchTerm) -> bool
 static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.Regexp(this Microsoft.EntityFrameworkCore.DbFunctions! functions, string! input, string! pattern) -> bool
+static Doka.EntityFrameworkCore.MySql.MySqlDbSetExtensions.TemporalAll<TEntity>(this Microsoft.EntityFrameworkCore.DbSet<TEntity!>! source) -> System.Linq.IQueryable<TEntity!>!
+static Doka.EntityFrameworkCore.MySql.MySqlDbSetExtensions.TemporalAsOf<TEntity>(this Microsoft.EntityFrameworkCore.DbSet<TEntity!>! source, System.DateTime utcPointInTime) -> System.Linq.IQueryable<TEntity!>!
+static Doka.EntityFrameworkCore.MySql.MySqlDbSetExtensions.TemporalBetween<TEntity>(this Microsoft.EntityFrameworkCore.DbSet<TEntity!>! source, System.DateTime utcFrom, System.DateTime utcTo) -> System.Linq.IQueryable<TEntity!>!
+static Doka.EntityFrameworkCore.MySql.MySqlDbSetExtensions.TemporalContainedIn<TEntity>(this Microsoft.EntityFrameworkCore.DbSet<TEntity!>! source, System.DateTime utcFrom, System.DateTime utcTo) -> System.Linq.IQueryable<TEntity!>!
+static Doka.EntityFrameworkCore.MySql.MySqlDbSetExtensions.TemporalFromTo<TEntity>(this Microsoft.EntityFrameworkCore.DbSet<TEntity!>! source, System.DateTime utcFrom, System.DateTime utcTo) -> System.Linq.IQueryable<TEntity!>!
 static Doka.EntityFrameworkCore.MySql.MySqlEntityTypeBuilderExtensions.HasCharSet(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder! entityTypeBuilder, string! charSet) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder!
 static Doka.EntityFrameworkCore.MySql.MySqlEntityTypeBuilderExtensions.HasCharSet<TEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity!>! entityTypeBuilder, string! charSet) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity!>!
 static Doka.EntityFrameworkCore.MySql.MySqlEntityTypeBuilderExtensions.UseStorageEngine(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder! entityTypeBuilder, string! engine) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder!
@@ -170,3 +176,39 @@ static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.ServerVersionResolve
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.SoftCancellation -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.SpatialSridMismatchDetected -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.UnsupportedServerVersion -> Microsoft.Extensions.Logging.EventId
+Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder
+Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder<TOwnerEntity, TDependentEntity>
+Doka.EntityFrameworkCore.MySql.MySqlTableBuilderExtensions
+Doka.EntityFrameworkCore.MySql.MySqlTemporalEntityTypeExtensions
+Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder
+Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder<TEntity>
+virtual Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder.HasPeriodEnd(string! propertyName) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<System.DateTime>!
+virtual Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder.HasPeriodStart(string! propertyName) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<System.DateTime>!
+virtual Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder.UseHistoryTable(string! name) -> Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder!
+virtual Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder.UseHistoryTable(string! name, string! schema) -> Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder!
+virtual Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder.HasPeriodEnd(string! propertyName) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<System.DateTime>!
+virtual Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder.HasPeriodStart(string! propertyName) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<System.DateTime>!
+virtual Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder.UseHistoryTable(string! name) -> Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder!
+virtual Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder.UseHistoryTable(string! name, string! schema) -> Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlTemporalEntityTypeExtensions.GetMySqlTemporalHistoryTableName(this Microsoft.EntityFrameworkCore.Metadata.IReadOnlyEntityType! entityType) -> string?
+static Doka.EntityFrameworkCore.MySql.MySqlTemporalEntityTypeExtensions.GetMySqlTemporalHistoryTableSchema(this Microsoft.EntityFrameworkCore.Metadata.IReadOnlyEntityType! entityType) -> string?
+static Doka.EntityFrameworkCore.MySql.MySqlTemporalEntityTypeExtensions.GetMySqlTemporalPeriodEndPropertyName(this Microsoft.EntityFrameworkCore.Metadata.IReadOnlyEntityType! entityType) -> string?
+static Doka.EntityFrameworkCore.MySql.MySqlTemporalEntityTypeExtensions.GetMySqlTemporalPeriodStartPropertyName(this Microsoft.EntityFrameworkCore.Metadata.IReadOnlyEntityType! entityType) -> string?
+static Doka.EntityFrameworkCore.MySql.MySqlTemporalEntityTypeExtensions.IsMySqlTemporal(this Microsoft.EntityFrameworkCore.Metadata.IReadOnlyEntityType! entityType) -> bool
+static Doka.EntityFrameworkCore.MySql.MySqlTemporalEntityTypeExtensions.SetMySqlTemporal(this Microsoft.EntityFrameworkCore.Metadata.IMutableEntityType! entityType, bool temporal) -> void
+static Doka.EntityFrameworkCore.MySql.MySqlTemporalEntityTypeExtensions.SetMySqlTemporalHistoryTableName(this Microsoft.EntityFrameworkCore.Metadata.IMutableEntityType! entityType, string? historyTableName) -> void
+static Doka.EntityFrameworkCore.MySql.MySqlTemporalEntityTypeExtensions.SetMySqlTemporalHistoryTableSchema(this Microsoft.EntityFrameworkCore.Metadata.IMutableEntityType! entityType, string? historyTableSchema) -> void
+static Doka.EntityFrameworkCore.MySql.MySqlTemporalEntityTypeExtensions.SetMySqlTemporalPeriodEndPropertyName(this Microsoft.EntityFrameworkCore.Metadata.IMutableEntityType! entityType, string? propertyName) -> void
+static Doka.EntityFrameworkCore.MySql.MySqlTemporalEntityTypeExtensions.SetMySqlTemporalPeriodStartPropertyName(this Microsoft.EntityFrameworkCore.Metadata.IMutableEntityType! entityType, string? propertyName) -> void
+static Doka.EntityFrameworkCore.MySql.MySqlTableBuilderExtensions.IsTemporal(this Microsoft.EntityFrameworkCore.Metadata.Builders.OwnedNavigationTableBuilder! tableBuilder) -> Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlTableBuilderExtensions.IsTemporal(this Microsoft.EntityFrameworkCore.Metadata.Builders.OwnedNavigationTableBuilder! tableBuilder, bool temporal) -> Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlTableBuilderExtensions.IsTemporal(this Microsoft.EntityFrameworkCore.Metadata.Builders.OwnedNavigationTableBuilder! tableBuilder, System.Action<Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder!>! buildAction) -> Microsoft.EntityFrameworkCore.Metadata.Builders.OwnedNavigationTableBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlTableBuilderExtensions.IsTemporal(this Microsoft.EntityFrameworkCore.Metadata.Builders.TableBuilder! tableBuilder) -> Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlTableBuilderExtensions.IsTemporal(this Microsoft.EntityFrameworkCore.Metadata.Builders.TableBuilder! tableBuilder, bool temporal) -> Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlTableBuilderExtensions.IsTemporal(this Microsoft.EntityFrameworkCore.Metadata.Builders.TableBuilder! tableBuilder, System.Action<Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder!>! buildAction) -> Microsoft.EntityFrameworkCore.Metadata.Builders.TableBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlTableBuilderExtensions.IsTemporal<TEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.TableBuilder<TEntity!>! tableBuilder) -> Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder<TEntity!>!
+static Doka.EntityFrameworkCore.MySql.MySqlTableBuilderExtensions.IsTemporal<TEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.TableBuilder<TEntity!>! tableBuilder, bool temporal) -> Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder<TEntity!>!
+static Doka.EntityFrameworkCore.MySql.MySqlTableBuilderExtensions.IsTemporal<TEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.TableBuilder<TEntity!>! tableBuilder, System.Action<Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder<TEntity!>!>! buildAction) -> Microsoft.EntityFrameworkCore.Metadata.Builders.TableBuilder<TEntity!>!
+static Doka.EntityFrameworkCore.MySql.MySqlTableBuilderExtensions.IsTemporal<TOwnerEntity, TDependentEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.OwnedNavigationTableBuilder<TOwnerEntity!, TDependentEntity!>! tableBuilder) -> Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder<TOwnerEntity!, TDependentEntity!>!
+static Doka.EntityFrameworkCore.MySql.MySqlTableBuilderExtensions.IsTemporal<TOwnerEntity, TDependentEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.OwnedNavigationTableBuilder<TOwnerEntity!, TDependentEntity!>! tableBuilder, bool temporal) -> Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder<TOwnerEntity!, TDependentEntity!>!
+static Doka.EntityFrameworkCore.MySql.MySqlTableBuilderExtensions.IsTemporal<TOwnerEntity, TDependentEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.OwnedNavigationTableBuilder<TOwnerEntity!, TDependentEntity!>! tableBuilder, System.Action<Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder<TOwnerEntity!, TDependentEntity!>!>! buildAction) -> Microsoft.EntityFrameworkCore.Metadata.Builders.OwnedNavigationTableBuilder<TOwnerEntity!, TDependentEntity!>!

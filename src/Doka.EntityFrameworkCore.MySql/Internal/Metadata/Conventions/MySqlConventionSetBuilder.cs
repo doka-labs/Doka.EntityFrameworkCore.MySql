@@ -30,6 +30,11 @@ internal sealed class MySqlConventionSetBuilder : RelationalConventionSetBuilder
                 RelationalDependencies));
         conventionSet.ModelFinalizingConventions.Add(
             new MySqlIndexLengthConvention());
+        var temporalConvention = new MySqlTemporalConvention(_singletonOptions);
+
+        conventionSet.EntityTypeAnnotationChangedConventions.Add(temporalConvention);
+        conventionSet.SkipNavigationForeignKeyChangedConventions.Add(temporalConvention);
+        conventionSet.ModelFinalizingConventions.Add(temporalConvention);
         conventionSet.ModelFinalizingConventions.Add(new MySqlValueGenerationConvention(_singletonOptions));
 
         return conventionSet;

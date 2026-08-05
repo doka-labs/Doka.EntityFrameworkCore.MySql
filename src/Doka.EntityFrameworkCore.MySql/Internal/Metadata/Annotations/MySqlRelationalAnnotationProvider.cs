@@ -47,6 +47,32 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
         {
             yield return storageEngineAnnotation;
         }
+
+        if (MySqlTemporalMetadata.FindTableMetadata(table) is not { } temporalMetadata)
+        {
+            yield break;
+        }
+
+        yield return CreateAnnotation(table, MySqlAnnotationNames.IsTemporal, value: true);
+
+        if (temporalMetadata.HistoryTable is { } historyTableName)
+        {
+            yield return CreateAnnotation(table, MySqlAnnotationNames.TemporalHistoryTable, historyTableName);
+        }
+
+        if (temporalMetadata.HistorySchema is { } historyTableSchema)
+        {
+            yield return CreateAnnotation(table, MySqlAnnotationNames.TemporalHistorySchema, historyTableSchema);
+        }
+
+        yield return CreateAnnotation(
+            table,
+            MySqlAnnotationNames.TemporalPeriodStartColumn,
+            temporalMetadata.PeriodStartColumn);
+        yield return CreateAnnotation(
+            table,
+            MySqlAnnotationNames.TemporalPeriodEndColumn,
+            temporalMetadata.PeriodEndColumn);
     }
 
     public override IEnumerable<IAnnotation> For(
@@ -73,6 +99,33 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
             { } spatialReferenceSystemIdAnnotation)
         {
             yield return spatialReferenceSystemIdAnnotation;
+        }
+
+        foreach (var propertyMapping in column.PropertyMappings)
+        {
+            if (propertyMapping.Property.DeclaringType is not IReadOnlyEntityType entityType
+                || !entityType.IsMySqlTemporal())
+            {
+                continue;
+            }
+
+            if (string.Equals(
+                    propertyMapping.Property.Name,
+                    entityType.GetMySqlTemporalPeriodStartPropertyName(),
+                    StringComparison.Ordinal))
+            {
+                yield return CreateAnnotation(column, MySqlAnnotationNames.TemporalPeriodStartColumn, value: true);
+                yield break;
+            }
+
+            if (string.Equals(
+                    propertyMapping.Property.Name,
+                    entityType.GetMySqlTemporalPeriodEndPropertyName(),
+                    StringComparison.Ordinal))
+            {
+                yield return CreateAnnotation(column, MySqlAnnotationNames.TemporalPeriodEndColumn, value: true);
+                yield break;
+            }
         }
     }
 
@@ -129,5 +182,12 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
                 .PropertyMappings.Select(mapping => mapping.Property.FindAnnotation(annotationName))
                 .FirstOrDefault(annotation => annotation is not null);
     }
+
+    private static IAnnotation CreateAnnotation(
+        IAnnotatable annotatable,
+        string name,
+        object value
+    ) => annotatable.FindAnnotation(name)
+        ?? new Annotation(name, value);
 
 }

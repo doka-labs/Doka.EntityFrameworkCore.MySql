@@ -20,4 +20,21 @@ internal sealed partial class MySqlQuerySqlGenerator : QuerySqlGenerator
         _singletonOptions = singletonOptions ?? throw new ArgumentNullException(nameof(singletonOptions));
     }
 
+    /// <summary>
+    /// Rejects CTE composition when the configured engine predates its documented
+    /// dialect boundary. EF Core performs the remaining composability checks.
+    /// </summary>
+    protected override void CheckComposableSqlTrimmed(
+        ReadOnlySpan<char> sql
+    )
+    {
+        if (sql.StartsWith("WITH", StringComparison.OrdinalIgnoreCase)
+            && !Profile.Supports(ProviderCapability.CommonTableExpressions))
+        {
+            throw new InvalidOperationException(
+                "The configured database engine does not support common table expressions.");
+        }
+
+        base.CheckComposableSqlTrimmed(sql);
+    }
 }

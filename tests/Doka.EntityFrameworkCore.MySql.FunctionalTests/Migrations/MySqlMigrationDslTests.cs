@@ -127,6 +127,430 @@ public sealed class MySqlMigrationDslTests
     }
 
     /// <summary>
+    /// Verifies that the relational model preserves the complete temporal table
+    /// contract when EF Core materializes migration operations.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_carries_temporal_annotations_into_create_operations()
+    {
+        using var sourceContext = new EmptyMigrationDslContext(CreateOptions<EmptyMigrationDslContext>());
+        using var targetContext = new TemporalMigrationDslContext(CreateOptions<TemporalMigrationDslContext>());
+        var operations = GetDifferences(sourceContext, targetContext);
+        var createTable = Assert.Single(operations.OfType<CreateTableOperation>());
+        var periodStart = Assert.Single(
+            createTable.Columns,
+            column => column.Name == "ValidFrom");
+        var periodEnd = Assert.Single(
+            createTable.Columns,
+            column => column.Name == "ValidTo");
+
+        Assert.True(createTable.FindAnnotation(MySqlAnnotationNames.IsTemporal)?.Value as bool?);
+        Assert.Equal(
+            "MigrationDslHistory",
+            createTable.FindAnnotation(MySqlAnnotationNames.TemporalHistoryTable)?.Value);
+        Assert.Equal(
+            "ValidFrom",
+            createTable.FindAnnotation(MySqlAnnotationNames.TemporalPeriodStartColumn)?.Value);
+        Assert.Equal(
+            "ValidTo",
+            createTable.FindAnnotation(MySqlAnnotationNames.TemporalPeriodEndColumn)?.Value);
+        Assert.True(periodStart.FindAnnotation(MySqlAnnotationNames.TemporalPeriodStartColumn)?.Value as bool?);
+        Assert.True(periodEnd.FindAnnotation(MySqlAnnotationNames.TemporalPeriodEndColumn)?.Value as bool?);
+    }
+
+    /// <summary>
+    /// Verifies that MariaDB receives its native system-versioned table contract.
+    /// </summary>
+    [Fact]
+    public void Migrations_sql_generator_uses_native_system_versioning_on_mariadb()
+    {
+        var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
+        using var sourceContext = new EmptyMigrationDslContext(
+            CreateOptions<EmptyMigrationDslContext>(serverVersion));
+        using var targetContext = new TemporalMigrationDslContext(
+            CreateOptions<TemporalMigrationDslContext>(serverVersion));
+        var sql = GenerateMigrationSql(sourceContext, targetContext);
+
+        Assert.Contains(
+            "`ValidFrom` timestamp(6) GENERATED ALWAYS AS ROW START",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "`ValidTo` timestamp(6) GENERATED ALWAYS AS ROW END",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "PERIOD FOR SYSTEM_TIME (`ValidFrom`, `ValidTo`)",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains("WITH SYSTEM VERSIONING", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("CREATE TRIGGER", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("CREATE TABLE `MigrationDslHistory`", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that MySQL receives the complete transactional temporal emulation.
+    /// </summary>
+    [Fact]
+    public void Migrations_sql_generator_uses_history_table_and_triggers_on_mysql()
+    {
+        var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
+        using var sourceContext = new EmptyMigrationDslContext(
+            CreateOptions<EmptyMigrationDslContext>(serverVersion));
+        using var targetContext = new TemporalMigrationDslContext(
+            CreateOptions<TemporalMigrationDslContext>(serverVersion));
+        var sql = GenerateMigrationSql(sourceContext, targetContext);
+
+        Assert.Contains("CREATE TABLE `MigrationDslHistory`", sql, StringComparison.Ordinal);
+        Assert.Contains("BEFORE INSERT ON `MigrationDsl`", sql, StringComparison.Ordinal);
+        Assert.Contains("BEFORE UPDATE ON `MigrationDsl`", sql, StringComparison.Ordinal);
+        Assert.Contains("BEFORE DELETE ON `MigrationDsl`", sql, StringComparison.Ordinal);
+        Assert.Contains("INSERT INTO `MigrationDslHistory`", sql, StringComparison.Ordinal);
+        Assert.Contains("UTC_TIMESTAMP(6)", sql, StringComparison.Ordinal);
+        Assert.Contains("doka-temporal-v1:", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("WITH SYSTEM VERSIONING", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that an emulated MySQL temporal table keeps its current and
+    /// history schemas synchronized while its triggers are being rebuilt.
+    /// </summary>
+    [Fact]
+    public void Migrations_sql_generator_mirrors_temporal_column_additions_on_mysql()
+    {
+        var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
+        using var sourceContext = new TemporalSchemaContext(
+            CreateOptions<TemporalSchemaContext>(serverVersion));
+        using var targetContext = new TemporalSchemaWithDescriptionContext(
+            CreateOptions<TemporalSchemaWithDescriptionContext>(serverVersion));
+        var sql = GenerateMigrationSql(sourceContext, targetContext);
+
+        var dropTrigger = sql.IndexOf("DROP TRIGGER", StringComparison.Ordinal);
+        var alterCurrent = sql.IndexOf(
+            "ALTER TABLE `TemporalRecords` ADD `Description`",
+            StringComparison.Ordinal);
+        var alterHistory = sql.IndexOf(
+            "ALTER TABLE `TemporalRecordsHistory` ADD `Description`",
+            StringComparison.Ordinal);
+        var createTrigger = sql.IndexOf("CREATE TRIGGER", StringComparison.Ordinal);
+
+        Assert.True(dropTrigger >= 0);
+        Assert.True(alterCurrent > dropTrigger);
+        Assert.True(alterHistory > alterCurrent);
+        Assert.True(createTrigger > alterHistory);
+    }
+
+    /// <summary>
+    /// Verifies that an emulated temporal column rename remains atomic from the
+    /// provider contract's perspective: triggers are detached, both physical
+    /// tables are renamed, and the rebuilt triggers use the new column name.
+    /// </summary>
+    [Fact]
+    public void Migrations_sql_generator_mirrors_temporal_column_renames_on_mysql()
+    {
+        var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
+        using var sourceContext = new TemporalSchemaContext(
+            CreateOptions<TemporalSchemaContext>(serverVersion));
+        using var targetContext = new TemporalSchemaWithRenamedColumnContext(
+            CreateOptions<TemporalSchemaWithRenamedColumnContext>(serverVersion));
+        var sql = GenerateMigrationSql(sourceContext, targetContext);
+
+        Assert.Contains(
+            "ALTER TABLE `TemporalRecords` RENAME COLUMN `Name` TO `DisplayName`",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ALTER TABLE `TemporalRecordsHistory` RENAME COLUMN `Name` TO `DisplayName`",
+            sql,
+            StringComparison.Ordinal);
+
+        var rebuiltTriggers = sql[sql.LastIndexOf("CREATE TRIGGER", StringComparison.Ordinal)..];
+
+        Assert.Contains("`DisplayName`", rebuiltTriggers, StringComparison.Ordinal);
+        Assert.DoesNotContain("`Name`", rebuiltTriggers, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that regular column alterations stay identical between the
+    /// current and history tables before provider-owned triggers are rebuilt.
+    /// </summary>
+    [Fact]
+    public void Migrations_sql_generator_mirrors_temporal_column_alterations_on_mysql()
+    {
+        var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
+        using var sourceContext = new TemporalSchemaContext(
+            CreateOptions<TemporalSchemaContext>(serverVersion));
+        using var targetContext = new TemporalSchemaWithBoundedNameContext(
+            CreateOptions<TemporalSchemaWithBoundedNameContext>(serverVersion));
+        var sql = GenerateMigrationSql(sourceContext, targetContext);
+
+        Assert.Contains(
+            "ALTER TABLE `TemporalRecords` MODIFY COLUMN `Name` varchar(128) NOT NULL",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ALTER TABLE `TemporalRecordsHistory` MODIFY COLUMN `Name` varchar(128) NOT NULL",
+            sql,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that dropping a column from an emulated temporal table removes
+    /// the same column from retained history instead of leaving schema drift.
+    /// </summary>
+    [Fact]
+    public void Migrations_sql_generator_mirrors_temporal_column_drops_on_mysql()
+    {
+        var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
+        using var sourceContext = new TemporalSchemaWithDescriptionContext(
+            CreateOptions<TemporalSchemaWithDescriptionContext>(serverVersion));
+        using var targetContext = new TemporalSchemaContext(
+            CreateOptions<TemporalSchemaContext>(serverVersion));
+        var operations = GetDifferences(sourceContext, targetContext);
+        var dropColumn = Assert.Single(operations.OfType<DropColumnOperation>());
+
+        Assert.True(
+            dropColumn.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)?.Value as bool?);
+        Assert.True(dropColumn.FindAnnotation(MySqlAnnotationNames.IsTemporal)?.Value as bool?);
+        Assert.Equal(
+            "TemporalRecordsHistory",
+            dropColumn.FindAnnotation(MySqlAnnotationNames.TemporalSourceHistoryTable)?.Value);
+        Assert.Equal(
+            "TemporalRecordsHistory",
+            dropColumn.FindAnnotation(MySqlAnnotationNames.TemporalHistoryTable)?.Value);
+
+        var commands = targetContext
+            .GetService<IMigrationsSqlGenerator>()
+            .Generate(operations, targetContext.Model);
+        var sql = string.Join(
+            Environment.NewLine,
+            commands.Select(command => command.CommandText));
+
+        Assert.Contains(
+            "ALTER TABLE `TemporalRecords` DROP COLUMN `Description`",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ALTER TABLE `TemporalRecordsHistory` DROP COLUMN `Description`",
+            sql,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that generated columns are reproduced in retained history but
+    /// omitted from trigger projections because MySQL forbids OLD/NEW references
+    /// to generated columns.
+    /// </summary>
+    [Fact]
+    public void Migrations_sql_generator_preserves_generated_columns_without_trigger_references()
+    {
+        var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
+        using var sourceContext = new TemporalSchemaContext(
+            CreateOptions<TemporalSchemaContext>(serverVersion));
+        using var targetContext = new TemporalSchemaWithGeneratedColumnContext(
+            CreateOptions<TemporalSchemaWithGeneratedColumnContext>(serverVersion));
+        var sql = GenerateMigrationSql(sourceContext, targetContext);
+
+        Assert.Contains(
+            "ALTER TABLE `TemporalRecords` ADD `NameLength` int GENERATED ALWAYS AS (CHAR_LENGTH(`Name`)) STORED",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ALTER TABLE `TemporalRecordsHistory` ADD `NameLength` int GENERATED ALWAYS AS (CHAR_LENGTH(`Name`)) STORED",
+            sql,
+            StringComparison.Ordinal);
+
+        var rebuiltTriggers = sql[sql.IndexOf("CREATE TRIGGER", StringComparison.Ordinal)..];
+
+        Assert.DoesNotContain("`NameLength`", rebuiltTriggers, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that native MariaDB temporal history is never made inaccurate
+    /// through the engine's permissive system-versioning alteration mode.
+    /// </summary>
+    [Theory]
+    [InlineData(NativeTemporalSchemaChange.AddColumn)]
+    [InlineData(NativeTemporalSchemaChange.RenameColumn)]
+    [InlineData(NativeTemporalSchemaChange.AlterColumn)]
+    [InlineData(NativeTemporalSchemaChange.DropColumn)]
+    [InlineData(NativeTemporalSchemaChange.RenameTable)]
+    public void Migrations_sql_generator_rejects_unsafe_native_temporal_schema_changes_on_mariadb(
+        NativeTemporalSchemaChange schemaChange
+    )
+    {
+        var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
+        var contexts = CreateNativeTemporalSchemaChangeContexts(schemaChange, serverVersion);
+
+        using var sourceContext = contexts.Source;
+        using var targetContext = contexts.Target;
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => GenerateMigrationSql(sourceContext, targetContext));
+
+        Assert.Contains("native MariaDB temporal table", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("history", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies that MariaDB temporal activation and deactivation are complete
+    /// native transitions and never introduce the MySQL emulation artifacts.
+    /// </summary>
+    [Fact]
+    public void Migrations_sql_generator_materializes_native_temporal_transitions_on_mariadb()
+    {
+        var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
+        using var nonTemporalContext = new NonTemporalSchemaContext(
+            CreateOptions<NonTemporalSchemaContext>(serverVersion));
+        using var temporalContext = new TemporalSchemaContext(
+            CreateOptions<TemporalSchemaContext>(serverVersion));
+
+        var enableOperations = GetDifferences(nonTemporalContext, temporalContext);
+        var disableOperations = GetDifferences(temporalContext, nonTemporalContext);
+        var enableSql = GenerateMigrationSql(temporalContext, enableOperations);
+        var disableSql = GenerateMigrationSql(nonTemporalContext, disableOperations);
+        var finalPeriodColumn = enableSql.IndexOf(
+            "ADD `ValidTo` timestamp(6) GENERATED ALWAYS AS ROW END",
+            StringComparison.Ordinal);
+        var periodActivation = enableSql.IndexOf(
+            "ADD PERIOD FOR SYSTEM_TIME (`ValidFrom`, `ValidTo`)",
+            StringComparison.Ordinal);
+        var systemVersioningDeactivation = disableSql.IndexOf(
+            "DROP SYSTEM VERSIONING",
+            StringComparison.Ordinal);
+        var periodDeactivation = disableSql.IndexOf(
+            "DROP PERIOD FOR SYSTEM_TIME",
+            StringComparison.Ordinal);
+        var firstPeriodColumnDrop = disableSql.IndexOf(
+            "DROP COLUMN `ValidFrom`",
+            StringComparison.Ordinal);
+
+        Assert.Contains(
+            "ALTER TABLE `TemporalRecords` "
+            + "ADD `ValidFrom` timestamp(6) GENERATED ALWAYS AS ROW START, "
+            + "ADD `ValidTo` timestamp(6) GENERATED ALWAYS AS ROW END, "
+            + "ADD PERIOD FOR SYSTEM_TIME (`ValidFrom`, `ValidTo`), "
+            + "ADD SYSTEM VERSIONING;",
+            enableSql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ADD `ValidTo` timestamp(6) GENERATED ALWAYS AS ROW END",
+            enableSql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ADD PERIOD FOR SYSTEM_TIME (`ValidFrom`, `ValidTo`)",
+            enableSql,
+            StringComparison.Ordinal);
+        Assert.True(periodActivation > finalPeriodColumn);
+        Assert.Contains("ADD SYSTEM VERSIONING", enableSql, StringComparison.Ordinal);
+        Assert.Contains(
+            "SET STATEMENT system_versioning_alter_history=KEEP FOR "
+            + "ALTER TABLE `TemporalRecords` DROP SYSTEM VERSIONING, DROP PERIOD FOR SYSTEM_TIME, "
+            + "DROP COLUMN `ValidFrom`, DROP COLUMN `ValidTo`;",
+            disableSql,
+            StringComparison.Ordinal);
+        Assert.True(
+            disableOperations
+                .OfType<AlterTableOperation>()
+                .Single()
+                .IsDestructiveChange);
+        Assert.True(periodDeactivation > systemVersioningDeactivation);
+        Assert.True(firstPeriodColumnDrop > periodDeactivation);
+        Assert.Contains("DROP COLUMN `ValidFrom`", disableSql, StringComparison.Ordinal);
+        Assert.Contains("DROP COLUMN `ValidTo`", disableSql, StringComparison.Ordinal);
+        Assert.Equal(
+            firstPeriodColumnDrop,
+            disableSql.LastIndexOf("DROP COLUMN `ValidFrom`", StringComparison.Ordinal));
+        Assert.DoesNotContain("TemporalRecordsHistory", enableSql, StringComparison.Ordinal);
+        Assert.DoesNotContain("TemporalRecordsHistory", disableSql, StringComparison.Ordinal);
+        Assert.DoesNotContain("TRIGGER", enableSql, StringComparison.Ordinal);
+        Assert.DoesNotContain("TRIGGER", disableSql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that renaming an emulated temporal table also renames its
+    /// history table and rebinds every provider-owned trigger.
+    /// </summary>
+    [Fact]
+    public void Migrations_sql_generator_renames_complete_temporal_contract_on_mysql()
+    {
+        var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
+        using var sourceContext = new TemporalSchemaContext(
+            CreateOptions<TemporalSchemaContext>(serverVersion));
+        using var targetContext = new RenamedTemporalSchemaContext(
+            CreateOptions<RenamedTemporalSchemaContext>(serverVersion));
+        var sql = GenerateMigrationSql(sourceContext, targetContext);
+
+        Assert.Contains(
+            "RENAME TABLE `TemporalRecords` TO `TemporalEntries`",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "RENAME TABLE `TemporalRecordsHistory` TO `TemporalEntriesHistory`",
+            sql,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(" ON `TemporalRecords` FOR EACH ROW", sql, StringComparison.Ordinal);
+        Assert.Contains(" ON `TemporalEntries` FOR EACH ROW", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that dropping an emulated temporal table removes its external
+    /// history table instead of leaving retained data without an owner.
+    /// </summary>
+    [Fact]
+    public void Migrations_sql_generator_drops_complete_temporal_contract_on_mysql()
+    {
+        var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
+        using var sourceContext = new TemporalSchemaContext(
+            CreateOptions<TemporalSchemaContext>(serverVersion));
+        using var targetContext = new EmptyMigrationDslContext(
+            CreateOptions<EmptyMigrationDslContext>(serverVersion));
+        var sql = GenerateMigrationSql(sourceContext, targetContext);
+
+        Assert.Contains("DROP TABLE `TemporalRecords`", sql, StringComparison.Ordinal);
+        Assert.Contains("DROP TABLE `TemporalRecordsHistory`", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that enabling and disabling temporal behavior is represented by
+    /// complete physical contracts rather than annotation-only migrations.
+    /// </summary>
+    [Fact]
+    public void Migrations_sql_generator_materializes_temporal_transitions_on_mysql()
+    {
+        var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
+        using var nonTemporalContext = new NonTemporalSchemaContext(
+            CreateOptions<NonTemporalSchemaContext>(serverVersion));
+        using var temporalContext = new TemporalSchemaContext(
+            CreateOptions<TemporalSchemaContext>(serverVersion));
+
+        var enableSql = GenerateMigrationSql(nonTemporalContext, temporalContext);
+        var disableSql = GenerateMigrationSql(temporalContext, nonTemporalContext);
+        var finalPeriodColumn = enableSql.IndexOf(
+            "ADD `ValidTo` datetime(6) NOT NULL DEFAULT '9999-12-31 23:59:59.999999'",
+            StringComparison.Ordinal);
+        var historyActivation = enableSql.IndexOf(
+            "CREATE TABLE `TemporalRecordsHistory`",
+            StringComparison.Ordinal);
+
+        Assert.Contains(
+            "ADD `ValidFrom` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)",
+            enableSql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ADD `ValidTo` datetime(6) NOT NULL DEFAULT '9999-12-31 23:59:59.999999'",
+            enableSql,
+            StringComparison.Ordinal);
+        Assert.True(historyActivation > finalPeriodColumn);
+        Assert.Contains("CREATE TABLE `TemporalRecordsHistory`", enableSql, StringComparison.Ordinal);
+        Assert.Contains("CREATE TRIGGER", enableSql, StringComparison.Ordinal);
+        Assert.Contains("DROP TRIGGER", disableSql, StringComparison.Ordinal);
+        Assert.Contains("DROP TABLE `TemporalRecordsHistory`", disableSql, StringComparison.Ordinal);
+        Assert.Contains("DROP COLUMN `ValidFrom`", disableSql, StringComparison.Ordinal);
+        Assert.Contains("DROP COLUMN `ValidTo`", disableSql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies that the initial migration path still carries the configured database charset annotation.
     /// </summary>
     [Fact]
@@ -358,14 +782,81 @@ public sealed class MySqlMigrationDslTests
             target.GetService<IDesignTimeModel>().Model.GetRelationalModel())
         .ToList();
 
+    private static string GenerateMigrationSql(
+        DbContext source,
+        DbContext target
+    )
+    {
+        var operations = GetDifferences(source, target);
+
+        return GenerateMigrationSql(target, operations);
+    }
+
+    private static string GenerateMigrationSql(
+        DbContext target,
+        IReadOnlyList<MigrationOperation> operations
+    )
+    {
+        var commands = target
+            .GetService<IMigrationsSqlGenerator>()
+            .Generate(operations, target.Model);
+
+        return string.Join(
+            Environment.NewLine,
+            commands.Select(command => command.CommandText));
+    }
+
+    public enum NativeTemporalSchemaChange
+    {
+        AddColumn,
+        RenameColumn,
+        AlterColumn,
+        DropColumn,
+        RenameTable,
+    }
+
+    private static (DbContext Source, DbContext Target) CreateNativeTemporalSchemaChangeContexts(
+        NativeTemporalSchemaChange schemaChange,
+        MySqlServerVersion serverVersion
+    ) => schemaChange switch
+    {
+        NativeTemporalSchemaChange.AddColumn => (
+            new TemporalSchemaContext(CreateOptions<TemporalSchemaContext>(serverVersion)),
+            new TemporalSchemaWithDescriptionContext(
+                CreateOptions<TemporalSchemaWithDescriptionContext>(serverVersion))),
+        NativeTemporalSchemaChange.RenameColumn => (
+            new TemporalSchemaContext(CreateOptions<TemporalSchemaContext>(serverVersion)),
+            new TemporalSchemaWithRenamedColumnContext(
+                CreateOptions<TemporalSchemaWithRenamedColumnContext>(serverVersion))),
+        NativeTemporalSchemaChange.AlterColumn => (
+            new TemporalSchemaContext(CreateOptions<TemporalSchemaContext>(serverVersion)),
+            new TemporalSchemaWithBoundedNameContext(
+                CreateOptions<TemporalSchemaWithBoundedNameContext>(serverVersion))),
+        NativeTemporalSchemaChange.DropColumn => (
+            new TemporalSchemaWithDescriptionContext(
+                CreateOptions<TemporalSchemaWithDescriptionContext>(serverVersion)),
+            new TemporalSchemaContext(CreateOptions<TemporalSchemaContext>(serverVersion))),
+        NativeTemporalSchemaChange.RenameTable => (
+            new TemporalSchemaContext(CreateOptions<TemporalSchemaContext>(serverVersion)),
+            new RenamedTemporalSchemaContext(
+                CreateOptions<RenamedTemporalSchemaContext>(serverVersion))),
+        _ => throw new ArgumentOutOfRangeException(nameof(schemaChange), schemaChange, null),
+    };
+
     private static DbContextOptions<TContext> CreateOptions<TContext>()
+        where TContext : DbContext
+    => CreateOptions<TContext>(MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+    private static DbContextOptions<TContext> CreateOptions<TContext>(
+        MySqlServerVersion serverVersion
+    )
         where TContext : DbContext
     {
         var builder = new DbContextOptionsBuilder<TContext>();
 
         builder.UseMySql(
             "Server=localhost;Database=phase2;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)),
+            serverVersion,
             providerOptions => providerOptions.UseNetTopologySuite());
 
         return builder.Options;
@@ -434,6 +925,132 @@ public sealed class MySqlMigrationDslTests
                     .IsSpatial();
             });
         }
+    }
+
+    private sealed class TemporalMigrationDslContext : DbContext
+    {
+        public TemporalMigrationDslContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => modelBuilder.Entity<MigrationDslEntity>(entity =>
+        {
+            entity.ToTable(
+                "MigrationDsl",
+                table => table.IsTemporal(temporal =>
+                {
+                    temporal.UseHistoryTable("MigrationDslHistory");
+                    temporal.HasPeriodStart("ValidFrom");
+                    temporal.HasPeriodEnd("ValidTo");
+                }));
+        });
+    }
+
+    private sealed class NonTemporalSchemaContext : DbContext
+    {
+        public NonTemporalSchemaContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureTemporalSchema(modelBuilder, "TemporalRecords", "TemporalRecordsHistory");
+    }
+
+    private sealed class TemporalSchemaContext : DbContext
+    {
+        public TemporalSchemaContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureTemporalSchema(
+            modelBuilder,
+            "TemporalRecords",
+            "TemporalRecordsHistory",
+            temporal: true);
+    }
+
+    private sealed class TemporalSchemaWithDescriptionContext : DbContext
+    {
+        public TemporalSchemaWithDescriptionContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureTemporalSchema(
+            modelBuilder,
+            "TemporalRecords",
+            "TemporalRecordsHistory",
+            temporal: true,
+            includeDescription: true);
+    }
+
+    private sealed class TemporalSchemaWithRenamedColumnContext : DbContext
+    {
+        public TemporalSchemaWithRenamedColumnContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureTemporalSchema(
+            modelBuilder,
+            "TemporalRecords",
+            "TemporalRecordsHistory",
+            temporal: true,
+            nameColumn: "DisplayName");
+    }
+
+    private sealed class TemporalSchemaWithBoundedNameContext : DbContext
+    {
+        public TemporalSchemaWithBoundedNameContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureTemporalSchema(
+            modelBuilder,
+            "TemporalRecords",
+            "TemporalRecordsHistory",
+            temporal: true,
+            nameMaxLength: 128);
+    }
+
+    private sealed class TemporalSchemaWithGeneratedColumnContext : DbContext
+    {
+        public TemporalSchemaWithGeneratedColumnContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureTemporalSchema(
+            modelBuilder,
+            "TemporalRecords",
+            "TemporalRecordsHistory",
+            temporal: true,
+            includeGeneratedNameLength: true);
+    }
+
+    private sealed class RenamedTemporalSchemaContext : DbContext
+    {
+        public RenamedTemporalSchemaContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureTemporalSchema(
+            modelBuilder,
+            "TemporalEntries",
+            "TemporalEntriesHistory",
+            temporal: true);
     }
 
     private sealed class KeylessPeopleContext : DbContext
@@ -566,6 +1183,73 @@ public sealed class MySqlMigrationDslTests
                     entity.HasNoKey();
                 }
             });
+    }
+
+    private static void ConfigureTemporalSchema(
+        ModelBuilder modelBuilder,
+        string tableName,
+        string historyTableName,
+        bool temporal = false,
+        bool includeDescription = false,
+        string nameColumn = "Name",
+        int? nameMaxLength = null,
+        bool includeGeneratedNameLength = false
+    )
+    {
+        modelBuilder.Entity<TemporalSchemaEntity>(entity =>
+        {
+            if (temporal)
+            {
+                entity.ToTable(
+                    tableName,
+                    table => table.IsTemporal(temporalTable =>
+                    {
+                        temporalTable.UseHistoryTable(historyTableName);
+                        temporalTable.HasPeriodStart("ValidFrom");
+                        temporalTable.HasPeriodEnd("ValidTo");
+                    }));
+            }
+            else
+            {
+                entity.ToTable(tableName);
+            }
+
+            var nameProperty = entity
+                .Property(item => item.Name)
+                .HasColumnName(nameColumn);
+
+            if (nameMaxLength is not null)
+            {
+                nameProperty.HasMaxLength(nameMaxLength.Value);
+            }
+
+            if (!includeDescription)
+            {
+                entity.Ignore(item => item.Description);
+            }
+
+            if (includeGeneratedNameLength)
+            {
+                entity
+                    .Property(item => item.NameLength)
+                    .HasComputedColumnSql("CHAR_LENGTH(`Name`)", stored: true);
+            }
+            else
+            {
+                entity.Ignore(item => item.NameLength);
+            }
+        });
+    }
+
+    private sealed class TemporalSchemaEntity
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public string? Description { get; set; }
+
+        public int NameLength { get; set; }
     }
 
     private sealed class MigrationDslEntity

@@ -793,24 +793,62 @@ public sealed class MySqlQueryTranslationExtendedTests
     }
 
     /// <summary>
-    /// Non-recursive CTE generates WITH ... AS syntax.
+    /// Verifies that EF Core can compose LINQ over a parameterized CTE without
+    /// inlining the value into the CTE body.
     /// </summary>
     [Fact]
-    public void Cte_non_recursive_generates_with_syntax()
+    public void Cte_composition_preserves_parameterization()
     {
         using var context = CreateContext();
+        var minimumValue = 50D;
 
-        // EF Core generates CTEs for certain query patterns.
-        // Union of same table with different filters is one such pattern.
-        var query1 = context.Items.Where(e => e.Value > 50);
-        var query2 = context.Items.Where(e => e.Value < 10);
-        var sql = query1
-            .Union(query2)
-            .OrderBy(e => e.Id)
+        var sql = context.Items
+            .FromSqlInterpolated(
+                $"""
+                WITH `FilteredItems` AS (
+                    SELECT *
+                    FROM `TranslationTestItems`
+                    WHERE `Value` > {minimumValue}
+                )
+                SELECT * FROM `FilteredItems`
+                """)
+            .Where(item => item.Name.StartsWith('A'))
+            .OrderBy(item => item.Id)
             .ToQueryString();
 
-        // Union generates valid MySQL SQL with UNION keyword.
-        Assert.Contains("UNION", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("WITH `FilteredItems` AS", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("`Value` > @p0", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ORDER BY", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies that composition fails before execution when the configured
+    /// server predates the documented CTE boundary.
+    /// </summary>
+    [Fact]
+    public void Cte_composition_rejects_unsupported_server_version()
+    {
+        using var context = CreateContext(
+            MySqlServerVersion.MySql(
+                new Version(8, 0, 0),
+                MySqlServerVersionCompatibilityMode.AllowUnsupported));
+
+        var query = context.Items
+            .FromSqlRaw(
+                """
+                WITH `Items` AS (
+                    SELECT * FROM `TranslationTestItems`
+                )
+                SELECT * FROM `Items`
+                """)
+            .Where(item => item.Id > 0);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => query.ToQueryString());
+
+        Assert.Equal(
+            "The configured database engine does not support common table expressions.",
+            exception.Message);
     }
 
     [Fact]
@@ -990,11 +1028,16 @@ public sealed class MySqlQueryTranslationExtendedTests
     }
 
     private static TranslationTestContext CreateContext()
+        => CreateContext(MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+    private static TranslationTestContext CreateContext(
+        MySqlServerVersion serverVersion
+    )
     {
         var builder = new DbContextOptionsBuilder<TranslationTestContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+            serverVersion);
         return new TranslationTestContext(builder.Options);
     }
 

@@ -16,4 +16,5 @@ internal enum MySqlConfigurationFailureReason
     ConnectionPathChanged,
     ForeignKeyNameTooLong,
     IndexNameTooLong,
+    TemporalTableInvalid,
 }

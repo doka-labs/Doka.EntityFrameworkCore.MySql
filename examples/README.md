@@ -1,12 +1,12 @@
 # Runnable Examples
 
 The examples exercise public provider APIs through focused, runnable projects.
-Every project must compile. Thirteen database-backed examples run against the
-supported live engine matrix; nine of those additionally fail when an explicit
+Every project must compile. Fourteen database-backed examples run against the
+supported live engine matrix; ten of those additionally fail when an explicit
 scenario invariant is not satisfied. The live runner also verifies after every
 example that the caller-selected sentinel catalog remains intact.
 
-The release-candidate gate executes the thirteen live-matrix examples
+The release-candidate gate executes the fourteen live-matrix examples
 against MySQL 8.4, MariaDB 11.4, and MariaDB 11.8. Run the same isolated matrix
 locally with:
 
@@ -65,6 +65,7 @@ leave its isolated example database behind for inspection.
 | [PerformanceBestPractices](PerformanceBestPractices/README.md) | Batching, projection, no-tracking, and compiled hot queries |
 | [SpatialQueries](SpatialQueries/README.md) | NTS activation, SRID, spatial index, and spherical distance |
 | [MigrationsWorkflow](MigrationsWorkflow/README.md) | Script, bundle, apply, and rollback-oriented migration workflow |
+| [TemporalTablesAndCtes](TemporalTablesAndCtes/README.md) | Portable temporal history and parameterized recursive CTE composition |
 | [HostExamples](Doka.EntityFrameworkCore.MySql.HostExamples/README.md) | Generic Host, OpenTelemetry, and Serilog integration |
 
 Run an individual project from the repository root:

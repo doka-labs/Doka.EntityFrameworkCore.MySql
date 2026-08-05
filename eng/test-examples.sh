@@ -34,6 +34,7 @@ example_projects=(
     "PerformanceBestPractices"
     "Relationships"
     "SpatialQueries"
+    "TemporalTablesAndCtes"
 )
 sentinel_database="doka_example_sentinel"
 
@@ -53,7 +54,7 @@ Environment:
   DOKA_EXAMPLE_EVIDENCE_DIR=<evidence output directory>
   DOKA_EXAMPLE_RUN_ID=<stable run identity>
 
-The default exercises all thirteen live-matrix examples against the complete
+The default exercises all fourteen live-matrix examples against the complete
 supported engine matrix. A subset is useful for local diagnosis; release
 qualification always supplies the complete matrix explicitly.
 EOF
@@ -396,7 +397,7 @@ write_evidence() {
         echo "- failedRuns: ${failed_count}"
         echo "- cleanupCompleted: ${cleanup_completed}"
         echo
-        echo "Each example owns its database; nine examples also verify an explicit" \
+        echo "Each example owns its database; ten examples also verify an explicit" \
             "scenario invariant."
     } > "${summary_file}"
 }

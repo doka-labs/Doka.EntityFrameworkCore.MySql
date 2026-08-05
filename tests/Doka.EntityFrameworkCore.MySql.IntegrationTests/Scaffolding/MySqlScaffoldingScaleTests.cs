@@ -174,7 +174,8 @@ public sealed class MySqlScaffoldingScaleTests
         var stopwatch = Stopwatch.StartNew();
         ScaffoldedModel scaffoldedModel;
 
-        using (var serviceProvider = CreateDesignTimeServiceProvider())
+        using (var serviceProvider =
+               ScaffoldingTestServices.CreateDesignTimeServiceProvider())
         using (var scope = serviceProvider.CreateScope())
         {
             scaffoldedModel = scope
@@ -509,15 +510,6 @@ public sealed class MySqlScaffoldingScaleTests
         SuppressOnConfiguring = true,
         UseNullableReferenceTypes = true,
     };
-
-    private static ServiceProvider CreateDesignTimeServiceProvider()
-    {
-        var services = new ServiceCollection();
-
-        services.AddEntityFrameworkDokaMySqlDesignTime();
-
-        return services.BuildServiceProvider(validateScopes: true);
-    }
 
     private static string CreateSignature(
         ScaffoldedModel scaffoldedModel

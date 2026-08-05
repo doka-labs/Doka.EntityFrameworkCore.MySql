@@ -20,6 +20,11 @@ internal sealed partial class MySqlQuerySqlGenerator
         TableExpression tableExpression
     )
     {
+        if (TryGenerateTemporalTable(tableExpression))
+        {
+            return tableExpression;
+        }
+
         if (tableExpression.Alias != _unqualifiedTableAlias)
         {
             return base.VisitTable(tableExpression);

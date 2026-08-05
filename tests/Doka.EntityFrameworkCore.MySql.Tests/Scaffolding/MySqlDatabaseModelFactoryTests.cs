@@ -131,6 +131,93 @@ public sealed class MySqlDatabaseModelFactoryTests
             connection.DatabaseChanges);
     }
 
+    /// <summary>
+    /// Verifies that MariaDB's authoritative SYSTEM VERSIONED table type and
+    /// system-time period flags reconstruct the provider temporal contract.
+    /// </summary>
+    [Fact]
+    public void Reverse_engineering_recognizes_native_mariadb_temporal_table()
+    {
+        using var connection = new ScaffoldingDbConnection(ScaffoldingScenario.NativeMariaDbTemporal);
+        var factory = new MySqlDatabaseModelFactory(new StubDriverFacade(), new MySqlScaffoldingContext());
+
+        var databaseModel = factory.Create(
+            connection,
+            new DatabaseModelFactoryOptions(["audit_entries"], Array.Empty<string>()));
+        var table = Assert.Single(databaseModel.Tables);
+
+        Assert.Equal("audit_entries", table.Name);
+        Assert.True(table.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)?.Value as bool?);
+        Assert.Equal(
+            "ValidFrom",
+            table.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodStartColumn)?.Value);
+        Assert.Equal(
+            "ValidTo",
+            table.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodEndColumn)?.Value);
+    }
+
+    /// <summary>
+    /// Verifies that the complete provider-owned MySQL trigger and storage
+    /// contract reconstructs one temporal table and suppresses its history table.
+    /// </summary>
+    [Fact]
+    public void Reverse_engineering_recognizes_complete_mysql_temporal_emulation()
+    {
+        using var connection = new ScaffoldingDbConnection(ScaffoldingScenario.MySqlTemporalEmulation);
+        var factory = new MySqlDatabaseModelFactory(new StubDriverFacade(), new MySqlScaffoldingContext());
+
+        var databaseModel = factory.Create(
+            connection,
+            new DatabaseModelFactoryOptions([], Array.Empty<string>()));
+        var table = Assert.Single(databaseModel.Tables);
+
+        Assert.Equal("audit_entries", table.Name);
+        Assert.True(table.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)?.Value as bool?);
+        Assert.Equal(
+            "audit_entries_history",
+            table.FindAnnotation(MySqlAnnotationNames.TemporalSourceHistoryTable)?.Value);
+        Assert.Equal(
+            "ValidFrom",
+            table.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodStartColumn)?.Value);
+        Assert.Equal(
+            "ValidTo",
+            table.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodEndColumn)?.Value);
+    }
+
+    /// <summary>
+    /// Verifies that an incomplete provider trigger set is not guessed to be
+    /// temporal and therefore keeps both current and history tables visible.
+    /// </summary>
+    [Fact]
+    public void Reverse_engineering_does_not_recognize_incomplete_mysql_temporal_emulation()
+    {
+        using var connection = new ScaffoldingDbConnection(
+            ScaffoldingScenario.IncompleteMySqlTemporalEmulation);
+        var factory = new MySqlDatabaseModelFactory(new StubDriverFacade(), new MySqlScaffoldingContext());
+
+        var databaseModel = factory.Create(
+            connection,
+            new DatabaseModelFactoryOptions([], Array.Empty<string>()));
+        var tables = databaseModel.Tables.OrderBy(table => table.Name).ToArray();
+
+        Assert.Collection(
+            tables,
+            table =>
+            {
+                Assert.Equal("audit_entries", table.Name);
+                Assert.Null(table.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal));
+            },
+            table => Assert.Equal("audit_entries_history", table.Name));
+    }
+
+    private enum ScaffoldingScenario
+    {
+        Default,
+        NativeMariaDbTemporal,
+        MySqlTemporalEmulation,
+        IncompleteMySqlTemporalEmulation,
+    }
+
     private sealed class StubDriverFacade : IMySqlDriverFacade
     {
         public string DriverName => "Stub";
@@ -145,6 +232,13 @@ public sealed class MySqlDatabaseModelFactoryTests
         private string _database = "phase2";
         private ConnectionState _state = ConnectionState.Closed;
 
+        public ScaffoldingDbConnection(
+            ScaffoldingScenario scenario = ScaffoldingScenario.Default
+        )
+        {
+            Scenario = scenario;
+        }
+
         [AllowNull]
         public override string ConnectionString { get; set; } = "Server=localhost;Database=phase2;";
 
@@ -152,9 +246,13 @@ public sealed class MySqlDatabaseModelFactoryTests
 
         public List<string> DatabaseChanges { get; } = [];
 
+        public ScaffoldingScenario Scenario { get; }
+
         public override string DataSource => "localhost";
 
-        public override string ServerVersion => "8.4.6";
+        public override string ServerVersion => Scenario == ScaffoldingScenario.NativeMariaDbTemporal
+            ? "11.4.7-MariaDB"
+            : "8.4.6";
 
         public override ConnectionState State => _state;
 
@@ -218,7 +316,8 @@ public sealed class MySqlDatabaseModelFactoryTests
         {
             return CommandText switch
             {
-                var sql when sql.Contains("SELECT VERSION()", StringComparison.Ordinal) => "8.4.6",
+                var sql when sql.Contains("SELECT VERSION()", StringComparison.Ordinal) =>
+                    _connection.ServerVersion,
                 var sql when sql.Contains("SELECT DATABASE()", StringComparison.Ordinal)
                     && !sql.Contains("SCHEMATA", StringComparison.Ordinal) => _connection.Database,
                 var sql when sql.Contains("FROM information_schema.SCHEMATA", StringComparison.Ordinal) =>
@@ -237,10 +336,27 @@ public sealed class MySqlDatabaseModelFactoryTests
         {
             return CommandText switch
             {
+                var sql when sql.Contains("IS_SYSTEM_TIME_PERIOD_START", StringComparison.Ordinal) =>
+                    CreateNativeTemporalPeriodColumnsReader(),
+                var sql when sql.Contains("FROM information_schema.TRIGGERS", StringComparison.Ordinal) =>
+                    CreateTemporalTriggersReader(_connection.Scenario),
+                var sql when sql.Contains("TABLE_SCHEMA,", StringComparison.Ordinal)
+                    && sql.Contains("FROM information_schema.TABLES", StringComparison.Ordinal) =>
+                    CreatePhysicalTemporalTablesReader(_connection.Database),
+                var sql when sql.Contains("TABLE_SCHEMA,", StringComparison.Ordinal)
+                    && sql.Contains("FROM information_schema.COLUMNS", StringComparison.Ordinal) =>
+                    CreatePhysicalTemporalColumnsReader(_connection.Database),
+                var sql when sql.Contains("FROM information_schema.CHECK_CONSTRAINTS", StringComparison.Ordinal)
+                    && sql.Contains("JSON_VALID", StringComparison.OrdinalIgnoreCase) =>
+                    CreateJsonCheckConstraintsReader(),
+                var sql when sql.Contains("FROM information_schema.CHECK_CONSTRAINTS", StringComparison.Ordinal) =>
+                    CreateCheckConstraintsReader(),
+                var sql when sql.Contains("TABLE_TYPE = 'SEQUENCE'", StringComparison.Ordinal) =>
+                    CreateNativeSequenceNamesReader(),
                 var sql when sql.Contains("FROM information_schema.TABLES", StringComparison.Ordinal) =>
-                    CreateTablesReader(_connection.Database),
+                    CreateTablesReader(_connection.Database, _connection.Scenario),
                 var sql when sql.Contains("FROM information_schema.COLUMNS", StringComparison.Ordinal) =>
-                    CreateColumnsReader(_connection.Database),
+                    CreateColumnsReader(_connection.Database, _connection.Scenario),
                 var sql when sql.Contains("CONSTRAINT_NAME = 'PRIMARY'", StringComparison.Ordinal) =>
                     CreatePrimaryKeysReader(_connection.Database),
                 var sql when sql.Contains("CONSTRAINT_TYPE = 'UNIQUE'", StringComparison.Ordinal) =>
@@ -259,7 +375,8 @@ public sealed class MySqlDatabaseModelFactoryTests
         }
 
         private static DataTableReader CreateTablesReader(
-            string databaseName
+            string databaseName,
+            ScaffoldingScenario scenario
         )
         {
             var table = new DataTable();
@@ -269,7 +386,32 @@ public sealed class MySqlDatabaseModelFactoryTests
             table.Columns.Add("ENGINE", typeof(string));
             table.Columns.Add("TABLE_TYPE", typeof(string));
 
-            if (databaseName == "principal_database")
+            if (scenario == ScaffoldingScenario.NativeMariaDbTemporal)
+            {
+                table.Rows.Add(
+                    "audit_entries",
+                    "utf8mb4_general_ci",
+                    DBNull.Value,
+                    "InnoDB",
+                    "SYSTEM VERSIONED");
+            }
+            else if (scenario is ScaffoldingScenario.MySqlTemporalEmulation
+                     or ScaffoldingScenario.IncompleteMySqlTemporalEmulation)
+            {
+                table.Rows.Add(
+                    "audit_entries",
+                    "utf8mb4_0900_ai_ci",
+                    DBNull.Value,
+                    "InnoDB",
+                    "BASE TABLE");
+                table.Rows.Add(
+                    "audit_entries_history",
+                    "utf8mb4_0900_ai_ci",
+                    DBNull.Value,
+                    "InnoDB",
+                    "BASE TABLE");
+            }
+            else if (databaseName == "principal_database")
             {
                 table.Rows.Add(
                     "principal_table",
@@ -306,8 +448,143 @@ public sealed class MySqlDatabaseModelFactoryTests
             return table.CreateDataReader();
         }
 
-        private static DataTableReader CreateColumnsReader(
+        private static DataTableReader CreateNativeTemporalPeriodColumnsReader()
+        {
+            var table = new DataTable();
+            table.Columns.Add("TABLE_NAME", typeof(string));
+            table.Columns.Add("COLUMN_NAME", typeof(string));
+            table.Columns.Add("IS_SYSTEM_TIME_PERIOD_START", typeof(string));
+            table.Columns.Add("IS_SYSTEM_TIME_PERIOD_END", typeof(string));
+            table.Rows.Add("audit_entries", "ValidFrom", "YES", "NO");
+            table.Rows.Add("audit_entries", "ValidTo", "NO", "YES");
+
+            return table.CreateDataReader();
+        }
+
+        private static DataTableReader CreateTemporalTriggersReader(
+            ScaffoldingScenario scenario
+        )
+        {
+            var table = new DataTable();
+            table.Columns.Add("TRIGGER_NAME", typeof(string));
+            table.Columns.Add("EVENT_MANIPULATION", typeof(string));
+            table.Columns.Add("EVENT_OBJECT_TABLE", typeof(string));
+            table.Columns.Add("ACTION_TIMING", typeof(string));
+            table.Columns.Add("ACTION_STATEMENT", typeof(string));
+
+            if (scenario is not ScaffoldingScenario.MySqlTemporalEmulation
+                and not ScaffoldingScenario.IncompleteMySqlTemporalEmulation)
+            {
+                return table.CreateDataReader();
+            }
+
+            var marker = MySqlTemporalMetadata.CreateEmulationMarker(
+                null,
+                "audit_entries_history",
+                "ValidFrom",
+                "ValidTo");
+            var insertBody =
+                $"BEGIN /* {marker} */ "
+                + "SET NEW.`ValidFrom` = UTC_TIMESTAMP(6); "
+                + "SET NEW.`ValidTo` = '9999-12-31 23:59:59.999999'; END";
+            var updateBody =
+                $"BEGIN /* {marker} */ "
+                + "DECLARE __doka_temporal_timestamp datetime(6); "
+                + "SET __doka_temporal_timestamp = UTC_TIMESTAMP(6); "
+                + "INSERT INTO `audit_entries_history` "
+                + "(`Id`, `Name`, `ValidFrom`, `ValidTo`) "
+                + "VALUES (OLD.`Id`, OLD.`Name`, OLD.`ValidFrom`, __doka_temporal_timestamp); "
+                + "SET NEW.`ValidFrom` = __doka_temporal_timestamp; "
+                + "SET NEW.`ValidTo` = '9999-12-31 23:59:59.999999'; END";
+
+            table.Rows.Add(
+                MySqlTemporalMetadata.CreateTriggerName(null, "audit_entries", "insert"),
+                "INSERT",
+                "audit_entries",
+                "BEFORE",
+                insertBody);
+            table.Rows.Add(
+                MySqlTemporalMetadata.CreateTriggerName(null, "audit_entries", "update"),
+                "UPDATE",
+                "audit_entries",
+                "BEFORE",
+                updateBody);
+
+            if (scenario == ScaffoldingScenario.MySqlTemporalEmulation)
+            {
+                var deleteBody =
+                    $"BEGIN /* {marker} */ "
+                    + "DECLARE __doka_temporal_timestamp datetime(6); "
+                    + "SET __doka_temporal_timestamp = UTC_TIMESTAMP(6); "
+                    + "INSERT INTO `audit_entries_history` "
+                    + "(`Id`, `Name`, `ValidFrom`, `ValidTo`) "
+                    + "VALUES (OLD.`Id`, OLD.`Name`, OLD.`ValidFrom`, __doka_temporal_timestamp); END";
+
+                table.Rows.Add(
+                    MySqlTemporalMetadata.CreateTriggerName(null, "audit_entries", "delete"),
+                    "DELETE",
+                    "audit_entries",
+                    "BEFORE",
+                    deleteBody);
+            }
+
+            return table.CreateDataReader();
+        }
+
+        private static DataTableReader CreatePhysicalTemporalTablesReader(
             string databaseName
+        )
+        {
+            var table = new DataTable();
+            table.Columns.Add("TABLE_SCHEMA", typeof(string));
+            table.Columns.Add("TABLE_NAME", typeof(string));
+            table.Columns.Add("ENGINE", typeof(string));
+            table.Columns.Add("TABLE_TYPE", typeof(string));
+            table.Rows.Add(databaseName, "audit_entries", "InnoDB", "BASE TABLE");
+            table.Rows.Add(databaseName, "audit_entries_history", "InnoDB", "BASE TABLE");
+
+            return table.CreateDataReader();
+        }
+
+        private static DataTableReader CreatePhysicalTemporalColumnsReader(
+            string databaseName
+        )
+        {
+            var table = new DataTable();
+            table.Columns.Add("TABLE_SCHEMA", typeof(string));
+            table.Columns.Add("TABLE_NAME", typeof(string));
+            table.Columns.Add("COLUMN_NAME", typeof(string));
+            table.Columns.Add("COLUMN_TYPE", typeof(string));
+            table.Columns.Add("IS_NULLABLE", typeof(string));
+            table.Columns.Add("EXTRA", typeof(string));
+            table.Columns.Add("GENERATION_EXPRESSION", typeof(string));
+
+            AddPhysicalTemporalColumns(table, databaseName, "audit_entries");
+            AddPhysicalTemporalColumns(table, databaseName, "audit_entries_history");
+
+            return table.CreateDataReader();
+        }
+
+        private static DataTableReader CreateJsonCheckConstraintsReader()
+        {
+            var table = new DataTable();
+            table.Columns.Add("TABLE_NAME", typeof(string));
+            table.Columns.Add("CHECK_CLAUSE", typeof(string));
+
+            return table.CreateDataReader();
+        }
+
+        private static DataTableReader CreateNativeSequenceNamesReader()
+        {
+            var table = new DataTable();
+            table.Columns.Add("TABLE_NAME", typeof(string));
+
+            return table.CreateDataReader();
+        }
+
+        private static DataTableReader CreateColumnsReader(
+            string databaseName,
+            ScaffoldingScenario scenario
         )
         {
             var table = new DataTable();
@@ -321,6 +598,22 @@ public sealed class MySqlDatabaseModelFactoryTests
             table.Columns.Add("GENERATION_EXPRESSION", typeof(string));
             table.Columns.Add("COLUMN_COMMENT", typeof(string));
             table.Columns.Add("COLLATION_NAME", typeof(string));
+
+            if (scenario is ScaffoldingScenario.NativeMariaDbTemporal)
+            {
+                AddTemporalColumns(table, "audit_entries", "timestamp(6)", "timestamp");
+
+                return table.CreateDataReader();
+            }
+
+            if (scenario is ScaffoldingScenario.MySqlTemporalEmulation
+                or ScaffoldingScenario.IncompleteMySqlTemporalEmulation)
+            {
+                AddTemporalColumns(table, "audit_entries", "datetime(6)", "datetime");
+                AddTemporalColumns(table, "audit_entries_history", "datetime(6)", "datetime");
+
+                return table.CreateDataReader();
+            }
 
             if (databaseName == "principal_database")
             {
@@ -534,6 +827,92 @@ public sealed class MySqlDatabaseModelFactoryTests
                 DBNull.Value,
                 DBNull.Value,
                 DBNull.Value,
+                DBNull.Value,
+                DBNull.Value);
+        }
+
+        private static void AddTemporalColumns(
+            DataTable table,
+            string tableName,
+            string periodColumnType,
+            string periodDataType
+        )
+        {
+            table.Rows.Add(
+                tableName,
+                "Id",
+                "NO",
+                "int",
+                "int",
+                DBNull.Value,
+                DBNull.Value,
+                DBNull.Value,
+                DBNull.Value,
+                DBNull.Value);
+            table.Rows.Add(
+                tableName,
+                "Name",
+                "NO",
+                "varchar(64)",
+                "varchar",
+                DBNull.Value,
+                DBNull.Value,
+                DBNull.Value,
+                DBNull.Value,
+                "utf8mb4_0900_ai_ci");
+            table.Rows.Add(
+                tableName,
+                "ValidFrom",
+                "NO",
+                periodColumnType,
+                periodDataType,
+                DBNull.Value,
+                DBNull.Value,
+                DBNull.Value,
+                DBNull.Value,
+                DBNull.Value);
+            table.Rows.Add(
+                tableName,
+                "ValidTo",
+                "NO",
+                periodColumnType,
+                periodDataType,
+                DBNull.Value,
+                DBNull.Value,
+                DBNull.Value,
+                DBNull.Value,
+                DBNull.Value);
+        }
+
+        private static void AddPhysicalTemporalColumns(
+            DataTable table,
+            string databaseName,
+            string tableName
+        )
+        {
+            table.Rows.Add(databaseName, tableName, "Id", "int", "NO", DBNull.Value, DBNull.Value);
+            table.Rows.Add(
+                databaseName,
+                tableName,
+                "Name",
+                "varchar(64)",
+                "NO",
+                DBNull.Value,
+                DBNull.Value);
+            table.Rows.Add(
+                databaseName,
+                tableName,
+                "ValidFrom",
+                "datetime(6)",
+                "NO",
+                DBNull.Value,
+                DBNull.Value);
+            table.Rows.Add(
+                databaseName,
+                tableName,
+                "ValidTo",
+                "datetime(6)",
+                "NO",
                 DBNull.Value,
                 DBNull.Value);
         }

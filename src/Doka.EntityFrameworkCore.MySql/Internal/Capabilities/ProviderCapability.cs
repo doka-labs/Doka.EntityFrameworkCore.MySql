@@ -13,6 +13,8 @@ internal enum ProviderCapability
     VirtualGeneratedColumns,
     StoredGeneratedColumns,
     SpatialColumnSridAttribute,
+    CommonTableExpressions,
+    TemporalTables,
     Sequences,
     RenameColumn,
     LateralDerivedTables,

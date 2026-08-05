@@ -36,6 +36,15 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
         ArgumentNullException.ThrowIfNull(entityType);
         ArgumentNullException.ThrowIfNull(annotations);
 
+        // The model-code generator emits the temporal contract through the strongly
+        // typed table-builder API. Removing these annotations here prevents a second,
+        // provider-internal HasAnnotation representation from leaking into user code.
+        annotations.Remove(MySqlAnnotationNames.IsTemporal);
+        annotations.Remove(MySqlAnnotationNames.TemporalHistoryTableName);
+        annotations.Remove(MySqlAnnotationNames.TemporalHistoryTableSchema);
+        annotations.Remove(MySqlAnnotationNames.TemporalPeriodStartPropertyName);
+        annotations.Remove(MySqlAnnotationNames.TemporalPeriodEndPropertyName);
+
         var fragments = base
             .GenerateFluentApiCalls(entityType, annotations)
             .ToList();

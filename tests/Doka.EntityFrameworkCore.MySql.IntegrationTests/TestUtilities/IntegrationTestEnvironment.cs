@@ -21,6 +21,25 @@ internal static class IntegrationTestEnvironment
             .ConnectionString;
     }
 
+    /// <summary>
+    /// Returns the provider version that exactly matches an integration target.
+    /// </summary>
+    /// <param name="target">The live database target.</param>
+    /// <returns>The provider version used to build the target-specific service graph.</returns>
+    public static MySqlServerVersion GetServerVersion(
+        IntegrationDatabaseTarget target
+    ) => target switch
+    {
+        IntegrationDatabaseTarget.MySql80 => MySqlServerVersion.MySql(new Version(8, 0, 0)),
+        IntegrationDatabaseTarget.MySql84 => MySqlServerVersion.MySql(new Version(8, 4, 0)),
+        IntegrationDatabaseTarget.MariaDb114 => MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+        IntegrationDatabaseTarget.MariaDb118 => MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(target),
+            target,
+            $"Unsupported integration target: {target}"),
+    };
+
     public static bool IsTargetSelected(
         IntegrationDatabaseTarget target
     ) => GetSelectedTargets().Contains(target);
