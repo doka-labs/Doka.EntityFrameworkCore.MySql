@@ -11,6 +11,7 @@ import json
 import math
 import os
 import platform
+import re
 import statistics
 import subprocess
 import sys
@@ -2306,6 +2307,11 @@ def validate_bdn_reports(
             "Configuration",
         ):
             required_string(host, key, f"BDN report '{report_path}'.HostEnvironmentInfo")
+        required_positive_integer(
+            host,
+            "LogicalCoreCount",
+            f"BDN report '{report_path}'.HostEnvironmentInfo",
+        )
 
         fingerprint = json.dumps(host, sort_keys=True, separators=(",", ":"))
         host_fingerprints.add(hashlib.sha256(fingerprint.encode("utf-8")).hexdigest())
@@ -3447,14 +3453,52 @@ def validate_host_workload_binding(
             )
 
 
+def canonical_processor_identity(value: Any, name: str) -> tuple[str, ...]:
+    """Extract model tokens shared by OS and CPUID processor descriptions.
+
+    Linux exposes a processor model through ``/proc/cpuinfo``, while BenchmarkDotNet
+    reads the CPUID brand string. Hosted runners can therefore describe one processor
+    as either ``96-Core Processor`` or its current clock frequency. Those descriptors
+    are not model identity and must not invalidate otherwise bound same-run evidence.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise PerformanceEvidenceError(f"{name} must be a non-empty string.")
+
+    normalized = value.casefold()
+    normalized = re.sub(r"\((?:c|r|tm)\)", " ", normalized)
+    normalized = re.sub(r"\b\d+\s*-\s*core\b", " ", normalized)
+    normalized = re.sub(r"\b\d+(?:\.\d+)?\s*(?:ghz|mhz)\b", " ", normalized)
+    tokens = tuple(
+        token
+        for token in re.findall(r"[a-z0-9]+", normalized)
+        if token not in {"cpu", "processor"}
+    )
+    if not tokens:
+        raise PerformanceEvidenceError(f"{name} contains no model identity.")
+
+    return tokens
+
+
 def validate_bdn_workload_environment(
     bdn_host: dict[str, Any],
     workload_environment: dict[str, Any],
 ) -> None:
     """Reject same-run controls produced on a different processor or architecture."""
-    if bdn_host.get("ProcessorName") != workload_environment.get("processor"):
+    benchmark_processor = canonical_processor_identity(
+        bdn_host.get("ProcessorName"),
+        "BenchmarkDotNet processor",
+    )
+    workload_processor = canonical_processor_identity(
+        workload_environment.get("processor"),
+        "workload processor",
+    )
+    if benchmark_processor != workload_processor:
         raise PerformanceEvidenceError(
             "BenchmarkDotNet and workload evidence report different processors."
+        )
+    if bdn_host.get("LogicalCoreCount") != workload_environment.get("processorCount"):
+        raise PerformanceEvidenceError(
+            "BenchmarkDotNet and workload evidence report different logical processor counts."
         )
     if bdn_host.get("Architecture") != workload_environment.get("processArchitecture"):
         raise PerformanceEvidenceError(

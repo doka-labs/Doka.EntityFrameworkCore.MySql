@@ -1240,6 +1240,46 @@ class PerformanceEvidenceTests(unittest.TestCase):
                 environment,
             )
 
+    def test_benchmarkdotnet_host_accepts_equivalent_processor_descriptions(self) -> None:
+        """Accept the OS and CPUID descriptions emitted for one hosted-runner CPU."""
+        descriptions = (
+            (
+                "AMD EPYC 9V74 96-Core Processor",
+                "AMD EPYC 9V74 2.87GHz",
+            ),
+            (
+                "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+                "Intel Xeon Platinum 8370C 2.80GHz",
+            ),
+        )
+        for target in ("mysql84", "mariadb118"):
+            for operating_system_name, benchmark_dotnet_name in descriptions:
+                with self.subTest(target=target, processor=operating_system_name):
+                    environment = self._workload_report(target)["environment"]
+                    environment["processor"] = operating_system_name
+                    bdn_host = self._bdn_report()["HostEnvironmentInfo"]
+                    bdn_host["ProcessorName"] = benchmark_dotnet_name
+
+                    performance_evidence.validate_bdn_workload_environment(
+                        bdn_host,
+                        environment,
+                    )
+
+    def test_benchmarkdotnet_host_must_match_logical_processor_count(self) -> None:
+        """Reject same-model evidence captured with a different effective CPU count."""
+        environment = self._workload_report("mysql84")["environment"]
+        bdn_host = self._bdn_report()["HostEnvironmentInfo"]
+        bdn_host["LogicalCoreCount"] += 1
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "different logical processor counts",
+        ):
+            performance_evidence.validate_bdn_workload_environment(
+                bdn_host,
+                environment,
+            )
+
     def test_seed_requires_both_engine_targets(self) -> None:
         """Reject a baseline seed that could hide one representative engine family."""
         with tempfile.TemporaryDirectory(prefix="doka-performance-seed-") as directory:
@@ -1786,6 +1826,9 @@ class PerformanceEvidenceTests(unittest.TestCase):
                 "BenchmarkDotNetVersion": "0.15.8",
                 "OsVersion": "test",
                 "ProcessorName": "test CPU",
+                "PhysicalProcessorCount": 1,
+                "PhysicalCoreCount": 4,
+                "LogicalCoreCount": 8,
                 "RuntimeVersion": ".NET 10",
                 "Architecture": "X64",
                 "Configuration": "RELEASE",
