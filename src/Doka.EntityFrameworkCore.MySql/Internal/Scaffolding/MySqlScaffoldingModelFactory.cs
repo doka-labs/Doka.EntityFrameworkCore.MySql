@@ -145,6 +145,11 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
                 table,
                 entityBuilders[table],
                 entityPropertyBuilders);
+
+            ApplyApplicationTimeConfiguration(
+                table,
+                entityBuilders[table],
+                entityPropertyBuilders);
         }
 
         foreach (var table in sortedTables)
@@ -163,6 +168,13 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
                     {
                         primaryKeyBuilder.HasName(table.PrimaryKey.Name);
                     }
+
+                    if (table.PrimaryKey.FindAnnotation(
+                            MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps)
+                            ?.Value is true)
+                    {
+                        primaryKeyBuilder.UseWithoutOverlaps();
+                    }
                 }
             }
 
@@ -177,6 +189,13 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
                     if (!string.IsNullOrWhiteSpace(uniqueConstraint.Name))
                     {
                         alternateKeyBuilder.HasName(uniqueConstraint.Name);
+                    }
+
+                    if (uniqueConstraint.FindAnnotation(
+                            MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps)
+                            ?.Value is true)
+                    {
+                        alternateKeyBuilder.UseWithoutOverlaps();
                     }
                 }
             }
@@ -225,6 +244,12 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
                 if (index.IsUnique)
                 {
                     indexBuilder.IsUnique();
+                }
+
+                if (index.FindAnnotation(MySqlAnnotationNames.ApplicationTimeIndexWithoutOverlaps)
+                        ?.Value is true)
+                {
+                    indexBuilder.UseWithoutOverlaps();
                 }
 
                 if (index.IsDescending is { Count: > 0 }
@@ -406,6 +431,58 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
             entityBuilder.Metadata.SetMySqlTemporalHistoryTableSchema(historyTableSchema);
         }
     }
+
+    private static void ApplyApplicationTimeConfiguration(
+        DatabaseTable table,
+        EntityTypeBuilder entityBuilder,
+        Dictionary<(DatabaseTable Table, DatabaseColumn Column), PropertyBuilder> propertyBuilders
+    )
+    {
+        if (table.FindAnnotation(MySqlAnnotationNames.IsApplicationTime)
+                ?.Value is not true)
+        {
+            return;
+        }
+
+        var periodName = RequireApplicationTimeAnnotation(table, MySqlAnnotationNames.ApplicationTimePeriodName);
+
+        var periodStartColumnName = RequireApplicationTimeAnnotation(
+            table,
+            MySqlAnnotationNames.ApplicationTimePeriodStartColumn);
+
+        var periodEndColumnName = RequireApplicationTimeAnnotation(
+            table,
+            MySqlAnnotationNames.ApplicationTimePeriodEndColumn);
+
+        var periodStartColumn = table.Columns.Single(column => string.Equals(
+            column.Name,
+            periodStartColumnName,
+            StringComparison.Ordinal));
+
+        var periodEndColumn = table.Columns.Single(column => string.Equals(
+            column.Name,
+            periodEndColumnName,
+            StringComparison.Ordinal));
+
+        var periodStartProperty = propertyBuilders[(table, periodStartColumn)];
+        var periodEndProperty = propertyBuilders[(table, periodEndColumn)];
+
+        entityBuilder.Metadata.SetMySqlApplicationTime(true);
+        entityBuilder.Metadata.SetMySqlApplicationTimePeriodName(periodName);
+        entityBuilder.Metadata.SetMySqlApplicationTimePeriodStartPropertyName(periodStartProperty.Metadata.Name);
+        entityBuilder.Metadata.SetMySqlApplicationTimePeriodEndPropertyName(periodEndProperty.Metadata.Name);
+        periodStartProperty.ValueGeneratedNever();
+        periodEndProperty.ValueGeneratedNever();
+    }
+
+    private static string RequireApplicationTimeAnnotation(
+        DatabaseTable table,
+        string annotationName
+    ) => table.FindAnnotation(annotationName)?.Value as string is { } value
+        && !string.IsNullOrWhiteSpace(value)
+            ? value
+            : throw new InvalidOperationException(
+                $"Application-time table '{table.Name}' does not define required annotation '{annotationName}'.");
 
     private static void ApplyColumnConfiguration(
         PropertyBuilder propertyBuilder,

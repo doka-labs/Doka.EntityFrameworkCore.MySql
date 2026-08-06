@@ -151,10 +151,10 @@ probes, and re-evaluation triggers.
   exact image and endpoint evidence.
 - Version-bound inventories enumerate all 327 official compliance bases for
   EF Core 10.0.8 and 10.0.10.
-- Exact EF Core 10.0.8 discovery contracts contain 29,745 MySQL 8.4 tests,
-  29,409 MariaDB 11.4 tests, and 29,410 MariaDB 11.8 tests.
-- Exact EF Core 10.0.10 discovery contracts contain 29,753 MySQL 8.4 tests,
-  29,417 MariaDB 11.4 tests, and 29,418 MariaDB 11.8 tests.
+- Exact EF Core 10.0.8 discovery contracts contain 29,746 MySQL 8.4 tests,
+  29,410 MariaDB 11.4 tests, and 29,411 MariaDB 11.8 tests.
+- Exact EF Core 10.0.10 discovery contracts contain 29,754 MySQL 8.4 tests,
+  29,418 MariaDB 11.4 tests, and 29,419 MariaDB 11.8 tests.
 - A classification-drift gate proves that every test below the provider's
   `Specification` namespace carries `Category=Spec`; this prevents an
   unclassified official fixture from silently escaping the release matrix.

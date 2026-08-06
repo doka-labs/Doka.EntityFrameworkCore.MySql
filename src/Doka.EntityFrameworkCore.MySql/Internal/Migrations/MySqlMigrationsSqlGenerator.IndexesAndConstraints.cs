@@ -2,6 +2,77 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed partial class MySqlMigrationsSqlGenerator
 {
+    protected override void CreateTablePrimaryKeyConstraint(
+        CreateTableOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder
+    )
+    {
+        if (operation.PrimaryKey is not { } primaryKey
+            || !TryGetApplicationTimeMigrationContract(
+                primaryKey,
+                operation.Name,
+                sourceContract: false,
+                out var contract)
+            || contract is null)
+        {
+            base.CreateTablePrimaryKeyConstraint(operation, model, builder);
+            return;
+        }
+
+        // The base CREATE TABLE path owns the separator before each table
+        // constraint. This override renders the constraint itself, so it must
+        // preserve that framing before adding MariaDB's period-qualified key.
+        builder.AppendLine(",");
+        AppendApplicationTimePrimaryKey(primaryKey, contract, builder);
+    }
+
+    protected override void PrimaryKeyConstraint(
+        AddPrimaryKeyOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder
+    )
+    {
+        if (!TryGetApplicationTimeMigrationContract(operation, operation.Table, sourceContract: false, out var contract)
+            || contract is null)
+        {
+            base.PrimaryKeyConstraint(operation, model, builder);
+            return;
+        }
+
+        AppendApplicationTimePrimaryKey(operation, contract, builder);
+    }
+
+    protected override void UniqueConstraint(
+        AddUniqueConstraintOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder
+    )
+    {
+        var periodName = GetApplicationTimeConstraintPeriodName(operation);
+
+        if (periodName is null)
+        {
+            base.UniqueConstraint(operation, model, builder);
+            return;
+        }
+
+        if (operation.Name is not null)
+        {
+            builder
+                .Append("CONSTRAINT ")
+                .Append(DelimitMigrationIdentifier(operation.Name))
+                .Append(" ");
+        }
+
+        builder
+            .Append("UNIQUE (")
+            .Append(ColumnList(operation.Columns))
+            .Append(", ")
+            .Append(DelimitMigrationIdentifier(periodName))
+            .Append(" WITHOUT OVERLAPS)");
+    }
+
     protected override void Generate(
         CreateIndexOperation operation,
         IModel? model,
@@ -40,6 +111,14 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 .Append(" (");
 
             GenerateMySqlIndexColumnList(operation, builder);
+
+            if (GetApplicationTimeConstraintPeriodName(operation) is { } periodName)
+            {
+                builder
+                    .Append(", ")
+                    .Append(DelimitMigrationIdentifier(periodName))
+                    .Append(" WITHOUT OVERLAPS");
+            }
 
             builder.Append(")");
 

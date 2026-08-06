@@ -33,6 +33,10 @@ internal sealed partial class MySqlQuerySqlGenerator
     )
     {
         var selectExpression = deleteExpression.SelectExpression;
+        var applicationTimeTable = GetApplicationTimeMutationTable(
+            selectExpression,
+            deleteExpression.Table,
+            nameof(EntityFrameworkQueryableExtensions.ExecuteDelete));
 
         if (selectExpression.Offset is not null
             || selectExpression.Having is not null
@@ -46,8 +50,9 @@ internal sealed partial class MySqlQuerySqlGenerator
                     nameof(EntityFrameworkQueryableExtensions.ExecuteDelete)));
         }
 
-        var useSingleTableSyntax = selectExpression.Tables.Count == 1
-            && (selectExpression.Orderings.Count > 0 || selectExpression.Limit is not null);
+        var useSingleTableSyntax = applicationTimeTable is not null
+            || (selectExpression.Tables.Count == 1
+                && (selectExpression.Orderings.Count > 0 || selectExpression.Limit is not null));
 
         Sql.Append("DELETE");
 
@@ -62,7 +67,8 @@ internal sealed partial class MySqlQuerySqlGenerator
 
         if (useSingleTableSyntax)
         {
-            _unqualifiedTableAlias = selectExpression.Tables[0].Alias;
+            _unqualifiedTableAlias = applicationTimeTable?.Alias
+                ?? selectExpression.Tables[0].Alias;
         }
 
         VisitTableSources(selectExpression.Tables);
@@ -101,6 +107,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         finally
         {
             _mutationTargetTable = previousTargetTable;
+            _unqualifiedTableAlias = null;
         }
     }
 
@@ -109,6 +116,10 @@ internal sealed partial class MySqlQuerySqlGenerator
     )
     {
         var selectExpression = updateExpression.SelectExpression;
+        var applicationTimeTable = GetApplicationTimeMutationTable(
+            selectExpression,
+            updateExpression.Table,
+            nameof(EntityFrameworkQueryableExtensions.ExecuteUpdate));
 
         if (selectExpression.Offset is not null
             || selectExpression.Having is not null
@@ -123,7 +134,12 @@ internal sealed partial class MySqlQuerySqlGenerator
 
         Sql.Append("UPDATE ");
 
-        if (selectExpression.Tables.Count > 1)
+        if (applicationTimeTable is not null)
+        {
+            _unqualifiedTableAlias = applicationTimeTable.Alias;
+            Visit(applicationTimeTable);
+        }
+        else if (selectExpression.Tables.Count > 1)
         {
             var tables = selectExpression.Tables;
             var targetOccursInSource = tables.Any(table =>
@@ -176,6 +192,35 @@ internal sealed partial class MySqlQuerySqlGenerator
         GenerateLimitOffset(selectExpression);
 
         return updateExpression;
+    }
+
+    private static TableExpression? GetApplicationTimeMutationTable(
+        SelectExpression selectExpression,
+        TableExpression targetTable,
+        string operationName
+    )
+    {
+        var finder = new ApplicationTimeTableFindingExpressionVisitor();
+        finder.Visit(selectExpression);
+
+        if (finder.Tables.Count == 0)
+        {
+            return null;
+        }
+
+        if (finder.Tables.Count != 1
+            || selectExpression.Tables is not [TableExpression applicationTimeTable]
+            || !ReferenceEquals(finder.Tables[0], applicationTimeTable)
+            || applicationTimeTable.Name != targetTable.Name
+            || applicationTimeTable.Schema != targetTable.Schema)
+        {
+            throw new InvalidOperationException(
+                $"{operationName} with FOR PORTION OF requires one directly mapped mutation table. "
+                + "Joins, derived tables and multi-table inheritance mutations are not valid "
+                + "MariaDB application-time DML shapes.");
+        }
+
+        return applicationTimeTable;
     }
 
     private void VisitTableSources(
@@ -234,6 +279,24 @@ internal sealed partial class MySqlQuerySqlGenerator
             }
 
             return Found ? node : base.VisitExtension(node);
+        }
+    }
+
+    private sealed class ApplicationTimeTableFindingExpressionVisitor : ExpressionVisitor
+    {
+        public List<TableExpression> Tables { get; } = [];
+
+        protected override Expression VisitExtension(
+            Expression node
+        )
+        {
+            if (node is TableExpression table
+                && table.FindAnnotation(MySqlAnnotationNames.ApplicationTimeOperation)?.Value is true)
+            {
+                Tables.Add(table);
+            }
+
+            return base.VisitExtension(node);
         }
     }
 }

@@ -68,7 +68,7 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
 | Engine | Versions | Native JSON | Native sequences | `RETURNING` | CTEs | Temporal tables |
 | --- | --- | --- | --- | --- | --- | --- |
 | MySQL | 8.4 LTS | yes | emulated (table) | no (engine limitation) | native | emulated (InnoDB history and triggers) |
-| MariaDB | 11.4 LTS, 11.8 LTS | alias | yes (10.3+) | yes (10.5+) | native | native system versioning |
+| MariaDB | 11.4 LTS, 11.8 LTS | alias | yes (10.3+) | yes (10.5+) | native | native system, application, and bitemporal |
 
 Engine facts and provider support are separate internal contracts. Runtime
 diagnostics report each provider capability as `Native`, `Emulated`, or
@@ -117,8 +117,14 @@ Non-recursive and recursive CTEs compose through EF Core's parameterized
 SQL. MariaDB 11.4 and 11.8 do not, which is reported as an engine boundary
 rather than a provider limitation.
 
-See [Temporal tables and common table expressions](docs/temporal-tables-and-ctes.md)
-for the complete contract, schema-safety rules, examples, and primary sources.
+See [Temporal tables](docs/temporal-tables.md) and
+[Common table expressions](docs/ctes.md) for the complete contracts,
+schema-safety rules, examples, and primary sources.
+
+MariaDB application-time and bitemporal tables additionally expose typed
+model, migration, scaffolding, and `FOR PORTION OF` update / delete contracts.
+MySQL reports these exact operations as engine limitations rather than a
+provider limitation.
 
 ## Quick Start
 
@@ -241,6 +247,20 @@ public class Document
 ```
 
 `JsonElement`, `JsonDocument`, `JsonNode`, `JsonObject`, and `JsonArray` are preserved end-to-end with embedded value converters and deep-equality value comparers. MariaDB columns are automatically emitted as `longtext COLLATE utf8mb4_bin CHECK (JSON_VALID(...))`, and scaffolding detects the alias back to `json`.
+
+### Complex types
+
+EF Core 10 complex types are supported as flattened columns or JSON documents
+on MySQL 8.4 and MariaDB 11.4 / 11.8 for CLR-backed shapes that EF Core can
+represent. Nested members, projections, materialization, updates, supported
+tracking shapes, reference-type JSON collections, compiled models, and
+precompiled `JSON_TABLE` expressions remain in the normal EF Core pipeline.
+The exact collection, property-value, shadow-property, inheritance, key, and
+index boundaries are documented separately so they are not confused with
+provider gaps.
+
+See [Complex types](docs/complex-types.md) for configuration examples, the
+support matrix, verification scope, and primary sources.
 
 ### JSON, regex, and full-text functions
 
@@ -452,11 +472,14 @@ MIT -- see [LICENSE](LICENSE).
 
 ## Further Reading
 
+- [Documentation index](docs/README.md)
 - [Release governance and diagnostics catalog](docs/release-governance.md)
 - [Operations and release runbook](docs/operations-runbook.md)
 - [Host integration examples](docs/host-integration-examples.md)
 - [External engine and EF Core limitations](docs/limitations.md)
-- [Temporal tables and common table expressions](docs/temporal-tables-and-ctes.md)
+- [Complex types](docs/complex-types.md)
+- [Temporal tables](docs/temporal-tables.md)
+- [Common table expressions](docs/ctes.md)
 - [Contributing](CONTRIBUTING.md)
 - [Support](SUPPORT.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)

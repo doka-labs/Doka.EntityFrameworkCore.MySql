@@ -116,6 +116,97 @@ public sealed class MySqlTemporalQueryTranslationTests
     }
 
     /// <summary>
+    /// Every table participating in a TPT query receives the same native system-time operation.
+    /// </summary>
+    [Theory]
+    [InlineData("AsOf")]
+    [InlineData("FromTo")]
+    [InlineData("Between")]
+    [InlineData("ContainedIn")]
+    [InlineData("All")]
+    public void MariaDb_tpt_temporal_queries_annotate_every_physical_table(
+        string operation
+    )
+    {
+        using var context = CreateTptContext(MySqlServerVersion.MariaDb(new Version(11, 4, 0)));
+
+        var sql = CreateTemporalQuery(context.Animals, operation)
+            .OfType<TptTemporalDog>()
+            .ToQueryString();
+
+        Assert.Contains("`TemporalAnimals` FOR SYSTEM_TIME", sql, StringComparison.Ordinal);
+        Assert.Contains("`TemporalDogs` FOR SYSTEM_TIME", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// MySQL emulation reads current and history rows for every table in a TPT query.
+    /// </summary>
+    [Theory]
+    [InlineData("AsOf")]
+    [InlineData("FromTo")]
+    [InlineData("Between")]
+    [InlineData("ContainedIn")]
+    [InlineData("All")]
+    public void MySql_tpt_temporal_queries_emulate_every_physical_table(
+        string operation
+    )
+    {
+        using var context = CreateTptContext(MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        var sql = CreateTemporalQuery(context.Animals, operation)
+            .OfType<TptTemporalDog>()
+            .ToQueryString();
+
+        Assert.Contains("FROM `TemporalAnimalsHistory`", sql, StringComparison.Ordinal);
+        Assert.Contains("FROM `TemporalDogsHistory`", sql, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(sql, "UNION ALL"));
+    }
+
+    /// <summary>
+    /// Every concrete TPC branch receives the native MariaDB system-time operation.
+    /// </summary>
+    [Theory]
+    [InlineData("AsOf")]
+    [InlineData("FromTo")]
+    [InlineData("Between")]
+    [InlineData("ContainedIn")]
+    [InlineData("All")]
+    public void MariaDb_tpc_temporal_queries_annotate_every_concrete_branch(
+        string operation
+    )
+    {
+        using var context = CreateTpcContext(MySqlServerVersion.MariaDb(new Version(11, 4, 0)));
+
+        var sql = CreateTemporalQuery(context.Animals, operation)
+            .ToQueryString();
+
+        Assert.Contains("`TemporalDogs` FOR SYSTEM_TIME", sql, StringComparison.Ordinal);
+        Assert.Contains("`TemporalCats` FOR SYSTEM_TIME", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// MySQL emulation reads current and history rows for every concrete TPC branch.
+    /// </summary>
+    [Theory]
+    [InlineData("AsOf")]
+    [InlineData("FromTo")]
+    [InlineData("Between")]
+    [InlineData("ContainedIn")]
+    [InlineData("All")]
+    public void MySql_tpc_temporal_queries_emulate_every_concrete_branch(
+        string operation
+    )
+    {
+        using var context = CreateTpcContext(MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        var sql = CreateTemporalQuery(context.Animals, operation)
+            .ToQueryString();
+
+        Assert.Contains("FROM `TemporalDogsHistory`", sql, StringComparison.Ordinal);
+        Assert.Contains("FROM `TemporalCatsHistory`", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Every temporal root is no-tracking before provider translation begins.
     /// </summary>
     [Fact]
@@ -174,10 +265,11 @@ public sealed class MySqlTemporalQueryTranslationTests
         Assert.Contains("non-temporal entity type", exception.Message, StringComparison.Ordinal);
     }
 
-    private static IQueryable<TemporalQueryRecord> CreateTemporalQuery(
-        DbSet<TemporalQueryRecord> source,
+    private static IQueryable<TEntity> CreateTemporalQuery<TEntity>(
+        DbSet<TEntity> source,
         string operation
-    ) => operation switch
+    )
+        where TEntity : class => operation switch
     {
         "AsOf" => source.TemporalAsOf(s_from),
         "FromTo" => source.TemporalFromTo(s_from, s_to),
@@ -215,6 +307,30 @@ public sealed class MySqlTemporalQueryTranslationTests
             .Options;
 
         return new TemporalQueryContext<TConfiguration>(options);
+    }
+
+    private static TptTemporalContext CreateTptContext(
+        MySqlServerVersion serverVersion
+    )
+    {
+        var options = new DbContextOptionsBuilder<TptTemporalContext>().UseMySql(
+                "Server=localhost;Database=doka;User ID=root;Password=password;",
+                serverVersion)
+            .Options;
+
+        return new TptTemporalContext(options);
+    }
+
+    private static TpcTemporalContext CreateTpcContext(
+        MySqlServerVersion serverVersion
+    )
+    {
+        var options = new DbContextOptionsBuilder<TpcTemporalContext>().UseMySql(
+                "Server=localhost;Database=doka;User ID=root;Password=password;",
+                serverVersion)
+            .Options;
+
+        return new TpcTemporalContext(options);
     }
 
     private interface ITemporalQueryConfiguration
@@ -288,5 +404,76 @@ public sealed class MySqlTemporalQueryTranslationTests
         public int Id { get; set; }
 
         public string Name { get; set; } = null!;
+    }
+
+    private sealed class TptTemporalContext : DbContext
+    {
+        public TptTemporalContext(
+            DbContextOptions<TptTemporalContext> options
+        ) : base(options) { }
+
+        public DbSet<TptTemporalAnimal> Animals => Set<TptTemporalAnimal>();
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<TptTemporalAnimal>(entity =>
+            {
+                entity.HasKey(animal => animal.Id);
+                entity.ToTable("TemporalAnimals", table => table.IsTemporal());
+            });
+
+            modelBuilder.Entity<TptTemporalDog>().ToTable("TemporalDogs");
+        }
+    }
+
+    private abstract class TptTemporalAnimal
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; } = null!;
+    }
+
+    private sealed class TptTemporalDog : TptTemporalAnimal
+    {
+        public string Breed { get; set; } = null!;
+    }
+
+    private sealed class TpcTemporalContext : DbContext
+    {
+        public TpcTemporalContext(
+            DbContextOptions<TpcTemporalContext> options
+        ) : base(options) { }
+
+        public DbSet<TpcTemporalAnimal> Animals => Set<TpcTemporalAnimal>();
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<TpcTemporalAnimal>().UseTpcMappingStrategy();
+            modelBuilder.Entity<TpcTemporalAnimal>().HasKey(animal => animal.Id);
+            modelBuilder.Entity<TpcTemporalDog>()
+                .ToTable("TemporalDogs", table => table.IsTemporal());
+            modelBuilder.Entity<TpcTemporalCat>().ToTable("TemporalCats");
+        }
+    }
+
+    private abstract class TpcTemporalAnimal
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; } = null!;
+    }
+
+    private sealed class TpcTemporalDog : TpcTemporalAnimal
+    {
+        public string Breed { get; set; } = null!;
+    }
+
+    private sealed class TpcTemporalCat : TpcTemporalAnimal
+    {
+        public int Lives { get; set; }
     }
 }

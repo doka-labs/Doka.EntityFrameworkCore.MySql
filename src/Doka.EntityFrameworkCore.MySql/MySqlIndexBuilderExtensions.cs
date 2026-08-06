@@ -6,6 +6,42 @@ namespace Doka.EntityFrameworkCore.MySql;
 public static class MySqlIndexBuilderExtensions
 {
     /// <summary>
+    /// Extends a unique index with the entity's application-time period by using
+    /// MariaDB's <c>WITHOUT OVERLAPS</c> constraint.
+    /// </summary>
+    /// <param name="indexBuilder">The index builder.</param>
+    /// <returns>The same <see cref="IndexBuilder"/> instance.</returns>
+    public static IndexBuilder UseWithoutOverlaps(
+        this IndexBuilder indexBuilder
+    )
+    {
+        ArgumentNullException.ThrowIfNull(indexBuilder);
+
+        indexBuilder.Metadata.SetMySqlApplicationTimeWithoutOverlaps(true);
+
+        return indexBuilder;
+    }
+
+    /// <summary>
+    /// Extends a unique index with the entity's application-time period by using
+    /// MariaDB's <c>WITHOUT OVERLAPS</c> constraint.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity CLR type.</typeparam>
+    /// <param name="indexBuilder">The index builder.</param>
+    /// <returns>The same <see cref="IndexBuilder{TEntity}"/> instance.</returns>
+    public static IndexBuilder<TEntity> UseWithoutOverlaps<TEntity>(
+        this IndexBuilder<TEntity> indexBuilder
+    )
+        where TEntity : class
+    {
+        ArgumentNullException.ThrowIfNull(indexBuilder);
+
+        ((IndexBuilder)indexBuilder).UseWithoutOverlaps();
+
+        return indexBuilder;
+    }
+
+    /// <summary>
     /// Configures the index as a full-text index.
     /// </summary>
     /// <param name="indexBuilder">The index builder.</param>

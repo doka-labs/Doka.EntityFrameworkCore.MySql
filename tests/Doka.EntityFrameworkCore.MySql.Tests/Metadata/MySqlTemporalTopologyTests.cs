@@ -81,35 +81,47 @@ public sealed class MySqlTemporalTopologyTests
     }
 
     /// <summary>
-    /// TPT temporal history cannot be reconstructed atomically across physical tables.
+    /// A TPT hierarchy gives every physical table an independent period contract.
     /// </summary>
     [Fact]
-    public void Tpt_hierarchy_is_rejected_explicitly()
+    public void Tpt_hierarchy_propagates_temporal_metadata_to_each_table()
     {
         using var context = CreateContext<TptConfiguration>();
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+        var root = context.Model.FindEntityType(typeof(TemporalAnimal))!;
+        var derived = context.Model.FindEntityType(typeof(TemporalDog))!;
+        var rootPeriodStart = root.GetMySqlTemporalPeriodStartPropertyName()!;
+        var derivedPeriodStart = derived.GetMySqlTemporalPeriodStartPropertyName()!;
+        var derivedStoreObject = StoreObjectIdentifier.Table("TemporalDogs", schema: null);
+        var baseLink = Assert.Single(derived.GetForeignKeys(), foreignKey => foreignKey.IsBaseLinking());
 
-        Assert.Contains(
-            "TPT and TPC temporal mappings are not supported",
-            exception.Message,
-            StringComparison.Ordinal);
+        Assert.True(root.IsMySqlTemporal());
+        Assert.True(derived.IsMySqlTemporal());
+        Assert.NotEqual(rootPeriodStart, derivedPeriodStart);
+        Assert.Equal(DeleteBehavior.NoAction, baseLink.DeleteBehavior);
+        Assert.Equal(
+            MySqlTemporalMetadata.DefaultPeriodStartPropertyName,
+            derived.FindProperty(derivedPeriodStart)!.GetColumnName(derivedStoreObject));
     }
 
     /// <summary>
-    /// TPC temporal history cannot be reconstructed as one entity timeline.
+    /// A temporal TPC branch makes every concrete union branch temporal.
     /// </summary>
     [Fact]
-    public void Tpc_hierarchy_is_rejected_explicitly()
+    public void Tpc_hierarchy_propagates_temporal_metadata_to_each_branch()
     {
         using var context = CreateContext<TpcConfiguration>();
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+        var dog = context.Model.FindEntityType(typeof(TemporalDog))!;
+        var cat = context.Model.FindEntityType(typeof(TemporalCat))!;
+        var catPeriodStart = cat.GetMySqlTemporalPeriodStartPropertyName()!;
+        var catStoreObject = StoreObjectIdentifier.Table("TemporalCats", schema: null);
 
-        Assert.Contains(
-            "TPT and TPC temporal mappings are not supported",
-            exception.Message,
-            StringComparison.Ordinal);
+        Assert.True(dog.IsMySqlTemporal());
+        Assert.True(cat.IsMySqlTemporal());
+        Assert.Equal(
+            MySqlTemporalMetadata.DefaultPeriodStartPropertyName,
+            cat.FindProperty(catPeriodStart)!.GetColumnName(catStoreObject));
     }
 
     private static TopologyContext<TConfiguration> CreateContext<TConfiguration>()
@@ -215,7 +227,7 @@ public sealed class MySqlTemporalTopologyTests
             modelBuilder.Entity<TemporalDog>()
                 .ToTable("TemporalDogs", table => table.IsTemporal());
             modelBuilder.Entity<TemporalCat>()
-                .ToTable("TemporalCats", table => table.IsTemporal());
+                .ToTable("TemporalCats");
         }
     }
 

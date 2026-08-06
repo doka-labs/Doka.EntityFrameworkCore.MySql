@@ -14,7 +14,7 @@ This document freezes the reviewable governance baseline for:
 The canonical operator sequence from a reviewed, green `main` commit through
 signed tagging, hosted qualification, NuGet readback, and immutable GitHub
 publication is maintained in the
-[operations runbook](operations-runbook.md#qualification-and-publication-procedure).
+[release publication runbook](operations/release-publication.md#qualification-and-publication-procedure).
 This document defines the underlying evidence and policy contracts; it does not
 replace that ordered release procedure.
 

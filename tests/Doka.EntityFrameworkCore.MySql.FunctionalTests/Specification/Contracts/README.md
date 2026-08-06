@@ -38,13 +38,13 @@ The baseline retrieved on 2026-07-27 recorded 9 implemented base mappings,
 are now closed: the repository validator reports provider suite debt `0/317`
 for both supported EF Core patch contracts.
 
-Discovery regenerated on 2026-07-30 records the complete concrete provider
+Discovery regenerated on 2026-08-05 records the complete concrete provider
 surface:
 
 | EF Core | MySQL 8.4 | MariaDB 11.4 | MariaDB 11.8 |
 | --- | ---: | ---: | ---: |
-| 10.0.8 | 29,745 | 29,409 | 29,410 |
-| 10.0.10 | 29,753 | 29,417 | 29,418 |
+| 10.0.8 | 29,746 | 29,410 | 29,411 |
+| 10.0.10 | 29,754 | 29,418 | 29,419 |
 
 Every target was executed in full on 2026-07-30:
 
@@ -57,11 +57,13 @@ Every target was executed in full on 2026-07-30:
 | 10.0.10 | MariaDB 11.4 | 28,715 | 702 | 0 | 29,417 |
 | 10.0.10 | MariaDB 11.8 | 28,717 | 701 | 0 | 29,418 |
 
-The exact TRX totals and display IDs matched the corresponding discovery
-contract. Every skip matched its ledger ID, method, and target; every other
-discovered test passed. The source contract also rejects inherited upstream
-skips unless the provider activates the assertion or records an executable
-framework disposition.
+Those exact TRX totals and display IDs matched the discovery contracts current
+on 2026-07-30. Every skip matched its ledger ID, method, and target; every other
+discovered test passed. The 2026-08-05 regeneration adds one repository-only
+documentation-consistency contract per target. The dated live matrix remains
+historical execution evidence and is not presented as a newer full-matrix run.
+The source contract also rejects inherited upstream skips unless the provider
+activates the assertion or records an executable framework disposition.
 
 The publication gate still calculates this state from the provider assembly.
 These figures are evidence, not a substitute for the zero-debt check.

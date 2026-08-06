@@ -5,8 +5,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 /// <remarks>
 /// Temporal state belongs to the physical table contract. The convention therefore
-/// propagates it across TPH mappings and convention-owned many-to-many join entities,
-/// while leaving explicit conflicting configuration for the validator to reject.
+/// propagates it across inheritance mappings and convention-owned many-to-many join
+/// entities, while leaving explicit conflicting configuration for the validator to reject.
 /// </remarks>
 internal sealed class MySqlTemporalConvention
     : IEntityTypeAnnotationChangedConvention,
@@ -126,8 +126,10 @@ internal sealed class MySqlTemporalConvention
             ?? throw new InvalidOperationException("The MySQL provider profile has not been initialized.");
         var support = profile.GetSupport(ProviderCapability.TemporalTables);
 
-        PropagateTemporalMappingToSingleTableHierarchies(modelBuilder.Metadata);
+        PropagateTemporalMappingToHierarchies(modelBuilder.Metadata);
+        NormalizeTemporalTptBaseLinks(modelBuilder.Metadata);
         PropagateTemporalMappingToImplicitJoinEntities(modelBuilder.Metadata);
+        NormalizeApplicationTimePrimaryKeys(modelBuilder.Metadata);
 
         foreach (var entityType in modelBuilder
                      .Metadata.GetEntityTypes()
@@ -142,65 +144,141 @@ internal sealed class MySqlTemporalConvention
         }
     }
 
-    private static void PropagateTemporalMappingToSingleTableHierarchies(
+    private static void NormalizeApplicationTimePrimaryKeys(
+        IConventionModel model
+    )
+    {
+        foreach (var entityType in model
+                     .GetEntityTypes()
+                     .Where(entityType => entityType.IsMySqlApplicationTime()
+                         && entityType.GetMySqlApplicationTimeWithoutOverlaps()))
+        {
+            entityType
+                .FindPrimaryKey()
+                ?.SetAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps, true);
+        }
+    }
+
+    private static void NormalizeTemporalTptBaseLinks(
+        IConventionModel model
+    )
+    {
+        foreach (var entityType in model
+                     .GetEntityTypes()
+                     .Where(entityType => entityType.IsMySqlTemporal()))
+        {
+            foreach (var foreignKey in entityType.GetForeignKeys())
+            {
+                var sharesPrincipalTable = string.Equals(
+                        entityType.GetTableName(),
+                        foreignKey.PrincipalEntityType.GetTableName(),
+                        StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(
+                        entityType.GetSchema(),
+                        foreignKey.PrincipalEntityType.GetSchema(),
+                        StringComparison.OrdinalIgnoreCase);
+
+                if (!foreignKey.IsBaseLinking()
+                    || sharesPrincipalTable
+                    || foreignKey.GetDeleteBehaviorConfigurationSource() != ConfigurationSource.Convention)
+                {
+                    continue;
+                }
+
+                // EF's conventional TPT base link normally cascades in the database. InnoDB
+                // does not activate table triggers for cascaded foreign-key actions. That
+                // default can therefore bypass emulated history and makes native history
+                // depend on an engine-specific cascade. NoAction preserves EF's explicit
+                // derived-before-base ordering across both engines. An explicit cascade
+                // remains visible to model validation instead of being silently rewritten.
+                foreignKey.SetDeleteBehavior(DeleteBehavior.NoAction, fromDataAnnotation: false);
+            }
+        }
+    }
+
+    private static void PropagateTemporalMappingToHierarchies(
         IConventionModel model
     )
     {
         foreach (var rootEntityType in model
                      .GetEntityTypes()
-                     .Where(entityType => entityType.BaseType is null && entityType.IsMySqlTemporal()))
+                     .Where(entityType => entityType.BaseType is null))
         {
-            var tableName = rootEntityType.GetTableName();
-            var schema = rootEntityType.GetSchema();
+            var hierarchy = rootEntityType
+                .GetDerivedTypesInclusive()
+                .ToArray();
 
-            if (tableName is null)
+            var temporalSource = hierarchy.FirstOrDefault(entityType => entityType.IsMySqlTemporal());
+
+            if (temporalSource is null)
             {
                 continue;
             }
 
-            foreach (var derivedEntityType in rootEntityType.GetDerivedTypes())
+            foreach (var hierarchyEntityType in hierarchy)
             {
-                if (!string.Equals(derivedEntityType.GetTableName(), tableName, StringComparison.OrdinalIgnoreCase)
-                    || !string.Equals(derivedEntityType.GetSchema(), schema, StringComparison.OrdinalIgnoreCase)
-                    || derivedEntityType.FindAnnotation(MySqlAnnotationNames.IsTemporal) is not null)
+                var tableName = hierarchyEntityType.GetTableName();
+
+                if (tableName is null
+                    || hierarchyEntityType.FindAnnotation(MySqlAnnotationNames.IsTemporal) is not null)
                 {
                     continue;
                 }
 
-                // A TPH hierarchy represents one physical row and therefore one temporal
-                // contract. An explicit annotation on a derived type is never overwritten,
-                // so conflicting user configuration still reaches the model validator.
-                CopyTemporalMapping(rootEntityType, (IMutableEntityType)derivedEntityType);
+                var sharesSourceTable =
+                    string.Equals(tableName, temporalSource.GetTableName(), StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(
+                        hierarchyEntityType.GetSchema(),
+                        temporalSource.GetSchema(),
+                        StringComparison.OrdinalIgnoreCase);
+
+                CopyTemporalMapping(temporalSource, (IMutableEntityType)hierarchyEntityType, sharesSourceTable);
             }
         }
     }
 
     private static void CopyTemporalMapping(
         IConventionEntityType source,
-        IMutableEntityType target
+        IMutableEntityType target,
+        bool sharesSourceTable
     )
     {
         target.SetMySqlTemporal(true);
 
-        if (target.GetMySqlTemporalHistoryTableName() is null)
+        if (sharesSourceTable && target.GetMySqlTemporalHistoryTableName() is null)
         {
             target.SetMySqlTemporalHistoryTableName(source.GetMySqlTemporalHistoryTableName());
         }
 
-        if (target.GetMySqlTemporalHistoryTableSchema() is null)
+        if (sharesSourceTable && target.GetMySqlTemporalHistoryTableSchema() is null)
         {
             target.SetMySqlTemporalHistoryTableSchema(source.GetMySqlTemporalHistoryTableSchema());
         }
 
-        if (target.GetMySqlTemporalPeriodStartPropertyName() is null)
+        if (sharesSourceTable)
         {
-            target.SetMySqlTemporalPeriodStartPropertyName(source.GetMySqlTemporalPeriodStartPropertyName());
+            if (target.GetMySqlTemporalPeriodStartPropertyName() is null)
+            {
+                target.SetMySqlTemporalPeriodStartPropertyName(source.GetMySqlTemporalPeriodStartPropertyName());
+            }
+
+            if (target.GetMySqlTemporalPeriodEndPropertyName() is null)
+            {
+                target.SetMySqlTemporalPeriodEndPropertyName(source.GetMySqlTemporalPeriodEndPropertyName());
+            }
+
+            return;
         }
 
-        if (target.GetMySqlTemporalPeriodEndPropertyName() is null)
-        {
-            target.SetMySqlTemporalPeriodEndPropertyName(source.GetMySqlTemporalPeriodEndPropertyName());
-        }
+        // A TPT row spans multiple physical tables. Each table must therefore own a
+        // separate period contract even though EF represents it as one entity hierarchy.
+        // TPC siblings also receive local metadata so every union branch is independently
+        // valid and can be queried without depending on another concrete table.
+        var tableName = target.GetTableName()!;
+        target.SetMySqlTemporalPeriodStartPropertyName(
+            MySqlTemporalMetadata.CreateHierarchyPeriodPropertyName(tableName, isStart: true));
+        target.SetMySqlTemporalPeriodEndPropertyName(
+            MySqlTemporalMetadata.CreateHierarchyPeriodPropertyName(tableName, isStart: false));
     }
 
     private static void PropagateTemporalMappingToImplicitJoinEntities(
@@ -272,6 +350,22 @@ internal sealed class MySqlTemporalConvention
     )
     {
         var property = entityType.FindProperty(propertyName) ?? entityType.AddProperty(propertyName, typeof(DateTime));
+
+        if (entityType.GetTableName() is { } tableName)
+        {
+            var storeObject = StoreObjectIdentifier.Table(tableName, entityType.GetSchema());
+            var columnName = propertyName.StartsWith(
+                MySqlTemporalMetadata.DefaultPeriodStartPropertyName + "_",
+                StringComparison.Ordinal)
+                ? MySqlTemporalMetadata.DefaultPeriodStartPropertyName
+                : propertyName.StartsWith(
+                    MySqlTemporalMetadata.DefaultPeriodEndPropertyName + "_",
+                    StringComparison.Ordinal)
+                    ? MySqlTemporalMetadata.DefaultPeriodEndPropertyName
+                    : propertyName;
+
+            property.SetColumnName(columnName, storeObject);
+        }
 
         // Native MariaDB period columns require TIMESTAMP, whereas the MySQL
         // history-trigger contract uses DATETIME to avoid session time-zone

@@ -40,6 +40,16 @@ internal sealed class MySqlNavigationExpansionExtensibilityHelper : NavigationEx
         EntityQueryRootExpression? source
     )
     {
+        if (source is MySqlApplicationTimeQueryRootExpression
+            && !entityType.IsMappedToJson()
+            && !OwnedEntityMappedToSameTableAsOwner(entityType))
+        {
+            throw new InvalidOperationException(
+                "FOR PORTION OF is a mutation-only table operation. Navigation expansion "
+                + "to a separately stored entity would require multi-table application-time DML, "
+                + "which MariaDB does not support.");
+        }
+
         if (source is MySqlTemporalQueryRootExpression temporalRoot
             && !entityType.IsMappedToJson()
             && !OwnedEntityMappedToSameTableAsOwner(entityType))
@@ -91,6 +101,24 @@ internal sealed class MySqlNavigationExpansionExtensibilityHelper : NavigationEx
             throw new InvalidOperationException(
                 $"Temporal set operations for entity type '{entityType!.DisplayName()}' "
                 + "require matching temporal operators and identical UTC boundaries.");
+        }
+
+        if (first is MySqlApplicationTimeQueryRootExpression firstApplicationTime
+            && second is MySqlApplicationTimeQueryRootExpression secondApplicationTime
+            && firstApplicationTime.From == secondApplicationTime.From
+            && firstApplicationTime.To == secondApplicationTime.To)
+        {
+            return true;
+        }
+
+        if (first is MySqlApplicationTimeQueryRootExpression
+            || second is MySqlApplicationTimeQueryRootExpression)
+        {
+            var entityType = first?.EntityType ?? second?.EntityType;
+
+            throw new InvalidOperationException(
+                $"Application-time set operations for entity type '{entityType!.DisplayName()}' "
+                + "require identical FOR PORTION OF boundaries.");
         }
 
         return true;

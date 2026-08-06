@@ -89,8 +89,13 @@ MariaDB 11.4 and 11.8 use `WITH SYSTEM VERSIONING`, `PERIOD FOR SYSTEM_TIME`,
 and `FOR SYSTEM_TIME` queries. MySQL 8.4 uses provider-owned history tables and
 triggers whose names, annotations, rollback behavior, and scaffolding contract
 are deterministic. Both routes share the same public metadata and query API.
-MariaDB application-time periods and bitemporal tables remain accessible by
-SQL, but are not mislabeled as the EF-style system-versioned contract.
+MariaDB application-time periods and bitemporal tables use a separate typed
+provider contract. Model-builder extensions configure the application period,
+`WITHOUT OVERLAPS`, and both dimensions of a bitemporal table. Migrations,
+reverse engineering, generated model code, and typed `FOR PORTION OF`
+`ExecuteUpdate` / `ExecuteDelete` roots preserve that contract. MySQL rejects
+these exact operations as engine limitations because MySQL 8.4 has no
+application-time period grammar.
 
 ### Consequences
 
@@ -100,12 +105,12 @@ SQL, but are not mislabeled as the EF-style system-versioned contract.
   pipeline instead of introducing string concatenation or a parallel query DSL.
 - Good, because temporal schema and query differences are isolated behind
   typed capabilities and annotations.
+- Good, because MariaDB application-time and bitemporal behavior is available
+  without raw SQL and round-trips through migrations and scaffolding.
 - Bad, because MySQL temporal emulation owns trigger correctness, schema-change
   safety, and history-table lifecycle.
 - Bad, because reverse engineering must inspect both native metadata and the
   provider's emulation markers.
-- Neutral, because application-time and bitemporal MariaDB features remain
-  valid engine SQL without becoming part of this provider abstraction.
 
 ### Confirmation
 
@@ -123,6 +128,9 @@ SQL, but are not mislabeled as the EF-style system-versioned contract.
   and exact cancellation-token forwarding.
 - Run scaffolding round trips for native MariaDB and provider-emulated MySQL
   schemas.
+- Run MariaDB 11.4 and 11.8 bitemporal contracts through generated DDL,
+  `PERIODS` and `KEY_PERIOD_USAGE` readback, generated model code, and typed
+  portion update and delete operations.
 - Run the complete unit, functional, integration, documentation, trimming, and
   release-candidate verification gates.
 
@@ -171,6 +179,8 @@ semantics instead of normalizing them into one approximate range operation.
 ### Decision History
 
 - 2026-08-04: Decision recorded with status accepted.
+- 2026-08-05: Added the typed MariaDB application-time and bitemporal contract,
+  including overlap constraints, reverse engineering, and portion mutations.
 
 ### Implementation References
 
@@ -208,7 +218,11 @@ semantics instead of normalizing them into one approximate range operation.
 - [MariaDB application-time periods](https://mariadb.com/docs/server/reference/sql-structure/temporal-tables/application-time-periods)
   (primary source; retrieved 2026-08-04)
 - [MariaDB bitemporal tables](https://mariadb.com/docs/server/reference/sql-structure/temporal-tables/bitemporal-tables)
-  (primary source; retrieved 2026-08-04)
+  (primary source; retrieved 2026-08-05)
+- [MariaDB PERIODS information-schema table](https://mariadb.com/docs/server/reference/system-tables/information-schema/information-schema-periods-table)
+  (primary source; retrieved 2026-08-05)
+- [MariaDB KEY_PERIOD_USAGE information-schema table](https://mariadb.com/docs/server/reference/system-tables/information-schema/information-schema-key_period_usage-table)
+  (primary source; retrieved 2026-08-05)
 - [MariaDB ALTER TABLE](https://mariadb.com/docs/server/reference/sql-statements/data-definition/alter/alter-table)
   (primary source; retrieved 2026-08-04)
 - [MariaDB SET STATEMENT](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/set-commands/set-statement)

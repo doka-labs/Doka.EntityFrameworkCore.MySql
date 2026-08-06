@@ -31,6 +31,11 @@ internal sealed record ProviderProfile(EngineProfile Engine)
             : Engine.Family == EngineFamily.MySql
                 ? ProviderSupportStatus.Emulated
                 : ProviderSupportStatus.UnsupportedByEngine,
+        ProviderCapability.ApplicationTimePeriods => NativeWhen(EngineCapability.ApplicationTimePeriods),
+        ProviderCapability.BitemporalTables => Engine.Has(EngineCapability.SystemVersionedTables)
+            && Engine.Has(EngineCapability.ApplicationTimePeriods)
+                ? ProviderSupportStatus.Native
+                : ProviderSupportStatus.UnsupportedByEngine,
         ProviderCapability.Sequences =>
             Engine.Has(EngineCapability.NativeSequences)
                 ? ProviderSupportStatus.Native

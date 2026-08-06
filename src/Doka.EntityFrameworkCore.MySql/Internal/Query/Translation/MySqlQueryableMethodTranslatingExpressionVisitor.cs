@@ -43,59 +43,49 @@ internal sealed class
         new MySqlQueryableMethodTranslatingExpressionVisitor(this);
 
     /// <summary>
-    /// Converts the public temporal query root into an ordinary relational select whose
-    /// table expressions carry the complete temporal operation. Deferring engine-specific
-    /// syntax to SQL generation keeps translation independent of the configured server family.
+    /// Converts provider query roots into ordinary relational selects whose table expressions
+    /// carry the engine-specific operation. Deferring syntax to SQL generation keeps query-root
+    /// translation independent of the configured server family.
     /// </summary>
     protected override Expression VisitExtension(
         Expression extensionExpression
     )
     {
+        if (extensionExpression is MySqlApplicationTimeQueryRootExpression applicationTimeQueryRoot)
+        {
+            return TranslateApplicationTimeQueryRoot(applicationTimeQueryRoot);
+        }
+
         if (extensionExpression is not MySqlTemporalQueryRootExpression temporalQueryRoot)
         {
             return base.VisitExtension(extensionExpression);
         }
 
         var entityType = temporalQueryRoot.EntityType;
-        var temporalEntityType = entityType.IsMySqlTemporal() ? entityType : entityType.GetRootType();
+        var hierarchyIsTemporal = entityType
+            .GetRootType()
+            .GetDerivedTypesInclusive()
+            .Any(candidate => candidate.IsMySqlTemporal());
 
-        if (!temporalEntityType.IsMySqlTemporal())
+        if (!hierarchyIsTemporal)
         {
             throw new InvalidOperationException(
                 $"Temporal query operation '{temporalQueryRoot.Operation}' cannot be applied "
                 + $"to non-temporal entity type '{entityType.DisplayName()}'.");
         }
 
-        var tableName = temporalEntityType.GetTableName()
-            ?? throw new InvalidOperationException(
-                $"Temporal entity type '{temporalEntityType.DisplayName()}' is not mapped to a table.");
-
-        var storeObject = StoreObjectIdentifier.Table(tableName, temporalEntityType.GetSchema());
-        var periodStartProperty = GetTemporalPeriodProperty(
-            temporalEntityType,
-            temporalEntityType.GetMySqlTemporalPeriodStartPropertyName(),
-            "start");
-
-        var periodEndProperty = GetTemporalPeriodProperty(
-            temporalEntityType,
-            temporalEntityType.GetMySqlTemporalPeriodEndPropertyName(),
-            "end");
-
-        var periodStartColumn = periodStartProperty.GetColumnName(storeObject)
-            ?? throw new InvalidOperationException(
-                $"Temporal period-start property '{periodStartProperty.Name}' has no table column mapping.");
-
-        var periodEndColumn = periodEndProperty.GetColumnName(storeObject)
-            ?? throw new InvalidOperationException(
-                $"Temporal period-end property '{periodEndProperty.Name}' has no table column mapping.");
-
         var selectExpression = CreateSelect(entityType);
-        selectExpression = (SelectExpression)new TemporalAnnotationApplyingExpressionVisitor(
+        var annotationVisitor = new TemporalAnnotationApplyingExpressionVisitor(
             temporalQueryRoot,
-            temporalEntityType.GetMySqlTemporalHistoryTableName(),
-            temporalEntityType.GetMySqlTemporalHistoryTableSchema(),
-            periodStartColumn,
-            periodEndColumn).Visit(selectExpression);
+            _queryCompilationContext.Model.GetRelationalModel());
+
+        selectExpression = (SelectExpression)annotationVisitor.Visit(selectExpression);
+
+        if (annotationVisitor.AnnotatedTableCount == 0)
+        {
+            throw new InvalidOperationException(
+                $"Temporal entity type '{entityType.DisplayName()}' has no physical temporal-table mapping.");
+        }
 
         return new ShapedQueryExpression(
             selectExpression,
@@ -105,48 +95,65 @@ internal sealed class
                 nullable: false));
     }
 
-    private static IReadOnlyProperty GetTemporalPeriodProperty(
-        IReadOnlyEntityType entityType,
-        string? propertyName,
-        string boundaryName
+    private ShapedQueryExpression TranslateApplicationTimeQueryRoot(
+        MySqlApplicationTimeQueryRootExpression queryRoot
     )
     {
-        if (propertyName is null
-            || entityType.FindProperty(propertyName) is not { } property)
+        var entityType = queryRoot.EntityType;
+        var hierarchyIsApplicationTime = entityType
+            .GetRootType()
+            .GetDerivedTypesInclusive()
+            .Any(candidate => candidate.IsMySqlApplicationTime());
+
+        if (!hierarchyIsApplicationTime)
         {
             throw new InvalidOperationException(
-                $"Temporal entity type '{entityType.DisplayName()}' has no valid period-{boundaryName} property.");
+                $"FOR PORTION OF cannot be applied to non-application-time entity type "
+                + $"'{entityType.DisplayName()}'.");
         }
 
-        return property;
+        var selectExpression = CreateSelect(entityType);
+        var annotationVisitor = new ApplicationTimeAnnotationApplyingExpressionVisitor(
+            queryRoot,
+            _queryCompilationContext.Model.GetRelationalModel());
+
+        selectExpression = (SelectExpression)annotationVisitor.Visit(selectExpression);
+
+        if (annotationVisitor.AnnotatedTableCount == 0)
+        {
+            throw new InvalidOperationException(
+                $"Application-time entity type '{entityType.DisplayName()}' has no physical "
+                + "application-time table mapping that can be mutated.");
+        }
+
+        return new ShapedQueryExpression(
+            selectExpression,
+            new RelationalStructuralTypeShaperExpression(
+                entityType,
+                new ProjectionBindingExpression(selectExpression, new ProjectionMember(), typeof(ValueBuffer)),
+                nullable: false));
     }
 
     /// <summary>
-    /// Applies temporal metadata to every physical table in the generated select. This
-    /// mirrors EF Core's provider contract for table-sharing and inheritance query shapes.
+    /// Marks physical application-time sources with the period and requested range. The SQL
+    /// generator later accepts this marker only while producing ExecuteUpdate or ExecuteDelete;
+    /// ordinary enumeration is deliberately rejected because FOR PORTION OF is DML-only.
     /// </summary>
-    private sealed class TemporalAnnotationApplyingExpressionVisitor : ExpressionVisitor
+    private sealed class ApplicationTimeAnnotationApplyingExpressionVisitor : ExpressionVisitor
     {
-        private readonly MySqlTemporalQueryRootExpression _queryRoot;
-        private readonly string? _historyTableName;
-        private readonly string? _historyTableSchema;
-        private readonly string _periodStartColumn;
-        private readonly string _periodEndColumn;
+        private readonly MySqlApplicationTimeQueryRootExpression _queryRoot;
+        private readonly IRelationalModel _relationalModel;
 
-        public TemporalAnnotationApplyingExpressionVisitor(
-            MySqlTemporalQueryRootExpression queryRoot,
-            string? historyTableName,
-            string? historyTableSchema,
-            string periodStartColumn,
-            string periodEndColumn
+        public ApplicationTimeAnnotationApplyingExpressionVisitor(
+            MySqlApplicationTimeQueryRootExpression queryRoot,
+            IRelationalModel relationalModel
         )
         {
             _queryRoot = queryRoot;
-            _historyTableName = historyTableName;
-            _historyTableSchema = historyTableSchema;
-            _periodStartColumn = periodStartColumn;
-            _periodEndColumn = periodEndColumn;
+            _relationalModel = relationalModel;
         }
+
+        public int AnnotatedTableCount { get; private set; }
 
         protected override Expression VisitExtension(
             Expression node
@@ -157,23 +164,131 @@ internal sealed class
                 return base.VisitExtension(node);
             }
 
+            var table = _relationalModel.FindTable(tableExpression.Name, tableExpression.Schema);
+
+            if (table is null
+                || MySqlApplicationTimeMetadata.FindTableMetadata(table) is not { } metadata)
+            {
+                return tableExpression;
+            }
+
+            AnnotatedTableCount++;
+
+            return tableExpression
+                .AddAnnotation(MySqlAnnotationNames.ApplicationTimeOperation, true)
+                .AddAnnotation(MySqlAnnotationNames.ApplicationTimePeriodName, metadata.PeriodName)
+                .AddAnnotation(
+                    MySqlAnnotationNames.ApplicationTimePeriodStartColumn,
+                    metadata.PeriodStartColumn)
+                .AddAnnotation(
+                    MySqlAnnotationNames.ApplicationTimePeriodEndColumn,
+                    metadata.PeriodEndColumn)
+                .AddAnnotation(MySqlAnnotationNames.ApplicationTimeRangeStart, _queryRoot.From)
+                .AddAnnotation(MySqlAnnotationNames.ApplicationTimeRangeEnd, _queryRoot.To);
+        }
+    }
+
+    /// <summary>
+    /// Applies temporal metadata to every physical table in the generated select. This
+    /// mirrors EF Core's provider contract for table-sharing and inheritance query shapes.
+    /// </summary>
+    private sealed class TemporalAnnotationApplyingExpressionVisitor : ExpressionVisitor
+    {
+        private const string TpcTablesExpressionTypeName =
+            "Microsoft.EntityFrameworkCore.Query.Internal.TpcTablesExpression, "
+            + "Microsoft.EntityFrameworkCore.Relational";
+
+        [DynamicallyAccessedMembers(
+            DynamicallyAccessedMemberTypes.PublicConstructors
+            | DynamicallyAccessedMemberTypes.PublicProperties)]
+        private static readonly Type s_tpcTablesExpressionType =
+            Type.GetType(TpcTablesExpressionTypeName, throwOnError: false)
+            ?? throw new InvalidOperationException(
+                $"EF Core no longer exposes the expected '{TpcTablesExpressionTypeName}' query shape.");
+
+        private static readonly ConstructorInfo s_tpcTablesExpressionConstructor =
+            s_tpcTablesExpressionType.GetConstructor(
+                [
+                    typeof(string),
+                    typeof(IEntityType),
+                    typeof(IReadOnlyList<SelectExpression>),
+                    typeof(ColumnExpression),
+                    typeof(List<string>)
+                ])
+            ?? throw new InvalidOperationException(
+                $"EF Core changed the constructor contract for '{TpcTablesExpressionTypeName}'.");
+
+        private static readonly PropertyInfo s_tpcSelectExpressionsProperty =
+            GetRequiredTpcProperty("SelectExpressions");
+
+        private static readonly PropertyInfo s_tpcEntityTypeProperty =
+            GetRequiredTpcProperty("EntityType");
+
+        private static readonly PropertyInfo s_tpcDiscriminatorColumnProperty =
+            GetRequiredTpcProperty("DiscriminatorColumn");
+
+        private static readonly PropertyInfo s_tpcDiscriminatorValuesProperty =
+            GetRequiredTpcProperty("DiscriminatorValues");
+
+        private readonly MySqlTemporalQueryRootExpression _queryRoot;
+        private readonly IRelationalModel _relationalModel;
+
+        public TemporalAnnotationApplyingExpressionVisitor(
+            MySqlTemporalQueryRootExpression queryRoot,
+            IRelationalModel relationalModel
+        )
+        {
+            _queryRoot = queryRoot;
+            _relationalModel = relationalModel;
+        }
+
+        public int AnnotatedTableCount { get; private set; }
+
+        protected override Expression VisitExtension(
+            Expression node
+        )
+        {
+            if (s_tpcTablesExpressionType.IsInstanceOfType(node))
+            {
+                return VisitTpcTablesExpression((TableExpressionBase)node);
+            }
+
+            if (node is not TableExpression tableExpression)
+            {
+                return base.VisitExtension(node);
+            }
+
+            var table = _relationalModel.FindTable(tableExpression.Name, tableExpression.Schema);
+
+            if (table is null
+                || MySqlTemporalMetadata.FindTableMetadata(table) is not { } temporalMetadata)
+            {
+                return tableExpression;
+            }
+
+            AnnotatedTableCount++;
+
             var annotatedTable = tableExpression
                 .AddAnnotation(MySqlAnnotationNames.TemporalOperation, _queryRoot.Operation)
-                .AddAnnotation(MySqlAnnotationNames.TemporalPeriodStartColumn, _periodStartColumn)
-                .AddAnnotation(MySqlAnnotationNames.TemporalPeriodEndColumn, _periodEndColumn);
+                .AddAnnotation(
+                    MySqlAnnotationNames.TemporalPeriodStartColumn,
+                    temporalMetadata.PeriodStartColumn)
+                .AddAnnotation(
+                    MySqlAnnotationNames.TemporalPeriodEndColumn,
+                    temporalMetadata.PeriodEndColumn);
 
-            if (_historyTableName is not null)
+            if (temporalMetadata.HistoryTable is not null)
             {
                 annotatedTable = annotatedTable.AddAnnotation(
                     MySqlAnnotationNames.TemporalHistoryTable,
-                    _historyTableName);
+                    temporalMetadata.HistoryTable);
             }
 
-            if (_historyTableSchema is not null)
+            if (temporalMetadata.HistorySchema is not null)
             {
                 annotatedTable = annotatedTable.AddAnnotation(
                     MySqlAnnotationNames.TemporalHistorySchema,
-                    _historyTableSchema);
+                    temporalMetadata.HistorySchema);
             }
 
             if (_queryRoot.PointInTime is { } pointInTime)
@@ -193,6 +308,51 @@ internal sealed class
 
             return annotatedTable;
         }
+
+        private TableExpressionBase VisitTpcTablesExpression(
+            TableExpressionBase tpcTablesExpression
+        )
+        {
+            var selectExpressions =
+                (IReadOnlyList<SelectExpression>)s_tpcSelectExpressionsProperty.GetValue(tpcTablesExpression)!;
+            var visitedSelectExpressions = selectExpressions
+                .Select(selectExpression => (SelectExpression)Visit(selectExpression))
+                .ToArray();
+
+            if (selectExpressions
+                .Zip(visitedSelectExpressions, ReferenceEquals)
+                .All(unchanged => unchanged))
+            {
+                return tpcTablesExpression;
+            }
+
+            // TpcTablesExpression intentionally hides its union branches from ordinary
+            // expression visitors. EF Core 10 exposes that temporary shape only through
+            // an internal namespace, so the bridge is resolved reflectively and fails fast
+            // when the pinned EF patch changes. This keeps provider code free of an EF1001
+            // suppression while still applying each branch's own temporal table metadata.
+            var rebuiltExpression = (TableExpressionBase)s_tpcTablesExpressionConstructor.Invoke(
+                [
+                    tpcTablesExpression.Alias,
+                    (IEntityType)s_tpcEntityTypeProperty.GetValue(tpcTablesExpression)!,
+                    visitedSelectExpressions,
+                    (ColumnExpression)s_tpcDiscriminatorColumnProperty.GetValue(tpcTablesExpression)!,
+                    (List<string>)s_tpcDiscriminatorValuesProperty.GetValue(tpcTablesExpression)!,
+                ]);
+
+            foreach (var annotation in tpcTablesExpression.GetAnnotations())
+            {
+                rebuiltExpression = rebuiltExpression.AddAnnotation(annotation.Name, annotation.Value);
+            }
+
+            return rebuiltExpression;
+        }
+
+        private static PropertyInfo GetRequiredTpcProperty(
+            string propertyName
+        ) => s_tpcTablesExpressionType.GetProperty(propertyName)
+            ?? throw new InvalidOperationException(
+                $"EF Core changed the '{propertyName}' contract on '{TpcTablesExpressionTypeName}'.");
     }
 
     /// <summary>

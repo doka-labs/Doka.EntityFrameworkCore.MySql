@@ -240,6 +240,13 @@ total matched its version-bound discovery contract:
 | 10.0.10 | MariaDB 11.4.12 | 28,715 | 702 | 0 | 29,417 |
 | 10.0.10 | MariaDB 11.8.8 | 28,717 | 701 | 0 | 29,418 |
 
+Discovery regenerated on 2026-08-05 additionally contains one
+repository-only documentation-consistency contract per target. Current
+discovery totals are 29,746, 29,410, and 29,411 for EF Core 10.0.8, and
+29,754, 29,418, and 29,419 for EF Core 10.0.10. The table remains the dated
+full live-matrix evidence; the regeneration is not represented as another
+full execution.
+
 ### Superseded process
 
 This decision replaces the descriptive skip-catalog mechanism in D-011 with the executable,

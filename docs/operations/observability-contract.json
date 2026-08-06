@@ -125,6 +125,7 @@
     "logSql": false,
     "boundedLogFieldDomains": {
       "configurationFailureReason": [
+        "ApplicationTimeInvalid",
         "ConflictingConnectionPaths",
         "ConnectionPathChanged",
         "ForeignKeyNameTooLong",

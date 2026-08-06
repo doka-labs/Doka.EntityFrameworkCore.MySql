@@ -20,7 +20,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         TableExpression tableExpression
     )
     {
-        if (TryGenerateTemporalTable(tableExpression))
+        if (TryGenerateTemporalTable(tableExpression) || TryGenerateApplicationTimeTable(tableExpression))
         {
             return tableExpression;
         }

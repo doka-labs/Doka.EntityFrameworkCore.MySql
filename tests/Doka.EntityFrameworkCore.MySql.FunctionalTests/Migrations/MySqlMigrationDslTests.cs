@@ -189,6 +189,57 @@ public sealed class MySqlMigrationDslTests
     }
 
     /// <summary>
+    /// Verifies that a typed application-time model becomes MariaDB period DDL
+    /// and binds <c>WITHOUT OVERLAPS</c> to the configured period.
+    /// </summary>
+    [Fact]
+    public void Migrations_sql_generator_creates_application_time_period_on_mariadb()
+    {
+        var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
+        using var sourceContext = new EmptyMigrationDslContext(
+            CreateOptions<EmptyMigrationDslContext>(serverVersion));
+        using var targetContext = new ApplicationTimeMigrationDslContext(
+            CreateOptions<ApplicationTimeMigrationDslContext>(serverVersion));
+        var sql = GenerateMigrationSql(sourceContext, targetContext);
+
+        Assert.Contains(
+            "PERIOD FOR `BusinessValidity` (`ValidFrom`, `ValidTo`)",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "PRIMARY KEY (`Id`, `BusinessValidity` WITHOUT OVERLAPS)",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            ",\n    CONSTRAINT `PK_MigrationDsl` PRIMARY KEY",
+            sql,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("WITH SYSTEM VERSIONING", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that bitemporal configuration composes both independent engine
+    /// contracts rather than replacing one temporal dimension with the other.
+    /// </summary>
+    [Fact]
+    public void Migrations_sql_generator_creates_bitemporal_table_on_mariadb()
+    {
+        var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
+        using var sourceContext = new EmptyMigrationDslContext(
+            CreateOptions<EmptyMigrationDslContext>(serverVersion));
+        using var targetContext = new BitemporalMigrationDslContext(
+            CreateOptions<BitemporalMigrationDslContext>(serverVersion));
+        var sql = GenerateMigrationSql(sourceContext, targetContext);
+
+        Assert.Contains("PERIOD FOR SYSTEM_TIME (`SystemValidFrom`, `SystemValidTo`)", sql, StringComparison.Ordinal);
+        Assert.Contains(
+            "PERIOD FOR `BusinessValidity` (`BusinessValidFrom`, `BusinessValidTo`)",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains("WITH SYSTEM VERSIONING", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies that MySQL receives the complete transactional temporal emulation.
     /// </summary>
     [Fact]
@@ -945,6 +996,55 @@ public sealed class MySqlMigrationDslTests
                     temporal.HasPeriodStart("ValidFrom");
                     temporal.HasPeriodEnd("ValidTo");
                 }));
+        });
+    }
+
+    private sealed class ApplicationTimeMigrationDslContext : DbContext
+    {
+        public ApplicationTimeMigrationDslContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => modelBuilder.Entity<MigrationDslEntity>(entity =>
+        {
+            entity.ToTable(
+                "MigrationDsl",
+                table => table.HasApplicationTimePeriod(applicationTime =>
+                {
+                    applicationTime.HasPeriodName("BusinessValidity");
+                    applicationTime.HasPeriodStart("ValidFrom");
+                    applicationTime.HasPeriodEnd("ValidTo");
+                    applicationTime.UseWithoutOverlaps();
+                }));
+        });
+    }
+
+    private sealed class BitemporalMigrationDslContext : DbContext
+    {
+        public BitemporalMigrationDslContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => modelBuilder.Entity<MigrationDslEntity>(entity =>
+        {
+            entity.ToTable(
+                "MigrationDsl",
+                table => table.IsBitemporal(
+                    systemTime =>
+                    {
+                        systemTime.HasPeriodStart("SystemValidFrom");
+                        systemTime.HasPeriodEnd("SystemValidTo");
+                    },
+                    applicationTime =>
+                    {
+                        applicationTime.HasPeriodName("BusinessValidity");
+                        applicationTime.HasPeriodStart("BusinessValidFrom");
+                        applicationTime.HasPeriodEnd("BusinessValidTo");
+                    }));
         });
     }
 

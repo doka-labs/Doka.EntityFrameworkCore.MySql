@@ -53,7 +53,9 @@ internal sealed class MySqlMigrationsAnnotationProvider : IMigrationsAnnotationP
     {
         ArgumentNullException.ThrowIfNull(constraint);
 
-        return Array.Empty<IAnnotation>();
+        return GetSupportedAnnotations(constraint)
+            .Concat(GetSupportedTableAnnotations(constraint.Table))
+            .DistinctBy(annotation => annotation.Name);
     }
 
     public IEnumerable<IAnnotation> ForRemove(
@@ -138,7 +140,20 @@ internal sealed class MySqlMigrationsAnnotationProvider : IMigrationsAnnotationP
                 or MySqlAnnotationNames.TemporalHistoryTable
                 or MySqlAnnotationNames.TemporalHistorySchema
                 or MySqlAnnotationNames.TemporalPeriodStartColumn
-                or MySqlAnnotationNames.TemporalPeriodEndColumn);
+                or MySqlAnnotationNames.TemporalPeriodEndColumn
+                or MySqlAnnotationNames.IsApplicationTime
+                or MySqlAnnotationNames.ApplicationTimePeriodName
+                or MySqlAnnotationNames.ApplicationTimePeriodStartColumn
+                or MySqlAnnotationNames.ApplicationTimePeriodEndColumn
+                or MySqlAnnotationNames.ApplicationTimeWithoutOverlaps
+                or MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps
+                or MySqlAnnotationNames.ApplicationTimeIndexWithoutOverlaps
+                or MySqlAnnotationNames.ApplicationTimeConstraintPeriodName
+                or MySqlAnnotationNames.ApplicationTimeSourceIsApplicationTime
+                or MySqlAnnotationNames.ApplicationTimeSourcePeriodName
+                or MySqlAnnotationNames.ApplicationTimeSourcePeriodStartColumn
+                or MySqlAnnotationNames.ApplicationTimeSourcePeriodEndColumn
+                or MySqlAnnotationNames.ApplicationTimeSourceWithoutOverlaps);
     }
 
     private static List<IAnnotation> GetSupportedModelAnnotations(

@@ -15,6 +15,8 @@ internal enum ProviderCapability
     SpatialColumnSridAttribute,
     CommonTableExpressions,
     TemporalTables,
+    ApplicationTimePeriods,
+    BitemporalTables,
     Sequences,
     RenameColumn,
     LateralDerivedTables,

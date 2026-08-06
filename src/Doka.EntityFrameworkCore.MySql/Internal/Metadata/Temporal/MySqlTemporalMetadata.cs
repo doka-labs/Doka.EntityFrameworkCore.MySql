@@ -23,6 +23,33 @@ internal static class MySqlTemporalMetadata
 
     public const string DefaultPeriodEndPropertyName = "PeriodEnd";
 
+    public static string CreateHierarchyPeriodPropertyName(
+        string tableName,
+        bool isStart
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+
+        var boundary = isStart ? DefaultPeriodStartPropertyName : DefaultPeriodEndPropertyName;
+        var candidate = boundary + "_" + tableName;
+
+        if (candidate.Length <= MySqlConventionSetBuilder.MaxIdentifierLength)
+        {
+            return candidate;
+        }
+
+        // TPT tables need distinct EF shadow-property names because a derived type cannot
+        // redeclare the root period property. The physical column keeps the conventional
+        // boundary name; only the model identifier receives a stable collision suffix.
+        var hash = XxHash64
+            .HashToUInt64(Encoding.UTF8.GetBytes(candidate))
+            .ToString("x16", CultureInfo.InvariantCulture);
+
+        var prefixLength = MySqlConventionSetBuilder.MaxIdentifierLength - hash.Length - 1;
+
+        return candidate[..prefixLength] + "_" + hash;
+    }
+
     public static MySqlTemporalTableMetadata? FindTableMetadata(
         ITable table
     )

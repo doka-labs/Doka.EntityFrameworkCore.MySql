@@ -77,4 +77,29 @@ internal static class MySqlIndexExtensions
 
         index.SetAnnotation(MySqlAnnotationNames.IndexPrefixLength, prefixLengths.ToArray());
     }
+
+    public static bool GetMySqlApplicationTimeWithoutOverlaps(
+        this IReadOnlyIndex index
+    )
+    {
+        ArgumentNullException.ThrowIfNull(index);
+
+        return (index.FindAnnotation(MySqlAnnotationNames.ApplicationTimeIndexWithoutOverlaps)?.Value as bool?) == true;
+    }
+
+    public static void SetMySqlApplicationTimeWithoutOverlaps(
+        this IMutableIndex index,
+        bool enabled
+    )
+    {
+        ArgumentNullException.ThrowIfNull(index);
+
+        if (!enabled)
+        {
+            index.RemoveAnnotation(MySqlAnnotationNames.ApplicationTimeIndexWithoutOverlaps);
+            return;
+        }
+
+        index.SetAnnotation(MySqlAnnotationNames.ApplicationTimeIndexWithoutOverlaps, true);
+    }
 }

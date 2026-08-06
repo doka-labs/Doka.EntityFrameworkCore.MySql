@@ -245,24 +245,33 @@ public class SpecDispositionContractTests
     }
 
     /// <summary>
-    /// Keeps the public external-limitations inventory synchronized with every active
-    /// engine and EF Core disposition while excluding structural non-applicability.
+    /// Keeps the public external-limitations inventories synchronized with every
+    /// active engine and EF Core disposition while excluding structural
+    /// non-applicability.
     /// </summary>
     [Fact]
     public void External_limitations_document_matches_active_external_dispositions()
     {
         using var ledger = LoadLedger();
-        var documentationPath = Path.Combine(
-            FindRepositoryRoot(),
-            "docs",
-            "limitations.md");
-        Assert.True(
-            File.Exists(documentationPath),
-            $"External limitations document not found at '{documentationPath}'.");
+        var documentationRoot = Path.Combine(FindRepositoryRoot(), "docs");
 
-        var documentation = File.ReadAllText(documentationPath);
-        var dispositions = ledger.RootElement
-            .GetProperty("activeDispositions")
+        var documentationPaths = new[]
+        {
+            Path.Combine(documentationRoot, "limitations.md"),
+            Path.Combine(documentationRoot, "limitations", "database-engines.md"),
+            Path.Combine(documentationRoot, "limitations", "ef-core.md"),
+        };
+
+        Assert.All(
+            documentationPaths,
+            documentationPath => Assert.True(
+                File.Exists(documentationPath),
+                $"External limitations document not found at '{documentationPath}'."));
+
+        var documentation = string.Join(Environment.NewLine, documentationPaths.Select(File.ReadAllText));
+
+        var dispositions = ledger
+            .RootElement.GetProperty("activeDispositions")
             .EnumerateArray()
             .ToArray();
 

@@ -36,14 +36,19 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
         ArgumentNullException.ThrowIfNull(entityType);
         ArgumentNullException.ThrowIfNull(annotations);
 
-        // The model-code generator emits the temporal contract through the strongly
-        // typed table-builder API. Removing these annotations here prevents a second,
+        // The model-code generator emits both temporal contracts through the strongly
+        // typed table-builder APIs. Removing these annotations here prevents a second,
         // provider-internal HasAnnotation representation from leaking into user code.
         annotations.Remove(MySqlAnnotationNames.IsTemporal);
         annotations.Remove(MySqlAnnotationNames.TemporalHistoryTableName);
         annotations.Remove(MySqlAnnotationNames.TemporalHistoryTableSchema);
         annotations.Remove(MySqlAnnotationNames.TemporalPeriodStartPropertyName);
         annotations.Remove(MySqlAnnotationNames.TemporalPeriodEndPropertyName);
+        annotations.Remove(MySqlAnnotationNames.IsApplicationTime);
+        annotations.Remove(MySqlAnnotationNames.ApplicationTimePeriodName);
+        annotations.Remove(MySqlAnnotationNames.ApplicationTimePeriodStartPropertyName);
+        annotations.Remove(MySqlAnnotationNames.ApplicationTimePeriodEndPropertyName);
+        annotations.Remove(MySqlAnnotationNames.ApplicationTimeWithoutOverlaps);
 
         var fragments = base
             .GenerateFluentApiCalls(entityType, annotations)
@@ -62,6 +67,27 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
         {
             fragments.Add(
                 new MethodCallCodeFragment(nameof(MySqlEntityTypeBuilderExtensions.UseStorageEngine), storageEngine));
+        }
+
+        return fragments;
+    }
+
+    public override IReadOnlyList<MethodCallCodeFragment> GenerateFluentApiCalls(
+        IKey key,
+        IDictionary<string, IAnnotation> annotations
+    )
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(annotations);
+
+        var fragments = base
+            .GenerateFluentApiCalls(key, annotations)
+            .ToList();
+
+        if (annotations.Remove(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps, out var annotation)
+            && annotation.Value is true)
+        {
+            fragments.Add(new MethodCallCodeFragment(nameof(MySqlKeyBuilderExtensions.UseWithoutOverlaps)));
         }
 
         return fragments;
@@ -138,6 +164,12 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
                 new MethodCallCodeFragment(
                     nameof(MySqlIndexBuilderExtensions.HasPrefixLength),
                     prefixLengths.Cast<object>().ToArray()));
+        }
+
+        if (annotations.Remove(MySqlAnnotationNames.ApplicationTimeIndexWithoutOverlaps, out var annotation)
+            && annotation.Value is true)
+        {
+            fragments.Add(new MethodCallCodeFragment(nameof(MySqlIndexBuilderExtensions.UseWithoutOverlaps)));
         }
 
         return fragments;

@@ -258,8 +258,8 @@
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update.TransactionMySqlTest",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update.UpdatesMySqlTest"
       ],
-      "minimumTestCount": 29417,
-      "testIdsSha256": "19cdfff1e3ca05240691346f62d3da26d4339458071c63eeaf2e9e35616aea1a",
+      "minimumTestCount": 29418,
+      "testIdsSha256": "783da7dd5ddab2ae21a50707c4f7052545e80a629ac516ea5c9886fac5931bfe",
       "testIds": [
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.ComplexJsonBulkUpdateMySqlTest.Delete_entity_with_associations",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.ComplexJsonBulkUpdateMySqlTest.Delete_optional_associate",
@@ -28780,6 +28780,7 @@
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Scaffolding.CompiledModelMySqlTest.Triggers",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Disposition_ids_match_every_version_bound_discovery_contract",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Executable_skips_match_the_disposition_ledger",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.External_limitations_document_matches_active_external_dispositions",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Inherited_theory_data_uses_the_nearest_data_bearing_base_declaration",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Ledger_has_zero_provider_gaps_and_complete_primary_source_evidence",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Missing_specification_target_defaults_to_mysql84",
@@ -29935,8 +29936,8 @@
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update.TransactionMySqlTest",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update.UpdatesMySqlTest"
       ],
-      "minimumTestCount": 29418,
-      "testIdsSha256": "45d89c21d4e40e15a79f3cced1be362462110b226b5241437a74720dd4a0246b",
+      "minimumTestCount": 29419,
+      "testIdsSha256": "a115d2eb1cdd6eb7a8ea13999740a07ea1061a7e800a6f7a1ae7126a9bc72581",
       "testIds": [
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.ComplexJsonBulkUpdateMySqlTest.Delete_entity_with_associations",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.ComplexJsonBulkUpdateMySqlTest.Delete_optional_associate",
@@ -58458,6 +58459,7 @@
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Scaffolding.CompiledModelMySqlTest.Triggers",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Disposition_ids_match_every_version_bound_discovery_contract",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Executable_skips_match_the_disposition_ledger",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.External_limitations_document_matches_active_external_dispositions",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Inherited_theory_data_uses_the_nearest_data_bearing_base_declaration",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Ledger_has_zero_provider_gaps_and_complete_primary_source_evidence",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Missing_specification_target_defaults_to_mysql84",
@@ -59613,8 +59615,8 @@
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update.TransactionMySqlTest",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update.UpdatesMySqlTest"
       ],
-      "minimumTestCount": 29753,
-      "testIdsSha256": "b1c552e5ffbcab6c3b8f828f228d5ea60ba81573dd0e3d03a9cc462275377da3",
+      "minimumTestCount": 29754,
+      "testIdsSha256": "c07b867afe6701da825e11e773aadd8bc84bfe48460b8a315328db677cdde266",
       "testIds": [
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.ComplexJsonBulkUpdateMySqlTest.Delete_entity_with_associations",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.ComplexJsonBulkUpdateMySqlTest.Delete_optional_associate",
@@ -88471,6 +88473,7 @@
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Scaffolding.CompiledModelMySqlTest.Triggers",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Disposition_ids_match_every_version_bound_discovery_contract",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Executable_skips_match_the_disposition_ledger",
+        "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.External_limitations_document_matches_active_external_dispositions",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Inherited_theory_data_uses_the_nearest_data_bearing_base_declaration",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Ledger_has_zero_provider_gaps_and_complete_primary_source_evidence",
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.SpecDispositionContractTests.Missing_specification_target_defaults_to_mysql84",

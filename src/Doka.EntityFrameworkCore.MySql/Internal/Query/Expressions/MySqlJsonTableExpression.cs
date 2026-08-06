@@ -17,6 +17,11 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </remarks>
 internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
 {
+    private static ConstructorInfo? s_quotingConstructor;
+    private static ConstructorInfo? s_columnInfoQuotingConstructor;
+    private static MethodInfo? s_pathSegmentAddMethod;
+    private static MethodInfo? s_columnInfoAddMethod;
+
     /// <summary>
     /// Describes one column inside the <c>COLUMNS</c> clause of a <c>JSON_TABLE</c> call.
     /// <see cref="Name"/> becomes the column alias; <see cref="TypeMapping"/> drives the
@@ -165,12 +170,58 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
         IReadOnlyDictionary<string, IAnnotation> annotations
     ) => new MySqlJsonTableExpression(Alias!, JsonExpression, Path, ColumnInfos, annotations);
 
-    // Quoting is the precompiled-query support path. Spec tests do not exercise precompilation;
-    // throw a clear message rather than silently round-tripping through the base TVFE shape
-    // (which would lose Path + ColumnInfos and emit a meaningless JSON_TABLE() call).
-    public override Expression Quote() => throw new NotSupportedException(
-        "Quoting a MySqlJsonTableExpression is not supported; precompiled-query support for "
-        + "JSON_TABLE has not been implemented yet.");
+    /// <summary>
+    /// Reconstructs the complete <c>JSON_TABLE</c> node for EF Core's precompiled-query
+    /// code generator.
+    /// </summary>
+    /// <remarks>
+    /// The base table-valued-function shape only preserves the JSON argument. Quoting the
+    /// row path and every column descriptor explicitly is therefore required; otherwise a
+    /// generated query would silently lose ordinality and nested JSON projection semantics.
+    /// </remarks>
+    [System.Diagnostics.CodeAnalysis.Experimental("EF9100")]
+    public override Expression Quote() => Expression.New(
+        s_quotingConstructor ??= typeof(MySqlJsonTableExpression).GetConstructor(
+        [
+            typeof(string),
+            typeof(SqlExpression),
+            typeof(IReadOnlyList<PathSegment>),
+            typeof(IReadOnlyList<ColumnInfo>),
+        ])!,
+        Expression.Constant(Alias, typeof(string)),
+        JsonExpression.Quote(),
+        Path is null ? Expression.Constant(null, typeof(IReadOnlyList<PathSegment>)) : QuotePath(Path),
+        ColumnInfos is null
+            ? Expression.Constant(null, typeof(IReadOnlyList<ColumnInfo>))
+            : Expression.ListInit(
+                Expression.New(typeof(List<ColumnInfo>)),
+                ColumnInfos.Select(column => Expression.ElementInit(
+                    s_columnInfoAddMethod ??= typeof(List<ColumnInfo>).GetMethod(nameof(List<ColumnInfo>.Add))!,
+                    Expression.New(
+                        s_columnInfoQuotingConstructor ??= typeof(ColumnInfo).GetConstructor(
+                        [
+                            typeof(string),
+                            typeof(RelationalTypeMapping),
+                            typeof(IReadOnlyList<PathSegment>),
+                            typeof(bool),
+                            typeof(bool),
+                        ])!,
+                        Expression.Constant(column.Name),
+                        RelationalExpressionQuotingUtilities.QuoteTypeMapping(column.TypeMapping),
+                        column.Path is null
+                            ? Expression.Constant(null, typeof(IReadOnlyList<PathSegment>))
+                            : QuotePath(column.Path),
+                        Expression.Constant(column.AsJson),
+                        Expression.Constant(column.ForOrdinality))))));
+
+    [System.Diagnostics.CodeAnalysis.Experimental("EF9100")]
+    private static ListInitExpression QuotePath(
+        IReadOnlyList<PathSegment> path
+    ) => Expression.ListInit(
+        Expression.New(typeof(List<PathSegment>)),
+        path.Select(segment => Expression.ElementInit(
+            s_pathSegmentAddMethod ??= typeof(List<PathSegment>).GetMethod(nameof(List<PathSegment>.Add))!,
+            segment.Quote())));
 
     protected override void Print(
         ExpressionPrinter expressionPrinter

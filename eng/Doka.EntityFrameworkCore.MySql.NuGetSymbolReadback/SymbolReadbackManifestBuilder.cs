@@ -80,15 +80,28 @@ internal static class SymbolReadbackManifestBuilder
         }
 
         var pdbSha256 = SHA256.HashData(pdb);
-        if (!peReader.TryOpenAssociatedPortablePdb(
-                assemblyEntryName,
-                _ => new MemoryStream(pdb, writable: false),
-                out var metadataProvider,
-                out _)
-            || metadataProvider is null)
+        MetadataReaderProvider? metadataProvider;
+        try
         {
+            if (!peReader.TryOpenAssociatedPortablePdb(
+                    assemblyEntryName,
+                    _ => new MemoryStream(pdb, writable: false),
+                    out metadataProvider,
+                    out _)
+                || metadataProvider is null)
+            {
+                throw new InvalidDataException(
+                    $"{pdbEntryName} does not match the identity and checksum sealed into its assembly.");
+            }
+        }
+        catch (BadImageFormatException exception)
+        {
+            // Portable PDB corruption may fail while the metadata reader is
+            // being opened, before TryOpenAssociatedPortablePdb can return
+            // false. Normalize that parser detail to the readback contract.
             throw new InvalidDataException(
-                $"{pdbEntryName} does not match the identity and checksum sealed into its assembly.");
+                $"{pdbEntryName} does not match the checksum sealed into its assembly.",
+                exception);
         }
 
         using (metadataProvider)

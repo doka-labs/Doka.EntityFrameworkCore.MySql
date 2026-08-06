@@ -6,6 +6,43 @@ namespace Doka.EntityFrameworkCore.MySql;
 public static class MySqlDbSetExtensions
 {
     /// <summary>
+    /// Restricts a MariaDB application-time update or delete to the specified valid-time portion.
+    /// </summary>
+    /// <remarks>
+    /// The returned query can only terminate in <c>ExecuteUpdate</c> or <c>ExecuteDelete</c>.
+    /// MariaDB requires constant boundaries for portion deletes, so the provider captures both
+    /// values in the query root and emits SQL literals rather than command parameters.
+    /// </remarks>
+    /// <typeparam name="TEntity">The application-time entity type.</typeparam>
+    /// <param name="source">The application-time entity set.</param>
+    /// <param name="from">The inclusive start of the affected valid-time portion.</param>
+    /// <param name="to">The exclusive end of the affected valid-time portion.</param>
+    /// <returns>A query root for an application-time update or delete.</returns>
+    public static IQueryable<TEntity> ForPortionOf<TEntity>(
+        this DbSet<TEntity> source,
+        DateTime from,
+        DateTime to
+    )
+        where TEntity : class
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        if (from >= to)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(to),
+                to,
+                "The application-time range end must follow its start.");
+        }
+
+        var queryableSource = (IQueryable)source;
+        var queryRoot = (EntityQueryRootExpression)queryableSource.Expression;
+
+        return queryableSource.Provider.CreateQuery<TEntity>(
+            new MySqlApplicationTimeQueryRootExpression(queryRoot.QueryProvider!, queryRoot.EntityType, from, to));
+    }
+
+    /// <summary>
     /// Returns the entity versions that were current at the specified UTC instant.
     /// </summary>
     /// <remarks>

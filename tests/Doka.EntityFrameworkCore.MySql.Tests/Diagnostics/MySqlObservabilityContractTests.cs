@@ -184,8 +184,17 @@ public sealed class MySqlObservabilityContractTests
                 .GetString()!)
             .ToHashSet(StringComparer.Ordinal);
 
-        var repositoryRoot = FindRepositoryRoot();
-        var runbook = File.ReadAllText(Path.Combine(repositoryRoot, "docs", "operations-runbook.md"));
+        var operationsRoot = Path.Combine(
+            FindRepositoryRoot(),
+            "docs",
+            "operations");
+
+        var runbooks = string.Join(
+            Environment.NewLine,
+            Directory
+                .EnumerateFiles(operationsRoot, "*.md", SearchOption.TopDirectoryOnly)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .Select(File.ReadAllText));
 
         Assert.Equal(alerts.Count, alertIds.Count);
 
@@ -195,7 +204,7 @@ public sealed class MySqlObservabilityContractTests
                 .GetProperty("runbookAnchor")
                 .GetString()!;
 
-            Assert.Contains($"<a id=\"{anchor}\"></a>", runbook, StringComparison.Ordinal);
+            Assert.Contains($"<a id=\"{anchor}\"></a>", runbooks, StringComparison.Ordinal);
             Assert.False(
                 string.IsNullOrWhiteSpace(
                     alert

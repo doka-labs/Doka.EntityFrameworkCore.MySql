@@ -67,4 +67,40 @@ internal static class MySqlAnnotationNames
     public const string TemporalSourcePeriodStartColumn = Prefix + nameof(TemporalSourcePeriodStartColumn);
 
     public const string TemporalSourcePeriodEndColumn = Prefix + nameof(TemporalSourcePeriodEndColumn);
+
+    public const string IsApplicationTime = Prefix + nameof(IsApplicationTime);
+
+    public const string ApplicationTimePeriodName = Prefix + nameof(ApplicationTimePeriodName);
+
+    public const string ApplicationTimePeriodStartPropertyName = Prefix + nameof(ApplicationTimePeriodStartPropertyName);
+
+    public const string ApplicationTimePeriodEndPropertyName = Prefix + nameof(ApplicationTimePeriodEndPropertyName);
+
+    public const string ApplicationTimePeriodStartColumn = Prefix + nameof(ApplicationTimePeriodStartColumn);
+
+    public const string ApplicationTimePeriodEndColumn = Prefix + nameof(ApplicationTimePeriodEndColumn);
+
+    public const string ApplicationTimeWithoutOverlaps = Prefix + nameof(ApplicationTimeWithoutOverlaps);
+
+    public const string ApplicationTimeKeyWithoutOverlaps = Prefix + nameof(ApplicationTimeKeyWithoutOverlaps);
+
+    public const string ApplicationTimeIndexWithoutOverlaps = Prefix + nameof(ApplicationTimeIndexWithoutOverlaps);
+
+    public const string ApplicationTimeConstraintPeriodName = Prefix + nameof(ApplicationTimeConstraintPeriodName);
+
+    public const string ApplicationTimeOperation = Prefix + nameof(ApplicationTimeOperation);
+
+    public const string ApplicationTimeRangeStart = Prefix + nameof(ApplicationTimeRangeStart);
+
+    public const string ApplicationTimeRangeEnd = Prefix + nameof(ApplicationTimeRangeEnd);
+
+    public const string ApplicationTimeSourceIsApplicationTime = Prefix + nameof(ApplicationTimeSourceIsApplicationTime);
+
+    public const string ApplicationTimeSourcePeriodName = Prefix + nameof(ApplicationTimeSourcePeriodName);
+
+    public const string ApplicationTimeSourcePeriodStartColumn = Prefix + nameof(ApplicationTimeSourcePeriodStartColumn);
+
+    public const string ApplicationTimeSourcePeriodEndColumn = Prefix + nameof(ApplicationTimeSourcePeriodEndColumn);
+
+    public const string ApplicationTimeSourceWithoutOverlaps = Prefix + nameof(ApplicationTimeSourceWithoutOverlaps);
 }

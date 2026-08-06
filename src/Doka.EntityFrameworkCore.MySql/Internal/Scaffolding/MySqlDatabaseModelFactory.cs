@@ -130,6 +130,7 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
                 PrimaryKeyLoader.Load(pipelineContext);
                 UniqueConstraintLoader.Load(pipelineContext);
                 IndexLoader.Load(pipelineContext);
+                ApplicationTimeTableLoader.Load(pipelineContext);
                 CheckConstraintLoader.Load(pipelineContext);
                 SpatialColumnLoader.Load(pipelineContext);
                 pipelineContexts.Add(pipelineContext);

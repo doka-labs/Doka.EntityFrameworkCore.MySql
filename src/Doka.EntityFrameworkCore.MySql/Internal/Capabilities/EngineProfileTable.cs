@@ -29,8 +29,11 @@ internal static class EngineProfileTable
     private static readonly Version s_mariaDb1023 = new(10, 2, 3);
     private static readonly Version s_mariaDb103 = new(10, 3, 0);
     private static readonly Version s_mariaDb1034 = new(10, 3, 4);
+    private static readonly Version s_mariaDb1043 = new(10, 4, 3);
     private static readonly Version s_mariaDb105 = new(10, 5, 0);
     private static readonly Version s_mariaDb1052 = new(10, 5, 2);
+    private static readonly Version s_mariaDb1053 = new(10, 5, 3);
+    private static readonly Version s_mariaDb114 = new(11, 4, 0);
 
     // EF Core's options graph requires stable profile references for repeated
     // versions. Resolution is configuration-time work, so one short critical
@@ -205,6 +208,11 @@ internal static class EngineProfileTable
             capabilities.Add(EngineCapability.SystemVersionedTables);
         }
 
+        if (IsAtLeast(version, s_mariaDb1043))
+        {
+            capabilities.Add(EngineCapability.ApplicationTimePeriods);
+        }
+
         if (IsAtLeast(version, s_mariaDb105))
         {
             capabilities.Add(EngineCapability.ReturningClause);
@@ -213,6 +221,16 @@ internal static class EngineProfileTable
         if (IsAtLeast(version, s_mariaDb1052))
         {
             capabilities.Add(EngineCapability.RenameColumnSyntax);
+        }
+
+        if (IsAtLeast(version, s_mariaDb1053))
+        {
+            capabilities.Add(EngineCapability.ApplicationTimeWithoutOverlaps);
+        }
+
+        if (IsAtLeast(version, s_mariaDb114))
+        {
+            capabilities.Add(EngineCapability.TemporalPeriodCatalog);
         }
     }
 

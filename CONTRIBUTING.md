@@ -168,7 +168,7 @@ release-eligible.
 
 A successful local run is necessary pre-tag evidence, but it does not authorize
 publication. Continue with the canonical
-[release procedure](docs/operations-runbook.md#qualification-and-publication-procedure).
+[release procedure](docs/operations/release-publication.md#qualification-and-publication-procedure).
 That procedure requires an exact green `main` commit, a signed and annotated
 tag, hosted candidate attestations, explicit NuGet publication authorization,
 and public package and GitHub release readback. Never use `git push --tags` for

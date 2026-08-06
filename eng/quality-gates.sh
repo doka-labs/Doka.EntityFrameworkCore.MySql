@@ -61,8 +61,15 @@ fi
 echo "Validating architecture decisions..."
 "${repo_root}/eng/validate-adrs.sh"
 
-echo "Verifying repository formatting..."
-dotnet format "${solution}" \
+echo "Validating documentation links and anchors..."
+PYTHONDONTWRITEBYTECODE=1 python3 "${repo_root}/eng/documentation_contract.py" --root "${repo_root}"
+
+echo "Verifying warning-level code style..."
+# Rider/ReSharper is the repository formatter and honors the overlay rules in
+# .editorconfig. Roslyn cannot represent every one of those layouts, so this
+# gate verifies actionable style diagnostics without rewriting valid spacing.
+dotnet format "${solution}" style \
+    --severity warn \
     --verify-no-changes \
     --no-restore
 

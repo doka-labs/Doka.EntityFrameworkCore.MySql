@@ -39,6 +39,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(builder);
 
         TryGetTemporalMigrationContract(operation, out var temporalContract);
+        TryGetApplicationTimeMigrationContract(
+            operation,
+            operation.Name,
+            sourceContract: false,
+            out var applicationTimeContract);
 
         if (temporalContract?.Support == ProviderSupportStatus.Emulated && !terminate)
         {
@@ -68,6 +73,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             CreateTableColumns(operation, model, builder);
             CreateTableConstraints(operation, model, builder);
             AppendAutoIncrementSupportingIndex(operation, builder);
+
+            if (applicationTimeContract is not null)
+            {
+                AppendApplicationTimePeriod(applicationTimeContract, builder);
+            }
 
             if (temporalContract?.Support == ProviderSupportStatus.Native)
             {
@@ -122,6 +132,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             sourceContract: false,
             out var targetTemporalContract);
 
+        var generatedTemporalTransition = false;
+
         if (sourceTemporalContract is null && targetTemporalContract is not null)
         {
             if (targetTemporalContract.Support == ProviderSupportStatus.Native)
@@ -142,10 +154,9 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                     builder);
             }
 
-            return;
+            generatedTemporalTransition = true;
         }
-
-        if (sourceTemporalContract is not null && targetTemporalContract is null)
+        else if (sourceTemporalContract is not null && targetTemporalContract is null)
         {
             if (sourceTemporalContract.Support == ProviderSupportStatus.Native)
             {
@@ -161,6 +172,13 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 AppendDropTemporalHistoryTable(sourceTemporalContract, builder);
             }
 
+            generatedTemporalTransition = true;
+        }
+
+        var generatedApplicationTimeTransition = AppendApplicationTimeTransition(operation, builder);
+
+        if (generatedTemporalTransition || generatedApplicationTimeTransition)
+        {
             return;
         }
 

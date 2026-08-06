@@ -19,6 +19,6 @@ dotnet run --project examples/TemporalTablesAndCtes/TemporalTablesAndCtes.csproj
 ```
 
 See [the shared example configuration](../README.md) for prerequisites and
-engine selection. See
-[Temporal tables and CTEs](../../docs/temporal-tables-and-ctes.md) for the
-complete support and schema-safety contract.
+engine selection. See [Temporal tables](../../docs/temporal-tables.md) and
+[Common table expressions](../../docs/ctes.md) for the complete support and
+schema-safety contracts.

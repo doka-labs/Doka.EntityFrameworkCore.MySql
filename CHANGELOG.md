@@ -23,11 +23,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   MariaDB 11.4 / 11.8 data-modification boundary.
 - Add a live temporal-table and recursive-CTE example to the release-candidate
   matrix.
+- Add temporal TPT and TPC mapping with independent physical-table period
+  metadata, migration ordering, query translation, and conformance coverage.
+- Add typed MariaDB application-time and bitemporal configuration, migrations,
+  reverse engineering, generated model code, `WITHOUT OVERLAPS`, and
+  `FOR PORTION OF` update and delete roots.
+- Add complete `JSON_TABLE` expression quoting for compiled models and
+  precompiled query generation.
 
 ### Documentation
 
 - Document the temporal and CTE support matrix, public APIs, schema lifecycle,
   engine constraints, runnable verification, and retrieved primary sources.
+- Document the EF Core 10 complex-type contract and separate its upstream
+  boundaries from provider and engine responsibilities.
 
 ## [10.0.0-rc.3] - 2026-08-04
 
@@ -147,10 +156,10 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
 
 ### Tested
 
-- 656 unit tests and 433 provider-local functional tests
-- Upstream specification contracts covering 29,745 MySQL 8.4,
-  29,409 MariaDB 11.4, and 29,410 MariaDB 11.8 test cases
-- 169 discovered live integration cases: 164 supported-matrix cases and five
+- 668 unit tests and 463 provider-local functional tests
+- Upstream specification contracts covering 29,746 MySQL 8.4,
+  29,410 MariaDB 11.4, and 29,411 MariaDB 11.8 test cases
+- 171 discovered live integration cases: 166 supported-matrix cases and five
   explicit skips reserved for the external-only MySQL 8.0 baseline
 - Live integration coverage against MySQL 8.4 LTS, MariaDB 11.4 LTS, and
   MariaDB 11.8 LTS, plus an external-only opt-in MySQL 8.0 compatibility

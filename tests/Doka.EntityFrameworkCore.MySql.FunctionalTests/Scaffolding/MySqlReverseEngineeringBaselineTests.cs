@@ -193,6 +193,41 @@ public sealed class MySqlReverseEngineeringBaselineTests
     }
 
     /// <summary>
+    /// Verifies that MariaDB period catalog metadata round-trips through public
+    /// application-time and key APIs without leaking internal annotations.
+    /// </summary>
+    [Fact]
+    public void Reverse_engineering_emits_application_time_table_builder_contract()
+    {
+        var scaffoldedModel = ScaffoldModel(
+            CreateApplicationTimeDatabaseModel(),
+            detectedServerVersionText: "11.4.5-MariaDB");
+        var contextCode = scaffoldedModel.ContextFile.Code;
+
+        Assert.Contains(
+            "tableBuilder.HasApplicationTimePeriod(applicationTimeTableBuilder =>",
+            contextCode,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "applicationTimeTableBuilder.HasPeriodName(\"BusinessValidity\")",
+            contextCode,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "applicationTimeTableBuilder.HasPeriodStart(\"ValidFrom\")",
+            contextCode,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "applicationTimeTableBuilder.HasPeriodEnd(\"ValidTo\")",
+            contextCode,
+            StringComparison.Ordinal);
+        Assert.Contains(".UseWithoutOverlaps()", contextCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            MySqlAnnotationNames.IsApplicationTime,
+            contextCode,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies that textual GUID columns remain text properties unless the provider-specific
     /// reverse-engineering opt-in is enabled.
     /// </summary>
@@ -710,6 +745,42 @@ public sealed class MySqlReverseEngineeringBaselineTests
         table.SetAnnotation(
             MySqlAnnotationNames.TemporalSourcePeriodEndColumn,
             "ValidTo");
+        databaseModel.Tables.Add(table);
+
+        return databaseModel;
+    }
+
+    private static DatabaseModel CreateApplicationTimeDatabaseModel()
+    {
+        var databaseModel = new DatabaseModel
+        {
+            DatabaseName = "temporal_metadata",
+            Collation = "utf8mb4_uca1400_ai_ci",
+        };
+
+        var table = new DatabaseTable
+        {
+            Database = databaseModel,
+            Name = "business_records",
+        };
+
+        var idColumn = AddColumn(table, "Id", "int");
+
+        AddColumn(table, "Payload", "varchar(255)");
+        AddColumn(table, "ValidFrom", "datetime(6)");
+        AddColumn(table, "ValidTo", "datetime(6)");
+
+        table.PrimaryKey = new DatabasePrimaryKey
+        {
+            Table = table,
+            Name = "PRIMARY",
+            Columns = { idColumn },
+        };
+        table.PrimaryKey.SetAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps, true);
+        table.SetAnnotation(MySqlAnnotationNames.IsApplicationTime, true);
+        table.SetAnnotation(MySqlAnnotationNames.ApplicationTimePeriodName, "BusinessValidity");
+        table.SetAnnotation(MySqlAnnotationNames.ApplicationTimePeriodStartColumn, "ValidFrom");
+        table.SetAnnotation(MySqlAnnotationNames.ApplicationTimePeriodEndColumn, "ValidTo");
         databaseModel.Tables.Add(table);
 
         return databaseModel;

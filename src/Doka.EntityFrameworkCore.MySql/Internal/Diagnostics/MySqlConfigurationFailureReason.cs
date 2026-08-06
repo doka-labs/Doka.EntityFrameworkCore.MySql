@@ -17,4 +17,5 @@ internal enum MySqlConfigurationFailureReason
     ForeignKeyNameTooLong,
     IndexNameTooLong,
     TemporalTableInvalid,
+    ApplicationTimeInvalid,
 }

@@ -367,6 +367,11 @@ public sealed class MySqlDatabaseModelFactoryTests
                     CreateSpatialGeometryColumnsReader(),
                 var sql when sql.Contains("FROM information_schema.STATISTICS", StringComparison.Ordinal) =>
                     CreateIndexesReader(),
+                var sql when sql.Contains("FROM information_schema.PERIODS AS periods", StringComparison.Ordinal) =>
+                    CreateApplicationTimePeriodsReader(sql),
+                var sql when sql.Contains(
+                    "FROM information_schema.KEY_PERIOD_USAGE AS period_keys",
+                    StringComparison.Ordinal) => CreateApplicationTimeConstraintsReader(),
                 var sql when sql.Contains(
                     "FROM information_schema.KEY_COLUMN_USAGE AS source",
                     StringComparison.Ordinal) => CreateForeignKeysReader(_connection.Database),
@@ -764,6 +769,36 @@ public sealed class MySqlDatabaseModelFactoryTests
                 "SPATIAL",
                 DBNull.Value,
                 DBNull.Value);
+
+            return table.CreateDataReader();
+        }
+
+        private static DataTableReader CreateApplicationTimePeriodsReader(
+            string commandText
+        )
+        {
+            // PERIODS also contains MariaDB's native SYSTEM_TIME dimension. The
+            // application-time loader must leave that row to TemporalTableLoader.
+            Assert.Contains(
+                "periods.PERIOD <> 'SYSTEM_TIME'",
+                commandText,
+                StringComparison.Ordinal);
+
+            var table = new DataTable();
+            table.Columns.Add("TABLE_NAME", typeof(string));
+            table.Columns.Add("PERIOD", typeof(string));
+            table.Columns.Add("START_COLUMN_NAME", typeof(string));
+            table.Columns.Add("END_COLUMN_NAME", typeof(string));
+
+            return table.CreateDataReader();
+        }
+
+        private static DataTableReader CreateApplicationTimeConstraintsReader()
+        {
+            var table = new DataTable();
+            table.Columns.Add("TABLE_NAME", typeof(string));
+            table.Columns.Add("CONSTRAINT_NAME", typeof(string));
+            table.Columns.Add("PERIOD_NAME", typeof(string));
 
             return table.CreateDataReader();
         }

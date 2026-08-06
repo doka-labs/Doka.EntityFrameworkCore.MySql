@@ -109,6 +109,12 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
                 TemporalHistoryTableSchema = entityType.GetMySqlTemporalHistoryTableSchema(),
                 TemporalPeriodStartPropertyName = entityType.GetMySqlTemporalPeriodStartPropertyName(),
                 TemporalPeriodEndPropertyName = entityType.GetMySqlTemporalPeriodEndPropertyName(),
+                IsApplicationTime = entityType.IsMySqlApplicationTime(),
+                ApplicationTimePeriodName = entityType.GetMySqlApplicationTimePeriodName(),
+                ApplicationTimePeriodStartPropertyName = entityType
+                    .GetMySqlApplicationTimePeriodStartPropertyName(),
+                ApplicationTimePeriodEndPropertyName = entityType
+                    .GetMySqlApplicationTimePeriodEndPropertyName(),
                 ColumnOrders = entityType
                     .GetProperties()
                     .Select(property => new
@@ -124,6 +130,7 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
                 || configuration.AlternateKeys.Length > 0
                 || configuration.CheckConstraints.Length > 0
                 || configuration.IsTemporal
+                || configuration.IsApplicationTime
                 || configuration.ColumnOrders.Length > 0)
             .OrderBy(configuration => configuration.EntityType.Name, StringComparer.Ordinal)
             .ToArray();
@@ -218,7 +225,8 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
             }
 
             if (configuration.CheckConstraints.Length == 0
-                && !configuration.IsTemporal)
+                && !configuration.IsTemporal
+                && !configuration.IsApplicationTime)
             {
                 continue;
             }
@@ -242,6 +250,16 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
                     configuration.TemporalHistoryTableSchema,
                     configuration.TemporalPeriodStartPropertyName,
                     configuration.TemporalPeriodEndPropertyName);
+            }
+
+            if (configuration.IsApplicationTime)
+            {
+                AppendApplicationTimeConfiguration(
+                    configurationCode,
+                    newline,
+                    configuration.ApplicationTimePeriodName,
+                    configuration.ApplicationTimePeriodStartPropertyName,
+                    configuration.ApplicationTimePeriodEndPropertyName);
             }
 
             foreach (var checkConstraint in configuration.CheckConstraints)
@@ -310,6 +328,43 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
             .Append(");")
             .Append(newline)
             .Append("                    temporalTableBuilder.HasPeriodEnd(")
+            .Append(_csharpHelper.Literal(periodEndPropertyName))
+            .Append(");")
+            .Append(newline)
+            .Append("                });")
+            .Append(newline);
+    }
+
+    private void AppendApplicationTimeConfiguration(
+        StringBuilder configurationCode,
+        string newline,
+        string? periodName,
+        string? periodStartPropertyName,
+        string? periodEndPropertyName
+    )
+    {
+        if (string.IsNullOrWhiteSpace(periodName)
+            || string.IsNullOrWhiteSpace(periodStartPropertyName)
+            || string.IsNullOrWhiteSpace(periodEndPropertyName))
+        {
+            throw new InvalidOperationException(
+                "A scaffolded application-time entity must expose its period name and both period properties.");
+        }
+
+        configurationCode
+            .Append("                tableBuilder.HasApplicationTimePeriod(applicationTimeTableBuilder =>")
+            .Append(newline)
+            .Append("                {")
+            .Append(newline)
+            .Append("                    applicationTimeTableBuilder.HasPeriodName(")
+            .Append(_csharpHelper.Literal(periodName))
+            .Append(");")
+            .Append(newline)
+            .Append("                    applicationTimeTableBuilder.HasPeriodStart(")
+            .Append(_csharpHelper.Literal(periodStartPropertyName))
+            .Append(");")
+            .Append(newline)
+            .Append("                    applicationTimeTableBuilder.HasPeriodEnd(")
             .Append(_csharpHelper.Literal(periodEndPropertyName))
             .Append(");")
             .Append(newline)
