@@ -118,11 +118,12 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     resolve same-run evidence receive `actions: read`, and only the final
     attestation job receives `id-token: write` and `attestations: write`
   - performance gate: isolated run-owned Compose projects and dynamic ports;
-    host admission uses active-process CPU instead of Unix load average, which
-    can count runnable desktop and video-decoding threads; adjacent deterministic
-    CPU or live database calibration pulses normalize historical latency per
-    workload; an isolated normalized historical p99 failure is confirmed by two
-    targeted calibrated measurements before the combined population is gated;
+    host admission uses bounded interval operating-system CPU counters instead
+    of lifetime process CPU or Unix load average, which can retain prior build
+    history or count unrelated runnable work; adjacent deterministic CPU or
+    live database calibration pulses normalize historical latency per workload;
+    an isolated normalized historical p99 failure is confirmed by two targeted
+    calibrated measurements before the combined population is gated;
     raw latency and managed allocation remain hard workload gates, while
     process-global retained-heap delta and Gen0/Gen1/Gen2 collection counts are
     retained as diagnostics; sustained retained-memory behavior remains a hard

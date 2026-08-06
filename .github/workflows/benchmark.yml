@@ -18,7 +18,51 @@ permissions:
   contents: read
 
 jobs:
+  resolve-baseline-mode:
+    name: Resolve baseline mode
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+
+    outputs:
+      mode: ${{ steps.resolve.outputs.mode }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Resolve compatibility before service containers and the expensive matrix
+      # are allocated. Scheduled runs seed reviewed evidence when the checked-in
+      # baseline cannot be compared under the current evidence contract.
+      - name: Resolve accepted baseline compatibility
+        id: resolve
+        env:
+          REQUESTED_MODE: ${{ inputs.baseline_mode || 'auto' }}
+        run: |
+          mkdir -p artifacts
+          python3 eng/performance_evidence.py resolve-baseline-mode \
+            --contract benchmarks/performance-contract.json \
+            --baseline benchmarks/baselines/doka-benchmark-baseline.json \
+            --profile scorecard \
+            --runner-class github-ubuntu-latest-x64 \
+            --requested-mode "${REQUESTED_MODE}" \
+            --output artifacts/baseline-mode.json
+
+          mode="$(jq -er '.mode' artifacts/baseline-mode.json)"
+          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "## Benchmark baseline mode"
+            echo
+            echo "- Requested: $(jq -r '.requestedMode' artifacts/baseline-mode.json)"
+            echo "- Selected: ${mode}"
+            echo "- Baseline: $(jq -r '.baselineDisposition' artifacts/baseline-mode.json)"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
   benchmark-scorecard:
+    needs: resolve-baseline-mode
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
@@ -75,7 +119,7 @@ jobs:
       - name: Run benchmark scorecard
         env:
           DOKA_BENCHMARK_PROFILE: scorecard
-          DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.baseline_mode || 'compare' }}
+          DOKA_BENCHMARK_BASELINE_MODE: ${{ needs.resolve-baseline-mode.outputs.mode }}
           DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
           DOKA_BENCHMARK_TARGET: ${{ matrix.benchmark-target }}
         run: bash ./eng/benchmark.sh --test-only
@@ -87,8 +131,10 @@ jobs:
           path: artifacts/benchmarks/${{ matrix.benchmark-target }}
 
   package-baseline-candidate:
-    if: github.event_name == 'workflow_dispatch' && inputs.baseline_mode == 'seed'
-    needs: benchmark-scorecard
+    if: needs.resolve-baseline-mode.outputs.mode == 'seed'
+    needs:
+      - resolve-baseline-mode
+      - benchmark-scorecard
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

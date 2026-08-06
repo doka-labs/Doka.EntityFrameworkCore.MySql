@@ -64,6 +64,36 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
                 ):
                     self.assertLessEqual(len(action_bindings), 1)
 
+    def test_benchmark_resolves_baseline_before_allocating_the_matrix(self) -> None:
+        """Keep incompatible hosted baselines out of costly compare runs."""
+        text = self.workflow("benchmark.yml")
+        resolver = self.job(
+            text,
+            "resolve-baseline-mode",
+            "benchmark-scorecard",
+        )
+        scorecard = self.job(
+            text,
+            "benchmark-scorecard",
+            "package-baseline-candidate",
+        )
+        candidate = self.job(text, "package-baseline-candidate")
+
+        self.assertIn("inputs.baseline_mode || 'auto'", resolver)
+        self.assertIn("resolve-baseline-mode", resolver)
+        self.assertIn("needs: resolve-baseline-mode", scorecard)
+        self.assertIn(
+            "needs.resolve-baseline-mode.outputs.mode",
+            scorecard,
+        )
+        self.assertIn(
+            "if: needs.resolve-baseline-mode.outputs.mode == 'seed'",
+            candidate,
+        )
+        self.assertIn("- benchmark-scorecard", candidate)
+        self.assertIn("benchmark-artifacts-mysql84", candidate)
+        self.assertIn("benchmark-artifacts-mariadb118", candidate)
+
     def test_candidate_identity_survives_selective_job_reruns(self) -> None:
         """Exclude the mutable run attempt from the stable candidate identity."""
         text = self.workflow("release-candidate.yml")

@@ -384,11 +384,11 @@ batch sizes, JSON, spatial materialization, migrations, and HiLo allocation.
 
 Scorecard evidence includes raw and workload-local calibration samples,
 median, p95, p99, standard error, managed allocation, GC counts, retained
-memory diagnostics, exact environment identity, initial CPU admission, and
-SHA-256 hashes. The CPU model and BenchmarkDotNet host must match the workload
-host. Raw absolute limits, calibration-normalized matching-runner historical
-budgets, allocation limits, and six sustained resource invariants must all
-pass.
+memory diagnostics, exact environment identity, bounded interval host-CPU
+admission, and SHA-256 hashes. The CPU model and BenchmarkDotNet host must
+match the workload host. Raw absolute limits, calibration-normalized
+matching-runner historical budgets, allocation limits, and six sustained
+resource invariants must all pass.
 
 Run a fast structural check:
 

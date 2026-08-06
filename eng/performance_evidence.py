@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import ctypes
 import hashlib
 import json
 import math
@@ -13,9 +14,10 @@ import platform
 import statistics
 import subprocess
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, NamedTuple, Sequence
 
 BASELINE_PATH = Path("benchmarks/baselines/doka-benchmark-baseline.json")
 SOAK_SCENARIO_IDS = {
@@ -40,7 +42,16 @@ COMPARABLE_ENVIRONMENT_FIELDS = (
 P99_CONFIRMATION_RUNS = 2
 P99_EXPECTED_EXCEEDANCE_PROBABILITY = 0.01
 P99_SIGNIFICANCE_LEVEL = 0.01
-HOST_ADMISSION_METRIC = "initial-process-cpu-utilization"
+HOST_ADMISSION_METRIC = "interval-host-cpu-utilization"
+
+
+class HostCpuCounterSnapshot(NamedTuple):
+    """Represent cumulative host CPU counters used by one interval sample."""
+
+    source: str
+    counters: tuple[int, ...]
+    busy_indices: tuple[int, ...]
+    counter_modulus: int | None
 
 
 class PerformanceEvidenceError(RuntimeError):
@@ -381,16 +392,39 @@ def validate_contract(contract: dict[str, Any]) -> None:
 
     if host_preconditions.get("admissionMetric") != HOST_ADMISSION_METRIC:
         raise PerformanceEvidenceError(
-            "Host admission metric must use initial process CPU utilization."
+            "Host admission metric must use interval host CPU utilization."
         )
-    maximum_initial_cpu = finite_number(
-        host_preconditions.get("maximumInitialCpuUtilization"),
-        "hostPreconditions.maximumInitialCpuUtilization",
+    maximum_cpu = finite_number(
+        host_preconditions.get("maximumCpuUtilization"),
+        "hostPreconditions.maximumCpuUtilization",
         minimum=0,
     )
-    if maximum_initial_cpu <= 0 or maximum_initial_cpu > 1:
+    if maximum_cpu <= 0 or maximum_cpu > 1:
         raise PerformanceEvidenceError(
-            "Host initial CPU utilization must be greater than 0 and at most 1."
+            "Host CPU utilization must be greater than 0 and at most 1."
+        )
+    sample_interval = required_positive_integer(
+        host_preconditions,
+        "sampleIntervalMilliseconds",
+        "hostPreconditions",
+    )
+    required_passes = required_positive_integer(
+        host_preconditions,
+        "requiredConsecutivePassingSamples",
+        "hostPreconditions",
+    )
+    maximum_attempts = required_positive_integer(
+        host_preconditions,
+        "maximumSampleAttempts",
+        "hostPreconditions",
+    )
+    if sample_interval < 100 or sample_interval > 10_000:
+        raise PerformanceEvidenceError(
+            "Host CPU sample interval must be between 100 and 10000 milliseconds."
+        )
+    if required_passes > maximum_attempts or maximum_attempts > 10:
+        raise PerformanceEvidenceError(
+            "Host CPU admission requires no more passes than attempts and at most 10 attempts."
         )
 
     for target_id, target_contract in targets.items():
@@ -742,55 +776,166 @@ def resolve_processor_identity() -> str:
     return platform.processor().strip() or platform.machine().strip() or "unknown"
 
 
-def parse_process_cpu_utilization(
-    output: str,
-    processor_count: int,
-) -> float:
-    """Normalize summed process CPU percentages across the available processors."""
-    if processor_count <= 0:
-        raise PerformanceEvidenceError("Processor count must be positive.")
+def parse_linux_cpu_counters(output: str) -> HostCpuCounterSnapshot:
+    """Parse the aggregate CPU counters from Linux /proc/stat."""
+    aggregate = next(
+        (line for line in output.splitlines() if line.startswith("cpu ")),
+        None,
+    )
+    if aggregate is None:
+        raise PerformanceEvidenceError("Linux host CPU counters are missing.")
 
+    fields = aggregate.split()
+    if len(fields) < 9:
+        raise PerformanceEvidenceError("Linux host CPU counters are incomplete.")
     try:
-        percentages = [
-            float(line.strip())
-            for line in output.splitlines()
-            if line.strip()
-        ]
+        counters = tuple(int(value) for value in fields[1:9])
     except ValueError as error:
-        raise PerformanceEvidenceError(
-            "Unable to parse process CPU utilization."
-        ) from error
-    if not percentages or any(
-        not math.isfinite(value) or value < 0
-        for value in percentages
-    ):
-        raise PerformanceEvidenceError("Process CPU utilization is incomplete or invalid.")
+        raise PerformanceEvidenceError("Linux host CPU counters are invalid.") from error
+    if any(value < 0 for value in counters):
+        raise PerformanceEvidenceError("Linux host CPU counters are invalid.")
 
-    return sum(percentages) / (processor_count * 100.0)
+    # Guest time is already included in user and nice time. Counting only the
+    # first eight documented fields therefore avoids double-counting capacity.
+    return HostCpuCounterSnapshot(
+        source="linux-proc-stat",
+        counters=counters,
+        busy_indices=(0, 1, 2, 5, 6, 7),
+        counter_modulus=None,
+    )
 
 
-def capture_process_cpu_utilization(processor_count: int) -> float:
-    """Measure active process CPU without treating runnable desktop threads as load."""
-    environment = os.environ.copy()
-    environment["LC_ALL"] = "C"
+def capture_linux_cpu_counters() -> HostCpuCounterSnapshot:
+    """Read the cumulative aggregate CPU counters exposed by Linux."""
     try:
-        result = subprocess.run(
-            ["ps", "-A", "-o", "%cpu="],
-            check=True,
-            capture_output=True,
-            text=True,
-            env=environment,
-        )
-    except (OSError, subprocess.CalledProcessError) as error:
+        output = Path("/proc/stat").read_text(encoding="utf-8")
+    except OSError as error:
         raise PerformanceEvidenceError(
-            "Unable to capture process CPU utilization."
+            "Unable to capture Linux host CPU counters."
         ) from error
 
-    return parse_process_cpu_utilization(result.stdout, processor_count)
+    return parse_linux_cpu_counters(output)
 
 
-def capture_host_preflight(contract: dict[str, Any]) -> dict[str, Any]:
-    """Capture a fail-fast saturation check before calibrated measurement starts."""
+def capture_macos_cpu_counters() -> HostCpuCounterSnapshot:
+    """Read Darwin host CPU ticks through the public Mach host API."""
+
+    class HostCpuLoadInfo(ctypes.Structure):
+        _fields_ = [("cpu_ticks", ctypes.c_uint32 * 4)]
+
+    try:
+        library = ctypes.CDLL(None)
+        mach_host_self = library.mach_host_self
+        mach_host_self.restype = ctypes.c_uint32
+        mach_port_deallocate = library.mach_port_deallocate
+        mach_port_deallocate.argtypes = (ctypes.c_uint32, ctypes.c_uint32)
+        mach_port_deallocate.restype = ctypes.c_int
+        host_statistics64 = library.host_statistics64
+        host_statistics64.argtypes = (
+            ctypes.c_uint32,
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.POINTER(ctypes.c_uint32),
+        )
+        host_statistics64.restype = ctypes.c_int
+        information = HostCpuLoadInfo()
+        count = ctypes.c_uint32(4)
+        task_self = ctypes.c_uint32.in_dll(library, "mach_task_self_").value
+        host_port = mach_host_self()
+        if host_port == 0:
+            raise PerformanceEvidenceError("macOS returned an invalid host port.")
+        try:
+            result = host_statistics64(
+                host_port,
+                3,
+                ctypes.cast(ctypes.byref(information), ctypes.POINTER(ctypes.c_int)),
+                ctypes.byref(count),
+            )
+        finally:
+            deallocation_result = mach_port_deallocate(task_self, host_port)
+    except (AttributeError, OSError, ValueError) as error:
+        raise PerformanceEvidenceError(
+            "Unable to capture macOS host CPU counters."
+        ) from error
+
+    if deallocation_result != 0:
+        raise PerformanceEvidenceError("Unable to release the macOS host port.")
+    if result != 0 or count.value < 4:
+        raise PerformanceEvidenceError("macOS host CPU counters are incomplete.")
+
+    return HostCpuCounterSnapshot(
+        source="macos-host-statistics64",
+        counters=tuple(information.cpu_ticks),
+        busy_indices=(0, 1, 3),
+        counter_modulus=2**32,
+    )
+
+
+def capture_host_cpu_counters() -> HostCpuCounterSnapshot:
+    """Capture one platform-native cumulative host CPU snapshot."""
+    if sys.platform.startswith("linux"):
+        return capture_linux_cpu_counters()
+    if sys.platform == "darwin":
+        return capture_macos_cpu_counters()
+
+    raise PerformanceEvidenceError(
+        f"Host CPU interval sampling is unsupported on '{sys.platform}'."
+    )
+
+
+def calculate_host_cpu_utilization(
+    before: HostCpuCounterSnapshot,
+    after: HostCpuCounterSnapshot,
+) -> float:
+    """Calculate busy capacity from two compatible cumulative snapshots."""
+    if (
+        before.source != after.source
+        or before.busy_indices != after.busy_indices
+        or before.counter_modulus != after.counter_modulus
+        or len(before.counters) != len(after.counters)
+    ):
+        raise PerformanceEvidenceError("Host CPU counter snapshots are incompatible.")
+
+    deltas: list[int] = []
+    for earlier, later in zip(before.counters, after.counters, strict=True):
+        if later >= earlier:
+            deltas.append(later - earlier)
+            continue
+        if before.counter_modulus is None:
+            raise PerformanceEvidenceError("Host CPU counters moved backwards.")
+        deltas.append(later + before.counter_modulus - earlier)
+
+    total_delta = sum(deltas)
+    if total_delta <= 0:
+        raise PerformanceEvidenceError("Host CPU counters did not advance.")
+    busy_delta = sum(deltas[index] for index in before.busy_indices)
+
+    return busy_delta / total_delta
+
+
+def sample_host_cpu_utilization(
+    interval_seconds: float,
+    *,
+    counter_reader: Callable[[], HostCpuCounterSnapshot] = capture_host_cpu_counters,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> tuple[str, float]:
+    """Measure current host CPU utilization across one bounded interval."""
+    if not math.isfinite(interval_seconds) or interval_seconds <= 0:
+        raise PerformanceEvidenceError("Host CPU sample interval must be positive.")
+
+    before = counter_reader()
+    sleeper(interval_seconds)
+    after = counter_reader()
+
+    return before.source, calculate_host_cpu_utilization(before, after)
+
+
+def capture_host_preflight(
+    contract: dict[str, Any],
+    *,
+    sample_provider: Callable[[float], tuple[str, float]] = sample_host_cpu_utilization,
+) -> dict[str, Any]:
+    """Admit only a host with sustained current CPU headroom."""
     validate_contract(contract)
     processor_count = os.cpu_count()
     if processor_count is None or processor_count <= 0:
@@ -803,17 +948,77 @@ def capture_host_preflight(contract: dict[str, Any]) -> dict[str, Any]:
             "The benchmark host does not expose Unix load averages."
         ) from error
 
+    preconditions = contract["hostPreconditions"]
     maximum_cpu_utilization = finite_number(
-        contract["hostPreconditions"]["maximumInitialCpuUtilization"],
-        "hostPreconditions.maximumInitialCpuUtilization",
+        preconditions["maximumCpuUtilization"],
+        "hostPreconditions.maximumCpuUtilization",
         minimum=0,
     )
+    sample_interval_milliseconds = required_positive_integer(
+        preconditions,
+        "sampleIntervalMilliseconds",
+        "hostPreconditions",
+    )
+    required_passes = required_positive_integer(
+        preconditions,
+        "requiredConsecutivePassingSamples",
+        "hostPreconditions",
+    )
+    maximum_attempts = required_positive_integer(
+        preconditions,
+        "maximumSampleAttempts",
+        "hostPreconditions",
+    )
     ratio = load_average_1m / processor_count
-    cpu_utilization = capture_process_cpu_utilization(processor_count)
-    success = cpu_utilization <= maximum_cpu_utilization
+    samples: list[dict[str, Any]] = []
+    consecutive_passing_samples = 0
+    sampling_source: str | None = None
+
+    for sequence in range(1, maximum_attempts + 1):
+        source, cpu_utilization = sample_provider(
+            sample_interval_milliseconds / 1000.0
+        )
+        if sampling_source is None:
+            sampling_source = source
+        elif source != sampling_source:
+            raise PerformanceEvidenceError(
+                "Host CPU sampling source changed during admission."
+            )
+        if not math.isfinite(cpu_utilization) or not 0 <= cpu_utilization <= 1:
+            raise PerformanceEvidenceError("Host CPU utilization sample is invalid.")
+
+        within_limit = cpu_utilization <= maximum_cpu_utilization
+        samples.append(
+            {
+                "sequence": sequence,
+                "cpuUtilization": cpu_utilization,
+                "withinLimit": within_limit,
+            }
+        )
+        consecutive_passing_samples = (
+            consecutive_passing_samples + 1
+            if within_limit
+            else 0
+        )
+        if consecutive_passing_samples == required_passes:
+            break
+
+    success = consecutive_passing_samples == required_passes
+    observed_maximum_cpu_utilization = max(
+        sample["cpuUtilization"]
+        for sample in samples
+    )
+    admitted_cpu_utilization = (
+        max(
+            sample["cpuUtilization"]
+            for sample in samples[-required_passes:]
+        )
+        if success
+        else None
+    )
 
     return {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "kind": "performance-host-preflight",
         "contractVersion": contract["contractVersion"],
         "generatedUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -824,8 +1029,14 @@ def capture_host_preflight(contract: dict[str, Any]) -> dict[str, Any]:
         "loadAverage15Minutes": load_average_15m,
         "loadAverage1MinutePerProcessor": ratio,
         "admissionMetric": HOST_ADMISSION_METRIC,
-        "initialCpuUtilization": cpu_utilization,
-        "maximumInitialCpuUtilization": maximum_cpu_utilization,
+        "samplingSource": sampling_source,
+        "sampleIntervalMilliseconds": sample_interval_milliseconds,
+        "requiredConsecutivePassingSamples": required_passes,
+        "maximumSampleAttempts": maximum_attempts,
+        "samples": samples,
+        "admittedCpuUtilization": admitted_cpu_utilization,
+        "observedMaximumCpuUtilization": observed_maximum_cpu_utilization,
+        "maximumCpuUtilization": maximum_cpu_utilization,
         "success": success,
     }
 
@@ -838,7 +1049,7 @@ def validate_host_preflight(
 ) -> dict[str, Any]:
     """Reject stale, overloaded, or contract-drifting host preflight evidence."""
     if (
-        report.get("schemaVersion") != 3
+        report.get("schemaVersion") != 4
         or report.get("kind") != "performance-host-preflight"
     ):
         raise PerformanceEvidenceError("Host preflight schema or kind is invalid.")
@@ -874,29 +1085,114 @@ def validate_host_preflight(
 
     if report.get("admissionMetric") != HOST_ADMISSION_METRIC:
         raise PerformanceEvidenceError("Host preflight admission metric is invalid.")
-    cpu_utilization = finite_number(
-        report.get("initialCpuUtilization"),
-        "hostPreflight.initialCpuUtilization",
+    sampling_source = required_string(report, "samplingSource", "hostPreflight")
+    if sampling_source not in ("linux-proc-stat", "macos-host-statistics64"):
+        raise PerformanceEvidenceError("Host preflight sampling source is invalid.")
+
+    preconditions = contract["hostPreconditions"]
+    expected_interval = preconditions["sampleIntervalMilliseconds"]
+    expected_required_passes = preconditions["requiredConsecutivePassingSamples"]
+    expected_maximum_attempts = preconditions["maximumSampleAttempts"]
+    if report.get("sampleIntervalMilliseconds") != expected_interval:
+        raise PerformanceEvidenceError("Host preflight sample interval is invalid.")
+    if report.get("requiredConsecutivePassingSamples") != expected_required_passes:
+        raise PerformanceEvidenceError(
+            "Host preflight consecutive passing sample count is invalid."
+        )
+    if report.get("maximumSampleAttempts") != expected_maximum_attempts:
+        raise PerformanceEvidenceError("Host preflight maximum sample attempts is invalid.")
+
+    samples = report.get("samples")
+    if (
+        not isinstance(samples, list)
+        or not samples
+        or len(samples) > expected_maximum_attempts
+    ):
+        raise PerformanceEvidenceError("Host preflight samples are incomplete.")
+
+    consecutive_passes = 0
+    first_acceptance: int | None = None
+    sample_values: list[float] = []
+    for expected_sequence, sample in enumerate(samples, start=1):
+        if not isinstance(sample, dict) or sample.get("sequence") != expected_sequence:
+            raise PerformanceEvidenceError("Host preflight sample sequence is invalid.")
+        value = finite_number(
+            sample.get("cpuUtilization"),
+            f"hostPreflight.samples[{expected_sequence - 1}].cpuUtilization",
+            minimum=0,
+        )
+        if value > 1:
+            raise PerformanceEvidenceError("Host preflight CPU utilization is invalid.")
+        within_limit = value <= preconditions["maximumCpuUtilization"]
+        if sample.get("withinLimit") is not within_limit:
+            raise PerformanceEvidenceError("Host preflight sample decision is invalid.")
+        sample_values.append(value)
+        consecutive_passes = consecutive_passes + 1 if within_limit else 0
+        if consecutive_passes == expected_required_passes and first_acceptance is None:
+            first_acceptance = expected_sequence
+
+    success = report.get("success")
+    if not isinstance(success, bool):
+        raise PerformanceEvidenceError("Host preflight success flag is invalid.")
+    if success:
+        if first_acceptance != len(samples):
+            raise PerformanceEvidenceError(
+                "Host preflight did not stop at the first successful admission window."
+            )
+        admitted_sample_values = sample_values[-expected_required_passes:]
+    else:
+        if first_acceptance is not None or len(samples) != expected_maximum_attempts:
+            raise PerformanceEvidenceError(
+                "Failed host preflight did not exhaust its admission window."
+            )
+
+    observed_maximum_cpu_utilization = finite_number(
+        report.get("observedMaximumCpuUtilization"),
+        "hostPreflight.observedMaximumCpuUtilization",
         minimum=0,
     )
     maximum_cpu_utilization = finite_number(
-        report.get("maximumInitialCpuUtilization"),
-        "hostPreflight.maximumInitialCpuUtilization",
+        report.get("maximumCpuUtilization"),
+        "hostPreflight.maximumCpuUtilization",
         minimum=0,
     )
-    expected_maximum = float(
-        contract["hostPreconditions"]["maximumInitialCpuUtilization"]
-    )
+    expected_maximum = float(preconditions["maximumCpuUtilization"])
     if maximum_cpu_utilization != expected_maximum:
         raise PerformanceEvidenceError("Host preflight CPU ceiling is invalid.")
-    if (
-        report.get("success") is not True
-        or cpu_utilization > maximum_cpu_utilization
-    ):
+    if not close_enough(observed_maximum_cpu_utilization, max(sample_values)):
         raise PerformanceEvidenceError(
-            "Benchmark host is initially CPU-saturated: utilization "
-            f"is {cpu_utilization:.4f}, maximum is "
-            f"{maximum_cpu_utilization:.4f}."
+            "Host preflight observed maximum CPU utilization does not match its samples."
+        )
+
+    admitted_cpu_utilization = report.get("admittedCpuUtilization")
+    if success:
+        admitted_cpu_utilization = finite_number(
+            admitted_cpu_utilization,
+            "hostPreflight.admittedCpuUtilization",
+            minimum=0,
+        )
+        if not close_enough(
+            admitted_cpu_utilization,
+            max(admitted_sample_values),
+        ):
+            raise PerformanceEvidenceError(
+                "Host preflight admitted CPU utilization does not match "
+                "its acceptance window."
+            )
+    elif admitted_cpu_utilization is not None:
+        raise PerformanceEvidenceError(
+            "Failed host preflight cannot record an admitted CPU utilization."
+        )
+
+    if not success:
+        observed_samples = ", ".join(
+            f"{sample_value:.4f}" for sample_value in sample_values
+        )
+        raise PerformanceEvidenceError(
+            "Benchmark host admission did not produce "
+            f"{expected_required_passes} consecutive CPU samples at or below "
+            f"{maximum_cpu_utilization:.4f} in {expected_maximum_attempts} attempts; "
+            f"observed samples: [{observed_samples}]."
         )
 
     return report
@@ -1254,24 +1550,24 @@ def validate_workload_report(
             "workloadReport.environment host admission metric is invalid."
         )
     cpu_utilization = finite_number(
-        environment.get("initialHostCpuUtilization"),
-        "workloadReport.environment.initialHostCpuUtilization",
+        environment.get("admittedHostCpuUtilization"),
+        "workloadReport.environment.admittedHostCpuUtilization",
         minimum=0,
     )
     maximum_cpu_utilization = finite_number(
-        environment.get("maximumInitialHostCpuUtilization"),
-        "workloadReport.environment.maximumInitialHostCpuUtilization",
+        environment.get("maximumHostCpuUtilization"),
+        "workloadReport.environment.maximumHostCpuUtilization",
         minimum=0,
     )
     expected_maximum_cpu = float(
-        contract["hostPreconditions"]["maximumInitialCpuUtilization"]
+        contract["hostPreconditions"]["maximumCpuUtilization"]
     )
     if (
         maximum_cpu_utilization != expected_maximum_cpu
         or cpu_utilization > maximum_cpu_utilization
     ):
         raise PerformanceEvidenceError(
-            "workloadReport.environment records an initially saturated benchmark host."
+            "workloadReport.environment records a saturated benchmark host."
         )
     target_contract = contract["requiredTargets"][target]
     expected_family = target_contract["engineFamily"]
@@ -3131,11 +3427,8 @@ def validate_host_workload_binding(
             "Host preflight and workload environment disagree on 'admissionMetric'."
         )
     for host_key, environment_key in (
-        ("initialCpuUtilization", "initialHostCpuUtilization"),
-        (
-            "maximumInitialCpuUtilization",
-            "maximumInitialHostCpuUtilization",
-        ),
+        ("admittedCpuUtilization", "admittedHostCpuUtilization"),
+        ("maximumCpuUtilization", "maximumHostCpuUtilization"),
     ):
         host_value = finite_number(
             host_preflight.get(host_key),
@@ -3378,8 +3671,8 @@ def validate_seed_evaluation(
         "hostLoadAverage5Minutes",
         "hostLoadAverage15Minutes",
         "hostLoadAverage1MinutePerProcessor",
-        "initialHostCpuUtilization",
-        "maximumInitialHostCpuUtilization",
+        "admittedHostCpuUtilization",
+        "maximumHostCpuUtilization",
     ):
         finite_number(
             environment.get(key),
@@ -3741,31 +4034,47 @@ def seed_baseline(args: argparse.Namespace) -> dict[str, Any]:
     retained_entries: list[dict[str, Any]] = []
     merge_existing = getattr(args, "merge_existing", None)
     if merge_existing:
-        validate_baseline_file(
-            argparse.Namespace(
-                contract=args.contract,
-                baseline=merge_existing,
-            )
-        )
         existing = load_json(Path(merge_existing))
+        if (
+            existing.get("schemaVersion") != 3
+            or existing.get("baselineState") != "accepted"
+        ):
+            raise PerformanceEvidenceError(
+                "The existing baseline must use schemaVersion 3 and state accepted."
+            )
+        existing_contract_version = required_string(
+            existing,
+            "contractVersion",
+            "existingBaseline",
+        )
         existing_entries = existing.get("baselines")
         if not isinstance(existing_entries, list):
             raise PerformanceEvidenceError("The existing baseline has no baselines array.")
-        replacement_keys = {
-            (entry["target"], entry["profile"], entry["runnerClass"])
-            for entry in baseline_entries
-        }
-        retained_entries = [
-            entry
-            for entry in existing_entries
-            if isinstance(entry, dict)
-            and (
-                entry.get("target"),
-                entry.get("profile"),
-                entry.get("runnerClass"),
+        if existing_contract_version == contract["contractVersion"]:
+            validate_baseline_file(
+                argparse.Namespace(
+                    contract=args.contract,
+                    baseline=merge_existing,
+                )
             )
-            not in replacement_keys
-        ]
+            replacement_keys = {
+                (entry["target"], entry["profile"], entry["runnerClass"])
+                for entry in baseline_entries
+            }
+            retained_entries = [
+                entry
+                for entry in existing_entries
+                if isinstance(entry, dict)
+                and (
+                    entry.get("target"),
+                    entry.get("profile"),
+                    entry.get("runnerClass"),
+                )
+                not in replacement_keys
+            ]
+        # A contract revision changes the meaning of accepted evidence. The
+        # incoming seed must already cover every target, so retaining entries
+        # accepted under the old contract would create a mixed, invalid baseline.
 
     combined_entries = retained_entries + baseline_entries
 
@@ -3860,6 +4169,110 @@ def validate_baseline_file(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def resolve_baseline_mode(args: argparse.Namespace) -> dict[str, Any]:
+    """Resolve the cheapest valid scorecard mode before CI allocates its matrix."""
+    contract = load_json(Path(args.contract))
+    validate_contract(contract)
+    profile = args.profile
+    if profile not in contract["profiles"]:
+        raise PerformanceEvidenceError(
+            f"Unknown performance profile '{profile}'."
+        )
+    if contract["profiles"][profile].get("baselineRequired") is not True:
+        raise PerformanceEvidenceError(
+            f"Performance profile '{profile}' does not require a baseline."
+        )
+
+    runner_class = args.runner_class.strip()
+    if not runner_class:
+        raise PerformanceEvidenceError("Runner class must not be empty.")
+
+    requested_mode = args.requested_mode
+    baseline_path = Path(args.baseline)
+    baseline_disposition: str
+    automatic_mode: str
+
+    if not baseline_path.is_file():
+        automatic_mode = "seed"
+        baseline_disposition = "baseline-missing"
+    else:
+        baseline = load_json(baseline_path)
+        if (
+            baseline.get("schemaVersion") != 3
+            or baseline.get("baselineState") != "accepted"
+        ):
+            raise PerformanceEvidenceError(
+                "Baseline must use schemaVersion 3 and state accepted."
+            )
+        baseline_contract_version = required_string(
+            baseline,
+            "contractVersion",
+            "baseline",
+        )
+        entries = baseline.get("baselines")
+        if not isinstance(entries, list):
+            raise PerformanceEvidenceError("Baseline baselines must be an array.")
+
+        if baseline_contract_version != contract["contractVersion"]:
+            automatic_mode = "seed"
+            baseline_disposition = "contract-version-mismatch"
+        else:
+            # Full validation must precede lookup. Otherwise a complete-looking
+            # runner pair could hide duplicate or partial groups elsewhere.
+            validate_baseline_file(
+                argparse.Namespace(
+                    contract=args.contract,
+                    baseline=args.baseline,
+                )
+            )
+            observed_targets = {
+                entry["target"]
+                for entry in entries
+                if entry["profile"] == profile
+                and entry["runnerClass"] == runner_class
+            }
+            required_targets = set(contract["requiredTargets"])
+            if observed_targets == required_targets:
+                automatic_mode = "compare"
+                baseline_disposition = "accepted-runner-pair"
+            elif not observed_targets:
+                automatic_mode = "seed"
+                baseline_disposition = "runner-pair-missing"
+            else:
+                # validate_baseline_file rejects this already. Keep the branch
+                # explicit so this resolver remains fail-closed if that contract
+                # changes independently in the future.
+                raise PerformanceEvidenceError(
+                    "Baseline contains a partial target pair for the requested runner."
+                )
+
+    if requested_mode == "compare" and automatic_mode != "compare":
+        raise PerformanceEvidenceError(
+            "Compare mode requires a current accepted baseline pair for "
+            f"profile '{profile}' and runner '{runner_class}'; disposition is "
+            f"'{baseline_disposition}'."
+        )
+
+    selected_mode = automatic_mode if requested_mode == "auto" else requested_mode
+    selection_reason = (
+        baseline_disposition
+        if requested_mode == "auto"
+        else "operator-requested"
+    )
+
+    return {
+        "schemaVersion": 1,
+        "kind": "performance-baseline-mode",
+        "contractVersion": contract["contractVersion"],
+        "profile": profile,
+        "runnerClass": runner_class,
+        "requestedMode": requested_mode,
+        "mode": selected_mode,
+        "reason": selection_reason,
+        "baselineDisposition": baseline_disposition,
+    }
+
+
 def add_common_identity_arguments(parser: argparse.ArgumentParser) -> None:
     """Add current-run identity arguments shared by validation commands."""
     parser.add_argument("--contract", required=True)
@@ -3916,6 +4329,18 @@ def build_parser() -> argparse.ArgumentParser:
     baseline_parser.add_argument("--baseline", required=True)
     baseline_parser.add_argument("--output", required=True)
 
+    resolve_parser = subparsers.add_parser("resolve-baseline-mode")
+    resolve_parser.add_argument("--contract", required=True)
+    resolve_parser.add_argument("--baseline", required=True)
+    resolve_parser.add_argument("--profile", required=True)
+    resolve_parser.add_argument("--runner-class", required=True)
+    resolve_parser.add_argument(
+        "--requested-mode",
+        choices=("auto", "compare", "seed"),
+        default="auto",
+    )
+    resolve_parser.add_argument("--output", required=True)
+
     source_hash_parser = subparsers.add_parser("source-hash")
     source_hash_parser.add_argument("--repo", required=True)
 
@@ -3940,11 +4365,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = capture_host_preflight(contract)
             write_json(Path(args.output), payload)
             if payload["success"] is not True:
+                observed_samples = ", ".join(
+                    f"{sample['cpuUtilization']:.4f}"
+                    for sample in payload["samples"]
+                )
                 print(
-                    "Performance host preflight failed: initial process CPU "
-                    f"utilization is {payload['initialCpuUtilization']:.4f}, "
-                    "maximum is "
-                    f"{payload['maximumInitialCpuUtilization']:.4f}.",
+                    "Performance host preflight failed: interval host CPU "
+                    "utilization remained above the admission ceiling. "
+                    f"Samples: [{observed_samples}]; maximum: "
+                    f"{payload['observedMaximumCpuUtilization']:.4f}; ceiling: "
+                    f"{payload['maximumCpuUtilization']:.4f}.",
                     file=sys.stderr,
                 )
                 return 1
@@ -3976,6 +4406,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         elif args.command == "validate-baseline":
             payload = validate_baseline_file(args)
+        elif args.command == "resolve-baseline-mode":
+            payload = resolve_baseline_mode(args)
         else:
             parser.error(f"Unknown command '{args.command}'.")
 

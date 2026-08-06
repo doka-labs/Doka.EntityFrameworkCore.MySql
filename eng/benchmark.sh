@@ -385,8 +385,9 @@ ensure_fresh_run_directory() {
 }
 
 capture_host_preflight() {
-    # Reject only genuine initial saturation. Workload-local calibration, not
-    # a demand for an idle workstation, normalizes ordinary background work.
+    # Require current CPU headroom across a bounded admission window. This
+    # rejects sustained contention without mistaking the preceding build's
+    # lifetime process averages for live host saturation.
     local output_path="$1"
 
     python3 "${evidence_tool}" host-preflight \
@@ -406,10 +407,10 @@ capture_host_preflight() {
     export DOKA_BENCHMARK_HOST_ADMISSION_METRIC
     DOKA_BENCHMARK_HOST_ADMISSION_METRIC="$(jq -er '.admissionMetric' "${output_path}")"
     export DOKA_BENCHMARK_HOST_CPU_UTILIZATION
-    DOKA_BENCHMARK_HOST_CPU_UTILIZATION="$(jq -er '.initialCpuUtilization' "${output_path}")"
+    DOKA_BENCHMARK_HOST_CPU_UTILIZATION="$(jq -er '.admittedCpuUtilization' "${output_path}")"
     export DOKA_BENCHMARK_HOST_MAXIMUM_CPU_UTILIZATION
     DOKA_BENCHMARK_HOST_MAXIMUM_CPU_UTILIZATION="$(
-        jq -er '.maximumInitialCpuUtilization' "${output_path}"
+        jq -er '.maximumCpuUtilization' "${output_path}"
     )"
 }
 

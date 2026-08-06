@@ -194,10 +194,10 @@ internal sealed class PerformanceEnvironmentEvidence
     public string HostAdmissionMetric { get; init; } = RequiredEnvironmentString(
         "DOKA_BENCHMARK_HOST_ADMISSION_METRIC");
 
-    public double InitialHostCpuUtilization { get; init; } = RequiredEnvironmentNumber(
+    public double AdmittedHostCpuUtilization { get; init; } = RequiredEnvironmentNumber(
         "DOKA_BENCHMARK_HOST_CPU_UTILIZATION");
 
-    public double MaximumInitialHostCpuUtilization { get; init; } = RequiredEnvironmentNumber(
+    public double MaximumHostCpuUtilization { get; init; } = RequiredEnvironmentNumber(
         "DOKA_BENCHMARK_HOST_MAXIMUM_CPU_UTILIZATION");
 
     public string EngineFamily { get; init; } = string.Empty;

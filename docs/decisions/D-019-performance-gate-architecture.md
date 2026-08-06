@@ -55,8 +55,8 @@ changes.
 - Tail latency, managed allocation, garbage collection, and retained memory
   need persisted raw evidence.
 - Missing, stale, malformed, noisy, or failing measurements must stop the gate.
-- Genuine initial CPU saturation and concrete processor identity must be
-  accepted before timing starts, and every measurement layer must agree on
+- Current aggregate host CPU utilization and concrete processor identity must
+  be accepted before timing starts, and every measurement layer must agree on
   that host.
 - Historical latency must distinguish provider drift from contention that
   equally affects a directly adjacent control path.
@@ -169,24 +169,29 @@ Every evaluation records:
 - stable runner class and concrete processor model;
 - .NET runtime, OS, architecture, processor, processor count, and exact server
   image;
-- one-, five-, and fifteen-minute load averages as diagnostics, plus initial
-  process CPU utilization and its admission ceiling;
+- one-, five-, and fifteen-minute load averages as diagnostics, plus every
+  interval host-CPU sample, its operating-system counter source, bounded
+  admission decision, and ceiling;
 - engine family and the server-observed `SELECT VERSION()` value;
 - raw BenchmarkDotNet report paths and SHA-256 hashes;
 - workload, soak, contract, and derived-evidence hashes;
 - all absolute and historical verdicts.
 
-The wrapper builds first, then samples process CPU utilization and rejects only
-genuine initial saturation above `0.90`. Unix load average remains diagnostic
-because it can include runnable desktop and media-decoding threads that do not
-represent provider contention. The wrapper persists that preflight and exports
-the exact values into the workload process. Adjacent calibration then removes
-ordinary current-run CPU or local-database contention from historical latency
-comparisons. Calibration is a one-sided nuisance adjustment: a slower current
-control can discount contention, but a faster control cannot make an unchanged
-or faster provider path appear slower. The evaluator binds both artifacts and
-also requires BenchmarkDotNet to report the same processor and process
-architecture in a Release build. A targeted
+The wrapper builds first, then samples aggregate host CPU counters over
+one-second intervals. Linux uses `/proc/stat`; macOS uses Mach
+`host_statistics64`. Admission requires two consecutive samples at or below
+`0.90` within five attempts. The bounded retry absorbs short build or container
+runoff, while persistent saturation still fails before timing begins. A
+lifetime process average is not used as a proxy for current host utilization.
+Unix load average remains diagnostic because it can include runnable work that
+does not represent provider contention. The wrapper persists every interval
+sample and exports the admitted values into the workload process. Adjacent
+calibration then removes ordinary current-run CPU or local-database contention
+from historical latency comparisons. Calibration is a one-sided nuisance
+adjustment: a slower current control can discount contention, but a faster
+control cannot make an unchanged or faster provider path appear slower. The
+evaluator binds both artifacts and also requires BenchmarkDotNet to report the
+same processor and process architecture in a Release build. A targeted
 single-workload diagnostic report uses a distinct kind that the release
 evaluator rejects; it supports root-cause analysis without weakening matrix
 completeness.
@@ -263,9 +268,20 @@ contract, and recomputes every verdict.
 
 ### Automation and baseline acceptance
 
-The weekly benchmark workflow and the release-candidate workflow run the
-scorecard against both required engines. A scorecard with no matching accepted
-runner baseline fails.
+The weekly benchmark workflow resolves baseline compatibility before starting
+services or either scorecard matrix job. It compares only when the accepted
+baseline contains a complete current-contract pair for the hosted runner. A
+missing baseline, older contract, or absent runner pair selects `seed` and
+packages a review candidate after both engines pass. Malformed or partial
+current-contract evidence fails before the matrix. The candidate is never
+committed or accepted automatically.
+
+An explicit manual `compare` and every release-candidate run remain strict: no
+matching accepted runner pair is a hard failure. Seed mode still enforces the
+complete workload, absolute budgets, statistics, allocation, GC, soak,
+environment identity, and host admission; it omits only the unavailable
+historical comparison. Contract changes do not merge older-contract runner
+groups into the new candidate.
 
 A manual benchmark workflow can run in `seed` mode. It packages both engine
 evaluations into a combined baseline candidate while retaining already
@@ -303,8 +319,9 @@ receipts at every major stage instead of one global deadline.
   checkpoints retain completed work.
 - Good, because absolute, historical, and sustained-resource regressions are
   separately diagnosable.
-- Bad, because accepting a new runner class requires one reviewed dual-engine
-  seed run before scheduled comparisons can pass.
+- Bad, because a new runner class or evidence contract requires review and
+  acceptance of one dual-engine seed candidate before strict comparisons and
+  release qualification can pass.
 - Bad, because the full scorecard and soak corpus is intentionally unsuitable
   for every pull request.
 
@@ -435,6 +452,11 @@ A baseline update requires:
   I/O populations and explicit matrix-versus-workload timeout diagnostics.
   Sampling, statistical, allocation, and historical regression budgets remain
   unchanged, so existing accepted baselines remain compatible.
+- 2026-08-06: Replaced lifetime process CPU admission with bounded interval
+  host-CPU sampling from Linux and macOS operating-system counters. Added a
+  pre-matrix baseline-mode resolver so scheduled hosted runs produce a
+  reviewable seed candidate for new evidence contracts while explicit compare
+  and release-candidate paths remain fail-closed.
 
 ### Implementation References
 
@@ -466,6 +488,16 @@ A baseline update requires:
   (primary source; retrieved 2026-07-30)
 - [MariaDB ALTER SEQUENCE][mariadb-alter-sequence]
   (primary source; retrieved 2026-07-30)
+- [Linux `ps(1)` CPU semantics][linux-ps]
+  (primary source; retrieved 2026-08-06)
+- [Linux `/proc/stat` CPU counters][linux-proc]
+  (primary source; retrieved 2026-08-06)
+- [Linux CPU-load accounting][linux-cpu-load]
+  (primary source; retrieved 2026-08-06)
+- [Apple `host_statistics64`][apple-host-statistics64]
+  (primary source; retrieved 2026-08-06)
+- [Apple `host_cpu_load_info_t`][apple-host-cpu-load]
+  (primary source; retrieved 2026-08-06)
 
 [bdn-config]: https://benchmarkdotnet.org/articles/configs/configoptions.html
 [bdn-diagnosers]: https://benchmarkdotnet.org/articles/configs/diagnosers.html
@@ -478,3 +510,10 @@ A baseline update requires:
   https://mariadb.com/docs/server/reference/sql-structure/sequences/create-sequence
 [mariadb-alter-sequence]:
   https://mariadb.com/docs/server/reference/sql-structure/sequences/alter-sequence
+[linux-ps]: https://www.man7.org/linux/man-pages/man1/ps.1.html
+[linux-proc]: https://docs.kernel.org/filesystems/proc.html
+[linux-cpu-load]: https://docs.kernel.org/admin-guide/cpu-load.html
+[apple-host-statistics64]:
+  https://developer.apple.com/documentation/kernel/1502863-host_statistics64
+[apple-host-cpu-load]:
+  https://developer.apple.com/documentation/kernel/host_cpu_load_info_t

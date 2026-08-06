@@ -602,14 +602,23 @@ class PerformanceEvidenceTests(unittest.TestCase):
             )
 
     def test_host_preflight_rejects_an_overloaded_runner(self) -> None:
-        """Reject genuine CPU saturation before calibrated measurement starts."""
+        """Reject sustained CPU saturation before calibrated measurement starts."""
         report = self._host_preflight()
-        report["initialCpuUtilization"] = 0.95
+        report["samples"] = [
+            {
+                "sequence": sequence,
+                "cpuUtilization": 0.95,
+                "withinLimit": False,
+            }
+            for sequence in range(1, report["maximumSampleAttempts"] + 1)
+        ]
+        report["admittedCpuUtilization"] = None
+        report["observedMaximumCpuUtilization"] = 0.95
         report["success"] = False
 
         with self.assertRaisesRegex(
             performance_evidence.PerformanceEvidenceError,
-            "initially CPU-saturated",
+            "did not produce",
         ):
             performance_evidence.validate_host_preflight(
                 report,
@@ -622,10 +631,7 @@ class PerformanceEvidenceTests(unittest.TestCase):
         report = self._host_preflight()
         report.update(
             {
-                "schemaVersion": 3,
                 "admissionMetric": performance_evidence.HOST_ADMISSION_METRIC,
-                "initialCpuUtilization": 0.2,
-                "maximumInitialCpuUtilization": 0.9,
                 "loadAverage1Minute": 12.0,
                 "loadAverage1MinutePerProcessor": 1.5,
             }
@@ -640,19 +646,21 @@ class PerformanceEvidenceTests(unittest.TestCase):
     def test_cpu_admission_rejects_actual_cpu_saturation(self) -> None:
         """Keep genuine host contention outside latency measurements."""
         report = self._host_preflight()
-        report.update(
+        report["samples"] = [
             {
-                "schemaVersion": 3,
-                "admissionMetric": performance_evidence.HOST_ADMISSION_METRIC,
-                "initialCpuUtilization": 0.95,
-                "maximumInitialCpuUtilization": 0.9,
-                "success": False,
+                "sequence": sequence,
+                "cpuUtilization": 0.95,
+                "withinLimit": False,
             }
-        )
+            for sequence in range(1, report["maximumSampleAttempts"] + 1)
+        ]
+        report["admittedCpuUtilization"] = None
+        report["observedMaximumCpuUtilization"] = 0.95
+        report["success"] = False
 
         with self.assertRaisesRegex(
             performance_evidence.PerformanceEvidenceError,
-            "initially CPU-saturated",
+            "did not produce",
         ):
             performance_evidence.validate_host_preflight(
                 report,
@@ -660,14 +668,95 @@ class PerformanceEvidenceTests(unittest.TestCase):
                 maximum_age_hours=12,
             )
 
-    def test_process_cpu_percentages_are_normalized_by_processor_count(self) -> None:
-        """Interpret ps percentages as aggregate capacity rather than load average."""
-        utilization = performance_evidence.parse_process_cpu_utilization(
-            "100.0\n50.0\n",
-            8,
+    def test_linux_cpu_counters_produce_interval_utilization(self) -> None:
+        """Calculate Linux utilization from aggregate counter deltas."""
+        before = performance_evidence.parse_linux_cpu_counters(
+            "cpu 100 20 30 400 50 5 6 7 0 0\n"
+        )
+        after = performance_evidence.parse_linux_cpu_counters(
+            "cpu 120 22 40 460 60 7 8 8 0 0\n"
         )
 
-        self.assertEqual(0.1875, utilization)
+        self.assertAlmostEqual(
+            37 / 107,
+            performance_evidence.calculate_host_cpu_utilization(before, after),
+        )
+
+    def test_wrapping_macos_cpu_counters_produce_interval_utilization(self) -> None:
+        """Handle Darwin's natural_t tick counters wrapping independently."""
+        modulus = 2**32
+        before = performance_evidence.HostCpuCounterSnapshot(
+            "macos-host-statistics64",
+            (modulus - 5, 10, modulus - 2, 20),
+            (0, 1, 3),
+            modulus,
+        )
+        after = performance_evidence.HostCpuCounterSnapshot(
+            "macos-host-statistics64",
+            (5, 15, 8, 25),
+            (0, 1, 3),
+            modulus,
+        )
+
+        self.assertAlmostEqual(
+            20 / 30,
+            performance_evidence.calculate_host_cpu_utilization(before, after),
+        )
+
+    def test_cpu_admission_waits_out_one_transient_sample(self) -> None:
+        """Admit after two current passing samples despite one build-tail spike."""
+        samples = iter(
+            (
+                ("linux-proc-stat", 0.96),
+                ("linux-proc-stat", 0.40),
+                ("linux-proc-stat", 0.30),
+            )
+        )
+
+        report = performance_evidence.capture_host_preflight(
+            self.contract,
+            sample_provider=lambda _: next(samples),
+        )
+
+        self.assertTrue(report["success"])
+        self.assertEqual(3, len(report["samples"]))
+        self.assertEqual(0.40, report["admittedCpuUtilization"])
+        self.assertEqual(0.96, report["observedMaximumCpuUtilization"])
+        performance_evidence.validate_host_preflight(
+            report,
+            self.contract,
+            maximum_age_hours=12,
+        )
+
+    def test_cpu_admission_exhausts_sustained_saturation_window(self) -> None:
+        """Consume every bounded attempt when current CPU remains saturated."""
+        report = performance_evidence.capture_host_preflight(
+            self.contract,
+            sample_provider=lambda _: ("linux-proc-stat", 0.95),
+        )
+
+        self.assertFalse(report["success"])
+        self.assertIsNone(report["admittedCpuUtilization"])
+        self.assertEqual(0.95, report["observedMaximumCpuUtilization"])
+        self.assertEqual(
+            self.contract["hostPreconditions"]["maximumSampleAttempts"],
+            len(report["samples"]),
+        )
+
+    def test_host_preflight_rejects_a_tampered_sample_decision(self) -> None:
+        """Bind every persisted admission decision to its measured value."""
+        report = self._host_preflight()
+        report["samples"][0]["withinLimit"] = False
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "sample decision",
+        ):
+            performance_evidence.validate_host_preflight(
+                report,
+                self.contract,
+                maximum_age_hours=12,
+            )
 
     def test_workload_report_binds_cpu_admission_without_load_rejection(self) -> None:
         """Accept high desktop load only when the bound CPU admission passed."""
@@ -675,8 +764,8 @@ class PerformanceEvidenceTests(unittest.TestCase):
         report["environment"].update(
             {
                 "hostAdmissionMetric": performance_evidence.HOST_ADMISSION_METRIC,
-                "initialHostCpuUtilization": 0.2,
-                "maximumInitialHostCpuUtilization": 0.9,
+                "admittedHostCpuUtilization": 0.2,
+                "maximumHostCpuUtilization": 0.9,
                 "hostLoadAverage1Minute": 12.0,
                 "hostLoadAverage1MinutePerProcessor": 1.5,
             }
@@ -1219,10 +1308,147 @@ class PerformanceEvidenceTests(unittest.TestCase):
                 {entry["runnerClass"] for entry in merged["baselines"]},
             )
 
+    def test_seed_drops_entries_accepted_under_an_older_contract(self) -> None:
+        """Prevent one accepted baseline from mixing incompatible evidence semantics."""
+        with tempfile.TemporaryDirectory(prefix="doka-performance-contract-") as directory:
+            root = Path(directory)
+            local_paths = self._write_seed_evaluations(root, "local-runner")
+            existing = performance_evidence.seed_baseline(
+                type(
+                    "Args",
+                    (),
+                    {
+                        "contract": str(self._contract_path),
+                        "evidence": [str(path) for path in local_paths],
+                        "version": "local",
+                        "accepted_utc": "2026-08-06T00:00:00Z",
+                        "merge_existing": None,
+                    },
+                )()
+            )
+            existing["contractVersion"] = "older-contract"
+            existing_path = root / "existing.json"
+            existing_path.write_text(json.dumps(existing), encoding="utf-8")
+
+            github_paths = self._write_seed_evaluations(root, "github-runner")
+            merged = performance_evidence.seed_baseline(
+                type(
+                    "Args",
+                    (),
+                    {
+                        "contract": str(self._contract_path),
+                        "evidence": [str(path) for path in github_paths],
+                        "version": "github",
+                        "accepted_utc": "2026-08-06T01:00:00Z",
+                        "merge_existing": str(existing_path),
+                    },
+                )()
+            )
+
+            self.assertEqual(2, len(merged["baselines"]))
+            self.assertEqual(
+                {"github-runner"},
+                {entry["runnerClass"] for entry in merged["baselines"]},
+            )
+
+    def test_auto_baseline_mode_seeds_when_contract_changed(self) -> None:
+        """Seed a candidate instead of comparing incompatible evidence semantics."""
+        with tempfile.TemporaryDirectory(prefix="doka-performance-resolve-") as directory:
+            root = Path(directory)
+            paths = self._write_seed_evaluations(root, "github-runner")
+            baseline = performance_evidence.seed_baseline(
+                type(
+                    "Args",
+                    (),
+                    {
+                        "contract": str(self._contract_path),
+                        "evidence": [str(path) for path in paths],
+                        "version": "github",
+                        "accepted_utc": "2026-08-06T00:00:00Z",
+                        "merge_existing": None,
+                    },
+                )()
+            )
+            baseline["contractVersion"] = "older-contract"
+            baseline_path = root / "baseline.json"
+            baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+
+            resolved = performance_evidence.resolve_baseline_mode(
+                type(
+                    "Args",
+                    (),
+                    {
+                        "contract": str(self._contract_path),
+                        "baseline": str(baseline_path),
+                        "profile": "scorecard",
+                        "runner_class": "github-runner",
+                        "requested_mode": "auto",
+                    },
+                )()
+            )
+
+            self.assertEqual("seed", resolved["mode"])
+            self.assertEqual(
+                "contract-version-mismatch",
+                resolved["baselineDisposition"],
+            )
+
+    def test_auto_baseline_mode_seeds_when_runner_pair_is_missing(self) -> None:
+        """Seed a complete candidate for a runner not represented by the baseline."""
+        with tempfile.TemporaryDirectory(prefix="doka-performance-resolve-") as directory:
+            root = Path(directory)
+            paths = self._write_seed_evaluations(root, "local-runner")
+            baseline_path = self._write_baseline(root, paths)
+
+            resolved = self._resolve_baseline_mode(
+                baseline_path,
+                "github-runner",
+                "auto",
+            )
+
+            self.assertEqual("seed", resolved["mode"])
+            self.assertEqual("runner-pair-missing", resolved["baselineDisposition"])
+
+    def test_auto_baseline_mode_compares_an_accepted_runner_pair(self) -> None:
+        """Compare only when the current contract has the complete runner pair."""
+        with tempfile.TemporaryDirectory(prefix="doka-performance-resolve-") as directory:
+            root = Path(directory)
+            paths = self._write_seed_evaluations(root, "github-runner")
+            baseline_path = self._write_baseline(root, paths)
+
+            resolved = self._resolve_baseline_mode(
+                baseline_path,
+                "github-runner",
+                "auto",
+            )
+
+            self.assertEqual("compare", resolved["mode"])
+            self.assertEqual(
+                "accepted-runner-pair",
+                resolved["baselineDisposition"],
+            )
+
+    def test_explicit_compare_rejects_a_missing_runner_pair(self) -> None:
+        """Fail a strict comparison before allocating the benchmark matrix."""
+        with tempfile.TemporaryDirectory(prefix="doka-performance-resolve-") as directory:
+            root = Path(directory)
+            paths = self._write_seed_evaluations(root, "local-runner")
+            baseline_path = self._write_baseline(root, paths)
+
+            with self.assertRaisesRegex(
+                performance_evidence.PerformanceEvidenceError,
+                "requires a current accepted baseline pair",
+            ):
+                self._resolve_baseline_mode(
+                    baseline_path,
+                    "github-runner",
+                    "compare",
+                )
+
     def _workload_report(self, target: str) -> dict[str, Any]:
         """Build a complete scorecard workload report for one target."""
-        maximum_initial_cpu = self.contract["hostPreconditions"][
-            "maximumInitialCpuUtilization"
+        maximum_cpu_utilization = self.contract["hostPreconditions"][
+            "maximumCpuUtilization"
         ]
         workloads = []
         profile = self.contract["profiles"]["scorecard"]
@@ -1330,8 +1556,8 @@ class PerformanceEvidenceTests(unittest.TestCase):
                 "hostLoadAverage15Minutes": 0.5,
                 "hostLoadAverage1MinutePerProcessor": 0.0625,
                 "hostAdmissionMetric": performance_evidence.HOST_ADMISSION_METRIC,
-                "initialHostCpuUtilization": 0.2,
-                "maximumInitialHostCpuUtilization": maximum_initial_cpu,
+                "admittedHostCpuUtilization": 0.2,
+                "maximumHostCpuUtilization": maximum_cpu_utilization,
                 "engineFamily": self.contract["requiredTargets"][target]["engineFamily"],
                 "serverVersion": (
                     "11.8.8-MariaDB"
@@ -1393,12 +1619,10 @@ class PerformanceEvidenceTests(unittest.TestCase):
 
     def _host_preflight(self) -> dict[str, Any]:
         """Build a passing host-preflight fixture bound to the test CPU."""
-        maximum_initial_cpu = self.contract["hostPreconditions"][
-            "maximumInitialCpuUtilization"
-        ]
+        preconditions = self.contract["hostPreconditions"]
 
         return {
-            "schemaVersion": 3,
+            "schemaVersion": 4,
             "kind": "performance-host-preflight",
             "contractVersion": self.contract["contractVersion"],
             "generatedUtc": datetime.now(timezone.utc).isoformat(),
@@ -1409,8 +1633,29 @@ class PerformanceEvidenceTests(unittest.TestCase):
             "loadAverage15Minutes": 0.5,
             "loadAverage1MinutePerProcessor": 0.0625,
             "admissionMetric": performance_evidence.HOST_ADMISSION_METRIC,
-            "initialCpuUtilization": 0.2,
-            "maximumInitialCpuUtilization": maximum_initial_cpu,
+            "samplingSource": "linux-proc-stat",
+            "sampleIntervalMilliseconds": preconditions[
+                "sampleIntervalMilliseconds"
+            ],
+            "requiredConsecutivePassingSamples": preconditions[
+                "requiredConsecutivePassingSamples"
+            ],
+            "maximumSampleAttempts": preconditions["maximumSampleAttempts"],
+            "samples": [
+                {
+                    "sequence": 1,
+                    "cpuUtilization": 0.1,
+                    "withinLimit": True,
+                },
+                {
+                    "sequence": 2,
+                    "cpuUtilization": 0.2,
+                    "withinLimit": True,
+                },
+            ],
+            "admittedCpuUtilization": 0.2,
+            "observedMaximumCpuUtilization": 0.2,
+            "maximumCpuUtilization": preconditions["maximumCpuUtilization"],
             "success": True,
         }
 
@@ -1651,6 +1896,46 @@ class PerformanceEvidenceTests(unittest.TestCase):
             paths.append(path)
 
         return paths
+
+    def _write_baseline(self, root: Path, paths: list[Path]) -> Path:
+        """Persist a current accepted baseline for the supplied seed evaluations."""
+        baseline = performance_evidence.seed_baseline(
+            type(
+                "Args",
+                (),
+                {
+                    "contract": str(self._contract_path),
+                    "evidence": [str(path) for path in paths],
+                    "version": "test",
+                    "accepted_utc": "2026-08-06T00:00:00Z",
+                    "merge_existing": None,
+                },
+            )()
+        )
+        path = root / "baseline.json"
+        path.write_text(json.dumps(baseline), encoding="utf-8")
+        return path
+
+    def _resolve_baseline_mode(
+        self,
+        baseline_path: Path,
+        runner_class: str,
+        requested_mode: str,
+    ) -> dict[str, Any]:
+        """Resolve one test baseline without invoking the command-line wrapper."""
+        return performance_evidence.resolve_baseline_mode(
+            type(
+                "Args",
+                (),
+                {
+                    "contract": str(self._contract_path),
+                    "baseline": str(baseline_path),
+                    "profile": "scorecard",
+                    "runner_class": runner_class,
+                    "requested_mode": requested_mode,
+                },
+            )()
+        )
 
 
 if __name__ == "__main__":

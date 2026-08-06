@@ -1,10 +1,13 @@
 {
   "schemaVersion": 4,
-  "contractVersion": "2026-08-04",
+  "contractVersion": "2026-08-06",
   "evidenceMaximumAgeHours": 12,
   "hostPreconditions": {
-    "admissionMetric": "initial-process-cpu-utilization",
-    "maximumInitialCpuUtilization": 0.9
+    "admissionMetric": "interval-host-cpu-utilization",
+    "maximumCpuUtilization": 0.9,
+    "sampleIntervalMilliseconds": 1000,
+    "requiredConsecutivePassingSamples": 2,
+    "maximumSampleAttempts": 5
   },
   "requiredTargets": {
     "mysql84": {

@@ -5,7 +5,7 @@ This runbook describes the reproducible performance gate defined by
 
 The release-qualified path has six independent controls:
 
-1. A persisted initial CPU-saturation and processor-identity preflight.
+1. A persisted interval host-CPU admission and processor-identity preflight.
 2. BenchmarkDotNet same-run controls and allocation evidence.
 3. A complete named workload matrix with raw and adjacent calibration samples.
 4. Raw absolute and calibration-normalized historical budgets.
@@ -25,10 +25,13 @@ No single control substitutes for another.
   `benchmarks/performance-contract.json`;
 - a representative power and thermal state for accepted local measurements.
 
-The wrapper samples process CPU utilization before measurement and rejects
-only initial utilization above `0.90`. It does not require an idle workstation
-or gate on Unix load average because those values can include unrelated
-runnable or media-decoding work. Load averages remain diagnostic evidence.
+The wrapper samples aggregate operating-system CPU counters over one-second
+intervals before measurement. Admission requires two consecutive utilization
+samples at or below `0.90` within at most five attempts. This bounded window
+absorbs short build or container runoff without accepting sustained host
+contention. It does not require an idle workstation or gate on Unix load
+average because load averages can include unrelated runnable work. Load
+averages remain diagnostic evidence.
 Every workload records an adjacent control pulse: CPU-only families use a
 deterministic CPU control, while database families use a live `SELECT 1`
 round-trip. Historical latency comparisons use workload/control ratios, so
@@ -146,10 +149,12 @@ artifacts/benchmarks/<target>/checkpoints/<run-id>/
 ```
 
 `host-preflight.json` records the concrete processor, logical processor count,
-one-, five-, and fifteen-minute load averages, initial process CPU utilization,
-and its admission ceiling. `benchmarkdotnet-evidence.json` records a SHA-256
-digest for every raw BDN report. `performance-evaluation.json` hashes the host
-preflight, contract, workload report, BDN evidence, and soak report.
+one-, five-, and fifteen-minute load averages, operating-system counter source,
+sampling interval, every interval utilization sample, required consecutive
+passes, attempts, admitted utilization, and its admission ceiling.
+`benchmarkdotnet-evidence.json` records a SHA-256 digest for every raw BDN
+report. `performance-evaluation.json` hashes the host preflight, contract,
+workload report, BDN evidence, and soak report.
 
 Each workload row contains raw samples, calibration pulse samples, the pulse
 index used by every workload sample, normalized samples, and recomputed raw and
@@ -253,10 +258,22 @@ Historical evidence outside the selected run ID cannot satisfy the gate.
 
 ## Hosted runner baseline
 
-The manual `benchmark` workflow accepts `baseline_mode=seed`. Both engine jobs
-must succeed before a final job packages
-`benchmark-baseline-candidate`. The candidate contains the existing accepted
-runner groups plus the new `github-ubuntu-latest-x64` pair.
+The scheduled `benchmark` workflow resolves its baseline mode before starting
+services or either expensive matrix job:
+
+- an exact current-contract `github-ubuntu-latest-x64` pair selects `compare`;
+- a missing baseline, an older contract, or a missing runner pair selects
+  `seed`;
+- malformed or partial current-contract evidence fails before the matrix;
+- an explicitly requested manual `compare` remains strict and fails before the
+  matrix when no matching pair exists.
+
+Both engine jobs must succeed before a seed run packages
+`benchmark-baseline-candidate`. A seed still enforces the complete workload,
+absolute budgets, statistical integrity, allocation, GC, soak, environment,
+and host-admission contracts. It omits only a historical comparison that
+cannot exist yet. A contract revision deliberately does not carry older
+contract groups into the candidate.
 
 Download and review:
 
@@ -268,9 +285,10 @@ Download and review:
 - absolute and soak verdicts;
 - raw report SHA-256 hashes.
 
-The workflow never commits the candidate. Until its runner pair is explicitly
-accepted in the repository baseline, scheduled scorecards and
-release-candidate runs fail closed for that runner class.
+The workflow never commits or accepts the candidate. Review it and commit the
+complete dual-engine pair before a release-candidate run. Release qualification
+always uses strict `compare` mode and fails closed when the accepted current
+runner pair is absent.
 
 ## Soak interpretation
 
@@ -305,10 +323,11 @@ raise historical budgets to make a noisy sample pass.
 
 ### Host preflight failure
 
-The host was already CPU-saturated before measurement. Stop the process that
-owns the saturation or wait for it to finish. The failed preflight remains in
-the run directory with the observed CPU utilization. Do not override the
-processor model or raise the ceiling to admit a saturated run.
+The host did not produce two consecutive acceptable interval samples within
+five attempts. Inspect every sample in the persisted preflight, then stop the
+process that owns sustained contention or wait for it to finish. Do not
+override the processor model, reduce the required passing window, or raise the
+ceiling to admit a saturated run.
 
 ### Absolute budget failure
 
