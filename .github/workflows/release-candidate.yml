@@ -79,13 +79,13 @@ jobs:
       - name: Verify accepted hosted performance baseline
         run: |
           mkdir -p artifacts
-          if ! python3 eng/performance_evidence.py resolve-baseline-mode \
+          if ! python3 eng/release_evidence.py validate-performance-baseline \
+              --repo . \
               --contract benchmarks/performance-contract.json \
               --baseline benchmarks/baselines/doka-benchmark-baseline.json \
               --profile scorecard \
               --runner-class github-ubuntu-latest-x64 \
-              --requested-mode compare \
-              --output artifacts/release-baseline-mode.json; then
+              --output artifacts/release-baseline-readiness.json; then
             message="Run the benchmark workflow from main, review and merge its "
             message+="validated baseline pull request, then create a new release "
             message+="tag from the updated green main commit."

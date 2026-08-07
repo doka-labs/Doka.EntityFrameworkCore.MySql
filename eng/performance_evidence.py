@@ -4015,43 +4015,189 @@ def validate_normalized_workloads(
             finite_number(workload.get(key), f"{label}.{workload_id}.{key}", minimum=0)
 
 
-def seed_baseline(args: argparse.Namespace) -> dict[str, Any]:
-    """Create an explicit accepted baseline from successful seed evaluations."""
+def validate_compare_evaluation(
+    evaluation: dict[str, Any],
+    contract: dict[str, Any],
+    contract_path: Path,
+    baseline: dict[str, Any],
+    *,
+    maximum_age_hours: float | None = None,
+) -> None:
+    """Validate a compare result before promoting it to the accepted baseline."""
+    if evaluation.get("mode") != "compare" or evaluation.get("success") is not True:
+        raise PerformanceEvidenceError(
+            "Promotion input must be a successful compare-mode evaluation."
+        )
+    if evaluation.get("baselineVersion") != baseline.get("baselineVersion"):
+        raise PerformanceEvidenceError(
+            "Compare input baselineVersion does not match the accepted baseline."
+        )
+
+    target = required_string(evaluation, "target", "compareEvaluation")
+    profile = required_string(evaluation, "profile", "compareEvaluation")
+    runner_class = required_string(
+        evaluation,
+        "runnerClass",
+        "compareEvaluation",
+    )
+    matching_entries = [
+        entry
+        for entry in baseline.get("baselines", [])
+        if isinstance(entry, dict)
+        and entry.get("target") == target
+        and entry.get("profile") == profile
+        and entry.get("runnerClass") == runner_class
+    ]
+    if len(matching_entries) != 1:
+        raise PerformanceEvidenceError(
+            "Compare input does not identify exactly one accepted baseline entry."
+        )
+
+    # Structural and absolute-budget validation is identical for seed and
+    # compare evidence. Reusing the seed validator prevents those contracts
+    # from drifting while historical checks remain compare-specific below.
+    validate_seed_evaluation(
+        {
+            **evaluation,
+            "mode": "seed",
+            "historicalChecks": [],
+        },
+        contract,
+        contract_path,
+        maximum_age_hours=maximum_age_hours,
+    )
+
+    baseline_entry = matching_entries[0]
+    environment = evaluation.get("environment")
+    if not isinstance(environment, dict):
+        raise PerformanceEvidenceError("Compare input has no environment evidence.")
+    baseline_environment = baseline_entry.get("environment")
+    if not isinstance(baseline_environment, dict):
+        raise PerformanceEvidenceError(
+            "Accepted baseline entry has no environment evidence."
+        )
+    validate_environment_compatibility(environment, baseline_environment)
+
+    workloads = evaluation.get("workloads")
+    if not isinstance(workloads, list):
+        raise PerformanceEvidenceError("Compare input has no normalized workloads.")
+    expected_checks = validate_historical_budgets(
+        workloads,
+        baseline_entry,
+        contract,
+        evaluation.get("tailConfirmations"),
+    )
+    if evaluation.get("historicalChecks") != expected_checks:
+        raise PerformanceEvidenceError(
+            "Compare input historical checks cannot be reproduced."
+        )
+
+
+def promote_baseline(
+    args: argparse.Namespace,
+    *,
+    required_mode: str | None = None,
+) -> dict[str, Any]:
+    """Promote one complete, successful hosted pair to the accepted baseline."""
     contract = load_json(Path(args.contract))
     validate_contract(contract)
     evaluations = [load_json(Path(path)) for path in args.evidence]
     required_targets = set(contract["requiredTargets"])
     observed_targets: set[str] = set()
     baseline_entries: list[dict[str, Any]] = []
+    merge_existing = getattr(args, "merge_existing", None)
+    existing = load_json(Path(merge_existing)) if merge_existing else None
 
-    for evidence_path, evaluation in zip(args.evidence, evaluations, strict=True):
-        validate_seed_evaluation(
-            evaluation,
-            contract,
-            Path(args.contract),
-            maximum_age_hours=float(contract["evidenceMaximumAgeHours"]),
+    modes = {evaluation.get("mode") for evaluation in evaluations}
+    if len(modes) != 1 or modes.pop() not in {"seed", "compare"}:
+        raise PerformanceEvidenceError(
+            "Baseline promotion requires one homogeneous seed or compare pair."
+        )
+    mode = evaluations[0]["mode"]
+    if required_mode is not None and mode != required_mode:
+        raise PerformanceEvidenceError(
+            f"Baseline command requires {required_mode}-mode evidence."
+        )
+    if mode == "compare" and existing is None:
+        raise PerformanceEvidenceError(
+            "Compare-mode promotion requires the accepted baseline."
         )
 
-        target = required_string(evaluation, "target", "seedEvaluation")
+    identities: set[tuple[str, str, str, str, str]] = set()
+
+    for evidence_path, evaluation in zip(args.evidence, evaluations, strict=True):
+        if mode == "seed":
+            validate_seed_evaluation(
+                evaluation,
+                contract,
+                Path(args.contract),
+                maximum_age_hours=float(contract["evidenceMaximumAgeHours"]),
+            )
+        else:
+            assert existing is not None
+            validate_compare_evaluation(
+                evaluation,
+                contract,
+                Path(args.contract),
+                existing,
+                maximum_age_hours=float(contract["evidenceMaximumAgeHours"]),
+            )
+
+        target = required_string(evaluation, "target", "performanceEvaluation")
         if target in observed_targets:
-            raise PerformanceEvidenceError(f"Seed input contains duplicate target '{target}'.")
+            raise PerformanceEvidenceError(
+                f"Promotion input contains duplicate target '{target}'."
+            )
         observed_targets.add(target)
+        identities.add(
+            (
+                required_string(evaluation, "profile", "performanceEvaluation"),
+                required_string(
+                    evaluation,
+                    "runnerClass",
+                    "performanceEvaluation",
+                ),
+                required_string(evaluation, "commit", "performanceEvaluation"),
+                required_sha256(
+                    evaluation,
+                    "sourceHash",
+                    "performanceEvaluation",
+                ),
+                required_string(evaluation, "runId", "performanceEvaluation"),
+            )
+        )
         baseline_entries.append(
             {
                 "target": target,
-                "profile": required_string(evaluation, "profile", "seedEvaluation"),
-                "runnerClass": required_string(evaluation, "runnerClass", "seedEvaluation"),
-                "commit": required_string(evaluation, "commit", "seedEvaluation"),
+                "profile": required_string(
+                    evaluation,
+                    "profile",
+                    "performanceEvaluation",
+                ),
+                "runnerClass": required_string(
+                    evaluation,
+                    "runnerClass",
+                    "performanceEvaluation",
+                ),
+                "commit": required_string(
+                    evaluation,
+                    "commit",
+                    "performanceEvaluation",
+                ),
                 "sourceHash": required_sha256(
                     evaluation,
                     "sourceHash",
-                    "seedEvaluation",
+                    "performanceEvaluation",
                 ),
-                "runId": required_string(evaluation, "runId", "seedEvaluation"),
+                "runId": required_string(
+                    evaluation,
+                    "runId",
+                    "performanceEvaluation",
+                ),
                 "generatedUtc": required_string(
                     evaluation,
                     "generatedUtc",
-                    "seedEvaluation",
+                    "performanceEvaluation",
                 ),
                 "environment": evaluation.get("environment"),
                 "hostPreflight": evaluation.get("hostPreflight"),
@@ -4067,18 +4213,23 @@ def seed_baseline(args: argparse.Namespace) -> dict[str, Any]:
             }
         )
 
+    if len(identities) != 1:
+        raise PerformanceEvidenceError(
+            "Promotion evidence must share one profile, runner, commit, source hash, and run ID."
+        )
+
     if observed_targets != required_targets:
         missing = sorted(required_targets - observed_targets)
         unknown = sorted(observed_targets - required_targets)
+        operation = "seed" if required_mode == "seed" else "promotion"
         raise PerformanceEvidenceError(
-            f"Baseline seed target drift. Missing: [{', '.join(missing)}]. "
+            f"Baseline {operation} target drift. Missing: [{', '.join(missing)}]. "
             f"Unknown: [{', '.join(unknown)}]."
         )
 
     retained_entries: list[dict[str, Any]] = []
-    merge_existing = getattr(args, "merge_existing", None)
     if merge_existing:
-        existing = load_json(Path(merge_existing))
+        assert existing is not None
         if (
             existing.get("schemaVersion") != 3
             or existing.get("baselineState") != "accepted"
@@ -4138,6 +4289,11 @@ def seed_baseline(args: argparse.Namespace) -> dict[str, Any]:
             ),
         ),
     }
+
+
+def seed_baseline(args: argparse.Namespace) -> dict[str, Any]:
+    """Create an explicit accepted baseline from successful seed evaluations."""
+    return promote_baseline(args, required_mode="seed")
 
 
 def validate_baseline_file(args: argparse.Namespace) -> dict[str, Any]:
@@ -4368,6 +4524,14 @@ def build_parser() -> argparse.ArgumentParser:
     seed_parser.add_argument("--evidence", action="append", required=True)
     seed_parser.add_argument("--merge-existing")
 
+    promote_parser = subparsers.add_parser("promote")
+    promote_parser.add_argument("--contract", required=True)
+    promote_parser.add_argument("--baseline", required=True)
+    promote_parser.add_argument("--version", required=True)
+    promote_parser.add_argument("--accepted-utc")
+    promote_parser.add_argument("--evidence", action="append", required=True)
+    promote_parser.add_argument("--merge-existing", required=True)
+
     baseline_parser = subparsers.add_parser("validate-baseline")
     baseline_parser.add_argument("--contract", required=True)
     baseline_parser.add_argument("--baseline", required=True)
@@ -4440,8 +4604,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = plan_tail_confirmation(args)
         elif args.command == "merge-tail-confirmations":
             payload = merge_tail_confirmations(args)
-        elif args.command == "seed":
-            payload = seed_baseline(args)
+        elif args.command in {"seed", "promote"}:
+            payload = (
+                seed_baseline(args)
+                if args.command == "seed"
+                else promote_baseline(args)
+            )
             write_json(Path(args.baseline), payload)
             print(
                 f"Accepted performance baseline '{payload['baselineVersion']}' "

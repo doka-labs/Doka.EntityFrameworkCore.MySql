@@ -6,6 +6,15 @@ on:
       - main
   pull_request:
   workflow_dispatch:
+    inputs:
+      profile:
+        description: Select the trusted CI profile to execute.
+        required: true
+        default: full
+        type: choice
+        options:
+          - full
+          - baseline-proposal
   schedule:
     - cron: "15 1 * * 4"
 
@@ -34,7 +43,10 @@ jobs:
         run: bash eng/quality-gates.sh
 
   migration-deployment:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch'
+      && inputs.profile != 'baseline-proposal')
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -89,7 +101,10 @@ jobs:
   # surface surfaces in CI within one nightly cycle rather than at consumer-
   # install time.
   efcore-patch-matrix:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch'
+      && inputs.profile != 'baseline-proposal')
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -198,7 +213,10 @@ jobs:
             artifacts/integration
 
   mysqlconnector-patch-matrix:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch'
+      && inputs.profile != 'baseline-proposal')
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -238,7 +256,10 @@ jobs:
           path: artifacts/mysqlconnector-patch-matrix/${{ matrix.artifact-suffix }}
 
   spec-test-suite:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch'
+      && inputs.profile != 'baseline-proposal')
     runs-on: ubuntu-latest
 
     strategy:
@@ -301,7 +322,8 @@ jobs:
     if: >-
       always()
       && (github.event_name == 'schedule'
-      || github.event_name == 'workflow_dispatch')
+      || (github.event_name == 'workflow_dispatch'
+      && inputs.profile != 'baseline-proposal'))
 
     steps:
       - name: Checkout
@@ -374,7 +396,10 @@ jobs:
           path: artifacts/coverage/integration
 
   runtime-posture:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch'
+      && inputs.profile != 'baseline-proposal')
     runs-on: ubuntu-latest
 
     services:
@@ -414,7 +439,10 @@ jobs:
         run: bash ./eng/test-runtime-posture.sh --test-only
 
   benchmark-smoke:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch'
+      && inputs.profile != 'baseline-proposal')
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

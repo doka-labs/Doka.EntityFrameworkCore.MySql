@@ -92,63 +92,62 @@ jobs:
             state_arguments+=(--before-revision "${BEFORE_REVISION}")
           fi
 
-          if [[ "${mode}" == "seed" ]]; then
-            if [[ "${GITHUB_REF}" != "refs/heads/${DEFAULT_BRANCH}" ]]; then
-              echo "A hosted baseline proposal must originate from ${DEFAULT_BRANCH}." >&2
-              exit 1
-            fi
+          if [[ "${GITHUB_REF}" != "refs/heads/${DEFAULT_BRANCH}" ]]; then
+            echo "Hosted performance evidence must originate from ${DEFAULT_BRANCH}." >&2
+            exit 1
+          fi
 
-            proposal_number="$(
-              gh pr list \
-                --repo "${GITHUB_REPOSITORY}" \
-                --state open \
-                --head "${baseline_branch}" \
-                --json number \
-                --jq '.[0].number // empty'
+          proposal_number="$(
+            gh pr list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --state open \
+              --head "${baseline_branch}" \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+
+          if [[ -n "${proposal_number}" ]]; then
+            baseline_path="benchmarks/baselines/doka-benchmark-baseline.json"
+            proposed_baseline="artifacts/proposed-baseline.json"
+
+            git fetch \
+              --no-tags \
+              origin \
+              "${baseline_branch}:refs/remotes/origin/${baseline_branch}"
+
+            proposal_base="$(
+              git merge-base \
+                "${GITHUB_SHA}" \
+                "origin/${baseline_branch}"
             )"
-
-            if [[ -n "${proposal_number}" ]]; then
-              baseline_path="benchmarks/baselines/doka-benchmark-baseline.json"
-              proposed_baseline="artifacts/proposed-baseline.json"
-
-              git fetch \
-                --no-tags \
-                origin \
-                "${baseline_branch}:refs/remotes/origin/${baseline_branch}"
-
-              proposal_base="$(
-                git merge-base \
-                  "${GITHUB_SHA}" \
-                  "origin/${baseline_branch}"
-              )"
-              while IFS= read -r changed_path; do
-                if [[ "${changed_path}" != "${baseline_path}" ]]; then
-                  echo "Refusing to inspect unexpected proposal path: ${changed_path}" >&2
-                  exit 1
-                fi
-              done < <(
-                git diff \
-                  --name-only \
-                  --diff-filter=ACDMRTUXB \
-                  "${proposal_base}" \
-                  "origin/${baseline_branch}" \
-                  --
-              )
-
-              # A missing baseline is invalid proposal evidence, not an
-              # unhandled shell error. The Python resolver classifies the
-              # empty file as invalid and requests a fresh scorecard.
-              if ! git show \
-                "origin/${baseline_branch}:${baseline_path}" \
-                > "${proposed_baseline}"; then
-                : > "${proposed_baseline}"
+            while IFS= read -r changed_path; do
+              if [[ "${changed_path}" != "${baseline_path}" ]]; then
+                echo "Refusing to inspect unexpected proposal path: ${changed_path}" >&2
+                exit 1
               fi
+            done < <(
+              git diff \
+                --name-only \
+                --diff-filter=ACDMRTUXB \
+                "${proposal_base}" \
+                "origin/${baseline_branch}" \
+                --
+            )
 
-              state_arguments+=(
-                --proposed-baseline "${proposed_baseline}"
-                --proposal-head-ref "origin/${baseline_branch}"
-              )
+            # A missing baseline is invalid proposal evidence, not an
+            # unhandled shell error. The Python resolver classifies the
+            # empty file as invalid. Proposal health alone cannot allocate
+            # scorecard work; a relevant event can replace the proposal.
+            if ! git show \
+              "origin/${baseline_branch}:${baseline_path}" \
+              > "${proposed_baseline}"; then
+              : > "${proposed_baseline}"
             fi
+
+            state_arguments+=(
+              --proposed-baseline "${proposed_baseline}"
+              --proposal-head-ref "origin/${baseline_branch}"
+            )
           fi
 
           python3 eng/benchmark_workflow_state.py "${state_arguments[@]}"
@@ -177,6 +176,7 @@ jobs:
     timeout-minutes: 5
 
     permissions:
+      actions: write
       contents: write
 
     steps:
@@ -191,6 +191,7 @@ jobs:
       - name: Synchronize current proposal with main
         env:
           BASELINE_BRANCH: ${{ needs.resolve-baseline-mode.outputs.baseline-branch }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           baseline_path="benchmarks/baselines/doka-benchmark-baseline.json"
 
@@ -218,6 +219,14 @@ jobs:
             --output artifacts/baseline-validation.json
           git push origin "HEAD:refs/heads/${BASELINE_BRANCH}"
 
+          # Pushes made with GITHUB_TOKEN do not start another workflow. Use a
+          # bounded trusted dispatch so the required checks bind to this exact
+          # proposal head without enabling the expensive CI profile.
+          gh workflow run ci.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref "${BASELINE_BRANCH}" \
+            --field profile=baseline-proposal
+
           {
             echo "## Baseline proposal synchronized"
             echo
@@ -237,9 +246,7 @@ jobs:
       actions: read
 
   propose-baseline-update:
-    if: >-
-      needs.resolve-baseline-mode.outputs.mode == 'seed'
-      && needs.resolve-baseline-mode.outputs.scorecard-required == 'true'
+    if: needs.resolve-baseline-mode.outputs.scorecard-required == 'true'
     needs:
       - resolve-baseline-mode
       - benchmark-scorecard
@@ -247,6 +254,7 @@ jobs:
     timeout-minutes: 10
 
     permissions:
+      actions: write
       contents: write
       pull-requests: write
 
@@ -288,7 +296,7 @@ jobs:
             exit 1
           fi
 
-          python3 eng/performance_evidence.py seed \
+          python3 eng/performance_evidence.py promote \
             --contract benchmarks/performance-contract.json \
             --baseline artifacts/doka-benchmark-baseline.candidate.json \
             --version "${BASELINE_VERSION}" \
@@ -311,10 +319,9 @@ jobs:
             artifacts/doka-benchmark-baseline.candidate.json
             artifacts/baseline-validation.json
 
-      # GitHub creates the normal pull_request run when GITHUB_TOKEN opens or
-      # synchronizes this PR, but holds that run for maintainer approval. This
-      # binds every required check to the exact reviewed head without a PAT,
-      # duplicate workflow dispatch, or downloaded baseline artifact.
+      # The proposal is written by a trusted workflow and then receives a
+      # bounded CI dispatch for its exact head. The dispatch executes only the
+      # three cheap required checks; it never approves or merges the proposal.
       - name: Propose reviewed baseline update
         env:
           BASELINE_BRANCH: ${{ needs.resolve-baseline-mode.outputs.baseline-branch }}
@@ -399,8 +406,8 @@ jobs:
             echo "The workflow never approves its own pull request."
             echo "Squash auto-merge remains blocked until a maintainer approves the current revision and every required check passes."
             echo
-            echo "GitHub holds workflow runs created by this automation for maintainer approval."
-            echo "Open the Checks tab, select **Approve workflows to run**, review the baseline, and approve the pull request."
+            echo "The workflow explicitly dispatches the three required repository checks for the exact proposal head."
+            echo "Review the baseline diff and approve the pull request; no workflow approval or artifact download is required."
           } > "${proposal_body}"
 
           proposal_number="$(
@@ -446,6 +453,14 @@ jobs:
             exit 1
           fi
 
+          # GITHUB_TOKEN branch updates intentionally do not trigger another
+          # workflow. Dispatch the restricted profile only after the proposal
+          # exists so its required checks attach to the reviewed head.
+          gh workflow run ci.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref "${BASELINE_BRANCH}" \
+            --field profile=baseline-proposal
+
           auto_merge_method="$(
             gh pr view \
               --repo "${GITHUB_REPOSITORY}" \
@@ -474,7 +489,7 @@ jobs:
             echo "## Baseline review proposed"
             echo
             echo "- Branch: ${BASELINE_BRANCH}"
-            echo "- Pull-request checks: awaiting maintainer approval"
+            echo "- Pull-request checks: explicitly dispatched for the proposal head"
             echo "- Auto-merge: enabled (squash)"
             echo "- Acceptance: maintainer approval and protected checks"
           } >> "${GITHUB_STEP_SUMMARY}"

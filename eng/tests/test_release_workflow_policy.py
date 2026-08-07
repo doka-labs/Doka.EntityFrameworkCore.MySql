@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -17,6 +18,65 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
     def workflow(self, name: str) -> str:
         """Load one workflow as text for indentation-sensitive policy checks."""
         return (self.workflows / name).read_text(encoding="utf-8")
+
+    @staticmethod
+    def duplicate_mapping_keys(workflow: str) -> list[str]:
+        """Find duplicate keys without interpreting shell block scalars as YAML."""
+        key_pattern = re.compile(
+            r"^(?P<indent> *)(?P<sequence>- )?"
+            r"(?P<key>[A-Za-z0-9_.-]+):(?:\s|$)",
+        )
+        block_scalar_pattern = re.compile(r":\s*[|>][+-]?\s*(?:#.*)?$")
+        scopes: list[tuple[int, dict[str, int]]] = []
+        duplicates: list[str] = []
+        block_parent_indent: int | None = None
+        block_content_indent: int | None = None
+
+        for line_number, line in enumerate(workflow.splitlines(), start=1):
+            if not line.strip():
+                continue
+
+            physical_indent = len(line) - len(line.lstrip(" "))
+            if block_parent_indent is not None:
+                if block_content_indent is None:
+                    if physical_indent > block_parent_indent:
+                        block_content_indent = physical_indent
+                        continue
+                elif physical_indent >= block_content_indent:
+                    continue
+
+                block_parent_indent = None
+                block_content_indent = None
+
+            match = key_pattern.match(line)
+            if match is None:
+                continue
+
+            is_sequence_entry = match.group("sequence") is not None
+            logical_indent = physical_indent + (2 if is_sequence_entry else 0)
+            if is_sequence_entry:
+                while scopes and scopes[-1][0] >= logical_indent:
+                    scopes.pop()
+            else:
+                while scopes and scopes[-1][0] > logical_indent:
+                    scopes.pop()
+
+            if not scopes or scopes[-1][0] < logical_indent:
+                scopes.append((logical_indent, {}))
+
+            key = match.group("key")
+            first_line = scopes[-1][1].get(key)
+            if first_line is not None:
+                duplicates.append(
+                    f"{key!r} at lines {first_line} and {line_number}",
+                )
+            else:
+                scopes[-1][1][key] = line_number
+
+            if block_scalar_pattern.search(line):
+                block_parent_indent = logical_indent
+
+        return duplicates
 
     @staticmethod
     def job(workflow: str, name: str, next_name: str | None = None) -> str:
@@ -40,8 +100,8 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
                 self.assertNotIn("dotnet-version:", text)
                 self.assertIn("global-json-file: global.json", text)
 
-    def test_named_workflow_steps_have_one_action_binding(self) -> None:
-        """Reject duplicate uses keys that permissive YAML loaders overwrite."""
+    def test_named_workflow_steps_have_exactly_one_execution_binding(self) -> None:
+        """Reject empty steps and duplicate bindings hidden by YAML loaders."""
         for path in sorted(self.workflows.glob("*.yml")):
             text = path.read_text(encoding="utf-8")
 
@@ -51,10 +111,10 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             ):
                 step = step.split("\n      - name: ", 1)[0]
                 step_name = step.splitlines()[0].strip()
-                action_bindings = [
+                execution_bindings = [
                     line
                     for line in step.splitlines()
-                    if line.startswith("        uses: ")
+                    if line.startswith(("        uses: ", "        run: "))
                 ]
 
                 with self.subTest(
@@ -62,7 +122,17 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
                     step=index,
                     name=step_name,
                 ):
-                    self.assertLessEqual(len(action_bindings), 1)
+                    self.assertEqual(1, len(execution_bindings))
+
+    def test_workflows_do_not_repeat_mapping_keys(self) -> None:
+        """Reject duplicate YAML keys before a permissive loader overwrites one."""
+        for path in sorted(self.workflows.glob("*.yml")):
+            duplicates = self.duplicate_mapping_keys(
+                path.read_text(encoding="utf-8"),
+            )
+
+            with self.subTest(workflow=path.name):
+                self.assertEqual([], duplicates)
 
     def test_workflows_do_not_contain_top_level_sequence_entries(self) -> None:
         """Reject shell text that accidentally escapes a YAML block scalar."""
@@ -108,6 +178,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "needs.resolve-baseline-mode.outputs.scorecard-required == 'true'",
             scorecard,
         )
+        self.assertNotIn("github.event_name != 'push'", scorecard)
         self.assertIn(
             "uses: ./.github/workflows/benchmark-scorecard.yml",
             scorecard,
@@ -116,13 +187,15 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "baseline_mode: ${{ needs.resolve-baseline-mode.outputs.mode }}",
             scorecard,
         )
-        self.assertIn(
+        self.assertNotIn(
             "needs.resolve-baseline-mode.outputs.mode == 'seed'",
             proposal,
         )
+        self.assertNotIn("github.event_name != 'push'", proposal)
         self.assertIn("- benchmark-scorecard", proposal)
         self.assertIn("benchmark-artifacts-mysql84", proposal)
         self.assertIn("benchmark-artifacts-mariadb118", proposal)
+        self.assertIn("performance_evidence.py promote", proposal)
         self.assertIn("validate-baseline", proposal)
 
     def test_baseline_proposal_has_bounded_write_authority(self) -> None:
@@ -150,14 +223,22 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertNotIn("pull-requests: write", resolver)
         self.assertNotIn("pull-requests: write", sync)
         self.assertNotIn("pull-requests: write", scorecard)
-        self.assertEqual(0, text.count("actions: write"))
+        self.assertNotIn("actions: write", resolver)
+        self.assertNotIn("actions: write", scorecard)
+        self.assertIn("actions: write", sync)
+        self.assertIn("actions: write", proposal)
+        self.assertEqual(2, text.count("actions: write"))
         self.assertEqual(2, text.count("contents: write"))
         self.assertEqual(1, text.count("pull-requests: write"))
         self.assertIn("contents: write", sync)
         self.assertIn("gh pr create", proposal)
         self.assertIn("gh api", proposal)
         self.assertNotIn("gh pr edit", proposal)
-        self.assertNotIn("gh workflow run", proposal)
+        self.assertEqual(2, text.count("gh workflow run ci.yml"))
+        for update_job in (sync, proposal):
+            self.assertIn("gh workflow run ci.yml", update_job)
+            self.assertIn("--ref \"${BASELINE_BRANCH}\"", update_job)
+            self.assertIn("--field profile=baseline-proposal", update_job)
         self.assertIn("gh pr merge", proposal)
         self.assertIn("--auto", proposal)
         self.assertIn("--squash", proposal)
@@ -201,7 +282,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertEqual(1, scorecard_workflow.count("actions/upload-artifact@"))
 
     def test_all_main_pushes_reach_the_cheap_benchmark_resolver(self) -> None:
-        """Avoid required-check gaps while classifying expensive work locally."""
+        """Classify every push with the release-candidate input policy."""
         text = self.workflow("benchmark.yml")
         push_paths = text[text.index("  push:") : text.index("  workflow_dispatch:")]
         resolver = (
@@ -209,16 +290,25 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertNotIn("paths:", push_paths)
+        self.assertIn("release_evidence.is_performance_input(path)", resolver)
         self.assertIn(
-            '".github/workflows/benchmark-scorecard.yml"',
+            '"benchmarks/baselines/doka-benchmark-baseline.json"',
             resolver,
         )
-        self.assertIn('"benchmarks/performance-contract.json"', resolver)
-        self.assertIn('"eng/benchmark.sh"', resolver)
         self.assertNotIn('".github/workflows/benchmark.yml"', resolver)
         self.assertNotIn('"eng/benchmark_workflow_state.py"', resolver)
+
+    def test_proposal_state_cannot_override_event_relevance(self) -> None:
+        """Keep stale proposal repair from starting unrelated measurements."""
+        resolver = (
+            self.repo / "eng" / "benchmark_workflow_state.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("return bool(changes), changes", resolver)
+        self.assertIn("if not event_requires_fresh_evidence:", resolver)
+        self.assertIn('proposal.disposition == "current"', resolver)
         self.assertNotIn(
-            '"benchmarks/baselines/doka-benchmark-baseline.json"',
+            "event_requires_fresh_evidence or proposal.disposition",
             resolver,
         )
 
@@ -237,25 +327,59 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("cancel-in-progress: false", text)
         self.assertNotIn("cancel-in-progress: true", text)
 
-    def test_baseline_proposal_uses_the_normal_pull_request_checks(self) -> None:
-        """Bind checks to the PR head without a duplicate workflow dispatch."""
+    def test_baseline_proposal_dispatches_only_required_checks(self) -> None:
+        """Bind trusted required checks to the exact automation-branch head."""
         benchmark = self.workflow("benchmark.yml")
         ci = self.workflow("ci.yml")
+        sync = self.job(
+            benchmark,
+            "sync-baseline-proposal",
+            "benchmark-scorecard",
+        )
         proposal = self.job(benchmark, "propose-baseline-update")
 
         self.assertIn("  pull_request:\n", ci)
         self.assertIn("  workflow_dispatch:\n", ci)
-        self.assertNotIn("inputs:\n      lane:", ci)
-        self.assertNotIn("gh workflow run", proposal)
+        self.assertIn("profile:", ci)
+        self.assertIn("- baseline-proposal", ci)
+        self.assertEqual(2, benchmark.count("gh workflow run ci.yml"))
+        for update_job in (sync, proposal):
+            self.assertEqual(1, update_job.count("gh workflow run ci.yml"))
+            self.assertIn("--field profile=baseline-proposal", update_job)
+
+        expensive_jobs = (
+            ("migration-deployment", "repo-tests"),
+            ("efcore-patch-matrix", "mysqlconnector-patch-matrix"),
+            ("mysqlconnector-patch-matrix", "spec-test-suite"),
+            ("spec-test-suite", "coverage-gate"),
+            ("coverage-gate", "integration-smoke"),
+            ("runtime-posture", "benchmark-smoke"),
+            ("benchmark-smoke", None),
+        )
+        for job_name, next_job_name in expensive_jobs:
+            with self.subTest(job=job_name):
+                job = self.job(ci, job_name, next_job_name)
+                self.assertIn("inputs.profile != 'baseline-proposal'", job)
+
+        cheap_jobs = (
+            ("quality-gates", "migration-deployment"),
+            ("repo-tests", "efcore-patch-matrix"),
+            ("integration-smoke", "runtime-posture"),
+        )
+        for job_name, next_job_name in cheap_jobs:
+            with self.subTest(job=job_name):
+                job = self.job(ci, job_name, next_job_name)
+                self.assertNotIn("inputs.profile", job)
+
         self.assertIn(
-            "Pull-request checks: awaiting maintainer approval",
+            "Pull-request checks: explicitly dispatched for the proposal head",
             proposal,
         )
         self.assertIn(
             "Acceptance: maintainer approval and protected checks",
             proposal,
         )
-        self.assertIn("Approve workflows to run", proposal)
+        self.assertNotIn("Approve workflows to run", proposal)
 
     def test_baseline_proposal_rejects_unexpected_paths(self) -> None:
         """Keep fresh proposal commits confined to the canonical baseline."""
@@ -355,10 +479,11 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "- name: Verify accepted hosted performance baseline",
             preflight,
         )
-        self.assertIn("resolve-baseline-mode", preflight)
+        self.assertIn("validate-performance-baseline", preflight)
+        self.assertIn("--repo .", preflight)
         self.assertIn("--profile scorecard", preflight)
         self.assertIn("--runner-class github-ubuntu-latest-x64", preflight)
-        self.assertIn("--requested-mode compare", preflight)
+        self.assertIn("artifacts/release-baseline-readiness.json", preflight)
         self.assertIn("Hosted performance baseline required", preflight)
         self.assertIn("review and merge", preflight)
         self.assertIn("needs: preflight", self.job(text, "foundation", "sbom"))

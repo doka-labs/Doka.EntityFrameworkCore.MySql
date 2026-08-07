@@ -22,6 +22,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+if __package__:
+    from . import performance_evidence
+else:
+    import performance_evidence
+
 
 SCHEMA_VERSION = 1
 MANIFEST_NAME = "release-candidate-evidence.json"
@@ -37,9 +42,13 @@ LIVE_EXAMPLE_MATRIX_EVIDENCE = Path("integration/examples/live-example-matrix-ev
 RUNTIME_POSTURE_EVIDENCE = Path("runtime/runtime-posture-evidence.json")
 RECONCILIATION_EVIDENCE = Path("release-candidate-reconciliation.json")
 PERFORMANCE_REUSE_EVIDENCE = Path("performance/reuse-evidence.json")
+PERFORMANCE_BASELINE_PATH = Path(
+    "benchmarks/baselines/doka-benchmark-baseline.json"
+)
 PERFORMANCE_TARGETS = ("mariadb118", "mysql84")
 PERFORMANCE_INPUT_PREFIXES = ("benchmarks/", "docker/", "src/")
 PERFORMANCE_INPUT_FILES = {
+    ".github/workflows/benchmark-scorecard.yml",
     ".config/dotnet-tools.json",
     "Directory.Build.props",
     "Directory.Build.targets",
@@ -49,6 +58,7 @@ PERFORMANCE_INPUT_FILES = {
     "eng/benchmark.sh",
     "eng/check-benchmark-ratios.sh",
     "eng/performance_evidence.py",
+    "eng/run_with_deadline.py",
     "eng/verify-dotnet.sh",
 }
 REQUIRED_LIVE_EXAMPLES = (
@@ -159,6 +169,7 @@ def changed_paths(repo: Path, base_commit: str, current_commit: str) -> list[str
     output = run_command(
         "git",
         "diff",
+        "--no-renames",
         "--name-only",
         "--diff-filter=ACDMRTUXB",
         f"{base_commit}..{current_commit}",
@@ -170,6 +181,8 @@ def changed_paths(repo: Path, base_commit: str, current_commit: str) -> list[str
 
 def is_performance_input(path: str) -> bool:
     """Return whether a repository path can affect measured provider behavior."""
+    if path == PERFORMANCE_BASELINE_PATH.as_posix():
+        return False
     if path in PERFORMANCE_INPUT_FILES:
         return True
     if path.startswith(PERFORMANCE_INPUT_PREFIXES):
@@ -197,6 +210,106 @@ def commit_is_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
 
     message = result.stderr.strip() or result.stdout.strip()
     raise EvidenceError(f"Unable to validate performance evidence ancestry: {message}")
+
+
+def validate_performance_baseline(args: argparse.Namespace) -> dict[str, Any]:
+    """Prove that the accepted hosted pair covers the current source state."""
+    repo = Path(args.repo).resolve()
+    contract_path = Path(args.contract).resolve()
+    baseline_path = Path(args.baseline).resolve()
+
+    try:
+        performance_evidence.validate_baseline_file(
+            argparse.Namespace(
+                contract=str(contract_path),
+                baseline=str(baseline_path),
+            )
+        )
+        baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+    except (
+        OSError,
+        json.JSONDecodeError,
+        performance_evidence.PerformanceEvidenceError,
+    ) as exception:
+        raise EvidenceError(
+            f"The accepted performance baseline is invalid: {exception}"
+        ) from exception
+
+    entries = [
+        entry
+        for entry in baseline.get("baselines", [])
+        if isinstance(entry, dict)
+        and entry.get("profile") == args.profile
+        and entry.get("runnerClass") == args.runner_class
+    ]
+    observed_targets = {entry.get("target") for entry in entries}
+    if len(entries) != len(PERFORMANCE_TARGETS) or observed_targets != set(
+        PERFORMANCE_TARGETS
+    ):
+        raise EvidenceError(
+            "The accepted hosted performance baseline is not a complete target pair."
+        )
+
+    identity_fields = ("commit", "sourceHash", "runId")
+    identities = {
+        field: {entry.get(field) for entry in entries}
+        for field in identity_fields
+    }
+    mismatched = [field for field, values in identities.items() if len(values) != 1]
+    if mismatched:
+        raise EvidenceError(
+            "The accepted hosted performance pair has inconsistent identity field(s): "
+            f"{', '.join(mismatched)}."
+        )
+
+    evidence_commit = next(iter(identities["commit"]))
+    source_hash = next(iter(identities["sourceHash"]))
+    if not isinstance(evidence_commit, str) or not re.fullmatch(
+        r"[0-9a-f]{40}",
+        evidence_commit,
+    ):
+        raise EvidenceError("The accepted performance source commit is invalid.")
+    if not isinstance(source_hash, str):
+        raise EvidenceError("The accepted performance source hash is invalid.")
+    if source_hash != clean_performance_source_hash(evidence_commit):
+        raise EvidenceError(
+            "The accepted performance source hash does not bind its source commit."
+        )
+
+    current_commit = run_command("git", "rev-parse", "HEAD", cwd=repo)
+    if not commit_is_ancestor(repo, evidence_commit, current_commit):
+        raise EvidenceError(
+            "The accepted performance source commit is not an ancestor of HEAD."
+        )
+    stale_paths = [
+        path
+        for path in changed_paths(repo, evidence_commit, current_commit)
+        if is_performance_input(path)
+    ]
+    if stale_paths:
+        raise EvidenceError(
+            "The accepted performance baseline predates relevant source changes: "
+            f"{', '.join(stale_paths)}."
+        )
+
+    receipt = {
+        "schemaVersion": 1,
+        "kind": "performance-baseline-readiness",
+        "success": True,
+        "baselineVersion": baseline["baselineVersion"],
+        "evidenceCommit": evidence_commit,
+        "currentCommit": current_commit,
+        "profile": args.profile,
+        "runnerClass": args.runner_class,
+        "targets": list(PERFORMANCE_TARGETS),
+    }
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return receipt
 
 
 def portable_path(path: Path, root: Path) -> str:
@@ -1088,6 +1201,17 @@ def parse_arguments() -> argparse.Namespace:
     verify.add_argument("--root", type=Path, required=True)
     verify.add_argument("--repo", type=Path)
 
+    validate_performance = subparsers.add_parser(
+        "validate-performance-baseline",
+        help="Validate hosted performance evidence against the current source state.",
+    )
+    validate_performance.add_argument("--repo", type=Path, required=True)
+    validate_performance.add_argument("--contract", type=Path, required=True)
+    validate_performance.add_argument("--baseline", type=Path, required=True)
+    validate_performance.add_argument("--profile", required=True)
+    validate_performance.add_argument("--runner-class", required=True)
+    validate_performance.add_argument("--output", type=Path, required=True)
+
     return parser.parse_args()
 
 
@@ -1105,6 +1229,8 @@ def main() -> int:
                 args.root,
                 args.run_id,
             )
+        elif args.command == "validate-performance-baseline":
+            validate_performance_baseline(args)
         else:
             verify_manifest(args.root, args.repo)
     except EvidenceError as exception:

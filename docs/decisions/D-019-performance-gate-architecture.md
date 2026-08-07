@@ -270,15 +270,13 @@ contract, and recomputes every verdict.
 
 The benchmark workflow resolves baseline compatibility and event relevance
 before starting services or either scorecard matrix job. Monthly and manual
-runs always request fresh evidence. A `main` push requests fresh evidence only
-when a reviewed performance contract, benchmark harness, evaluator, SDK
-contract, or measurement-workflow input changes. The parent workflow and its
-resolver are the inexpensive control plane. Changes confined to that control
-plane still report the workflow decision but never allocate the database
-services or benchmark runners. The reusable `benchmark-scorecard.yml` workflow
-owns the measured workload and remains a performance input. Provider source
-changes continue to compare against the accepted baseline; they never
-normalize their own regression threshold.
+runs always request fresh evidence. A `main` push requests fresh evidence when
+the shared release-evidence classifier detects a provider, benchmark, corpus,
+database-image, build, SDK, harness, evaluator, or reusable scorecard-workflow
+input. Both hosted engine scorecards then compare against the accepted
+baseline. The parent workflow, resolver, documentation, tests, and accepted
+baseline output remain on the inexpensive control-plane path. Provider source
+changes never normalize their own regression threshold.
 
 The resolver compares only when the accepted baseline contains a complete
 current-contract pair for the hosted runner. A missing baseline, older
@@ -287,10 +285,12 @@ current-contract evidence fails before the matrix. In seed mode, the resolver
 validates the stable open proposal before deciding whether to allocate the
 matrix. Current proposal evidence is reused. If only unrelated `main` changes
 are missing, the proposal branch is synchronized without another scorecard.
-Invalid proposal evidence or a performance-input change after its source
-commit requires a fresh matrix. A proposal branch that changes any path other
-than the canonical baseline fails in the resolver before the matrix starts;
-automation never overwrites or normalizes that unexpected branch state.
+Proposal state cannot override event relevance: absent, invalid, or stale
+proposal evidence does not make an unrelated push allocate the matrix. A
+relevant push, scheduled run, or manual run replaces that evidence. A proposal
+branch that changes any path other than the canonical baseline fails in the
+resolver before the matrix starts; automation never overwrites or normalizes
+that unexpected branch state.
 
 Both seed jobs must pass before automation combines and validates the complete
 MySQL and MariaDB pair. The workflow writes that candidate to a stable
@@ -301,20 +301,22 @@ pull-request write authority. Every measurement job remains read-only.
 Tree-diff guards confine both proposal creation and synchronization to the
 canonical baseline file.
 
-When `GITHUB_TOKEN` opens or synchronizes the pull request, GitHub creates the
-normal `pull_request` workflow run and holds it for a maintainer with write
-access to approve. After that approval, the protected checks run against the
-current pull-request revision and test merge. GitHub completes the scheduled
-squash merge only after the independent maintainer approval and all protected
-checks succeed. Protected-branch review remains the acceptance boundary. No
-PAT, repository secret, external application, duplicate workflow dispatch,
-downloaded handoff artifact, automatic approval, or administrative bypass is
-involved.
+Branch updates made with `GITHUB_TOKEN` do not recursively start normal push
+or pull-request workflows. After creating or synchronizing the proposal, the
+controller therefore dispatches a restricted CI profile on the exact proposal
+head. The profile runs only the three protected repository checks and skips
+the expensive scheduled and full-dispatch jobs. GitHub completes the scheduled
+squash merge only after those checks and an independent maintainer approval
+succeed. Protected-branch review remains the acceptance boundary. No PAT,
+repository secret, external application, downloaded handoff artifact,
+automatic approval, or administrative bypass is involved.
 
 Every `main` push reaches the resolver so required-check coverage cannot be
-skipped by a path filter. Workflow concurrency queues later pushes instead of
-cancelling a scorecard that already started; the resolver then reduces an
-unrelated queued push to the inexpensive no-op or synchronization path.
+skipped by a path filter. The resolver delegates its common input policy to the
+release-evidence classifier, preventing `main` and release-candidate relevance
+from drifting apart. Workflow concurrency queues later pushes instead of
+cancelling a scorecard that already started; an unrelated queued push then
+reduces to the inexpensive no-op or synchronization path.
 
 Every release-candidate run remains strict: no matching accepted runner pair
 is a hard failure during the inexpensive preflight. Seed mode still enforces
@@ -507,6 +509,11 @@ A baseline update requires:
   parent benchmark workflow and its event resolver are now an explicitly cheap
   control plane, so orchestration-only changes cannot allocate the hosted
   MySQL and MariaDB benchmark matrix.
+- 2026-08-07: Unified hosted-push and release-candidate performance relevance.
+  Provider, benchmark, database-image, build, SDK, harness, evaluator, and
+  reusable scorecard changes now run both hosted engine scorecards on `main`.
+  Proposal health cannot independently allocate that work after an unrelated
+  push.
 
 ### Implementation References
 

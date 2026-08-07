@@ -272,26 +272,32 @@ starting services or either expensive matrix job:
   `eng/benchmark_workflow_state.py` form the inexpensive control plane;
 - control-plane-only changes run the resolver but do not allocate database
   services or benchmark runners;
-- `.github/workflows/benchmark-scorecard.yml` owns the measured workload, so
-  changing that workflow requires fresh scorecard evidence;
+- the shared release-evidence classifier treats provider source, benchmark
+  source and corpora, database images, build and SDK inputs, the evaluator,
+  the harness, and `.github/workflows/benchmark-scorecard.yml` as scorecard
+  inputs;
+- a `main` push that changes any scorecard input runs both the MySQL and
+  MariaDB scorecards;
+- changes confined to the parent workflow, resolver, documentation, tests, or
+  accepted baseline output remain on the inexpensive resolver path;
 - an exact current-contract `github-ubuntu-latest-x64` pair selects `compare`;
 - a missing baseline, an older contract, or a missing runner pair selects
   `seed`;
 - malformed or partial current-contract evidence fails before the matrix;
 - monthly and manual runs always request fresh scorecard evidence;
-- a `main` push requests a scorecard only after a performance contract,
-  harness, evaluator, SDK contract, or measurement-workflow input changes;
 - a current and up-to-date seed proposal is a no-op;
 - a current proposal behind only unrelated `main` changes is synchronized
   without another scorecard; and
-- an invalid proposal or performance-input change after its source commit is
-  replaced with fresh evidence on the same automation branch.
+- proposal health cannot make an unrelated push allocate a scorecard, while a
+  relevant push, monthly run, or manual run replaces invalid or stale proposal
+  evidence on the same automation branch.
 
 An automation branch that changes any path other than the canonical baseline
 fails in the resolver before the scorecard matrix starts. Remove or review the
 unexpected branch state explicitly; automation does not overwrite it. Later
 `main` pushes queue behind a running scorecard instead of cancelling evidence
-that is already being collected.
+that is already being collected. The release-candidate workflow independently
+qualifies both engines at the exact release commit before publication.
 
 Both engine jobs must succeed before a seed run can propose a baseline update.
 A seed still enforces the complete workload, absolute budgets, statistical
@@ -305,7 +311,8 @@ pull request. It enables squash auto-merge for that proposal but never
 approves it. The normal operator path is therefore:
 
 1. Review the baseline diff and the linked benchmark run.
-2. In the pull request's **Checks** tab, select **Approve workflows to run**.
+2. Confirm that `quality-gates`, `repo-tests`, and `integration-smoke` passed
+   for the current proposal head.
 3. Approve the current pull-request revision.
 4. Let GitHub squash-merge the proposal after every protected check passes.
 
@@ -319,22 +326,25 @@ The proposal and linked evidence expose the following review inputs:
 - absolute and soak verdicts;
 - raw report SHA-256 hashes.
 
-GitHub creates the normal `pull_request` workflow run when `GITHUB_TOKEN`
-opens or synchronizes the proposal, but holds that run for approval by a user
-with write access. After approval, the protected `quality-gates`, `repo-tests`,
-and `integration-smoke` checks bind the merge decision to the current
-pull-request revision and test merge. No baseline artifact download, Run-ID
-handoff, or second workflow dispatch belongs to the operator path.
+Branch updates made with `GITHUB_TOKEN` do not recursively start the normal
+push or pull-request workflows. After creating or synchronizing the proposal,
+the benchmark workflow therefore dispatches the trusted `baseline-proposal`
+CI profile on the exact automation-branch head. That restricted profile runs
+only the protected `quality-gates`, `repo-tests`, and `integration-smoke`
+checks; all expensive scheduled and full-dispatch jobs are skipped. The
+checks bind the merge decision to the reviewed revision without requiring a
+manual workflow approval, baseline artifact download, or Run-ID handoff.
 
 Repository administrators must enable **Allow GitHub Actions to create and
 approve pull requests** under **Settings > Actions > General > Workflow
 permissions**. The workflow consumes the pull-request creation and auto-merge
 capabilities but contains no review, approval, or administrative-bypass
 command. The active ruleset therefore continues to require an independent
-maintainer approval and all protected checks. The workflow uses the ephemeral
-`GITHUB_TOKEN`; no PAT, repository secret, or external application is
-required. This repository setting and its security implications are
-documented by GitHub's [Actions policy reference][github-actions-policy].
+maintainer approval and all protected checks. The restricted CI dispatch uses
+only the workflow's ephemeral `GITHUB_TOKEN`; no PAT, repository secret, or
+external application is required. This repository setting and its security
+implications are documented by GitHub's
+[Actions policy reference][github-actions-policy].
 
 Release qualification always uses strict `compare` mode and fails closed when
 the accepted current runner pair is absent. Its preflight tells the operator to

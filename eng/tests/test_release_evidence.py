@@ -88,6 +88,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
             manifest["toolchain"]["dotnetSdk"],
         )
         self.assertEqual("2.5.0", manifest["toolchain"]["resolvedPackages"]["MySqlConnector"])
+
         self.assertEqual(
             list(release_evidence.REQUIRED_ENGINE_TARGETS),
             [engine["targetId"] for engine in manifest["engines"]],
@@ -114,6 +115,81 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertEqual(
             list(release_evidence.REQUIRED_RECONCILIATION_GATES),
             list(manifest["verificationReconciliation"]),
+        )
+
+    def test_performance_input_contract_covers_execution_dependencies(
+        self,
+    ) -> None:
+        """Invalidate evidence when measured code or its harness changes."""
+        included = (
+            ".github/workflows/benchmark-scorecard.yml",
+            "src/Doka.EntityFrameworkCore.MySql/Storage/Mapping.cs",
+            "benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/Program.cs",
+            "docker/compose.yml",
+            "eng/benchmark.sh",
+            "eng/performance_evidence.py",
+            "eng/run_with_deadline.py",
+            "global.json",
+        )
+        excluded = (
+            ".github/workflows/benchmark.yml",
+            "docs/operations/performance-evidence.md",
+            "eng/benchmark_workflow_state.py",
+            "tests/Doka.EntityFrameworkCore.MySql.Tests/MySqlOptionsTests.cs",
+        )
+
+        for path in included:
+            with self.subTest(path=path):
+                self.assertTrue(release_evidence.is_performance_input(path))
+
+        for path in excluded:
+            with self.subTest(path=path):
+                self.assertFalse(release_evidence.is_performance_input(path))
+
+    def test_changed_paths_preserve_both_sides_of_a_rename(self) -> None:
+        """Invalidate evidence when source moves outside a measured path."""
+        source_path = self.repo / "src/Provider.cs"
+        source_path.parent.mkdir()
+        source_path.write_text(
+            "internal sealed class Provider {}\n",
+            encoding="ascii",
+        )
+        self._git("add", "src/Provider.cs")
+        self._git("commit", "-m", "test: add provider source")
+        source_revision = release_evidence.run_command(
+            "git",
+            "rev-parse",
+            "HEAD",
+            cwd=self.repo,
+        )
+
+        (self.repo / "docs").mkdir()
+        self._git("mv", "src/Provider.cs", "docs/Provider.cs")
+        self._git("commit", "-m", "test: move provider source")
+        moved_revision = release_evidence.run_command(
+            "git",
+            "rev-parse",
+            "HEAD",
+            cwd=self.repo,
+        )
+
+        paths = release_evidence.changed_paths(
+            self.repo,
+            source_revision,
+            moved_revision,
+        )
+
+        self.assertEqual(
+            ["docs/Provider.cs", "src/Provider.cs"],
+            paths,
+        )
+        self.assertEqual(
+            ["src/Provider.cs"],
+            [
+                path
+                for path in paths
+                if release_evidence.is_performance_input(path)
+            ],
         )
 
     def test_generate_rejects_dirty_release_source(self) -> None:

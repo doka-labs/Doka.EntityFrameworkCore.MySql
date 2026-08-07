@@ -382,7 +382,10 @@ public sealed class AdrRepositoryValidatorTests
         var dependabot = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "dependabot.yml"));
         const string exhaustiveCondition =
-            "if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'";
+            "if: >-\n"
+            + "      github.event_name == 'schedule'\n"
+            + "      || (github.event_name == 'workflow_dispatch'\n"
+            + "      && inputs.profile != 'baseline-proposal')";
 
         Assert.Contains(
             "schedule:\n    - cron: \"15 1 * * 4\"",
@@ -421,7 +424,8 @@ public sealed class AdrRepositoryValidatorTests
             StringComparison.Ordinal);
         Assert.Contains(
             "&& (github.event_name == 'schedule'\n"
-            + "      || github.event_name == 'workflow_dispatch')",
+            + "      || (github.event_name == 'workflow_dispatch'\n"
+            + "      && inputs.profile != 'baseline-proposal'))",
             workflow,
             StringComparison.Ordinal);
 

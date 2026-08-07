@@ -16,30 +16,18 @@ from pathlib import Path
 from typing import Any, Sequence
 
 if __package__:
-    from . import performance_evidence
+    from . import performance_evidence, release_evidence
 else:
     import performance_evidence
+    import release_evidence
 
 
 ZERO_REVISION = "0" * 40
 
-# These inputs can change the measured scorecard or its evaluation. The parent
-# workflow and this resolver are control-plane code: changing either must remain
-# cheap, while changing the reusable measurement workflow requires fresh
-# evidence. Provider source changes are measured against the accepted baseline
-# by release-candidate qualification; they must not silently refresh it.
-PERFORMANCE_INPUT_FILES = frozenset(
+ACCEPTED_EVIDENCE_FILES = frozenset(
     {
-        ".github/workflows/benchmark-scorecard.yml",
-        "benchmarks/performance-contract.json",
-        "eng/benchmark.sh",
-        "eng/check-benchmark-ratios.sh",
-        "eng/performance_evidence.py",
-        "global.json",
+        "benchmarks/baselines/doka-benchmark-baseline.json",
     }
-)
-PERFORMANCE_INPUT_PREFIXES = (
-    "benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/",
 )
 
 
@@ -60,9 +48,10 @@ class ProposalState:
 
 def is_performance_input(path: str) -> bool:
     """Return whether a repository path changes hosted scorecard behavior."""
-    return path in PERFORMANCE_INPUT_FILES or path.startswith(
-        PERFORMANCE_INPUT_PREFIXES,
-    )
+    if path in ACCEPTED_EVIDENCE_FILES:
+        return False
+
+    return release_evidence.is_performance_input(path)
 
 
 def run_git(
@@ -101,6 +90,7 @@ def relevant_changes(
         repository,
         [
             "diff",
+            "--no-renames",
             "--name-only",
             "--diff-filter=ACDMRTUXB",
             before_revision,
@@ -140,6 +130,7 @@ def event_requires_scorecard(
         before_revision,
         current_revision,
     )
+
     return bool(changes), changes
 
 
@@ -303,23 +294,19 @@ def decide_work(
     proposal: ProposalState,
 ) -> tuple[bool, bool]:
     """Return scorecard and cheap proposal-sync decisions."""
-    if baseline_mode == "compare":
-        return event_requires_fresh_evidence, False
-
-    if baseline_mode != "seed":
+    if baseline_mode not in {"compare", "seed"}:
         raise WorkflowStateError(
             f"Unsupported resolved baseline mode: {baseline_mode}",
         )
 
-    scorecard_required = (
-        event_requires_fresh_evidence or proposal.disposition != "current"
-    )
-    sync_required = (
-        not scorecard_required
-        and proposal.disposition == "current"
-        and proposal.behind_current
-    )
-    return scorecard_required, sync_required
+    if not event_requires_fresh_evidence:
+        sync_required = (
+            proposal.disposition == "current"
+            and proposal.behind_current
+        )
+        return False, sync_required
+
+    return True, False
 
 
 def parse_args() -> argparse.Namespace:
