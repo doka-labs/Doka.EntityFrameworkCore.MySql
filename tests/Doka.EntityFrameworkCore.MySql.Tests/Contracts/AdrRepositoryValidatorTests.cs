@@ -37,6 +37,15 @@ public sealed class AdrRepositoryValidatorTests
             + "\"${sbom_components_dir}/spatial/project.assets.json\"",
             normalizedReleaseCandidateScript,
             StringComparison.Ordinal);
+        Assert.Contains(
+            "python3 \"${repo_root}/eng/materialize_sbom_assets.py\"",
+            normalizedReleaseCandidateScript,
+            StringComparison.Ordinal);
+        Assert.Equal(
+            2,
+            normalizedReleaseCandidateScript.Split(
+                "python3 \"${repo_root}/eng/materialize_sbom_assets.py\"",
+                StringSplitOptions.None).Length - 1);
         Assert.DoesNotContain("-bc \"${repo_root}\"", normalizedReleaseCandidateScript, StringComparison.Ordinal);
         Assert.Contains(
             "DOKA_BENCHMARK_RUN_ID=\"${release_candidate_run_id}\"",

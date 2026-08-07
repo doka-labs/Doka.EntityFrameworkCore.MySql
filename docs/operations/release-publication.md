@@ -85,6 +85,22 @@ Wait for the following checks on `release_commit` to complete successfully:
 - CodeQL and every other code-scanning check required by the active `main`
   ruleset
 
+Before freezing or tagging the commit, confirm that the checked-in performance
+baseline contains an accepted `scorecard` pair for both release engines under
+the `github-ubuntu-latest-x64` runner class and the active performance-contract
+version. Dispatch the dedicated `benchmark` workflow with `baseline_mode` set
+to `seed` when that pair is missing. Both engine jobs must pass before the
+workflow uploads `benchmark-baseline-candidate`. Review and validate that
+candidate, replace the checked-in baseline with the accepted file, and repeat
+the ordinary `main` checks above. Scheduled benchmark runs resolve the same
+prerequisite automatically before allocating their matrix.
+
+The release-candidate workflow is intentionally compare-only and rejects a
+stale or incomplete pair during its inexpensive preflight. It never promotes
+measurements collected by the candidate itself. See
+[Performance Evidence Operations](performance-evidence.md) for the baseline
+acceptance procedure.
+
 Resolve every release blocker before continuing. Once the exact commit is
 green, freeze `main` operationally until publication completes. Any later
 commit makes the candidate stale, even if that commit changes only

@@ -9,8 +9,8 @@ from pathlib import Path
 class TestRunnerTests(unittest.TestCase):
     """Keep restore detection aligned with the current artifacts layout."""
 
-    def test_restore_detection_uses_real_project_assets(self) -> None:
-        """Do not wait for obsolete project-reference asset paths."""
+    def test_restore_detection_requires_complete_nuget_restore_outputs(self) -> None:
+        """Reject partial obj trees without NuGet's generated MSBuild imports."""
         repository_root = Path(__file__).resolve().parents[2]
         script = (repository_root / "eng" / "test.sh").read_text(encoding="utf-8")
 
@@ -29,4 +29,14 @@ class TestRunnerTests(unittest.TestCase):
 
         for project in required_projects:
             with self.subTest(project=project):
-                self.assertIn(f"artifacts/obj/{project}/project.assets.json", script)
+                self.assertIn(f'"{project}"', script)
+
+        self.assertIn('"${project_obj}/project.assets.json"', script)
+        self.assertIn(
+            '"${project_obj}/${project_name}.csproj.nuget.g.props"',
+            script,
+        )
+        self.assertIn(
+            '"${project_obj}/${project_name}.csproj.nuget.g.targets"',
+            script,
+        )

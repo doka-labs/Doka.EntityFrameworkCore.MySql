@@ -9,15 +9,15 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 unit_test_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.Tests/Doka.EntityFrameworkCore.MySql.Tests.csproj"
 functional_test_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj"
-required_assets=(
-    "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.Tests/project.assets.json"
-    "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.FunctionalTests/project.assets.json"
-    "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql/project.assets.json"
-    "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.NetTopologySuite/project.assets.json"
-    "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.AdrValidator/project.assets.json"
-    "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.SpecificationContract/project.assets.json"
-    "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.TestUtilities/project.assets.json"
-    "${repo_root}/artifacts/obj/SpecificationAdapters/project.assets.json"
+restore_projects=(
+    "Doka.EntityFrameworkCore.MySql.Tests"
+    "Doka.EntityFrameworkCore.MySql.FunctionalTests"
+    "Doka.EntityFrameworkCore.MySql"
+    "Doka.EntityFrameworkCore.MySql.NetTopologySuite"
+    "Doka.EntityFrameworkCore.MySql.AdrValidator"
+    "Doka.EntityFrameworkCore.MySql.SpecificationContract"
+    "Doka.EntityFrameworkCore.MySql.TestUtilities"
+    "SpecificationAdapters"
 )
 
 "${repo_root}/eng/verify-dotnet.sh"
@@ -26,11 +26,27 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
     --start-directory "${repo_root}/eng/tests" \
     --pattern "test_*.py"
 restore_required=0
-# Project-reference assets are listed explicitly because checking only the two
-# test projects can miss an incomplete restore graph.
-for assets_file in "${required_assets[@]}"; do
-    if [[ ! -f "${assets_file}" ]]; then
+# NuGet writes the resolved graph and the MSBuild imports as one restore unit.
+# Checking only project.assets.json can accept a partial obj tree in which
+# buildTransitive targets, including PublicApiAnalyzers, are silently absent.
+for project_name in "${restore_projects[@]}"; do
+    project_obj="${repo_root}/artifacts/obj/${project_name}"
+    required_restore_artifacts=(
+        "${project_obj}/project.assets.json"
+        "${project_obj}/${project_name}.csproj.nuget.g.props"
+        "${project_obj}/${project_name}.csproj.nuget.g.targets"
+    )
+
+    for restore_artifact in "${required_restore_artifacts[@]}"; do
+        if [[ -f "${restore_artifact}" ]]; then
+            continue
+        fi
+
         restore_required=1
+        break
+    done
+
+    if [[ "${restore_required}" -eq 1 ]]; then
         break
     fi
 done

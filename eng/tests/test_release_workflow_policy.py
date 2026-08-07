@@ -126,8 +126,30 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("eng.tests.test_release_artifact_resolver", preflight)
         self.assertIn("eng.tests.test_release_stage_checkpoint", preflight)
         self.assertIn("eng.tests.test_release_workflow_policy", preflight)
+        self.assertIn("eng.tests.test_materialize_sbom_assets", preflight)
         self.assertLess(
             text.index("- name: Verify release tooling contracts"),
+            text.index("- name: Run ${{ matrix.stage }} stage"),
+        )
+
+    def test_candidate_rejects_an_incompatible_baseline_before_the_matrix(
+        self,
+    ) -> None:
+        """Fail cheaply when strict hosted comparison cannot be performed."""
+        text = self.workflow("release-candidate.yml")
+        preflight = self.job(text, "preflight", "foundation")
+
+        self.assertIn(
+            "- name: Verify accepted hosted performance baseline",
+            preflight,
+        )
+        self.assertIn("resolve-baseline-mode", preflight)
+        self.assertIn("--profile scorecard", preflight)
+        self.assertIn("--runner-class github-ubuntu-latest-x64", preflight)
+        self.assertIn("--requested-mode compare", preflight)
+        self.assertIn("needs: preflight", self.job(text, "foundation", "sbom"))
+        self.assertLess(
+            text.index("- name: Verify accepted hosted performance baseline"),
             text.index("- name: Run ${{ matrix.stage }} stage"),
         )
 

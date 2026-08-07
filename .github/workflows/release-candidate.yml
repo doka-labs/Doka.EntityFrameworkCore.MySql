@@ -69,9 +69,23 @@ jobs:
           bash -n ./eng/release-candidate.sh
           bash -n ./eng/restore-release-stage-artifacts.sh
           python3 -m unittest \
+            eng.tests.test_materialize_sbom_assets \
             eng.tests.test_release_artifact_resolver \
             eng.tests.test_release_stage_checkpoint \
             eng.tests.test_release_workflow_policy
+
+      # Release qualification is compare-only. Resolve the complete hosted
+      # runner pair before allocating any build or database matrix runner.
+      - name: Verify accepted hosted performance baseline
+        run: |
+          mkdir -p artifacts
+          python3 eng/performance_evidence.py resolve-baseline-mode \
+            --contract benchmarks/performance-contract.json \
+            --baseline benchmarks/baselines/doka-benchmark-baseline.json \
+            --profile scorecard \
+            --runner-class github-ubuntu-latest-x64 \
+            --requested-mode compare \
+            --output artifacts/release-baseline-mode.json
 
   foundation:
     needs: preflight

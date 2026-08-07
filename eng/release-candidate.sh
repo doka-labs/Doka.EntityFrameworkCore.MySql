@@ -487,6 +487,21 @@ run_sbom() {
         exit 1
     fi
 
+    # NuGet records the absolute obj location inside project.assets.json. The
+    # package and SBOM stages run in separate jobs, so restore that location
+    # from the immutable candidate copy after validating every recorded path.
+    # A fresh restore here could silently replace the qualified graph.
+    python3 "${repo_root}/eng/materialize_sbom_assets.py" \
+        --repository-root "${repo_root}" \
+        --assets "${runtime_assets}" \
+        --project "${runtime_project}" \
+        --output-directory "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql"
+    python3 "${repo_root}/eng/materialize_sbom_assets.py" \
+        --repository-root "${repo_root}" \
+        --assets "${spatial_assets}" \
+        --project "${spatial_project}" \
+        --output-directory "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.NetTopologySuite"
+
     # Component detection consumes the exact restored graphs of the two
     # released packages. This excludes stale, test, and benchmark graphs while
     # retaining all direct and transitive package dependencies.
