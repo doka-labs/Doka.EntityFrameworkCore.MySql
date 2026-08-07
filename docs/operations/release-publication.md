@@ -86,7 +86,7 @@ Wait for the following checks on `release_commit` to complete successfully:
   ruleset
 
 The dedicated `benchmark` workflow keeps the hosted performance baseline on
-the active evidence contract. Relevant changes on `main` and the weekly
+the active evidence contract. Relevant changes on `main` and the monthly
 schedule start it automatically. A manual dispatch is available when an
 operator needs an immediate run. The workflow compares against an accepted
 baseline when possible. When the current runner pair is absent or stale, it

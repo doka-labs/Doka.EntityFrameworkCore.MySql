@@ -67,6 +67,7 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/integration/<run-id>/test-database-evidence.json`
 - Dedicated benchmark scorecard:
   - workflow: `.github/workflows/benchmark.yml`
+  - cadence: monthly, on demand, and after relevant performance-input changes
   - local paths:
 
     ```bash

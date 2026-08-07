@@ -86,6 +86,13 @@ policy. These centralized declarations keep host scheduling and database
 cleanup inside the hang deadline without turning the deadline into a latency
 budget.
 
+HiLo insert workloads track every entity before issuing one `SaveChanges` or
+`SaveChangesAsync` call per context. EF Core assigns HiLo values while entities
+enter the change tracker, so this transaction boundary preserves shared HiLo
+allocation and provider batching while excluding artificial per-row commit
+latency. The workload reports the number of rows actually persisted and fails
+if it differs from the declared population.
+
 ## Run one target
 
 Run against an already available Compose target:
@@ -265,7 +272,7 @@ starting services or either expensive matrix job:
 - a missing baseline, an older contract, or a missing runner pair selects
   `seed`;
 - malformed or partial current-contract evidence fails before the matrix;
-- weekly and manual runs always request fresh scorecard evidence;
+- monthly and manual runs always request fresh scorecard evidence;
 - a `main` push requests a scorecard only after a performance-contract,
   harness, evaluator, or benchmark-workflow input changes;
 - a current and up-to-date seed proposal is a no-op;

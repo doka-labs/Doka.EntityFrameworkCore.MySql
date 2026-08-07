@@ -49,7 +49,7 @@ public class HiLoBulkInsertBenchmarks : IDisposable
     public void GlobalCleanup() => Dispose();
 
     [Benchmark]
-    public Task BulkInsertAcrossTenContexts() => _database.InsertAsync(
+    public Task<int> BulkInsertAcrossTenContexts() => _database.InsertAsync(
         contextCount: 10,
         rowCount: 100,
         CancellationToken.None);
@@ -78,42 +78,71 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
             .GetResult();
     }
 
-    public void Reset()
+    public void Reset(
+        CancellationToken cancellationToken = default
+    )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         MySqlHiLoStateCache.ResetForTesting();
-        ResetSchemaAsync()
+        ResetSchemaAsync(cancellationToken)
             .GetAwaiter()
             .GetResult();
     }
 
-    public void Insert(
+    public async Task ResetAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        MySqlHiLoStateCache.ResetForTesting();
+        await ResetSchemaAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public int Insert(
         int contextCount,
-        int rowCount
+        int rowCount,
+        CancellationToken cancellationToken = default
     )
     {
         ValidateShape(contextCount, rowCount);
         var rowsPerContext = rowCount / contextCount;
+        var insertedRows = 0;
 
         Parallel.For(
             0,
             contextCount,
+            new ParallelOptions
+            {
+                CancellationToken = cancellationToken,
+            },
             contextIndex =>
             {
                 using var context = new HiLoBenchContext(BuildOptions());
 
                 for (var rowIndex = 0; rowIndex < rowsPerContext; rowIndex++)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     context.Items.Add(
                         new HiLoBenchEntity
                         {
                             Name = $"row-{contextIndex}-{rowIndex}",
                         });
-                    context.SaveChanges();
                 }
+
+                // HiLo values are assigned while entities enter the change tracker. Persist once
+                // per context so this workload measures HiLo allocation and provider batching,
+                // instead of multiplying the result by artificial single-row transactions.
+                // ReSharper disable once MethodHasAsyncOverloadWithCancellation
+                var contextInsertedRows = context.SaveChanges();
+                Interlocked.Add(ref insertedRows, contextInsertedRows);
             });
+
+        EnsureInsertedRowCount(rowCount, insertedRows);
+        return insertedRows;
     }
 
-    public async Task InsertAsync(
+    public async Task<int> InsertAsync(
         int contextCount,
         int rowCount,
         CancellationToken cancellationToken
@@ -121,6 +150,7 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
     {
         ValidateShape(contextCount, rowCount);
         var rowsPerContext = rowCount / contextCount;
+        var insertedRows = 0;
 
         await Parallel
             .ForEachAsync(
@@ -140,12 +170,19 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
                             {
                                 Name = $"row-{contextIndex}-{rowIndex}",
                             });
-                        await context
-                            .SaveChangesAsync(token)
-                            .ConfigureAwait(false);
                     }
+
+                    // The asynchronous path retains the same transaction boundary as the
+                    // synchronous path so their comparison differs only by execution model.
+                    var contextInsertedRows = await context
+                        .SaveChangesAsync(token)
+                        .ConfigureAwait(false);
+                    Interlocked.Add(ref insertedRows, contextInsertedRows);
                 })
             .ConfigureAwait(false);
+
+        EnsureInsertedRowCount(rowCount, insertedRows);
+        return insertedRows;
     }
 
     public void Dispose()
@@ -187,17 +224,19 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
             .ConfigureAwait(false);
     }
 
-    private async Task ResetSchemaAsync()
+    private async Task ResetSchemaAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         await using var connection = new MySqlConnection(_connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"TRUNCATE TABLE `{TableName}`;"
             + ResetSequenceSql();
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -247,6 +286,18 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
         if (rowCount % contextCount != 0)
         {
             throw new ArgumentException("The row count must be divisible by the context count.");
+        }
+    }
+
+    private static void EnsureInsertedRowCount(
+        int expectedRowCount,
+        int actualRowCount
+    )
+    {
+        if (actualRowCount != expectedRowCount)
+        {
+            throw new InvalidOperationException(
+                $"The HiLo workload inserted {actualRowCount} rows; expected {expectedRowCount}.");
         }
     }
 

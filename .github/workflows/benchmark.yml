@@ -6,7 +6,9 @@ on:
       - main
   workflow_dispatch:
   schedule:
-    - cron: "15 2 * * 0"
+    # One unattended refresh per month detects hosted-runner drift without
+    # consuming the GitHub Free allowance on four equivalent weekly runs.
+    - cron: "15 2 1 * *"
 
 permissions:
   contents: read

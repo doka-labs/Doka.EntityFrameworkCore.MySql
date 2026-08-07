@@ -111,21 +111,24 @@ internal static class PerformanceWriteWorkloads
                 {
                     if (useAsync)
                     {
-                        await database
+                        return await database
                             .InsertAsync(contextCount, rowCount, cancellationToken)
                             .ConfigureAwait(false);
                     }
-                    else
+
+                    return database.Insert(contextCount, rowCount, cancellationToken);
+                },
+                async cancellationToken =>
+                {
+                    if (useAsync)
                     {
-                        database.Insert(contextCount, rowCount);
+                        await database
+                            .ResetAsync(cancellationToken)
+                            .ConfigureAwait(false);
+                        return;
                     }
 
-                    return rowCount;
-                },
-                _ =>
-                {
-                    database.Reset();
-                    return ValueTask.CompletedTask;
+                    database.Reset(cancellationToken);
                 }));
     }
 }

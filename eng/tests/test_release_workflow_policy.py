@@ -171,6 +171,14 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             resolver,
         )
 
+    def test_benchmark_schedules_one_monthly_drift_measurement(self) -> None:
+        """Bound unattended hosted scorecard consumption to one run per month."""
+        text = self.workflow("benchmark.yml")
+        schedule = text[text.index("  schedule:") : text.index("\n\npermissions:")]
+
+        self.assertIn('cron: "15 2 1 * *"', schedule)
+        self.assertNotIn('cron: "15 2 * * 0"', schedule)
+
     def test_unrelated_pushes_do_not_cancel_running_scorecards(self) -> None:
         """Preserve expensive evidence while later pushes queue cheaply."""
         text = self.workflow("benchmark.yml")

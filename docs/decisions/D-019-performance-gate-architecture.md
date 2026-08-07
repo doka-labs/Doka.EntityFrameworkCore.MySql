@@ -269,7 +269,7 @@ contract, and recomputes every verdict.
 ### Automation and baseline acceptance
 
 The benchmark workflow resolves baseline compatibility and event relevance
-before starting services or either scorecard matrix job. Weekly and manual
+before starting services or either scorecard matrix job. Monthly and manual
 runs always request fresh evidence. A `main` push requests fresh evidence only
 when a reviewed performance-contract, benchmark-harness, evaluator, or
 workflow input changes. Provider source changes continue to compare against
