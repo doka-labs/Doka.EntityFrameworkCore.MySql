@@ -289,19 +289,22 @@ automation never overwrites or normalizes that unexpected branch state.
 
 Both seed jobs must pass before automation combines and validates the complete
 MySQL and MariaDB pair. The workflow writes that candidate to a stable
-automation branch and opens or updates one pull request. It never approves or
-merges its proposal. Only the proposal-update jobs receive contents write
-authority, and only the pull-request writer receives pull-request write
-authority. Every measurement job remains read-only. Tree-diff guards confine
-both proposal creation and synchronization to the canonical baseline file.
+automation branch and opens or updates one pull request. It enables squash
+auto-merge but never approves its proposal. Only the proposal-update jobs
+receive contents write authority, and only the pull-request writer receives
+pull-request write authority. Every measurement job remains read-only.
+Tree-diff guards confine both proposal creation and synchronization to the
+canonical baseline file.
 
 When `GITHUB_TOKEN` opens or synchronizes the pull request, GitHub creates the
 normal `pull_request` workflow run and holds it for a maintainer with write
 access to approve. After that approval, the protected checks run against the
-current pull-request revision and test merge. Protected-branch review remains
-the only acceptance boundary. No PAT, repository secret, external
-application, duplicate workflow dispatch, downloaded handoff artifact,
-automatic approval, or automatic merge is involved.
+current pull-request revision and test merge. GitHub completes the scheduled
+squash merge only after the independent maintainer approval and all protected
+checks succeed. Protected-branch review remains the acceptance boundary. No
+PAT, repository secret, external application, duplicate workflow dispatch,
+downloaded handoff artifact, automatic approval, or administrative bypass is
+involved.
 
 Every `main` push reaches the resolver so required-check coverage cannot be
 skipped by a path filter. Workflow concurrency queues later pushes instead of
@@ -492,6 +495,9 @@ A baseline update requires:
   cheap synchronization after unrelated changes, least-privilege proposal
   authority, normal approval-gated pull-request checks, and a strict release
   preflight.
+- 2026-08-07: Enabled squash auto-merge for the validated baseline proposal.
+  Independent maintainer approval and every protected check remain mandatory;
+  the workflow has no review or administrative-bypass command.
 
 ### Implementation References
 
@@ -545,6 +551,10 @@ A baseline update requires:
   (primary source; retrieved 2026-08-07)
 - [GitHub Actions policy settings][github-actions-policy]
   (primary source; retrieved 2026-08-07)
+- [GitHub pull-request auto-merge][github-auto-merge]
+  (primary source; retrieved 2026-08-07)
+- [GitHub CLI `pr merge`][github-cli-pr-merge]
+  (primary source; retrieved 2026-08-07)
 
 [bdn-config]: https://benchmarkdotnet.org/articles/configs/configoptions.html
 [bdn-diagnosers]: https://benchmarkdotnet.org/articles/configs/diagnosers.html
@@ -574,3 +584,6 @@ A baseline update requires:
   https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow
 [github-skipped-workflows]:
   https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs
+[github-auto-merge]:
+  https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-auto-merge-for-pull-requests-in-your-repository
+[github-cli-pr-merge]: https://cli.github.com/manual/gh_pr_merge

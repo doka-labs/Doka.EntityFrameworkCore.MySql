@@ -295,12 +295,13 @@ deliberately does not carry older contract groups into the proposal.
 
 The workflow validates the combined MySQL and MariaDB evidence, writes the
 canonical baseline on a stable automation branch, and opens or updates one
-pull request. It never approves or merges that pull request. The normal
-operator path is therefore:
+pull request. It enables squash auto-merge for that proposal but never
+approves it. The normal operator path is therefore:
 
 1. Review the baseline diff and the linked benchmark run.
 2. In the pull request's **Checks** tab, select **Approve workflows to run**.
-3. Merge the proposal after its protected checks pass.
+3. Approve the current pull-request revision.
+4. Let GitHub squash-merge the proposal after every protected check passes.
 
 The proposal and linked evidence expose the following review inputs:
 
@@ -321,11 +322,13 @@ handoff, or second workflow dispatch belongs to the operator path.
 
 Repository administrators must enable **Allow GitHub Actions to create and
 approve pull requests** under **Settings > Actions > General > Workflow
-permissions**. The workflow consumes only the create capability and contains
-no approval or merge command. It uses the ephemeral `GITHUB_TOKEN`; no PAT,
-repository secret, or external application is required. This repository
-setting and its security implications are documented by GitHub's
-[Actions policy reference][github-actions-policy].
+permissions**. The workflow consumes the pull-request creation and auto-merge
+capabilities but contains no review, approval, or administrative-bypass
+command. The active ruleset therefore continues to require an independent
+maintainer approval and all protected checks. The workflow uses the ephemeral
+`GITHUB_TOKEN`; no PAT, repository secret, or external application is
+required. This repository setting and its security implications are
+documented by GitHub's [Actions policy reference][github-actions-policy].
 
 Release qualification always uses strict `compare` mode and fails closed when
 the accepted current runner pair is absent. Its preflight tells the operator to

@@ -456,10 +456,11 @@ jobs:
               "${GITHUB_RUN_ID}"
             echo
             echo "The workflow validated the complete MySQL 8.4 and MariaDB 11.8 scorecard pair before opening this review."
-            echo "The pull request is never approved or merged automatically."
+            echo "The workflow never approves its own pull request."
+            echo "Squash auto-merge remains blocked until a maintainer approves the current revision and every required check passes."
             echo
             echo "GitHub holds workflow runs created by this automation for maintainer approval."
-            echo "Open the Checks tab, select **Approve workflows to run**, and merge only after every required check passes."
+            echo "Open the Checks tab, select **Approve workflows to run**, review the baseline, and approve the pull request."
           } > "${proposal_body}"
 
           proposal_number="$(
@@ -489,6 +490,44 @@ jobs:
               --head "${BASELINE_BRANCH}" \
               --title "perf(benchmarks): refresh hosted performance baseline" \
               --body-file "${proposal_body}"
+
+            proposal_number="$(
+              gh pr list \
+                --repo "${GITHUB_REPOSITORY}" \
+                --state open \
+                --head "${BASELINE_BRANCH}" \
+                --json number \
+                --jq '.[0].number // empty'
+            )"
+          fi
+
+          if [[ -z "${proposal_number}" ]]; then
+            echo "The baseline proposal pull request could not be resolved." >&2
+            exit 1
+          fi
+
+          auto_merge_method="$(
+            gh pr view \
+              --repo "${GITHUB_REPOSITORY}" \
+              --json autoMergeRequest \
+              --jq '.autoMergeRequest.mergeMethod // empty' \
+              "${proposal_number}"
+          )"
+
+          if [[ -n "${auto_merge_method}" && "${auto_merge_method}" != "SQUASH" ]]; then
+            echo "Refusing to replace unexpected ${auto_merge_method} auto-merge policy." >&2
+            exit 1
+          fi
+
+          if [[ -z "${auto_merge_method}" ]]; then
+            # Auto-merge schedules the protected merge; it does not approve the
+            # proposal or bypass the required review and status checks.
+            gh pr merge \
+              --repo "${GITHUB_REPOSITORY}" \
+              --auto \
+              --squash \
+              --match-head-commit "$(git rev-parse HEAD)" \
+              "${proposal_number}"
           fi
 
           {
@@ -496,5 +535,6 @@ jobs:
             echo
             echo "- Branch: ${BASELINE_BRANCH}"
             echo "- Pull-request checks: awaiting maintainer approval"
-            echo "- Acceptance: protected pull-request review"
+            echo "- Auto-merge: enabled (squash)"
+            echo "- Acceptance: maintainer approval and protected checks"
           } >> "${GITHUB_STEP_SUMMARY}"

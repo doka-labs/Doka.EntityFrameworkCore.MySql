@@ -150,7 +150,13 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("gh api", proposal)
         self.assertNotIn("gh pr edit", proposal)
         self.assertNotIn("gh workflow run", proposal)
-        self.assertNotIn("gh pr merge", proposal)
+        self.assertIn("gh pr merge", proposal)
+        self.assertIn("--auto", proposal)
+        self.assertIn("--squash", proposal)
+        self.assertIn("--match-head-commit", proposal)
+        self.assertIn("--json autoMergeRequest", proposal)
+        self.assertIn("unexpected ${auto_merge_method} auto-merge policy", proposal)
+        self.assertNotIn("--admin", proposal)
         self.assertNotIn("gh pr review", proposal)
         self.assertNotIn("--force", proposal)
         self.assertNotIn("secrets.", proposal)
@@ -198,6 +204,10 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertNotIn("gh workflow run", proposal)
         self.assertIn(
             "Pull-request checks: awaiting maintainer approval",
+            proposal,
+        )
+        self.assertIn(
+            "Acceptance: maintainer approval and protected checks",
             proposal,
         )
         self.assertIn("Approve workflows to run", proposal)
