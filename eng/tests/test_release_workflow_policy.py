@@ -64,35 +64,184 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
                 ):
                     self.assertLessEqual(len(action_bindings), 1)
 
+    def test_workflows_do_not_contain_top_level_sequence_entries(self) -> None:
+        """Reject shell text that accidentally escapes a YAML block scalar."""
+        for path in sorted(self.workflows.glob("*.yml")):
+            text = path.read_text(encoding="utf-8")
+
+            with self.subTest(workflow=path.name):
+                self.assertFalse(
+                    any(line.startswith("- ") for line in text.splitlines()),
+                )
+
     def test_benchmark_resolves_baseline_before_allocating_the_matrix(self) -> None:
-        """Keep incompatible hosted baselines out of costly compare runs."""
+        """Resolve compatibility and duplicate proposals before costly runs."""
         text = self.workflow("benchmark.yml")
         resolver = self.job(
             text,
             "resolve-baseline-mode",
+            "sync-baseline-proposal",
+        )
+        sync = self.job(
+            text,
+            "sync-baseline-proposal",
             "benchmark-scorecard",
         )
         scorecard = self.job(
             text,
             "benchmark-scorecard",
-            "package-baseline-candidate",
+            "propose-baseline-update",
         )
-        candidate = self.job(text, "package-baseline-candidate")
+        proposal = self.job(text, "propose-baseline-update")
 
-        self.assertIn("inputs.baseline_mode || 'auto'", resolver)
+        self.assertIn("--requested-mode auto", resolver)
         self.assertIn("resolve-baseline-mode", resolver)
+        self.assertIn("eng/benchmark_workflow_state.py", resolver)
+        self.assertIn("scorecard-required", resolver)
+        self.assertIn("sync-required", resolver)
+        self.assertIn(
+            "needs.resolve-baseline-mode.outputs.sync-required == 'true'",
+            sync,
+        )
         self.assertIn("needs: resolve-baseline-mode", scorecard)
         self.assertIn(
-            "needs.resolve-baseline-mode.outputs.mode",
+            "needs.resolve-baseline-mode.outputs.scorecard-required == 'true'",
             scorecard,
         )
         self.assertIn(
-            "if: needs.resolve-baseline-mode.outputs.mode == 'seed'",
-            candidate,
+            "needs.resolve-baseline-mode.outputs.mode == 'seed'",
+            proposal,
         )
-        self.assertIn("- benchmark-scorecard", candidate)
-        self.assertIn("benchmark-artifacts-mysql84", candidate)
-        self.assertIn("benchmark-artifacts-mariadb118", candidate)
+        self.assertIn("- benchmark-scorecard", proposal)
+        self.assertIn("benchmark-artifacts-mysql84", proposal)
+        self.assertIn("benchmark-artifacts-mariadb118", proposal)
+        self.assertIn("validate-baseline", proposal)
+
+    def test_baseline_proposal_has_bounded_write_authority(self) -> None:
+        """Confine mutations to the two bounded proposal-update jobs."""
+        text = self.workflow("benchmark.yml")
+        resolver = self.job(
+            text,
+            "resolve-baseline-mode",
+            "sync-baseline-proposal",
+        )
+        sync = self.job(
+            text,
+            "sync-baseline-proposal",
+            "benchmark-scorecard",
+        )
+        scorecard = self.job(
+            text,
+            "benchmark-scorecard",
+            "propose-baseline-update",
+        )
+        proposal = self.job(text, "propose-baseline-update")
+
+        self.assertNotIn("contents: write", resolver)
+        self.assertNotIn("contents: write", scorecard)
+        self.assertNotIn("pull-requests: write", resolver)
+        self.assertNotIn("pull-requests: write", sync)
+        self.assertNotIn("pull-requests: write", scorecard)
+        self.assertEqual(0, text.count("actions: write"))
+        self.assertEqual(2, text.count("contents: write"))
+        self.assertEqual(1, text.count("pull-requests: write"))
+        self.assertIn("contents: write", sync)
+        self.assertIn("gh pr create", proposal)
+        self.assertIn("gh api", proposal)
+        self.assertNotIn("gh pr edit", proposal)
+        self.assertNotIn("gh workflow run", proposal)
+        self.assertNotIn("gh pr merge", proposal)
+        self.assertNotIn("gh pr review", proposal)
+        self.assertNotIn("--force", proposal)
+        self.assertNotIn("secrets.", proposal)
+
+    def test_all_main_pushes_reach_the_cheap_benchmark_resolver(self) -> None:
+        """Avoid required-check gaps while classifying expensive work locally."""
+        text = self.workflow("benchmark.yml")
+        push_paths = text[text.index("  push:") : text.index("  workflow_dispatch:")]
+        resolver = (
+            self.repo / "eng" / "benchmark_workflow_state.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("paths:", push_paths)
+        self.assertIn('"benchmarks/performance-contract.json"', resolver)
+        self.assertIn('"eng/benchmark.sh"', resolver)
+        self.assertNotIn(
+            '"benchmarks/baselines/doka-benchmark-baseline.json"',
+            resolver,
+        )
+
+    def test_unrelated_pushes_do_not_cancel_running_scorecards(self) -> None:
+        """Preserve expensive evidence while later pushes queue cheaply."""
+        text = self.workflow("benchmark.yml")
+
+        self.assertIn("cancel-in-progress: false", text)
+        self.assertNotIn("cancel-in-progress: true", text)
+
+    def test_baseline_proposal_uses_the_normal_pull_request_checks(self) -> None:
+        """Bind checks to the PR head without a duplicate workflow dispatch."""
+        benchmark = self.workflow("benchmark.yml")
+        ci = self.workflow("ci.yml")
+        proposal = self.job(benchmark, "propose-baseline-update")
+
+        self.assertIn("  pull_request:\n", ci)
+        self.assertIn("  workflow_dispatch:\n", ci)
+        self.assertNotIn("inputs:\n      lane:", ci)
+        self.assertNotIn("gh workflow run", proposal)
+        self.assertIn(
+            "Pull-request checks: awaiting maintainer approval",
+            proposal,
+        )
+        self.assertIn("Approve workflows to run", proposal)
+
+    def test_baseline_proposal_rejects_unexpected_paths(self) -> None:
+        """Keep fresh proposal commits confined to the canonical baseline."""
+        text = self.workflow("benchmark.yml")
+        resolver = self.job(
+            text,
+            "resolve-baseline-mode",
+            "sync-baseline-proposal",
+        )
+        proposal = self.job(text, "propose-baseline-update")
+
+        self.assertIn('proposal_base="$(', resolver)
+        self.assertIn("git merge-base \\", resolver)
+        self.assertIn('"origin/${baseline_branch}"', resolver)
+        self.assertIn("Refusing to inspect unexpected proposal path", resolver)
+        self.assertIn('git diff --name-only "${GITHUB_SHA}" HEAD', proposal)
+        self.assertIn('git diff --name-only "${GITHUB_SHA}"', proposal)
+        self.assertIn("Refusing to update unexpected proposal path", proposal)
+        self.assertIn("Refusing to commit unexpected proposal path", proposal)
+
+    def test_missing_proposal_baseline_is_regenerated(self) -> None:
+        """Route missing review evidence through the tested invalid state."""
+        text = self.workflow("benchmark.yml")
+        resolver = self.job(
+            text,
+            "resolve-baseline-mode",
+            "sync-baseline-proposal",
+        )
+
+        self.assertIn('if ! git show \\', resolver)
+        self.assertIn(': > "${proposed_baseline}"', resolver)
+        self.assertLess(
+            resolver.index('if ! git show \\'),
+            resolver.index("eng/benchmark_workflow_state.py"),
+        )
+
+    def test_baseline_proposal_sync_rejects_unexpected_paths(self) -> None:
+        """Keep the cheap refresh confined to the canonical baseline file."""
+        text = self.workflow("benchmark.yml")
+        sync = self.job(
+            text,
+            "sync-baseline-proposal",
+            "benchmark-scorecard",
+        )
+
+        self.assertIn('git diff --name-only "${GITHUB_SHA}" HEAD', sync)
+        self.assertIn("Refusing to synchronize unexpected proposal path", sync)
+        self.assertIn("validate-baseline", sync)
+        self.assertNotIn("benchmark.sh", sync)
 
     def test_candidate_identity_survives_selective_job_reruns(self) -> None:
         """Exclude the mutable run attempt from the stable candidate identity."""
@@ -147,6 +296,8 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("--profile scorecard", preflight)
         self.assertIn("--runner-class github-ubuntu-latest-x64", preflight)
         self.assertIn("--requested-mode compare", preflight)
+        self.assertIn("Hosted performance baseline required", preflight)
+        self.assertIn("review and merge", preflight)
         self.assertIn("needs: preflight", self.job(text, "foundation", "sbom"))
         self.assertLess(
             text.index("- name: Verify accepted hosted performance baseline"),

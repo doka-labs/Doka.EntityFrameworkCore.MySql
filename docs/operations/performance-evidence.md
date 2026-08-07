@@ -258,24 +258,44 @@ Historical evidence outside the selected run ID cannot satisfy the gate.
 
 ## Hosted runner baseline
 
-The scheduled `benchmark` workflow resolves its baseline mode before starting
-services or either expensive matrix job:
+The `benchmark` workflow resolves its baseline mode and required work before
+starting services or either expensive matrix job:
 
 - an exact current-contract `github-ubuntu-latest-x64` pair selects `compare`;
 - a missing baseline, an older contract, or a missing runner pair selects
   `seed`;
 - malformed or partial current-contract evidence fails before the matrix;
-- an explicitly requested manual `compare` remains strict and fails before the
-  matrix when no matching pair exists.
+- weekly and manual runs always request fresh scorecard evidence;
+- a `main` push requests a scorecard only after a performance-contract,
+  harness, evaluator, or benchmark-workflow input changes;
+- a current and up-to-date seed proposal is a no-op;
+- a current proposal behind only unrelated `main` changes is synchronized
+  without another scorecard; and
+- an invalid proposal or performance-input change after its source commit is
+  replaced with fresh evidence on the same automation branch.
 
-Both engine jobs must succeed before a seed run packages
-`benchmark-baseline-candidate`. A seed still enforces the complete workload,
-absolute budgets, statistical integrity, allocation, GC, soak, environment,
-and host-admission contracts. It omits only a historical comparison that
-cannot exist yet. A contract revision deliberately does not carry older
-contract groups into the candidate.
+An automation branch that changes any path other than the canonical baseline
+fails in the resolver before the scorecard matrix starts. Remove or review the
+unexpected branch state explicitly; automation does not overwrite it. Later
+`main` pushes queue behind a running scorecard instead of cancelling evidence
+that is already being collected.
 
-Download and review:
+Both engine jobs must succeed before a seed run can propose a baseline update.
+A seed still enforces the complete workload, absolute budgets, statistical
+integrity, allocation, GC, soak, environment, and host-admission contracts. It
+omits only a historical comparison that cannot exist yet. A contract revision
+deliberately does not carry older contract groups into the proposal.
+
+The workflow validates the combined MySQL and MariaDB evidence, writes the
+canonical baseline on a stable automation branch, and opens or updates one
+pull request. It never approves or merges that pull request. The normal
+operator path is therefore:
+
+1. Review the baseline diff and the linked benchmark run.
+2. In the pull request's **Checks** tab, select **Approve workflows to run**.
+3. Merge the proposal after its protected checks pass.
+
+The proposal and linked evidence expose the following review inputs:
 
 - source commit and source hash;
 - exact server images;
@@ -285,10 +305,33 @@ Download and review:
 - absolute and soak verdicts;
 - raw report SHA-256 hashes.
 
-The workflow never commits or accepts the candidate. Review it and commit the
-complete dual-engine pair before a release-candidate run. Release qualification
-always uses strict `compare` mode and fails closed when the accepted current
-runner pair is absent.
+GitHub creates the normal `pull_request` workflow run when `GITHUB_TOKEN`
+opens or synchronizes the proposal, but holds that run for approval by a user
+with write access. After approval, the protected `quality-gates`, `repo-tests`,
+and `integration-smoke` checks bind the merge decision to the current
+pull-request revision and test merge. No baseline artifact download, Run-ID
+handoff, or second workflow dispatch belongs to the operator path.
+
+Repository administrators must enable **Allow GitHub Actions to create and
+approve pull requests** under **Settings > Actions > General > Workflow
+permissions**. The workflow consumes only the create capability and contains
+no approval or merge command. It uses the ephemeral `GITHUB_TOKEN`; no PAT,
+repository secret, or external application is required. This repository
+setting and its security implications are documented by GitHub's
+[Actions policy reference][github-actions-policy].
+
+Release qualification always uses strict `compare` mode and fails closed when
+the accepted current runner pair is absent. Its preflight tells the operator to
+review and merge the automated proposal before creating a new release tag.
+
+This design follows GitHub's documented `GITHUB_TOKEN` event behavior,
+approval-gated workflow-run contract, and latest-commit status-check contract.
+The primary sources were retrieved on 2026-08-07:
+
+- [Automatic token authentication][github-token-authentication]
+- [Triggering a workflow][github-workflow-events]
+- [Troubleshooting required status checks][github-required-checks]
+- [Skipping workflow runs][github-skipped-workflows]
 
 ## Soak interpretation
 
@@ -392,3 +435,14 @@ unfinished stage is archived before that stage restarts.
 
 `DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1` is a development-loop bypass. Any
 evidence produced with that bypass is not release eligible.
+
+[github-actions-policy]:
+  https://docs.github.com/en/organizations/managing-organization-settings/disabling-or-limiting-github-actions-for-your-organization
+[github-required-checks]:
+  https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks
+[github-token-authentication]:
+  https://docs.github.com/en/actions/concepts/security/github_token
+[github-workflow-events]:
+  https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow
+[github-skipped-workflows]:
+  https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs

@@ -85,19 +85,28 @@ Wait for the following checks on `release_commit` to complete successfully:
 - CodeQL and every other code-scanning check required by the active `main`
   ruleset
 
-Before freezing or tagging the commit, confirm that the checked-in performance
-baseline contains an accepted `scorecard` pair for both release engines under
-the `github-ubuntu-latest-x64` runner class and the active performance-contract
-version. Dispatch the dedicated `benchmark` workflow with `baseline_mode` set
-to `seed` when that pair is missing. Both engine jobs must pass before the
-workflow uploads `benchmark-baseline-candidate`. Review and validate that
-candidate, replace the checked-in baseline with the accepted file, and repeat
-the ordinary `main` checks above. Scheduled benchmark runs resolve the same
-prerequisite automatically before allocating their matrix.
+The dedicated `benchmark` workflow keeps the hosted performance baseline on
+the active evidence contract. Relevant changes on `main` and the weekly
+schedule start it automatically. A manual dispatch is available when an
+operator needs an immediate run. The workflow compares against an accepted
+baseline when possible. When the current runner pair is absent or stale, it
+validates both release engines and opens one baseline review pull request.
+There is no artifact download, file replacement, or second benchmark dispatch.
+
+Review and merge that pull request through protected `main`. The automation
+never approves or merges its own proposal. GitHub creates the normal
+pull-request checks for the current proposal revision and holds them for a
+maintainer to select **Approve workflows to run**. No artifact download,
+Run-ID handoff, or second workflow dispatch is required. A current proposal is
+reused; if it is behind only unrelated `main` changes, automation synchronizes
+it without another scorecard. Invalid or stale evidence is remeasured on the
+same stable proposal branch. Unexpected files on that branch fail before the
+matrix and require explicit review instead of being overwritten by automation.
 
 The release-candidate workflow is intentionally compare-only and rejects a
 stale or incomplete pair during its inexpensive preflight. It never promotes
-measurements collected by the candidate itself. See
+measurements collected by the candidate itself. Its failure message routes the
+operator back to the single baseline review pull request. See
 [Performance Evidence Operations](performance-evidence.md) for the baseline
 acceptance procedure.
 

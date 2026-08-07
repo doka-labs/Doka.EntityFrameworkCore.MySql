@@ -1,21 +1,22 @@
 name: benchmark
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
-    inputs:
-      baseline_mode:
-        description: Compare with accepted baselines or produce a reviewed seed candidate
-        required: true
-        default: compare
-        type: choice
-        options:
-          - compare
-          - seed
   schedule:
     - cron: "15 2 * * 0"
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Every main push reaches the cheap resolver. Do not let an unrelated push
+  # cancel scorecard evidence that a schedule, manual run, or relevant change
+  # already started producing.
+  cancel-in-progress: false
 
 jobs:
   resolve-baseline-mode:
@@ -25,43 +26,206 @@ jobs:
 
     permissions:
       contents: read
+      pull-requests: read
 
     outputs:
+      contract-version: ${{ steps.resolve.outputs.contract-version }}
       mode: ${{ steps.resolve.outputs.mode }}
+      baseline-branch: ${{ steps.resolve.outputs.baseline-branch }}
+      scorecard-required: ${{ steps.resolve.outputs.scorecard-required }}
+      sync-required: ${{ steps.resolve.outputs.sync-required }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
-      # Resolve compatibility before service containers and the expensive matrix
-      # are allocated. Scheduled runs seed reviewed evidence when the checked-in
-      # baseline cannot be compared under the current evidence contract.
-      - name: Resolve accepted baseline compatibility
+      # The resolver is the workflow's cheap control plane. It validates any
+      # open proposal and inspects its exact evidence commit before allocating
+      # service containers or either benchmark runner.
+      - name: Resolve benchmark work
         id: resolve
         env:
-          REQUESTED_MODE: ${{ inputs.baseline_mode || 'auto' }}
+          BEFORE_REVISION: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p artifacts
+
+          contract_version="$(
+            jq -er '
+              .contractVersion
+              | select(
+                  type == "string"
+                  and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+                )
+            ' benchmarks/performance-contract.json
+          )"
+
           python3 eng/performance_evidence.py resolve-baseline-mode \
             --contract benchmarks/performance-contract.json \
             --baseline benchmarks/baselines/doka-benchmark-baseline.json \
             --profile scorecard \
             --runner-class github-ubuntu-latest-x64 \
-            --requested-mode "${REQUESTED_MODE}" \
+            --requested-mode auto \
             --output artifacts/baseline-mode.json
 
           mode="$(jq -er '.mode' artifacts/baseline-mode.json)"
+          baseline_branch="automation/performance-baseline-${contract_version}"
+          proposal_number=""
+          state_arguments=(
+            --repo "${GITHUB_WORKSPACE}"
+            --event-name "${EVENT_NAME}"
+            --current-revision "${GITHUB_SHA}"
+            --baseline-mode "${mode}"
+            --contract benchmarks/performance-contract.json
+            --profile scorecard
+            --runner-class github-ubuntu-latest-x64
+            --output artifacts/benchmark-workflow-state.json
+          )
+
+          if [[ -n "${BEFORE_REVISION}" ]]; then
+            state_arguments+=(--before-revision "${BEFORE_REVISION}")
+          fi
+
+          if [[ "${mode}" == "seed" ]]; then
+            if [[ "${GITHUB_REF}" != "refs/heads/${DEFAULT_BRANCH}" ]]; then
+              echo "A hosted baseline proposal must originate from ${DEFAULT_BRANCH}." >&2
+              exit 1
+            fi
+
+            proposal_number="$(
+              gh pr list \
+                --repo "${GITHUB_REPOSITORY}" \
+                --state open \
+                --head "${baseline_branch}" \
+                --json number \
+                --jq '.[0].number // empty'
+            )"
+
+            if [[ -n "${proposal_number}" ]]; then
+              baseline_path="benchmarks/baselines/doka-benchmark-baseline.json"
+              proposed_baseline="artifacts/proposed-baseline.json"
+
+              git fetch \
+                --no-tags \
+                origin \
+                "${baseline_branch}:refs/remotes/origin/${baseline_branch}"
+
+              proposal_base="$(
+                git merge-base \
+                  "${GITHUB_SHA}" \
+                  "origin/${baseline_branch}"
+              )"
+              while IFS= read -r changed_path; do
+                if [[ "${changed_path}" != "${baseline_path}" ]]; then
+                  echo "Refusing to inspect unexpected proposal path: ${changed_path}" >&2
+                  exit 1
+                fi
+              done < <(
+                git diff \
+                  --name-only \
+                  --diff-filter=ACDMRTUXB \
+                  "${proposal_base}" \
+                  "origin/${baseline_branch}" \
+                  --
+              )
+
+              # A missing baseline is invalid proposal evidence, not an
+              # unhandled shell error. The Python resolver classifies the
+              # empty file as invalid and requests a fresh scorecard.
+              if ! git show \
+                "origin/${baseline_branch}:${baseline_path}" \
+                > "${proposed_baseline}"; then
+                : > "${proposed_baseline}"
+              fi
+
+              state_arguments+=(
+                --proposed-baseline "${proposed_baseline}"
+                --proposal-head-ref "origin/${baseline_branch}"
+              )
+            fi
+          fi
+
+          python3 eng/benchmark_workflow_state.py "${state_arguments[@]}"
+
+          echo "contract-version=${contract_version}" >> "${GITHUB_OUTPUT}"
           echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
+          echo "baseline-branch=${baseline_branch}" >> "${GITHUB_OUTPUT}"
+          echo "scorecard-required=$(jq -er '.scorecardRequired' artifacts/benchmark-workflow-state.json)" >> "${GITHUB_OUTPUT}"
+          echo "sync-required=$(jq -er '.syncRequired' artifacts/benchmark-workflow-state.json)" >> "${GITHUB_OUTPUT}"
 
           {
-            echo "## Benchmark baseline mode"
+            echo "## Benchmark workflow decision"
             echo
             echo "- Requested: $(jq -r '.requestedMode' artifacts/baseline-mode.json)"
             echo "- Selected: ${mode}"
             echo "- Baseline: $(jq -r '.baselineDisposition' artifacts/baseline-mode.json)"
+            echo "- Proposal: $(jq -r '.proposal.disposition' artifacts/benchmark-workflow-state.json)"
+            echo "- Scorecard required: $(jq -r '.scorecardRequired' artifacts/benchmark-workflow-state.json)"
+            echo "- Proposal sync required: $(jq -r '.syncRequired' artifacts/benchmark-workflow-state.json)"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  sync-baseline-proposal:
+    if: needs.resolve-baseline-mode.outputs.sync-required == 'true'
+    needs: resolve-baseline-mode
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # An unrelated main change must not spend another scorecard run merely to
+      # make the existing proposal mergeable. The tree-diff guard proves that
+      # the automation branch still changes only the reviewed baseline file.
+      - name: Synchronize current proposal with main
+        env:
+          BASELINE_BRANCH: ${{ needs.resolve-baseline-mode.outputs.baseline-branch }}
+        run: |
+          baseline_path="benchmarks/baselines/doka-benchmark-baseline.json"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch \
+            --no-tags \
+            origin \
+            "${BASELINE_BRANCH}:refs/remotes/origin/${BASELINE_BRANCH}"
+          git switch \
+            --create "${BASELINE_BRANCH}" \
+            --track "origin/${BASELINE_BRANCH}"
+          git merge --no-edit "${GITHUB_SHA}"
+
+          while IFS= read -r changed_path; do
+            if [[ "${changed_path}" != "${baseline_path}" ]]; then
+              echo "Refusing to synchronize unexpected proposal path: ${changed_path}" >&2
+              exit 1
+            fi
+          done < <(git diff --name-only "${GITHUB_SHA}" HEAD)
+
+          python3 eng/performance_evidence.py validate-baseline \
+            --contract benchmarks/performance-contract.json \
+            --baseline "${baseline_path}" \
+            --output artifacts/baseline-validation.json
+          git push origin "HEAD:refs/heads/${BASELINE_BRANCH}"
+
+          {
+            echo "## Baseline proposal synchronized"
+            echo
+            echo "- Branch: ${BASELINE_BRANCH}"
+            echo "- Scorecard rerun: not required"
+            echo "- Pull-request checks: queued for the updated proposal head"
           } >> "${GITHUB_STEP_SUMMARY}"
 
   benchmark-scorecard:
+    if: needs.resolve-baseline-mode.outputs.scorecard-required == 'true'
     needs: resolve-baseline-mode
     runs-on: ubuntu-latest
     timeout-minutes: 360
@@ -130,8 +294,10 @@ jobs:
           name: benchmark-artifacts-${{ matrix.benchmark-target }}
           path: artifacts/benchmarks/${{ matrix.benchmark-target }}
 
-  package-baseline-candidate:
-    if: needs.resolve-baseline-mode.outputs.mode == 'seed'
+  propose-baseline-update:
+    if: >-
+      needs.resolve-baseline-mode.outputs.mode == 'seed'
+      && needs.resolve-baseline-mode.outputs.scorecard-required == 'true'
     needs:
       - resolve-baseline-mode
       - benchmark-scorecard
@@ -139,12 +305,14 @@ jobs:
     timeout-minutes: 10
 
     permissions:
-      contents: read
-      actions: read
+      contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Download MySQL evidence
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -160,7 +328,7 @@ jobs:
 
       - name: Build combined baseline candidate
         env:
-          BASELINE_VERSION: github-${{ github.run_id }}-${{ github.run_attempt }}
+          BASELINE_VERSION: github-${{ github.run_id }}
         run: |
           mapfile -t mysql_evidence < <(
             find artifacts/benchmarks/mysql84 \
@@ -191,10 +359,140 @@ jobs:
             --baseline artifacts/doka-benchmark-baseline.candidate.json \
             --output artifacts/baseline-validation.json
 
-      - name: Upload baseline candidate
+      # Preserve the complete review input even though the normal maintainer
+      # path is the pull-request diff rather than a downloaded artifact.
+      - name: Upload baseline review evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: benchmark-baseline-candidate
+          name: benchmark-baseline-review-evidence
           path: |
             artifacts/doka-benchmark-baseline.candidate.json
             artifacts/baseline-validation.json
+
+      # GitHub creates the normal pull_request run when GITHUB_TOKEN opens or
+      # synchronizes this PR, but holds that run for maintainer approval. This
+      # binds every required check to the exact reviewed head without a PAT,
+      # duplicate workflow dispatch, or downloaded baseline artifact.
+      - name: Propose reviewed baseline update
+        env:
+          BASELINE_BRANCH: ${{ needs.resolve-baseline-mode.outputs.baseline-branch }}
+          CONTRACT_VERSION: ${{ needs.resolve-baseline-mode.outputs.contract-version }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          baseline_path="benchmarks/baselines/doka-benchmark-baseline.json"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote \
+            --exit-code \
+            --heads origin \
+            "refs/heads/${BASELINE_BRANCH}" > /dev/null 2>&1; then
+            git fetch \
+              --no-tags \
+              origin \
+              "${BASELINE_BRANCH}:refs/remotes/origin/${BASELINE_BRANCH}"
+            git switch \
+              --create "${BASELINE_BRANCH}" \
+              --track "origin/${BASELINE_BRANCH}"
+            git merge --no-edit "${GITHUB_SHA}"
+          else
+            git switch --create "${BASELINE_BRANCH}" "${GITHUB_SHA}"
+          fi
+
+          while IFS= read -r changed_path; do
+            if [[ "${changed_path}" != "${baseline_path}" ]]; then
+              echo "Refusing to update unexpected proposal path: ${changed_path}" >&2
+              exit 1
+            fi
+          done < <(git diff --name-only "${GITHUB_SHA}" HEAD)
+
+          install \
+            -m 0644 \
+            artifacts/doka-benchmark-baseline.candidate.json \
+            "${baseline_path}"
+
+          while IFS= read -r changed_path; do
+            if [[ "${changed_path}" != "${baseline_path}" ]]; then
+              echo "Refusing to commit unexpected proposal path: ${changed_path}" >&2
+              exit 1
+            fi
+          done < <(git diff --name-only "${GITHUB_SHA}")
+
+          python3 eng/performance_evidence.py validate-baseline \
+            --contract benchmarks/performance-contract.json \
+            --baseline "${baseline_path}" \
+            --output artifacts/baseline-validation.json
+
+          git add "${baseline_path}"
+          if ! git diff --cached --quiet; then
+            commit_message="${RUNNER_TEMP}/performance-baseline-commit.txt"
+            {
+              echo "perf(benchmarks): refresh hosted performance baseline"
+              echo
+              echo "- Keep strict hosted comparison aligned with the active contract."
+              echo "- Accept the validated MySQL and MariaDB scorecard evidence."
+            } > "${commit_message}"
+            git commit --file "${commit_message}"
+          fi
+
+          git push \
+            --set-upstream origin \
+            "HEAD:refs/heads/${BASELINE_BRANCH}"
+
+          proposal_body="${RUNNER_TEMP}/performance-baseline-pr.md"
+          {
+            echo "This pull request proposes the validated hosted baseline for the active performance contract."
+            echo
+            printf -- '- Contract version: `%s`\n' "${CONTRACT_VERSION}"
+            printf -- '- Source commit: `%s`\n' "${GITHUB_SHA}"
+            printf -- '- Evidence run: [benchmark %s](%s/%s/actions/runs/%s)\n' \
+              "${GITHUB_RUN_ID}" \
+              "${GITHUB_SERVER_URL}" \
+              "${GITHUB_REPOSITORY}" \
+              "${GITHUB_RUN_ID}"
+            echo
+            echo "The workflow validated the complete MySQL 8.4 and MariaDB 11.8 scorecard pair before opening this review."
+            echo "The pull request is never approved or merged automatically."
+            echo
+            echo "GitHub holds workflow runs created by this automation for maintainer approval."
+            echo "Open the Checks tab, select **Approve workflows to run**, and merge only after every required check passes."
+          } > "${proposal_body}"
+
+          proposal_number="$(
+            gh pr list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --state open \
+              --head "${BASELINE_BRANCH}" \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+
+          if [[ -n "${proposal_number}" ]]; then
+            proposal_update="${RUNNER_TEMP}/performance-baseline-pr.json"
+            jq -n \
+              --arg title "perf(benchmarks): refresh hosted performance baseline" \
+              --rawfile body "${proposal_body}" \
+              '{title: $title, body: $body}' \
+              > "${proposal_update}"
+            gh api \
+              --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/pulls/${proposal_number}" \
+              --input "${proposal_update}"
+          else
+            gh pr create \
+              --repo "${GITHUB_REPOSITORY}" \
+              --base "${DEFAULT_BRANCH}" \
+              --head "${BASELINE_BRANCH}" \
+              --title "perf(benchmarks): refresh hosted performance baseline" \
+              --body-file "${proposal_body}"
+          fi
+
+          {
+            echo "## Baseline review proposed"
+            echo
+            echo "- Branch: ${BASELINE_BRANCH}"
+            echo "- Pull-request checks: awaiting maintainer approval"
+            echo "- Acceptance: protected pull-request review"
+          } >> "${GITHUB_STEP_SUMMARY}"

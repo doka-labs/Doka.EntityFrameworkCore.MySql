@@ -268,25 +268,54 @@ contract, and recomputes every verdict.
 
 ### Automation and baseline acceptance
 
-The weekly benchmark workflow resolves baseline compatibility before starting
-services or either scorecard matrix job. It compares only when the accepted
-baseline contains a complete current-contract pair for the hosted runner. A
-missing baseline, older contract, or absent runner pair selects `seed` and
-packages a review candidate after both engines pass. Malformed or partial
-current-contract evidence fails before the matrix. The candidate is never
-committed or accepted automatically.
+The benchmark workflow resolves baseline compatibility and event relevance
+before starting services or either scorecard matrix job. Weekly and manual
+runs always request fresh evidence. A `main` push requests fresh evidence only
+when a reviewed performance-contract, benchmark-harness, evaluator, or
+workflow input changes. Provider source changes continue to compare against
+the accepted baseline; they never normalize their own regression threshold.
 
-An explicit manual `compare` and every release-candidate run remain strict: no
-matching accepted runner pair is a hard failure. Seed mode still enforces the
-complete workload, absolute budgets, statistics, allocation, GC, soak,
+The resolver compares only when the accepted baseline contains a complete
+current-contract pair for the hosted runner. A missing baseline, older
+contract, or absent runner pair selects `seed`. Malformed or partial
+current-contract evidence fails before the matrix. In seed mode, the resolver
+validates the stable open proposal before deciding whether to allocate the
+matrix. Current proposal evidence is reused. If only unrelated `main` changes
+are missing, the proposal branch is synchronized without another scorecard.
+Invalid proposal evidence or a performance-input change after its source
+commit requires a fresh matrix. A proposal branch that changes any path other
+than the canonical baseline fails in the resolver before the matrix starts;
+automation never overwrites or normalizes that unexpected branch state.
+
+Both seed jobs must pass before automation combines and validates the complete
+MySQL and MariaDB pair. The workflow writes that candidate to a stable
+automation branch and opens or updates one pull request. It never approves or
+merges its proposal. Only the proposal-update jobs receive contents write
+authority, and only the pull-request writer receives pull-request write
+authority. Every measurement job remains read-only. Tree-diff guards confine
+both proposal creation and synchronization to the canonical baseline file.
+
+When `GITHUB_TOKEN` opens or synchronizes the pull request, GitHub creates the
+normal `pull_request` workflow run and holds it for a maintainer with write
+access to approve. After that approval, the protected checks run against the
+current pull-request revision and test merge. Protected-branch review remains
+the only acceptance boundary. No PAT, repository secret, external
+application, duplicate workflow dispatch, downloaded handoff artifact,
+automatic approval, or automatic merge is involved.
+
+Every `main` push reaches the resolver so required-check coverage cannot be
+skipped by a path filter. Workflow concurrency queues later pushes instead of
+cancelling a scorecard that already started; the resolver then reduces an
+unrelated queued push to the inexpensive no-op or synchronization path.
+
+Every release-candidate run remains strict: no matching accepted runner pair
+is a hard failure during the inexpensive preflight. Seed mode still enforces
+the complete workload, absolute budgets, statistics, allocation, GC, soak,
 environment identity, and host admission; it omits only the unavailable
 historical comparison. Contract changes do not merge older-contract runner
-groups into the new candidate.
-
-A manual benchmark workflow can run in `seed` mode. It packages both engine
-evaluations into a combined baseline candidate while retaining already
-accepted runner groups. The candidate is an artifact for review; the workflow
-does not commit or accept it.
+groups into the new candidate. Merging the accepted baseline does not rerun
+the scorecard because the baseline file is deliberately excluded from the
+relevant-input classifier.
 
 The release-candidate path copies the complete raw performance evidence into
 its release evidence directory and re-evaluates both targets before reporting
@@ -457,6 +486,12 @@ A baseline update requires:
   pre-matrix baseline-mode resolver so scheduled hosted runs produce a
   reviewable seed candidate for new evidence contracts while explicit compare
   and release-candidate paths remain fail-closed.
+- 2026-08-07: Replaced manual artifact download, baseline installation, and
+  repeated benchmark dispatch with one stable validated baseline pull request.
+  Added a locally tested event and proposal resolver, current-proposal reuse,
+  cheap synchronization after unrelated changes, least-privilege proposal
+  authority, normal approval-gated pull-request checks, and a strict release
+  preflight.
 
 ### Implementation References
 
@@ -464,10 +499,12 @@ A baseline update requires:
 - `benchmarks/baselines/doka-benchmark-baseline.json`
 - `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks`
 - `eng/benchmark.sh`
+- `eng/benchmark_workflow_state.py`
 - `eng/performance_evidence.py`
 - `eng/check-benchmark-ratios.sh`
 - `eng/tests/test_performance_evidence.py`
 - `eng/tests/test_benchmark_ratio_gate.py`
+- `eng/tests/test_benchmark_workflow_state.py`
 - `.github/workflows/benchmark.yml`
 - `.github/workflows/release-candidate.yml`
 - `eng/release-candidate.sh`
@@ -498,6 +535,16 @@ A baseline update requires:
   (primary source; retrieved 2026-08-06)
 - [Apple `host_cpu_load_info_t`][apple-host-cpu-load]
   (primary source; retrieved 2026-08-06)
+- [GitHub automatic token authentication][github-token-authentication]
+  (primary source; retrieved 2026-08-07)
+- [GitHub workflow-trigger behavior][github-workflow-events]
+  (primary source; retrieved 2026-08-07)
+- [GitHub required status checks][github-required-checks]
+  (primary source; retrieved 2026-08-07)
+- [GitHub skipped-workflow status behavior][github-skipped-workflows]
+  (primary source; retrieved 2026-08-07)
+- [GitHub Actions policy settings][github-actions-policy]
+  (primary source; retrieved 2026-08-07)
 
 [bdn-config]: https://benchmarkdotnet.org/articles/configs/configoptions.html
 [bdn-diagnosers]: https://benchmarkdotnet.org/articles/configs/diagnosers.html
@@ -517,3 +564,13 @@ A baseline update requires:
   https://developer.apple.com/documentation/kernel/1502863-host_statistics64
 [apple-host-cpu-load]:
   https://developer.apple.com/documentation/kernel/host_cpu_load_info_t
+[github-actions-policy]:
+  https://docs.github.com/en/organizations/managing-organization-settings/disabling-or-limiting-github-actions-for-your-organization
+[github-required-checks]:
+  https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks
+[github-token-authentication]:
+  https://docs.github.com/en/actions/concepts/security/github_token
+[github-workflow-events]:
+  https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow
+[github-skipped-workflows]:
+  https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs
