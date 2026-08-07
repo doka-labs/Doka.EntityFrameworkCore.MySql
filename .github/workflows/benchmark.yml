@@ -229,72 +229,12 @@ jobs:
   benchmark-scorecard:
     if: needs.resolve-baseline-mode.outputs.scorecard-required == 'true'
     needs: resolve-baseline-mode
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
-
+    uses: ./.github/workflows/benchmark-scorecard.yml
+    with:
+      baseline_mode: ${{ needs.resolve-baseline-mode.outputs.mode }}
     permissions:
       contents: read
       actions: read
-    strategy:
-      fail-fast: false
-      matrix:
-        benchmark-target:
-          - mysql84
-          - mariadb118
-
-    services:
-      mysql84:
-        image: mysql:8.4.10@sha256:8dbcf531a03aade657e181b9cf2f1d1803ce621a1d55610cb44cb531ab7d7db6
-        env:
-          MYSQL_ROOT_PASSWORD: root_password
-          MYSQL_DATABASE: benchmark_suite
-          MYSQL_USER: doka
-          MYSQL_PASSWORD: doka_password
-        ports:
-          - 33068:3306
-        options: >-
-          --health-cmd="MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
-      mariadb118:
-        image: mariadb:11.8.8@sha256:efb4959ef2c835cd735dbc388eb9ad6aab0c78dd64febcd51bc17481111890c4
-        env:
-          MARIADB_ROOT_PASSWORD: root_password
-          MARIADB_DATABASE: benchmark_suite
-          MARIADB_USER: doka
-          MARIADB_PASSWORD: doka_password
-        ports:
-          - 33069:3306
-        options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      - name: Run benchmark scorecard
-        env:
-          DOKA_BENCHMARK_PROFILE: scorecard
-          DOKA_BENCHMARK_BASELINE_MODE: ${{ needs.resolve-baseline-mode.outputs.mode }}
-          DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
-          DOKA_BENCHMARK_TARGET: ${{ matrix.benchmark-target }}
-        run: bash ./eng/benchmark.sh --test-only
-
-      - name: Upload benchmark artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: benchmark-artifacts-${{ matrix.benchmark-target }}
-          path: artifacts/benchmarks/${{ matrix.benchmark-target }}
 
   propose-baseline-update:
     if: >-

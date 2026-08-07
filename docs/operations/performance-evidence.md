@@ -268,13 +268,19 @@ Historical evidence outside the selected run ID cannot satisfy the gate.
 The `benchmark` workflow resolves its baseline mode and required work before
 starting services or either expensive matrix job:
 
+- `.github/workflows/benchmark.yml` and
+  `eng/benchmark_workflow_state.py` form the inexpensive control plane;
+- control-plane-only changes run the resolver but do not allocate database
+  services or benchmark runners;
+- `.github/workflows/benchmark-scorecard.yml` owns the measured workload, so
+  changing that workflow requires fresh scorecard evidence;
 - an exact current-contract `github-ubuntu-latest-x64` pair selects `compare`;
 - a missing baseline, an older contract, or a missing runner pair selects
   `seed`;
 - malformed or partial current-contract evidence fails before the matrix;
 - monthly and manual runs always request fresh scorecard evidence;
-- a `main` push requests a scorecard only after a performance-contract,
-  harness, evaluator, or benchmark-workflow input changes;
+- a `main` push requests a scorecard only after a performance contract,
+  harness, evaluator, SDK contract, or measurement-workflow input changes;
 - a current and up-to-date seed proposal is a no-op;
 - a current proposal behind only unrelated `main` changes is synchronized
   without another scorecard; and

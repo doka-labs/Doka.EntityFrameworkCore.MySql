@@ -23,17 +23,19 @@ else:
 
 ZERO_REVISION = "0" * 40
 
-# These inputs define when a normal push can change scorecard behavior. Provider
-# source changes are measured against the accepted baseline by release-candidate
-# qualification; they must not silently refresh that baseline.
+# These inputs can change the measured scorecard or its evaluation. The parent
+# workflow and this resolver are control-plane code: changing either must remain
+# cheap, while changing the reusable measurement workflow requires fresh
+# evidence. Provider source changes are measured against the accepted baseline
+# by release-candidate qualification; they must not silently refresh it.
 PERFORMANCE_INPUT_FILES = frozenset(
     {
-        ".github/workflows/benchmark.yml",
+        ".github/workflows/benchmark-scorecard.yml",
         "benchmarks/performance-contract.json",
         "eng/benchmark.sh",
-        "eng/benchmark_workflow_state.py",
         "eng/check-benchmark-ratios.sh",
         "eng/performance_evidence.py",
+        "global.json",
     }
 )
 PERFORMANCE_INPUT_PREFIXES = (

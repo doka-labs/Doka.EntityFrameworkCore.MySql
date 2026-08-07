@@ -271,9 +271,14 @@ contract, and recomputes every verdict.
 The benchmark workflow resolves baseline compatibility and event relevance
 before starting services or either scorecard matrix job. Monthly and manual
 runs always request fresh evidence. A `main` push requests fresh evidence only
-when a reviewed performance-contract, benchmark-harness, evaluator, or
-workflow input changes. Provider source changes continue to compare against
-the accepted baseline; they never normalize their own regression threshold.
+when a reviewed performance contract, benchmark harness, evaluator, SDK
+contract, or measurement-workflow input changes. The parent workflow and its
+resolver are the inexpensive control plane. Changes confined to that control
+plane still report the workflow decision but never allocate the database
+services or benchmark runners. The reusable `benchmark-scorecard.yml` workflow
+owns the measured workload and remains a performance input. Provider source
+changes continue to compare against the accepted baseline; they never
+normalize their own regression threshold.
 
 The resolver compares only when the accepted baseline contains a complete
 current-contract pair for the hosted runner. A missing baseline, older
@@ -498,6 +503,10 @@ A baseline update requires:
 - 2026-08-07: Enabled squash auto-merge for the validated baseline proposal.
   Independent maintainer approval and every protected check remain mandatory;
   the workflow has no review or administrative-bypass command.
+- 2026-08-07: Isolated the measured scorecard in a reusable workflow. The
+  parent benchmark workflow and its event resolver are now an explicitly cheap
+  control plane, so orchestration-only changes cannot allocate the hosted
+  MySQL and MariaDB benchmark matrix.
 
 ### Implementation References
 
@@ -512,6 +521,7 @@ A baseline update requires:
 - `eng/tests/test_benchmark_ratio_gate.py`
 - `eng/tests/test_benchmark_workflow_state.py`
 - `.github/workflows/benchmark.yml`
+- `.github/workflows/benchmark-scorecard.yml`
 - `.github/workflows/release-candidate.yml`
 - `eng/release-candidate.sh`
 

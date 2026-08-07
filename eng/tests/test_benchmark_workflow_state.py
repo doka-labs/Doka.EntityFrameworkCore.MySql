@@ -41,13 +41,15 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
     ) -> None:
         """Refresh evidence for harness changes, not for measured outputs."""
         included = (
-            ".github/workflows/benchmark.yml",
+            ".github/workflows/benchmark-scorecard.yml",
             "benchmarks/performance-contract.json",
             "benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/Program.cs",
-            "eng/benchmark_workflow_state.py",
+            "global.json",
         )
         excluded = (
+            ".github/workflows/benchmark.yml",
             "benchmarks/baselines/doka-benchmark-baseline.json",
+            "eng/benchmark_workflow_state.py",
             "src/Doka.EntityFrameworkCore.MySql/Storage/MySqlTypeMapping.cs",
             "docs/operations/performance-evidence.md",
         )
@@ -63,6 +65,33 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                 self.assertFalse(
                     benchmark_workflow_state.is_performance_input(path),
                 )
+
+    @patch.object(benchmark_workflow_state, "run_git")
+    def test_control_plane_changes_do_not_allocate_the_scorecard(
+        self,
+        run_git: Mock,
+    ) -> None:
+        """Keep orchestration-only changes on the inexpensive resolver path."""
+        run_git.return_value = subprocess.CompletedProcess(
+            [],
+            0,
+            "\n".join(
+                (
+                    ".github/workflows/benchmark.yml",
+                    "eng/benchmark_workflow_state.py",
+                    "docs/operations/performance-evidence.md",
+                )
+            ),
+            "",
+        )
+
+        changes = benchmark_workflow_state.relevant_changes(
+            self.repo,
+            "before-commit",
+            "current-commit",
+        )
+
+        self.assertEqual((), changes)
 
     def test_scheduled_and_manual_events_always_refresh_evidence(self) -> None:
         """Keep periodic and operator-requested measurements unconditional."""

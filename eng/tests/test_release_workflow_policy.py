@@ -109,6 +109,14 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             scorecard,
         )
         self.assertIn(
+            "uses: ./.github/workflows/benchmark-scorecard.yml",
+            scorecard,
+        )
+        self.assertIn(
+            "baseline_mode: ${{ needs.resolve-baseline-mode.outputs.mode }}",
+            scorecard,
+        )
+        self.assertIn(
             "needs.resolve-baseline-mode.outputs.mode == 'seed'",
             proposal,
         )
@@ -161,6 +169,37 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertNotIn("--force", proposal)
         self.assertNotIn("secrets.", proposal)
 
+    def test_benchmark_measurement_isolated_from_the_control_plane(self) -> None:
+        """Keep orchestration edits from allocating service-container jobs."""
+        control_plane = self.workflow("benchmark.yml")
+        scorecard_workflow = self.workflow("benchmark-scorecard.yml")
+        scorecard_call = self.job(
+            control_plane,
+            "benchmark-scorecard",
+            "propose-baseline-update",
+        )
+
+        self.assertIn("  workflow_call:\n", scorecard_workflow)
+        self.assertIn("baseline_mode:", scorecard_workflow)
+        self.assertIn(
+            "uses: ./.github/workflows/benchmark-scorecard.yml",
+            scorecard_call,
+        )
+        self.assertNotIn("runs-on:", scorecard_call)
+        self.assertNotIn("services:", control_plane)
+        self.assertNotIn("bash ./eng/benchmark.sh --test-only", control_plane)
+        self.assertIn("services:", scorecard_workflow)
+        self.assertIn(
+            "DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.baseline_mode }}",
+            scorecard_workflow,
+        )
+        self.assertIn(
+            "bash ./eng/benchmark.sh --test-only",
+            scorecard_workflow,
+        )
+        self.assertEqual(2, scorecard_workflow.count("image:"))
+        self.assertEqual(1, scorecard_workflow.count("actions/upload-artifact@"))
+
     def test_all_main_pushes_reach_the_cheap_benchmark_resolver(self) -> None:
         """Avoid required-check gaps while classifying expensive work locally."""
         text = self.workflow("benchmark.yml")
@@ -170,8 +209,14 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertNotIn("paths:", push_paths)
+        self.assertIn(
+            '".github/workflows/benchmark-scorecard.yml"',
+            resolver,
+        )
         self.assertIn('"benchmarks/performance-contract.json"', resolver)
         self.assertIn('"eng/benchmark.sh"', resolver)
+        self.assertNotIn('".github/workflows/benchmark.yml"', resolver)
+        self.assertNotIn('"eng/benchmark_workflow_state.py"', resolver)
         self.assertNotIn(
             '"benchmarks/baselines/doka-benchmark-baseline.json"',
             resolver,
