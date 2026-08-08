@@ -294,7 +294,8 @@ archive_incomplete_stage() {
         return 0
     fi
 
-    local archive_directory="${stage_checkpoint_dir}/incomplete/${stage}/$(date -u +%Y%m%dT%H%M%SZ)-$$"
+    local archive_directory
+    archive_directory="${stage_checkpoint_dir}/incomplete/${stage}/$(date -u +%Y%m%dT%H%M%SZ)-$$"
     local artifact
     local index=0
 

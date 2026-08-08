@@ -424,7 +424,8 @@ run_host_preflight() {
 run_benchmarkdotnet() {
     if [[ "${resume_mode}" == "1" && -d "${benchmark_report_dir}/results" ]]; then
         local archive_directory="${benchmark_artifacts_dir}/resume-archives/${benchmark_run_id}"
-        local archive_path="${archive_directory}/results-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+        local archive_path
+        archive_path="${archive_directory}/results-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 
         mkdir -p "${archive_directory}"
         mv "${benchmark_report_dir}/results" "${archive_path}"

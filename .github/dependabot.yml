@@ -1,5 +1,31 @@
 version: 2
 updates:
+  # The workflow service containers and the Compose stack are digest-pinned,
+  # so a published engine security fix never reaches this repository unless
+  # something proposes the new digest. github-actions updates do not cover
+  # container images, which is why this ecosystem is declared separately.
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /docker
+      - /.github/workflows
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Berlin
+    groups:
+      database-images:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - docker
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

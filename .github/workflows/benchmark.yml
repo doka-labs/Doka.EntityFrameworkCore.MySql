@@ -51,6 +51,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       # The resolver is the workflow's cheap control plane. It validates any
@@ -167,12 +168,14 @@ jobs:
 
           python3 -m eng.performance.workflow_state "${state_arguments[@]}"
 
-          echo "contract-version=${contract_version}" >> "${GITHUB_OUTPUT}"
-          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
-          echo "baseline-branch=${baseline_branch}" >> "${GITHUB_OUTPUT}"
-          echo "scorecard-required=$(jq -er '.scorecardRequired' artifacts/benchmark-workflow-state.json)" >> "${GITHUB_OUTPUT}"
-          echo "sync-required=$(jq -er '.syncRequired' artifacts/benchmark-workflow-state.json)" >> "${GITHUB_OUTPUT}"
-          echo "proposal-required=$(jq -er '.proposalRequired' artifacts/benchmark-workflow-state.json)" >> "${GITHUB_OUTPUT}"
+          {
+            echo "contract-version=${contract_version}"
+            echo "mode=${mode}"
+            echo "baseline-branch=${baseline_branch}"
+            echo "scorecard-required=$(jq -er '.scorecardRequired' artifacts/benchmark-workflow-state.json)"
+            echo "sync-required=$(jq -er '.syncRequired' artifacts/benchmark-workflow-state.json)"
+            echo "proposal-required=$(jq -er '.proposalRequired' artifacts/benchmark-workflow-state.json)"
+          } >> "${GITHUB_OUTPUT}"
 
           {
             echo "## Benchmark workflow decision"
@@ -197,8 +200,14 @@ jobs:
       contents: write
 
     steps:
+      # This job pushes the reviewed baseline branch, so the checkout token
+      # must stay available to Git. What bounds that credential is the trigger
+      # and the permission set: the workflow runs only from the default branch
+      # and never on fork input, and the job requests contents plus actions
+      # write and nothing else. The tree-diff guard below is content control on
+      # top of that, not the boundary itself.
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 # zizmor: ignore[artipacked]
         with:
           fetch-depth: 0
 
@@ -276,8 +285,14 @@ jobs:
       pull-requests: write
 
     steps:
+      # This job pushes the proposal branch and opens its pull request, so the
+      # checkout token must stay available to Git. The trigger and the
+      # permission set bound that credential; the branch ruleset decides
+      # whether the resulting pull request can merge. The three tree-diff
+      # guards below constrain what may be committed, which is damage control
+      # rather than the boundary.
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 # zizmor: ignore[artipacked]
         with:
           fetch-depth: 0
 
@@ -429,6 +444,9 @@ jobs:
             "HEAD:refs/heads/${BASELINE_BRANCH}"
 
           proposal_body="${RUNNER_TEMP}/performance-baseline-pr.md"
+          # The single-quoted printf formats carry literal Markdown backticks;
+          # every value is passed as an argument rather than interpolated.
+          # shellcheck disable=SC2016
           {
             echo "This pull request proposes the validated hosted baseline for the active performance contract."
             echo

@@ -204,6 +204,39 @@ class EngineeringStructureTests(unittest.TestCase):
                         consumer_path.read_text(encoding="ascii"),
                     )
 
+    def test_declared_consumers_cover_every_executing_caller(self) -> None:
+        """Reject a manifest that hides the automation actually running a command.
+
+        The forward check above proves each declared consumer is real. Without
+        this reverse check a maintainer reading the manifest to assess impact
+        sees only documentation and concludes a command has no CI caller.
+        """
+        executing_surfaces = sorted(
+            path
+            for path in (
+                list((REPOSITORY_ROOT / ".github" / "workflows").glob("*.yml"))
+                + list((REPOSITORY_ROOT / ".githooks").iterdir())
+            )
+            if path.is_file()
+        )
+
+        for entrypoint in self.entrypoints:
+            command = entrypoint["path"]
+            declared = set(entrypoint["consumers"])
+
+            for surface in executing_surfaces:
+                relative = surface.relative_to(REPOSITORY_ROOT).as_posix()
+                if command not in surface.read_text(encoding="utf-8"):
+                    continue
+
+                with self.subTest(entrypoint=command, caller=relative):
+                    self.assertIn(
+                        relative,
+                        declared,
+                        f"{relative} runs {command} without being declared "
+                        "as one of its consumers.",
+                    )
+
     def test_python_domains_follow_the_dependency_direction(self) -> None:
         """Reject cross-domain imports that bypass the reviewed dependency graph."""
         for domain, contract in self.domains.items():

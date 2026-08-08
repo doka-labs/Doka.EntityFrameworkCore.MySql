@@ -52,8 +52,17 @@ for project_name in "${restore_projects[@]}"; do
 done
 
 if [[ "${restore_required}" -eq 1 ]]; then
-    dotnet restore "${unit_test_project}" --tl:off --ignore-failed-sources --disable-parallel
-    dotnet restore "${functional_test_project}" --tl:off --ignore-failed-sources --disable-parallel
+    # Tolerating an unreachable feed suits an offline developer loop, where a
+    # warm package cache can still satisfy the graph. On a runner it would let
+    # a feed outage produce a silently different resolution, so CI restores
+    # strictly and fails on the outage instead.
+    restore_options=(--tl:off --disable-parallel)
+    if [[ "${CI:-false}" != "true" ]]; then
+        restore_options+=(--ignore-failed-sources)
+    fi
+
+    dotnet restore "${unit_test_project}" "${restore_options[@]}"
+    dotnet restore "${functional_test_project}" "${restore_options[@]}"
 fi
 
 coverage_results_dir="${DOKA_COVERAGE_RESULTS_DIR:-${repo_root}/artifacts/coverage}"

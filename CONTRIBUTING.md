@@ -9,6 +9,18 @@ questions and private reporting channels are routed through
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (version `10.0.300` or later -- pinned in `global.json`)
 - [Docker](https://docs.docker.com/get-docker/) -- required for the MySQL / MariaDB integration test suites
+- [ShellCheck](https://www.shellcheck.net) -- required by the quality gate, which the `pre-commit` hook runs
+
+```bash
+brew install shellcheck        # macOS
+sudo apt-get install shellcheck # Debian and Ubuntu
+```
+
+The gate refuses to report a passing shell contract when ShellCheck is absent,
+so this is a one-time install rather than an optional extra. `actionlint` and
+`zizmor` are fetched and digest-verified automatically when the full gate runs;
+installing them yourself (`brew install actionlint zizmor`) only makes the run
+faster.
 
 ## Building
 

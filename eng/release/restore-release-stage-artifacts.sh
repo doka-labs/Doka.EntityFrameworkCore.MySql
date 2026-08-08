@@ -6,7 +6,6 @@ set -euo pipefail
 # failed job contributes a newer receipt. The Python boundary validates that
 # every archive belongs to this workflow run before any content is extracted.
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 output_directory=""
 selection_output=""
 stages=()

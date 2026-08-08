@@ -72,6 +72,8 @@
       "outputs": "BenchmarkDotNet results, normalized evidence, and policy reports below artifacts/.",
       "sideEffects": "Builds projects, writes artifacts, and can start and stop database containers.",
       "consumers": [
+        ".github/workflows/benchmark-scorecard.yml",
+        ".github/workflows/ci.yml",
         "CONTRIBUTING.md",
         "README.md",
         "docs/operations/performance-evidence.md"
@@ -120,6 +122,7 @@
       "consumers": [
         ".githooks/pre-commit",
         ".githooks/pre-push",
+        ".github/workflows/ci.yml",
         "CONTRIBUTING.md"
       ]
     },
@@ -165,6 +168,8 @@
       "outputs": "Integration test results and engine-specific diagnostics.",
       "sideEffects": "Can start and stop database containers and writes test artifacts.",
       "consumers": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/container-matrix.yml",
         "CONTRIBUTING.md",
         "README.md",
         "docs/release-governance.md"
@@ -181,6 +186,7 @@
       "outputs": "Migration bundle and deployment matrix results.",
       "sideEffects": "Builds migration assets, writes artifacts, and can manage database containers.",
       "consumers": [
+        ".github/workflows/ci.yml",
         "docs/operations/migrations.md",
         "docs/release-governance.md"
       ]
@@ -196,6 +202,7 @@
       "outputs": "Trim, NativeAOT, and runtime smoke evidence.",
       "sideEffects": "Publishes test applications, writes artifacts, and can manage containers.",
       "consumers": [
+        ".github/workflows/ci.yml",
         "CONTRIBUTING.md",
         "docs/decisions/D-017-nativeaot-smoke-deferred.md",
         "docs/release-governance.md"
@@ -212,6 +219,7 @@
       "outputs": "Repository unit, functional, and engineering test results.",
       "sideEffects": "Builds test projects and writes normal test and coverage artifacts.",
       "consumers": [
+        ".github/workflows/ci.yml",
         "CONTRIBUTING.md",
         "README.md",
         "docs/release-governance.md"

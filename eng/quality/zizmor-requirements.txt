@@ -1,0 +1,12 @@
+# Pinned installation input for the workflow security auditor used by
+# eng/quality/lint-workflows.sh. Hashes cover the platforms this repository
+# builds on: hosted Linux x86_64 plus Apple Silicon and Intel macOS. pip
+# rejects any artifact whose digest is absent from this file, so a compromised
+# or substituted release fails the install instead of running.
+#
+# Refresh procedure when the version changes:
+#   python3 -c "import json,urllib.request;d=json.loads(urllib.request.urlopen('https://pypi.org/pypi/zizmor/<version>/json').read());[print(f['filename'],f['digests']['sha256']) for f in d['urls']]"
+zizmor==1.29.0 \
+    --hash=sha256:ea72f84d610643d57f96430c655a3780d0b874e477d32e14eae8e910f6cce1fd \
+    --hash=sha256:5aafe617d7b1e0c0c15d58fdf20495f360f74a791dfa136f76630b4cc06c2a34 \
+    --hash=sha256:587b99c2e1b34575c6c8565c2bfde415ca8bc0310f5589f19bc948c8dea10a20

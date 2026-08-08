@@ -1,0 +1,64 @@
+name: scorecard
+
+# Publishes an independent supply-chain assessment of this repository. The
+# score is produced by OpenSSF from observable repository state, not from the
+# project's own claims, which is what makes it usable as external evidence for
+# the release and publication posture described in the security documentation.
+
+on:
+  branch_protection_rule:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "45 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      # Uploads the SARIF result into the repository code-scanning surface.
+      security-events: write
+      # Required by publish_results so OpenSSF can verify the result came from
+      # this workflow in this repository rather than from an arbitrary caller.
+      id-token: write
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run analysis
+        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      # Retained independently of the code-scanning upload so a failed or
+      # rate-limited upload still leaves the reviewed evidence available.
+      - name: Upload result artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scorecard-results
+          path: results.sarif
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload result to code scanning
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        with:
+          sarif_file: results.sarif

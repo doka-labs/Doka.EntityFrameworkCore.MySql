@@ -58,6 +58,12 @@ elif [[ ! -f "${validator_assets}" ]]; then
     exit 1
 fi
 
+if [[ "${mode}" == "fast" ]]; then
+    "${repo_root}/eng/quality/lint-workflows.sh" --shell-only
+else
+    "${repo_root}/eng/quality/lint-workflows.sh"
+fi
+
 echo "Validating architecture decisions..."
 "${repo_root}/eng/quality/validate-adrs.sh"
 

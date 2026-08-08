@@ -26,10 +26,18 @@ output, side effects, and real external consumers. Root Python modules are not
 allowed. Shell commands at the root must be executable delegators to exactly
 one domain implementation.
 
-Internal scripts, tests, hooks, and workflows call domain implementations
-directly. A root command exists only when a maintainer needs a stable command
-for an end-to-end operation. A temporary compatibility command additionally
-needs an explicit removal condition in the architecture manifest.
+Domain implementations call each other directly and never call a root command;
+the architecture test enforces that direction. Hooks, workflows, and
+documentation are external consumers and use a root command whenever one is
+manifested for that operation, because those callers depend on a stable public
+surface rather than on internal composition.
+
+A root command exists only when a maintainer needs a stable command for an
+end-to-end operation. A temporary compatibility command additionally needs an
+explicit removal condition in the architecture manifest. Every executing
+caller of a root command -- each workflow and each Git hook -- must appear in
+that command's `consumers` list; the architecture test rejects an undeclared
+caller so the manifest stays usable for impact analysis.
 
 ## Dependency direction
 
@@ -61,8 +69,14 @@ filesystem, live consumers, imports, and shell composition together.
 
 ```bash
 python3 -m unittest discover -s eng/tests -p 'test_*.py'
-find eng -type f -name '*.sh' -exec bash -n {} \;
+./eng/quality/lint-workflows.sh
 ```
+
+`lint-workflows.sh` owns the shell and workflow contract: shell syntax plus
+shellcheck across `eng/` and `.githooks/`, then actionlint and zizmor across
+`.github/workflows/`. It resolves tools from `PATH` and hydrates pinned,
+checksum-verified versions only when `DOKA_LINT_AUTO_INSTALL=1` is set, which
+is how CI runs it. The commit hook runs `--shell-only` so it stays offline.
 
 Performance measurements and release workflows remain explicit higher-cost
 operations. They are not part of the structural verification above.

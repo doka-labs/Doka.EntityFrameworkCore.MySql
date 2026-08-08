@@ -33,11 +33,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
 
       - name: Run repository quality gates
         run: bash eng/quality-gates.sh
@@ -53,11 +63,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
 
       - name: Verify migration deployment lifecycle
         run: bash eng/test-migration-deployment.sh
@@ -71,6 +91,7 @@ jobs:
 
   repo-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     permissions:
       contents: read
@@ -79,11 +100,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
 
       - name: Run repo-local test path
         run: bash ./eng/test.sh
@@ -95,17 +126,18 @@ jobs:
           name: repo-tests-coverage
           path: artifacts/coverage
 
-  # EfCorePatchMatrixCI (Backbone-9 / ADR D-009): runs the repo-local test path
-  # against the lower bound of the EF Core 10.0.x patch range plus the latest
-  # floating 10.0.x tag, so a future Microsoft patch that breaks our EF1001
-  # surface surfaces in CI within one nightly cycle rather than at consumer-
-  # install time.
+  # ADR D-009: runs the repo-local test path against the lower bound of the EF
+  # Core 10.0.x patch range plus the latest floating 10.0.x tag, so a Microsoft
+  # patch that breaks the EF1001 surface is detected on the scheduled cycle
+  # rather than at consumer-install time. Package resolution is deliberately
+  # uncached here because resolution is the property under test.
   efcore-patch-matrix:
     if: >-
       github.event_name == 'schedule'
       || (github.event_name == 'workflow_dispatch'
       && inputs.profile != 'baseline-proposal')
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -126,6 +158,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -179,10 +213,10 @@ jobs:
             --configuration Release --no-build --no-restore --tl:off \
             --filter "Category=Spec|Category=Live" \
             --logger trx \
-            --results-directory artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mysql84
+            --results-directory "artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mysql84"
           bash ./eng/testing/check-spec-results.sh \
             mysql84 \
-            artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mysql84
+            "artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mysql84"
 
       - name: Run specification and live suite against MariaDB 11.8
         env:
@@ -193,10 +227,10 @@ jobs:
             --configuration Release --no-build --no-restore --tl:off \
             --filter "Category=Spec|Category=Live" \
             --logger trx \
-            --results-directory artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mariadb118
+            --results-directory "artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mariadb118"
           bash ./eng/testing/check-spec-results.sh \
             mariadb118 \
-            artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mariadb118
+            "artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mariadb118"
 
       - name: Run representative live integration matrix
         env:
@@ -234,6 +268,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -255,12 +291,17 @@ jobs:
           name: mysqlconnector-${{ matrix.artifact-suffix }}
           path: artifacts/mysqlconnector-patch-matrix/${{ matrix.artifact-suffix }}
 
+  # Specification conformance moved into the per-event lane when the repository
+  # became public and standard runners stopped consuming a minute allowance.
+  # It detects provider regressions on the change that introduces them, which
+  # the weekly cadence could only surface days later.
   spec-test-suite:
-    if: >-
-      github.event_name == 'schedule'
-      || (github.event_name == 'workflow_dispatch'
-      && inputs.profile != 'baseline-proposal')
+    # An explicit name keeps the status-check identity stable and readable;
+    # the generated form would repeat every matrix value.
+    name: spec-test-suite (${{ matrix.engine.name }})
+    if: inputs.profile != 'baseline-proposal'
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     strategy:
       fail-fast: false
@@ -273,11 +314,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
 
       - name: Restore + build FunctionalTests
         run: |
@@ -318,11 +369,9 @@ jobs:
 
   coverage-gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [repo-tests, spec-test-suite, integration-smoke]
-    if: >-
-      github.event_name == 'schedule'
-      || (github.event_name == 'workflow_dispatch'
-      && inputs.profile != 'baseline-proposal')
+    if: inputs.profile != 'baseline-proposal'
 
     steps:
       # A merged report assembled from a failed producer measures a partial
@@ -352,6 +401,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Download repo-tests coverage
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -388,6 +439,14 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
       - name: Merge cobertura reports into a single union report
         run: bash ./eng/quality/merge-coverage.sh artifacts/coverage artifacts/coverage-merged
 
@@ -396,15 +455,26 @@ jobs:
 
   integration-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
 
       - name: Run representative dual-engine live integration path
         env:
@@ -425,6 +495,7 @@ jobs:
       || (github.event_name == 'workflow_dispatch'
       && inputs.profile != 'baseline-proposal')
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     services:
       mysql84:
@@ -445,11 +516,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
 
       - name: Install NativeAOT toolchain
         run: |
@@ -468,6 +549,7 @@ jobs:
       || (github.event_name == 'workflow_dispatch'
       && inputs.profile != 'baseline-proposal')
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -509,11 +591,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
 
       - name: Run benchmark smoke
         env:

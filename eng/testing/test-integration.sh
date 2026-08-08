@@ -27,10 +27,9 @@ mysql84_target_id="mysql84"
 mariadb114_target_id="mariadb114"
 mariadb118_target_id="mariadb118"
 
+# Only the legacy MySQL 8.0 target names its connection-string variable in a
+# diagnostic; the supported targets resolve theirs through the test host.
 mysql80_env_var="DOKA_MYSQL80_CONNECTION_STRING"
-mysql84_env_var="DOKA_MYSQL84_CONNECTION_STRING"
-mariadb114_env_var="DOKA_MARIADB114_CONNECTION_STRING"
-mariadb118_env_var="DOKA_MARIADB118_CONNECTION_STRING"
 
 mode="testcontainers"
 should_stop_compose_on_exit=0

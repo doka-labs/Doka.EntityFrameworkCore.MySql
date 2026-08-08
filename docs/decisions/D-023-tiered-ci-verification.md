@@ -1,13 +1,13 @@
 ---
 id: D-023
-status: implemented
+status: superseded
 date: 2026-07-31
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
 informed: [Provider contributors]
 scope: "GitHub Actions verification lanes, cadence, and runner-minute budget"
 supersedes: []
-superseded-by: []
+superseded-by: [D-025]
 amends: [D-009, D-018]
 amended-by: []
 madr-version: "4.0.0"
@@ -215,6 +215,10 @@ bypassed.
   three-engine evidence mandatory for release candidates.
 - 2026-08-02: Added a dependency-free commit-message gate after rationale
   blocks drifted out of several locally authored commits.
+- 2026-08-08: Status changed from implemented to superseded.
+- 2026-08-08: Replaced by D-025. The repository became public, firing the
+  re-evaluation trigger that named public standard runners and removing the
+  runner-minute premise this decision rationed against.
 
 ### Implementation References
 

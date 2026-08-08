@@ -258,11 +258,13 @@
     {
       "id": "D-023",
       "title": "Use tiered CI verification under a fixed runner budget",
-      "status": "implemented",
+      "status": "superseded",
       "date": "2026-07-31",
       "path": "docs/decisions/D-023-tiered-ci-verification.md",
       "supersedes": [],
-      "supersededBy": [],
+      "supersededBy": [
+        "D-025"
+      ],
       "amends": [
         "D-009",
         "D-018"
@@ -280,6 +282,19 @@
       "amends": [
         "D-004"
       ],
+      "amendedBy": []
+    },
+    {
+      "id": "D-025",
+      "title": "Verify on every event and harden the workflow surface for a public repository",
+      "status": "accepted",
+      "date": "2026-08-08",
+      "path": "docs/decisions/D-025-public-repository-verification-model.md",
+      "supersedes": [
+        "D-023"
+      ],
+      "supersededBy": [],
+      "amends": [],
       "amendedBy": []
     }
   ]
