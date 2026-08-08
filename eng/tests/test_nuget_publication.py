@@ -14,7 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from eng import nuget_publication
+from eng.release import nuget as nuget_publication
 
 
 class NuGetPublicationTests(unittest.TestCase):

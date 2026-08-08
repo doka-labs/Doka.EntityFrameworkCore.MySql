@@ -12,7 +12,9 @@ class TestRunnerTests(unittest.TestCase):
     def test_restore_detection_requires_complete_nuget_restore_outputs(self) -> None:
         """Reject partial obj trees without NuGet's generated MSBuild imports."""
         repository_root = Path(__file__).resolve().parents[2]
-        script = (repository_root / "eng" / "test.sh").read_text(encoding="utf-8")
+        script = (
+            repository_root / "eng" / "testing" / "test.sh"
+        ).read_text(encoding="utf-8")
 
         self.assertNotIn("/refs/", script)
 

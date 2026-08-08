@@ -9,14 +9,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from eng.tests import test_performance_evidence as performance_test_helpers
+from eng.performance import cli as performance_evidence
+from eng.tests._performance_fixtures import PerformanceEvidenceFixtureMixin
 
 
 class BenchmarkGateTests(unittest.TestCase):
     """Exercise complete, missing-target, and BDN-regression outcomes."""
 
     _repo_root = Path(__file__).resolve().parents[2]
-    _script = _repo_root / "eng" / "check-benchmark-ratios.sh"
+    _script = _repo_root / "eng" / "performance" / "check-benchmark-ratios.sh"
     _contract = json.loads(
         (_repo_root / "benchmarks" / "performance-contract.json").read_text(encoding="utf-8")
     )
@@ -67,7 +68,7 @@ class BenchmarkGateTests(unittest.TestCase):
         target: str,
     ) -> Path:
         """Write one complete smoke-profile target fixture and return its BDN report."""
-        fixture = performance_test_helpers.PerformanceEvidenceTests()
+        fixture = PerformanceEvidenceFixtureMixin()
         fixture.setUp()
         report_directory = root / target / "reports" / "test-run"
         evidence_directory = report_directory / "evidence"
@@ -79,7 +80,7 @@ class BenchmarkGateTests(unittest.TestCase):
         workload_report["runId"] = "test-run"
         workload_report["profile"] = "smoke"
         smoke_profile = self._contract["profiles"]["smoke"]
-        evidence = performance_test_helpers.performance_evidence
+        evidence = performance_evidence
         definitions = {
             definition["id"]: definition
             for definition in self._contract["workloads"]
@@ -97,7 +98,7 @@ class BenchmarkGateTests(unittest.TestCase):
         for workload in workload_report["workloads"]:
             definition = definitions[workload["id"]]
             sample_count = (
-                performance_test_helpers.performance_evidence.expected_measurement_sample_count(
+                performance_evidence.expected_measurement_sample_count(
                     smoke_profile,
                     definition,
                 )
@@ -107,7 +108,7 @@ class BenchmarkGateTests(unittest.TestCase):
                 for index in range(sample_count)
             ]
             workload["warmupSamples"] = (
-                performance_test_helpers.performance_evidence.expected_warmup_sample_count(
+                performance_evidence.expected_warmup_sample_count(
                     smoke_profile,
                     definition,
                 )

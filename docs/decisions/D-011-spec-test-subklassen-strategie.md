@@ -123,7 +123,8 @@ probes, and re-evaluation triggers.
 
 ### Confirmation
 
-- Run `eng/check-spec-discovery.sh` and every supported-engine specification matrix.
+- Run `eng/testing/check-spec-discovery.sh` and every supported-engine
+  specification matrix.
 - Apply the executable disposition contract defined by D-021.
 
 ## Pros and Cons of the Options
@@ -200,7 +201,7 @@ probes, and re-evaluation triggers.
 
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/`
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts/`
-- `eng/check-spec-discovery.sh`
+- `eng/testing/check-spec-discovery.sh`
 
 ### Sources
 

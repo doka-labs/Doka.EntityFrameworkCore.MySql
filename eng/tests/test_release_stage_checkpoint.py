@@ -2,29 +2,14 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import subprocess
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from types import ModuleType
 
-
-def load_module() -> ModuleType:
-    """Load the checkpoint helper without requiring eng to be a package."""
-    script = Path(__file__).resolve().parents[1] / "release_stage_checkpoint.py"
-    spec = importlib.util.spec_from_file_location("release_stage_checkpoint", script)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load {script}.")
-
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-release_stage_checkpoint = load_module()
+from eng.release import checkpoint as release_stage_checkpoint
 
 
 class ReleaseStageCheckpointTests(unittest.TestCase):

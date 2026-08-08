@@ -9,7 +9,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from eng import release_artifact_resolver
+from eng.release import artifacts as release_artifact_resolver
 
 
 class ReleaseArtifactResolverTests(unittest.TestCase):

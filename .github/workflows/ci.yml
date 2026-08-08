@@ -180,7 +180,7 @@ jobs:
             --filter "Category=Spec|Category=Live" \
             --logger trx \
             --results-directory artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mysql84
-          bash ./eng/check-spec-results.sh \
+          bash ./eng/testing/check-spec-results.sh \
             mysql84 \
             artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mysql84
 
@@ -194,7 +194,7 @@ jobs:
             --filter "Category=Spec|Category=Live" \
             --logger trx \
             --results-directory artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mariadb118
-          bash ./eng/check-spec-results.sh \
+          bash ./eng/testing/check-spec-results.sh \
             mariadb118 \
             artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mariadb118
 
@@ -246,7 +246,7 @@ jobs:
           DOKA_MYSQLCONNECTOR_RESOLVED_PATTERN: ${{ matrix.resolved-version-pattern }}
           DOKA_MYSQLCONNECTOR_ARTIFACT_SUFFIX: ${{ matrix.artifact-suffix }}
           DOKA_INTEGRATION_TARGETS: mysql84,mariadb118
-        run: bash ./eng/test-mysqlconnector-matrix.sh
+        run: bash ./eng/testing/test-mysqlconnector-matrix.sh
 
       - name: Upload MySqlConnector patch evidence
         if: always()
@@ -281,18 +281,18 @@ jobs:
 
       - name: Restore + build FunctionalTests
         run: |
-          dotnet restore eng/Doka.EntityFrameworkCore.MySql.SpecificationContract/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj --tl:off
+          dotnet restore eng/tools/Doka.EntityFrameworkCore.MySql.SpecificationContract/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj --tl:off
           dotnet restore tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --tl:off
-          dotnet build eng/Doka.EntityFrameworkCore.MySql.SpecificationContract/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj --configuration Release --no-restore --tl:off
+          dotnet build eng/tools/Doka.EntityFrameworkCore.MySql.SpecificationContract/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj --configuration Release --no-restore --tl:off
           dotnet build tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --configuration Release --no-restore --tl:off
 
       - name: Verify specification disposition contract and discovery
         run: |
-          bash ./eng/check-spec-contract.sh
+          bash ./eng/testing/check-spec-contract.sh
           dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
             --configuration Release --no-build --no-restore --tl:off \
             --filter FullyQualifiedName~SpecDispositionContractTests
-          bash ./eng/check-spec-discovery.sh
+          bash ./eng/testing/check-spec-discovery.sh
 
       - name: Run specification suite against ${{ matrix.engine.name }}
         env:
@@ -305,7 +305,7 @@ jobs:
             --collect:"XPlat Code Coverage" \
             --logger trx \
             --results-directory artifacts/spec-tests/${{ matrix.engine.name }}
-          bash ./eng/check-spec-results.sh \
+          bash ./eng/testing/check-spec-results.sh \
             ${{ matrix.engine.target }} \
             artifacts/spec-tests/${{ matrix.engine.name }}
 
@@ -365,10 +365,10 @@ jobs:
           global-json-file: global.json
 
       - name: Merge cobertura reports into a single union report
-        run: bash ./eng/merge-coverage.sh artifacts/coverage artifacts/coverage-merged
+        run: bash ./eng/quality/merge-coverage.sh artifacts/coverage artifacts/coverage-merged
 
       - name: Enforce coverage threshold
-        run: bash ./eng/check-coverage-threshold.sh artifacts/coverage-merged
+        run: bash ./eng/quality/check-coverage-threshold.sh artifacts/coverage-merged
 
   integration-smoke:
     runs-on: ubuntu-latest

@@ -2,29 +2,14 @@
 
 from __future__ import annotations
 
-import importlib.util
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
-from types import ModuleType
 
-
-def load_module() -> ModuleType:
-    """Load the repository helper without requiring eng to be a package."""
-    script = Path(__file__).resolve().parents[1] / "run_with_deadline.py"
-    spec = importlib.util.spec_from_file_location("run_with_deadline", script)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load {script}.")
-
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-run_with_deadline = load_module()
+from eng.common import deadline as run_with_deadline
 
 
 class RunWithDeadlineTests(unittest.TestCase):
@@ -110,7 +95,7 @@ class RunWithDeadlineTests(unittest.TestCase):
                 f"subprocess.Popen([sys.executable, '-c', {grandchild!r}]); "
                 "time.sleep(5)"
             )
-            helper = Path(__file__).resolve().parents[1] / "run_with_deadline.py"
+            helper = Path(__file__).resolve().parents[1] / "common" / "deadline.py"
             process = subprocess.Popen(
                 [
                     sys.executable,
@@ -149,7 +134,7 @@ class RunWithDeadlineTests(unittest.TestCase):
                 f"subprocess.Popen([sys.executable, '-c', {grandchild!r}]); "
                 "time.sleep(5)"
             )
-            helper = Path(__file__).resolve().parents[1] / "run_with_deadline.py"
+            helper = Path(__file__).resolve().parents[1] / "common" / "deadline.py"
             driver = (
                 "import importlib.util,sys; "
                 f"spec=importlib.util.spec_from_file_location('deadline', {str(helper)!r}); "

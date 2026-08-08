@@ -69,8 +69,9 @@ large or well-tested surfaces from masking regression in a second package or a
 critical class.
 
 `eng/coverage-policy.json` is the authoritative machine-readable policy.
-`eng/check-coverage-threshold.sh` accepts exactly one ReportGenerator-merged
-Cobertura union and delegates validation to `eng/coverage_policy.py`.
+`eng/quality/check-coverage-threshold.sh` accepts exactly one
+ReportGenerator-merged Cobertura union and delegates validation to
+`eng/quality/coverage.py`.
 
 The merged evidence must be no more than six hours old. The gate recomputes
 line and branch counters from Cobertura line records instead of trusting
@@ -155,8 +156,8 @@ fails if instrumentation later discovers a branch without a positive budget.
 - Produce a fresh merged union and evaluate it:
 
 ```bash
-bash eng/merge-coverage.sh artifacts/coverage artifacts/coverage-merged
-bash eng/check-coverage-threshold.sh artifacts/coverage-merged
+bash eng/quality/merge-coverage.sh artifacts/coverage artifacts/coverage-merged
+bash eng/quality/check-coverage-threshold.sh artifacts/coverage-merged
 ```
 
 - Confirm that the command reports both shipped assemblies and every critical
@@ -256,9 +257,9 @@ The 2026-07-29 accepted union measured:
 ### Implementation References
 
 - `eng/coverage-policy.json`
-- `eng/coverage_policy.py`
-- `eng/check-coverage-threshold.sh`
-- `eng/merge-coverage.sh`
+- `eng/quality/coverage.py`
+- `eng/quality/check-coverage-threshold.sh`
+- `eng/quality/merge-coverage.sh`
 - `eng/tests/test_coverage_policy.py`
 - `.github/workflows/ci.yml`
 - `eng/release-candidate.sh`

@@ -92,9 +92,9 @@ Accepted specification targets are `mysql84`, `mariadb114`, and `mariadb118`. Se
 The specification contract is stricter than a passing aggregate test count:
 
 ```bash
-bash eng/check-spec-contract.sh
-bash eng/check-spec-discovery.sh
-bash eng/check-spec-results.sh mysql84 artifacts/spec-tests/mysql84
+bash eng/testing/check-spec-contract.sh
+bash eng/testing/check-spec-discovery.sh
+bash eng/testing/check-spec-results.sh mysql84 artifacts/spec-tests/mysql84
 ```
 
 The first two commands validate the exact EF Core patch inventory, monotonic
@@ -106,8 +106,8 @@ tests. Both shipped assemblies and risk-critical classes have independent
 line and branch floors:
 
 ```bash
-bash eng/merge-coverage.sh artifacts/coverage artifacts/coverage-merged
-bash eng/check-coverage-threshold.sh artifacts/coverage-merged
+bash eng/quality/merge-coverage.sh artifacts/coverage artifacts/coverage-merged
+bash eng/quality/check-coverage-threshold.sh artifacts/coverage-merged
 ```
 
 **Runtime-posture smoke** (JIT + trim smoke tests; the NativeAOT pass is deferred per ADR D-017 while upstream EF Core NativeAOT support remains experimental):

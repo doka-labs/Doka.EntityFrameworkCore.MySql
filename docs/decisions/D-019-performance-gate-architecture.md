@@ -84,7 +84,7 @@ sustained resource ownership into independently reviewable controls.
 
 `benchmarks/performance-contract.json` is the authoritative machine-readable
 contract. The C# harness executes the provider paths, and
-`eng/performance_evidence.py` independently validates and evaluates their
+`eng/performance/cli.py` independently validates and evaluates their
 evidence.
 
 ### Named workload matrix
@@ -392,7 +392,11 @@ receipts at every major stage instead of one global deadline.
 
 ```bash
 python3 -m unittest \
-  eng.tests.test_performance_evidence \
+  eng.tests.test_performance_contract \
+  eng.tests.test_performance_confirmation \
+  eng.tests.test_performance_host \
+  eng.tests.test_performance_reports \
+  eng.tests.test_performance_baseline \
   eng.tests.test_benchmark_ratio_gate
 ```
 
@@ -521,10 +525,14 @@ A baseline update requires:
 - `benchmarks/baselines/doka-benchmark-baseline.json`
 - `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks`
 - `eng/benchmark.sh`
-- `eng/benchmark_workflow_state.py`
-- `eng/performance_evidence.py`
-- `eng/check-benchmark-ratios.sh`
-- `eng/tests/test_performance_evidence.py`
+- `eng/performance/workflow_state.py`
+- `eng/performance/cli.py`
+- `eng/performance/check-benchmark-ratios.sh`
+- `eng/tests/test_performance_contract.py`
+- `eng/tests/test_performance_confirmation.py`
+- `eng/tests/test_performance_host.py`
+- `eng/tests/test_performance_reports.py`
+- `eng/tests/test_performance_baseline.py`
 - `eng/tests/test_benchmark_ratio_gate.py`
 - `eng/tests/test_benchmark_workflow_state.py`
 - `.github/workflows/benchmark.yml`

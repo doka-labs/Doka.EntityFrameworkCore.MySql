@@ -208,7 +208,7 @@ DOKA_BENCHMARK_RUN_ID=local-seed-mariadb118 \
 Create the candidate only after reviewing both evaluations:
 
 ```bash
-python3 eng/performance_evidence.py seed \
+python3 -m eng.performance.cli seed \
   --contract benchmarks/performance-contract.json \
   --baseline benchmarks/baselines/doka-benchmark-baseline.json \
   --version <reviewed-baseline-version> \
@@ -221,7 +221,7 @@ python3 eng/performance_evidence.py seed \
 When adding a new runner class, retain existing accepted groups:
 
 ```bash
-python3 eng/performance_evidence.py seed \
+python3 -m eng.performance.cli seed \
   --contract benchmarks/performance-contract.json \
   --baseline artifacts/doka-benchmark-baseline.candidate.json \
   --version <reviewed-baseline-version> \
@@ -233,7 +233,7 @@ python3 eng/performance_evidence.py seed \
 Validate the result before review:
 
 ```bash
-python3 eng/performance_evidence.py validate-baseline \
+python3 -m eng.performance.cli validate-baseline \
   --contract benchmarks/performance-contract.json \
   --baseline benchmarks/baselines/doka-benchmark-baseline.json \
   --output artifacts/baseline-validation.json
@@ -252,7 +252,7 @@ cross-target boundary:
 DOKA_BENCHMARK_PROFILE=scorecard \
 DOKA_BENCHMARK_GATE_STRICT=1 \
 DOKA_BENCHMARK_GATE_RUN_ID=<run-id> \
-bash eng/check-benchmark-ratios.sh artifacts/benchmarks
+bash eng/performance/check-benchmark-ratios.sh artifacts/benchmarks
 ```
 
 The strict gate exits:
@@ -269,7 +269,7 @@ The `benchmark` workflow resolves its baseline mode and required work before
 starting services or either expensive matrix job:
 
 - `.github/workflows/benchmark.yml` and
-  `eng/benchmark_workflow_state.py` form the inexpensive control plane;
+  `eng/performance/workflow_state.py` form the inexpensive control plane;
 - control-plane-only changes run the resolver but do not allocate database
   services or benchmark runners;
 - the shared release-evidence classifier treats provider source, benchmark

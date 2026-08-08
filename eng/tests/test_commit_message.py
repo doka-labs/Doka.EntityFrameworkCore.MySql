@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from eng import validate_commit_message
+from eng.quality import commit_message as validate_commit_message
 
 
 VALID_MESSAGE = """fix(provider): harden resource identity

@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from eng import documentation_contract
+from eng.quality import documentation as documentation_contract
 
 
 class DocumentationContractTests(unittest.TestCase):

@@ -73,15 +73,15 @@ These figures are evidence, not a substitute for the zero-debt check.
 Build the functional-test assembly and contract tool in Release mode, then run:
 
 ```bash
-bash eng/check-spec-contract.sh
-bash eng/check-spec-discovery.sh
+bash eng/testing/check-spec-contract.sh
+bash eng/testing/check-spec-discovery.sh
 ```
 
 After a live specification run, reconcile its TRX results with the exact
 discovery and disposition contracts:
 
 ```bash
-bash eng/check-spec-results.sh mysql84 artifacts/spec-tests/mysql84
+bash eng/testing/check-spec-results.sh mysql84 artifacts/spec-tests/mysql84
 ```
 
 Before publication, run the stricter official compliance and zero-debt gate:

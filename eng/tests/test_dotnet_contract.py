@@ -17,7 +17,7 @@ class DotNetContractTests(unittest.TestCase):
     def setUp(self) -> None:
         """Resolve the repository contract and create an isolated fake CLI."""
         self.repo = Path(__file__).resolve().parents[2]
-        self.script = self.repo / "eng" / "verify-dotnet.sh"
+        self.script = self.repo / "eng" / "common" / "verify-dotnet.sh"
         self.approved_version = json.loads(
             (self.repo / "global.json").read_text(encoding="utf-8")
         )["sdk"]["version"]

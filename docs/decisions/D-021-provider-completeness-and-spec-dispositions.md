@@ -92,7 +92,8 @@ infrastructure, the provider is changed and the inherited assertion continues to
 
 ### Confirmation
 
-- Run `SpecDispositionContractTests` and `eng/check-spec-discovery.sh`.
+- Run `SpecDispositionContractTests` and
+  `eng/testing/check-spec-discovery.sh`.
 - Run the specification suite on MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
 
 ## Pros and Cons of the Options
@@ -298,9 +299,9 @@ specification corpus; D-021 governs how exceptions are classified and enforced.
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/SpecDispositionContractTests.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts/`
 - `docs/limitations.md`
-- `eng/check-spec-contract.sh`
-- `eng/check-spec-discovery.sh`
-- `eng/check-spec-results.sh`
+- `eng/testing/check-spec-contract.sh`
+- `eng/testing/check-spec-discovery.sh`
+- `eng/testing/check-spec-results.sh`
 - `eng/check-publication-readiness.sh`
 
 ### Sources

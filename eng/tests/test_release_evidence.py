@@ -16,7 +16,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from eng import release_evidence
+from eng.release import evidence as release_evidence
 
 
 class ReleaseEvidenceTests(unittest.TestCase):
@@ -127,14 +127,29 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/Program.cs",
             "docker/compose.yml",
             "eng/benchmark.sh",
-            "eng/performance_evidence.py",
-            "eng/run_with_deadline.py",
+            "eng/performance/check-benchmark-ratios.sh",
+            "eng/common/deadline.py",
+            "eng/common/verify-dotnet.sh",
+            "eng/performance/__init__.py",
+            "eng/performance/benchmark.sh",
+            "eng/performance/check-benchmark-ratios.sh",
+            "eng/performance/cli.py",
+            "eng/performance/confirmation.py",
+            "eng/performance/contract.py",
+            "eng/performance/environment.py",
+            "eng/performance/evaluation.py",
+            "eng/performance/reports.py",
+            "eng/performance/statistics.py",
+            "eng/performance/cli.py",
+            "eng/common/deadline.py",
             "global.json",
         )
         excluded = (
             ".github/workflows/benchmark.yml",
             "docs/operations/performance-evidence.md",
-            "eng/benchmark_workflow_state.py",
+            "eng/performance/workflow_state.py",
+            "eng/performance/inputs.py",
+            "eng/performance/workflow_state.py",
             "tests/Doka.EntityFrameworkCore.MySql.Tests/MySqlOptionsTests.cs",
         )
 
@@ -364,10 +379,10 @@ class ReleaseEvidenceTests(unittest.TestCase):
         prior_root = self.root / "prior"
         self._write_performance_evidence(prior_root, "prior-run", measured_commit)
 
-        release_directory = self.repo / "eng"
-        release_directory.mkdir()
-        (release_directory / "release_evidence.py").write_text("# validation change\n", encoding="ascii")
-        self._git("add", "eng/release_evidence.py")
+        release_directory = self.repo / "eng" / "release"
+        release_directory.mkdir(parents=True)
+        (release_directory / "evidence.py").write_text("# validation change\n", encoding="ascii")
+        self._git("add", "eng/release/evidence.py")
         self._git("commit", "-m", "test: change release validation")
 
         candidate_root = self.root / "candidate"
@@ -389,7 +404,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
             (candidate_root / release_evidence.PERFORMANCE_REUSE_EVIDENCE).read_text(encoding="utf-8")
         )
         self.assertTrue(summary["reused"])
-        self.assertEqual(["eng/release_evidence.py"], receipt["changedPaths"])
+        self.assertEqual(["eng/release/evidence.py"], receipt["changedPaths"])
         self.assertEqual([], receipt["performanceInputChanges"])
 
     def test_reuse_performance_rejects_a_provider_source_delta(self) -> None:

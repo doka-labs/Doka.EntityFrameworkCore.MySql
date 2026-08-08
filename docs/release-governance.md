@@ -35,7 +35,7 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     ./eng/test-integration.sh
     ```
 
-  - migration model drift gate: `./eng/check-migration-model.sh`
+  - migration model drift gate: `./eng/quality/check-migration-model.sh`
 - Scheduled and manually dispatched exhaustive workflow:
   - workflow: `.github/workflows/ci.yml`
   - cadence: weekly and on demand
@@ -469,7 +469,7 @@ This governance baseline:
 
 ## Immutable Evidence Contract
 
-`eng/release_evidence.py` generates the canonical manifest only after every
+`eng/release/evidence.py` generates the canonical manifest only after every
 release gate has completed. It rejects dirty or mismatched source, mutable
 engine image tags, incomplete engine coverage, stale or unexpected packages,
 package/symbol version drift, missing SBOM output, and ambiguous dependency

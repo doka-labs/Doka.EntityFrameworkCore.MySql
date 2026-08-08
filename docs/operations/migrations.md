@@ -146,7 +146,7 @@ database.
 Run the model-drift gate whenever the model or migration assembly changes:
 
 ```bash
-./eng/check-migration-model.sh
+./eng/quality/check-migration-model.sh
 ```
 
 The gate builds the executable migration example and runs

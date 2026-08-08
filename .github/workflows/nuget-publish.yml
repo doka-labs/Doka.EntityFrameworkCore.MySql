@@ -57,7 +57,7 @@ jobs:
       # Keep the exact SDK check independent from setup-dotnet so a runner
       # image or resolver change fails before any publication boundary opens.
       - name: Verify approved .NET SDK
-        run: bash ./eng/verify-dotnet.sh
+        run: bash ./eng/common/verify-dotnet.sh
 
       - name: Validate manual publication request
         id: request
@@ -130,7 +130,7 @@ jobs:
           candidate_root="${RUNNER_TEMP}/candidate/github-${DOKA_CANDIDATE_RUN_ID}"
           evidence_dir="${RUNNER_TEMP}/publication-evidence"
 
-          python3 eng/nuget_publication.py validate \
+          python3 -m eng.release.nuget validate \
             --repo "${GITHUB_WORKSPACE}" \
             --root "${candidate_root}" \
             --run-metadata "${evidence_dir}/candidate-run.json" \
@@ -147,7 +147,7 @@ jobs:
           RELEASE_VERSION: ${{ steps.candidate.outputs.release_version }}
         run: |
           dotnet run \
-            --project eng/Doka.EntityFrameworkCore.MySql.NuGetSymbolReadback \
+            --project eng/tools/Doka.EntityFrameworkCore.MySql.NuGetSymbolReadback \
             --configuration Release \
             -- \
             --candidate-root \
@@ -196,7 +196,7 @@ jobs:
           candidate_root="${RUNNER_TEMP}/candidate/github-${DOKA_CANDIDATE_RUN_ID}"
           evidence_dir="${RUNNER_TEMP}/publication-evidence"
 
-          python3 eng/nuget_publication.py preflight \
+          python3 -m eng.release.nuget preflight \
             --receipt "${evidence_dir}/validated-candidate.json" \
             --candidate-root "${candidate_root}" \
             --symbol-manifest "${evidence_dir}/symbol-readback-manifest.json" \
@@ -242,7 +242,7 @@ jobs:
           global-json-file: global.json
 
       - name: Verify approved .NET SDK
-        run: bash ./eng/verify-dotnet.sh
+        run: bash ./eng/common/verify-dotnet.sh
 
       - name: Download exact immutable candidate artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.0
@@ -269,7 +269,7 @@ jobs:
           candidate_root="${RUNNER_TEMP}/candidate/github-${DOKA_CANDIDATE_RUN_ID}"
           evidence_dir="${RUNNER_TEMP}/publication-evidence"
 
-          python3 eng/nuget_publication.py preflight \
+          python3 -m eng.release.nuget preflight \
             --receipt "${evidence_dir}/validated-candidate.json" \
             --candidate-root "${candidate_root}" \
             --symbol-manifest "${evidence_dir}/symbol-readback-manifest.json" \
@@ -380,7 +380,7 @@ jobs:
           global-json-file: global.json
 
       - name: Verify approved .NET SDK
-        run: bash ./eng/verify-dotnet.sh
+        run: bash ./eng/common/verify-dotnet.sh
 
       - name: Download exact immutable candidate artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.0
@@ -412,7 +412,7 @@ jobs:
           candidate_root="${RUNNER_TEMP}/candidate/github-${DOKA_CANDIDATE_RUN_ID}"
           evidence_dir="${RUNNER_TEMP}/publication-evidence"
 
-          python3 eng/nuget_publication.py readback \
+          python3 -m eng.release.nuget readback \
             --receipt "${evidence_dir}/validated-candidate.json" \
             --candidate-root "${candidate_root}" \
             --symbol-manifest "${evidence_dir}/symbol-readback-manifest.json" \
@@ -428,7 +428,7 @@ jobs:
           RELEASE_VERSION: ${{ needs.validate-candidate.outputs.release_version }}
           SOURCE_COMMIT: ${{ needs.validate-candidate.outputs.source_commit }}
         run: |
-          bash eng/test-nuget-readback.sh \
+          bash eng/testing/test-nuget-readback.sh \
             "${RELEASE_VERSION}" \
             "${RELEASE_TAG}" \
             "${SOURCE_COMMIT}" \
@@ -491,7 +491,7 @@ jobs:
         run: |
           candidate_root="${RUNNER_TEMP}/candidate/github-${DOKA_CANDIDATE_RUN_ID}"
 
-          python3 eng/github_release.py prepare \
+          python3 -m eng.release.github prepare \
             --repository "${GITHUB_REPOSITORY}" \
             --candidate-root "${candidate_root}" \
             --publication-evidence "${RUNNER_TEMP}/publication-evidence" \
@@ -505,7 +505,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 eng/github_release.py publish \
+          python3 -m eng.release.github publish \
             --repo "${GITHUB_WORKSPACE}" \
             --plan "${RUNNER_TEMP}/github-release-plan.json" \
             --output "${RUNNER_TEMP}/github-release-readback.json"

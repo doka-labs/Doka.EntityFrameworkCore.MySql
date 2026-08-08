@@ -15,12 +15,21 @@ public sealed class AdrRepositoryValidatorTests
     public void Every_delivery_path_invokes_the_same_validator()
     {
         var repositoryRoot = FindRepositoryRoot();
-        AssertShellGate(Path.Combine(repositoryRoot, "eng", "build.sh"), "dotnet restore");
-        AssertShellGate(Path.Combine(repositoryRoot, "eng", "test.sh"), "dotnet build");
-        AssertShellGate(Path.Combine(repositoryRoot, "eng", "release-candidate.sh"), "run_specification_gate");
-        AssertShellGate(Path.Combine(repositoryRoot, "eng", "quality-gates.sh"), "dotnet format");
+        AssertShellGate(
+            Path.Combine(repositoryRoot, "eng", "common", "build.sh"),
+            "dotnet restore");
+        AssertShellGate(
+            Path.Combine(repositoryRoot, "eng", "testing", "test.sh"),
+            "dotnet build");
+        AssertShellGate(
+            Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"),
+            "run_specification_gate");
+        AssertShellGate(
+            Path.Combine(repositoryRoot, "eng", "quality", "quality-gates.sh"),
+            "dotnet format");
 
-        var releaseCandidateScript = File.ReadAllText(Path.Combine(repositoryRoot, "eng", "release-candidate.sh"));
+        var releaseCandidateScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
         var normalizedReleaseCandidateScript = NormalizeShellLayout(releaseCandidateScript);
         Assert.Contains(
             "dotnet tool run sbom-tool --allow-roll-forward -- Generate",
@@ -38,13 +47,13 @@ public sealed class AdrRepositoryValidatorTests
             normalizedReleaseCandidateScript,
             StringComparison.Ordinal);
         Assert.Contains(
-            "python3 \"${repo_root}/eng/materialize_sbom_assets.py\"",
+            "python3 -m eng.release.sbom",
             normalizedReleaseCandidateScript,
             StringComparison.Ordinal);
         Assert.Equal(
             2,
             normalizedReleaseCandidateScript.Split(
-                "python3 \"${repo_root}/eng/materialize_sbom_assets.py\"",
+                "python3 -m eng.release.sbom",
                 StringSplitOptions.None).Length - 1);
         Assert.DoesNotContain("-bc \"${repo_root}\"", normalizedReleaseCandidateScript, StringComparison.Ordinal);
         Assert.Contains(
@@ -56,7 +65,8 @@ public sealed class AdrRepositoryValidatorTests
             releaseCandidateScript,
             StringComparison.Ordinal);
 
-        var benchmarkGateScript = File.ReadAllText(Path.Combine(repositoryRoot, "eng", "check-benchmark-ratios.sh"));
+        var benchmarkGateScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "performance", "check-benchmark-ratios.sh"));
         Assert.Contains(
             "report_dir=\"${benchmarks_root}/${target}/reports/${run_id}\"",
             benchmarkGateScript,
@@ -70,7 +80,8 @@ public sealed class AdrRepositoryValidatorTests
             benchmarkGateScript,
             StringComparison.Ordinal);
 
-        var benchmarkScript = File.ReadAllText(Path.Combine(repositoryRoot, "eng", "benchmark.sh"));
+        var benchmarkScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "performance", "benchmark.sh"));
         Assert.Contains(
             "\"${compose_command[@]}\" ps -q \"${benchmark_compose_service}\"",
             benchmarkScript,
@@ -183,13 +194,13 @@ public sealed class AdrRepositoryValidatorTests
     {
         var repositoryRoot = FindRepositoryRoot();
         var modelGate = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "check-migration-model.sh"));
+            Path.Combine(repositoryRoot, "eng", "quality", "check-migration-model.sh"));
         var deploymentGate = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "test-migration-deployment.sh"));
+            Path.Combine(repositoryRoot, "eng", "testing", "test-migration-deployment.sh"));
         var releaseCandidate = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "release-candidate.sh"));
+            Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
         var qualityGates = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "quality-gates.sh"));
+            Path.Combine(repositoryRoot, "eng", "quality", "quality-gates.sh"));
         var workflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
 
@@ -208,7 +219,7 @@ public sealed class AdrRepositoryValidatorTests
             releaseCandidate,
             StringComparison.Ordinal);
         Assert.Contains(
-            "\"${repo_root}/eng/check-migration-model.sh\"",
+            "\"${repo_root}/eng/quality/check-migration-model.sh\"",
             qualityGates,
             StringComparison.Ordinal);
         Assert.Contains("run: bash eng/quality-gates.sh", workflow, StringComparison.Ordinal);
@@ -224,11 +235,11 @@ public sealed class AdrRepositoryValidatorTests
     {
         var repositoryRoot = FindRepositoryRoot();
         var runtimePosture = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "test-runtime-posture.sh"));
+            Path.Combine(repositoryRoot, "eng", "testing", "test-runtime-posture.sh"));
         var releaseCandidate = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "release-candidate.sh"));
+            Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
         var releaseEvidence = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "release_evidence.py"));
+            Path.Combine(repositoryRoot, "eng", "release", "evidence.py"));
         var workflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
 
@@ -261,7 +272,7 @@ public sealed class AdrRepositoryValidatorTests
     {
         var repositoryRoot = FindRepositoryRoot();
         var releaseCandidate = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "release-candidate.sh"));
+            Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
 
         Assert.Contains("run_with_release_version()", releaseCandidate, StringComparison.Ordinal);
         Assert.Contains(
@@ -284,15 +295,16 @@ public sealed class AdrRepositoryValidatorTests
             Path.Combine(repositoryRoot, ".github", "workflows", "nuget-publish.yml"));
         var normalizedWorkflow = NormalizeShellLayout(workflow);
         var publication = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "nuget_publication.py"));
+            Path.Combine(repositoryRoot, "eng", "release", "nuget.py"));
         var symbolReadback = File.ReadAllText(
             Path.Combine(
                 repositoryRoot,
                 "eng",
+                "tools",
                 "Doka.EntityFrameworkCore.MySql.NuGetSymbolReadback",
                 "SymbolReadbackManifestBuilder.cs"));
         var readback = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "test-nuget-readback.sh"));
+            Path.Combine(repositoryRoot, "eng", "testing", "test-nuget-readback.sh"));
 
         Assert.Contains("  workflow_dispatch:", workflow, StringComparison.Ordinal);
         Assert.Contains("candidate_run_id:", workflow, StringComparison.Ordinal);
@@ -315,8 +327,8 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("--source-ref \"refs/tags/${DOKA_RELEASE_TAG}\"", workflow, StringComparison.Ordinal);
         Assert.Contains("--source-digest \"${DOKA_SOURCE_COMMIT}\"", workflow, StringComparison.Ordinal);
         Assert.Contains("--deny-self-hosted-runners", workflow, StringComparison.Ordinal);
-        Assert.Contains("nuget_publication.py preflight", workflow, StringComparison.Ordinal);
-        Assert.Contains("nuget_publication.py readback", workflow, StringComparison.Ordinal);
+        Assert.Contains("python3 -m eng.release.nuget preflight", workflow, StringComparison.Ordinal);
+        Assert.Contains("python3 -m eng.release.nuget readback", workflow, StringComparison.Ordinal);
         Assert.Contains("--symbol-manifest", workflow, StringComparison.Ordinal);
         Assert.Contains("--timeout-seconds 3600", workflow, StringComparison.Ordinal);
         Assert.Contains("test-nuget-readback.sh", workflow, StringComparison.Ordinal);
@@ -464,9 +476,9 @@ public sealed class AdrRepositoryValidatorTests
         var workflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
         var integrationRunner = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "test-integration.sh"));
+            Path.Combine(repositoryRoot, "eng", "testing", "test-integration.sh"));
         var releaseCandidate = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "release-candidate.sh"));
+            Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
         var sqlModeTests = File.ReadAllText(
             Path.Combine(
                 repositoryRoot,
@@ -546,7 +558,7 @@ public sealed class AdrRepositoryValidatorTests
         var workflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
         var qualityGates = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "quality-gates.sh"));
+            Path.Combine(repositoryRoot, "eng", "quality", "quality-gates.sh"));
         var commitMessage = File.ReadAllText(
             Path.Combine(repositoryRoot, ".githooks", "commit-msg"));
         var preCommit = File.ReadAllText(
@@ -554,7 +566,7 @@ public sealed class AdrRepositoryValidatorTests
         var prePush = File.ReadAllText(
             Path.Combine(repositoryRoot, ".githooks", "pre-push"));
         var installer = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "install-git-hooks.sh"));
+            Path.Combine(repositoryRoot, "eng", "development", "install-git-hooks.sh"));
 
         Assert.Contains("run: bash eng/quality-gates.sh", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("dotnet format", workflow, StringComparison.Ordinal);
@@ -563,13 +575,13 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("dotnet build \"${solution}\"", qualityGates, StringComparison.Ordinal);
         Assert.Contains("--vulnerable", qualityGates, StringComparison.Ordinal);
         Assert.Contains("examples/*/*.csproj", qualityGates, StringComparison.Ordinal);
-        Assert.Contains("eng/check-migration-model.sh", qualityGates, StringComparison.Ordinal);
+        Assert.Contains("eng/quality/check-migration-model.sh", qualityGates, StringComparison.Ordinal);
 
         Assert.Contains("eng/quality-gates.sh\" --fast", preCommit, StringComparison.Ordinal);
         Assert.Contains("git diff --cached --check", preCommit, StringComparison.Ordinal);
         Assert.Contains("exec \"${repo_root}/eng/quality-gates.sh\"", prePush, StringComparison.Ordinal);
         Assert.DoesNotContain("--fast", prePush, StringComparison.Ordinal);
-        Assert.Contains("eng/validate_commit_message.py", commitMessage, StringComparison.Ordinal);
+        Assert.Contains("eng.quality.commit_message", commitMessage, StringComparison.Ordinal);
 
         Assert.Contains("hooks=(commit-msg pre-commit pre-push)", installer, StringComparison.Ordinal);
         Assert.Contains("config --local core.hooksPath", installer, StringComparison.Ordinal);
@@ -1283,7 +1295,9 @@ public sealed class AdrRepositoryValidatorTests
     {
         var script = File.ReadAllText(path);
         var failFast = script.IndexOf("set -euo pipefail", StringComparison.Ordinal);
-        var validator = script.IndexOf("\"${repo_root}/eng/validate-adrs.sh\"", StringComparison.Ordinal);
+        var validator = script.IndexOf(
+            "\"${repo_root}/eng/quality/validate-adrs.sh\"",
+            StringComparison.Ordinal);
         var followingCommand = validator < 0
             ? -1
             : script.IndexOf(firstFollowingCommand, validator + 1, StringComparison.Ordinal);

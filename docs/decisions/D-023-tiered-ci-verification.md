@@ -227,10 +227,10 @@ bypassed.
 - `.githooks/pre-push`
 - `docs/release-governance.md`
 - `eng/install-git-hooks.sh`
-- `eng/validate_commit_message.py`
+- `eng/quality/commit_message.py`
 - `eng/quality-gates.sh`
 - `eng/test-integration.sh`
-- `eng/release_evidence.py`
+- `eng/release/evidence.py`
 - `tests/Doka.EntityFrameworkCore.MySql.Tests/Contracts/AdrRepositoryValidatorTests.cs`
 
 ### Sources

@@ -166,7 +166,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
 
         self.assertIn("--requested-mode auto", resolver)
         self.assertIn("resolve-baseline-mode", resolver)
-        self.assertIn("eng/benchmark_workflow_state.py", resolver)
+        self.assertIn("python3 -m eng.performance.workflow_state", resolver)
         self.assertIn("scorecard-required", resolver)
         self.assertIn("sync-required", resolver)
         self.assertIn(
@@ -195,7 +195,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("- benchmark-scorecard", proposal)
         self.assertIn("benchmark-artifacts-mysql84", proposal)
         self.assertIn("benchmark-artifacts-mariadb118", proposal)
-        self.assertIn("performance_evidence.py promote", proposal)
+        self.assertIn("python3 -m eng.performance.cli promote", proposal)
         self.assertIn("validate-baseline", proposal)
 
     def test_baseline_proposal_has_bounded_write_authority(self) -> None:
@@ -282,26 +282,30 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertEqual(1, scorecard_workflow.count("actions/upload-artifact@"))
 
     def test_all_main_pushes_reach_the_cheap_benchmark_resolver(self) -> None:
-        """Classify every push with the release-candidate input policy."""
+        """Classify every push with the local measurement-input policy."""
         text = self.workflow("benchmark.yml")
         push_paths = text[text.index("  push:") : text.index("  workflow_dispatch:")]
         resolver = (
-            self.repo / "eng" / "benchmark_workflow_state.py"
+            self.repo / "eng" / "performance" / "workflow_state.py"
+        ).read_text(encoding="utf-8")
+        inputs = (
+            self.repo / "eng" / "performance" / "inputs.py"
         ).read_text(encoding="utf-8")
 
         self.assertNotIn("paths:", push_paths)
-        self.assertIn("release_evidence.is_performance_input(path)", resolver)
+        self.assertIn("if is_performance_input(path)", resolver)
+        self.assertNotIn("release_evidence.is_performance_input(path)", resolver)
         self.assertIn(
             '"benchmarks/baselines/doka-benchmark-baseline.json"',
-            resolver,
+            inputs,
         )
-        self.assertNotIn('".github/workflows/benchmark.yml"', resolver)
-        self.assertNotIn('"eng/benchmark_workflow_state.py"', resolver)
+        self.assertNotIn('".github/workflows/benchmark.yml"', inputs)
+        self.assertNotIn('"eng/performance/workflow_state.py"', inputs)
 
     def test_proposal_state_cannot_override_event_relevance(self) -> None:
         """Keep stale proposal repair from starting unrelated measurements."""
         resolver = (
-            self.repo / "eng" / "benchmark_workflow_state.py"
+            self.repo / "eng" / "performance" / "workflow_state.py"
         ).read_text(encoding="utf-8")
 
         self.assertIn("return bool(changes), changes", resolver)
@@ -413,7 +417,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn(': > "${proposed_baseline}"', resolver)
         self.assertLess(
             resolver.index('if ! git show \\'),
-            resolver.index("eng/benchmark_workflow_state.py"),
+            resolver.index("python3 -m eng.performance.workflow_state"),
         )
 
     def test_baseline_proposal_sync_rejects_unexpected_paths(self) -> None:
@@ -453,10 +457,10 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         text = self.workflow("release-candidate.yml")
         preflight = self.job(text, "preflight", "foundation")
 
-        self.assertIn("bash ./eng/verify-dotnet.sh", preflight)
+        self.assertIn("bash ./eng/common/verify-dotnet.sh", preflight)
         self.assertIn("bash -n ./eng/release-candidate.sh", preflight)
         self.assertIn(
-            "bash -n ./eng/restore-release-stage-artifacts.sh",
+            "bash -n ./eng/release/restore-release-stage-artifacts.sh",
             preflight,
         )
         self.assertIn("eng.tests.test_release_artifact_resolver", preflight)
@@ -604,7 +608,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertNotIn("id-token: write", finalize)
         self.assertNotIn("attestations: read", finalize)
         self.assertLess(
-            readback.index("bash eng/test-nuget-readback.sh"),
+            readback.index("bash eng/testing/test-nuget-readback.sh"),
             len(readback),
         )
 
@@ -617,8 +621,8 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "needs.readback.outputs.readback_evidence_artifact_name",
             finalize,
         )
-        self.assertIn("python3 eng/github_release.py prepare", finalize)
-        self.assertIn("python3 eng/github_release.py publish", finalize)
+        self.assertIn("python3 -m eng.release.github prepare", finalize)
+        self.assertIn("python3 -m eng.release.github publish", finalize)
         self.assertIn("github-release-plan.json", finalize)
         self.assertIn("github-release-readback.json", finalize)
         self.assertIn("github-release-evidence-${{ inputs.release_tag }}", finalize)
@@ -638,7 +642,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
 
     def test_github_release_helper_cannot_create_tags_or_replace_assets(self) -> None:
         """Keep tag creation and destructive asset replacement out of scope."""
-        text = (self.repo / "eng" / "github_release.py").read_text(
+        text = (self.repo / "eng" / "release" / "github.py").read_text(
             encoding="utf-8"
         )
 

@@ -1,0 +1,236 @@
+{
+  "schemaVersion": 1,
+  "domains": {
+    "common": {
+      "owner": "engineering",
+      "responsibility": "Process, SDK, and deadline primitives shared by engineering automation.",
+      "allowedDependencies": [
+        "common"
+      ]
+    },
+    "development": {
+      "owner": "maintainers",
+      "responsibility": "Local contributor setup that is not part of CI or release execution.",
+      "allowedDependencies": [
+        "common",
+        "development"
+      ]
+    },
+    "performance": {
+      "owner": "performance",
+      "responsibility": "Benchmark execution, immutable evidence, budget evaluation, and reports.",
+      "allowedDependencies": [
+        "common",
+        "performance"
+      ]
+    },
+    "quality": {
+      "owner": "quality",
+      "responsibility": "Static quality, documentation, coverage, ADR, and policy gates.",
+      "allowedDependencies": [
+        "common",
+        "quality"
+      ]
+    },
+    "release": {
+      "owner": "release",
+      "responsibility": "Release candidate orchestration, artifacts, publication, SBOM, and evidence.",
+      "allowedDependencies": [
+        "common",
+        "performance",
+        "quality",
+        "release",
+        "testing"
+      ]
+    },
+    "testing": {
+      "owner": "testing",
+      "responsibility": "Repository, integration, specification, example, and runtime verification.",
+      "allowedDependencies": [
+        "common",
+        "quality",
+        "testing"
+      ]
+    },
+    "tools": {
+      "owner": "engineering",
+      "responsibility": "Compiled engineering-only utilities invoked by domain automation.",
+      "allowedDependencies": [
+        "tools"
+      ]
+    }
+  },
+  "rootEntrypoints": [
+    {
+      "path": "eng/benchmark.sh",
+      "target": "eng/performance/benchmark.sh",
+      "classification": "operator-command",
+      "owner": "performance",
+      "cost": "high",
+      "purpose": "Run the reviewed performance evidence workflow.",
+      "inputs": "Benchmark mode, optional engine lifecycle flags, and the versioned performance contract.",
+      "outputs": "BenchmarkDotNet results, normalized evidence, and policy reports below artifacts/.",
+      "sideEffects": "Builds projects, writes artifacts, and can start and stop database containers.",
+      "consumers": [
+        "CONTRIBUTING.md",
+        "README.md",
+        "docs/operations/performance-evidence.md"
+      ]
+    },
+    {
+      "path": "eng/check-publication-readiness.sh",
+      "target": "eng/release/check-publication-readiness.sh",
+      "classification": "operator-command",
+      "owner": "release",
+      "cost": "low",
+      "purpose": "Validate that repository support and disposition evidence is publication-ready.",
+      "inputs": "Repository documentation, support contracts, and generated disposition evidence.",
+      "outputs": "A pass or fail result with actionable diagnostics.",
+      "sideEffects": "May refresh deterministic validation artifacts in the normal build output tree.",
+      "consumers": [
+        "README.md",
+        "docs/decisions/D-021-provider-completeness-and-spec-dispositions.md"
+      ]
+    },
+    {
+      "path": "eng/install-git-hooks.sh",
+      "target": "eng/development/install-git-hooks.sh",
+      "classification": "operator-command",
+      "owner": "maintainers",
+      "cost": "low",
+      "purpose": "Install the repository-managed local Git hook contract.",
+      "inputs": "The checked-out repository and its versioned .githooks directory.",
+      "outputs": "A configured local core.hooksPath value.",
+      "sideEffects": "Changes only the local repository Git configuration.",
+      "consumers": [
+        "CONTRIBUTING.md",
+        "docs/decisions/D-023-tiered-ci-verification.md"
+      ]
+    },
+    {
+      "path": "eng/quality-gates.sh",
+      "target": "eng/quality/quality-gates.sh",
+      "classification": "operator-command",
+      "owner": "quality",
+      "cost": "medium",
+      "purpose": "Run the deterministic repository quality contract used locally and in CI.",
+      "inputs": "The tracked repository tree, generated contracts, and the pinned .NET SDK.",
+      "outputs": "Formatting, analyzer, documentation, ADR, and policy gate results.",
+      "sideEffects": "Builds engineering tools and writes normal build intermediates and artifacts.",
+      "consumers": [
+        ".githooks/pre-commit",
+        ".githooks/pre-push",
+        "CONTRIBUTING.md"
+      ]
+    },
+    {
+      "path": "eng/release-candidate.sh",
+      "target": "eng/release/release-candidate.sh",
+      "classification": "operator-command",
+      "owner": "release",
+      "cost": "high",
+      "purpose": "Build and reconcile a complete release candidate without publishing packages.",
+      "inputs": "An immutable source revision, release metadata, and the selected execution stage.",
+      "outputs": "Packages, SBOMs, checksums, evidence manifests, and reconciliation reports.",
+      "sideEffects": "Builds projects, writes release artifacts, and can run container-backed verification.",
+      "consumers": [
+        ".github/workflows/release-candidate.yml",
+        "CONTRIBUTING.md",
+        "docs/release-governance.md"
+      ]
+    },
+    {
+      "path": "eng/test-examples.sh",
+      "target": "eng/testing/test-examples.sh",
+      "classification": "operator-command",
+      "owner": "testing",
+      "cost": "medium",
+      "purpose": "Compile and verify every public example contract.",
+      "inputs": "The example projects and their versioned documentation contracts.",
+      "outputs": "Build and behavior verification results for all examples.",
+      "sideEffects": "Builds example projects and writes normal build intermediates.",
+      "consumers": [
+        "README.md",
+        "examples/README.md"
+      ]
+    },
+    {
+      "path": "eng/test-integration.sh",
+      "target": "eng/testing/test-integration.sh",
+      "classification": "operator-command",
+      "owner": "testing",
+      "cost": "high",
+      "purpose": "Run the live database integration matrix with owned lifecycle controls.",
+      "inputs": "Engine selection, lifecycle flags, and test-owned database configuration.",
+      "outputs": "Integration test results and engine-specific diagnostics.",
+      "sideEffects": "Can start and stop database containers and writes test artifacts.",
+      "consumers": [
+        "CONTRIBUTING.md",
+        "README.md",
+        "docs/release-governance.md"
+      ]
+    },
+    {
+      "path": "eng/test-migration-deployment.sh",
+      "target": "eng/testing/test-migration-deployment.sh",
+      "classification": "operator-command",
+      "owner": "testing",
+      "cost": "high",
+      "purpose": "Verify migration bundles and deployment behavior across supported engines.",
+      "inputs": "Supported engine profiles, migration fixtures, and lifecycle flags.",
+      "outputs": "Migration bundle and deployment matrix results.",
+      "sideEffects": "Builds migration assets, writes artifacts, and can manage database containers.",
+      "consumers": [
+        "docs/operations/migrations.md",
+        "docs/release-governance.md"
+      ]
+    },
+    {
+      "path": "eng/test-runtime-posture.sh",
+      "target": "eng/testing/test-runtime-posture.sh",
+      "classification": "operator-command",
+      "owner": "testing",
+      "cost": "high",
+      "purpose": "Verify trimming, NativeAOT, and deployment runtime posture.",
+      "inputs": "Runtime posture fixtures, selected lifecycle mode, and the pinned SDK.",
+      "outputs": "Trim, NativeAOT, and runtime smoke evidence.",
+      "sideEffects": "Publishes test applications, writes artifacts, and can manage containers.",
+      "consumers": [
+        "CONTRIBUTING.md",
+        "docs/decisions/D-017-nativeaot-smoke-deferred.md",
+        "docs/release-governance.md"
+      ]
+    },
+    {
+      "path": "eng/test.sh",
+      "target": "eng/testing/test.sh",
+      "classification": "operator-command",
+      "owner": "testing",
+      "cost": "medium",
+      "purpose": "Run the deterministic repository test contract that does not require live engines.",
+      "inputs": "The repository test projects, engineering tests, and pinned SDK.",
+      "outputs": "Repository unit, functional, and engineering test results.",
+      "sideEffects": "Builds test projects and writes normal test and coverage artifacts.",
+      "consumers": [
+        "CONTRIBUTING.md",
+        "README.md",
+        "docs/release-governance.md"
+      ]
+    },
+    {
+      "path": "eng/validate-adrs.sh",
+      "target": "eng/quality/validate-adrs.sh",
+      "classification": "operator-command",
+      "owner": "quality",
+      "cost": "low",
+      "purpose": "Validate and render the repository ADR corpus against the MADR profile.",
+      "inputs": "The decision corpus and the versioned MADR profile.",
+      "outputs": "ADR validation diagnostics and the deterministic decision index.",
+      "sideEffects": "Builds the ADR validator and can refresh the generated ADR index.",
+      "consumers": [
+        "CONTRIBUTING.md",
+        "docs/decisions/MADR-PROFILE.md"
+      ]
+    }
+  ]
+}

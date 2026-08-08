@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from eng import materialize_sbom_assets
+from eng.release import sbom as materialize_sbom_assets
 
 
 class MaterializeSbomAssetsTests(unittest.TestCase):

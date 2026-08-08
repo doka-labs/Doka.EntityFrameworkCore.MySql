@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from eng import benchmark_workflow_state
+from eng.performance import workflow_state as benchmark_workflow_state
 
 
 class BenchmarkWorkflowStateTests(unittest.TestCase):
@@ -37,12 +37,11 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
             ],
         }
 
-    def test_performance_inputs_share_release_candidate_relevance(
+    def test_performance_inputs_are_limited_to_measurement_inputs(
         self,
     ) -> None:
-        """Refresh evidence for every input that can change the scorecard."""
+        """Refresh evidence only when measured behavior can have changed."""
         included = (
-            ".github/workflows/benchmark-scorecard.yml",
             "benchmarks/baselines/unexpected-baseline.json",
             "benchmarks/performance-contract.json",
             "benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/Program.cs",
@@ -50,7 +49,9 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
             "docker/compose.yml",
             "Directory.Packages.props",
             "eng/benchmark.sh",
-            "eng/run_with_deadline.py",
+            "eng/common/deadline.py",
+            "eng/common/verify-dotnet.sh",
+            "eng/performance/benchmark.sh",
             "global.json",
             "src/Doka.EntityFrameworkCore.MySql/Storage/MySqlTypeMapping.cs",
             (
@@ -59,9 +60,14 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
             ),
         )
         excluded = (
+            ".github/workflows/benchmark-scorecard.yml",
             ".github/workflows/benchmark.yml",
             "benchmarks/baselines/doka-benchmark-baseline.json",
-            "eng/benchmark_workflow_state.py",
+            "eng/performance/workflow_state.py",
+            "eng/performance/check-benchmark-ratios.sh",
+            "eng/performance/inputs.py",
+            "eng/performance/workflow_state.py",
+            "eng/performance/cli.py",
             "docs/operations/performance-evidence.md",
             "tests/Doka.EntityFrameworkCore.MySql.Tests/MySqlOptionsTests.cs",
         )
@@ -89,8 +95,11 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
             0,
             "\n".join(
                 (
+                    ".github/workflows/benchmark-scorecard.yml",
                     ".github/workflows/benchmark.yml",
-                    "eng/benchmark_workflow_state.py",
+                    "eng/performance/workflow_state.py",
+                    "eng/performance/check-benchmark-ratios.sh",
+                    "eng/performance/cli.py",
                     "docs/operations/performance-evidence.md",
                 )
             ),

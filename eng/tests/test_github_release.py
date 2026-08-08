@@ -12,7 +12,9 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
-from eng import github_release, nuget_publication, release_evidence
+from eng.release import evidence as release_evidence
+from eng.release import github as github_release
+from eng.release import nuget as nuget_publication
 
 
 class FakeReleaseClient:

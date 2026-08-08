@@ -65,9 +65,9 @@ jobs:
       # receipt implementation differs from the reviewed repository state.
       - name: Verify release tooling contracts
         run: |
-          bash ./eng/verify-dotnet.sh
+          bash ./eng/common/verify-dotnet.sh
           bash -n ./eng/release-candidate.sh
-          bash -n ./eng/restore-release-stage-artifacts.sh
+          bash -n ./eng/release/restore-release-stage-artifacts.sh
           python3 -m unittest \
             eng.tests.test_materialize_sbom_assets \
             eng.tests.test_release_artifact_resolver \
@@ -79,7 +79,7 @@ jobs:
       - name: Verify accepted hosted performance baseline
         run: |
           mkdir -p artifacts
-          if ! python3 eng/release_evidence.py validate-performance-baseline \
+          if ! python3 -m eng.release.evidence validate-performance-baseline \
               --repo . \
               --contract benchmarks/performance-contract.json \
               --baseline benchmarks/baselines/doka-benchmark-baseline.json \
@@ -248,7 +248,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash ./eng/restore-release-stage-artifacts.sh \
+          bash ./eng/release/restore-release-stage-artifacts.sh \
             --output artifacts \
             --selection-output \
               "artifacts/release-candidate-checkpoints/${DOKA_RELEASE_CANDIDATE_RUN_ID}/coverage-input-artifacts.json" \
@@ -297,7 +297,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash ./eng/restore-release-stage-artifacts.sh \
+          bash ./eng/release/restore-release-stage-artifacts.sh \
             --output artifacts \
             --selection-output \
               "artifacts/release-candidate-checkpoints/${DOKA_RELEASE_CANDIDATE_RUN_ID}/sbom-input-artifacts.json" \
@@ -353,7 +353,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash ./eng/restore-release-stage-artifacts.sh \
+          bash ./eng/release/restore-release-stage-artifacts.sh \
             --output artifacts \
             --selection-output \
               "artifacts/release-candidate-checkpoints/${DOKA_RELEASE_CANDIDATE_RUN_ID}/assemble-input-artifacts.json" \

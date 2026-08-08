@@ -10,4 +10,5 @@ repo_root="$(git rev-parse --show-toplevel)"
 message_path="${1:?Git did not supply a commit-message path.}"
 
 export PYTHONDONTWRITEBYTECODE=1
-exec python3 "${repo_root}/eng/validate_commit_message.py" "${message_path}"
+cd "${repo_root}"
+exec python3 -m eng.quality.commit_message "${message_path}"

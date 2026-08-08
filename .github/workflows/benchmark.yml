@@ -66,7 +66,7 @@ jobs:
             ' benchmarks/performance-contract.json
           )"
 
-          python3 eng/performance_evidence.py resolve-baseline-mode \
+          python3 -m eng.performance.cli resolve-baseline-mode \
             --contract benchmarks/performance-contract.json \
             --baseline benchmarks/baselines/doka-benchmark-baseline.json \
             --profile scorecard \
@@ -150,7 +150,7 @@ jobs:
             )
           fi
 
-          python3 eng/benchmark_workflow_state.py "${state_arguments[@]}"
+          python3 -m eng.performance.workflow_state "${state_arguments[@]}"
 
           echo "contract-version=${contract_version}" >> "${GITHUB_OUTPUT}"
           echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
@@ -213,7 +213,7 @@ jobs:
             fi
           done < <(git diff --name-only "${GITHUB_SHA}" HEAD)
 
-          python3 eng/performance_evidence.py validate-baseline \
+          python3 -m eng.performance.cli validate-baseline \
             --contract benchmarks/performance-contract.json \
             --baseline "${baseline_path}" \
             --output artifacts/baseline-validation.json
@@ -296,7 +296,7 @@ jobs:
             exit 1
           fi
 
-          python3 eng/performance_evidence.py promote \
+          python3 -m eng.performance.cli promote \
             --contract benchmarks/performance-contract.json \
             --baseline artifacts/doka-benchmark-baseline.candidate.json \
             --version "${BASELINE_VERSION}" \
@@ -304,7 +304,7 @@ jobs:
             --evidence "${mysql_evidence[0]}" \
             --evidence "${mariadb_evidence[0]}"
 
-          python3 eng/performance_evidence.py validate-baseline \
+          python3 -m eng.performance.cli validate-baseline \
             --contract benchmarks/performance-contract.json \
             --baseline artifacts/doka-benchmark-baseline.candidate.json \
             --output artifacts/baseline-validation.json
@@ -369,7 +369,7 @@ jobs:
             fi
           done < <(git diff --name-only "${GITHUB_SHA}")
 
-          python3 eng/performance_evidence.py validate-baseline \
+          python3 -m eng.performance.cli validate-baseline \
             --contract benchmarks/performance-contract.json \
             --baseline "${baseline_path}" \
             --output artifacts/baseline-validation.json

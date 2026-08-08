@@ -114,7 +114,7 @@ MADR remains the structural basis rather than a locally forked replacement.
 
 - `docs/decisions/MADR-PROFILE.md`
 - `docs/decisions/adr-template.md`
-- `eng/Doka.EntityFrameworkCore.MySql.AdrValidator/`
+- `eng/tools/Doka.EntityFrameworkCore.MySql.AdrValidator/`
 - `eng/validate-adrs.sh`
 
 ### Sources

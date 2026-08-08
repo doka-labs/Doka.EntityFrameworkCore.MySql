@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from eng.coverage_policy import evaluate, evaluate_freshness
+from eng.quality.coverage import evaluate, evaluate_freshness
 
 
 class CoveragePolicyTests(unittest.TestCase):
