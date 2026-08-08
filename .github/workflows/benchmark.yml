@@ -5,6 +5,15 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      baseline_mode:
+        description: "Use auto for comparison; seed is reviewed recalibration."
+        required: true
+        default: auto
+        type: choice
+        options:
+          - auto
+          - seed
   schedule:
     # One unattended refresh per month detects hosted-runner drift without
     # consuming the GitHub Free allowance on four equivalent weekly runs.
@@ -36,6 +45,7 @@ jobs:
       baseline-branch: ${{ steps.resolve.outputs.baseline-branch }}
       scorecard-required: ${{ steps.resolve.outputs.scorecard-required }}
       sync-required: ${{ steps.resolve.outputs.sync-required }}
+      proposal-required: ${{ steps.resolve.outputs.proposal-required }}
 
     steps:
       - name: Checkout
@@ -53,6 +63,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
+          REQUESTED_MODE: ${{ inputs.baseline_mode || 'auto' }}
         run: |
           mkdir -p artifacts
 
@@ -71,7 +82,7 @@ jobs:
             --baseline benchmarks/baselines/doka-benchmark-baseline.json \
             --profile scorecard \
             --runner-class github-ubuntu-latest-x64 \
-            --requested-mode auto \
+            --requested-mode "${REQUESTED_MODE}" \
             --output artifacts/baseline-mode.json
 
           mode="$(jq -er '.mode' artifacts/baseline-mode.json)"
@@ -97,16 +108,20 @@ jobs:
             exit 1
           fi
 
-          proposal_number="$(
-            gh pr list \
-              --repo "${GITHUB_REPOSITORY}" \
-              --state open \
-              --head "${baseline_branch}" \
-              --json number \
-              --jq '.[0].number // empty'
-          )"
+          # Comparison mode never reads or mutates proposal state. Proposal
+          # maintenance belongs exclusively to reviewed seed recalibration.
+          if [[ "${mode}" == "seed" ]]; then
+            proposal_number="$(
+              gh pr list \
+                --repo "${GITHUB_REPOSITORY}" \
+                --state open \
+                --head "${baseline_branch}" \
+                --json number \
+                --jq '.[0].number // empty'
+            )"
+          fi
 
-          if [[ -n "${proposal_number}" ]]; then
+          if [[ "${mode}" == "seed" && -n "${proposal_number}" ]]; then
             baseline_path="benchmarks/baselines/doka-benchmark-baseline.json"
             proposed_baseline="artifacts/proposed-baseline.json"
 
@@ -157,6 +172,7 @@ jobs:
           echo "baseline-branch=${baseline_branch}" >> "${GITHUB_OUTPUT}"
           echo "scorecard-required=$(jq -er '.scorecardRequired' artifacts/benchmark-workflow-state.json)" >> "${GITHUB_OUTPUT}"
           echo "sync-required=$(jq -er '.syncRequired' artifacts/benchmark-workflow-state.json)" >> "${GITHUB_OUTPUT}"
+          echo "proposal-required=$(jq -er '.proposalRequired' artifacts/benchmark-workflow-state.json)" >> "${GITHUB_OUTPUT}"
 
           {
             echo "## Benchmark workflow decision"
@@ -167,6 +183,7 @@ jobs:
             echo "- Proposal: $(jq -r '.proposal.disposition' artifacts/benchmark-workflow-state.json)"
             echo "- Scorecard required: $(jq -r '.scorecardRequired' artifacts/benchmark-workflow-state.json)"
             echo "- Proposal sync required: $(jq -r '.syncRequired' artifacts/benchmark-workflow-state.json)"
+            echo "- Proposal write required: $(jq -r '.proposalRequired' artifacts/benchmark-workflow-state.json)"
           } >> "${GITHUB_STEP_SUMMARY}"
 
   sync-baseline-proposal:
@@ -246,7 +263,7 @@ jobs:
       actions: read
 
   propose-baseline-update:
-    if: needs.resolve-baseline-mode.outputs.scorecard-required == 'true'
+    if: needs.resolve-baseline-mode.outputs.proposal-required == 'true'
     needs:
       - resolve-baseline-mode
       - benchmark-scorecard
@@ -277,6 +294,7 @@ jobs:
           path: artifacts/benchmarks/mariadb118
 
       - name: Build combined baseline candidate
+        id: candidate
         env:
           BASELINE_VERSION: github-${{ github.run_id }}
         run: |
@@ -296,7 +314,7 @@ jobs:
             exit 1
           fi
 
-          python3 -m eng.performance.cli promote \
+          python3 -m eng.performance.cli seed \
             --contract benchmarks/performance-contract.json \
             --baseline artifacts/doka-benchmark-baseline.candidate.json \
             --version "${BASELINE_VERSION}" \
@@ -309,6 +327,14 @@ jobs:
             --baseline artifacts/doka-benchmark-baseline.candidate.json \
             --output artifacts/baseline-validation.json
 
+          python3 -m eng.performance.cli compare-baselines \
+            --contract benchmarks/performance-contract.json \
+            --current benchmarks/baselines/doka-benchmark-baseline.json \
+            --candidate artifacts/doka-benchmark-baseline.candidate.json \
+            --output artifacts/baseline-comparison.json
+
+          echo "baseline-changed=$(jq -er '.changed' artifacts/baseline-comparison.json)" >> "${GITHUB_OUTPUT}"
+
       # Preserve the complete review input even though the normal maintainer
       # path is the pull-request diff rather than a downloaded artifact.
       - name: Upload baseline review evidence
@@ -317,12 +343,24 @@ jobs:
           name: benchmark-baseline-review-evidence
           path: |
             artifacts/doka-benchmark-baseline.candidate.json
+            artifacts/baseline-comparison.json
             artifacts/baseline-validation.json
+
+      - name: Report unchanged accepted baseline
+        if: steps.candidate.outputs.baseline-changed != 'true'
+        run: |
+          {
+            echo "## Baseline proposal"
+            echo
+            echo "Seed evidence changed provenance only."
+            echo "The accepted performance contract is unchanged, so no branch or pull request was created."
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       # The proposal is written by a trusted workflow and then receives a
       # bounded CI dispatch for its exact head. The dispatch executes only the
       # three cheap required checks; it never approves or merges the proposal.
       - name: Propose reviewed baseline update
+        if: steps.candidate.outputs.baseline-changed == 'true'
         env:
           BASELINE_BRANCH: ${{ needs.resolve-baseline-mode.outputs.baseline-branch }}
           CONTRACT_VERSION: ${{ needs.resolve-baseline-mode.outputs.contract-version }}

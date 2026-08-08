@@ -702,6 +702,86 @@ def seed_baseline(args: argparse.Namespace) -> dict[str, Any]:
     return promote_baseline(args, required_mode="seed")
 
 
+_BASELINE_PROVENANCE_FIELDS = frozenset(
+    {
+        "acceptedUtc",
+        "admittedHostCpuUtilization",
+        "artifactHashes",
+        "baselineVersion",
+        "commit",
+        "generatedUtc",
+        "hostLoadAverage15Minutes",
+        "hostLoadAverage1Minute",
+        "hostLoadAverage1MinutePerProcessor",
+        "hostLoadAverage5Minutes",
+        "hostPreflight",
+        "maximumHostCpuUtilization",
+        "measuredUtc",
+        "rawReports",
+        "runId",
+        "sourceEvidenceSha256",
+        "sourceHash",
+    },
+)
+
+
+def _baseline_acceptance_projection(value: Any) -> Any:
+    """Remove volatile provenance while preserving the accepted contract."""
+    if isinstance(value, dict):
+        return {
+            key: _baseline_acceptance_projection(member)
+            for key, member in value.items()
+            if key not in _BASELINE_PROVENANCE_FIELDS
+        }
+    if isinstance(value, list):
+        return [_baseline_acceptance_projection(member) for member in value]
+    return value
+
+
+def compare_baseline_files(args: argparse.Namespace) -> dict[str, Any]:
+    """Report whether a candidate changes accepted baseline semantics.
+
+    Run identifiers, timestamps, hashes, and transient host-load samples remain
+    available in immutable evidence artifacts, but cannot create review noise by
+    themselves. Stable environment identity, workloads, statistics, budgets,
+    and benchmark controls remain part of the reviewed acceptance contract.
+    """
+    candidate_path = Path(args.candidate)
+    validate_baseline_file(
+        argparse.Namespace(
+            contract=args.contract,
+            baseline=candidate_path,
+        ),
+    )
+
+    current_path = Path(args.current)
+    if not current_path.is_file():
+        return {
+            "schemaVersion": 1,
+            "kind": "performance-baseline-comparison",
+            "changed": True,
+            "disposition": "accepted-baseline-missing",
+            "ignoredFields": sorted(_BASELINE_PROVENANCE_FIELDS),
+        }
+
+    validate_baseline_file(
+        argparse.Namespace(
+            contract=args.contract,
+            baseline=current_path,
+        ),
+    )
+    current = _baseline_acceptance_projection(load_json(current_path))
+    candidate = _baseline_acceptance_projection(load_json(candidate_path))
+    changed = current != candidate
+    return {
+        "schemaVersion": 1,
+        "kind": "performance-baseline-comparison",
+        "changed": changed,
+        "disposition": "contract-changed" if changed else "provenance-only",
+        "ignoredFields": sorted(_BASELINE_PROVENANCE_FIELDS),
+    }
+
+
 def validate_baseline_file(args: argparse.Namespace) -> dict[str, Any]:
     """Validate that every required target has one structurally complete baseline."""
     contract = load_json(Path(args.contract))

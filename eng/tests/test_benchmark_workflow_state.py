@@ -349,7 +349,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
             "scorecard",
             "github-ubuntu-latest-x64",
         )
-        scorecard_required, sync_required = (
+        scorecard_required, sync_required, proposal_required = (
             benchmark_workflow_state.decide_work(
                 "seed",
                 False,
@@ -362,6 +362,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         self.assertTrue(proposal.behind_current)
         self.assertFalse(scorecard_required)
         self.assertTrue(sync_required)
+        self.assertFalse(proposal_required)
 
     def test_scheduled_seed_refreshes_a_current_proposal(self) -> None:
         """Refresh evidence when the event explicitly requests measurement."""
@@ -371,7 +372,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
             behind_current=False,
         )
 
-        scorecard_required, sync_required = (
+        scorecard_required, sync_required, proposal_required = (
             benchmark_workflow_state.decide_work(
                 "seed",
                 True,
@@ -381,6 +382,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
 
         self.assertTrue(scorecard_required)
         self.assertFalse(sync_required)
+        self.assertTrue(proposal_required)
 
     @patch.object(benchmark_workflow_state, "run_git")
     @patch.object(benchmark_workflow_state, "relevant_changes")
@@ -422,7 +424,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         self.assertEqual("current", proposal.disposition)
         self.assertFalse(proposal.behind_current)
         self.assertEqual(
-            (False, False),
+            (False, False, False),
             benchmark_workflow_state.decide_work("seed", False, proposal),
         )
         validate_baseline.assert_called_once()
@@ -463,7 +465,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
             "scorecard",
             "github-ubuntu-latest-x64",
         )
-        scorecard_required, sync_required = (
+        scorecard_required, sync_required, proposal_required = (
             benchmark_workflow_state.decide_work(
                 "seed",
                 True,
@@ -476,6 +478,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         self.assertEqual(("eng/benchmark.sh",), proposal.relevant_changes)
         self.assertTrue(scorecard_required)
         self.assertFalse(sync_required)
+        self.assertTrue(proposal_required)
 
     @patch.object(benchmark_workflow_state, "run_git")
     @patch.object(benchmark_workflow_state, "relevant_changes")
@@ -515,7 +518,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         self.assertEqual("invalid", proposal.disposition)
         self.assertIn("not an ancestor", proposal.reason)
         self.assertEqual(
-            (False, False),
+            (False, False, False),
             benchmark_workflow_state.decide_work("seed", False, proposal),
         )
         validate_baseline.assert_called_once()
@@ -546,7 +549,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
 
         self.assertEqual("invalid", proposal.disposition)
         self.assertEqual(
-            (False, False),
+            (False, False, False),
             benchmark_workflow_state.decide_work("seed", False, proposal),
         )
         validate_baseline.assert_called_once()
@@ -559,7 +562,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            (True, False),
+            (True, False, True),
             benchmark_workflow_state.decide_work("seed", True, proposal),
         )
 
@@ -571,7 +574,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            (False, False),
+            (False, False, False),
             benchmark_workflow_state.decide_work("seed", False, proposal),
         )
 
@@ -585,7 +588,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            (False, False),
+            (False, False, False),
             benchmark_workflow_state.decide_work(
                 "compare",
                 False,
@@ -593,10 +596,27 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
             ),
         )
         self.assertEqual(
-            (True, False),
+            (True, False, False),
             benchmark_workflow_state.decide_work(
                 "compare",
                 True,
+                proposal,
+            ),
+        )
+
+    def test_compare_mode_never_synchronizes_a_seed_proposal(self) -> None:
+        """Keep accepted-baseline proposal mutations exclusive to seed work."""
+        proposal = benchmark_workflow_state.ProposalState(
+            "current",
+            "The seed proposal is valid but behind main.",
+            behind_current=True,
+        )
+
+        self.assertEqual(
+            (False, False, False),
+            benchmark_workflow_state.decide_work(
+                "compare",
+                False,
                 proposal,
             ),
         )

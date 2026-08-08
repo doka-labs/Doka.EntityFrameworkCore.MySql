@@ -302,8 +302,12 @@ def decide_work(
     baseline_mode: str,
     event_requires_fresh_evidence: bool,
     proposal: ProposalState,
-) -> tuple[bool, bool]:
-    """Return scorecard and cheap proposal-sync decisions."""
+) -> tuple[bool, bool, bool]:
+    """Return scorecard, proposal-sync, and proposal-write decisions.
+
+    Compare runs are immutable evidence. Only an explicit or automatically
+    selected seed run may mutate the reviewed accepted-baseline proposal.
+    """
     if baseline_mode not in {"compare", "seed"}:
         raise WorkflowStateError(
             f"Unsupported resolved baseline mode: {baseline_mode}",
@@ -311,12 +315,13 @@ def decide_work(
 
     if not event_requires_fresh_evidence:
         sync_required = (
-            proposal.disposition == "current"
+            baseline_mode == "seed"
+            and proposal.disposition == "current"
             and proposal.behind_current
         )
-        return False, sync_required
+        return False, sync_required, False
 
-    return True, False
+    return True, False, baseline_mode == "seed"
 
 
 def parse_args() -> argparse.Namespace:
@@ -363,7 +368,7 @@ def main() -> int:
         args.profile,
         args.runner_class,
     )
-    scorecard_required, sync_required = decide_work(
+    scorecard_required, sync_required, proposal_required = decide_work(
         args.baseline_mode,
         event_required,
         proposal,
@@ -382,6 +387,7 @@ def main() -> int:
         },
         "scorecardRequired": scorecard_required,
         "syncRequired": sync_required,
+        "proposalRequired": proposal_required,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

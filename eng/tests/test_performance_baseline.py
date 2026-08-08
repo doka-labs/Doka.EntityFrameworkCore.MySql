@@ -288,6 +288,67 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
                 {entry["runnerClass"] for entry in merged["baselines"]},
             )
 
+    def test_baseline_comparison_ignores_provenance_only_drift(self) -> None:
+        """Keep rerun metadata out of the reviewed acceptance contract."""
+        with tempfile.TemporaryDirectory(prefix="doka-performance-compare-") as directory:
+            root = Path(directory)
+            paths = self._write_seed_evaluations(root, "github-runner")
+            current_path = self._write_baseline(root, paths)
+            candidate = json.loads(current_path.read_text(encoding="utf-8"))
+            candidate["acceptedUtc"] = "2026-08-07T00:00:00Z"
+            candidate["baselineVersion"] = "rerun"
+
+            for entry in candidate["baselines"]:
+                entry["commit"] = "f" * 40
+                entry["runId"] = "replacement-run"
+
+            candidate_path = root / "candidate.json"
+            candidate_path.write_text(json.dumps(candidate), encoding="utf-8")
+            result = performance_evidence.compare_baseline_files(
+                type(
+                    "Args",
+                    (),
+                    {
+                        "contract": str(self._contract_path),
+                        "current": str(current_path),
+                        "candidate": str(candidate_path),
+                    },
+                )()
+            )
+
+            self.assertFalse(result["changed"])
+            self.assertEqual("provenance-only", result["disposition"])
+
+    def test_baseline_comparison_detects_environment_contract_change(self) -> None:
+        """Require review when stable execution-environment identity changes."""
+        with tempfile.TemporaryDirectory(prefix="doka-performance-compare-") as directory:
+            root = Path(directory)
+            paths = self._write_seed_evaluations(root, "github-runner")
+            current_path = self._write_baseline(root, paths)
+            candidate = json.loads(current_path.read_text(encoding="utf-8"))
+            candidate["baselines"][0]["environment"]["processor"] = "replacement-cpu"
+            candidate["baselines"][0]["hostPreflight"]["processor"] = "replacement-cpu"
+            candidate["baselines"][0]["benchmarkDotNetHostEnvironment"][
+                "ProcessorName"
+            ] = "replacement-cpu"
+
+            candidate_path = root / "candidate.json"
+            candidate_path.write_text(json.dumps(candidate), encoding="utf-8")
+            result = performance_evidence.compare_baseline_files(
+                type(
+                    "Args",
+                    (),
+                    {
+                        "contract": str(self._contract_path),
+                        "current": str(current_path),
+                        "candidate": str(candidate_path),
+                    },
+                )()
+            )
+
+            self.assertTrue(result["changed"])
+            self.assertEqual("contract-changed", result["disposition"])
+
     def test_auto_baseline_mode_seeds_when_contract_changed(self) -> None:
         """Seed a candidate instead of comparing incompatible evidence semantics."""
         with tempfile.TemporaryDirectory(prefix="doka-performance-resolve-") as directory:

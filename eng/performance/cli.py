@@ -104,6 +104,7 @@ if __package__:
         validate_compare_evaluation,
         promote_baseline,
         seed_baseline,
+        compare_baseline_files,
         validate_baseline_file,
         resolve_baseline_mode,
     )
@@ -208,6 +209,7 @@ else:
         validate_compare_evaluation,
         promote_baseline,
         seed_baseline,
+        compare_baseline_files,
         validate_baseline_file,
         resolve_baseline_mode,
     )
@@ -275,6 +277,12 @@ def build_parser() -> argparse.ArgumentParser:
     baseline_parser.add_argument("--contract", required=True)
     baseline_parser.add_argument("--baseline", required=True)
     baseline_parser.add_argument("--output", required=True)
+
+    comparison_parser = subparsers.add_parser("compare-baselines")
+    comparison_parser.add_argument("--contract", required=True)
+    comparison_parser.add_argument("--current", required=True)
+    comparison_parser.add_argument("--candidate", required=True)
+    comparison_parser.add_argument("--output", required=True)
 
     resolve_parser = subparsers.add_parser("resolve-baseline-mode")
     resolve_parser.add_argument("--contract", required=True)
@@ -357,6 +365,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         elif args.command == "validate-baseline":
             payload = validate_baseline_file(args)
+        elif args.command == "compare-baselines":
+            payload = compare_baseline_files(args)
         elif args.command == "resolve-baseline-mode":
             payload = resolve_baseline_mode(args)
         else:

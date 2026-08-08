@@ -285,6 +285,10 @@ starting services or either expensive matrix job:
   `seed`;
 - malformed or partial current-contract evidence fails before the matrix;
 - monthly and manual runs always request fresh scorecard evidence;
+- manual runs default to `auto`; select `seed` only for an intentional
+  recalibration of the accepted baseline;
+- `compare` evidence is immutable run evidence and never creates, updates, or
+  synchronizes a baseline proposal;
 - a current and up-to-date seed proposal is a no-op;
 - a current proposal behind only unrelated `main` changes is synchronized
   without another scorecard; and
@@ -305,10 +309,18 @@ integrity, allocation, GC, soak, environment, and host-admission contracts. It
 omits only a historical comparison that cannot exist yet. A contract revision
 deliberately does not carry older contract groups into the proposal.
 
-The workflow validates the combined MySQL and MariaDB evidence, writes the
-canonical baseline on a stable automation branch, and opens or updates one
-pull request. It enables squash auto-merge for that proposal but never
-approves it. The normal operator path is therefore:
+After validation, the seed candidate is compared with the accepted baseline
+through a canonical semantic projection. Run identifiers, timestamps, source
+hashes, artifact hashes, and transient host-admission measurements remain in
+the immutable evidence but cannot create or update a pull request by
+themselves. Workloads, statistics, budgets, stable environment descriptors,
+and enforcement controls remain part of the accepted contract. Only a change
+to that contract writes the canonical baseline on the automation branch and
+opens or updates its pull request. Proposal state is inspected and
+synchronized only for seed work.
+
+The workflow enables squash auto-merge for a semantic baseline proposal but
+never approves it. The normal operator path is therefore:
 
 1. Review the baseline diff and the linked benchmark run.
 2. Confirm that `quality-gates`, `repo-tests`, and `integration-smoke` passed

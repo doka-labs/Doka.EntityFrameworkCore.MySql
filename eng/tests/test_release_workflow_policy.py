@@ -164,11 +164,17 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         )
         proposal = self.job(text, "propose-baseline-update")
 
-        self.assertIn("--requested-mode auto", resolver)
+        self.assertIn("baseline_mode:", text)
+        self.assertIn(
+            "REQUESTED_MODE: ${{ inputs.baseline_mode || 'auto' }}",
+            resolver,
+        )
+        self.assertIn('--requested-mode "${REQUESTED_MODE}"', resolver)
         self.assertIn("resolve-baseline-mode", resolver)
         self.assertIn("python3 -m eng.performance.workflow_state", resolver)
         self.assertIn("scorecard-required", resolver)
         self.assertIn("sync-required", resolver)
+        self.assertIn("proposal-required", resolver)
         self.assertIn(
             "needs.resolve-baseline-mode.outputs.sync-required == 'true'",
             sync,
@@ -187,16 +193,26 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "baseline_mode: ${{ needs.resolve-baseline-mode.outputs.mode }}",
             scorecard,
         )
-        self.assertNotIn(
-            "needs.resolve-baseline-mode.outputs.mode == 'seed'",
+        self.assertIn(
+            "needs.resolve-baseline-mode.outputs.proposal-required == 'true'",
             proposal,
         )
         self.assertNotIn("github.event_name != 'push'", proposal)
         self.assertIn("- benchmark-scorecard", proposal)
         self.assertIn("benchmark-artifacts-mysql84", proposal)
         self.assertIn("benchmark-artifacts-mariadb118", proposal)
-        self.assertIn("python3 -m eng.performance.cli promote", proposal)
+        self.assertIn("python3 -m eng.performance.cli seed", proposal)
+        self.assertNotIn("python3 -m eng.performance.cli promote", proposal)
         self.assertIn("validate-baseline", proposal)
+        self.assertIn("compare-baselines", proposal)
+        self.assertIn(
+            "steps.candidate.outputs.baseline-changed == 'true'",
+            proposal,
+        )
+        self.assertIn(
+            "steps.candidate.outputs.baseline-changed != 'true'",
+            proposal,
+        )
 
     def test_baseline_proposal_has_bounded_write_authority(self) -> None:
         """Confine mutations to the two bounded proposal-update jobs."""
