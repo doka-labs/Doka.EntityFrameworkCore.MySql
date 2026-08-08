@@ -40,6 +40,12 @@ LATENCY_METRICS = {
 }
 HOST_ADMISSION_METRIC = "interval-host-cpu-utilization"
 MEASUREMENT_QUALITY_EXIT_CODE = 75
+# Why sampling stopped. The runner never exceeds the configured sample cap, so
+# a capped run is a typed observation whose usability the quality policy
+# decides. Mirrors the constants in PerformanceWorkloadRunner.
+PRECISION_REACHED = "precision_reached"
+SAMPLE_CAP_REACHED = "sample_cap_reached"
+TERMINATION_REASONS = frozenset({PRECISION_REACHED, SAMPLE_CAP_REACHED})
 
 
 class PerformanceEvidenceError(RuntimeError):

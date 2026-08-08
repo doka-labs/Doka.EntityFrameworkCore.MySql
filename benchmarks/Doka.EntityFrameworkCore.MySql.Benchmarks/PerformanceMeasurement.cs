@@ -140,7 +140,10 @@ internal sealed class SoakBudgetContract
 
 internal sealed class PerformanceRunReport
 {
-    public int SchemaVersion { get; init; } = 3;
+    // Version 4 added the required terminationReason and minimumDurationReached
+    // fields. A version-3 document predates them and is therefore not missing
+    // data; it belongs to a contract that never carried the fields.
+    public int SchemaVersion { get; init; } = 4;
 
     public string Kind { get; init; } = "performance-workloads";
 
@@ -254,6 +257,21 @@ internal sealed class PerformanceWorkloadResult
     public int WarmupSamples { get; init; }
 
     public int SampleCount { get; init; }
+
+    /// <summary>
+    /// Names why sampling stopped: <c>precision_reached</c> when the relative
+    /// standard error met the contract, or <c>sample_cap_reached</c> when the
+    /// configured cap bound first. A capped run is a typed result, not an
+    /// error; the quality policy decides what may be done with it.
+    /// </summary>
+    public string TerminationReason { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Reports whether the contract's minimum measurement duration was
+    /// satisfied. False means the cap stopped sampling first, so the sample is
+    /// shorter than the contract intends and cannot be promoted to a baseline.
+    /// </summary>
+    public bool MinimumDurationReached { get; init; }
 
     public int OperationsPerSample { get; init; }
 

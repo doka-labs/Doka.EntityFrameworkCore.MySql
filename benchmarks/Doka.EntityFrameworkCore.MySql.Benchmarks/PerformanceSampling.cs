@@ -88,6 +88,52 @@ internal static class PerformanceSampling
     }
 
     /// <summary>
+    /// Reports whether another sample may be collected.
+    /// </summary>
+    /// <remarks>
+    /// The cap bounds the loop unconditionally. Both measurement targets sit
+    /// behind it, so neither the required sample count nor the minimum duration
+    /// can drive the population past the configured maximum.
+    /// </remarks>
+    public static bool ShouldCollectAnotherSample(
+        int sampleCount,
+        int requiredSampleCount,
+        long measuredTicks,
+        long minimumMeasurementTicks,
+        int maximumSampleCount
+    ) => (sampleCount < requiredSampleCount || measuredTicks < minimumMeasurementTicks)
+        && sampleCount < maximumSampleCount;
+
+    /// <summary>
+    /// Classifies why sampling stopped and whether the duration target was met.
+    /// </summary>
+    /// <remarks>
+    /// The cap counts as the reason only when a target was still unmet. A run
+    /// that satisfied both targets exactly at the cap is a precise measurement,
+    /// not a truncated one.
+    /// </remarks>
+    public static (string TerminationReason, bool MinimumDurationReached) ClassifyTermination(
+        int sampleCount,
+        int maximumSampleCount,
+        long measuredTicks,
+        long minimumMeasurementTicks,
+        double relativeStandardError,
+        double maximumRelativeStandardError
+    )
+    {
+        var minimumDurationReached = measuredTicks >= minimumMeasurementTicks;
+        var precisionReached = relativeStandardError <= maximumRelativeStandardError;
+        var cappedShort = sampleCount >= maximumSampleCount
+            && (!minimumDurationReached || !precisionReached);
+
+        return (
+            cappedShort
+                ? PerformanceWorkloadRunner.SampleCapReached
+                : PerformanceWorkloadRunner.PrecisionReached,
+            minimumDurationReached);
+    }
+
+    /// <summary>
     /// Selects the next bounded, calibration-aligned sample target.
     /// </summary>
     public static int NextSampleTarget(

@@ -11,6 +11,7 @@ if __package__:
     from .contract import (
         SOAK_SCENARIO_IDS,
         PerformanceEvidenceError,
+        SAMPLE_CAP_REACHED,
         applicable_workloads,
         close_enough,
         expected_measurement_sample_count,
@@ -37,6 +38,7 @@ else:
     from contract import (
         SOAK_SCENARIO_IDS,
         PerformanceEvidenceError,
+        SAMPLE_CAP_REACHED,
         applicable_workloads,
         close_enough,
         expected_measurement_sample_count,
@@ -58,6 +60,36 @@ else:
     from host import validate_host_preflight
     from reports import validate_absolute_budgets
     from soak import validate_soak_scenario
+
+
+def reject_truncated_measurements(
+    workloads: Sequence[dict[str, Any]],
+    label: str,
+) -> None:
+    """Refuse evidence whose sampling was cut short by the configured cap.
+
+    Such a run is a legitimate observation that the contract does not fit the
+    workload, but it must never become the reference every later comparison is
+    judged against.
+    """
+    # The cap can bind for either target. A run that met its duration but not
+    # its precision is just as unsuitable as a reference, so the termination
+    # reason is what disqualifies a workload, not the duration flag alone.
+    capped = sorted(
+        str(workload.get("id"))
+        for workload in workloads
+        if workload.get("terminationReason") == SAMPLE_CAP_REACHED
+        or workload.get("minimumDurationReached") is False
+    )
+    if capped:
+        raise PerformanceEvidenceError(
+            f"{label} contains workloads that stopped at the sample cap before "
+            "satisfying the contract's measurement targets: "
+            f"[{', '.join(capped)}]. Such evidence may be published for "
+            "diagnosis but never promoted to a baseline. Recalibrate "
+            "operationsPerSample, the minimum duration, or the cap for these "
+            "workloads first."
+        )
 
 
 def validate_seed_evaluation(
@@ -156,6 +188,8 @@ def validate_seed_evaluation(
         raise PerformanceEvidenceError("Seed input has no normalized workloads.")
     validate_normalized_workloads(workloads, contract, profile, "seedEvaluation")
     validate_absolute_budgets(workloads, contract)
+
+    reject_truncated_measurements(workloads, "Seed input")
 
     controls = evaluation.get("benchmarkDotNetControls")
     if not isinstance(controls, list):
@@ -764,14 +798,49 @@ def compare_baseline_files(args: argparse.Namespace) -> dict[str, Any]:
             "ignoredFields": sorted(_BASELINE_PROVENANCE_FIELDS),
         }
 
+    current = load_json(current_path)
+    if (
+        not isinstance(current, dict)
+        or current.get("schemaVersion") != 3
+        or current.get("baselineState") != "accepted"
+    ):
+        raise PerformanceEvidenceError(
+            "The current baseline must use schemaVersion 3 and state accepted."
+        )
+
+    current_contract_version = required_string(
+        current,
+        "contractVersion",
+        "currentBaseline",
+    )
+    candidate = load_json(candidate_path)
+    candidate_contract_version = required_string(
+        candidate,
+        "contractVersion",
+        "candidateBaseline",
+    )
+    if current_contract_version != candidate_contract_version:
+        # Contract revisions can change workload definitions, budgets, and
+        # evidence schemas. The old baseline remains valid historical evidence,
+        # but only the already-validated candidate can satisfy the new contract.
+        return {
+            "schemaVersion": 1,
+            "kind": "performance-baseline-comparison",
+            "changed": True,
+            "disposition": "contract-version-changed",
+            "currentContractVersion": current_contract_version,
+            "candidateContractVersion": candidate_contract_version,
+            "ignoredFields": sorted(_BASELINE_PROVENANCE_FIELDS),
+        }
+
     validate_baseline_file(
         argparse.Namespace(
             contract=args.contract,
             baseline=current_path,
         ),
     )
-    current = _baseline_acceptance_projection(load_json(current_path))
-    candidate = _baseline_acceptance_projection(load_json(candidate_path))
+    current = _baseline_acceptance_projection(current)
+    candidate = _baseline_acceptance_projection(candidate)
     changed = current != candidate
     return {
         "schemaVersion": 1,

@@ -78,6 +78,8 @@ class PerformanceEvidenceFixtureMixin:
                         definition,
                     ),
                     "sampleCount": len(samples),
+                    "terminationReason": "precision_reached",
+                    "minimumDurationReached": True,
                     "operationsPerSample": operations_per_sample,
                     "checksum": 1,
                     "measuredUtc": datetime.now(timezone.utc).isoformat(),
@@ -114,7 +116,7 @@ class PerformanceEvidenceFixtureMixin:
             )
 
         return {
-            "schemaVersion": 3,
+            "schemaVersion": 4,
             "kind": "performance-workloads",
             "contractVersion": self.contract["contractVersion"],
             "runId": "run-1",
@@ -149,6 +151,40 @@ class PerformanceEvidenceFixtureMixin:
             },
             "workloads": workloads,
         }
+
+    def _grow_to_sample_cap(
+        self,
+        entry: dict[str, Any],
+        samples: list[float] | None = None,
+    ) -> int:
+        """Grow one workload entry to the contract's maximum sample population.
+
+        Tests that need a genuinely capped run must produce the population the
+        runner would have produced, not merely relabel a smaller one.
+        """
+        profile = self.contract["profiles"]["scorecard"]
+        definition = next(
+            candidate
+            for candidate in self.contract["workloads"]
+            if candidate["id"] == entry["id"]
+        )
+        cap = performance_evidence.expected_measurement_sample_count(
+            profile,
+            definition,
+        ) * int(profile["maximumMeasurementSampleMultiplier"])
+        interval = int(profile["calibrationIntervalSamples"])
+
+        entry["sampleCount"] = cap
+        entry["calibrationNanoseconds"] = [100.0] * cap
+        entry["calibrationPulseNanoseconds"] = [100.0] * math.ceil(cap / interval)
+        entry["calibrationPulseIndices"] = [index // interval for index in range(cap)]
+
+        if samples is None:
+            base = entry["samplesNanoseconds"][0]
+            samples = [base] * cap
+        self._replace_workload_samples(entry, samples)
+
+        return cap
 
     @staticmethod
     def _replace_workload_samples(

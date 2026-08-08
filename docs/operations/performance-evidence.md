@@ -186,6 +186,90 @@ container's configured image or repository digest with the contract. The
 reported database version is read from the server and must identify the
 expected engine family and major/minor line.
 
+## Measurement quality and termination
+
+Each workload declares how its sampling ended. The runner never exceeds the
+configured sample cap, so a run that hits the cap is a complete measurement of
+a contract that does not fit the workload -- not a corrupt one.
+
+| Field | Values | Meaning |
+| --- | --- | --- |
+| `terminationReason` | `precision_reached` | The relative standard error met the contract, and the minimum duration was satisfied. |
+| | `sample_cap_reached` | The cap bound first while the duration or the precision target was still unmet. |
+| `minimumDurationReached` | `true` / `false` | Whether the contract's `minimumMeasurementDurationMilliseconds` was satisfied. |
+
+Both fields are required and were introduced with **schema version 4** of the
+raw workload report (`kind: performance-workloads`). A version-3 document
+predates them; the validator rejects it with an explicit unsupported-version
+message rather than reporting it as incomplete. Re-measure with the current
+benchmark build to produce a version-4 report. The accepted baseline and the
+evaluation record keep their own schema versions.
+
+The validator derives the allowed population from the contract as
+`measurementSamples` (or the workload's own override) multiplied by
+`maximumMeasurementSampleMultiplier`, then rejects every state the runner
+cannot emit. Each of these is a hard `PerformanceEvidenceError`, not a quality
+verdict:
+
+- a sample count above the derived cap;
+- `sample_cap_reached` with a population below the cap;
+- `sample_cap_reached` although both the duration and the precision target
+  were met;
+- `precision_reached` with a relative standard error above the ceiling;
+- an unreached minimum duration with any reason other than
+  `sample_cap_reached`;
+- a measurement shorter than the minimum duration without sitting at the cap;
+- `minimumDurationReached` disagreeing with the duration computed from the
+  samples and `operationsPerSample`;
+- an unknown termination reason.
+
+The comparisons against the error ceiling are tolerant, because the runner and
+the validator compute the statistic independently; only a clear contradiction
+counts as corrupt.
+
+### What each policy does with a capped result
+
+`measurementQualityPolicy` is a profile setting.
+
+The trigger is the termination reason, not the duration flag. A run that met
+its duration and still exhausted its budget chasing precision is exactly as
+unusable, so it reaches the same verdict.
+
+- **`enforce`** (scorecard, stress): a capped result exits with code 75. That
+  code means "valid run, required measurement quality not achieved", which is
+  what makes it retryable -- the scorecard workflow grants one bounded retry on
+  a fresh hosted runner. A hard validation error is a different class and is
+  never retried.
+- **`observe`** (smoke): the evidence is published together with a diagnostic.
+  The run does not fail.
+
+Either way the outcome produces exactly one verdict, and the diagnostic carries
+three pairs so no rerun is needed to decide what to change: samples achieved
+against the derived cap, measured duration against the required minimum, and
+achieved relative standard error against the allowed ceiling.
+
+Under either policy a capped result is refused for baseline promotion. Seeding
+rejects it by workload id and names the recalibration levers.
+
+### Environmental noise or an unsuitable contract
+
+A capped result on one run and a clean result on the retry is host noise; that
+is what the bounded retry exists for. The same workload capping run after run
+is not noise -- it says the contract cannot be satisfied on this hardware.
+
+The diagnostic prints all three pairs listed above -- samples against the
+derived cap, measured duration against the required minimum, and achieved
+relative standard error against the allowed ceiling -- so the decision needs no
+rerun. Read which pair is the outlier, then recalibrate exactly one of
+`operationsPerSample` (more work per sample reaches the duration without more
+samples), the minimum duration, or the cap.
+Raising the cap alone treats the symptom; more work per sample is usually the
+correct lever, and it is what BenchmarkDotNet's pilot stage and Go's `predictN`
+solve for.
+
+Recalibration is a reviewed contract change with its own version bump. It is
+never applied automatically from a failing run.
+
 ## Seed an accepted baseline
 
 Seeding is a review action, not a regression-recovery shortcut.

@@ -8,6 +8,13 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 /// </summary>
 internal static class PerformanceWorkloadRunner
 {
+    // Termination reasons are part of the evidence contract that the Python
+    // policy layer reads, so they are string constants rather than an enum
+    // whose serialized form could drift.
+    internal const string PrecisionReached = "precision_reached";
+
+    internal const string SampleCapReached = "sample_cap_reached";
+
     public static async Task<int> RunAsync(
         string outputPath,
         CancellationToken cancellationToken = default
@@ -326,6 +333,8 @@ internal static class PerformanceWorkloadRunner
 
         var maximumSampleCount = checked(minimumSampleCount * maximumMeasurementSampleMultiplier);
         var requiredSampleCount = minimumSampleCount;
+        var terminationReason = PrecisionReached;
+        var minimumDurationReached = false;
         long measuredTicks = 0;
         long allocatedBytes = 0;
         var gen0Collections = 0;
@@ -336,8 +345,16 @@ internal static class PerformanceWorkloadRunner
 
         while (true)
         {
-            while (samples.Count < requiredSampleCount
-                   || measuredTicks < minimumMeasurementTicks)
+            // The cap bounds sampling unconditionally. Letting the minimum
+            // duration push past it produced a sample count the adaptive
+            // decision below rejects, which surfaced as a crash instead of as
+            // a measurement outcome.
+            while (PerformanceSampling.ShouldCollectAnotherSample(
+                       samples.Count,
+                       requiredSampleCount,
+                       measuredTicks,
+                       minimumMeasurementTicks,
+                       maximumSampleCount))
             {
                 if (samples.Count % calibrationIntervalSamples == 0)
                 {
@@ -398,6 +415,19 @@ internal static class PerformanceWorkloadRunner
             }
 
             var relativeStandardError = PerformanceSampling.RelativeStandardError(normalizedSamples);
+            (terminationReason, minimumDurationReached) = PerformanceSampling.ClassifyTermination(
+                samples.Count,
+                maximumSampleCount,
+                measuredTicks,
+                minimumMeasurementTicks,
+                relativeStandardError,
+                maximumRelativeStandardError);
+
+            if (samples.Count >= maximumSampleCount)
+            {
+                break;
+            }
+
             var nextSampleTarget = PerformanceSampling.NextSampleTarget(
                 samples.Count,
                 maximumSampleCount,
@@ -457,6 +487,8 @@ internal static class PerformanceWorkloadRunner
             Family = definition.Family,
             WarmupSamples = warmupSamples,
             SampleCount = measuredSampleCount,
+            TerminationReason = terminationReason,
+            MinimumDurationReached = minimumDurationReached,
             OperationsPerSample = definition.OperationsPerSample,
             Checksum = checksum,
             MeasuredUtc = DateTimeOffset.UtcNow,

@@ -349,6 +349,90 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
             self.assertTrue(result["changed"])
             self.assertEqual("contract-changed", result["disposition"])
 
+    def test_contract_revision_produces_a_valid_replacement_baseline(self) -> None:
+        """Close the contract-change path from seed selection through acceptance."""
+        with tempfile.TemporaryDirectory(prefix="doka-performance-transition-") as directory:
+            root = Path(directory)
+            old_paths = self._write_seed_evaluations(root, "github-runner")
+            old_baseline_path = self._write_baseline(root, old_paths)
+
+            revised_contract = copy.deepcopy(self.contract)
+            revised_contract["contractVersion"] = "2026-08-09"
+            revised_contract_path = root / "revised-contract.json"
+            revised_contract_path.write_text(
+                json.dumps(revised_contract),
+                encoding="utf-8",
+            )
+
+            revised_paths = []
+            for target in ("mysql84", "mariadb118"):
+                evaluation = self._evaluation(target)
+                evaluation["contractVersion"] = revised_contract["contractVersion"]
+                evaluation["runnerClass"] = "github-runner"
+                evaluation["hostPreflight"]["contractVersion"] = revised_contract[
+                    "contractVersion"
+                ]
+                evaluation["artifactHashes"]["contract"] = (
+                    performance_evidence.sha256(revised_contract_path)
+                )
+                path = root / f"revised-{target}.json"
+                path.write_text(json.dumps(evaluation), encoding="utf-8")
+                revised_paths.append(path)
+
+            candidate = performance_evidence.seed_baseline(
+                type(
+                    "Args",
+                    (),
+                    {
+                        "contract": str(revised_contract_path),
+                        "evidence": [str(path) for path in revised_paths],
+                        "version": "replacement",
+                        "accepted_utc": "2026-08-09T00:00:00Z",
+                        "merge_existing": str(old_baseline_path),
+                    },
+                )()
+            )
+            candidate_path = root / "candidate.json"
+            candidate_path.write_text(json.dumps(candidate), encoding="utf-8")
+
+            validation = performance_evidence.validate_baseline_file(
+                type(
+                    "Args",
+                    (),
+                    {
+                        "contract": str(revised_contract_path),
+                        "baseline": str(candidate_path),
+                    },
+                )()
+            )
+            comparison = performance_evidence.compare_baseline_files(
+                type(
+                    "Args",
+                    (),
+                    {
+                        "contract": str(revised_contract_path),
+                        "current": str(old_baseline_path),
+                        "candidate": str(candidate_path),
+                    },
+                )()
+            )
+
+            self.assertTrue(validation["success"])
+            self.assertEqual(2, validation["targetCount"])
+            self.assertTrue(comparison["changed"])
+            self.assertEqual(
+                "contract-version-changed",
+                comparison["disposition"],
+            )
+            self.assertEqual(
+                self.contract["contractVersion"],
+                comparison["currentContractVersion"],
+            )
+            self.assertEqual(
+                revised_contract["contractVersion"],
+                comparison["candidateContractVersion"],
+            )
+
     def test_auto_baseline_mode_seeds_when_contract_changed(self) -> None:
         """Keep historical evidence bound to its original contract bytes."""
         with tempfile.TemporaryDirectory(prefix="doka-performance-resolve-") as directory:

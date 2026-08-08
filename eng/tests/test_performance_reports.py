@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import json
 import tempfile
 import unittest
@@ -133,10 +134,12 @@ class PerformanceReportTests(PerformanceEvidenceFixtureMixin, unittest.TestCase)
         report = self._workload_report("mysql84")
         entry = report["workloads"][0]
         self._replace_workload_samples(entry, [1.0] * entry["sampleCount"])
+        entry["minimumDurationReached"] = False
+        entry["terminationReason"] = "sample_cap_reached"
 
         with self.assertRaisesRegex(
             performance_evidence.PerformanceEvidenceError,
-            "expected at least",
+            "may fall short",
         ):
             performance_evidence.validate_workload_report(
                 report,
@@ -218,12 +221,20 @@ class PerformanceReportTests(PerformanceEvidenceFixtureMixin, unittest.TestCase)
         """Reject a statistically unstable workload even when every sample is finite."""
         report = self._workload_report("mysql84")
         entry = report["workloads"][0]
-        samples = [8_000_000.0] * (entry["sampleCount"] - 1) + [10_000_000_000.0]
-        self._replace_workload_samples(entry, samples)
+        # Noise this large means the runner exhausted its sample budget, so the
+        # population must sit at the contract cap for the state to be reachable.
+        cap = self._grow_to_sample_cap(entry)
+        self._replace_workload_samples(
+            entry,
+            [8_000_000.0] * (cap - 1) + [10_000_000_000.0],
+        )
+        entry["terminationReason"] = "sample_cap_reached"
 
+        # The run exhausted its budget, so the capped verdict owns this outcome
+        # and reports the achieved error as part of its diagnostic.
         with self.assertRaisesRegex(
             performance_evidence.MeasurementQualityError,
-            "relative standard error",
+            "(?i)relative standard error",
         ):
             performance_evidence.validate_workload_report(
                 report,
@@ -239,8 +250,14 @@ class PerformanceReportTests(PerformanceEvidenceFixtureMixin, unittest.TestCase)
         contract["profiles"]["scorecard"]["measurementQualityPolicy"] = "observe"
         report = self._workload_report("mysql84")
         entry = report["workloads"][0]
-        samples = [8_000_000.0] * (entry["sampleCount"] - 1) + [10_000_000_000.0]
-        self._replace_workload_samples(entry, samples)
+        # Noise this large means the runner exhausted its sample budget, so the
+        # population must sit at the contract cap for the state to be reachable.
+        cap = self._grow_to_sample_cap(entry)
+        self._replace_workload_samples(
+            entry,
+            [8_000_000.0] * (cap - 1) + [10_000_000_000.0],
+        )
+        entry["terminationReason"] = "sample_cap_reached"
 
         workloads = performance_evidence.validate_workload_report(
             report,

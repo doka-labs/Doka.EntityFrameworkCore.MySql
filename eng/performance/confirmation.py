@@ -626,7 +626,7 @@ def merge_tail_confirmations(args: argparse.Namespace) -> dict[str, Any]:
             contract_version=contract["contractVersion"],
         )
         if (
-            report.get("schemaVersion") != 3
+            report.get("schemaVersion") != 4
             or report.get("kind") != "performance-workload-diagnostic"
         ):
             raise PerformanceEvidenceError(

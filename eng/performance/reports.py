@@ -8,6 +8,8 @@ if __package__:
         HOST_ADMISSION_METRIC,
         MeasurementQualityError,
         PerformanceEvidenceError,
+        SAMPLE_CAP_REACHED,
+        TERMINATION_REASONS,
         applicable_workloads,
         close_enough,
         expected_measurement_sample_count,
@@ -27,6 +29,8 @@ else:
         HOST_ADMISSION_METRIC,
         MeasurementQualityError,
         PerformanceEvidenceError,
+        SAMPLE_CAP_REACHED,
+        TERMINATION_REASONS,
         applicable_workloads,
         close_enough,
         expected_measurement_sample_count,
@@ -61,7 +65,14 @@ def validate_workload_report(
         profile=profile,
         contract_version=contract_version,
     )
-    if report.get("schemaVersion") != 3 or report.get("kind") != "performance-workloads":
+    schema_version = report.get("schemaVersion")
+    if schema_version == 3:
+        raise PerformanceEvidenceError(
+            "Workload report declares schema version 3, which predates the "
+            "required terminationReason and minimumDurationReached fields. "
+            "Re-measure with the current benchmark build to produce version 4."
+        )
+    if schema_version != 4 or report.get("kind") != "performance-workloads":
         raise PerformanceEvidenceError("Workload report schema or kind is invalid.")
 
     required_commit(report, "commit", "workloadReport")
@@ -231,6 +242,44 @@ def validate_workload_report(
                 f"expected at least {expected_sample_count}."
             )
 
+        # The runner cannot exceed this bound, so a larger population means the
+        # evidence did not come from the reviewed sampling loop.
+        maximum_sample_count = expected_sample_count * int(
+            profile_contract["maximumMeasurementSampleMultiplier"]
+        )
+        if sample_count > maximum_sample_count:
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' has {sample_count} samples, above "
+                f"the contract maximum of {maximum_sample_count}."
+            )
+
+        termination_reason = required_string(
+            entry,
+            "terminationReason",
+            workload_id,
+        )
+        if termination_reason not in TERMINATION_REASONS:
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' reports unknown termination reason "
+                f"'{termination_reason}'."
+            )
+
+        minimum_duration_reached = entry.get("minimumDurationReached")
+        if not isinstance(minimum_duration_reached, bool):
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' must report minimumDurationReached "
+                "as a boolean."
+            )
+
+        # The two fields describe one outcome, so a combination the runner
+        # cannot produce is corrupt evidence rather than a poor measurement.
+        if not minimum_duration_reached and termination_reason != SAMPLE_CAP_REACHED:
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' reports an unreached minimum "
+                f"duration with termination reason '{termination_reason}'. "
+                "Only a capped run can miss the duration target."
+            )
+
         operations_per_sample = required_positive_integer(
             entry,
             "operationsPerSample",
@@ -378,10 +427,26 @@ def validate_workload_report(
             int(profile_contract["minimumMeasurementDurationMilliseconds"])
             * 1_000_000
         )
-        if measurement_duration_nanoseconds < minimum_measurement_duration_nanoseconds:
+        # A short measurement is only legitimate when the cap stopped sampling,
+        # and the reported flag must agree with the samples themselves. Failing
+        # here unconditionally would make every genuine capped run look corrupt
+        # and would hide it from the quality policy that is meant to judge it.
+        duration_satisfied = (
+            measurement_duration_nanoseconds >= minimum_measurement_duration_nanoseconds
+        )
+        if duration_satisfied != minimum_duration_reached:
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' reports minimumDurationReached="
+                f"{minimum_duration_reached} while its samples measure "
+                f"{measurement_duration_nanoseconds} ns against a required "
+                f"{minimum_measurement_duration_nanoseconds} ns."
+            )
+        if not duration_satisfied and sample_count != maximum_sample_count:
             raise PerformanceEvidenceError(
                 f"Workload '{workload_id}' measured {measurement_duration_nanoseconds} ns, "
-                f"expected at least {minimum_measurement_duration_nanoseconds} ns."
+                f"expected at least {minimum_measurement_duration_nanoseconds} ns. "
+                f"Only a run stopped at the {maximum_sample_count}-sample cap "
+                "may fall short."
             )
         sorted_samples = sorted(samples)
         sorted_calibration_pulses = sorted(calibration_pulses)
@@ -434,15 +499,65 @@ def validate_workload_report(
             "measurementQualityPolicy",
             f"profiles.{profile}",
         )
-        if (
-            measurement_quality_policy == "enforce"
-            and relative_standard_error > maximum_relative_standard_error
-        ):
-            raise MeasurementQualityError(
-                f"Workload '{workload_id}' has relative standard error "
-                f"{relative_standard_error:.6f}, maximum is "
+
+        # The termination reason, the sample population, and the two quality
+        # targets describe one outcome. The comparisons against the error
+        # ceiling are tolerant because the runner and this validator compute
+        # the statistic independently; only a clear contradiction is corrupt.
+        precision_reached = relative_standard_error <= maximum_relative_standard_error or close_enough(
+            relative_standard_error,
+            maximum_relative_standard_error,
+        )
+
+        if termination_reason == SAMPLE_CAP_REACHED:
+            if sample_count != maximum_sample_count:
+                raise PerformanceEvidenceError(
+                    f"Workload '{workload_id}' reports '{SAMPLE_CAP_REACHED}' "
+                    f"with {sample_count} samples, but the contract cap is "
+                    f"{maximum_sample_count}."
+                )
+            if minimum_duration_reached and precision_reached:
+                raise PerformanceEvidenceError(
+                    f"Workload '{workload_id}' reports '{SAMPLE_CAP_REACHED}' "
+                    "although both the minimum duration and the precision "
+                    "target were met. A run that satisfies both is precise."
+                )
+        elif not precision_reached:
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' reports termination reason "
+                f"'{termination_reason}' with relative standard error "
+                f"{relative_standard_error:.6f} above the contract maximum "
                 f"{maximum_relative_standard_error:.6f}."
             )
+
+        # A capped sample is a valid observation of an unsuitable contract, not
+        # a corrupt one. The cap is the trigger, not the duration flag: a run
+        # that met its duration and still ran out of budget chasing precision is
+        # exactly as unusable, and it must not pass silently under observe.
+        #
+        # This is the only measurement-quality verdict for a workload. Every
+        # other way to miss the precision target is a contradiction the
+        # invariants above already rejected, so no second branch is reachable
+        # here. The diagnostic carries all three bounds next to their achieved
+        # values, so recalibration needs no rerun.
+        if termination_reason == SAMPLE_CAP_REACHED:
+            diagnostic = (
+                f"Workload '{workload_id}' stopped at the sample cap. "
+                f"Samples: {sample_count} of {maximum_sample_count} allowed "
+                f"(measurementSamples={expected_sample_count} x "
+                f"maximumMeasurementSampleMultiplier="
+                f"{profile_contract['maximumMeasurementSampleMultiplier']}). "
+                f"Duration: {measurement_duration_nanoseconds} ns measured "
+                f"against {minimum_measurement_duration_nanoseconds} ns "
+                f"required. Relative standard error: "
+                f"{relative_standard_error:.6f} achieved against "
+                f"{maximum_relative_standard_error:.6f} allowed. "
+                "Recalibrate operationsPerSample, the minimum duration, or the "
+                "cap for this workload."
+            )
+            if measurement_quality_policy == "enforce":
+                raise MeasurementQualityError(diagnostic)
+            print(f"Measurement quality observation: {diagnostic}")
         calibration_relative_standard_error = (
             calibrated["calibrationStandardErrorNanoseconds"]
             / calibrated["calibrationMedianNanoseconds"]
@@ -478,6 +593,8 @@ def validate_workload_report(
                 "id": workload_id,
                 "family": definition["family"],
                 "sampleCount": sample_count,
+                "terminationReason": termination_reason,
+                "minimumDurationReached": minimum_duration_reached,
                 "measuredUtc": measured_utc.isoformat().replace("+00:00", "Z"),
                 "operationsPerSample": operations_per_sample,
                 "measurementDurationNanoseconds": measurement_duration_nanoseconds,

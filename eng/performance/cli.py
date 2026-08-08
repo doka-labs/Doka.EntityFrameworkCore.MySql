@@ -101,6 +101,7 @@ if __package__:
         evaluate,
     )
     from .baseline import (
+        reject_truncated_measurements,
         validate_seed_evaluation,
         validate_normalized_workloads,
         validate_compare_evaluation,
@@ -215,6 +216,7 @@ else:
         evaluate,
     )
     from performance.baseline import (
+        reject_truncated_measurements,
         validate_seed_evaluation,
         validate_normalized_workloads,
         validate_compare_evaluation,
