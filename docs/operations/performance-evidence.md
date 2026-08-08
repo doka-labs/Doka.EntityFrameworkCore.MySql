@@ -51,13 +51,17 @@ process architecture. A matching runner label alone is not sufficient.
 | Profile | Purpose | Workload samples | Soak | Baseline |
 |---|---|---:|---|---|
 | `smoke` | Fast harness and contract check | 1 to 3 | Optional | Not required |
-| `scorecard` | Release evidence | 256; 128 expensive | Required | Required |
-| `stress` | Extended investigation | 512; 256 expensive | Required | Required |
+| `scorecard` | Release evidence | 256; 128 expensive, adaptively extended up to 4x | Required | Required |
+| `stress` | Extended investigation | 512; 256 expensive, adaptively extended up to 4x | Required | Required |
 
 Only `scorecard` and `stress` execute the complete 55-cell workload matrix.
 Expensive cells retain at least 100 observations for p99 while avoiding a
 second full population of large writes. The scorecard accepts at most 25%
-relative standard error; stress accepts at most 15%. Fast, idempotent
+relative standard error; stress accepts at most 15%. A release workload that
+misses its error budget is extended in calibration-aligned blocks up to the
+contract-owned multiplier. The workload and matrix deadlines bound that
+extension. The runner never weakens the error budget or deletes observations;
+evidence that remains unstable at the cap fails validation. Fast, idempotent
 operations use fixed contract-owned batches so timer resolution and loop
 overhead cannot dominate per-operation tail statistics. Tail outliers remain
 in raw p95 and p99 and must pass their independent absolute budgets. Normalized
@@ -300,8 +304,22 @@ An automation branch that changes any path other than the canonical baseline
 fails in the resolver before the scorecard matrix starts. Remove or review the
 unexpected branch state explicitly; automation does not overwrite it. Later
 `main` pushes queue behind a running scorecard instead of cancelling evidence
-that is already being collected. The release-candidate workflow independently
-qualifies both engines at the exact release commit before publication.
+that is already being collected.
+
+Each engine scorecard writes a typed attempt receipt. A successful attempt is
+selected immediately. A measurement-quality result, reported with exit code
+`75`, permits exactly one retry in a new hosted job with a fresh database
+service. Any other non-zero exit is a hard failure and is never retried. A
+second measurement-quality result also fails the scorecard; retrying cannot
+turn a functional, budget, contract, or infrastructure failure into a pass.
+
+The selector verifies the identity and digests of every attempt before it
+copies the selected report tree into the stable engine artifact. The
+release-candidate workflow invokes that reusable scorecard for the exact
+release commit and imports the selected MySQL and MariaDB artifacts. Import
+verification binds the evidence to its target, commit, selection receipt, and
+evaluation digest. The release candidate does not measure or classify the same
+performance evidence a second time.
 
 Both engine jobs must succeed before a seed run can propose a baseline update.
 A seed still enforces the complete workload, absolute budgets, statistical
@@ -450,12 +468,19 @@ requirement.
 
 ## Release-candidate use
 
-`eng/release-candidate.sh` runs both engine scorecards, re-evaluates the strict
-cross-target gate, and copies the raw report trees into:
+The hosted release-candidate workflow runs the reusable dual-engine scorecard
+once. Its engine import stages verify the selected attempt receipts and copy
+the exact digest-bound report trees into:
 
 ```text
 artifacts/release-candidate/<run-id>/performance/
 ```
+
+The import must match the requested engine and the release-candidate commit.
+The combined gate verifies both imported selections instead of rerunning the
+benchmarks or re-evaluating their reports under a different run identity. A
+direct local invocation without an imported artifact root retains the explicit
+benchmark path for operator diagnostics and local release rehearsals.
 
 Each hosted release-candidate job has its own bounded workflow timeout. The
 performance runner additionally enforces the selected profile deadline and the

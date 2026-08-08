@@ -136,6 +136,8 @@ internal static class PerformanceWorkloadRunner
                         warmupSamples,
                         sampleCount,
                         profile.MinimumMeasurementDurationMilliseconds,
+                        profile.MaximumMeasurementSampleMultiplier,
+                        profile.MaximumRelativeStandardError,
                         calibrationKind,
                         profile.CalibrationSamplesPerPulse,
                         profile.CalibrationIntervalSamples,
@@ -256,6 +258,8 @@ internal static class PerformanceWorkloadRunner
         int warmupSamples,
         int minimumSampleCount,
         int minimumMeasurementDurationMilliseconds,
+        int maximumMeasurementSampleMultiplier,
+        double maximumRelativeStandardError,
         string calibrationKind,
         int calibrationSamplesPerPulse,
         int calibrationIntervalSamples,
@@ -270,8 +274,13 @@ internal static class PerformanceWorkloadRunner
 
         if (minimumMeasurementDurationMilliseconds < 0)
         {
-            throw new InvalidDataException(
-                $"Workload '{workload.Id}' has a negative minimum measurement duration.");
+            throw new InvalidDataException($"Workload '{workload.Id}' has a negative minimum measurement duration.");
+        }
+
+        if (maximumMeasurementSampleMultiplier <= 0
+            || maximumRelativeStandardError < 0)
+        {
+            throw new InvalidDataException($"Workload '{workload.Id}' has an invalid adaptive sampling profile.");
         }
 
         if (definition.OperationsPerSample <= 0)
@@ -282,8 +291,7 @@ internal static class PerformanceWorkloadRunner
         if (calibrationSamplesPerPulse <= 0
             || calibrationIntervalSamples <= 0)
         {
-            throw new InvalidDataException(
-                $"Workload '{workload.Id}' has an invalid calibration profile.");
+            throw new InvalidDataException($"Workload '{workload.Id}' has an invalid calibration profile.");
         }
 
         for (var index = 0; index < warmupSamples; index++)
@@ -313,11 +321,11 @@ internal static class PerformanceWorkloadRunner
         var calibrationPulses = new List<double>();
         var calibrationPulseIndices = new List<int>(minimumSampleCount);
         var normalizedSamples = new List<double>(minimumSampleCount);
-        var minimumMeasurementTicks = checked(
-            (long)Math.Ceiling(
-                minimumMeasurementDurationMilliseconds
-                * Stopwatch.Frequency
-                / 1000d));
+        var minimumMeasurementTicks =
+            checked((long)Math.Ceiling(minimumMeasurementDurationMilliseconds * Stopwatch.Frequency / 1000d));
+
+        var maximumSampleCount = checked(minimumSampleCount * maximumMeasurementSampleMultiplier);
+        var requiredSampleCount = minimumSampleCount;
         long measuredTicks = 0;
         long allocatedBytes = 0;
         var gen0Collections = 0;
@@ -326,68 +334,90 @@ internal static class PerformanceWorkloadRunner
         long checksum = 0;
         double currentCalibrationNanoseconds = 0;
 
-        while (samples.Count < minimumSampleCount
-               || measuredTicks < minimumMeasurementTicks)
+        while (true)
         {
-            if (samples.Count % calibrationIntervalSamples == 0)
+            while (samples.Count < requiredSampleCount
+                   || measuredTicks < minimumMeasurementTicks)
             {
-                currentCalibrationNanoseconds = await PerformanceCalibration
-                    .MeasurePulseAsync(
-                        calibrationKind,
-                        calibrationSamplesPerPulse,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                calibrationPulses.Add(currentCalibrationNanoseconds);
-            }
-
-            await PrepareAsync(workload, cancellationToken)
-                .ConfigureAwait(false);
-
-            var allocatedBefore = GC.GetTotalAllocatedBytes(precise: true);
-            var gen0Before = GC.CollectionCount(0);
-            var gen1Before = GC.CollectionCount(1);
-            var gen2Before = GC.CollectionCount(2);
-            var started = Stopwatch.GetTimestamp();
-            long sampleChecksum = 0;
-            long elapsed;
-
-            try
-            {
-                for (var operation = 0; operation < definition.OperationsPerSample; operation++)
+                if (samples.Count % calibrationIntervalSamples == 0)
                 {
-                    sampleChecksum = unchecked(sampleChecksum
-                        + await workload
-                            .ExecuteAsync(cancellationToken)
-                            .ConfigureAwait(false));
+                    currentCalibrationNanoseconds = await PerformanceCalibration
+                        .MeasurePulseAsync(calibrationKind, calibrationSamplesPerPulse, cancellationToken)
+                        .ConfigureAwait(false);
+                    calibrationPulses.Add(currentCalibrationNanoseconds);
                 }
 
-                elapsed = Stopwatch.GetTimestamp() - started;
-                allocatedBytes += GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore;
-                gen0Collections += GC.CollectionCount(0) - gen0Before;
-                gen1Collections += GC.CollectionCount(1) - gen1Before;
-                gen2Collections += GC.CollectionCount(2) - gen2Before;
-            }
-            finally
-            {
-                await CleanupAsync(workload, cancellationToken)
+                await PrepareAsync(workload, cancellationToken)
                     .ConfigureAwait(false);
+
+                var allocatedBefore = GC.GetTotalAllocatedBytes(precise: true);
+                var gen0Before = GC.CollectionCount(0);
+                var gen1Before = GC.CollectionCount(1);
+                var gen2Before = GC.CollectionCount(2);
+                var started = Stopwatch.GetTimestamp();
+                long sampleChecksum = 0;
+                long elapsed;
+
+                try
+                {
+                    for (var operation = 0; operation < definition.OperationsPerSample; operation++)
+                    {
+                        sampleChecksum = unchecked(sampleChecksum
+                            + await workload
+                                .ExecuteAsync(cancellationToken)
+                                .ConfigureAwait(false));
+                    }
+
+                    elapsed = Stopwatch.GetTimestamp() - started;
+                    allocatedBytes += GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore;
+                    gen0Collections += GC.CollectionCount(0) - gen0Before;
+                    gen1Collections += GC.CollectionCount(1) - gen1Before;
+                    gen2Collections += GC.CollectionCount(2) - gen2Before;
+                }
+                finally
+                {
+                    await CleanupAsync(workload, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                checksum = unchecked(checksum + sampleChecksum);
+                measuredTicks = checked(measuredTicks + elapsed);
+                var nanoseconds = elapsed * (1_000_000_000d / Stopwatch.Frequency) / definition.OperationsPerSample;
+
+                if (!double.IsFinite(nanoseconds)
+                    || nanoseconds <= 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Workload '{workload.Id}' produced an invalid elapsed time of {nanoseconds} ns.");
+                }
+
+                samples.Add(nanoseconds);
+                calibrationSamples.Add(currentCalibrationNanoseconds);
+                calibrationPulseIndices.Add(calibrationPulses.Count - 1);
+                normalizedSamples.Add(nanoseconds / currentCalibrationNanoseconds);
             }
 
-            checksum = unchecked(checksum + sampleChecksum);
-            measuredTicks = checked(measuredTicks + elapsed);
-            var nanoseconds = elapsed * (1_000_000_000d / Stopwatch.Frequency) / definition.OperationsPerSample;
+            var relativeStandardError = PerformanceSampling.RelativeStandardError(normalizedSamples);
+            var nextSampleTarget = PerformanceSampling.NextSampleTarget(
+                samples.Count,
+                maximumSampleCount,
+                calibrationIntervalSamples,
+                relativeStandardError,
+                maximumRelativeStandardError);
 
-            if (!double.IsFinite(nanoseconds)
-                || nanoseconds <= 0)
+            if (nextSampleTarget == samples.Count)
             {
-                throw new InvalidOperationException(
-                    $"Workload '{workload.Id}' produced an invalid elapsed time of {nanoseconds} ns.");
+                break;
             }
 
-            samples.Add(nanoseconds);
-            calibrationSamples.Add(currentCalibrationNanoseconds);
-            calibrationPulseIndices.Add(calibrationPulses.Count - 1);
-            normalizedSamples.Add(nanoseconds / currentCalibrationNanoseconds);
+            // Preserve every observation and extend in calibration-aligned
+            // blocks. This improves statistical precision without hiding
+            // scheduler or database variance through outlier deletion.
+            Console.WriteLine(
+                $"Extending workload {workload.Id} from {samples.Count} to "
+                + $"{nextSampleTarget} samples because relative standard error "
+                + $"{relativeStandardError:F6} exceeds {maximumRelativeStandardError:F6}.");
+            requiredSampleCount = nextSampleTarget;
         }
 
         // Use the same finalizer-draining boundary on both sides. Otherwise,
@@ -400,14 +430,17 @@ internal static class PerformanceWorkloadRunner
         var sortedSamples = samples
             .Order()
             .ToArray();
+
         var sortedCalibrationPulses = calibrationPulses
             .Order()
             .ToArray();
+
         var sortedNormalizedSamples = normalizedSamples
             .Order()
             .ToArray();
-        var calibrationMedian = Percentile(sortedCalibrationPulses, 0.5);
-        var calibrationStandardError = StandardError(calibrationPulses);
+
+        var calibrationMedian = PerformanceSampling.Percentile(sortedCalibrationPulses, 0.5);
+        var calibrationStandardError = PerformanceSampling.StandardError(calibrationPulses);
         var calibrationRelativeStandardError = calibrationStandardError / calibrationMedian;
 
         if (calibrationRelativeStandardError > maximumCalibrationRelativeStandardError)
@@ -427,16 +460,16 @@ internal static class PerformanceWorkloadRunner
             OperationsPerSample = definition.OperationsPerSample,
             Checksum = checksum,
             MeasuredUtc = DateTimeOffset.UtcNow,
-            MedianNanoseconds = Percentile(sortedSamples, 0.5),
-            P95Nanoseconds = Percentile(sortedSamples, 0.95),
-            P99Nanoseconds = Percentile(sortedSamples, 0.99),
-            StandardErrorNanoseconds = StandardError(samples),
+            MedianNanoseconds = PerformanceSampling.Percentile(sortedSamples, 0.5),
+            P95Nanoseconds = PerformanceSampling.Percentile(sortedSamples, 0.95),
+            P99Nanoseconds = PerformanceSampling.Percentile(sortedSamples, 0.99),
+            StandardErrorNanoseconds = PerformanceSampling.StandardError(samples),
             CalibrationKind = calibrationKind,
             CalibrationMedianNanoseconds = calibrationMedian,
             CalibrationStandardErrorNanoseconds = calibrationStandardError,
-            NormalizedMedian = Percentile(sortedNormalizedSamples, 0.5),
-            NormalizedP95 = Percentile(sortedNormalizedSamples, 0.95),
-            NormalizedP99 = Percentile(sortedNormalizedSamples, 0.99),
+            NormalizedMedian = PerformanceSampling.Percentile(sortedNormalizedSamples, 0.5),
+            NormalizedP95 = PerformanceSampling.Percentile(sortedNormalizedSamples, 0.95),
+            NormalizedP99 = PerformanceSampling.Percentile(sortedNormalizedSamples, 0.99),
             AllocatedBytesPerOperation = allocatedBytes / measuredOperations,
             RetainedBytes = retainedBytes,
             Gen0CollectionsPer1000 = gen0Collections * 1000d / measuredOperations,
@@ -569,45 +602,6 @@ internal static class PerformanceWorkloadRunner
         PerformanceWorkload workload,
         CancellationToken cancellationToken
     ) => workload.CleanupAsync?.Invoke(cancellationToken) ?? ValueTask.CompletedTask;
-
-    private static double Percentile(
-        double[] sortedValues,
-        double percentile
-    )
-    {
-        if (sortedValues.Length == 0)
-        {
-            throw new ArgumentException("At least one value is required.", nameof(sortedValues));
-        }
-
-        var position = (sortedValues.Length - 1) * percentile;
-        var lowerIndex = (int)Math.Floor(position);
-        var upperIndex = (int)Math.Ceiling(position);
-
-        if (lowerIndex == upperIndex)
-        {
-            return sortedValues[lowerIndex];
-        }
-
-        var fraction = position - lowerIndex;
-        return sortedValues[lowerIndex] + ((sortedValues[upperIndex] - sortedValues[lowerIndex]) * fraction);
-    }
-
-    private static double StandardError(
-        List<double> values
-    )
-    {
-        if (values.Count <= 1)
-        {
-            return 0;
-        }
-
-        var mean = values.Average();
-        var sumOfSquares = values.Sum(value => Math.Pow(value - mean, 2));
-        var sampleVariance = sumOfSquares / (values.Count - 1);
-
-        return Math.Sqrt(sampleVariance) / Math.Sqrt(values.Count);
-    }
 
     private static List<PerformanceWorkloadDefinition> ApplicableDefinitions(
         PerformanceContract contract,

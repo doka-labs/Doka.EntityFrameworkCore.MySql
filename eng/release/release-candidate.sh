@@ -655,11 +655,33 @@ EOF
 run_performance_engine() {
     local engine="$1"
     local skip="${DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS:-0}"
+    local qualified_artifact_root="${DOKA_RELEASE_CANDIDATE_PERFORMANCE_ARTIFACT_ROOT:-}"
     local compose_run_id
 
     if [[ "${skip}" == "1" ]]; then
         echo "A release performance stage cannot be completed while benchmarks are skipped." >&2
         exit 1
+    fi
+
+    if [[ -n "${qualified_artifact_root}" ]]; then
+        local selection="${qualified_artifact_root}/performance-attempt-selection.json"
+
+        if [[ ! -f "${selection}" ]]; then
+            echo "Qualified ${engine} performance selection is missing: ${selection}" >&2
+            exit 1
+        fi
+
+        # The reusable scorecard already evaluated this exact artifact. Import
+        # its digest-bound evidence instead of measuring or classifying it a
+        # second time under the release-candidate run identifier.
+        mkdir -p "${performance_dir}"
+        python3 -m eng.performance.cli import-attempt-selection \
+            --artifact-root "${qualified_artifact_root}" \
+            --selection "${selection}" \
+            --destination "${performance_dir}/${engine}" \
+            --expected-target "${engine}" \
+            --expected-commit "$(git rev-parse HEAD)"
+        return
     fi
 
     compose_run_id="$(
@@ -728,6 +750,27 @@ reuse_performance_evidence() {
 }
 
 run_combined_performance_gate() {
+    local mysql_import="${performance_dir}/mysql84/import-receipt.json"
+    local mariadb_import="${performance_dir}/mariadb118/import-receipt.json"
+
+    if [[ -f "${mysql_import}" && -f "${mariadb_import}" ]]; then
+        echo "Verifying imported qualified performance evidence..."
+        python3 -m eng.performance.cli verify-imported-attempt \
+            --destination "${performance_dir}/mysql84" \
+            --expected-target mysql84 \
+            --expected-commit "$(git rev-parse HEAD)"
+        python3 -m eng.performance.cli verify-imported-attempt \
+            --destination "${performance_dir}/mariadb118" \
+            --expected-target mariadb118 \
+            --expected-commit "$(git rev-parse HEAD)"
+        return
+    fi
+
+    if [[ -f "${mysql_import}" || -f "${mariadb_import}" ]]; then
+        echo "Imported performance evidence is incomplete across engines." >&2
+        return 1
+    fi
+
     local scratch_root
     scratch_root="$(mktemp -d "${TMPDIR:-/tmp}/doka-release-performance.XXXXXX")"
     mkdir -p "${scratch_root}/mysql84/reports" "${scratch_root}/mariadb118/reports"

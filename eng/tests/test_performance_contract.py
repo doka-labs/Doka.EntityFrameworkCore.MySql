@@ -182,6 +182,51 @@ class PerformanceContractTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
         ):
             performance_evidence.validate_contract(contract)
 
+    def test_adaptive_sample_multiplier_must_be_a_positive_integer(self) -> None:
+        """Reject sampling caps that disable or ambiguously bound extension."""
+        contract = copy.deepcopy(self.contract)
+        contract["profiles"]["smoke"]["maximumMeasurementSampleMultiplier"] = 0
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "maximumMeasurementSampleMultiplier",
+        ):
+            performance_evidence.validate_contract(contract)
+
+    def test_measurement_quality_policy_is_explicit_and_bounded(self) -> None:
+        """Reject profiles that cannot distinguish observation from enforcement."""
+        contract = copy.deepcopy(self.contract)
+        contract["profiles"]["scorecard"]["measurementQualityPolicy"] = "retry"
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "measurementQualityPolicy",
+        ):
+            performance_evidence.validate_contract(contract)
+
+    def test_every_profile_validates_calibration_and_boolean_fields(self) -> None:
+        """Keep profile validation independent of timeout-policy iteration."""
+        contract = copy.deepcopy(self.contract)
+        contract["profiles"]["smoke"][
+            "maximumCalibrationRelativeStandardError"
+        ] = -1
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "maximumCalibrationRelativeStandardError",
+        ):
+            performance_evidence.validate_contract(contract)
+
+        contract = copy.deepcopy(self.contract)
+        contract["profiles"]["smoke"]["baselineRequired"] = "false"
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "baselineRequired must be a boolean",
+        ):
+            performance_evidence.validate_contract(contract)
+
+        contract = copy.deepcopy(self.contract)
         contract["timeoutPolicies"]["expensive-standard"][
             "minimumWorkloadTimeoutSeconds"
         ] = 1201

@@ -39,10 +39,15 @@ LATENCY_METRICS = {
     "normalizedP99": ("normalizedP99Ratio", 0.99),
 }
 HOST_ADMISSION_METRIC = "interval-host-cpu-utilization"
+MEASUREMENT_QUALITY_EXIT_CODE = 75
 
 
 class PerformanceEvidenceError(RuntimeError):
     """Raised when performance evidence violates the versioned contract."""
+
+
+class MeasurementQualityError(PerformanceEvidenceError):
+    """Raised when environmental noise prevents a conclusive measurement."""
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -330,8 +335,8 @@ def require_identity(
 
 def validate_contract(contract: dict[str, Any]) -> None:
     """Validate uniqueness, references, and required dimension coverage."""
-    if contract.get("schemaVersion") != 4:
-        raise PerformanceEvidenceError("Performance contract schemaVersion must be 4.")
+    if contract.get("schemaVersion") != 6:
+        raise PerformanceEvidenceError("Performance contract schemaVersion must be 6.")
 
     required_string(contract, "contractVersion", "contract")
     finite_number(
@@ -428,6 +433,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
         "expensiveMeasurementSamples",
         "minimumValidSamples",
         "minimumBenchmarkDotNetSamples",
+        "maximumMeasurementSampleMultiplier",
         "calibrationSamplesPerPulse",
         "calibrationIntervalSamples",
         "maximumWorkloadMatrixDurationSeconds",
@@ -466,29 +472,21 @@ def validate_contract(contract: dict[str, Any]) -> None:
             f"profiles.{profile_name}.maximumRelativeStandardError",
             minimum=0,
         )
-
-    for policy_name, timeout_policy in timeout_policies.items():
-        if not isinstance(policy_name, str) or not policy_name:
-            raise PerformanceEvidenceError("Timeout policy names must be non-empty strings.")
-        if not isinstance(timeout_policy, dict):
-            raise PerformanceEvidenceError(
-                f"timeoutPolicies.{policy_name} must be an object."
-            )
-        policy_timeout = finite_number(
-            timeout_policy.get("minimumWorkloadTimeoutSeconds"),
-            f"timeoutPolicies.{policy_name}.minimumWorkloadTimeoutSeconds",
-            minimum=1,
-        )
-        if not policy_timeout.is_integer():
-            raise PerformanceEvidenceError(
-                f"timeoutPolicies.{policy_name}.minimumWorkloadTimeoutSeconds "
-                "must be an integer."
-            )
         finite_number(
             profile_contract.get("maximumCalibrationRelativeStandardError"),
             f"profiles.{profile_name}.maximumCalibrationRelativeStandardError",
             minimum=0,
         )
+        measurement_quality_policy = required_string(
+            profile_contract,
+            "measurementQualityPolicy",
+            f"profiles.{profile_name}",
+        )
+        if measurement_quality_policy not in {"observe", "enforce"}:
+            raise PerformanceEvidenceError(
+                f"profiles.{profile_name}.measurementQualityPolicy must be "
+                "'observe' or 'enforce'."
+            )
         for key in ("baselineRequired", "soakRequired"):
             if not isinstance(profile_contract.get(key), bool):
                 raise PerformanceEvidenceError(
@@ -510,6 +508,23 @@ def validate_contract(contract: dict[str, Any]) -> None:
                 "for historical p99 evidence."
             )
 
+    for policy_name, timeout_policy in timeout_policies.items():
+        if not isinstance(policy_name, str) or not policy_name:
+            raise PerformanceEvidenceError("Timeout policy names must be non-empty strings.")
+        if not isinstance(timeout_policy, dict):
+            raise PerformanceEvidenceError(
+                f"timeoutPolicies.{policy_name} must be an object."
+            )
+        policy_timeout = finite_number(
+            timeout_policy.get("minimumWorkloadTimeoutSeconds"),
+            f"timeoutPolicies.{policy_name}.minimumWorkloadTimeoutSeconds",
+            minimum=1,
+        )
+        if not policy_timeout.is_integer():
+            raise PerformanceEvidenceError(
+                f"timeoutPolicies.{policy_name}.minimumWorkloadTimeoutSeconds "
+                "must be an integer."
+            )
     family_budget_fields = (
         "medianNanoseconds",
         "p95Nanoseconds",

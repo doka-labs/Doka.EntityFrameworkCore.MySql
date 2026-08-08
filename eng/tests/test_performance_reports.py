@@ -222,7 +222,7 @@ class PerformanceReportTests(PerformanceEvidenceFixtureMixin, unittest.TestCase)
         self._replace_workload_samples(entry, samples)
 
         with self.assertRaisesRegex(
-            performance_evidence.PerformanceEvidenceError,
+            performance_evidence.MeasurementQualityError,
             "relative standard error",
         ):
             performance_evidence.validate_workload_report(
@@ -232,6 +232,30 @@ class PerformanceReportTests(PerformanceEvidenceFixtureMixin, unittest.TestCase)
                 target="mysql84",
                 profile="scorecard",
             )
+
+    def test_observe_policy_records_measurement_noise_without_failing(self) -> None:
+        """Record noisy evidence when the selected profile observes measurement quality."""
+        contract = copy.deepcopy(self.contract)
+        contract["profiles"]["scorecard"]["measurementQualityPolicy"] = "observe"
+        report = self._workload_report("mysql84")
+        entry = report["workloads"][0]
+        samples = [8_000_000.0] * (entry["sampleCount"] - 1) + [10_000_000_000.0]
+        self._replace_workload_samples(entry, samples)
+
+        workloads = performance_evidence.validate_workload_report(
+            report,
+            contract,
+            run_id="run-1",
+            target="mysql84",
+            profile="scorecard",
+        )
+
+        observed = next(
+            workload
+            for workload in workloads
+            if workload["id"] == entry["id"]
+        )
+        self.assertGreater(observed["relativeStandardError"], 1.0)
 
     def test_absolute_budget_rejects_latency_regression(self) -> None:
         """Reject a current measurement beyond its family's absolute p99 ceiling."""

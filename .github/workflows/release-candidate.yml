@@ -170,12 +170,6 @@ jobs:
           - stage: runtime
             timeout_minutes: 40
             deadline_seconds: 2100
-          - stage: performance-mysql84
-            timeout_minutes: 90
-            deadline_seconds: 5100
-          - stage: performance-mariadb118
-            timeout_minutes: 90
-            deadline_seconds: 5100
 
     env:
       DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
@@ -195,6 +189,77 @@ jobs:
           global-json-file: global.json
 
       - name: Run ${{ matrix.stage }} stage
+        run: bash ./eng/release-candidate.sh --stage "${{ matrix.stage }}"
+
+      - name: Upload verified ${{ matrix.stage }} state
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-stage-${{ matrix.stage }}-attempt-${{ github.run_attempt }}
+          path: |
+            artifacts/release-candidate/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
+            artifacts/release-candidate-checkpoints/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Retain incomplete ${{ matrix.stage }} diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-diagnostics-${{ matrix.stage }}-${{ github.run_attempt }}
+          path: artifacts
+          if-no-files-found: warn
+          retention-days: 7
+
+  # Performance qualification has one owner. The reusable scorecard performs
+  # the bounded measurement attempts; release stages only import its verified,
+  # digest-bound result and therefore cannot measure or classify it again.
+  performance-scorecard:
+    needs: foundation
+    uses: ./.github/workflows/benchmark-scorecard.yml
+    with:
+      baseline_mode: compare
+
+  performance-import:
+    needs: performance-scorecard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: mysql84
+            stage: performance-mysql84
+          - target: mariadb118
+            stage: performance-mariadb118
+
+    permissions:
+      actions: read
+      contents: read
+
+    env:
+      DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: 600
+      DOKA_RELEASE_CANDIDATE_RESUME: 1
+      DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/${{ matrix.stage }}
+      DOKA_RELEASE_CANDIDATE_PERFORMANCE_ARTIFACT_ROOT: artifacts/qualified-performance/${{ matrix.target }}
+
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Download qualified ${{ matrix.target }} performance evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.0
+        with:
+          name: benchmark-artifacts-${{ matrix.target }}
+          path: ${{ env.DOKA_RELEASE_CANDIDATE_PERFORMANCE_ARTIFACT_ROOT }}
+
+      - name: Import verified ${{ matrix.stage }} state
         run: bash ./eng/release-candidate.sh --stage "${{ matrix.stage }}"
 
       - name: Upload verified ${{ matrix.stage }} state
@@ -320,6 +385,7 @@ jobs:
     needs:
       - foundation
       - engine-contracts
+      - performance-import
       - coverage
       - sbom
     runs-on: ubuntu-latest

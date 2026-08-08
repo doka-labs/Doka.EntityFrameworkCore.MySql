@@ -65,6 +65,8 @@ internal sealed class PerformanceProfileContract
 
     public int MinimumBenchmarkDotNetSamples { get; init; }
 
+    public int MaximumMeasurementSampleMultiplier { get; init; }
+
     public int CalibrationSamplesPerPulse { get; init; }
 
     public int CalibrationIntervalSamples { get; init; }
@@ -74,6 +76,8 @@ internal sealed class PerformanceProfileContract
     public int MaximumTotalDurationSeconds { get; init; }
 
     public int MaximumWorkloadDurationSeconds { get; init; }
+
+    public double MaximumRelativeStandardError { get; init; }
 
     public double MaximumCalibrationRelativeStandardError { get; init; }
 

@@ -146,12 +146,16 @@ collection counts per operation. This keeps timer resolution and loop overhead
 from dominating sub-microsecond paths while preserving deterministic workload
 identity. Tail statistics for these paths describe the distribution of
 per-operation-normalized batch samples, not individual OS scheduling pauses.
-Scorecard evidence requires 256 samples for ordinary cells and 128 for
-expensive cells, with at most 25% relative standard error. Stress requires 512
-and 256 respectively, with at most 15% relative standard error. Every release
-profile therefore retains at least 100 individual observations for p99 without
-forcing large database writes to repeat at the same population as cheap
-in-process work.
+Scorecard evidence starts with 256 samples for ordinary cells and 128 for
+expensive cells, with at most 25% relative standard error. Stress starts with
+512 and 256 respectively, with at most 15% relative standard error. If a
+population misses that statistical budget, the runner retains every
+observation and extends measurement in calibration-aligned blocks, up to four
+times the initial population. Existing workload and matrix deadlines bound the
+extension. A population that remains unstable at the cap still fails. Every
+release profile therefore retains at least 100 individual observations for
+p99 without forcing stable large database writes to repeat at the same
+population as cheap in-process work.
 
 Managed allocation uses the precise process allocation counter around the
 measured operation. Preparation and cleanup are outside that window. Garbage
@@ -278,6 +282,13 @@ baseline. The parent workflow, resolver, documentation, tests, and accepted
 baseline output remain on the inexpensive control-plane path. Provider source
 changes never normalize their own regression threshold.
 
+Each engine execution emits a typed attempt receipt. Success selects the first
+attempt. Only an inconclusive measurement-quality result can start one retry,
+and that retry runs in a new hosted job with a fresh database service. A hard
+functional, budget, contract, or infrastructure failure stops immediately and
+cannot be masked by another attempt. Two inconclusive attempts fail closed as
+measurement-quality evidence.
+
 The resolver compares only when the accepted baseline contains a complete
 current-contract pair for the hosted runner. A missing baseline, older
 contract, or absent runner pair selects `seed`. Malformed or partial
@@ -327,9 +338,12 @@ groups into the new candidate. Merging the accepted baseline does not rerun
 the scorecard because the baseline file is deliberately excluded from the
 relevant-input classifier.
 
-The release-candidate path copies the complete raw performance evidence into
-its release evidence directory and re-evaluates both targets before reporting
-success.
+The release-candidate workflow calls the reusable scorecard once for the exact
+release commit. Its import stages verify each selected attempt against the
+engine target, commit, selection receipt, and evaluation digest before copying
+the complete raw evidence into the release evidence directory. The release
+candidate verifies the imported dual-engine selections and does not repeat the
+measurement or classify the same reports under a second run identity.
 
 Smoke, scorecard, and stress runs have hard total deadlines of 10 minutes,
 30 minutes, and two hours. The deadline helper owns a new process group,
@@ -518,6 +532,11 @@ A baseline update requires:
   reusable scorecard changes now run both hosted engine scorecards on `main`.
   Proposal health cannot independently allocate that work after an unrelated
   push.
+- 2026-08-08: Added typed scorecard attempt receipts and one fresh-runner retry
+  exclusively for inconclusive measurement quality. Hard failures remain
+  terminal. The release-candidate workflow now imports target-, commit-, and
+  digest-bound evidence from the single reusable scorecard instead of running
+  or evaluating the performance matrix twice.
 
 ### Implementation References
 

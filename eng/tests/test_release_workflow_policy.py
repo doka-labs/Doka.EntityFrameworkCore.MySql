@@ -294,8 +294,58 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "bash ./eng/benchmark.sh --test-only",
             scorecard_workflow,
         )
-        self.assertEqual(2, scorecard_workflow.count("image:"))
-        self.assertEqual(1, scorecard_workflow.count("actions/upload-artifact@"))
+        self.assertEqual(4, scorecard_workflow.count("image:"))
+        self.assertEqual(
+            2,
+            scorecard_workflow.count("outputs.status == 'inconclusive'"),
+        )
+        self.assertEqual(2, scorecard_workflow.count("if: always()"))
+        self.assertEqual(6, scorecard_workflow.count("actions/upload-artifact@"))
+        self.assertIn("benchmark-artifacts-mysql84", scorecard_workflow)
+        self.assertIn("benchmark-artifacts-mariadb118", scorecard_workflow)
+
+    def test_release_candidate_imports_the_qualified_scorecard(self) -> None:
+        """Reuse one digest-bound result instead of measuring it twice."""
+        workflow = self.workflow("release-candidate.yml")
+        engine_contracts = self.job(
+            workflow,
+            "engine-contracts",
+            "performance-scorecard",
+        )
+        scorecard = self.job(
+            workflow,
+            "performance-scorecard",
+            "performance-import",
+        )
+        performance_import = self.job(
+            workflow,
+            "performance-import",
+            "coverage",
+        )
+        assembly = self.job(workflow, "assemble", "attest")
+        script = (
+            self.repo / "eng" / "release" / "release-candidate.sh"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("performance-mysql84", engine_contracts)
+        self.assertNotIn("performance-mariadb118", engine_contracts)
+        self.assertIn(
+            "uses: ./.github/workflows/benchmark-scorecard.yml",
+            scorecard,
+        )
+        self.assertIn("baseline_mode: compare", scorecard)
+        self.assertIn("benchmark-artifacts-${{ matrix.target }}", performance_import)
+        self.assertIn("--stage \"${{ matrix.stage }}\"", performance_import)
+        self.assertNotIn("eng/benchmark", performance_import)
+        self.assertIn("performance-import", assembly)
+        self.assertIn(
+            "DOKA_RELEASE_CANDIDATE_PERFORMANCE_ARTIFACT_ROOT",
+            script,
+        )
+        self.assertIn("import-attempt-selection", script)
+        self.assertIn("verify-imported-attempt", script)
+        self.assertIn("--expected-target", script)
+        self.assertIn("--expected-commit", script)
 
     def test_all_main_pushes_reach_the_cheap_benchmark_resolver(self) -> None:
         """Classify every push with the local measurement-input policy."""

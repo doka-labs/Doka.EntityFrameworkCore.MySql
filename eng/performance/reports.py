@@ -6,6 +6,7 @@ from typing import Any, Sequence
 if __package__:
     from .contract import (
         HOST_ADMISSION_METRIC,
+        MeasurementQualityError,
         PerformanceEvidenceError,
         applicable_workloads,
         close_enough,
@@ -24,6 +25,7 @@ if __package__:
 else:
     from contract import (
         HOST_ADMISSION_METRIC,
+        MeasurementQualityError,
         PerformanceEvidenceError,
         applicable_workloads,
         close_enough,
@@ -427,8 +429,16 @@ def validate_workload_report(
             f"profiles.{profile}.maximumRelativeStandardError",
             minimum=0,
         )
-        if relative_standard_error > maximum_relative_standard_error:
-            raise PerformanceEvidenceError(
+        measurement_quality_policy = required_string(
+            profile_contract,
+            "measurementQualityPolicy",
+            f"profiles.{profile}",
+        )
+        if (
+            measurement_quality_policy == "enforce"
+            and relative_standard_error > maximum_relative_standard_error
+        ):
+            raise MeasurementQualityError(
                 f"Workload '{workload_id}' has relative standard error "
                 f"{relative_standard_error:.6f}, maximum is "
                 f"{maximum_relative_standard_error:.6f}."
@@ -443,10 +453,11 @@ def validate_workload_report(
             minimum=0,
         )
         if (
-            calibration_relative_standard_error
+            measurement_quality_policy == "enforce"
+            and calibration_relative_standard_error
             > maximum_calibration_relative_standard_error
         ):
-            raise PerformanceEvidenceError(
+            raise MeasurementQualityError(
                 f"Workload '{workload_id}' calibration relative standard error "
                 f"{calibration_relative_standard_error:.6f}, maximum is "
                 f"{maximum_calibration_relative_standard_error:.6f}."

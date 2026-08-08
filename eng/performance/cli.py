@@ -21,6 +21,8 @@ if __package__:
         P99_SIGNIFICANCE_LEVEL,
         LATENCY_METRICS,
         HOST_ADMISSION_METRIC,
+        MEASUREMENT_QUALITY_EXIT_CODE,
+        MeasurementQualityError,
         PerformanceEvidenceError,
         load_json,
         write_json,
@@ -108,6 +110,13 @@ if __package__:
         validate_baseline_file,
         resolve_baseline_mode,
     )
+    from .attempts import (
+        import_selection,
+        record_attempt,
+        select_attempt,
+        verify_imported_selection,
+        verify_selection,
+    )
 else:
     # Direct script and file-based imports do not provide a package context.
     # Add only this module directory so the direct-execution imports below resolve
@@ -126,6 +135,8 @@ else:
         P99_SIGNIFICANCE_LEVEL,
         LATENCY_METRICS,
         HOST_ADMISSION_METRIC,
+        MEASUREMENT_QUALITY_EXIT_CODE,
+        MeasurementQualityError,
         PerformanceEvidenceError,
         load_json,
         write_json,
@@ -212,6 +223,13 @@ else:
         compare_baseline_files,
         validate_baseline_file,
         resolve_baseline_mode,
+    )
+    from performance.attempts import (
+        import_selection,
+        record_attempt,
+        select_attempt,
+        verify_imported_selection,
+        verify_selection,
     )
 
 def add_common_identity_arguments(parser: argparse.ArgumentParser) -> None:
@@ -303,6 +321,44 @@ def build_parser() -> argparse.ArgumentParser:
     host_parser.add_argument("--contract", required=True)
     host_parser.add_argument("--output", required=True)
 
+    attempt_parser = subparsers.add_parser("record-attempt")
+    attempt_parser.add_argument("--artifact-root", required=True)
+    attempt_parser.add_argument("--report-directory", required=True)
+    attempt_parser.add_argument("--target", required=True)
+    attempt_parser.add_argument("--profile", required=True)
+    attempt_parser.add_argument("--attempt", required=True, type=int)
+    attempt_parser.add_argument("--run-id", required=True)
+    attempt_parser.add_argument("--commit", required=True)
+    attempt_parser.add_argument("--source-hash", required=True)
+    attempt_parser.add_argument("--runner-class", required=True)
+    attempt_parser.add_argument("--exit-code", required=True, type=int)
+    attempt_parser.add_argument("--output", required=True)
+
+    selection_parser = subparsers.add_parser("select-attempt")
+    selection_parser.add_argument("--receipt", action="append", required=True)
+    selection_parser.add_argument("--destination", required=True)
+    selection_parser.add_argument("--output", required=True)
+
+    selection_verification_parser = subparsers.add_parser(
+        "verify-attempt-selection",
+    )
+    selection_verification_parser.add_argument("--artifact-root", required=True)
+    selection_verification_parser.add_argument("--selection", required=True)
+
+    import_parser = subparsers.add_parser("import-attempt-selection")
+    import_parser.add_argument("--artifact-root", required=True)
+    import_parser.add_argument("--selection", required=True)
+    import_parser.add_argument("--destination", required=True)
+    import_parser.add_argument("--expected-target", required=True)
+    import_parser.add_argument("--expected-commit", required=True)
+
+    import_verification_parser = subparsers.add_parser(
+        "verify-imported-attempt",
+    )
+    import_verification_parser.add_argument("--destination", required=True)
+    import_verification_parser.add_argument("--expected-target", required=True)
+    import_verification_parser.add_argument("--expected-commit", required=True)
+
     return parser
 
 
@@ -324,16 +380,89 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"{sample['cpuUtilization']:.4f}"
                     for sample in payload["samples"]
                 )
-                print(
-                    "Performance host preflight failed: interval host CPU "
-                    "utilization remained above the admission ceiling. "
+                raise MeasurementQualityError(
+                    "Host preflight interval CPU utilization remained above "
+                    "the admission ceiling. "
                     f"Samples: [{observed_samples}]; maximum: "
                     f"{payload['observedMaximumCpuUtilization']:.4f}; ceiling: "
-                    f"{payload['maximumCpuUtilization']:.4f}.",
-                    file=sys.stderr,
+                    f"{payload['maximumCpuUtilization']:.4f}."
                 )
-                return 1
             print(f"Performance host preflight passed: {args.output}")
+            return 0
+        if args.command == "record-attempt":
+            payload = record_attempt(
+                artifact_root=Path(args.artifact_root),
+                report_directory=Path(args.report_directory),
+                output=Path(args.output),
+                target=args.target,
+                profile=args.profile,
+                attempt=args.attempt,
+                run_id=args.run_id,
+                commit=args.commit,
+                source_hash=args.source_hash,
+                runner_class=args.runner_class,
+                exit_code=args.exit_code,
+            )
+            print(
+                f"Recorded performance attempt {payload['attempt']} as "
+                f"{payload['status']}: {args.output}"
+            )
+            return 0
+        if args.command == "select-attempt":
+            destination = Path(args.destination)
+            output = Path(args.output)
+            payload = select_attempt(
+                receipt_paths=[Path(path) for path in args.receipt],
+                destination=destination,
+            )
+            write_json(output, payload)
+            verify_selection(
+                artifact_root=destination,
+                selection_path=output,
+            )
+            print(
+                f"Selected performance attempt {payload['selectedAttempt']}: "
+                f"{args.output}"
+            )
+            return 0
+        if args.command == "verify-attempt-selection":
+            payload = verify_selection(
+                artifact_root=Path(args.artifact_root),
+                selection_path=Path(args.selection),
+            )
+            print(
+                f"Verified performance attempt {payload['selectedAttempt']}: "
+                f"{args.selection}"
+            )
+            return 0
+        if args.command == "import-attempt-selection":
+            payload = import_selection(
+                artifact_root=Path(args.artifact_root),
+                selection_path=Path(args.selection),
+                destination=Path(args.destination),
+                expected_target=args.expected_target,
+                expected_commit=args.expected_commit,
+            )
+            verify_imported_selection(
+                destination=Path(args.destination),
+                expected_target=args.expected_target,
+                expected_commit=args.expected_commit,
+            )
+            print(
+                f"Imported performance attempt {payload['selectedAttempt']}: "
+                f"{args.destination}"
+            )
+            return 0
+        if args.command == "verify-imported-attempt":
+            payload = verify_imported_selection(
+                destination=Path(args.destination),
+                expected_target=args.expected_target,
+                expected_commit=args.expected_commit,
+            )
+            print(
+                f"Verified imported performance attempt "
+                f"{payload['selectedAttempt']}: {args.destination}"
+            )
             return 0
         if args.command == "validate-bdn":
             contract = load_json(Path(args.contract))
@@ -375,6 +504,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         write_json(Path(args.output), payload)
         print(f"Performance evidence command '{args.command}' passed: {args.output}")
         return 0
+    except MeasurementQualityError as error:
+        print(f"Performance evidence inconclusive: {error}", file=sys.stderr)
+        return MEASUREMENT_QUALITY_EXIT_CODE
     except PerformanceEvidenceError as error:
         print(f"Performance evidence failed: {error}", file=sys.stderr)
         return 1
