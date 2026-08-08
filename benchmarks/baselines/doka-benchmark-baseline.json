@@ -97,7 +97,7 @@
       "hostPreflight": {
         "admissionMetric": "interval-host-cpu-utilization",
         "admittedCpuUtilization": 0.2531328320802005,
-        "contractVersion": "2026-08-08",
+        "contractVersion": "2026-08-06",
         "generatedUtc": "2026-08-07T15:58:49.387229Z",
         "kind": "performance-host-preflight",
         "loadAverage15Minutes": 0.228515625,
@@ -1756,7 +1756,7 @@
       "hostPreflight": {
         "admissionMetric": "interval-host-cpu-utilization",
         "admittedCpuUtilization": 0.2594458438287154,
-        "contractVersion": "2026-08-08",
+        "contractVersion": "2026-08-06",
         "generatedUtc": "2026-08-07T15:58:48.537964Z",
         "kind": "performance-host-preflight",
         "loadAverage15Minutes": 0.28564453125,
@@ -3322,6 +3322,6 @@
       ]
     }
   ],
-  "contractVersion": "2026-08-08",
+  "contractVersion": "2026-08-06",
   "schemaVersion": 3
 }

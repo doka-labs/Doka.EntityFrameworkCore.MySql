@@ -350,33 +350,28 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
             self.assertEqual("contract-changed", result["disposition"])
 
     def test_auto_baseline_mode_seeds_when_contract_changed(self) -> None:
-        """Seed a candidate instead of comparing incompatible evidence semantics."""
+        """Keep historical evidence bound to its original contract bytes."""
         with tempfile.TemporaryDirectory(prefix="doka-performance-resolve-") as directory:
             root = Path(directory)
             paths = self._write_seed_evaluations(root, "github-runner")
-            baseline = performance_evidence.seed_baseline(
-                type(
-                    "Args",
-                    (),
-                    {
-                        "contract": str(self._contract_path),
-                        "evidence": [str(path) for path in paths],
-                        "version": "github",
-                        "accepted_utc": "2026-08-06T00:00:00Z",
-                        "merge_existing": None,
-                    },
-                )()
+            baseline_path = self._write_baseline(root, paths)
+
+            current_contract = json.loads(
+                self._contract_path.read_text(encoding="utf-8"),
             )
-            baseline["contractVersion"] = "older-contract"
-            baseline_path = root / "baseline.json"
-            baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+            current_contract["contractVersion"] = "2026-08-09"
+            current_contract_path = root / "current-contract.json"
+            current_contract_path.write_text(
+                json.dumps(current_contract),
+                encoding="utf-8",
+            )
 
             resolved = performance_evidence.resolve_baseline_mode(
                 type(
                     "Args",
                     (),
                     {
-                        "contract": str(self._contract_path),
+                        "contract": str(current_contract_path),
                         "baseline": str(baseline_path),
                         "profile": "scorecard",
                         "runner_class": "github-runner",
