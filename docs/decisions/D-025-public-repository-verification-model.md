@@ -97,9 +97,13 @@ expansion into the script text. Every job declares `timeout-minutes`.
 
 The lint contract lives in `eng/quality/lint-workflows.sh` and runs from the
 shared quality gate, so the hook, the local command, and CI execute one
-implementation. It resolves tools from `PATH` and hydrates pinned,
-checksum-verified versions only under `DOKA_LINT_AUTO_INSTALL=1`. The commit
-hook runs the offline shell subset; push and CI run the complete contract.
+implementation. A runner (`CI=true`) accepts only pinned, digest-verified
+builds and ignores whatever the image happens to ship; a workstation uses the
+contributor's own installation and reports a version that differs from the pin.
+`DOKA_LINT_AUTO_INSTALL` overrides that choice in either direction. Deriving
+the default from the environment rather than from a variable each workflow must
+set keeps a new caller from inheriting a gate that cannot run. The commit hook
+runs the offline shell subset; push and CI run the complete contract.
 
 Dependency review runs per pull request against the repository license policy.
 OpenSSF Scorecard runs weekly and publishes its result. CodeQL remains on

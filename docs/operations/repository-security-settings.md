@@ -9,18 +9,45 @@ verify it.
 Settings marked **required** are load-bearing for a control that the repository
 files assume. Settings marked **recommended** raise the posture further.
 
-Every command on this page acts on repository settings, so a token with the
-`repo` scope is sufficient and the account must hold the repository Admin role.
-Scope and role are separate: the scope authorizes the token, the role
-authorizes the account.
+The commands fall into two groups with different token requirements.
 
-No command here needs `admin:org`. That scope covers organization-level policy,
-which this page does not configure. Grant it only if you extend this page with
-organization settings, and prefer a fine-grained token limited to this
-repository over a classic token wherever your workflow allows it.
+**Repository settings -- every mutation on this page.** Scope and role are
+separate: the scope authorizes the token, the role authorizes the account. The
+account must hold the repository Admin role in every case.
 
-Reading the code-scanning configuration also works with the narrower
-`security_events` scope if you want a token that cannot change settings.
+Prefer a fine-grained personal access token limited to this repository, with
+`Administration: read and write` for the mutations and `Administration: read`
+for the verification commands. With a classic token, `public_repo` is
+sufficient for this public repository; `repo` is only required if the same
+token must also reach private repositories.
+
+Do not reach for `security_events` as a read-only alternative. GitHub
+documents it as granting "read and write access to security events in the code
+scanning API", so it is neither read-only nor the documented scope for reading
+this repository's settings.
+
+**Organization policy -- read-only checks only.** This page configures nothing
+at the organization level, but an organization policy can restrict the same
+surface further, so two commands read it for diagnosis. Those need `admin:org`:
+
+```bash
+gh auth refresh -h github.com -s admin:org
+```
+
+Without that scope those two reads return `403`, which means "not verified",
+never "not restricted". Every other command works without it.
+
+## Known identifiers
+
+These values are stable and are referenced by the commands below.
+
+| Identifier | Value |
+| --- | --- |
+| Repository | `doka-labs/Doka.EntityFrameworkCore.MySql` |
+| Branch ruleset on `main` | `16526347` |
+| Tag ruleset for `v*` | `20342589` |
+| Maintainer user id | `54367198` (`kdominic89`) |
+| GitHub Actions integration id | `15368` (used in status-check contexts) |
 
 ## Verify the current state
 
@@ -72,27 +99,67 @@ a person confirms the run.
 UI: Settings -> Environments -> `nuget` -> Deployment protection rules ->
 enable "Required reviewers" and add the maintainers.
 
-```bash
-gh api --method PUT "repos/${repo}/environments/nuget" \
-  --raw-field 'reviewers=[{"type":"User","id":<USER_ID>}]' \
-  --field 'deployment_branch_policy=null'
-```
+The API form replaces the environment configuration, so the existing branch
+policy has to be restated or the `main`-only restriction is lost:
 
-Resolve `<USER_ID>` with `gh api users/<login> --jq .id`. Confirm afterwards
-that `protection_rules` contains a `required_reviewers` entry.
-
-### Newly added actions must enter the allowlist
-
-`allowed_actions` is `selected` with `github_owned_allowed: true` and one
-pattern, `NuGet/login@*`. `ossf/scorecard-action` is neither GitHub-owned nor
-listed, so `scorecard.yml` cannot run until the pattern is added.
+`--field` types only `true`, `false`, `null`, and integers; `--raw-field`
+always sends a string. Neither can express an array or an object, so a typed
+body is built with `jq` and piped in through `--input`.
 
 ```bash
-gh api --method PUT "repos/${repo}/actions/permissions/selected-actions" \
-  --field github_owned_allowed=true \
-  --field verified_allowed=false \
-  --raw-field 'patterns_allowed=["NuGet/login@*","ossf/scorecard-action@*"]'
+jq -n '{
+  reviewers: [{type: "User", id: 54367198}],
+  deployment_branch_policy: {
+    protected_branches: false,
+    custom_branch_policies: true
+  }
+}' | gh api --method PUT "repos/${repo}/environments/nuget" --input -
 ```
+
+Verify both halves afterwards:
+
+```bash
+gh api "repos/${repo}/environments/nuget" --jq '.protection_rules[].type'
+# expected: required_reviewers and branch_policy
+gh api "repos/${repo}/environments/nuget/deployment-branch-policies" \
+  --jq '.branch_policies[].name'
+# expected: main
+```
+
+Resolve a different reviewer id with `gh api users/<login> --jq .id`.
+
+### Every non-GitHub action must be on the allowlist
+
+`allowed_actions` is `selected` with `github_owned_allowed: true`, so
+`actions/*` and `github/*` resolve without an entry. Every other publisher
+needs an explicit pattern before a workflow referencing it can run. The current
+set is `NuGet/login@*` and `ossf/scorecard-action@*`.
+
+Add the pattern before merging a workflow that introduces a new publisher, not
+after the first red run:
+
+```bash
+jq -n '{
+  github_owned_allowed: true,
+  verified_allowed: false,
+  patterns_allowed: ["NuGet/login@*", "ossf/scorecard-action@*"]
+}' | gh api --method PUT \
+  "repos/${repo}/actions/permissions/selected-actions" --input -
+```
+
+The `PUT` replaces the whole pattern list, so restate every entry that must
+survive.
+
+An organization-level policy can restrict the same surface further, and the
+repository-level read above does not reveal it. Checking it needs the
+`admin:org` scope:
+
+```bash
+gh api "orgs/doka-labs/actions/permissions"
+gh api "orgs/doka-labs/actions/permissions/selected-actions"
+```
+
+Treat a `403` from those two calls as "not verified", not as "not restricted".
 
 `actionlint` and `zizmor` deliberately do not appear here. They run as tools
 inside `eng/quality/lint-workflows.sh` rather than as actions, so they add no
@@ -119,9 +186,57 @@ Expected required checks on `main`:
 - `coverage-gate`
 - `dependency-review`
 
-UI: Settings -> Rules -> `main` -> Require status checks to pass. Add each
-check after it has reported once on a pull request, otherwise the name cannot
-be selected.
+A check becomes selectable only after it has reported once, so this step
+follows the first complete run rather than preceding it.
+
+UI: Settings -> Rules -> `main` -> Require status checks to pass.
+
+Editing the ruleset through the API replaces the whole rule array. The branch
+ruleset carries six rule types -- `deletion`, `non_fast_forward`,
+`required_linear_history`, `pull_request`, `required_status_checks`, and
+`code_scanning` -- and a naive `PUT` of only the status checks removes the
+other five, including the review requirement. Read, modify, and write back:
+
+```bash
+gh api "repos/${repo}/rulesets/16526347" > /tmp/ruleset.json
+
+jq '{
+  name, target, enforcement, conditions, bypass_actors,
+  rules: (.rules | map(
+    if .type == "required_status_checks" then
+      .parameters.required_status_checks = [
+        {context: "quality-gates", integration_id: 15368},
+        {context: "repo-tests", integration_id: 15368},
+        {context: "integration-smoke", integration_id: 15368},
+        {context: "spec-test-suite (mysql84)", integration_id: 15368},
+        {context: "spec-test-suite (mariadb114)", integration_id: 15368},
+        {context: "spec-test-suite (mariadb118)", integration_id: 15368},
+        {context: "coverage-gate", integration_id: 15368},
+        {context: "dependency-review", integration_id: 15368}
+      ]
+    else . end))
+}' /tmp/ruleset.json > /tmp/ruleset-update.json
+
+jq '[.rules[].type]' /tmp/ruleset-update.json
+
+gh api --method PUT "repos/${repo}/rulesets/16526347" --input /tmp/ruleset-update.json
+```
+
+The intermediate `jq '[.rules[].type]'` call is the safeguard: it must still
+list all six types before the `PUT` runs.
+
+Verify:
+
+```bash
+gh api "repos/${repo}/rulesets/16526347" --jq \
+  '[.rules[].type], [.rules[]
+   | select(.type=="required_status_checks")
+   | .parameters.required_status_checks[].context]'
+```
+
+The specification job names its matrix legs explicitly, so the contexts read
+`spec-test-suite (mysql84)` rather than the generated `spec-test-suite
+(mysql84, mysql84)`.
 
 Keep `strict_required_status_checks_policy` enabled so a stale branch must
 merge `main` before its checks count.
@@ -149,11 +264,12 @@ whether a detected token is still live, which changes how urgently a leak must
 be rotated.
 
 ```bash
-gh api --method PATCH "repos/${repo}" \
-  --raw-field 'security_and_analysis={
-    "secret_scanning_non_provider_patterns": {"status": "enabled"},
-    "secret_scanning_validity_checks": {"status": "enabled"}
-  }'
+jq -n '{
+  security_and_analysis: {
+    secret_scanning_non_provider_patterns: {status: "enabled"},
+    secret_scanning_validity_checks: {status: "enabled"}
+  }
+}' | gh api --method PATCH "repos/${repo}" --input -
 ```
 
 ### Keep CodeQL on default setup

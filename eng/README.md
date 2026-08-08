@@ -74,9 +74,16 @@ python3 -m unittest discover -s eng/tests -p 'test_*.py'
 
 `lint-workflows.sh` owns the shell and workflow contract: shell syntax plus
 shellcheck across `eng/` and `.githooks/`, then actionlint and zizmor across
-`.github/workflows/`. It resolves tools from `PATH` and hydrates pinned,
-checksum-verified versions only when `DOKA_LINT_AUTO_INSTALL=1` is set, which
-is how CI runs it. The commit hook runs `--shell-only` so it stays offline.
+`.github/workflows/`.
+
+Tool resolution depends on where it runs. On a runner (`CI=true`) it ignores
+`PATH` and uses only pinned, digest-verified builds, refetching a cached build
+whose version drifted from the pin. Locally it uses the contributor's own
+installation and reports any version difference. `DOKA_LINT_AUTO_INSTALL`
+overrides that choice in either direction: `1` hydrates locally, `0` keeps a
+runner on `PATH`. shellcheck is required rather than hydrated, so a missing
+copy stops the run instead of silently narrowing the contract. The commit hook
+runs `--shell-only` to stay offline.
 
 Performance measurements and release workflows remain explicit higher-cost
 operations. They are not part of the structural verification above.

@@ -6,16 +6,21 @@
 # patterns; shellcheck covers the engineering scripts and the Git hooks.
 #
 # Tool resolution has two modes, and the split is what makes the gate's result
-# reproducible. Under DOKA_LINT_AUTO_INSTALL=1, which is how CI runs, only the
-# pinned build is acceptable: any PATH copy is ignored, and a cached build whose
-# reported version differs from the pin is discarded and refetched, so neither a
-# runner image nor a stale cache can quietly replace the analyzed version.
-# Downloads are digest-verified -- actionlint against the checksum recorded
-# below, zizmor through pip --require-hashes against zizmor-requirements.txt.
+# reproducible.
 #
-# Without that variable the contributor's own installation is used, and a
-# version that differs from the pin is reported so a local result that CI will
-# not reproduce is visible rather than silent.
+# Hydrating mode accepts only the pinned build: any PATH copy is ignored, and a
+# cached build whose reported version differs from the pin is discarded and
+# refetched, so neither a runner image nor a stale cache can quietly replace the
+# analyzed version. Downloads are digest-verified -- actionlint against the
+# checksum recorded below, zizmor through pip --require-hashes against
+# zizmor-requirements.txt. It engages when CI=true, because a runner has no
+# contributor to install anything, or when DOKA_LINT_AUTO_INSTALL=1 is set
+# explicitly, which is how a local run reproduces the CI toolchain.
+#
+# Otherwise the contributor's own installation is used, and a version differing
+# from the pin is reported so a local result that CI will not reproduce is
+# visible rather than silent. DOKA_LINT_AUTO_INSTALL=0 forces this mode even on
+# a runner.
 
 set -euo pipefail
 
@@ -49,7 +54,29 @@ zizmor_requirements="${repo_root}/eng/quality/zizmor-requirements.txt"
 zizmor_version="$(
     sed -n 's/^zizmor==\([0-9][0-9A-Za-z.-]*\).*$/\1/p' "${zizmor_requirements}"
 )"
-auto_install="${DOKA_LINT_AUTO_INSTALL:-0}"
+# A runner has no contributor to install anything, so hydration is the default
+# there. Deriving it from CI rather than from an environment variable each
+# workflow must remember keeps a new caller from silently getting a gate that
+# cannot run. The variable still wins when set, which is how a local run
+# reproduces the CI toolchain.
+if [[ -n "${DOKA_LINT_AUTO_INSTALL:-}" ]]; then
+    # An unrecognized value must not degrade silently to the disabled branch;
+    # a runner set to 'true' would then analyze whatever the image ships.
+    case "${DOKA_LINT_AUTO_INSTALL}" in
+        0 | 1)
+            auto_install="${DOKA_LINT_AUTO_INSTALL}"
+            ;;
+        *)
+            echo "DOKA_LINT_AUTO_INSTALL must be 0 or 1," >&2
+            echo "but was '${DOKA_LINT_AUTO_INSTALL}'." >&2
+            exit 2
+            ;;
+    esac
+elif [[ "${CI:-false}" == "true" ]]; then
+    auto_install=1
+else
+    auto_install=0
+fi
 tool_root="${repo_root}/artifacts/lint-tools"
 failures=0
 
@@ -201,12 +228,26 @@ resolve_zizmor() {
     # --require-hashes makes pip reject every artifact whose digest is absent
     # from the requirements file, including transitive ones, so the install is
     # verified rather than merely version-pinned.
-    python3 -m venv "${tool_root}/venv" >&2
-    "${tool_root}/venv/bin/pip" install --quiet --disable-pip-version-check \
+    #
+    # A failed hydration exits here. Returning a path that does not exist would
+    # surface downstream as a reported finding instead of a broken toolchain,
+    # which is the opposite of what this gate is for.
+    if ! python3 -m venv "${tool_root}/venv" >&2; then
+        echo "Could not create the linter virtual environment." >&2
+        exit 1
+    fi
+
+    if ! "${tool_root}/venv/bin/pip" install --quiet --disable-pip-version-check \
         --require-hashes \
         --only-binary=:all: \
-        --requirement "${zizmor_requirements}" >&2
-    echo "${tool_root}/venv/bin/zizmor"
+        --requirement "${zizmor_requirements}" >&2; then
+        echo "Could not install the pinned zizmor ${zizmor_version} build." >&2
+        echo "Verify that this Python offers a matching wheel." >&2
+        rm -rf -- "${tool_root}/venv"
+        exit 1
+    fi
+
+    echo "${pinned}"
 }
 
 # Built with a read loop rather than mapfile so the gate behaves identically on
@@ -265,13 +306,26 @@ if (( shell_only == 1 )); then
     exit 0
 fi
 
+require_executable() {
+    local binary="$1"
+    local tool="$2"
+
+    if [[ -z "${binary}" ]] || ! command -v "${binary}" > /dev/null 2>&1; then
+        echo "Resolved ${tool} at '${binary}' is not executable." >&2
+        echo "The lint contract cannot report a result without it." >&2
+        exit 1
+    fi
+}
+
 actionlint_binary="$(resolve_actionlint)"
+require_executable "${actionlint_binary}" "actionlint"
 echo "Running actionlint ${actionlint_version}..."
 if ! "${actionlint_binary}" -color; then
     log_failure "actionlint reported findings."
 fi
 
 zizmor_binary="$(resolve_zizmor)"
+require_executable "${zizmor_binary}" "zizmor"
 echo "Running zizmor ${zizmor_version}..."
 # Offline keeps the gate deterministic and free of a GitHub token; the audits
 # that need network access are the ones already covered by branch rulesets.
