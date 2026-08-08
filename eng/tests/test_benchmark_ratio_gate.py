@@ -34,7 +34,7 @@ class BenchmarkGateTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertIn("2 pass, 0 fail, 0 target(s) without current-run evidence", result.stdout)
 
-    def test_strict_mode_rejects_missing_target_evidence(self) -> None:
+    def test_missing_target_evidence_is_rejected_by_default(self) -> None:
         """Reject a run where one engine could otherwise conceal the missing family."""
         with tempfile.TemporaryDirectory(prefix="doka-performance-gate-") as directory:
             root = Path(directory)
@@ -44,7 +44,29 @@ class BenchmarkGateTests(unittest.TestCase):
 
             self.assertEqual(2, result.returncode)
             self.assertIn("SKIP [mariadb118]", result.stderr)
-            self.assertIn("Strict mode", result.stderr)
+            self.assertIn("Missing current-run target evidence", result.stderr)
+
+    def test_absent_evidence_cannot_report_success(self) -> None:
+        """Reject an empty evidence root even when missing targets are permitted."""
+        with tempfile.TemporaryDirectory(prefix="doka-performance-gate-") as directory:
+            root = Path(directory)
+            (root / "mysql84").mkdir()
+
+            result = self._run_gate(root, allow_missing=True)
+
+            self.assertEqual(2, result.returncode)
+            self.assertIn("evaluated no target", result.stderr)
+
+    def test_permitted_partial_run_accepts_one_target(self) -> None:
+        """Accept a deliberately partial local run when the opt-out is explicit."""
+        with tempfile.TemporaryDirectory(prefix="doka-performance-gate-") as directory:
+            root = Path(directory)
+            self._write_target(root, "mysql84")
+
+            result = self._run_gate(root, allow_missing=True)
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn("1 pass, 0 fail, 1 target(s)", result.stdout)
 
     def test_rejects_same_run_benchmarkdotnet_regression(self) -> None:
         """Reject one control regression even with complete workload evidence."""
@@ -137,10 +159,16 @@ class BenchmarkGateTests(unittest.TestCase):
     def _run_gate(
         self,
         root: Path,
+        *,
+        allow_missing: bool = False,
     ) -> subprocess.CompletedProcess[str]:
-        """Run the real strict wrapper against an isolated evidence root."""
+        """Run the real wrapper against an isolated evidence root."""
         environment = os.environ.copy()
-        environment["DOKA_BENCHMARK_GATE_STRICT"] = "1"
+        # The shipped default must be what the tests exercise, so the opt-out is
+        # set only where a test is specifically about permitted partial runs.
+        environment.pop("DOKA_BENCHMARK_GATE_ALLOW_MISSING", None)
+        if allow_missing:
+            environment["DOKA_BENCHMARK_GATE_ALLOW_MISSING"] = "1"
         environment["DOKA_BENCHMARK_GATE_RUN_ID"] = "test-run"
         environment["DOKA_BENCHMARK_PROFILE"] = "smoke"
         environment["DOKA_BENCHMARK_BASELINE_PATH"] = str(root / "unused-baseline.json")

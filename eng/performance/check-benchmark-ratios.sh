@@ -9,7 +9,10 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 benchmarks_root="${1:-${repo_root}/artifacts/benchmarks}"
-strict="${DOKA_BENCHMARK_GATE_STRICT:-0}"
+# Missing evidence is a gate failure by default. A development loop that
+# deliberately measures one engine opts out explicitly; no caller can inherit
+# a permissive gate by forgetting to opt in.
+allow_missing="${DOKA_BENCHMARK_GATE_ALLOW_MISSING:-0}"
 run_id="${DOKA_BENCHMARK_GATE_RUN_ID:-}"
 profile="${DOKA_BENCHMARK_PROFILE:-scorecard}"
 contract="${repo_root}/benchmarks/performance-contract.json"
@@ -97,8 +100,14 @@ if [[ "${failures}" -gt 0 ]]; then
     exit 1
 fi
 
-if [[ "${skips}" -gt 0 && "${strict}" == "1" ]]; then
-    echo "Strict mode: missing current-run target evidence is a failure." >&2
+if [[ "${skips}" -gt 0 && "${allow_missing}" != "1" ]]; then
+    echo "Missing current-run target evidence is a gate failure." >&2
+    echo "Set DOKA_BENCHMARK_GATE_ALLOW_MISSING=1 for a partial local run." >&2
+    exit 2
+fi
+
+if [[ "${passes}" -eq 0 ]]; then
+    echo "The performance gate evaluated no target and cannot report success." >&2
     exit 2
 fi
 

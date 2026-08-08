@@ -783,7 +783,6 @@ run_combined_performance_gate() {
 
     echo "Re-evaluating the complete performance and memory gate..."
     if ! DOKA_BENCHMARK_PROFILE=scorecard \
-        DOKA_BENCHMARK_GATE_STRICT=1 \
         DOKA_BENCHMARK_GATE_RUN_ID="${release_candidate_run_id}" \
         bash "${repo_root}/eng/performance/check-benchmark-ratios.sh" \
             "${scratch_root}"; then

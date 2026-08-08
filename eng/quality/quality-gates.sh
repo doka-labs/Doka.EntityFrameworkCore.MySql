@@ -109,7 +109,9 @@ audit_project() {
         --include-transitive \
         --format json > "${audit_file}"
 
-    if ! bash "${repo_root}/eng/quality/check-vulnerability-audit.sh" "${audit_file}"; then
+    if ! bash "${repo_root}/eng/quality/check-vulnerability-audit.sh" \
+        "${audit_file}" \
+        "${project_path}"; then
         echo "Vulnerability audit failed for ${audit_name}." >&2
         exit 1
     fi

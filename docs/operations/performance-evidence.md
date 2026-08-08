@@ -254,16 +254,20 @@ cross-target boundary:
 
 ```bash
 DOKA_BENCHMARK_PROFILE=scorecard \
-DOKA_BENCHMARK_GATE_STRICT=1 \
 DOKA_BENCHMARK_GATE_RUN_ID=<run-id> \
 bash eng/performance/check-benchmark-ratios.sh artifacts/benchmarks
 ```
 
-The strict gate exits:
+The gate exits:
 
 - `0` when both targets pass;
 - `1` when current evidence or a budget fails;
 - `2` when a required target has no current-run evidence.
+
+Missing evidence fails by default, so no caller can inherit a permissive gate
+by omitting a variable. A local run that deliberately measures one engine sets
+`DOKA_BENCHMARK_GATE_ALLOW_MISSING=1`; even then the gate refuses to report
+success when it evaluated no target at all.
 
 Historical evidence outside the selected run ID cannot satisfy the gate.
 

@@ -320,12 +320,36 @@ jobs:
     runs-on: ubuntu-latest
     needs: [repo-tests, spec-test-suite, integration-smoke]
     if: >-
-      always()
-      && (github.event_name == 'schedule'
+      github.event_name == 'schedule'
       || (github.event_name == 'workflow_dispatch'
-      && inputs.profile != 'baseline-proposal'))
+      && inputs.profile != 'baseline-proposal')
 
     steps:
+      # A merged report assembled from a failed producer measures a partial
+      # test run. Without this assertion the gate can report a met coverage
+      # floor for a run whose tests never finished.
+      - name: Require successful coverage producers
+        env:
+          INTEGRATION_RESULT: ${{ needs.integration-smoke.result }}
+          REPO_TESTS_RESULT: ${{ needs.repo-tests.result }}
+          SPEC_RESULT: ${{ needs.spec-test-suite.result }}
+        run: |
+          failed=0
+          for entry in \
+            "repo-tests=${REPO_TESTS_RESULT}" \
+            "spec-test-suite=${SPEC_RESULT}" \
+            "integration-smoke=${INTEGRATION_RESULT}"; do
+            if [[ "${entry#*=}" != "success" ]]; then
+              echo "Coverage producer ${entry%%=*} reported '${entry#*=}'." >&2
+              failed=1
+            fi
+          done
+
+          if [[ "${failed}" -ne 0 ]]; then
+            echo "Coverage cannot be evaluated against incomplete evidence." >&2
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
