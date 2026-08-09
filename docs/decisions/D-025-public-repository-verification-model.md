@@ -9,7 +9,7 @@ scope: "CI verification lanes, workflow security posture, and lint contract for 
 supersedes: [D-023]
 superseded-by: []
 amends: []
-amended-by: []
+amended-by: [D-026]
 madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---

@@ -98,7 +98,7 @@ The numeric branch of `ToBoolean` covers the full signed / unsigned / floating /
 
 ### Implementation Snapshot
 
-- `ToBoolean` accepts the .NET-stdlib bool vocabulary plus the literal `"1"` shortcut; broader tokens (`"yes"`, `"no"`, `"0"`, `"Y"`, `"N"`, `"on"`, `"off"`, ...) are intentionally NOT recognised and route through the existing `InvalidOperationException` path.
+- `ToBoolean` accepts the .NET-stdlib bool vocabulary plus the literal `"1"` shortcut; broader tokens (`"yes"`, `"no"`, `"0"`, `"Y"`, `"N"`, `"on"`, `"off"`, ...) are intentionally NOT recognized and route through the existing `InvalidOperationException` path.
 
 ### Additional Alternative Rationale
 
@@ -116,7 +116,7 @@ The numeric branch of `ToBoolean` covers the full signed / unsigned / floating /
 
 ### Re-evaluation Triggers
 
-- A new call site emerges that feeds a non-numeric string into `ToBoolean` (e.g. a configuration-driven feature flag, a scaffolded enum, an MCP / CLI driver that reads operator input). The trigger predicate is "a string that is neither `"1"` nor a `bool.TryParse`-recognised token reaches `ToBoolean`"; the response is to extend the vocabulary explicitly per the new call-site's needs, with the property test updated in the same commit.
+- A new call site emerges that feeds a non-numeric string into `ToBoolean` (e.g. a configuration-driven feature flag, a scaffolded enum, an MCP / CLI driver that reads operator input). The trigger predicate is "a string that is neither `"1"` nor a `bool.TryParse`-recognized token reaches `ToBoolean`"; the response is to extend the vocabulary explicitly per the new call-site's needs, with the property test updated in the same commit.
 - The .NET BCL itself extends `bool.TryParse` to accept additional tokens. The provider's vocabulary would automatically widen via the `bool.TryParse` delegation; the ADR's wording would need to update accordingly.
 - A production call site emits a documented string outside the accepted vocabulary.
 - Connector or engine lock-function result types change.

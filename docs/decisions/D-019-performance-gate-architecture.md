@@ -9,7 +9,7 @@ scope: "Named performance workloads, reproducible baselines, budgets, and soak g
 supersedes: []
 superseded-by: []
 amends: []
-amended-by: []
+amended-by: [D-026]
 madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---

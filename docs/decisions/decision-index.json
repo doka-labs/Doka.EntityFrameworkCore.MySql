@@ -218,7 +218,9 @@
       "supersedes": [],
       "supersededBy": [],
       "amends": [],
-      "amendedBy": []
+      "amendedBy": [
+        "D-026"
+      ]
     },
     {
       "id": "D-020",
@@ -295,6 +297,22 @@
       ],
       "supersededBy": [],
       "amends": [],
+      "amendedBy": [
+        "D-026"
+      ]
+    },
+    {
+      "id": "D-026",
+      "title": "Qualify releases from bound evidence and paired performance runs",
+      "status": "proposed",
+      "date": "2026-08-09",
+      "path": "docs/decisions/D-026-release-qualification-and-paired-performance.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [
+        "D-019",
+        "D-025"
+      ],
       "amendedBy": []
     }
   ]
