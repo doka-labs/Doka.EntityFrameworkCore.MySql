@@ -51,8 +51,8 @@ process architecture. A matching runner label alone is not sufficient.
 | Profile | Purpose | Workload samples | Soak | Baseline |
 |---|---|---:|---|---|
 | `smoke` | Fast harness and contract check | 1 to 3 | Optional | Not required |
-| `scorecard` | Release evidence | 256; 128 expensive, adaptively extended up to 32x | Required | Required |
-| `stress` | Extended investigation | 512; 256 expensive, adaptively extended up to 32x | Required | Required |
+| `scorecard` | Release evidence | 256; 128 expensive, adaptively extended up to 64x | Required | Required |
+| `stress` | Extended investigation | 512; 256 expensive, adaptively extended up to 64x | Required | Required |
 
 Only `scorecard` and `stress` execute the complete 55-cell workload matrix.
 Expensive cells retain at least 100 observations for p99 while avoiding a
@@ -67,13 +67,22 @@ many samples the same workload needs:
 
 | Target | `scorecard` | `stress` |
 |---|---:|---:|
-| MariaDB 11.8 | 22x | 27x |
-| MySQL 8.4 | 24x | 30x |
+| MariaDB 11.8 | 26x | 33x |
+| MySQL 8.4 | 27x | 34x |
 
-A multiplier below the largest of these discards measurements whose precision
-is well inside the target, because a workload stopped at the cap has by
-definition missed the duration floor. A contract test asserts the cap against
-every required target's baseline so the two cannot drift apart again.
+Those are observations, not constants. The same workload measured twice on the
+same commit has needed up to 1.9x the earlier population, because how many
+samples fit inside the duration floor depends on how fast the host answers that
+day. The multiplier therefore carries that spread on top of the largest
+observed demand rather than sitting just above it: 34x observed, 1.9x spread,
+64x configured.
+
+A multiplier below that discards measurements whose precision is well inside
+the target, because a workload stopped at the cap has by definition missed the
+duration floor. A contract test asserts the cap against every required target's
+baseline so the two cannot drift apart again. When that test fails after a
+baseline update, the run-to-run spread has outgrown the headroom, and the
+multiplier is what moves.
 The runner never weakens the error budget or deletes observations;
 evidence that remains unstable at the cap fails validation. Fast, idempotent
 operations use fixed contract-owned batches so timer resolution and loop
