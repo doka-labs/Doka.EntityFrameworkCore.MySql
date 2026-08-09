@@ -1,14 +1,19 @@
 version: 2
 updates:
-  # The workflow service containers and the Compose stack are digest-pinned,
-  # so a published engine security fix never reaches this repository unless
-  # something proposes the new digest. github-actions updates do not cover
-  # container images, which is why this ecosystem is declared separately.
-  - package-ecosystem: docker
+  # The engine images are digest-pinned, so a published security fix reaches
+  # this repository only if something proposes the new digest. Compose files
+  # need the docker-compose ecosystem; the docker ecosystem reads Dockerfiles,
+  # of which this repository has none, and no ecosystem updates the container
+  # images referenced inside workflow files.
+  #
+  # The Compose stack is therefore the one place an update lands, and it is the
+  # source the other copies are held against. A proposal that changes it leaves
+  # the workflows, the performance contract, and the C# constants behind until
+  # eng/quality/check-image-pins.py --fix carries it over; the same check fails
+  # the build while they disagree.
+  - package-ecosystem: docker-compose
     directories:
-      - /
       - /docker
-      - /.github/workflows
     schedule:
       interval: weekly
       day: monday

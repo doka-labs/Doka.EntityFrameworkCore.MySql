@@ -53,6 +53,8 @@ class ReleaseRehearsalTests(unittest.TestCase):
             "    'requireTag': os.environ.get('DOKA_RELEASE_REQUIRE_TAG'),\n"
             "    'version': os.environ.get('DOKA_RELEASE_VERSION'),\n"
             "    'runnerIdentity': os.environ.get('DOKA_RELEASE_RUNNER_IDENTITY'),\n"
+            "    'received': {k: v for k, v in os.environ.items()\n"
+            "                 if k.startswith(('DOKA_RELEASE', 'DOKA_BENCHMARK'))},\n"
             "}))\n"
             "PY\n",
             encoding="utf-8",
@@ -77,11 +79,25 @@ class ReleaseRehearsalTests(unittest.TestCase):
             text=True,
         )
 
-    def rehearse(self, *arguments: str) -> subprocess.CompletedProcess[str]:
-        """Invoke the copied wrapper inside the throwaway repository."""
-        environment = dict(os.environ)
-        environment.pop("DOKA_RELEASE_REQUIRE_TAG", None)
-        environment.pop("DOKA_RELEASE_VERSION", None)
+    def rehearse(
+        self,
+        *arguments: str,
+        inject: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        """Invoke the copied wrapper inside the throwaway repository.
+
+        The caller's release and benchmark variables are cleared first so the
+        same test runs the same way on a workstation and on a release runner.
+        What a case wants the wrapper to face, it passes through `inject`:
+        removing everything up front would leave the wrapper's own handling
+        untested, which is exactly how a leak stayed invisible before.
+        """
+        environment = {
+            name: value
+            for name, value in os.environ.items()
+            if not name.startswith(("DOKA_RELEASE", "DOKA_BENCHMARK"))
+        }
+        environment.update(inject or {})
 
         return subprocess.run(
             ["bash", str(self.root / "eng" / "rehearse-release.sh"), *arguments],
@@ -113,6 +129,69 @@ class ReleaseRehearsalTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         receipt = json.loads(self.receipt.read_text(encoding="utf-8"))
         self.assertEqual(["--stage", "quality"], receipt["arguments"])
+
+    def test_leftover_state_does_not_reach_the_orchestrator(self) -> None:
+        """Reject state from an earlier run deciding what a rehearsal answers.
+
+        A shell that already ran a rehearsal still holds its variables. Passed
+        on, they change the run: a foreign baseline is compared, measurement is
+        skipped, or the deadline marker keeps the orchestrator from arming its
+        own timeout. None of these are inputs a rehearsal accepts.
+        """
+        leftovers = {
+            "DOKA_RELEASE_CANDIDATE_DEADLINE_ACTIVE": "1",
+            "DOKA_RELEASE_CANDIDATE_REUSE_PERFORMANCE_FROM": "/tmp/foreign",
+            "DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS": "1",
+            "DOKA_RELEASE_CANDIDATE_PERFORMANCE_ARTIFACT_ROOT": "/tmp/foreign",
+            "DOKA_BENCHMARK_BASELINE_PATH": "/tmp/foreign-baseline.json",
+            "DOKA_BENCHMARK_BASELINE_MODE": "seed",
+            "DOKA_BENCHMARK_DEADLINE_ACTIVE": "1",
+            "DOKA_BENCHMARK_PROFILE": "smoke",
+        }
+
+        result = self.rehearse("10.0.0-rc.6", inject=leftovers)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        received = json.loads(self.receipt.read_text(encoding="utf-8"))["received"]
+        for name in leftovers:
+            with self.subTest(variable=name):
+                self.assertNotIn(name, received)
+
+    def test_the_supported_inputs_are_forwarded(self) -> None:
+        """Keep the documented inputs working, so stages can share a directory.
+
+        Rehearsing stage by stage depends on them: without a shared run
+        identifier each stage writes its own evidence directory and a later
+        stage cannot find what an earlier one produced.
+        """
+        supported = {
+            "DOKA_RELEASE_CANDIDATE_RUN_ID": "rehearsal-chain",
+            "DOKA_RELEASE_CANDIDATE_RESUME": "1",
+            "DOKA_BENCHMARK_RUNNER_CLASS": "local-test-runner",
+        }
+
+        result = self.rehearse("10.0.0-rc.6", inject=supported)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        received = json.loads(self.receipt.read_text(encoding="utf-8"))["received"]
+        for name, value in supported.items():
+            with self.subTest(variable=name):
+                self.assertEqual(value, received.get(name))
+
+    def test_an_inherited_runner_identity_cannot_relabel_the_rehearsal(self) -> None:
+        """Keep a rehearsal identifiable as one in the evidence it produces.
+
+        A release runner exports its own identity. Inherited, it would label
+        local evidence as if a hosted runner had produced it.
+        """
+        result = self.rehearse(
+            "10.0.0-rc.6",
+            inject={"DOKA_RELEASE_RUNNER_IDENTITY": "github/1000/repository-tests"},
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        receipt = json.loads(self.receipt.read_text(encoding="utf-8"))
+        self.assertEqual("local-rehearsal", receipt["runnerIdentity"])
 
     def test_one_passing_stage_is_not_reported_as_a_passing_path(self) -> None:
         """Reject the reading that one green stage qualifies the candidate.

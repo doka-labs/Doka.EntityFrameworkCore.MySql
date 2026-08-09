@@ -29,6 +29,15 @@ The performance stages compare against an accepted baseline recorded for their
 own runner class. A workstation is a different runner class than the hosted
 matrix, so a full rehearsal reaches the comparison and stops there. Rehearse
 the remaining stages individually when that happens.
+
+Environment:
+  Only these are read from the environment. Every other DOKA_RELEASE_* and
+  DOKA_BENCHMARK_* variable is removed before the orchestrator runs, so state
+  left over from an earlier run cannot change what a rehearsal answers.
+
+  DOKA_RELEASE_CANDIDATE_RUN_ID   Share one evidence directory across stages.
+  DOKA_RELEASE_CANDIDATE_RESUME   Continue into that directory (set to 1).
+  DOKA_BENCHMARK_RUNNER_CLASS     Override the detected runner class.
 USAGE
 }
 
@@ -89,12 +98,34 @@ EOF
 fi
 echo
 
+# A rehearsal answers one question: do the gates accept this commit. Anything
+# the orchestrator reads from the environment can change that answer, and a
+# shell that ran an earlier rehearsal still holds its state: a run identifier,
+# a resume flag, a foreign baseline path, or the deadline marker that keeps the
+# orchestrator from arming its own timeout. Those are not inputs a rehearsal
+# accepts; they are leftovers. Only the variables below survive, and every
+# other release or benchmark variable is removed before the orchestrator runs.
+rehearsal_inputs=(
+    DOKA_RELEASE_CANDIDATE_RUN_ID
+    DOKA_RELEASE_CANDIDATE_RESUME
+    DOKA_BENCHMARK_RUNNER_CLASS
+)
+
+while IFS='=' read -r inherited_name _; do
+    for supported_name in "${rehearsal_inputs[@]}"; do
+        if [[ "${inherited_name}" == "${supported_name}" ]]; then
+            continue 2
+        fi
+    done
+    unset "${inherited_name}"
+done < <(env | grep -E '^DOKA_(RELEASE|BENCHMARK)_' || true)
+
 # The orchestrator derives its version from the tag at HEAD. Without one it
 # needs the version explicitly, or it would pack the bare VersionPrefix and
 # qualify a package the real candidate never produces.
 export DOKA_RELEASE_REQUIRE_TAG=0
 export DOKA_RELEASE_VERSION="${release_version}"
-export DOKA_RELEASE_RUNNER_IDENTITY="${DOKA_RELEASE_RUNNER_IDENTITY:-local-rehearsal}"
+export DOKA_RELEASE_RUNNER_IDENTITY=local-rehearsal
 
 status=0
 "${repo_root}/eng/release/release-candidate.sh" "$@" || status=$?

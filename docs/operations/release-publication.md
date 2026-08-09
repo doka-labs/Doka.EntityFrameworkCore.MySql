@@ -132,6 +132,20 @@ candidate will carry, and runs the qualification gates unchanged. It needs a
 clean worktree, creates no tag, and publishes nothing. A single gate can be
 rehearsed on its own with `--stage <stage>` while a fix is in progress.
 
+It reads three variables from the environment and removes every other
+`DOKA_RELEASE_*` and `DOKA_BENCHMARK_*` one before the orchestrator starts, so
+state left over from an earlier run cannot change what a rehearsal answers:
+
+| Variable | Purpose |
+|---|---|
+| `DOKA_RELEASE_CANDIDATE_RUN_ID` | Share one evidence directory across stages |
+| `DOKA_RELEASE_CANDIDATE_RESUME` | Continue into that directory (set to `1`) |
+| `DOKA_BENCHMARK_RUNNER_CLASS` | Override the detected runner class |
+
+Rehearsing stage by stage needs the first two, because each invocation
+otherwise writes its own evidence directory and a later stage cannot find what
+an earlier one produced.
+
 A green rehearsal is not an approval. It says the gates pass on this commit
 with these tools; the hosted candidate still repeats them on its own runners,
 where runner speed and container timing differ.

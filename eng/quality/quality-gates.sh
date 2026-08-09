@@ -64,6 +64,10 @@ else
     "${repo_root}/eng/quality/lint-workflows.sh"
 fi
 
+echo "Verifying database image pins..."
+PYTHONDONTWRITEBYTECODE=1 python3 "${repo_root}/eng/quality/check-image-pins.py" \
+    --repo "${repo_root}"
+
 echo "Validating architecture decisions..."
 "${repo_root}/eng/quality/validate-adrs.sh"
 
