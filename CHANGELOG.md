@@ -7,38 +7,37 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### Added
+## [10.0.0-rc.4] - 2026-08-08
 
-- Add one portable system-versioned temporal-table model and query contract for
-  MySQL 8.4 and MariaDB 11.4 / 11.8. MariaDB uses native system versioning;
-  MySQL uses transactional InnoDB history tables and provider-owned triggers.
-- Add `TemporalAsOf`, `TemporalAll`, `TemporalFromTo`, `TemporalBetween`, and
-  `TemporalContainedIn` query roots with UTC boundary validation and mandatory
-  no-tracking semantics.
-- Add deterministic temporal migrations, native and emulated reverse
-  engineering, generated model-code round trips, schema-safety validation, and
-  live engine-matrix contracts.
-- Add complete non-recursive and recursive CTE conformance through EF Core's
-  parameterized, composable SQL query roots, including the documented
-  MariaDB 11.4 / 11.8 data-modification boundary.
-- Add a live temporal-table and recursive-CTE example to the release-candidate
-  matrix.
-- Add temporal TPT and TPC mapping with independent physical-table period
-  metadata, migration ordering, query translation, and conformance coverage.
-- Add typed MariaDB application-time and bitemporal configuration, migrations,
-  reverse engineering, generated model code, `WITHOUT OVERLAPS`, and
-  `FOR PORTION OF` update and delete roots.
-- Add complete `JSON_TABLE` expression quoting for compiled models and
-  precompiled query generation.
+This release candidate supersedes `10.0.0-rc.3`, which failed hosted
+qualification because the accepted performance baseline had been recorded under
+an earlier evidence contract. It closes the manual handover in baseline
+acceptance, so that evidence is produced, validated, and proposed by the
+benchmark workflow itself rather than moved between runs by hand.
 
-### Documentation
+Install the release candidate explicitly because NuGet excludes prerelease
+packages from normal stable-version resolution:
 
-- Document the temporal and CTE support matrix, public APIs, schema lifecycle,
-  engine constraints, runnable verification, and retrieved primary sources.
-- Document the EF Core 10 complex-type contract and separate its upstream
-  boundaries from provider and engine responsibilities.
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.4
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.4
+```
 
-## [10.0.0-rc.3] - 2026-08-04
+### Fixed
+
+- Validate hosted performance evidence before qualification begins, so a
+  candidate fails on its preflight rather than after the full matrix has run.
+- Produce baseline proposals from the benchmark workflow itself, with no
+  artifact download, run-identifier handover, or second dispatch between
+  measuring and proposing.
+- Keep the fixed large-write and HiLo populations inside their deadlines by
+  batching per-context inserts and preserving cancellation across the
+  synchronous and asynchronous setup paths.
+- Bound scorecard measurement retries to a second attempt on an independent
+  runner, and carry the contract provenance of an accepted baseline so a
+  rerun cannot silently rebind it to a different contract.
+
+## [10.0.0-rc.3] - 2026-08-07
 
 This release candidate supersedes `10.0.0-rc.2` after hosted qualification
 exposed the same undersized hang deadline for the fixed 10,000-row
@@ -90,7 +89,7 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
 - Reconcile installation, supported-engine, hosted-target, example, and
   project-layout guidance with the current provider contract.
 
-## [10.0.0-rc.1] - 2026-08-03
+## [10.0.0-rc.1] - 2026-08-04
 
 First public release candidate for the `10.0.x` package line.
 
@@ -166,7 +165,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.3...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.4...HEAD
+[10.0.0-rc.4]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.4
 [10.0.0-rc.3]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.3
 [10.0.0-rc.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.2
 [10.0.0-rc.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.1
