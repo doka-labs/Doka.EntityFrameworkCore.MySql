@@ -37,6 +37,15 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   over from an earlier run could compare a foreign baseline, skip measurement,
   or disable the orchestrator's own timeout.
 
+### Changed
+
+- Update the MySQL test and evidence image from 8.4.10 to 8.4.11, the current
+  patch of the supported 8.4 LTS line. The release carries InnoDB, optimizer,
+  JSON-schema, and replication fixes; the one behavior change that reaches a
+  provider is stricter record-size validation for
+  `ALTER TABLE ... ALGORITHM=INSTANT`. MariaDB 11.4 and 11.8 already carry
+  their latest patches.
+
 ### Added
 
 - Add a repository gate that holds every copy of an engine image pin against
@@ -44,6 +53,15 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   assigned to the wrong target, or unknown to the source. The pin appears in
   two workflows, the performance contract, and a C# constant, and only the
   compose stack receives updates.
+- Add a contract test that runs the real baseline-mode resolver against the
+  checked-in contract and accepted baseline. A contract edited without a new
+  version stops the hosted benchmark before it measures anything, and no other
+  gate asks that question.
+- Validate the contract version as a real calendar date with an optional
+  same-day revision counting from two, in one place that the benchmark
+  workflow reads through. The workflow previously carried a second pattern of
+  its own, which rejected a version the tooling considered valid and stopped
+  the run before the resolver could report anything.
 
 ## [10.0.0-rc.6] - 2026-08-09
 

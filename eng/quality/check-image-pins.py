@@ -38,6 +38,19 @@ SERVICES = {
     "mariadb118": "mariadb118",
 }
 
+# The release line each target is allowed to sit on. The specification suites,
+# the performance contract, and the accepted baseline are all calibrated to
+# these, so an image from another series measures and tests something the
+# provider does not claim to support. Update proposals follow the highest
+# published version rather than a line, which is how a jump to a different
+# series arrives looking like a routine patch. Changing a line here is the
+# deliberate act that such a move requires.
+SUPPORTED_LINES = {
+    "mysql84": "mysql:8.4",
+    "mariadb114": "mariadb:11.4",
+    "mariadb118": "mariadb:11.8",
+}
+
 CSHARP_FILE = "tests/Doka.EntityFrameworkCore.MySql.TestUtilities/TestDatabaseImages.cs"
 CSHARP_CONSTANTS = {
     "mysql84": "MySql84",
@@ -131,6 +144,14 @@ def read_compose_pins(root: Path) -> dict[str, str]:
         if not is_digest_pin(pin):
             raise PinError(
                 f"{COMPOSE} pins '{target}' as '{pin}', which carries no digest."
+            )
+
+        supported = SUPPORTED_LINES[target]
+        if release_line(pin) != supported:
+            raise PinError(
+                f"{COMPOSE} pins '{target}' on {release_line(pin)}, but the "
+                f"provider supports {supported}. Moving a target to another "
+                "release line needs its own matrix and baseline work."
             )
 
     return pins

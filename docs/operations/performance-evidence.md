@@ -388,6 +388,19 @@ Historical evidence outside the selected run ID cannot satisfy the gate.
 
 ## Hosted runner baseline
 
+Any edit to the contract needs a new `contractVersion`. The resolver compares
+that version first: a different one means the accepted baseline belongs to an
+earlier contract and is reseeded, an equal one means it belongs to this
+contract and is validated against its bytes. Editing the contract without
+advancing the version therefore does not reuse the baseline, it fails the run
+before any measurement starts, because the stored evidence no longer matches
+the contract it claims.
+
+Versions are dated. A second revision on the same day appends a counter, as in
+`2026-08-09.2`, rather than borrowing a date the revision does not belong to.
+The accepted baseline keeps the version it was measured under until a hosted
+run produces a reviewed replacement.
+
 The `benchmark` workflow resolves its baseline mode and required work before
 starting services or either expensive matrix job:
 

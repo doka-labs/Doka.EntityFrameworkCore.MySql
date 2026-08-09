@@ -22,7 +22,10 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
         contract is bumped to that same date, which turns a passing test into
         one that asserts the opposite of its name.
         """
-        return f"{self.contract['contractVersion']}-revised"
+        current = self.contract["contractVersion"]
+        date, _, revision = current.partition(".")
+
+        return f"{date}.{int(revision) + 1 if revision else 2}"
 
     def test_historical_gate_rejects_regression_against_matching_runner(self) -> None:
         """Reject a regression above both the ratio and absolute allowance."""

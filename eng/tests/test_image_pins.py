@@ -215,6 +215,25 @@ class ImagePinDriftTests(unittest.TestCase):
 
         self.assertRejected("mysql84")
 
+    def test_a_pin_on_another_release_line_is_rejected(self) -> None:
+        """Reject a target moved off the line the provider supports.
+
+        An update proposal follows the highest published version, not a line,
+        so a jump to another series arrives looking like a routine patch. The
+        specification suites and the accepted baseline are calibrated to the
+        supported lines, and every copy moving together does not make the new
+        series supported.
+        """
+        current = compose_pin("mysql84")
+        other_series = "mysql:26.7.0@sha256:" + "c" * 64
+
+        for relative in (COMPOSE, *MIRRORS):
+            self.edit(relative, current, other_series)
+
+        result = self.run_gate()
+        self.assertNotEqual(0, result.returncode, result.stdout)
+        self.assertIn("supports mysql:8.4", result.stderr)
+
     def test_a_compose_stack_without_a_digest_is_rejected(self) -> None:
         """Refuse a source pin that could move under a floating tag."""
         current = compose_pin("mysql84")

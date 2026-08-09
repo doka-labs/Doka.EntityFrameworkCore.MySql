@@ -23,6 +23,22 @@ updates:
       database-images:
         patterns:
           - "*"
+    ignore:
+      # The provider supports MySQL 8.4 LTS and MariaDB 11.4 / 11.8 LTS, and
+      # the specification suites, the performance contract, and the accepted
+      # baseline are all calibrated to those lines. Proposals follow the
+      # highest published version, which is a different series entirely, so
+      # only patches within a supported line are wanted here. Moving to
+      # another line is a provider decision with its own matrix and baseline
+      # work, not something an update proposal can carry.
+      - dependency-name: mysql
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+      - dependency-name: mariadb
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
     open-pull-requests-limit: 1
     commit-message:
       prefix: chore

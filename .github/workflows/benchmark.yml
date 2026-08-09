@@ -68,16 +68,11 @@ jobs:
         run: |
           mkdir -p artifacts
 
-          contract_version="$(
-            jq -er '
-              .contractVersion
-              | select(
-                  type == "string"
-                  and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
-                )
-            ' benchmarks/performance-contract.json
-          )"
-
+          # The resolver validates the contract, including the format of its
+          # version, so the version is read back from its output rather than
+          # matched again here. A second pattern in this step would be a
+          # separate contract that can disagree with the first one silently,
+          # and it would reject the file before the resolver ever sees it.
           python3 -m eng.performance.cli resolve-baseline-mode \
             --contract benchmarks/performance-contract.json \
             --baseline benchmarks/baselines/doka-benchmark-baseline.json \
@@ -86,6 +81,7 @@ jobs:
             --requested-mode "${REQUESTED_MODE}" \
             --output artifacts/baseline-mode.json
 
+          contract_version="$(jq -er '.contractVersion' artifacts/baseline-mode.json)"
           mode="$(jq -er '.mode' artifacts/baseline-mode.json)"
           baseline_branch="automation/performance-baseline-${contract_version}"
           proposal_number=""

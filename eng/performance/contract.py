@@ -4,12 +4,23 @@
 import hashlib
 import json
 import math
+import re
 import subprocess
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Sequence
 
 BASELINE_PATH = Path("benchmarks/baselines/doka-benchmark-baseline.json")
+
+# A contract revision is dated, and a second revision on the same day appends a
+# counter. The shape is matched here and the date behind it is then checked as
+# a real calendar date, because a shape alone accepts 2026-02-29 in a year that
+# has no such day. One definition governs the format: the hosted benchmark
+# workflow reads the version through this validator rather than applying a
+# pattern of its own, which would otherwise disagree with it silently.
+CONTRACT_VERSION = re.compile(
+    r"(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})(?:\.(?P<revision>[0-9]+))?"
+)
 SOAK_SCENARIO_IDS = {
     "soak.hilo-cache-bound",
     "soak.pooled-buffer-return",
@@ -339,12 +350,49 @@ def require_identity(
             )
 
 
+def validate_contract_version(value: str) -> None:
+    """Reject a contract version that is not a real date with an optional revision.
+
+    The first revision of a day carries no counter, so a suffix starts at two.
+    A version that merely looks like a date can otherwise reach the evidence:
+    it would seed a baseline, name a proposal branch, and persist into release
+    evidence while claiming a point in time that never existed.
+    """
+    parsed = CONTRACT_VERSION.fullmatch(value)
+    if parsed is None:
+        raise PerformanceEvidenceError(
+            f"contract.contractVersion is '{value}', which is not a release date "
+            "with an optional same-day revision, such as '2026-08-09' or "
+            "'2026-08-09.2'."
+        )
+
+    try:
+        date.fromisoformat(parsed.group("date"))
+    except ValueError as error:
+        raise PerformanceEvidenceError(
+            f"contract.contractVersion is '{value}', whose date is not a real "
+            "calendar date."
+        ) from error
+
+    revision = parsed.group("revision")
+    if revision is None:
+        return
+
+    if revision != str(int(revision)) or int(revision) < 2:
+        raise PerformanceEvidenceError(
+            f"contract.contractVersion is '{value}'. A same-day revision counts "
+            "from two, because the first revision of a day carries no suffix."
+        )
+
+
 def validate_contract(contract: dict[str, Any]) -> None:
     """Validate uniqueness, references, and required dimension coverage."""
     if contract.get("schemaVersion") != 6:
         raise PerformanceEvidenceError("Performance contract schemaVersion must be 6.")
 
-    required_string(contract, "contractVersion", "contract")
+    validate_contract_version(
+        required_string(contract, "contractVersion", "contract")
+    )
     finite_number(
         contract.get("evidenceMaximumAgeHours"),
         "contract.evidenceMaximumAgeHours",
