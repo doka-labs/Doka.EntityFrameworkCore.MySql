@@ -7,6 +7,42 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.0.0-rc.6] - 2026-08-09
+
+This release candidate supersedes `10.0.0-rc.5`, whose qualification stopped at
+the readiness gate before any stage ran. That gate required both engines to
+share a run identifier, which the release matrix cannot produce: it runs one
+measurement job per engine and names that job in the identifier. Baseline
+promotion had already dropped the same requirement; the gate kept its own copy.
+
+Qualifying a candidate now has a local rehearsal, because a pushed tag is
+immutable and each failed attempt so far cost a version number that can never
+be reused.
+
+Install the release candidate explicitly because NuGet excludes prerelease
+packages from normal stable-version resolution:
+
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.6
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.6
+```
+
+### Fixed
+
+- Accept baseline evidence measured by the release matrix, so readiness rests
+  on the commit and source hash that prove both engines measured the same
+  software rather than on an identifier that names one job.
+- Resolve a packed version by its own package id. The spatial package carries
+  the provider id as a prefix, so it answered for the provider whenever the
+  filesystem listed it first, and the candidate then reported a version
+  mismatch between two correctly built packages.
+
+### Added
+
+- Add `eng/rehearse-release.sh`, which runs the release orchestrator against
+  the working commit without a tag, so a defect in the qualification path
+  costs a local run instead of a version number.
+
 ## [10.0.0-rc.5] - 2026-08-09
 
 This release candidate supersedes `10.0.0-rc.4`, which failed hosted
@@ -241,7 +277,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.5...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.6...HEAD
+[10.0.0-rc.6]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.6
 [10.0.0-rc.5]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.5
 [10.0.0-rc.4]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.4
 [10.0.0-rc.3]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.3
