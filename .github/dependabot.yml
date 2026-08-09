@@ -14,9 +14,15 @@ updates:
   - package-ecosystem: docker-compose
     directories:
       - /docker
+    # Monthly rather than weekly, because accepting an engine image is not a
+    # file edit: the pin is what a measurement was taken against, so every
+    # accepted update invalidates the accepted baseline and costs a benchmark
+    # run. These images are rebuilt without a version change whenever their
+    # base picks up patches, which at a weekly cadence would mean a rollover
+    # for each rebuild. A published CVE is handled when it is published, not
+    # by proposing more often.
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "06:00"
       timezone: Europe/Berlin
     groups:

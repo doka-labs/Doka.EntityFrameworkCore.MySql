@@ -293,6 +293,34 @@ solve for.
 Recalibration is a reviewed contract change with its own version bump. It is
 never applied automatically from a failing run.
 
+## Accept an engine image update
+
+Dependabot proposes engine images against the Compose stack, which is the one
+place it edits. The same pin also lives in two workflows, the performance
+contract, and a C# constant, so its pull request is incomplete by
+construction and the pin gate rejects it until the other copies follow:
+
+```bash
+gh pr checkout <number>
+python3 eng/quality/check-image-pins.py --fix
+```
+
+A new image is a new measurement environment, so the contract needs a new
+`contractVersion` in the same change. The accepted baseline was taken against
+the previous image and stays as it is; the next hosted run reseeds and opens
+its own review.
+
+Proposals arrive monthly rather than weekly, because these images are rebuilt
+whenever their base picks up patches, without any change to the engine
+version. Each accepted rebuild costs a benchmark run, so they are batched. A
+published vulnerability is handled when it is published and does not wait for
+that cadence.
+
+An update that leaves the supported release line -- MySQL 8.4, MariaDB 11.4,
+MariaDB 11.8 -- is not an image update but a support decision, with its own
+specification matrix and baseline work. The pin gate rejects it even when
+every copy agrees.
+
 ## Seed an accepted baseline
 
 Seeding is a review action, not a regression-recovery shortcut.
