@@ -117,14 +117,33 @@ green, freeze `main` operationally until publication completes. Any later
 commit makes the candidate stale, even if that commit changes only
 documentation or automation.
 
-#### 3. Create the release tag
+#### 3. Rehearse the candidate before spending a version
+
+A pushed tag is immutable, so every defect the hosted candidate finds costs a
+version number. Run the same orchestrator locally first, against the commit the
+tag will point at:
+
+```bash
+./eng/rehearse-release.sh 10.0.0-rc.6
+```
+
+The rehearsal lifts the tag requirement, supplies the version the real
+candidate will carry, and runs the qualification gates unchanged. It needs a
+clean worktree, creates no tag, and publishes nothing. A single gate can be
+rehearsed on its own with `--stage <stage>` while a fix is in progress.
+
+A green rehearsal is not an approval. It says the gates pass on this commit
+with these tools; the hosted candidate still repeats them on its own runners,
+where runner speed and container timing differ.
+
+#### 4. Create the release tag
 
 Create one signed, annotated tag at `release_commit`. The package version,
 dated changelog heading, tag, and tag message must identify the same version.
 For example, after replacing the version with the next unused value:
 
 ```bash
-release_version="10.0.0-rc.3"
+release_version="10.0.0-rc.6"
 release_tag="v${release_version}"
 
 git tag -s "${release_tag}" "${release_commit}" \
@@ -138,7 +157,7 @@ Verify the signature and target before pushing. Push only the intended tag;
 never use `git push --tags` for a release. A tag is immutable release identity:
 never move, replace, or reuse it after it reaches the remote repository.
 
-#### 4. Produce the hosted candidate
+#### 5. Produce the hosted candidate
 
 1. Open GitHub Actions and select the `release-candidate` workflow.
 2. Choose `Run workflow`, then select the exact value of `release_tag` in the
@@ -166,7 +185,7 @@ uploads an attempt-qualified immutable candidate artifact. Its resolver rejects
 artifacts from another run, a future attempt, an expired artifact, a digest
 mismatch, an ambiguous stage, an unsafe ZIP entry, or an incomplete stage set.
 
-#### 5. Publish from trusted `main`
+#### 6. Publish from trusted `main`
 
 Keep `main` frozen. In GitHub Actions, manually run `nuget-publish` from
 `main` with these exact inputs:
@@ -179,7 +198,7 @@ The workflow must run from `main`; selecting the release tag for this second
 workflow is invalid. Approve the `nuget` environment deployment only after the
 displayed candidate run ID and tag match the reviewed release.
 
-#### 6. Verify public readback and finalize the release
+#### 7. Verify public readback and finalize the release
 
 Wait for all four publication jobs to succeed:
 
@@ -210,7 +229,7 @@ Before unfreezing `main`, confirm all of the following:
 - `github-release-evidence-<release-tag>-attempt-<attempt>` is retained and
   contains the deterministic release plan and verified public release receipt.
 
-#### 7. Recover without changing release identity
+#### 8. Recover without changing release identity
 
 - If one candidate job fails because of transient hosted infrastructure and no
   candidate input must change, rerun the failed or specific job from the

@@ -772,6 +772,68 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
+    def test_accepted_pair_identity_allows_one_run_per_measurement_job(self) -> None:
+        """Accept a baseline pair whose engines were measured in separate jobs.
+
+        The benchmark matrix runs one job per engine and names that job in the
+        run identifier, so the accepted pair can never share one. Requiring it
+        blocked every release candidate at the readiness gate, after the same
+        assumption had already been removed from baseline promotion.
+        """
+        entries = [
+            {
+                "target": "mysql84",
+                "commit": "a" * 40,
+                "sourceHash": "b" * 64,
+                "runId": "github-1000-mysql84-attempt-1",
+            },
+            {
+                "target": "mariadb118",
+                "commit": "a" * 40,
+                "sourceHash": "b" * 64,
+                "runId": "github-1000-mariadb118-attempt-2",
+            },
+        ]
+
+        identity = release_evidence.accepted_pair_identity(entries)
+
+        self.assertEqual({"a" * 40}, identity["commit"])
+        self.assertEqual({"b" * 64}, identity["sourceHash"])
+
+    def test_accepted_pair_identity_rejects_a_divergent_source(self) -> None:
+        """Reject a pair whose engines did not measure the same software."""
+        entries = [
+            {"target": "mysql84", "commit": "a" * 40, "sourceHash": "b" * 64},
+            {"target": "mariadb118", "commit": "c" * 40, "sourceHash": "b" * 64},
+        ]
+
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError,
+            "inconsistent identity field\\(s\\): commit",
+        ):
+            release_evidence.accepted_pair_identity(entries)
+
+    def test_accepted_baseline_in_the_repository_passes_the_identity_gate(self) -> None:
+        """Keep the checked-in baseline acceptable to the release readiness gate.
+
+        The gate runs against this exact file during a release, so a rollover
+        that produced an unacceptable pair has to fail here rather than on the
+        tag.
+        """
+        baseline = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "benchmarks"
+                / "baselines"
+                / "doka-benchmark-baseline.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        identity = release_evidence.accepted_pair_identity(baseline["baselines"])
+
+        self.assertEqual(1, len(identity["commit"]))
+        self.assertEqual(1, len(identity["sourceHash"]))
+
     def _git(self, *arguments: str) -> None:
         """Run one fixture-local Git mutation with output kept out of test logs."""
         subprocess.run(

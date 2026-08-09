@@ -127,6 +127,20 @@
       ]
     },
     {
+      "path": "eng/rehearse-release.sh",
+      "target": "eng/release/rehearse-release.sh",
+      "classification": "operator-command",
+      "owner": "release",
+      "cost": "high",
+      "purpose": "Qualify a release candidate locally before a version number is spent on a tag.",
+      "inputs": "The package version the candidate will carry, an optional stage selection, and a clean worktree.",
+      "outputs": "Release-candidate gate results for the working commit.",
+      "sideEffects": "Builds projects, writes release artifacts, and can run container-backed verification. Creates no tag and publishes nothing.",
+      "consumers": [
+        "docs/operations/release-publication.md"
+      ]
+    },
+    {
       "path": "eng/release-candidate.sh",
       "target": "eng/release/release-candidate.sh",
       "classification": "operator-command",

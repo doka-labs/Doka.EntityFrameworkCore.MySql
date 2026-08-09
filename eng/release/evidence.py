@@ -187,6 +187,33 @@ def commit_is_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
     raise EvidenceError(f"Unable to validate performance evidence ancestry: {message}")
 
 
+def accepted_pair_identity(entries: list[dict[str, Any]]) -> dict[str, set[Any]]:
+    """Return the identity an accepted baseline pair has to agree on.
+
+    The run identifier is deliberately not part of it. An accepted baseline is
+    measured by the benchmark matrix, which runs one job per engine and names
+    that job in the identifier, so its entries can never share one. What this
+    gate needs is that both engines measured the same software, and the commit
+    together with its source hash carries exactly that.
+
+    Evidence the release candidate measures itself is a different case: there,
+    one run identifier covers both engines, and validate_performance_evidence
+    still requires them to agree on it.
+    """
+    identities = {
+        field: {entry.get(field) for entry in entries}
+        for field in ("commit", "sourceHash")
+    }
+    mismatched = [field for field, values in identities.items() if len(values) != 1]
+    if mismatched:
+        raise EvidenceError(
+            "The accepted hosted performance pair has inconsistent identity field(s): "
+            f"{', '.join(mismatched)}."
+        )
+
+    return identities
+
+
 def validate_performance_baseline(args: argparse.Namespace) -> dict[str, Any]:
     """Prove that the accepted hosted pair covers the current source state."""
     repo = Path(args.repo).resolve()
@@ -225,17 +252,7 @@ def validate_performance_baseline(args: argparse.Namespace) -> dict[str, Any]:
             "The accepted hosted performance baseline is not a complete target pair."
         )
 
-    identity_fields = ("commit", "sourceHash", "runId")
-    identities = {
-        field: {entry.get(field) for entry in entries}
-        for field in identity_fields
-    }
-    mismatched = [field for field, values in identities.items() if len(values) != 1]
-    if mismatched:
-        raise EvidenceError(
-            "The accepted hosted performance pair has inconsistent identity field(s): "
-            f"{', '.join(mismatched)}."
-        )
+    identities = accepted_pair_identity(entries)
 
     evidence_commit = next(iter(identities["commit"]))
     source_hash = next(iter(identities["sourceHash"]))

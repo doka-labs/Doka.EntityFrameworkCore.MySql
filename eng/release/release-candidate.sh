@@ -317,21 +317,34 @@ archive_incomplete_stage() {
 package_version_from_file() {
     local package_name="$1"
     local package_path
+    local matches
 
-    package_path="$(
+    # A package id can be the prefix of another one: the spatial package is
+    # named after the provider. Requiring a digit where the version starts is
+    # what separates them, because a NuGet version always begins with one.
+    # Without it, which package answers depends on directory order.
+    matches="$(
         find "${packages_dir}" \
             -maxdepth 1 \
             -type f \
-            -name "${package_name}.*.nupkg" \
+            -name "${package_name}.[0-9]*.nupkg" \
             ! -name "*.symbols.nupkg" \
-            | head -n 1
+            | sort
     )"
 
-    if [[ -z "${package_path}" ]]; then
+    if [[ -z "${matches}" ]]; then
         echo "Unable to locate package '${package_name}' under ${packages_dir}." >&2
         exit 1
     fi
 
+    if [[ "$(printf '%s\n' "${matches}" | wc -l | tr -d ' ')" != "1" ]]; then
+        echo "Multiple packages match '${package_name}' under ${packages_dir}:" >&2
+        printf '%s\n' "${matches}" | sed 's/^/  /' >&2
+        echo "A release candidate qualifies exactly one build per package." >&2
+        exit 1
+    fi
+
+    package_path="${matches}"
     basename "${package_path}" | sed -E "s/^${package_name//./\\.}\.([0-9A-Za-z.-]+)\.nupkg$/\1/"
 }
 
