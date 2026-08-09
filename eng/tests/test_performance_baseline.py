@@ -212,6 +212,70 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
             ):
                 performance_evidence.seed_baseline(args)
 
+    def test_seed_accepts_one_run_identifier_per_measurement_job(self) -> None:
+        """Accept matrix evidence whose targets were measured in separate jobs.
+
+        The hosted matrix runs one job per engine and names each job in the run
+        identifier, so the two evaluations can never carry the same one. Binding
+        promotion to that field made the gate unsatisfiable on the only path
+        that produces release evidence.
+        """
+        with tempfile.TemporaryDirectory(prefix="doka-performance-jobs-") as directory:
+            root = Path(directory)
+            paths = self._write_seed_evaluations(root, "github-runner")
+
+            baseline = performance_evidence.seed_baseline(
+                type(
+                    "Args",
+                    (),
+                    {
+                        "contract": str(self._contract_path),
+                        "evidence": [str(path) for path in paths],
+                        "version": "test",
+                        "accepted_utc": "2026-08-06T00:00:00Z",
+                        "merge_existing": None,
+                    },
+                )()
+            )
+
+            # Each entry keeps the identifier of the job that measured it; the
+            # value is provenance, not an identity the targets have to share.
+            self.assertEqual(
+                {
+                    "github-1000-mysql84-attempt-1",
+                    "github-1000-mariadb118-attempt-1",
+                },
+                {entry["runId"] for entry in baseline["baselines"]},
+            )
+
+    def test_seed_rejects_targets_measured_from_different_sources(self) -> None:
+        """Reject evidence whose targets did not measure the same software."""
+        with tempfile.TemporaryDirectory(prefix="doka-performance-drift-") as directory:
+            root = Path(directory)
+            paths = self._write_seed_evaluations(root, "github-runner")
+
+            drifted = json.loads(paths[0].read_text(encoding="utf-8"))
+            drifted["commit"] = "f" * 40
+            paths[0].write_text(json.dumps(drifted), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                performance_evidence.PerformanceEvidenceError,
+                "must share one profile, runner, commit, and source hash",
+            ):
+                performance_evidence.seed_baseline(
+                    type(
+                        "Args",
+                        (),
+                        {
+                            "contract": str(self._contract_path),
+                            "evidence": [str(path) for path in paths],
+                            "version": "test",
+                            "accepted_utc": "2026-08-06T00:00:00Z",
+                            "merge_existing": None,
+                        },
+                    )()
+                )
+
     def test_seed_merges_a_new_runner_without_dropping_an_accepted_runner(self) -> None:
         """Retain complete runner groups while replacing only matching tuples."""
         with tempfile.TemporaryDirectory(prefix="doka-performance-merge-") as directory:

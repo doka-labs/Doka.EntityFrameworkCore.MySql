@@ -540,11 +540,19 @@ class PerformanceEvidenceFixtureMixin:
         root: Path,
         runner_class: str,
     ) -> list[Path]:
-        """Persist one seed evaluation per required target for a runner class."""
+        """Persist one seed evaluation per required target for a runner class.
+
+        Each target carries its own run identifier because that is what the
+        hosted matrix produces: one measurement job per engine, and the run
+        identifier names the job. A fixture that gave both targets the same
+        identifier would describe a single-process local run and hide every
+        defect specific to the matrix path.
+        """
         paths = []
         for target in ("mysql84", "mariadb118"):
             evaluation = self._evaluation(target)
             evaluation["runnerClass"] = runner_class
+            evaluation["runId"] = f"github-1000-{target}-attempt-1"
             path = root / f"{runner_class}-{target}.json"
             path.write_text(json.dumps(evaluation), encoding="utf-8")
             paths.append(path)

@@ -320,6 +320,14 @@ python3 -m eng.performance.cli seed \
     artifacts/benchmarks/mariadb118/reports/local-seed-mariadb118/evidence/performance-evaluation.json
 ```
 
+Every evaluation handed to `seed` or `compare` must agree on profile, runner
+class, commit, and source hash: promotion accepts one measured state of one
+piece of software, not a set assembled from several. The run identifier is
+deliberately not part of that agreement. It names a single measurement job, so
+the two commands above give each target its own, and the hosted matrix does the
+same with one job per engine. The contract's `evidenceMaximumAgeHours` keeps
+the evaluations close together in time.
+
 When adding a new runner class, retain existing accepted groups:
 
 ```bash

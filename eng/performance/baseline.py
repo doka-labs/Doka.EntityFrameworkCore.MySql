@@ -563,7 +563,13 @@ def promote_baseline(
             "Compare-mode promotion requires the accepted baseline."
         )
 
-    identities: set[tuple[str, str, str, str, str]] = set()
+    # The run identifier is deliberately absent here. It names one measurement
+    # job, so the matrix gives every target its own value and the attempt
+    # mechanism varies it again on a retry. What promotion actually requires is
+    # that every target measured the same software under the same conditions,
+    # and the commit plus the source hash carry that; the contract's evidence
+    # age bound keeps the measurements close together in time.
+    identities: set[tuple[str, str, str, str]] = set()
 
     for evidence_path, evaluation in zip(args.evidence, evaluations, strict=True):
         if mode == "seed":
@@ -603,7 +609,6 @@ def promote_baseline(
                     "sourceHash",
                     "performanceEvaluation",
                 ),
-                required_string(evaluation, "runId", "performanceEvaluation"),
             )
         )
         baseline_entries.append(
@@ -655,7 +660,7 @@ def promote_baseline(
 
     if len(identities) != 1:
         raise PerformanceEvidenceError(
-            "Promotion evidence must share one profile, runner, commit, source hash, and run ID."
+            "Promotion evidence must share one profile, runner, commit, and source hash."
         )
 
     if observed_targets != required_targets:
