@@ -7,6 +7,44 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.0.0-rc.7] - 2026-08-09
+
+This release candidate supersedes `10.0.0-rc.6`, which failed in the first
+stage it reached. A test read an environment variable that a release runner
+sets and a workstation does not, so it could not fail where it had been
+verified. Both the test and the rehearsal it covers now ignore the caller's
+environment entirely.
+
+The engine images are held to a contract for the same reason. They decide
+which server a candidate measures, and the pin lives in six places while only
+one of them was ever offered for update.
+
+Install the release candidate explicitly because NuGet excludes prerelease
+packages from normal stable-version resolution:
+
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.7
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.7
+```
+
+### Fixed
+
+- Propose engine image updates again. The configured Dependabot ecosystem does
+  not read compose files, so no security fix for the MySQL or MariaDB images
+  had ever been offered, and one was available.
+- Keep a rehearsal independent of the shell it runs in. It accepted three
+  documented inputs and silently forwarded everything else, so a variable left
+  over from an earlier run could compare a foreign baseline, skip measurement,
+  or disable the orchestrator's own timeout.
+
+### Added
+
+- Add a repository gate that holds every copy of an engine image pin against
+  the compose stack, rejecting a pin that is malformed, missing, duplicated,
+  assigned to the wrong target, or unknown to the source. The pin appears in
+  two workflows, the performance contract, and a C# constant, and only the
+  compose stack receives updates.
+
 ## [10.0.0-rc.6] - 2026-08-09
 
 This release candidate supersedes `10.0.0-rc.5`, whose qualification stopped at
@@ -277,7 +315,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.6...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.7...HEAD
+[10.0.0-rc.7]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.7
 [10.0.0-rc.6]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.6
 [10.0.0-rc.5]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.5
 [10.0.0-rc.4]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.4

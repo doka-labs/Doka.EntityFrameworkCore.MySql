@@ -124,7 +124,7 @@ version number. Run the same orchestrator locally first, against the commit the
 tag will point at:
 
 ```bash
-./eng/rehearse-release.sh 10.0.0-rc.6
+./eng/rehearse-release.sh 10.0.0-rc.7
 ```
 
 The rehearsal lifts the tag requirement, supplies the version the real
@@ -157,7 +157,7 @@ dated changelog heading, tag, and tag message must identify the same version.
 For example, after replacing the version with the next unused value:
 
 ```bash
-release_version="10.0.0-rc.6"
+release_version="10.0.0-rc.7"
 release_tag="v${release_version}"
 
 git tag -s "${release_tag}" "${release_commit}" \
