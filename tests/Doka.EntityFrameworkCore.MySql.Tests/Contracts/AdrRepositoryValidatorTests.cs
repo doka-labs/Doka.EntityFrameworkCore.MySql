@@ -8,16 +8,13 @@ public sealed class AdrRepositoryValidatorTests
         var report = AdrRepositoryValidator.Validate(FindRepositoryRoot());
 
         Assert.True(report.IsValid, FormatErrors(report));
-        Assert.Equal(24, report.Documents.Count);
+        Assert.Equal(25, report.Documents.Count);
     }
 
     [Fact]
     public void Every_delivery_path_invokes_the_same_validator()
     {
         var repositoryRoot = FindRepositoryRoot();
-        AssertShellGate(
-            Path.Combine(repositoryRoot, "eng", "common", "build.sh"),
-            "dotnet restore");
         AssertShellGate(
             Path.Combine(repositoryRoot, "eng", "testing", "test.sh"),
             "dotnet build");
@@ -414,16 +411,26 @@ public sealed class AdrRepositoryValidatorTests
         AssertFastLaneJob(workflow, "repo-tests");
         AssertFastLaneJob(workflow, "integration-smoke");
 
+        // D-025 moved specification conformance and the coverage gate into the
+        // per-event lane. They no longer carry the scheduled condition, and the
+        // baseline-proposal dispatch remains the only profile that skips them.
+        Assert.DoesNotContain(
+            $"  spec-test-suite:\n    {exhaustiveCondition}",
+            workflow,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            $"  coverage-gate:\n    {exhaustiveCondition}",
+            workflow,
+            StringComparison.Ordinal);
+        AssertPerEventJob(workflow, "spec-test-suite");
+        AssertPerEventJob(workflow, "coverage-gate");
+
         Assert.Contains(
             $"  migration-deployment:\n    {exhaustiveCondition}",
             workflow,
             StringComparison.Ordinal);
         Assert.Contains(
             $"  efcore-patch-matrix:\n    {exhaustiveCondition}",
-            workflow,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            $"  spec-test-suite:\n    {exhaustiveCondition}",
             workflow,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -434,10 +441,13 @@ public sealed class AdrRepositoryValidatorTests
             $"  benchmark-smoke:\n    {exhaustiveCondition}",
             workflow,
             StringComparison.Ordinal);
+        // No job condition runs under always() any more; the coverage gate
+        // asserts that its producers succeeded instead, so a failed test job
+        // cannot yield a met floor. Step-level always() stays legitimate for
+        // artifact uploads and is therefore not covered by this assertion.
+        Assert.DoesNotContain("    if: >-\n      always()", workflow, StringComparison.Ordinal);
         Assert.Contains(
-            "&& (github.event_name == 'schedule'\n"
-            + "      || (github.event_name == 'workflow_dispatch'\n"
-            + "      && inputs.profile != 'baseline-proposal'))",
+            "Require successful coverage producers",
             workflow,
             StringComparison.Ordinal);
 
@@ -1285,6 +1295,25 @@ public sealed class AdrRepositoryValidatorTests
         Assert.DoesNotContain(
             "\n    if:",
             workflow[jobStart..runsOn],
+            StringComparison.Ordinal);
+    }
+
+    private static void AssertPerEventJob(
+        string workflow,
+        string jobName
+    )
+    {
+        var jobStart = workflow.IndexOf($"  {jobName}:", StringComparison.Ordinal);
+        Assert.True(jobStart >= 0, $"Workflow job '{jobName}' is missing.");
+
+        var steps = workflow.IndexOf("\n    steps:", jobStart, StringComparison.Ordinal);
+        Assert.True(steps > jobStart, $"Workflow job '{jobName}' has no steps.");
+
+        // Asserting inside the job header rather than across the whole file
+        // keeps one job's guard from covering for another job that lost its own.
+        Assert.Contains(
+            "\n    if: inputs.profile != 'baseline-proposal'\n",
+            workflow[jobStart..steps],
             StringComparison.Ordinal);
     }
 

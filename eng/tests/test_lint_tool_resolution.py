@@ -68,6 +68,21 @@ class LintToolResolutionTests(unittest.TestCase):
         self.stub_bin.mkdir()
         write_stub(self.stub_bin / "shellcheck", "shellcheck stub")
 
+        # PATH is rebuilt from an explicit tool list rather than inherited.
+        # Inheriting it made the missing-shellcheck case pass only on machines
+        # that happen not to ship shellcheck; a runner that does provide it
+        # silently satisfied the gate the test meant to starve.
+        self.system_bin = self.root / "system-bin"
+        self.system_bin.mkdir()
+        for name in (
+            "bash", "env", "find", "sort", "sed", "awk", "python3", "uname",
+            "tar", "curl", "rm", "mkdir", "cat", "head", "cp", "chmod",
+            "dirname", "basename", "tr", "wc", "sha256sum", "shasum",
+        ):
+            resolved = shutil.which(name)
+            if resolved is not None:
+                (self.system_bin / name).symlink_to(resolved)
+
         self.tool_root = self.root / "artifacts" / "lint-tools"
 
     def prime_pinned_cache(self) -> None:
@@ -83,7 +98,7 @@ class LintToolResolutionTests(unittest.TestCase):
     def run_gate(self, **environment: str) -> subprocess.CompletedProcess[str]:
         """Run the copied gate with a controlled environment."""
         child = {
-            "PATH": f"{self.stub_bin}:/usr/bin:/bin",
+            "PATH": f"{self.stub_bin}:{self.system_bin}",
             "HOME": str(self.root),
             "PYTHONDONTWRITEBYTECODE": "1",
         }
