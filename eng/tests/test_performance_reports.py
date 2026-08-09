@@ -235,7 +235,7 @@ class PerformanceReportTests(PerformanceEvidenceFixtureMixin, unittest.TestCase)
         cap = self._grow_to_sample_cap(entry)
         self._replace_workload_samples(
             entry,
-            [8_000_000.0] * (cap - 1) + [10_000_000_000.0],
+            self._samples_missing_the_error_budget(8_000_000.0, cap),
         )
         entry["terminationReason"] = "sample_cap_reached"
 
@@ -264,7 +264,7 @@ class PerformanceReportTests(PerformanceEvidenceFixtureMixin, unittest.TestCase)
         cap = self._grow_to_sample_cap(entry)
         self._replace_workload_samples(
             entry,
-            [8_000_000.0] * (cap - 1) + [10_000_000_000.0],
+            self._samples_missing_the_error_budget(8_000_000.0, cap),
         )
         entry["terminationReason"] = "sample_cap_reached"
 
@@ -281,7 +281,10 @@ class PerformanceReportTests(PerformanceEvidenceFixtureMixin, unittest.TestCase)
             for workload in workloads
             if workload["id"] == entry["id"]
         )
-        self.assertGreater(observed["relativeStandardError"], 1.0)
+        self.assertGreater(
+            observed["relativeStandardError"],
+            contract["profiles"]["scorecard"]["maximumRelativeStandardError"],
+        )
 
     def test_absolute_budget_rejects_latency_regression(self) -> None:
         """Reject a current measurement beyond its family's absolute p99 ceiling."""

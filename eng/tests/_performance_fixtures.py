@@ -186,6 +186,40 @@ class PerformanceEvidenceFixtureMixin:
 
         return cap
 
+    def _samples_missing_the_error_budget(
+        self,
+        base_nanoseconds: float,
+        population: int,
+        profile: dict[str, Any] | None = None,
+    ) -> list[float]:
+        """Build a population whose relative standard error clears the ceiling.
+
+        The standard error falls with the square root of the population, so a
+        fixed outlier factor silently stops clearing the ceiling once the
+        contract raises its sample cap. Deriving the outlier from the ceiling
+        and the population keeps the fixture's intent stable across cap
+        changes instead of re-tuning constants after every one.
+        """
+        profile = profile or self.contract["profiles"]["scorecard"]
+        ceiling = float(profile["maximumRelativeStandardError"])
+
+        # For a single outlier above an otherwise flat population the relative
+        # standard error reduces to (outlier - base) / (population * base).
+        # The margin keeps the fixture clear of the boundary itself.
+        outlier = base_nanoseconds * (1.0 + ceiling * population * 1.2)
+        samples = [base_nanoseconds] * (population - 1) + [outlier]
+
+        achieved = performance_evidence.standard_error(
+            samples
+        ) / performance_evidence.percentile(sorted(samples), 0.5)
+        if achieved <= ceiling:
+            raise AssertionError(
+                f"Fixture produced a relative standard error of {achieved:.6f}, "
+                f"which does not clear the {ceiling} ceiling it must exceed."
+            )
+
+        return samples
+
     @staticmethod
     def _replace_workload_samples(
         entry: dict[str, Any],

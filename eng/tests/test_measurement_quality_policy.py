@@ -268,7 +268,7 @@ class CappedMeasurementEvidenceTests(PerformanceEvidenceFixtureMixin, unittest.T
         entry["calibrationPulseIndices"] = [index // interval for index in range(cap)]
         # One extreme observation pushes the error past the ceiling while the
         # total duration stays comfortably above the minimum.
-        samples = [per_sample] * (cap - 1) + [per_sample * 500]
+        samples = self._samples_missing_the_error_budget(per_sample, cap, profile)
         self._replace_workload_samples(entry, samples)
         entry["terminationReason"] = "sample_cap_reached"
 
@@ -306,7 +306,7 @@ class CappedMeasurementEvidenceTests(PerformanceEvidenceFixtureMixin, unittest.T
         per_sample = entry["samplesNanoseconds"][0]
         self._replace_workload_samples(
             entry,
-            [per_sample] * (cap - 1) + [per_sample * 500],
+            self._samples_missing_the_error_budget(per_sample, cap),
         )
         entry["terminationReason"] = "sample_cap_reached"
 

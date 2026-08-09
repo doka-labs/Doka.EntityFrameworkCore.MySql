@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import subprocess
 import tempfile
 import unittest
@@ -192,6 +193,77 @@ class PerformanceContractTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
             "maximumMeasurementSampleMultiplier",
         ):
             performance_evidence.validate_contract(contract)
+
+    def test_sample_cap_covers_the_population_the_baseline_needed(self) -> None:
+        """Reject an extension cap below the population the baseline required.
+
+        The cap entered the contract at four times the required population
+        without being measured against the accepted baseline, where most
+        workloads had already needed more. Every enforcing run then stopped at
+        the cap with a relative standard error far inside its target and was
+        discarded as inconclusive, because a workload reaching the cap has by
+        definition missed one of its two quality targets.
+        """
+        baseline = performance_evidence.load_json(
+            self._repo_root
+            / "benchmarks"
+            / "baselines"
+            / "doka-benchmark-baseline.json"
+        )
+        definitions = {
+            definition["id"]: definition
+            for definition in self.contract["workloads"]
+        }
+        recorded_targets = {
+            record["target"]: record for record in baseline["baselines"]
+        }
+
+        # Engines differ in how many samples a workload needs, so a check that
+        # reads one baseline entry would leave the others free to drift.
+        self.assertEqual(
+            set(self.contract["requiredTargets"]),
+            set(recorded_targets),
+            "Every required target must contribute its own baseline populations.",
+        )
+
+        for name, profile in self.contract["profiles"].items():
+            if profile["measurementQualityPolicy"] != "enforce":
+                continue
+
+            multiplier = profile["maximumMeasurementSampleMultiplier"]
+
+            for target, recorded in sorted(recorded_targets.items()):
+                # Sample population and measured duration are proportional, so
+                # a profile demanding a longer measurement needs the recorded
+                # population scaled by the ratio of the two duration floors.
+                scale = (
+                    profile["minimumMeasurementDurationMilliseconds"]
+                    / self.contract["profiles"][recorded["profile"]][
+                        "minimumMeasurementDurationMilliseconds"
+                    ]
+                )
+
+                for workload in recorded["workloads"]:
+                    identifier = workload["id"]
+                    self.assertIn(identifier, definitions)
+                    cap = multiplier * performance_evidence.expected_measurement_sample_count(
+                        profile,
+                        definitions[identifier],
+                    )
+                    needed = math.ceil(workload["sampleCount"] * scale)
+
+                    with self.subTest(
+                        profile=name,
+                        target=target,
+                        workload=identifier,
+                    ):
+                        self.assertLessEqual(
+                            needed,
+                            cap,
+                            f"Profile '{name}' caps '{identifier}' on '{target}' "
+                            f"at {cap} samples, but reaching the duration floor "
+                            f"needs {needed}.",
+                        )
 
     def test_measurement_quality_policy_is_explicit_and_bounded(self) -> None:
         """Reject profiles that cannot distinguish observation from enforcement."""
