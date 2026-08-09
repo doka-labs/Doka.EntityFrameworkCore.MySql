@@ -19,7 +19,11 @@ class PerformanceReportTests(PerformanceEvidenceFixtureMixin, unittest.TestCase)
     def test_workload_report_recomputes_tail_statistics_and_complete_matrix(self) -> None:
         """Accept exact scorecard cells with independently recomputable statistics."""
         report = self._workload_report("mysql84")
-        first_samples = sorted(report["workloads"][0]["samplesNanoseconds"])
+        # The report keeps contract order while the validator returns sorted
+        # results, so the comparison matches by id. Indexing both sides only
+        # agreed while every workload shared one operationsPerSample.
+        source = report["workloads"][0]
+        first_samples = sorted(source["samplesNanoseconds"])
 
         workloads = performance_evidence.validate_workload_report(
             report,
@@ -30,13 +34,18 @@ class PerformanceReportTests(PerformanceEvidenceFixtureMixin, unittest.TestCase)
         )
 
         self.assertEqual(len(self.contract["workloads"]), len(workloads))
+        validated = next(
+            workload
+            for workload in workloads
+            if workload["id"] == source["id"]
+        )
         self.assertEqual(
             performance_evidence.percentile(first_samples, 0.95),
-            workloads[0]["p95Nanoseconds"],
+            validated["p95Nanoseconds"],
         )
         self.assertEqual(
             performance_evidence.percentile(first_samples, 0.99),
-            workloads[0]["p99Nanoseconds"],
+            validated["p99Nanoseconds"],
         )
 
     def test_workload_report_rejects_missing_matrix_cell(self) -> None:

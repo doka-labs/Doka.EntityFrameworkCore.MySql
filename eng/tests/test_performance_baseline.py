@@ -15,6 +15,15 @@ from eng.tests._performance_fixtures import PerformanceEvidenceFixtureMixin
 class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCase):
     """Verify historical normalization, seed, promotion, and mode resolution."""
 
+    def _other_contract_version(self) -> str:
+        """Return a contract version that cannot equal the checked-in one.
+
+        A literal date silently stops testing a rollover the moment the real
+        contract is bumped to that same date, which turns a passing test into
+        one that asserts the opposite of its name.
+        """
+        return f"{self.contract['contractVersion']}-revised"
+
     def test_historical_gate_rejects_regression_against_matching_runner(self) -> None:
         """Reject a regression above both the ratio and absolute allowance."""
         report = self._workload_report("mysql84")
@@ -357,7 +366,7 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
             old_baseline_path = self._write_baseline(root, old_paths)
 
             revised_contract = copy.deepcopy(self.contract)
-            revised_contract["contractVersion"] = "2026-08-09"
+            revised_contract["contractVersion"] = self._other_contract_version()
             revised_contract_path = root / "revised-contract.json"
             revised_contract_path.write_text(
                 json.dumps(revised_contract),
@@ -443,7 +452,7 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
             current_contract = json.loads(
                 self._contract_path.read_text(encoding="utf-8"),
             )
-            current_contract["contractVersion"] = "2026-08-09"
+            current_contract["contractVersion"] = self._other_contract_version()
             current_contract_path = root / "current-contract.json"
             current_contract_path.write_text(
                 json.dumps(current_contract),
