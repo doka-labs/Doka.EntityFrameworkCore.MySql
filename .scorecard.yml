@@ -1,0 +1,17 @@
+# OpenSSF Scorecard maintainer annotations.
+#
+# An annotation suppresses a check's findings in the code-scanning upload. It
+# does not change the score, so the published score stays honest about what
+# Scorecard measured.
+annotations:
+  - checks:
+      - pinned-dependencies
+    reasons:
+      # Scorecard treats a NuGet version as pinned only in the exact-version
+      # bracket form. Reaching that would mean replacing the deliberate EF Core
+      # patch range from D-009, which exists so upstream correctness and
+      # security patches arrive automatically and are verified by the
+      # floor/latest matrix. Pinning the range away would raise the score and
+      # lower the security posture, so the check does not apply to this
+      # library. GitHub Actions and every container image remain digest-pinned.
+      - reason: not-applicable
