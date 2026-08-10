@@ -1,14 +1,15 @@
 # Release Governance
 
 `Doka.EntityFrameworkCore.MySql` treats release hardening as a reproducible
-engineering contract. Local gates create the evidence; the hosted release
-workflow binds its manifest to GitHub's artifact-attestation identity.
+engineering contract. Commit-exact CI and the tag-triggered qualification
+workflow create the evidence. Hosted assembly freezes the selected identities
+and payload digests before GitHub attests the candidate.
 
 This document freezes the reviewable governance baseline for:
 
 - regression expectations
 - diagnostics categories and `MySqlEventId` ranges
-- repo-local evidence paths
+- verification and retained-evidence paths
 - PR review obligations tied to the planning contract
 
 The canonical operator sequence from a reviewed, green `main` commit through
@@ -18,7 +19,7 @@ publication is maintained in the
 This document defines the underlying evidence and policy contracts; it does not
 replace that ordered release procedure.
 
-## Repo-Local Evidence Paths
+## Verification and Evidence Paths
 
 The release-hardening evidence model is intentionally explicit and repeatable:
 
@@ -36,6 +37,9 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     ```
 
   - migration model drift gate: `./eng/quality/check-migration-model.sh`
+  - protected-branch aggregator: `repository-qualification`, which fails closed
+    over quality, repository tests, specification conformance, integration
+    smoke, and merged coverage for the exact commit
 - Scheduled and manually dispatched exhaustive workflow:
   - workflow: `.github/workflows/ci.yml`
   - cadence: weekly and on demand
@@ -84,93 +88,66 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/benchmarks/<target>/benchmark-summary.md`
     - `artifacts/benchmarks/<target>/benchmark-evidence.json`
     - `artifacts/benchmarks/<target>/reports/<run-id>/...`
-- Repo-local release candidate:
+- Hosted release candidate:
   - workflow: `.github/workflows/release-candidate.yml`
-  - cadence: manually dispatched from the exact semantic release tag
-  - local path: `./eng/release-candidate.sh`
-  - source gates: clean worktree, exact commit/ref, and exactly one matching
-    `v<package-version>` tag
-  - toolchain gate: every hosted job installs the exact stable SDK declared in
-    `global.json`; roll-forward is disabled, release evidence binds the approved
-    and observed identities, and Dependabot proposes SDK changes as reviewed
-    pull requests
-  - repository quality gate: the complete shared `quality-gates.sh` contract,
-    including formatting, analyzers, public examples, README compilation,
-    dependency audits, and migration-model verification
-  - hosted DAG: preflight validates the release identity and recovery tooling;
-    the foundation matrix runs quality, repository tests, and packaging; the
-    engine matrix runs specification, integration, migration/deployment,
-    runtime, and one performance stage per supported release engine with a
-    maximum of three concurrent jobs; coverage consumes the repository and
-    integration receipts, SBOM generation consumes the package receipt, and
-    assembly accepts exactly the eleven required qualification receipts before
-    the final attestation job can start
+  - cadence: automatic on a `v*` tag push; manual dispatch is diagnostic and
+    cannot qualify an untagged source
+  - pre-tag lookup: `./eng/pre-tag-check.sh` verifies, without allocating a
+    runner or mutating state, that the exact clean commit is reachable from
+    protected `main`, signable by a registered key, and already carries a
+    successful `repository-qualification` run from a `main` push
+  - trust root: the workflow independently verifies the annotated tag through
+    GitHub and the checked-in allowed-signers policy, binds it to the checked-out
+    commit and protected `main`, and resolves the branch qualification before
+    any expensive job starts
+  - imported branch gate: `repository-qualification` aggregates the
+    commit-exact quality, repository-test, specification, integration-smoke,
+    and coverage gates; the tag imports that one API-bound result instead of
+    rerunning those implementations
+  - tag-produced gates: migration deployment, runtime posture, the EF Core and
+    MySqlConnector patch matrices, and paired performance all execute against
+    the tagged commit; packing and SBOM generation produce the payload they
+    qualify
+  - paired performance: each supported release engine alternates the reference
+    and candidate providers on one allocated runner. Statistical intervals,
+    multiple-comparison control, absolute ceilings, allocation and collection
+    limits, and sustained-use invariants are decided from retained raw evidence;
+    no historical baseline or processor match qualifies a tag
+  - retry boundary: only `measurement-inconclusive` and
+    `environment-not-comparable` authorize one fresh attempt. Functional,
+    budget, contract, and infrastructure failures remain conclusive
+  - stage contract: assembly requires exactly six tag-produced stage receipts
+    -- migration deployment, runtime posture, both patch matrices, package, and
+    SBOM -- plus the selected paired artifacts and imported branch result
   - stable identity and controlled resume: the candidate root is keyed to
-    `github.run_id`, while `github.run_attempt` appears only in immutable hosted
-    artifact names and stage receipts; a rerun within the same workflow run may
-    select the newest valid receipt for each required stage from the current or
-    an earlier attempt, but a different workflow run cannot contribute evidence
-  - artifact restoration: resolver jobs list only artifacts from the same
-    workflow run, bind the selected artifact ID, name, attempt, and GitHub
-    SHA-256 digest, then perform traversal- and symlink-safe ZIP extraction;
-    missing, expired, ambiguous, future-attempt, digest-mismatched, or
-    conflicting artifacts fail closed
-  - least privilege: the workflow defaults to `contents: read`; only jobs that
-    resolve same-run evidence receive `actions: read`, and only the final
-    attestation job receives `id-token: write` and `attestations: write`
-  - performance gate: isolated run-owned Compose projects and dynamic ports;
-    host admission uses bounded interval operating-system CPU counters instead
-    of lifetime process CPU or Unix load average, which can retain prior build
-    history or count unrelated runnable work; adjacent deterministic CPU or
-    live database calibration pulses normalize historical latency per workload;
-    an isolated normalized historical p99 failure is confirmed by two targeted
-    calibrated measurements before the combined population is gated;
-    raw latency and managed allocation remain hard workload gates, while
-    process-global retained-heap delta and Gen0/Gen1/Gen2 collection counts are
-    retained as diagnostics; sustained retained-memory behavior remains a hard
-    soak invariant
-  - bounded execution: every hosted job has its own timeout and every expensive
-    benchmark uses a named contract-owned workload policy; source-bound
-    checkpoints retain completed samples so a later failure does not silently
-    discard valid measurements
-  - local recovery fallback: a manually diagnosed later failure may reuse an
-    earlier candidate's complete scorecards by setting
-    `DOKA_RELEASE_CANDIDATE_REUSE_PERFORMANCE_FROM` to its evidence root; reuse
-    is accepted only when both engine evaluations and their retained artifacts
-    pass integrity validation, the measured commit is an ancestor of the new
-    candidate, and Git proves that no provider, benchmark, dependency, build,
-    or container input changed; the new candidate retains an exhaustive source
-    delta and per-target evaluation hashes in `performance/reuse-evidence.json`
-  - integration gate: unfiltered configuration and failure matrix across
-    `mysql84`, `mariadb114`, and `mariadb118`
-  - executable-documentation gate: all fourteen live-matrix examples execute
-    their own scenario invariants against every supported engine in an isolated
-    Compose project with dynamic ports, protected sentinel-catalog readback,
-    and verified cleanup
-  - functional live gate: specification and standalone `Category=Live`
-    contracts on all three supported engines
-  - runtime posture gate: ordinary execution plus an executed self-contained
-    binary published with `PublishTrimmed=true` and `TrimMode=full`
-  - reconciliation gate: every named release contract must be present and
-    passing before the immutable manifest can be generated
-  - hosted proof: GitHub artifact attestation for packages and the canonical
-    evidence manifest, followed by hosted verification readback
+    `github.run_id`; a rerun may select only checksum-verified artifacts from
+    that same run and no later than the assembling attempt
+  - artifact restoration: resolver jobs bind artifact ID, name, attempt, and
+    digest before traversal- and symlink-safe extraction; missing, expired,
+    ambiguous, future-attempt, mismatched, or conflicting artifacts fail closed
+  - reconciliation: `eng/release/evidence-policy.json` defines the consumed
+    gate catalog and selection order. Assembly selects each gate once, writes
+    the canonical qualification manifest, and later steps verify that frozen
+    choice without reselecting
+  - least privilege: the workflow defaults to `contents: read`; only artifact
+    resolvers receive `actions: read`, and only the final attestation job
+    receives `id-token: write`, `attestations: write`, and artifact-metadata
+    write permission
   - retained evidence:
-    - `artifacts/release-candidate/<run-id>/release-candidate-changelog.md`
+    - `artifacts/release-candidate/<run-id>/release-qualification-manifest.json`
+    - `artifacts/release-candidate/<run-id>/release-gate-results.json`
     - `artifacts/release-candidate/<run-id>/release-candidate-summary.md`
+    - `artifacts/release-candidate/<run-id>/release-candidate-reconciliation.json`
     - `artifacts/release-candidate/<run-id>/release-candidate-evidence.json`
     - `artifacts/release-candidate/<run-id>/release-candidate-evidence.sha256`
-    - `artifacts/release-candidate/<run-id>/resolved-packages.json`
     - `artifacts/release-candidate/<run-id>/packages/...`
-    - `artifacts/release-candidate/<run-id>/audit/...`
-    - `artifacts/release-candidate/<run-id>/integration/...`
-    - `artifacts/release-candidate/<run-id>/integration/examples/live-example-matrix-evidence.json`
+    - `artifacts/release-candidate/<run-id>/sbom/...`
     - `artifacts/release-candidate/<run-id>/migration-deployment/...`
     - `artifacts/release-candidate/<run-id>/runtime/...`
-    - `artifacts/release-candidate/<run-id>/release-candidate-reconciliation.json`
-    - `artifacts/release-candidate/<run-id>/sbom/...`
-    - `artifacts/release-candidate-checkpoints/<run-id>/receipts/...`
-    - `artifacts/release-candidate/<run-id>/audit/*-artifact-selection.json`
+    - `artifacts/release-candidate/<run-id>/efcore-patch-matrix/...`
+    - `artifacts/release-candidate/<run-id>/mysqlconnector-patch-matrix/...`
+    - `artifacts/release-candidate/<run-id>/performance/...`
+    - `artifacts/release-candidate-checkpoints/<run-id>/...`
 - Manual NuGet publication and public readback:
   - workflow: `.github/workflows/nuget-publish.yml`
   - cadence: manually dispatched from trusted `main` after one successful
@@ -252,8 +229,9 @@ The release-hardening evidence model is intentionally explicit and repeatable:
 
 ## Integration Configuration and Failure Contract
 
-The release-candidate integration gate covers configuration and failure modes
-that unit tests or a healthy default connection cannot prove:
+The scheduled container matrix and the explicit local full-matrix command cover
+configuration and failure modes that unit tests or a healthy default connection
+cannot prove:
 
 - provider-generated text literals are executed with the default SQL mode,
   `NO_BACKSLASH_ESCAPES`, `ANSI_QUOTES`, and their strict combined form
@@ -271,12 +249,13 @@ that unit tests or a healthy default connection cannot prove:
 - a deliberately unreachable first address followed by the live test proxy
   proves ordered multi-host failover through an actual provider query
 
-The fast push lane excludes the three dedicated categories. The
-release-candidate runner sets `DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=1`; the
-shared runner then rejects a filtered selection or any target set other than
-MySQL 8.4, MariaDB 11.4, and MariaDB 11.8. The immutable evidence generator
-independently reads the persisted matrix result and rejects a non-zero exit
-code, a filter, a partial target set, or a run not marked as required.
+The fast push lane excludes the three dedicated categories. The scheduled
+`container-matrix` workflow selects MySQL 8.4, MariaDB 11.4, and MariaDB 11.8
+explicitly and runs without a filter. The shared runner persists its selected
+targets, filter, exit code, and full-matrix marker so the result remains
+auditable instead of being inferred from a green job alone. This scheduled
+lane is compatibility evidence; the release manifest imports only the
+commit-exact `integration-smoke` result through `repository-qualification`.
 
 MySQL-family DDL accepts only its quoted comment-literal grammar, so the
 provider cannot use the general `_utf8mb4 X'...'` expression form directly

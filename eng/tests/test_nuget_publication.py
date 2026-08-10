@@ -680,5 +680,45 @@ class NuGetPublicationTests(unittest.TestCase):
         return result.stdout.strip()
 
 
+class QualificationManifestGateTests(unittest.TestCase):
+    """Prove publication checks what the release was qualified on.
+
+    Identity validation proves the candidate is the one requested. It does not
+    prove which evidence qualified it, so a candidate assembled under a
+    different evidence policy, or describing a different tag, would otherwise
+    publish on the strength of matching digests alone.
+    """
+
+    WORKFLOW = (
+        Path(__file__).resolve().parents[2]
+        / ".github" / "workflows" / "nuget-publish.yml"
+    )
+
+    def setUp(self) -> None:
+        """Read the publication workflow once per case."""
+        self.text = self.WORKFLOW.read_text(encoding="utf-8")
+
+    def test_the_manifest_is_verified_before_publication(self) -> None:
+        """Require the manifest check to precede any publishing step."""
+        self.assertIn("- name: Verify the canonical qualification manifest", self.text)
+        self.assertIn("python3 -m eng.release.qualification verify", self.text)
+        self.assertLess(
+            self.text.index("eng.release.qualification verify"),
+            self.text.index("Derive exact public symbol probes"),
+        )
+
+    def test_the_manifest_is_bound_to_this_commit_and_tag(self) -> None:
+        """Reject a manifest that verifies but describes another release."""
+        for argument in ("--expected-commit", "--expected-tag",
+                         "--policy eng/release/evidence-policy.json"):
+            with self.subTest(argument=argument):
+                self.assertIn(argument, self.text)
+
+    def test_a_missing_manifest_explains_the_remedy(self) -> None:
+        """Tell the operator how to leave the state, not only that they are in it."""
+        self.assertIn("Qualification manifest required", self.text)
+        self.assertIn("Re-run the release-candidate workflow", self.text)
+
+
 if __name__ == "__main__":
     unittest.main()

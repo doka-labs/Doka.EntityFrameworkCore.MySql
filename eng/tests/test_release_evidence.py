@@ -80,7 +80,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         paths = [artifact["path"] for artifact in manifest["artifacts"]]
         self.assertEqual(sorted(paths), paths)
         self.assertTrue(all(not Path(path).is_absolute() for path in paths))
-        self.assertIn("integration/test-database-evidence.json", paths)
+        self.assertIn("release-qualification-manifest.json", paths)
         self.assertEqual("refs/tags/v1.2.3", manifest["source"]["ref"])
         self.assertEqual("clean", manifest["source"]["treeState"])
         self.assertEqual(
@@ -93,28 +93,23 @@ class ReleaseEvidenceTests(unittest.TestCase):
             list(release_evidence.REQUIRED_ENGINE_TARGETS),
             [engine["targetId"] for engine in manifest["engines"]],
         )
-        self.assertEqual(
-            list(release_evidence.REQUIRED_ENGINE_TARGETS),
-            manifest["integrationConfigurationMatrix"]["targets"],
-        )
-        self.assertTrue(manifest["integrationConfigurationMatrix"]["fullConfigurationMatrixRequired"])
-        self.assertEqual("", manifest["integrationConfigurationMatrix"]["testFilter"])
-        self.assertEqual(
-            len(release_evidence.REQUIRED_LIVE_EXAMPLES)
-            * len(release_evidence.REQUIRED_ENGINE_TARGETS),
-            manifest["liveExampleMatrix"]["runCount"],
-        )
-        self.assertTrue(manifest["liveExampleMatrix"]["cleanupCompleted"])
+        # Gate selection lives in the qualification manifest; this document
+        # binds itself to it so the two cannot describe different releases.
+        self.assertEqual("v1.2.3", manifest["qualification"]["releaseTag"])
+        self.assertTrue(manifest["qualification"]["gates"])
         self.assertTrue(manifest["runtimePosture"]["publishTrimmed"])
         self.assertEqual("full", manifest["runtimePosture"]["trimMode"])
-        self.assertFalse(manifest["performanceEvidence"]["reused"])
+        self.assertEqual("paired", manifest["performanceEvidence"]["comparisonMode"])
         self.assertEqual(
-            list(release_evidence.PERFORMANCE_TARGETS),
-            manifest["performanceEvidence"]["targets"],
+            sorted(release_evidence.PERFORMANCE_TARGETS),
+            sorted(
+                engine["target"]
+                for engine in manifest["performanceEvidence"]["engines"]
+            ),
         )
         self.assertEqual(
-            list(release_evidence.REQUIRED_RECONCILIATION_GATES),
-            list(manifest["verificationReconciliation"]),
+            list(release_evidence.required_reconciliation_gates()),
+            sorted(manifest["verificationReconciliation"]),
         )
 
     def test_performance_input_contract_covers_execution_dependencies(
@@ -250,24 +245,54 @@ class ReleaseEvidenceTests(unittest.TestCase):
         """Reject a release whose manifest would omit one advertised engine line."""
         missing = self.root / "specification" / "mariadb114" / "test-database-evidence.json"
         missing.unlink()
-        integration_path = self.root / "integration" / "test-database-evidence.json"
-        integration_evidence = json.loads(integration_path.read_text(encoding="utf-8"))
-        integration_evidence["targets"] = [
-            target
-            for target in integration_evidence["targets"]
-            if target["targetId"] != "mariadb114"
-        ]
-        integration_path.write_text(json.dumps(integration_evidence), encoding="utf-8")
-        tls_integration_path = self.root / "integration" / "tls" / "test-database-evidence.json"
-        tls_integration_evidence = json.loads(tls_integration_path.read_text(encoding="utf-8"))
-        tls_integration_evidence["targets"] = [
-            target
-            for target in tls_integration_evidence["targets"]
-            if target["targetId"] != "mariadb114"
-        ]
-        tls_integration_path.write_text(json.dumps(tls_integration_evidence), encoding="utf-8")
 
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "mariadb114"):
+        with self.assertRaises(release_evidence.EvidenceError):
+            self._generate()
+
+    def test_generate_rejects_an_unqualified_paired_engine(self) -> None:
+        """Reject a release whose paired comparison did not qualify.
+
+        This is the case the removed historical scorecard test covered, moved
+        to the evidence the tag now actually produces.
+        """
+        evaluation = next(
+            (self.root / "performance").rglob("paired-evaluation.json")
+        )
+        payload = json.loads(evaluation.read_text(encoding="utf-8"))
+        payload["qualification"] = "regression"
+        evaluation.write_text(json.dumps(payload), encoding="utf-8")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "regression"):
+            self._generate()
+
+    def test_generate_rejects_a_missing_paired_engine(self) -> None:
+        """Refuse a release measured on fewer engines than the contract names."""
+        import shutil
+
+        shutil.rmtree(self.root / "performance" / "mysql84")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "missing engine"):
+            self._generate()
+
+    def test_generate_rejects_a_qualification_manifest_for_another_commit(self) -> None:
+        """Refuse two documents that describe different releases.
+
+        The manifest owns gate selection and this document owns the inventory.
+        If they can disagree, neither is authoritative.
+        """
+        path = self.root / "release-qualification-manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["commit"] = "9" * 40
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "not the release source"):
+            self._generate()
+
+    def test_generate_rejects_a_missing_qualification_manifest(self) -> None:
+        """Refuse a candidate on which gate selection never happened."""
+        (self.root / "release-qualification-manifest.json").unlink()
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "qualification manifest"):
             self._generate()
 
     def test_generate_rejects_mutable_engine_image(self) -> None:
@@ -278,63 +303,6 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path.write_text(json.dumps(evidence), encoding="utf-8")
 
         with self.assertRaisesRegex(release_evidence.EvidenceError, "not digest-pinned"):
-            self._generate()
-
-    def test_generate_rejects_filtered_integration_matrix(self) -> None:
-        """Reject smoke-filter evidence presented as a complete release matrix."""
-        path = self.root / release_evidence.INTEGRATION_MATRIX_EVIDENCE
-        evidence = json.loads(path.read_text(encoding="utf-8"))
-        evidence["testFilter"] = "Category!=SecurityConfigurationContract"
-        path.write_text(json.dumps(evidence), encoding="utf-8")
-
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "must not contain a test filter"):
-            self._generate()
-
-    def test_generate_rejects_unrequired_integration_matrix(self) -> None:
-        """Reject evidence from a runner that did not enforce the release contract."""
-        path = self.root / release_evidence.INTEGRATION_MATRIX_EVIDENCE
-        evidence = json.loads(path.read_text(encoding="utf-8"))
-        evidence["fullConfigurationMatrixRequired"] = False
-        path.write_text(json.dumps(evidence), encoding="utf-8")
-
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "not marked as the required"):
-            self._generate()
-
-    def test_generate_rejects_failed_live_example(self) -> None:
-        """Reject a public example whose runtime invariant failed."""
-        path = self.root / release_evidence.LIVE_EXAMPLE_MATRIX_EVIDENCE
-        evidence = json.loads(path.read_text(encoding="utf-8"))
-        evidence["results"][0]["exitCode"] = 1
-        evidence["results"][0]["status"] = "fail"
-        evidence["passedCount"] = 26
-        evidence["failedCount"] = 1
-        evidence["matrixExitCode"] = 1
-        path.write_text(json.dumps(evidence), encoding="utf-8")
-
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "did not pass"):
-            self._generate()
-
-    def test_generate_rejects_live_example_cleanup_failure(self) -> None:
-        """Reject green examples that leaked their test-owned infrastructure."""
-        path = self.root / release_evidence.LIVE_EXAMPLE_MATRIX_EVIDENCE
-        evidence = json.loads(path.read_text(encoding="utf-8"))
-        evidence["cleanup"]["completed"] = False
-        evidence["cleanup"]["exitCode"] = 1
-        evidence["cleanup"]["volumesRemoved"] = False
-        path.write_text(json.dumps(evidence), encoding="utf-8")
-
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "not completely removed"):
-            self._generate()
-
-    def test_generate_rejects_live_example_image_conflict(self) -> None:
-        """Reject example evidence executed against a different engine image."""
-        path = self.root / release_evidence.LIVE_EXAMPLE_MATRIX_EVIDENCE
-        evidence = json.loads(path.read_text(encoding="utf-8"))
-        evidence["engines"][0]["imageReference"] = f"mariadb:11.4@sha256:{'9' * 64}"
-        evidence["engines"][0]["imageId"] = f"sha256:{'9' * 64}"
-        path.write_text(json.dumps(evidence), encoding="utf-8")
-
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "image identity conflicts"):
             self._generate()
 
     def test_generate_rejects_incomplete_runtime_posture(self) -> None:
@@ -357,22 +325,6 @@ class ReleaseEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(release_evidence.EvidenceError, "does not match"):
             self._generate()
 
-    def test_generate_rejects_failed_performance_scorecard(self) -> None:
-        """Reject a retained scorecard whose strict evaluation did not pass."""
-        path = (
-            self.root
-            / "performance"
-            / "mysql84"
-            / "evidence"
-            / "gate-performance-evaluation.json"
-        )
-        evidence = json.loads(path.read_text(encoding="utf-8"))
-        evidence["success"] = False
-        path.write_text(json.dumps(evidence), encoding="utf-8")
-
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "passing strict scorecard"):
-            self._generate()
-
     def test_reuse_performance_accepts_an_unrelated_source_delta(self) -> None:
         """Retain expensive scorecards when only release evidence code changed."""
         measured_commit = release_evidence.run_command("git", "rev-parse", "HEAD", cwd=self.repo)
@@ -393,17 +345,14 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "candidate-run",
         )
 
-        current_commit = release_evidence.run_command("git", "rev-parse", "HEAD", cwd=self.repo)
-        summary = release_evidence.validate_performance_evidence(
-            candidate_root,
-            self.repo,
-            "candidate-run",
-            current_commit,
-        )
+        # The reuse receipt is the record. The separate re-validation this case
+        # used to perform belonged to the historical release manifest, which no
+        # longer inventories that evidence; what remains testable, and what
+        # matters, is that reuse recorded exactly which paths moved and that
+        # none of them were performance inputs.
         receipt = json.loads(
             (candidate_root / release_evidence.PERFORMANCE_REUSE_EVIDENCE).read_text(encoding="utf-8")
         )
-        self.assertTrue(summary["reused"])
         self.assertEqual(["eng/release/evidence.py"], receipt["changedPaths"])
         self.assertEqual([], receipt["performanceInputChanges"])
 
@@ -586,87 +535,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
             )
             integration_targets.append(target)
 
-        # Duplicate target identities model independent specification and
-        # integration producers; the collector must merge only exact matches.
-        integration_directory = self.root / "integration"
-        integration_directory.mkdir()
-        (integration_directory / "test-database-evidence.json").write_text(
-            json.dumps(
-                {
-                    "schemaVersion": 1,
-                    "lifecycleState": "cleanup-completed",
-                    "targets": integration_targets,
-                }
-            ),
-            encoding="utf-8",
-        )
-        tls_directory = integration_directory / "tls"
-        tls_directory.mkdir()
-        (tls_directory / "test-database-evidence.json").write_text(
-            json.dumps(
-                {
-                    "schemaVersion": 1,
-                    "lifecycleState": "cleanup-completed",
-                    "targets": integration_targets,
-                }
-            ),
-            encoding="utf-8",
-        )
-        (integration_directory / "compatibility-matrix-evidence.json").write_text(
-            json.dumps(
-                {
-                    "targetSelection": "mysql84,mariadb114,mariadb118",
-                    "testFilter": "",
-                    "fullConfigurationMatrixRequired": True,
-                    "testExitCode": 0,
-                }
-            ),
-            encoding="utf-8",
-        )
-        example_directory = integration_directory / "examples"
-        example_directory.mkdir()
-        example_engines = [
-            {
-                "target": target_id,
-                "endpoint": f"127.0.0.1:{40000 + index}",
-                "imageReference": image,
-                "imageId": f"sha256:{image.rpartition('@sha256:')[2]}",
-            }
-            for index, (target_id, (_, _, image)) in enumerate(sorted(identities.items()))
-        ]
-        example_results = [
-            {
-                "target": target_id,
-                "example": example,
-                "exitCode": 0,
-                "status": "pass",
-            }
-            for target_id in release_evidence.REQUIRED_ENGINE_TARGETS
-            for example in release_evidence.REQUIRED_LIVE_EXAMPLES
-        ]
-        (example_directory / "live-example-matrix-evidence.json").write_text(
-            json.dumps(
-                {
-                    "schemaVersion": 1,
-                    "runId": "test-run",
-                    "expectedCount": len(example_results),
-                    "completedCount": len(example_results),
-                    "passedCount": len(example_results),
-                    "failedCount": 0,
-                    "matrixExitCode": 0,
-                    "cleanup": {
-                        "completed": True,
-                        "exitCode": 0,
-                        "volumesRemoved": True,
-                    },
-                    "engines": example_engines,
-                    "results": example_results,
-                }
-            ),
-            encoding="utf-8",
-        )
-
         source_commit = release_evidence.run_command("git", "rev-parse", "HEAD", cwd=self.repo)
+        self._write_qualification_manifest(source_commit)
+        self._write_paired_performance(source_commit)
         runtime_directory = self.root / "runtime"
         runtime_directory.mkdir()
         (runtime_directory / "runtime-posture-evidence.json").write_text(
@@ -705,21 +576,87 @@ class ReleaseEvidenceTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        # The inventory comes from the policy the validator reads, so this
+        # fixture cannot describe a release the validator would reject for a
+        # reason no producer could ever cause.
         (self.root / "release-candidate-reconciliation.json").write_text(
             json.dumps(
                 {
-                    "schemaVersion": 1,
+                    "schemaVersion": release_evidence.RECONCILIATION_SCHEMA_VERSION,
                     "runId": "test-run",
                     "sourceCommit": source_commit,
                     "gates": [
                         {"id": gate_id, "status": "pass"}
-                        for gate_id in release_evidence.REQUIRED_RECONCILIATION_GATES
+                        for gate_id in release_evidence.required_reconciliation_gates()
                     ],
                 }
             ),
             encoding="utf-8",
         )
         self._write_performance_evidence(self.root, "test-run", source_commit)
+
+    def _write_qualification_manifest(self, source_commit: str) -> None:
+        """Write the manifest the release document is bound to.
+
+        Gate selection belongs to the qualification manifest; this document
+        owns the artifact inventory. Writing both here is what lets the test
+        prove they cannot disagree.
+        """
+        # The fixture repository is a temporary tree; the policy is the one
+        # this repository ships, so the manifest under test is bound to the
+        # gates a release actually declares.
+        policy = json.loads(
+            (
+                Path(release_evidence.__file__).resolve().parent
+                / "evidence-policy.json"
+            ).read_text(encoding="utf-8")
+        )
+        (self.root / "release-qualification-manifest.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "kind": "release-qualification-manifest",
+                    "policyVersion": policy["policyVersion"],
+                    "policyDigest": "d" * 64,
+                    "selectionRuleVersion": policy["selectionRule"]["version"],
+                    "repository": "doka-labs/Doka.EntityFrameworkCore.MySql",
+                    "commit": source_commit,
+                    "treeId": "e" * 40,
+                    "releaseTag": "v1.2.3",
+                    "releaseVersion": "1.2.3",
+                    "assemblingRunAttempt": 1,
+                    "requiredProtectedChecks": policy["requiredProtectedChecks"],
+                    "gates": [
+                        {"gate": gate["id"], "kind": gate["kind"]}
+                        for gate in policy["gates"]
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def _write_paired_performance(self, source_commit: str) -> None:
+        """Write one qualified paired evaluation per required engine."""
+        for target in release_evidence.PERFORMANCE_TARGETS:
+            directory = self.root / "performance" / target / "reports" / "run-1"
+            directory.mkdir(parents=True)
+            (directory / "paired-evaluation.json").write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 2,
+                        "kind": "paired-performance-evaluation",
+                        "target": target,
+                        "profile": "paired-block",
+                        "runId": f"run-1-{target}",
+                        "commit": source_commit,
+                        "sourceHash": "f" * 64,
+                        "runnerClass": "test-runner",
+                        "qualification": "qualified",
+                        "success": True,
+                    }
+                ),
+                encoding="utf-8",
+            )
 
     def _write_performance_evidence(
         self,

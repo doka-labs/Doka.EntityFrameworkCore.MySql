@@ -171,9 +171,10 @@ publication. It has no authority to create tags or replace conflicting assets.
 - Workflow permissions follow least privilege.
 - Builds, packages, SBOMs, checksums, and release evidence are reproducible and
   cross-checked before publication.
-- Candidate qualification and NuGet publication are separate manual workflows;
-  publication rejects stale, side-branch, failed, cross-repository, or
-  conflicting same-version artifacts before requesting an OIDC credential.
+- Candidate qualification starts automatically from a signed release-tag push;
+  the separately authorized NuGet publication remains manual. Publication
+  rejects stale, side-branch, failed, cross-repository, or conflicting
+  same-version artifacts before requesting an OIDC credential.
 - Public-package readback compares canonical payload content, downloads the
   exact checksum-bound Portable PDBs from NuGet.org's symbol server, restores
   both exact package versions into an empty cache, and executes the provider

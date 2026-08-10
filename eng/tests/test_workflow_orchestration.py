@@ -11,9 +11,12 @@ breakage is what forces a manual release-candidate recovery.
 
 from __future__ import annotations
 
+import os
 import re
 import unittest
 from pathlib import Path
+
+from eng.release import trust
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -232,7 +235,13 @@ class ArtifactHandoffTests(unittest.TestCase):
         )
 
     def test_release_candidate_consumes_the_scorecard_artifacts(self) -> None:
-        """Pin the handoff that carries qualified performance evidence."""
+        """Pin the handoff that carries qualified performance evidence.
+
+        The tag no longer imports a historical comparison; it runs the paired
+        one through the same reusable scorecard. What must still line up is
+        that the scorecard publishes per-target evidence and the candidate
+        depends on the job that produces it.
+        """
         candidate = workflow_text("release-candidate.yml")
         scorecard = workflow_text("benchmark-scorecard.yml")
 
@@ -244,8 +253,8 @@ class ArtifactHandoffTests(unittest.TestCase):
                     "The scorecard must publish this target's qualified evidence.",
                 )
 
-        self.assertIn("benchmark-artifacts-${{ matrix.target }}", candidate)
-        self.assertIn("uses: ./.github/workflows/benchmark-scorecard.yml", candidate)
+        self.assertIn("performance-qualification:", candidate)
+        self.assertIn("- performance-qualification", candidate)
 
 
 class CrossWorkflowDispatchTests(unittest.TestCase):
@@ -397,13 +406,13 @@ class BaselineRolloverTests(unittest.TestCase):
         self.assertIn("gh pr create", benchmark)
         self.assertNotIn("git push origin HEAD:refs/heads/main", benchmark)
 
-        # The candidate refuses to qualify until an accepted baseline exists for
-        # the active contract, which is what makes the rollover mandatory.
-        self.assertIn(
+        # The chain ends on the default branch. The candidate no longer
+        # consumes it: under a paired comparison the tag measures for
+        # itself, so an accepted baseline is not a release precondition.
+        self.assertNotIn(
             "python3 -m eng.release.evidence validate-performance-baseline",
             candidate,
         )
-        self.assertIn("--contract benchmarks/performance-contract.json", candidate)
 
     def test_proposal_branch_name_is_derived_from_the_contract_version(self) -> None:
         """Keep one open proposal per contract version rather than per run."""
@@ -413,20 +422,317 @@ class BaselineRolloverTests(unittest.TestCase):
             benchmark,
         )
 
-    def test_release_readiness_names_the_pending_rollover(self) -> None:
-        """Require the candidate to explain a rollover, not just to fail.
 
-        The contract and the accepted baseline legitimately diverge between a
-        contract bump and the merge of the proposal that answers it. That state
-        must block a release candidate, which the preflight already does, and
-        it must tell the operator how to leave the state.
+class GateImplementationOwnershipTests(unittest.TestCase):
+    """Prove every release-path gate has exactly one shared implementation.
+
+    D-026 runs migration deployment, runtime posture, and both patch matrices
+    against the tagged commit while their scheduled counterparts keep running
+    on the default branch. Two callers of one gate are only safe while both
+    reach the same script. A gate whose command lives inline in a workflow
+    cannot be shared, so the tag would get a second copy -- the defect class
+    that made the release coverage gate unsatisfiable while the branch gate
+    passed on the same commit.
+    """
+
+    GATES = {
+        "migration-deployment": "test-migration-deployment.sh",
+        "runtime-posture": "test-runtime-posture.sh",
+        "efcore-patch-matrix": "test-efcore-matrix.sh",
+        "mysqlconnector-patch-matrix": "test-mysqlconnector-matrix.sh",
+    }
+
+    def job_body(self, workflow: str, job: str) -> list[str]:
+        """Return the lines of one job, excluding the following job."""
+        lines = (WORKFLOW_ROOT / workflow).read_text(encoding="utf-8").splitlines()
+        start = next(
+            index for index, line in enumerate(lines) if line.strip() == f"{job}:"
+        )
+        indent = len(lines[start]) - len(lines[start].lstrip())
+        for index in range(start + 1, len(lines)):
+            line = lines[index]
+            if (
+                line.strip()
+                and line.strip().endswith(":")
+                and (len(line) - len(line.lstrip())) == indent
+            ):
+                return lines[start:index]
+        return lines[start:]
+
+    def test_every_gate_delegates_to_its_shared_script(self) -> None:
+        """Reject a gate whose command is written inline in the workflow."""
+        for job, script in self.GATES.items():
+            with self.subTest(gate=job):
+                body = self.job_body("ci.yml", job)
+                self.assertTrue(
+                    any(script in line for line in body),
+                    f"{job} does not call {script}",
+                )
+
+    def test_no_gate_carries_an_inline_dotnet_command(self) -> None:
+        """Reject a gate that reintroduces its own build or test invocation.
+
+        A shared script plus a leftover inline `dotnet test` is two
+        implementations again, and only one of them would move to the tag.
         """
-        candidate = workflow_text("release-candidate.yml")
+        for job in self.GATES:
+            with self.subTest(gate=job):
+                offenders = [
+                    line.strip()
+                    for line in self.job_body("ci.yml", job)
+                    if re.search(r"\bdotnet\s+(test|restore|build|package)\b", line)
+                ]
+                self.assertEqual([], offenders)
 
-        self.assertIn("Hosted performance baseline required", candidate)
-        for instruction in ("benchmark workflow", "merge", "release"):
-            with self.subTest(instruction=instruction):
-                self.assertIn(instruction, candidate)
+    def test_every_gate_script_exists_and_is_executable(self) -> None:
+        """Keep the shared entry points present and runnable."""
+        for job, script in self.GATES.items():
+            with self.subTest(gate=job):
+                candidates = [
+                    REPOSITORY_ROOT / "eng" / "testing" / script,
+                    REPOSITORY_ROOT / "eng" / script,
+                ]
+                found = [path for path in candidates if path.is_file()]
+                self.assertTrue(found, f"{script} is missing")
+                self.assertTrue(
+                    os.access(found[0], os.X_OK),
+                    f"{found[0]} is not executable",
+                )
+
+
+class RequiredAggregatorTests(unittest.TestCase):
+    """Prove the required status check cannot pass by omission.
+
+    GitHub counts a conditionally skipped job as successful and skips the
+    dependents of a failed one. A required check that merely listed the gates
+    in `needs:` would therefore report success in exactly the situations it
+    exists to catch, which is why this one runs with `always()` and inspects
+    each dependency result explicitly.
+    """
+
+    AGGREGATOR = "repository-qualification"
+    COMMIT_EXACT_GATES = (
+        "quality-gates",
+        "repo-tests",
+        "spec-test-suite",
+        "integration-smoke",
+        "coverage-gate",
+    )
+
+    def setUp(self) -> None:
+        """Read the aggregator job body once per case."""
+        lines = (WORKFLOW_ROOT / "ci.yml").read_text(encoding="utf-8").splitlines()
+        start = next(
+            index
+            for index, line in enumerate(lines)
+            if line.strip() == f"{self.AGGREGATOR}:"
+        )
+        indent = len(lines[start]) - len(lines[start].lstrip())
+        end = len(lines)
+        for index in range(start + 1, len(lines)):
+            line = lines[index]
+            if (
+                line.strip()
+                and line.strip().endswith(":")
+                and (len(line) - len(line.lstrip())) == indent
+            ):
+                end = index
+                break
+        self.body = lines[start:end]
+
+    def test_the_aggregator_runs_even_when_a_dependency_failed(self) -> None:
+        """Require `always()` so a failed gate does not skip the check."""
+        self.assertIn(
+            "always()",
+            "\n".join(self.body),
+            "the required aggregator must run with always()",
+        )
+
+    def test_the_aggregator_only_skips_where_evidence_is_unusable(self) -> None:
+        """Bound every skip condition to a run that can never be imported.
+
+        A skipped job counts as success to branch protection, so a skip is a
+        silent pass. The one legitimate skip is the baseline-proposal profile,
+        which runs none of the gates -- and it is reachable only by dispatch,
+        which the release trust root refuses as branch evidence. Any other skip
+        condition would hand branch protection a pass nobody checked.
+        """
+        condition = "\n".join(self.body[: self.body.index("    needs:")])
+
+        if "baseline-proposal" not in condition:
+            return
+
+        self.assertIn("github.event_name != 'workflow_dispatch'", condition)
+
+        # The skip is only safe because the other half of the pair holds. This
+        # executes that half rather than describing it.
+        with self.assertRaises(trust.TrustRootError):
+            trust.verify_branch_evidence_origin(
+                {
+                    "conclusion": "success",
+                    "event": "workflow_dispatch",
+                    "headBranch": "main",
+                    "commit": "a" * 40,
+                    "workflowPath": ".github/workflows/ci.yml",
+                    "workflowRunId": 1,
+                    "runAttempt": 1,
+                },
+                commit="a" * 40,
+                expected_branch="main",
+                expected_workflow=".github/workflows/ci.yml",
+            )
+
+    def test_every_commit_exact_gate_is_a_dependency(self) -> None:
+        """Keep the aggregator's coverage equal to the commit-exact set."""
+        for gate in self.COMMIT_EXACT_GATES:
+            with self.subTest(gate=gate):
+                self.assertTrue(
+                    any(line.strip() == f"- {gate}" for line in self.body),
+                    f"{gate} is not a dependency of the aggregator",
+                )
+
+    def test_every_dependency_result_is_inspected(self) -> None:
+        """Reject an aggregator that depends on a gate without reading it.
+
+        A dependency that is never inspected contributes nothing: its failure
+        would be invisible to the check that is supposed to gate on it.
+        """
+        body = "\n".join(self.body)
+        for gate in self.COMMIT_EXACT_GATES:
+            with self.subTest(gate=gate):
+                self.assertIn(f"needs.{gate}.result", body)
+
+    def test_the_aggregator_does_not_depend_on_full_profile_jobs(self) -> None:
+        """Keep jobs that deliberately do not run per event out of the check.
+
+        Migration deployment, runtime posture, and the patch matrices run on a
+        schedule. Requiring them here would make the check unsatisfiable on
+        every pull request.
+        """
+        body = "\n".join(self.body)
+        for gate in ("migration-deployment", "runtime-posture",
+                     "efcore-patch-matrix", "mysqlconnector-patch-matrix",
+                     "benchmark-smoke"):
+            with self.subTest(gate=gate):
+                self.assertNotIn(f"- {gate}", body)
+
+
+class ReleaseCandidateShapeTests(unittest.TestCase):
+    """Prove the tag workflow runs only what a tag must decide for itself.
+
+    Repeating a gate that already ran on the default branch is what produced a
+    release coverage gate that merged two of five inputs while the branch gate
+    merged all five and passed on the same commit. The job set below is the
+    structural answer: imported evidence is verified, never re-measured.
+    """
+
+    WORKFLOW = "release-candidate.yml"
+
+    def setUp(self) -> None:
+        """Read the workflow once per case."""
+        self.text = (WORKFLOW_ROOT / self.WORKFLOW).read_text(encoding="utf-8")
+        self.stages = re.findall(r"^\s+- stage: ([a-z-]+)$", self.text, re.M)
+
+    def test_a_signed_tag_push_starts_the_workflow(self) -> None:
+        """Require the tag push trigger the release procedure depends on."""
+        self.assertRegex(self.text, r"on:\n(?:.*\n)*?  push:\n    tags:\n      - \"v\*\"")
+
+    def test_the_trust_root_runs_before_any_expensive_step(self) -> None:
+        """Reject a workflow that spends runner time before verifying the tag."""
+        trust = self.text.index("eng.release.trust")
+        for later in ("release-candidate.sh --stage", "benchmark-scorecard.yml"):
+            with self.subTest(step=later):
+                self.assertLess(trust, self.text.index(later))
+
+    def test_imported_gates_are_not_repeated_at_the_tag(self) -> None:
+        """Keep commit-exact branch gates out of the tag workflow.
+
+        Each of these has one implementation that already runs on the default
+        branch. A second execution here is a second implementation in waiting.
+        """
+        for imported in ("quality", "repository-tests", "specification",
+                         "integration", "coverage"):
+            with self.subTest(stage=imported):
+                self.assertNotIn(imported, self.stages)
+
+    def test_every_tag_produced_gate_is_present(self) -> None:
+        """Require the gates whose evidence only the tagged commit can produce."""
+        for produced in ("package", "migration-deployment", "runtime",
+                         "efcore-patch-matrix", "mysqlconnector-patch-matrix"):
+            with self.subTest(stage=produced):
+                self.assertIn(produced, self.stages)
+
+    def test_performance_is_qualified_in_paired_mode(self) -> None:
+        """Require the one measurement the tag performs to be the paired one."""
+        self.assertIn("comparison_mode: paired", self.text)
+
+    def test_no_historical_baseline_gate_remains(self) -> None:
+        """Reject a leftover import of the historical comparison result."""
+        for removed in ("performance-import", "performance-scorecard"):
+            with self.subTest(job=removed):
+                self.assertNotRegex(self.text, rf"^  {removed}:$")
+
+
+class PairedProviderBindingTests(unittest.TestCase):
+    """Prove one benchmark driver can measure two provider revisions.
+
+    A paired comparison is only about the provider if both sides are measured
+    by the same benchmark driver. With a project reference alone, building the reference
+    side from its own commit would rebuild the benchmark driver too, and the comparison
+    would silently be between benchmark driver-and-provider pairs. The benchmark project
+    therefore has to accept a packaged provider without changing anything for
+    the ordinary build.
+    """
+
+    PROJECT = (
+        REPOSITORY_ROOT
+        / "benchmarks"
+        / "Doka.EntityFrameworkCore.MySql.Benchmarks"
+        / "Doka.EntityFrameworkCore.MySql.Benchmarks.csproj"
+    )
+
+    def setUp(self) -> None:
+        """Read the benchmark project file once per case."""
+        self.text = self.PROJECT.read_text(encoding="utf-8")
+
+    def test_the_default_build_keeps_the_project_reference(self) -> None:
+        """Leave the ordinary benchmark build exactly as it was."""
+        self.assertIn(
+            "Condition=\"'$(DokaBenchmarkUsesPackagedProvider)' == 'false'\"",
+            self.text,
+        )
+        self.assertIn(
+            "src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj",
+            self.text,
+        )
+
+    def test_a_provider_version_switches_to_the_packaged_reference(self) -> None:
+        """Bind the same benchmark driver to a packaged provider when asked."""
+        self.assertIn(
+            "Condition=\"'$(DokaBenchmarkUsesPackagedProvider)' == 'true'\"",
+            self.text,
+        )
+        # VersionOverride, not Version: this repository uses Central Package
+        # Management, under which a PackageReference carrying a Version fails
+        # restore with NU1008. Only the reference side takes this path, so the
+        # ordinary build stayed green while every paired run died publishing
+        # its reference driver.
+        self.assertIn(
+            'VersionOverride="$(DokaBenchmarkProviderVersion)"', self.text
+        )
+        self.assertNotIn('Version="$(DokaBenchmarkProviderVersion)"', self.text)
+
+    def test_both_provider_packages_switch_together(self) -> None:
+        """Keep the provider and its spatial companion on one revision.
+
+        Mixing a packaged provider with a project-referenced companion would
+        measure two revisions at once and attribute the difference to neither.
+        """
+        packaged = self.text.split("== 'true'")[1]
+        for package in ("Doka.EntityFrameworkCore.MySql",
+                        "Doka.EntityFrameworkCore.MySql.NetTopologySuite"):
+            with self.subTest(package=package):
+                self.assertIn(f'Include="{package}"', packaged)
 
 
 if __name__ == "__main__":

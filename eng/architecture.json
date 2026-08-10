@@ -110,6 +110,20 @@
       ]
     },
     {
+      "path": "eng/pre-tag-check.sh",
+      "target": "eng/release/pre-tag-check.sh",
+      "classification": "operator-command",
+      "owner": "release",
+      "cost": "low",
+      "purpose": "Report whether a release tag on the current commit would qualify.",
+      "inputs": "An optional commit selection; otherwise HEAD.",
+      "outputs": "One line per qualification precondition, and a non-zero exit when any fails.",
+      "sideEffects": "None. Allocates no runner, writes no file, and creates no tag.",
+      "consumers": [
+        "docs/operations/release-publication.md"
+      ]
+    },
+    {
       "path": "eng/quality-gates.sh",
       "target": "eng/quality/quality-gates.sh",
       "classification": "operator-command",
@@ -127,20 +141,6 @@
       ]
     },
     {
-      "path": "eng/rehearse-release.sh",
-      "target": "eng/release/rehearse-release.sh",
-      "classification": "operator-command",
-      "owner": "release",
-      "cost": "high",
-      "purpose": "Qualify a release candidate locally before a version number is spent on a tag.",
-      "inputs": "The package version the candidate will carry, an optional stage selection, and a clean worktree.",
-      "outputs": "Release-candidate gate results for the working commit.",
-      "sideEffects": "Builds projects, writes release artifacts, and can run container-backed verification. Creates no tag and publishes nothing.",
-      "consumers": [
-        "docs/operations/release-publication.md"
-      ]
-    },
-    {
       "path": "eng/release-candidate.sh",
       "target": "eng/release/release-candidate.sh",
       "classification": "operator-command",
@@ -151,9 +151,7 @@
       "outputs": "Packages, SBOMs, checksums, evidence manifests, and reconciliation reports.",
       "sideEffects": "Builds projects, writes release artifacts, and can run container-backed verification.",
       "consumers": [
-        ".github/workflows/release-candidate.yml",
-        "CONTRIBUTING.md",
-        "docs/release-governance.md"
+        ".github/workflows/release-candidate.yml"
       ]
     },
     {

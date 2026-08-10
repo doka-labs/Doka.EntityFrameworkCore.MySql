@@ -7,6 +7,171 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+Seven release candidates failed before this change, and none of them failed on
+the provider. The tag re-ran gates the default branch had already proven,
+through separate and less exercised plumbing, and its performance gate compared
+one measurement against a baseline recorded on another machine -- on a runner
+fleet that promises no particular processor.
+
+The tag now runs only the gates whose evidence the tagged commit must produce
+for itself, and measures performance as a paired comparison: a reference and
+the candidate provider revision alternately on one allocated runner, so the
+machine cancels out of every ratio instead of having to be matched.
+
+### Added
+
+- Establish a trust root before any expensive job is allocated. The tag
+  signature is checked against the remote verdict and, independently, against
+  the signers this repository registers; the tagged commit must be reachable
+  from protected `main`; and the branch evidence must come from a push on that
+  branch rather than from a pull request against it.
+- Freeze the evidence a release is qualified on in one canonical manifest.
+  Every gate is derived into a result that states which commit and tree it
+  describes, which workflow produced it, under which run and attempt, and which
+  artifact carries the bytes. Selection happens once; later steps re-check the
+  frozen identities but never reselect.
+- Verify the published payload against the manifest at publication. Every file
+  digest is recomputed from the packages about to be published, and a missing,
+  added, or altered file fails closed.
+- Carry the paired measurements into the release candidate itself. The
+  evaluations, the block reports, the recorded environment, and the
+  sustained-use report are copied into the ninety-day artifact and bound by
+  digest, so a performance claim stays re-derivable after the short-lived
+  benchmark artifacts expire.
+- Answer whether a tag would qualify before one is created. `eng/pre-tag-check.sh`
+  allocates no runner, writes no file, and creates no tag.
+
+### Changed
+
+- Measure release performance as a paired same-run comparison. Latency families
+  decide against a registered practical budget, resource families against a
+  paired allocation and collection budget, and the candidate stays bound to the
+  absolute family ceilings so a pair that regressed together cannot qualify.
+  Sustained-use evidence is measured on the candidate as part of the same run.
+- Retry a benchmark attempt only for a measurement or environment condition.
+  The decision travels with the attempt receipt, so a retry can never select
+  away a verdict about the code.
+- Bound a paired comparison with nested watchdogs rather than with a sum. A
+  side run stops at the smaller of its own hang deadline and what remains of
+  the comparison, and a block that cannot finish inside the remaining budget is
+  not started. Either stop reports a measurement condition, which is retryable,
+  instead of a verdict about the provider.
+- Size each paired workload by the precision it reached. A block starts at the
+  smallest population the profile accepts and extends only until the registered
+  error budget is met, so coverage and block count are kept without paying a
+  fixed population twice per block.
+- Reconcile the public README, contributor guide, release governance,
+  performance runbook, security settings, and threat model with automatic
+  tag-triggered qualification, paired release evidence, and the read-only
+  pre-tag lookup.
+
+### Fixed
+
+- Verify the exact EF Core package set a patch matrix resolved. The previous
+  check counted packages, so a missing package could be compensated by a
+  duplicate of another.
+- Reproduce a paired interval across processes. The per-test resampling seed was
+  derived from a hash that Python randomizes per process, so a reviewer could
+  not reproduce the number a release was decided on.
+- Record a paired measurement as the attempt it is. The recorder looked for the
+  historical verdict under its historical name, so every qualified paired run
+  failed in the step after the measurement and produced no selectable result.
+- Decide an absolute budget on every block rather than on the last one. A
+  candidate that crossed a catastrophe ceiling early and recovered qualified.
+- Give the release preflight the permission its own API calls need. An explicit
+  permissions block inherits nothing, so resolving the qualification check
+  would have been refused before any gate ran.
+- Measure the paired comparison on the profile it reports. The benchmark driver
+  recognized two profile names and sent every other one to the smoke subset, so
+  a paired run measured fifteen of fifty-five workloads at one row count while
+  its evidence claimed the complete matrix.
+- Record a paired measurement under the profile that measured it. The workflow
+  passed the profile it dispatches with, which the recorder refuses because the
+  evaluation carries the block profile.
+- Reconcile a release against the gates the policy declares. The writer and the
+  validator carried two independent inventories and two schema versions, so the
+  final step of an otherwise successful candidate could not complete.
+- Compare paired sides that needed different sample populations. Extension is
+  driven by precision, so a noisier side needs more samples to reach the same
+  error budget; requiring equal counts made a measured run diverge on sixteen of
+  fifty-five workloads and would have invalidated every paired comparison.
+- Classify a deadline stop as the measurement condition it is. The outer
+  watchdog reported its own timeout code, which the attempt path files as
+  invalid evidence -- a state no retry can clear.
+- Keep an ordinary build green after a paired comparison. Both sides shared one
+  intermediate tree, so the reference restore left package references behind
+  that the next build imported alongside the project references and failed on.
+  Each side now builds under its own artifacts root, which keeps the per-project
+  separation a global intermediate path destroys.
+- Decide measurement precision the same way on both sides of the language
+  boundary. The runner measured the standard error against the median and the
+  evaluator against the mean, so a right-skewed population the runner had
+  judged insufficient could still be accepted here.
+- Refuse evidence that cannot support a verdict. A single observation reported
+  zero dispersion, a non-numeric sample escaped as an ordinary failure, and the
+  attempt recorder reads that failure as a regression -- so broken evidence
+  could convict a provider it never measured. A foreign schema version, a
+  foreign kind, and a missing or empty identity are now refused the same way,
+  before any statistic runs.
+- Let the measurement decide whether it converged. The runner records per side
+  and per block whether a workload reached its precision or stopped at its
+  sample cap; that verdict was stored and never read, so a run that never
+  settled could still qualify. A capped workload is now withheld from its
+  metric family altogether, because leaving its p-value in would move the
+  false-discovery threshold for every workload that did converge -- while a
+  regression in one of those still decides the release.
+- Hold every raw block report to the canonical workload contract. The paired
+  path checked only the fields it read, so a foreign document, a termination
+  the runner cannot produce, and a statistic that does not follow from its own
+  samples all reached the comparison.
+- Treat the evaluation entry point as its own trust boundary. It was handed a
+  finished evidence document and trusted it, so an incomplete workload matrix,
+  a convergence claim without the duration floor, and a cap claimed at a
+  fraction of the actual cap could all qualify a release -- and nothing
+  downstream recomputes the statistics from the raw reports. The structural
+  half is now closed with it: a missing block count made every other count
+  check vacuous, candidate measurements covering one block held the candidate
+  to a fraction of its run, a dropped environment record made the shared-machine
+  claim unfalsifiable, and absent provenance left the numbers describing nothing
+  in particular. Provenance is now bound rather than merely present: the
+  contract digest must name the contract the evaluation loaded, two empty
+  environment objects no longer prove a shared machine by agreeing about
+  nothing, and every structure is type-checked before it is read -- reading
+  first turned broken evidence into an ordinary failure, which the attempt
+  recorder reads as a regression. The same discipline now covers the test and
+  resource structures, the provenance fields are validated as real revisions
+  and digests rather than as non-empty text, the driver identity a dirty
+  working tree produces is a full digest the evaluator accepts instead of a
+  shape it refused, and the contract binding is required by the signature so
+  no caller can obtain a verdict without it. The absolute ceilings now take the
+  workload family from the contract instead of from the document being judged,
+  so a workload cannot re-declare itself into a more generous budget. Every
+  ceiling input is now the measurement the paired decision is formed from:
+  the recorded nanosecond samples of each block decide the latency budgets,
+  where a per-block summary used to, so a candidate and its reference that
+  degraded together can no longer pass a budget by summarizing themselves as
+  fast. The summary stays in the document as an audit view and has to agree
+  with the measurement it summarizes. The calibration travels with the evidence
+  for the same reason, so the views of a block -- normalized samples, raw
+  latencies, recorded sample count -- are proven to describe one measured
+  population rather than assumed to. The divisor itself is rebuilt from the
+  recorded calibration pulses instead of being read, so a document cannot
+  leave the raw latencies untouched and rescale a regression into a
+  qualification by choosing what to divide by. The candidate audit summary is
+  now exactly the seven fields it is documented to be, produced by one function
+  for the runner and the fixtures alike, so the document no longer carries a
+  second unchecked copy of the measurement beside the canonical one.
+- Keep the finalization share out of the sustained-use run. The reserve was
+  withheld from the block forecast and from every side watchdog, then handed to
+  the soak in full, which could leave nothing for assembling and evaluating the
+  evidence.
+
+### Removed
+
+- Remove the local release rehearsal. It ran the whole candidate to buy
+  certainty before spending a version number, could not cover the gate that kept
+  failing, and cost more than the tag it was meant to protect.
+
 ## [10.0.0-rc.7] - 2026-08-09
 
 This release candidate supersedes `10.0.0-rc.6`, which failed in the first

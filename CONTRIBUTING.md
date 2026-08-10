@@ -149,42 +149,30 @@ See
 runner identity, dual-engine baseline acceptance, strict comparison, and
 failure triage.
 
-**Release-candidate evidence path** (repository, specification, integration,
-coverage, package, vulnerability, SBOM, benchmark, performance, and
-publication-readiness gates):
+**Pre-tag qualification lookup** (run only after the exact commit is green on
+protected `main`):
 
 ```bash
-./eng/release-candidate.sh
+./eng/pre-tag-check.sh
 ```
 
-The script is the single deterministic pre-tag checkpoint. Exit `0` signals
-"safe to tag"; exit non-zero stops the release. The complete process has a
-two-hour default deadline. A repeated invocation with the same run ID and
-`DOKA_RELEASE_CANDIDATE_RESUME=1` reuses a stage only after its source-bound
-receipt and every retained artifact digest have been verified. The final
-publication-readiness check invokes the official EF Core relational compliance
-assertions and requires zero provider-owned specification debt.
+The lookup allocates no runner, writes no file, and creates no tag. It requires
+a clean worktree, verifies that the commit is reachable from protected `main`,
+checks the configured signing material, and resolves the successful
+commit-exact `repository-qualification` run that the tag will import. A failure
+names the missing precondition; it must be resolved before a version is spent.
 
-The performance gate requires the complete 55-cell scorecard, raw and
-calibration-normalized median and p95/p99 evidence, standard error, allocation
-and GC evidence, the exact contract-owned BenchmarkDotNet controls, absolute
-and runner-specific historical budgets, and six sustained resource invariants.
-It runs against both `mysql84` and `mariadb118`, so Docker and an accepted
-baseline for the runner class must be available. Each engine scorecard has a
-hard 30-minute deadline and persists source-bound per-workload checkpoints.
+The signed tag push starts hosted qualification automatically. That workflow
+produces the package and SBOM, reruns only the tag-owned migration, runtime, and
+dependency patch gates, and performs one paired reference-versus-candidate
+performance comparison per release engine. A manual dispatch is diagnostic
+only and cannot qualify an untagged source.
 
-Dev-loop bypass (only for iteration that does not aim to ship):
-`DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1 ./eng/release-candidate.sh` skips the
-benchmark and gate step. The resulting evidence is explicitly not
-release-eligible.
-
-A successful local run is necessary pre-tag evidence, but it does not authorize
-publication. Continue with the canonical
+Continue with the canonical
 [release procedure](docs/operations/release-publication.md#qualification-and-publication-procedure).
-That procedure requires an exact green `main` commit, a signed and annotated
-tag, hosted candidate attestations, explicit NuGet publication authorization,
-and public package and GitHub release readback. Never use `git push --tags` for
-a release.
+It defines signed tagging, hosted candidate review, explicit NuGet publication
+authorization, and public package and GitHub release readback. Never use
+`git push --tags` for a release.
 
 ## Code Style
 

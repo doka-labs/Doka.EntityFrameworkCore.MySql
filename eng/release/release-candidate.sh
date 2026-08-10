@@ -39,9 +39,15 @@ coverage_merged_dir="${release_candidate_dir}/coverage-merged"
 integration_dir="${release_candidate_dir}/integration"
 migration_deployment_root="${release_candidate_dir}/migration-deployment"
 runtime_dir="${release_candidate_dir}/runtime"
+efcore_matrix_dir="${release_candidate_dir}/efcore-patch-matrix"
+mysqlconnector_matrix_dir="${release_candidate_dir}/mysqlconnector-patch-matrix"
 runtime_publish_dir="${repo_root}/artifacts/runtime-smoke/${release_candidate_run_id}/trimmed"
 performance_dir="${release_candidate_dir}/performance"
 reconciliation_file="${release_candidate_dir}/release-candidate-reconciliation.json"
+qualification_manifest_file="${release_candidate_dir}/release-qualification-manifest.json"
+gate_results_file="${release_candidate_dir}/release-gate-results.json"
+benchmark_artifacts_root="${repo_root}/artifacts/benchmarks"
+release_repository="${DOKA_RELEASE_REPOSITORY:-${GITHUB_REPOSITORY:-}}"
 stage_checkpoint_dir="${repo_root}/artifacts/release-candidate-checkpoints/${release_candidate_run_id}"
 require_release_tag="${DOKA_RELEASE_REQUIRE_TAG:-1}"
 release_version_override="${DOKA_RELEASE_VERSION:-}"
@@ -249,18 +255,19 @@ write_stage_checkpoint() {
 
 verify_required_stage_set() {
     local include_complete="${1:-0}"
+    # The verification half of this script. It declares exactly the stages the
+    # tag produces receipts for, and nothing else: a gate verified on the
+    # default branch is imported, so requiring a receipt for it here would make
+    # every release unfinishable, while accepting one would let an artifact
+    # from another commit stand in for this one. The workflow matrix and this
+    # list are pinned to each other by a repository contract test.
     local expected_stages=(
-        quality
-        repository-tests
-        specification
-        integration
         migration-deployment
         runtime
-        coverage
+        efcore-patch-matrix
+        mysqlconnector-patch-matrix
         package
         sbom
-        performance-mysql84
-        performance-mariadb118
     )
 
     if [[ "${include_complete}" == "1" ]]; then
@@ -484,6 +491,38 @@ run_runtime_posture_gate() {
         bash "${repo_root}/eng/testing/test-runtime-posture.sh" --up-test-down
 }
 
+# Both patch matrices resolve a floating dependency leg, so each row is run
+# here rather than imported: the release must prove the provider against the
+# dependency graph its own commit resolves, not the one a scheduled run
+# resolved days earlier. Both legs run inside one stage so the gate keeps a
+# single receipt.
+run_efcore_matrix_gate() {
+    local leg
+    for leg in "10.0.8:^10[.]0[.]8$:minimum-10-0-8" \
+               "10.0.*:^10[.]0[.][0-9]+$:latest-10-0"; do
+        DokaEfCoreVersion="${leg%%:*}" \
+        DOKA_EF_CORE_RESOLVED_PATTERN="$(printf '%s' "${leg}" | cut -d: -f2)" \
+        DOKA_EF_CORE_ARTIFACT_SUFFIX="${leg##*:}" \
+            bash "${repo_root}/eng/testing/test-efcore-matrix.sh"
+    done
+    mkdir -p "${efcore_matrix_dir}"
+    cp -R "${repo_root}/artifacts/efcore-patch-matrix/." "${efcore_matrix_dir}/"
+}
+
+run_mysqlconnector_matrix_gate() {
+    local leg
+    for leg in "2.5.0:^2[.]5[.]0$:minimum-2-5-0" \
+               "2.*:^2[.][0-9]+[.][0-9]+$:latest-2-x"; do
+        DOKA_MYSQLCONNECTOR_VERSION="${leg%%:*}" \
+        DOKA_MYSQLCONNECTOR_RESOLVED_PATTERN="$(printf '%s' "${leg}" | cut -d: -f2)" \
+        DOKA_MYSQLCONNECTOR_ARTIFACT_SUFFIX="${leg##*:}" \
+            bash "${repo_root}/eng/testing/test-mysqlconnector-matrix.sh"
+    done
+    mkdir -p "${mysqlconnector_matrix_dir}"
+    cp -R "${repo_root}/artifacts/mysqlconnector-patch-matrix/." \
+        "${mysqlconnector_matrix_dir}/"
+}
+
 run_coverage_gate() {
     bash "${repo_root}/eng/quality/merge-coverage.sh" \
         "${release_candidate_dir}" \
@@ -584,14 +623,13 @@ write_summary() {
         echo "- releaseCandidateRunId: ${release_candidate_run_id}"
         echo "- releaseVersion: ${release_version}"
         echo "- packagesDirectory: packages"
-        echo "- auditDirectory: audit"
         echo "- sbomDirectory: sbom"
-        echo "- specificationDirectory: specification"
-        echo "- integrationDirectory: integration"
         echo "- migrationDeploymentDirectory: migration-deployment/${release_candidate_run_id}"
         echo "- runtimeDirectory: runtime"
-        echo "- coverageDirectory: coverage-merged"
+        echo "- efcoreMatrixDirectory: efcore-patch-matrix"
+        echo "- mysqlconnectorMatrixDirectory: mysqlconnector-patch-matrix"
         echo "- performanceDirectory: performance"
+        echo "- qualificationManifestFile: release-qualification-manifest.json"
         echo "- reconciliationFile: release-candidate-reconciliation.json"
         echo "- changelogFile: release-candidate-changelog.md"
         echo "- evidenceFile: release-candidate-evidence.json"
@@ -620,50 +658,80 @@ require_evidence_directory() {
     fi
 }
 
+require_evidence_glob() {
+    # Assert a named evidence file exists somewhere below a gate directory.
+    # A gate that runs several legs writes one such file per leg, and pinning
+    # the path to one leg would accept a run in which the others produced
+    # nothing.
+    local directory="$1" name="$2" count
+
+    count="$(find "${directory}" -type f -name "${name}" 2>/dev/null | wc -l | tr -d ' ')"
+    if [[ "${count}" -eq 0 ]]; then
+        echo "No ${name} below ${directory}." >&2
+        exit 1
+    fi
+    echo "Evidence: ${count} x ${name} below ${directory}."
+}
+
 write_reconciliation() {
-    # Reconcile every named release contract only after its executable gate has
-    # passed. The manifest independently validates this index before sealing it.
-    require_evidence_directory "${coverage_input_dir}/repo-tests"
-    require_evidence_file "${coverage_merged_dir}/coverage.cobertura.xml"
-    require_evidence_file "${specification_dir}/mysql84/test-database-evidence.json"
-    require_evidence_file "${specification_dir}/mariadb114/test-database-evidence.json"
-    require_evidence_file "${specification_dir}/mariadb118/test-database-evidence.json"
-    require_evidence_file "${integration_dir}/compatibility-matrix-evidence.json"
-    require_evidence_file "${integration_dir}/examples/live-example-matrix-evidence.json"
+    # Reconcile the gates this tag is actually qualified on. Every gate here is
+    # either produced by this run and covered by a stage receipt, or imported
+    # from the protected branch and pinned by the qualification manifest. The
+    # gates the branch verifies -- quality, repository tests, specification,
+    # integration, coverage -- are deliberately absent: repeating them through
+    # this path is what the previous shape did, and it produced a second, less
+    # exercised copy of every check.
     require_evidence_file \
         "${migration_deployment_root}/${release_candidate_run_id}/migration-deployment-evidence.json"
     require_evidence_file "${runtime_dir}/runtime-posture-evidence.json"
+    # Each matrix gate writes one evidence file per resolved dependency leg,
+    # in that leg's own directory, so the requirement is per gate rather than
+    # per fixed path.
+    require_evidence_glob "${efcore_matrix_dir}" "efcore-contract-evidence.json"
+    require_evidence_glob "${mysqlconnector_matrix_dir}" \
+        "driver-contract-evidence.json"
     require_evidence_directory "${packages_dir}"
-    require_evidence_directory "${audit_dir}"
     require_evidence_directory "${sbom_dir}"
-    require_evidence_file "${performance_dir}/mysql84/evidence/gate-performance-evaluation.json"
-    require_evidence_file "${performance_dir}/mariadb118/evidence/gate-performance-evaluation.json"
+    require_evidence_file "${qualification_manifest_file}"
 
-    cat > "${reconciliation_file}" <<EOF
-{
-  "schemaVersion": 1,
-  "generatedUtc": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "runId": "${release_candidate_run_id}",
-  "sourceCommit": "$(git rev-parse HEAD)",
-  "gates": [
-    { "id": "source-identity", "status": "pass" },
-    { "id": "adr-validation", "status": "pass" },
-    { "id": "repository-quality", "status": "pass" },
-    { "id": "repository-tests", "status": "pass" },
-    { "id": "live-specification", "status": "pass" },
-    { "id": "integration-configuration-failure", "status": "pass" },
-    { "id": "live-examples", "status": "pass" },
-    { "id": "migration-deployment", "status": "pass" },
-    { "id": "runtime-full-trim", "status": "pass" },
-    { "id": "coverage-union", "status": "pass" },
-    { "id": "package-contract", "status": "pass" },
-    { "id": "vulnerability-audit", "status": "pass" },
-    { "id": "sbom", "status": "pass" },
-    { "id": "performance-memory", "status": "pass" },
-    { "id": "publication-readiness", "status": "pass" }
-  ]
+    # The reconciliation index is derived from the manifest rather than written
+    # alongside it. A hand-kept list would be a second statement of the same
+    # fact, free to drift from the document a publication decision reads.
+    python3 - "${qualification_manifest_file}" "${reconciliation_file}" \
+        "${release_candidate_run_id}" "$(git rev-parse HEAD)" <<'RECONCILE'
+import json
+import sys
+from datetime import datetime, timezone
+
+manifest_path, output_path, run_id, commit = sys.argv[1:5]
+manifest = json.loads(open(manifest_path, encoding="utf-8").read())
+if manifest.get("commit") != commit:
+    raise SystemExit(
+        f"Manifest describes {manifest.get('commit')}, not the checked-out {commit}."
+    )
+
+document = {
+    "schemaVersion": 2,
+    "generatedUtc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "runId": run_id,
+    "sourceCommit": commit,
+    "policyVersion": manifest["policyVersion"],
+    "policyDigest": manifest["policyDigest"],
+    "gates": [
+        {
+            "id": entry["gate"],
+            "kind": entry["kind"],
+            "status": "pass",
+            "workflowRunId": entry["workflowRunId"],
+            "runAttempt": entry["runAttempt"],
+        }
+        for entry in manifest["gates"]
+    ],
 }
-EOF
+with open(output_path, "w", encoding="utf-8") as stream:
+    json.dump(document, stream, indent=2, sort_keys=True)
+    stream.write("\n")
+RECONCILE
 }
 
 run_performance_engine() {
@@ -763,48 +831,100 @@ reuse_performance_evidence() {
         "${performance_dir}/mariadb118"
 }
 
-run_combined_performance_gate() {
-    local mysql_import="${performance_dir}/mysql84/import-receipt.json"
-    local mariadb_import="${performance_dir}/mariadb118/import-receipt.json"
+run_paired_performance_gate() {
+    # The tag's performance evidence is the paired comparison this run
+    # produced. Re-deriving a verdict here from the same numbers would be a
+    # second implementation of the decision; the evaluation already carries it,
+    # so this insists that one exists per engine, that it qualified, and that
+    # every file it rests on is copied into the candidate.
+    #
+    # The copy is what makes the candidate self-contained. Benchmark artifacts
+    # expire in days; the candidate is retained for ninety, and a performance
+    # claim nobody can re-derive after the inputs expire is not evidence.
+    local engine source_dir evaluation qualification
+    local engines=()
 
-    if [[ -f "${mysql_import}" && -f "${mariadb_import}" ]]; then
-        echo "Verifying imported qualified performance evidence..."
-        python3 -m eng.performance.cli verify-imported-attempt \
-            --destination "${performance_dir}/mysql84" \
-            --expected-target mysql84 \
-            --expected-commit "$(git rev-parse HEAD)"
-        python3 -m eng.performance.cli verify-imported-attempt \
-            --destination "${performance_dir}/mariadb118" \
-            --expected-target mariadb118 \
-            --expected-commit "$(git rev-parse HEAD)"
-        return
-    fi
+    while IFS= read -r engine; do
+        engines+=("${engine}")
+    done < <(
+        python3 -c '
+import json, sys
+contract = json.load(open(sys.argv[1], encoding="utf-8"))
+for target in contract["requiredTargets"]:
+    print(target)
+' "${repo_root}/benchmarks/performance-contract.json"
+    )
 
-    if [[ -f "${mysql_import}" || -f "${mariadb_import}" ]]; then
-        echo "Imported performance evidence is incomplete across engines." >&2
+    if [[ "${#engines[@]}" -eq 0 ]]; then
+        echo "The performance contract names no required engines." >&2
         return 1
     fi
 
-    local scratch_root
-    scratch_root="$(mktemp -d "${TMPDIR:-/tmp}/doka-release-performance.XXXXXX")"
-    mkdir -p "${scratch_root}/mysql84/reports" "${scratch_root}/mariadb118/reports"
-    cp -R \
-        "${performance_dir}/mysql84" \
-        "${scratch_root}/mysql84/reports/${release_candidate_run_id}"
-    cp -R \
-        "${performance_dir}/mariadb118" \
-        "${scratch_root}/mariadb118/reports/${release_candidate_run_id}"
+    for engine in "${engines[@]}"; do
+        source_dir="${benchmark_artifacts_root}/${engine}"
+        if [[ ! -d "${source_dir}" ]]; then
+            echo "No performance evidence for ${engine} below ${source_dir}." >&2
+            return 1
+        fi
 
-    echo "Re-evaluating the complete performance and memory gate..."
-    if ! DOKA_BENCHMARK_PROFILE=scorecard \
-        DOKA_BENCHMARK_GATE_RUN_ID="${release_candidate_run_id}" \
-        bash "${repo_root}/eng/performance/check-benchmark-ratios.sh" \
-            "${scratch_root}"; then
-        rm -rf -- "${scratch_root}"
+        mkdir -p "${performance_dir}/${engine}"
+        cp -R "${source_dir}/." "${performance_dir}/${engine}/"
+
+        evaluation="$(
+            find "${performance_dir}/${engine}" \
+                -type f -name paired-evaluation.json \
+                | sort \
+                | tail -n 1
+        )"
+        if [[ -z "${evaluation}" ]]; then
+            echo "No paired performance evaluation for ${engine}." >&2
+            return 1
+        fi
+        qualification="$(
+            python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["qualification"])' \
+                "${evaluation}"
+        )"
+        if [[ "${qualification}" != "qualified" ]]; then
+            echo "Paired performance for ${engine} is ${qualification}." >&2
+            return 1
+        fi
+        echo "Paired performance for ${engine}: qualified and retained."
+    done
+}
+
+assemble_qualification_manifest() {
+    # Selection happens exactly once, here, and the manifest it produces is
+    # what every later step reads. Deriving the gate results first means no
+    # step can assert a gate passed that left no receipt behind.
+    if [[ -z "${release_repository}" ]]; then
+        echo "The release repository is unknown; set DOKA_RELEASE_REPOSITORY." >&2
         return 1
     fi
 
-    rm -rf -- "${scratch_root}"
+    python3 -m eng.release.gate_results derive \
+        --repo "${repo_root}" \
+        --repository "${release_repository}" \
+        --commit "$(git rev-parse HEAD)" \
+        --selection "${stage_checkpoint_dir}/assemble-input-artifacts.json" \
+        --checkpoint-directory "${stage_checkpoint_dir}" \
+        --evidence-root "${release_candidate_dir}" \
+        --performance-root "${performance_dir}" \
+        --assembling-attempt "${release_run_attempt}" \
+        --policy "${repo_root}/eng/release/evidence-policy.json" \
+        --output "${gate_results_file}"
+
+    python3 -m eng.release.qualification assemble \
+        --result "${gate_results_file}" \
+        --commit "$(git rev-parse HEAD)" \
+        --tree-id "$(git rev-parse 'HEAD^{tree}')" \
+        --repository "${release_repository}" \
+        --release-tag "${release_tag}" \
+        --release-version "${release_version}" \
+        --assembling-attempt "${release_run_attempt}" \
+        --root "${packages_dir}" \
+        --inventory-root-name packages \
+        --policy "${repo_root}/eng/release/evidence-policy.json" \
+        --output "${qualification_manifest_file}"
 }
 
 resolve_release_version() {
@@ -834,7 +954,7 @@ run_finalization_stage() {
     # Finalization consumes only verified stage receipts. It never infers
     # completion from a directory that merely happens to contain files.
     verify_required_stage_set
-    run_combined_performance_gate
+    run_paired_performance_gate
     resolve_release_version
     write_changelog "${release_version}"
 
@@ -862,6 +982,7 @@ run_finalization_stage() {
     fi
 
     bash "${repo_root}/eng/release/check-publication-readiness.sh"
+    assemble_qualification_manifest
     write_reconciliation
     write_summary "${release_version}" "${package_count}"
     write_evidence "${release_version}"
@@ -933,6 +1054,14 @@ run_all_stages() {
         run_migration_deployment_gate \
         "${migration_deployment_root}"
     run_named_stage "runtime" run_runtime_posture_gate "${runtime_dir}"
+    run_named_stage \
+        "efcore-patch-matrix" \
+        run_efcore_matrix_gate \
+        "${efcore_matrix_dir}"
+    run_named_stage \
+        "mysqlconnector-patch-matrix" \
+        run_mysqlconnector_matrix_gate \
+        "${mysqlconnector_matrix_dir}"
     run_named_stage "coverage" run_coverage_gate "${coverage_merged_dir}"
     run_named_stage \
         "package" \
@@ -985,7 +1114,8 @@ cd "${repo_root}"
 
 case "${selected_stage}" in
     all | quality | repository-tests | specification | integration \
-        | migration-deployment | runtime | coverage | package | sbom \
+        | migration-deployment | runtime | efcore-patch-matrix \
+        | mysqlconnector-patch-matrix | coverage | package | sbom \
         | performance-mysql84 | performance-mariadb118 | finalize)
         ;;
     *)
@@ -1045,6 +1175,18 @@ case "${selected_stage}" in
         ;;
     runtime)
         run_named_stage "runtime" run_runtime_posture_gate "${runtime_dir}"
+        ;;
+    efcore-patch-matrix)
+        run_named_stage \
+            "efcore-patch-matrix" \
+            run_efcore_matrix_gate \
+            "${efcore_matrix_dir}"
+        ;;
+    mysqlconnector-patch-matrix)
+        run_named_stage \
+            "mysqlconnector-patch-matrix" \
+            run_mysqlconnector_matrix_gate \
+            "${mysqlconnector_matrix_dir}"
         ;;
     coverage)
         run_named_stage "coverage" run_coverage_gate "${coverage_merged_dir}"

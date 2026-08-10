@@ -79,9 +79,9 @@ repository and NuGet.org.
 
 Wait for the following checks on `release_commit` to complete successfully:
 
-- `quality-gates`
-- `repo-tests`
-- `integration-smoke`
+- `repository-qualification`, the aggregator required by the `main` ruleset. It
+  runs with `always()` and fails when any of its dependencies failed or was
+  skipped, so a green aggregator is what a release tag later imports.
 - CodeQL and every other code-scanning check required by the active `main`
   ruleset
 
@@ -105,11 +105,13 @@ scorecard. Invalid or stale evidence is remeasured on the same stable proposal
 branch. Unexpected files on that branch fail before the matrix and require
 explicit review instead of being overwritten by automation.
 
-The release-candidate workflow is intentionally compare-only and rejects a
-stale or incomplete pair during its inexpensive preflight. It never promotes
-measurements collected by the candidate itself. Its failure message routes the
-operator back to the single baseline review pull request. See
-[Performance Evidence Operations](performance-evidence.md) for the baseline
+The release-candidate workflow no longer consumes that baseline. It measures
+performance itself, once, as a paired comparison: a reference and the candidate
+provider revision are measured alternately on one allocated runner, so the
+machine cancels out of every ratio instead of having to be matched. The
+benchmark workflow above remains early warning on the default branch and never
+qualifies or blocks a release. See
+[Performance Evidence Operations](performance-evidence.md) for the reference
 acceptance procedure.
 
 Resolve every release blocker before continuing. Once the exact commit is
@@ -117,47 +119,43 @@ green, freeze `main` operationally until publication completes. Any later
 commit makes the candidate stale, even if that commit changes only
 documentation or automation.
 
-#### 3. Rehearse the candidate before spending a version
+#### 3. Check that a tag would qualify
 
-A pushed tag is immutable, so every defect the hosted candidate finds costs a
-version number. Run the same orchestrator locally first, against the commit the
-tag will point at:
+A pushed tag is immutable, so the question worth answering first is whether a
+tag on this commit would qualify at all. That is now a lookup rather than a
+run: the tag imports the branch evidence this commit already carries, and it
+runs only the gates whose evidence the tagged commit must produce for itself.
 
 ```bash
-./eng/rehearse-release.sh 10.0.0-rc.7
+./eng/pre-tag-check.sh
 ```
 
-The rehearsal lifts the tag requirement, supplies the version the real
-candidate will carry, and runs the qualification gates unchanged. It needs a
-clean worktree, creates no tag, and publishes nothing. A single gate can be
-rehearsed on its own with `--stage <stage>` while a fix is in progress.
+The check allocates no runner, writes no file, and creates no tag. It reports
+one line per precondition and exits non-zero when any fails:
 
-It reads three variables from the environment and removes every other
-`DOKA_RELEASE_*` and `DOKA_BENCHMARK_*` one before the orchestrator starts, so
-state left over from an earlier run cannot change what a rehearsal answers:
-
-| Variable | Purpose |
+| Precondition | Why a tag depends on it |
 |---|---|
-| `DOKA_RELEASE_CANDIDATE_RUN_ID` | Share one evidence directory across stages |
-| `DOKA_RELEASE_CANDIDATE_RESUME` | Continue into that directory (set to `1`) |
-| `DOKA_BENCHMARK_RUNNER_CLASS` | Override the detected runner class |
+| Reachable from protected `main` | Ties the immutable identity back to the branch whose protection produced the evidence |
+| Clean worktree | A tag would otherwise not describe what was tested |
+| Trusted signers registered | An unregistered signature is rejected after the tag exists, which is when it is expensive |
+| Allowed-signers file present | Local verification cannot run without the key material |
+| Local signing key configured | The tag must be signable before it is created |
+| `repository-qualification` succeeded | This is the branch evidence the tag imports |
 
-Rehearsing stage by stage needs the first two, because each invocation
-otherwise writes its own evidence directory and a later stage cannot find what
-an earlier one produced.
-
-A green rehearsal is not an approval. It says the gates pass on this commit
-with these tools; the hosted candidate still repeats them on its own runners,
-where runner speed and container timing differ.
+A failing line names its remedy. This replaces the earlier local rehearsal,
+which ran the whole candidate to buy certainty before spending a version: it
+could not cover the gate that kept failing, and it cost more than the tag it
+was meant to protect.
 
 #### 4. Create the release tag
 
 Create one signed, annotated tag at `release_commit`. The package version,
 dated changelog heading, tag, and tag message must identify the same version.
-For example, after replacing the version with the next unused value:
+Replace the placeholder with the next unused version before running any
+command:
 
 ```bash
-release_version="10.0.0-rc.7"
+release_version="<next-unused-version>"
 release_tag="v${release_version}"
 
 git tag -s "${release_tag}" "${release_commit}" \
@@ -173,14 +171,17 @@ never move, replace, or reuse it after it reaches the remote repository.
 
 #### 5. Produce the hosted candidate
 
-1. Open GitHub Actions and select the `release-candidate` workflow.
-2. Choose `Run workflow`, then select the exact value of `release_tag` in the
-   branch/tag field.
+1. Pushing the tag starts the `release-candidate` workflow automatically. No
+   dispatch is required; a manual one remains available for diagnosis only.
+2. Its first step is the trust root: the tag signature is verified against the
+   remote verdict and, independently, against the registered signers, and the
+   tagged commit must be reachable from protected `main`. This costs seconds
+   and runs before any expensive job is allocated.
 3. Wait for the complete workflow DAG to succeed. A failed candidate has no
-   publication authority. The DAG runs independent foundation and engine
-   contracts in parallel, assembles exactly eleven required stage receipts,
-   and grants OIDC and attestation permissions only to the final attestation
-   job.
+   publication authority. The DAG assembles exactly six required stage
+   receipts -- migration deployment, runtime posture, both patch matrices,
+   package, and SBOM -- alongside one paired performance qualification, and
+   grants OIDC and attestation permissions only to the final attestation job.
 4. If one job fails transiently, use GitHub's `Re-run failed jobs` or rerun that
    specific job from the existing workflow run. The stable candidate identity
    remains the numeric workflow run ID; the new run attempt may reuse only
@@ -199,6 +200,21 @@ uploads an attempt-qualified immutable candidate artifact. Its resolver rejects
 artifacts from another run, a future attempt, an expired artifact, a digest
 mismatch, an ambiguous stage, an unsafe ZIP entry, or an incomplete stage set.
 
+Assembly is where selection happens, and it happens exactly once. Each gate is
+first derived into a result that states which commit and tree it describes,
+which workflow produced it, under which run and attempt, and which artifact
+carries the bytes -- every field read back from a receipt, a resolved artifact
+listing, or the API rather than declared. The manifest then selects one result
+per gate and freezes those identities, together with the digest of every file
+in the published payload:
+
+```text
+artifacts/release-candidate/<run-id>/release-qualification-manifest.json
+```
+
+Later steps re-check the frozen identities but never reselect, so a rerun that
+lands after assembly cannot silently change what the release was qualified on.
+
 #### 6. Publish from trusted `main`
 
 Keep `main` frozen. In GitHub Actions, manually run `nuget-publish` from
@@ -207,6 +223,11 @@ Keep `main` frozen. In GitHub Actions, manually run `nuget-publish` from
 - `candidate_run_id`: the numeric ID of the successful candidate run
 - `release_tag`: the exact `release_tag` selected for that run
 - `confirmation`: `publish <release-tag>`
+
+Publication verifies the qualification manifest against the repository, commit,
+and tag it expects, and against the packages themselves: every file digest in
+the manifest is recomputed from the payload about to be published, and a
+missing, added, or altered file fails closed.
 
 The workflow must run from `main`; selecting the release tag for this second
 workflow is invalid. Approve the `nuget` environment deployment only after the

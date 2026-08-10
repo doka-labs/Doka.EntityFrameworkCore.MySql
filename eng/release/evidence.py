@@ -48,39 +48,24 @@ PERFORMANCE_BASELINE_PATH = Path(
     "benchmarks/baselines/doka-benchmark-baseline.json"
 )
 PERFORMANCE_TARGETS = ("mariadb118", "mysql84")
-REQUIRED_LIVE_EXAMPLES = (
-    "BulkOperations",
-    "CharSetAndCollation",
-    "CrudOperations",
-    "DockerIntegration",
-    "GeneratedColumns",
-    "GettingStarted",
-    "GuidFormats",
-    "InheritancePatterns",
-    "JsonColumns",
-    "MultiTenancy",
-    "PerformanceBestPractices",
-    "Relationships",
-    "SpatialQueries",
-    "TemporalTablesAndCtes",
-)
-REQUIRED_RECONCILIATION_GATES = (
-    "source-identity",
-    "adr-validation",
-    "repository-quality",
-    "repository-tests",
-    "live-specification",
-    "integration-configuration-failure",
-    "live-examples",
-    "migration-deployment",
-    "runtime-full-trim",
-    "coverage-union",
-    "package-contract",
-    "vulnerability-audit",
-    "sbom",
-    "performance-memory",
-    "publication-readiness",
-)
+# The reconciliation index is derived from the evidence policy rather than
+# restated here. A second list is free to describe a different release than the
+# one the qualification manifest selected, and the writer and this validator
+# would each be internally consistent while disagreeing with each other.
+RECONCILIATION_SCHEMA_VERSION = 2
+
+
+def required_reconciliation_gates(policy_path: Path | None = None) -> tuple[str, ...]:
+    """Return the gate identifiers a reconciliation index must carry."""
+    resolved = policy_path or (Path(__file__).resolve().parent / "evidence-policy.json")
+    try:
+        policy = json.loads(resolved.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exception:
+        raise EvidenceError(
+            f"Unable to read the evidence policy: {resolved}"
+        ) from exception
+
+    return tuple(sorted(gate["id"] for gate in policy["gates"]))
 SEMANTIC_VERSION_TAG = re.compile(r"v[0-9]+[.][0-9]+[.][0-9]+(?:[-.][0-9A-Za-z.-]+)?")
 SHA256_DIGEST = re.compile(r"[0-9a-f]{64}")
 
@@ -196,9 +181,9 @@ def accepted_pair_identity(entries: list[dict[str, Any]]) -> dict[str, set[Any]]
     gate needs is that both engines measured the same software, and the commit
     together with its source hash carries exactly that.
 
-    Evidence the release candidate measures itself is a different case: there,
-    one run identifier covers both engines, and validate_performance_evidence
-    still requires them to agree on it.
+    Evidence the release candidate measures itself is a different case: there
+    the paired comparison binds each engine to its own run identifier, and the
+    attempt receipt is what proves the verdict belongs to that run.
     """
     identities = {
         field: {entry.get(field) for entry in entries}
@@ -435,141 +420,6 @@ def collect_engines(root: Path) -> list[dict[str, str]]:
     return [engines[target] for target in sorted(engines)]
 
 
-def validate_integration_configuration_matrix(root: Path) -> dict[str, Any]:
-    """Require unfiltered successful integration evidence for every engine.
-
-    Engine lifecycle records alone prove which containers existed, but they do
-    not prove which test categories ran. The integration runner's own evidence
-    closes that distinction and prevents a filtered smoke run from being
-    sealed as release-candidate configuration and failure coverage.
-    """
-    path = root / INTEGRATION_MATRIX_EVIDENCE
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exception:
-        raise EvidenceError(f"Unable to read integration matrix evidence: {path}") from exception
-
-    if payload.get("fullConfigurationMatrixRequired") is not True:
-        raise EvidenceError("Integration evidence is not marked as the required full configuration matrix.")
-    if payload.get("testFilter") != "":
-        raise EvidenceError("Release integration evidence must not contain a test filter.")
-    if payload.get("testExitCode") != 0:
-        raise EvidenceError("The full integration configuration matrix did not pass.")
-
-    targets = tuple(sorted(filter(None, str(payload.get("targetSelection", "")).split(","))))
-    if targets != REQUIRED_ENGINE_TARGETS:
-        raise EvidenceError(
-            "Full integration matrix target mismatch. "
-            f"Expected={list(REQUIRED_ENGINE_TARGETS)}; actual={list(targets)}"
-        )
-
-    return {
-        "targets": list(targets),
-        "testFilter": "",
-        "fullConfigurationMatrixRequired": True,
-        "testExitCode": 0,
-    }
-
-
-def validate_live_example_matrix(
-    root: Path,
-    run_id: str,
-    engines: list[dict[str, str]],
-) -> dict[str, Any]:
-    """Require every public live example to pass on every supported engine.
-
-    Building examples protects API compatibility. This evidence additionally
-    proves that each advertised scenario completed its runtime invariant and
-    that the test-owned database resources were removed afterwards.
-    """
-    path = root / LIVE_EXAMPLE_MATRIX_EVIDENCE
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exception:
-        raise EvidenceError(f"Unable to read live example matrix evidence: {path}") from exception
-
-    expected_pairs = {
-        (target, example)
-        for target in REQUIRED_ENGINE_TARGETS
-        for example in REQUIRED_LIVE_EXAMPLES
-    }
-    expected_count = len(expected_pairs)
-    if payload.get("schemaVersion") != 1 or payload.get("runId") != run_id:
-        raise EvidenceError("Live example evidence does not match the release-candidate run.")
-    if (
-        payload.get("expectedCount") != expected_count
-        or payload.get("completedCount") != expected_count
-        or payload.get("passedCount") != expected_count
-        or payload.get("failedCount") != 0
-        or payload.get("matrixExitCode") != 0
-    ):
-        raise EvidenceError("The complete live example matrix did not pass.")
-
-    cleanup = payload.get("cleanup", {})
-    if (
-        cleanup.get("completed") is not True
-        or cleanup.get("exitCode") != 0
-        or cleanup.get("volumesRemoved") is not True
-    ):
-        raise EvidenceError("Live example resources were not completely removed.")
-
-    expected_images = {engine["targetId"]: engine["image"] for engine in engines}
-    actual_targets: set[str] = set()
-    for engine in payload.get("engines", []):
-        if not isinstance(engine, dict):
-            raise EvidenceError("Live example evidence contains an invalid engine entry.")
-
-        target = engine.get("target")
-        image_reference = engine.get("imageReference")
-        image_id = engine.get("imageId")
-        endpoint = engine.get("endpoint")
-        if target in actual_targets or target not in expected_images:
-            raise EvidenceError(f"Live example evidence contains an unexpected target: {target}")
-        if image_reference != expected_images[target]:
-            raise EvidenceError(f"Live example image identity conflicts for {target}.")
-
-        _, separator, digest = str(image_reference).rpartition("@sha256:")
-        if (
-            separator == ""
-            or not SHA256_DIGEST.fullmatch(digest)
-            or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(image_id))
-        ):
-            raise EvidenceError(f"Live example image ID is not immutable for {target}.")
-        if not isinstance(endpoint, str) or not re.fullmatch(r"127[.]0[.]0[.]1:[0-9]{1,5}", endpoint):
-            raise EvidenceError(f"Live example endpoint is invalid for {target}.")
-
-        actual_targets.add(target)
-
-    if actual_targets != set(REQUIRED_ENGINE_TARGETS):
-        raise EvidenceError("Live example evidence does not cover every supported engine.")
-
-    actual_pairs: set[tuple[str, str]] = set()
-    results = payload.get("results")
-    if not isinstance(results, list) or len(results) != expected_count:
-        raise EvidenceError("Live example evidence contains an incomplete result inventory.")
-
-    for result in results:
-        if not isinstance(result, dict):
-            raise EvidenceError("Live example evidence contains an invalid result entry.")
-
-        pair = (result.get("target"), result.get("example"))
-        if pair in actual_pairs or pair not in expected_pairs:
-            raise EvidenceError(f"Live example evidence contains an unexpected result: {pair}")
-        if result.get("exitCode") != 0 or result.get("status") != "pass":
-            raise EvidenceError(f"Live example did not pass: {pair}")
-        actual_pairs.add(pair)
-
-    if actual_pairs != expected_pairs:
-        raise EvidenceError("Live example evidence does not cover every required scenario.")
-
-    return {
-        "targets": list(REQUIRED_ENGINE_TARGETS),
-        "examples": list(REQUIRED_LIVE_EXAMPLES),
-        "runCount": expected_count,
-        "cleanupCompleted": True,
-    }
-
-
 def validate_runtime_posture(
     root: Path,
     run_id: str,
@@ -718,90 +568,6 @@ def load_performance_evaluation(root: Path, target: str) -> tuple[Path, dict[str
     return path, payload
 
 
-def validate_performance_evidence(
-    root: Path,
-    repo: Path,
-    run_id: str,
-    source_commit: str,
-) -> dict[str, Any]:
-    """Validate fresh or explicitly reusable performance and memory evidence."""
-    evaluations = {
-        target: load_performance_evaluation(root, target)
-        for target in PERFORMANCE_TARGETS
-    }
-    evaluation_payloads = [payload for _, payload in evaluations.values()]
-    measured_commits = {payload["commit"] for payload in evaluation_payloads}
-    measured_source_hashes = {payload["sourceHash"] for payload in evaluation_payloads}
-    measured_run_ids = {payload["runId"] for payload in evaluation_payloads}
-    if len(measured_commits) != 1 or len(measured_source_hashes) != 1 or len(measured_run_ids) != 1:
-        raise EvidenceError("Performance targets do not share one source and run identity.")
-
-    measured_commit = next(iter(measured_commits))
-    measured_source_hash = next(iter(measured_source_hashes))
-    measured_run_id = next(iter(measured_run_ids))
-    reuse_path = root / PERFORMANCE_REUSE_EVIDENCE
-
-    if measured_commit == source_commit:
-        if measured_run_id != run_id:
-            raise EvidenceError("Fresh performance evidence does not match the release-candidate run.")
-        if reuse_path.exists():
-            raise EvidenceError("Fresh performance evidence must not contain a reuse receipt.")
-        return {
-            "reused": False,
-            "measuredCommit": measured_commit,
-            "measuredRunId": measured_run_id,
-            "targets": list(PERFORMANCE_TARGETS),
-        }
-
-    try:
-        receipt = json.loads(reuse_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exception:
-        raise EvidenceError("Performance evidence from another commit requires a valid reuse receipt.") from exception
-
-    if (
-        receipt.get("schemaVersion") != 1
-        or receipt.get("runId") != run_id
-        or receipt.get("sourceCommit") != source_commit
-        or receipt.get("reusedRunId") != measured_run_id
-        or receipt.get("reusedSourceCommit") != measured_commit
-        or receipt.get("reusedSourceHash") != measured_source_hash
-    ):
-        raise EvidenceError("Performance reuse receipt does not match the candidate and measured source identities.")
-    if not commit_is_ancestor(repo, measured_commit, source_commit):
-        raise EvidenceError("Reused performance evidence does not originate from an ancestor commit.")
-
-    actual_changed_paths = changed_paths(repo, measured_commit, source_commit)
-    if receipt.get("changedPaths") != actual_changed_paths:
-        raise EvidenceError("Performance reuse receipt does not contain the exact source delta.")
-    relevant_changes = [path for path in actual_changed_paths if is_performance_input(path)]
-    if relevant_changes:
-        raise EvidenceError(
-            "Performance evidence cannot be reused after performance input changes: "
-            + ", ".join(relevant_changes)
-        )
-
-    target_receipts = receipt.get("targets")
-    if not isinstance(target_receipts, list):
-        raise EvidenceError("Performance reuse receipt does not contain target receipts.")
-    expected_target_receipts = [
-        {
-            "target": target,
-            "evaluationSha256": sha256(evaluations[target][0]),
-        }
-        for target in PERFORMANCE_TARGETS
-    ]
-    if target_receipts != expected_target_receipts:
-        raise EvidenceError("Performance reuse target receipts do not match the copied evaluations.")
-
-    return {
-        "reused": True,
-        "measuredCommit": measured_commit,
-        "measuredRunId": measured_run_id,
-        "targets": list(PERFORMANCE_TARGETS),
-        "changedPaths": actual_changed_paths,
-    }
-
-
 def reuse_performance_evidence(
     repo: Path,
     source_root: Path,
@@ -893,7 +659,7 @@ def validate_reconciliation(
         raise EvidenceError(f"Unable to read release reconciliation: {path}") from exception
 
     if (
-        payload.get("schemaVersion") != 1
+        payload.get("schemaVersion") != RECONCILIATION_SCHEMA_VERSION
         or payload.get("runId") != run_id
         or payload.get("sourceCommit") != source_commit
     ):
@@ -903,11 +669,14 @@ def validate_reconciliation(
     if not isinstance(gates, list):
         raise EvidenceError("Release reconciliation does not contain a gate inventory.")
 
-    actual_gate_ids = tuple(gate.get("id") for gate in gates if isinstance(gate, dict))
-    if actual_gate_ids != REQUIRED_RECONCILIATION_GATES:
+    expected = required_reconciliation_gates()
+    actual_gate_ids = tuple(
+        sorted(gate.get("id") for gate in gates if isinstance(gate, dict))
+    )
+    if actual_gate_ids != expected:
         raise EvidenceError(
             "Release reconciliation gate mismatch. "
-            f"Expected={list(REQUIRED_RECONCILIATION_GATES)}; actual={list(actual_gate_ids)}"
+            f"Expected={list(expected)}; actual={list(actual_gate_ids)}"
         )
     if any(gate.get("status") != "pass" for gate in gates):
         raise EvidenceError("Release reconciliation contains a non-passing gate.")
@@ -1013,6 +782,115 @@ def workflow_identity(run_id: str) -> dict[str, Any]:
     return identity
 
 
+def validate_qualification_manifest(
+    root: Path,
+    source_commit: str,
+    release_version: str,
+) -> dict[str, Any]:
+    """Bind this document to the manifest that selected the gates.
+
+    Two documents describing one release must not be able to disagree. The
+    qualification manifest owns gate selection; this one owns the artifact
+    inventory and the source identity. Reading the former here is what keeps
+    the pair consistent instead of merely adjacent.
+    """
+    path = root / "release-qualification-manifest.json"
+    if not path.is_file():
+        raise EvidenceError(
+            "The release candidate carries no qualification manifest; gate "
+            "selection has not happened."
+        )
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exception:
+        raise EvidenceError("The qualification manifest is unreadable.") from exception
+
+    if manifest.get("kind") != "release-qualification-manifest":
+        raise EvidenceError("The qualification manifest has an unexpected kind.")
+    if manifest.get("commit") != source_commit:
+        raise EvidenceError(
+            f"The qualification manifest describes commit "
+            f"{manifest.get('commit')}, not the release source {source_commit}."
+        )
+    if manifest.get("releaseVersion") != release_version:
+        raise EvidenceError(
+            f"The qualification manifest describes version "
+            f"{manifest.get('releaseVersion')}, not {release_version}."
+        )
+    gates = manifest.get("gates")
+    if not isinstance(gates, list) or not gates:
+        raise EvidenceError("The qualification manifest pins no gates.")
+
+    return {
+        "policyVersion": manifest["policyVersion"],
+        "policyDigest": manifest["policyDigest"],
+        "selectionRuleVersion": manifest["selectionRuleVersion"],
+        "treeId": manifest["treeId"],
+        "releaseTag": manifest["releaseTag"],
+        "gates": sorted(entry["gate"] for entry in gates),
+    }
+
+
+def validate_paired_performance_evidence(
+    root: Path,
+    source_commit: str,
+) -> dict[str, Any]:
+    """Inventory the paired comparison the tag performed.
+
+    The release measures performance once, as a paired comparison, and every
+    required engine must have qualified. A partial set would let an engine
+    whose comparison never concluded be represented by one that did.
+    """
+    evaluations = sorted(
+        (root / "performance").rglob("paired-evaluation.json")
+    )
+    if not evaluations:
+        raise EvidenceError(
+            "The release candidate carries no paired performance evaluation."
+        )
+
+    engines: list[dict[str, Any]] = []
+    for path in evaluations:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exception:
+            raise EvidenceError(
+                f"Unable to read paired evaluation: {path}"
+            ) from exception
+        if payload.get("qualification") != "qualified":
+            raise EvidenceError(
+                f"Paired performance for {payload.get('target')} is "
+                f"{payload.get('qualification')!r}."
+            )
+        if payload.get("commit") != source_commit:
+            raise EvidenceError(
+                f"Paired performance describes commit {payload.get('commit')}, "
+                f"not the release source {source_commit}."
+            )
+        engines.append(
+            {
+                "target": payload["target"],
+                "profile": payload["profile"],
+                "runId": payload["runId"],
+                "runnerClass": payload["runnerClass"],
+                "qualification": payload["qualification"],
+                "relativePath": path.relative_to(root).as_posix(),
+                "sha256": sha256(path),
+            }
+        )
+
+    targets = sorted(entry["target"] for entry in engines)
+    if len(set(targets)) != len(targets):
+        raise EvidenceError("Paired performance reports a target twice.")
+    missing = sorted(set(PERFORMANCE_TARGETS) - set(targets))
+    if missing:
+        raise EvidenceError(
+            f"Paired performance is missing engine(s): {', '.join(missing)}."
+        )
+
+    return {"comparisonMode": "paired", "engines": engines}
+
+
 def write_manifest(args: argparse.Namespace) -> None:
     """Generate a canonical manifest and detached checksum.
 
@@ -1031,14 +909,17 @@ def write_manifest(args: argparse.Namespace) -> None:
     artifacts = collect_artifacts(root)
     validate_release_packages(artifacts, args.release_version)
     engines = collect_engines(root)
-    integration_matrix = validate_integration_configuration_matrix(root)
-    live_example_matrix = validate_live_example_matrix(root, args.run_id, engines)
     runtime_posture = validate_runtime_posture(root, args.run_id, source["commit"])
-    performance_evidence = validate_performance_evidence(
-        root,
-        repo,
-        args.run_id,
-        source["commit"],
+    # The integration-configuration and live-example matrices, and the
+    # historical performance comparison, are proven on the protected branch and
+    # imported through the qualification manifest rather than repeated here.
+    # Requiring them in this document is what made the release manifest ask for
+    # evidence the tag never produces.
+    qualification = validate_qualification_manifest(
+        root, source["commit"], args.release_version
+    )
+    performance_evidence = validate_paired_performance_evidence(
+        root, source["commit"]
     )
     reconciliation = validate_reconciliation(root, args.run_id, source["commit"])
     dependencies = collect_dependencies(dependency_graph)
@@ -1076,8 +957,7 @@ def write_manifest(args: argparse.Namespace) -> None:
             "resolvedPackages": dependencies,
         },
         "engines": engines,
-        "integrationConfigurationMatrix": integration_matrix,
-        "liveExampleMatrix": live_example_matrix,
+        "qualification": qualification,
         "runtimePosture": runtime_posture,
         "performanceEvidence": performance_evidence,
         "verificationReconciliation": reconciliation,

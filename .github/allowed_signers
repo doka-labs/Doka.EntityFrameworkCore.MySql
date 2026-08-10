@@ -1,0 +1,12 @@
+# Public keys that may sign a release tag in this repository.
+#
+# The evidence policy in eng/release/evidence-policy.json registers the same
+# principals and the key fingerprint; this file carries the key material that
+# lets `git verify-tag` check a signature without contacting GitHub. Both are
+# required: the policy decides who is trusted, this file decides what the
+# signature is checked against, and a release needs the two to agree.
+#
+# Adding a signer means adding the principal to the policy as well. A key that
+# appears only here is not trusted, and a principal that appears only in the
+# policy cannot be verified locally.
+kdominic@gmx.de,54367198+kdominic89@users.noreply.github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICK6W+ALjvxGqc5EdVxYgiaAzRCIc13SJIL7UAuGj1B1

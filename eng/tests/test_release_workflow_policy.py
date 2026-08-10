@@ -266,6 +266,63 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertNotIn("--force", proposal)
         self.assertNotIn("secrets.", proposal)
 
+    @staticmethod
+    def jobs(workflow: str) -> dict[str, str]:
+        """Split one workflow into its top-level jobs.
+
+        The existing `job` helper needs the next job's name, which makes it
+        unusable for a check that must cover every job including ones added
+        later. This splits on the job indentation instead.
+        """
+        body = workflow[workflow.index("\njobs:") :]
+        found: dict[str, str] = {}
+        current: str | None = None
+        collected: list[str] = []
+        for line in body.splitlines():
+            match = re.match(r"^  ([a-z][a-z0-9-]*):\s*$", line)
+            if match:
+                if current is not None:
+                    found[current] = "\n".join(collected)
+                current = match.group(1)
+                collected = []
+                continue
+            if current is not None:
+                collected.append(line)
+        if current is not None:
+            found[current] = "\n".join(collected)
+
+        return found
+
+    def test_every_job_reaching_the_actions_api_declares_actions_read(self) -> None:
+        """Bind the permission to the code that needs it, not to one job.
+
+        An explicit `permissions` block inherits nothing, so a job that calls an
+        Actions resource without declaring `actions: read` is refused by the API
+        at its first request. The trust root is the case that shipped that way:
+        it resolves a check run down to its workflow run, which is an Actions
+        resource, and the job that runs it declared only `contents: read`.
+        """
+        reaching = {
+            "eng.release.trust",
+            "eng.release.gate_results",
+            "eng/release/restore-release-stage-artifacts.sh",
+            "actions/runs",
+            "gh api",
+        }
+
+        for name in ("release-candidate.yml", "nuget-publish.yml"):
+            workflow = self.workflow(name)
+            for job, body in self.jobs(workflow).items():
+                if not any(marker in body for marker in reaching):
+                    continue
+                with self.subTest(workflow=name, job=job):
+                    self.assertIn(
+                        "actions: read",
+                        body,
+                        f"{job} reaches the Actions API without declaring "
+                        "actions: read",
+                    )
+
     def test_benchmark_measurement_isolated_from_the_control_plane(self) -> None:
         """Keep orchestration edits from allocating service-container jobs."""
         control_plane = self.workflow("benchmark.yml")
@@ -295,57 +352,16 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             scorecard_workflow,
         )
         self.assertEqual(4, scorecard_workflow.count("image:"))
-        self.assertEqual(
-            2,
-            scorecard_workflow.count("outputs.status == 'inconclusive'"),
-        )
+        # The retry decision is read from the attempt receipt. Comparing
+        # against a state name here is what silently disabled the retry: the
+        # vocabulary moved to `measurement-inconclusive` and the condition,
+        # still matching on `inconclusive`, simply stopped firing.
+        self.assertEqual(2, scorecard_workflow.count("outputs.retry == 'true'"))
+        self.assertNotIn("outputs.status ==", scorecard_workflow)
         self.assertEqual(2, scorecard_workflow.count("if: always()"))
         self.assertEqual(6, scorecard_workflow.count("actions/upload-artifact@"))
         self.assertIn("benchmark-artifacts-mysql84", scorecard_workflow)
         self.assertIn("benchmark-artifacts-mariadb118", scorecard_workflow)
-
-    def test_release_candidate_imports_the_qualified_scorecard(self) -> None:
-        """Reuse one digest-bound result instead of measuring it twice."""
-        workflow = self.workflow("release-candidate.yml")
-        engine_contracts = self.job(
-            workflow,
-            "engine-contracts",
-            "performance-scorecard",
-        )
-        scorecard = self.job(
-            workflow,
-            "performance-scorecard",
-            "performance-import",
-        )
-        performance_import = self.job(
-            workflow,
-            "performance-import",
-            "coverage",
-        )
-        assembly = self.job(workflow, "assemble", "attest")
-        script = (
-            self.repo / "eng" / "release" / "release-candidate.sh"
-        ).read_text(encoding="utf-8")
-
-        self.assertNotIn("performance-mysql84", engine_contracts)
-        self.assertNotIn("performance-mariadb118", engine_contracts)
-        self.assertIn(
-            "uses: ./.github/workflows/benchmark-scorecard.yml",
-            scorecard,
-        )
-        self.assertIn("baseline_mode: compare", scorecard)
-        self.assertIn("benchmark-artifacts-${{ matrix.target }}", performance_import)
-        self.assertIn("--stage \"${{ matrix.stage }}\"", performance_import)
-        self.assertNotIn("eng/benchmark", performance_import)
-        self.assertIn("performance-import", assembly)
-        self.assertIn(
-            "DOKA_RELEASE_CANDIDATE_PERFORMANCE_ARTIFACT_ROOT",
-            script,
-        )
-        self.assertIn("import-attempt-selection", script)
-        self.assertIn("verify-imported-attempt", script)
-        self.assertIn("--expected-target", script)
-        self.assertIn("--expected-commit", script)
 
     def test_all_main_pushes_reach_the_cheap_benchmark_resolver(self) -> None:
         """Classify every push with the local measurement-input policy."""
@@ -538,52 +554,81 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             text.index("- name: Run ${{ matrix.stage }} stage"),
         )
 
-    def test_candidate_rejects_an_incompatible_baseline_before_the_matrix(
-        self,
-    ) -> None:
-        """Fail cheaply when strict hosted comparison cannot be performed."""
+    def test_candidate_rejects_an_untrusted_tag_before_the_matrix(self) -> None:
+        """Fail cheaply, and explain, when the tag cannot be trusted.
+
+        This replaces the accepted-baseline preflight. Under a paired
+        comparison no accepted baseline is a release precondition, but the
+        reason that preflight existed is unchanged and now weighs more: the
+        cheapest check must decide first, and its failure must tell the
+        operator how to leave the state rather than only that they are in it.
+        """
         text = self.workflow("release-candidate.yml")
         preflight = self.job(text, "preflight", "foundation")
 
-        self.assertIn(
-            "- name: Verify accepted hosted performance baseline",
-            preflight,
-        )
-        self.assertIn("validate-performance-baseline", preflight)
-        self.assertIn("--repo .", preflight)
-        self.assertIn("--profile scorecard", preflight)
-        self.assertIn("--runner-class github-ubuntu-latest-x64", preflight)
-        self.assertIn("artifacts/release-baseline-readiness.json", preflight)
-        self.assertIn("Hosted performance baseline required", preflight)
-        self.assertIn("review and merge", preflight)
-        self.assertIn("needs: preflight", self.job(text, "foundation", "sbom"))
+        self.assertIn("- name: Establish the release tag trust root", preflight)
+        self.assertIn("python3 -m eng.release.trust verify", preflight)
+        self.assertIn("--policy eng/release/evidence-policy.json", preflight)
+        self.assertIn("Release tag trust root required", preflight)
+        for instruction in ("Sign the tag", "reachable from protected main",
+                            "repository-qualification"):
+            with self.subTest(instruction=instruction):
+                self.assertIn(instruction, preflight)
+
+        self.assertIn("needs: preflight", self.job(text, "foundation", "engine-contracts"))
         self.assertLess(
-            text.index("- name: Verify accepted hosted performance baseline"),
+            text.index("- name: Establish the release tag trust root"),
             text.index("- name: Run ${{ matrix.stage }} stage"),
         )
+
+    def test_the_candidate_measures_performance_exactly_once(self) -> None:
+        """Reuse one measurement instead of measuring or classifying twice.
+
+        The intent is unchanged from the import model it replaces and is
+        sharper here: the tag performs one paired comparison, and no second
+        job re-classifies the same reports under another run identity.
+        """
+        text = self.workflow("release-candidate.yml")
+
+        self.assertEqual(1, text.count("uses: ./.github/workflows/benchmark-scorecard.yml"))
+        self.assertIn("comparison_mode: paired", text)
+        for removed in ("performance-import:", "performance-scorecard:"):
+            with self.subTest(job=removed):
+                self.assertNotIn(f"\n  {removed}", text)
+        self.assertNotIn("--stage performance-mysql84", text)
+        self.assertNotIn("--stage performance-mariadb118", text)
 
     def test_candidate_assembles_the_exact_required_stage_set(self) -> None:
         """Bind finalization to every independent qualification receipt."""
         text = self.workflow("release-candidate.yml")
         assemble = self.job(text, "assemble", "attest")
+        # The set is exactly what the tagged commit produced for itself.
+        # Branch-verified gates are imported and must not reappear here; a
+        # stage restored twice, or one silently dropped, is the defect that
+        # made the release coverage gate merge two of five inputs.
         required_stages = (
+            "migration-deployment",
+            "runtime",
+            "efcore-patch-matrix",
+            "mysqlconnector-patch-matrix",
+            "package",
+            "sbom",
+        )
+        imported_stages = (
             "quality",
             "repository-tests",
             "specification",
             "integration",
-            "migration-deployment",
-            "runtime",
             "coverage",
-            "package",
-            "sbom",
-            "performance-mysql84",
-            "performance-mariadb118",
         )
 
         self.assertEqual(1, assemble.count("--output artifacts"))
         for stage in required_stages:
             with self.subTest(stage=stage):
                 self.assertEqual(1, assemble.count(f"--stage {stage}"))
+        for stage in imported_stages:
+            with self.subTest(imported=stage):
+                self.assertEqual(0, assemble.count(f"--stage {stage}"))
 
         self.assertIn(
             "bash ./eng/release-candidate.sh --stage finalize",
@@ -715,6 +760,81 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn('"--verify-tag"', text)
         self.assertNotIn('"--clobber"', text)
         self.assertNotIn('"--target"', text)
+
+
+class StageSetAgreementTests(unittest.TestCase):
+    """Prove the orchestrator and the workflow agree on the stage set.
+
+    The two declare the same thing in two places: the workflow decides which
+    stages run at the tag, and the orchestrator decides which receipts
+    finalization requires. When they drift, finalization either demands a
+    receipt nothing produces, or accepts a candidate assembled from fewer gates
+    than the workflow ran. The release coverage gate failed in exactly that
+    shape -- one side merged five inputs, the other two -- so this agreement is
+    pinned rather than assumed.
+    """
+
+    def setUp(self) -> None:
+        """Read both declarations once per case."""
+        self.workflow = self.workflow_text("release-candidate.yml")
+        self.script = (
+            Path(__file__).resolve().parents[2]
+            / "eng" / "release" / "release-candidate.sh"
+        ).read_text(encoding="utf-8")
+
+    @staticmethod
+    def workflow_text(name: str) -> str:
+        """Return one workflow file."""
+        return (
+            Path(__file__).resolve().parents[2] / ".github" / "workflows" / name
+        ).read_text(encoding="utf-8")
+
+    def workflow_stages(self) -> set[str]:
+        """Return the stages the tag workflow actually runs.
+
+        Reading the matrix alone would miss a stage invoked by its own job,
+        which is how `sbom` runs. The question is which stages execute, not
+        how they happen to be declared.
+        """
+        matrix = set(re.findall(r"^\s+- stage: ([a-z-]+)$", self.workflow, re.M))
+        # Only an invocation of the orchestrator runs a stage. The restore
+        # helper takes the same `--stage` flag to fetch receipts, so counting
+        # every occurrence would let a stage removed from the matrix keep
+        # appearing through the list that merely consumes it.
+        direct = set(
+            re.findall(r"release-candidate\.sh --stage ([a-z-]+)", self.workflow)
+        )
+        direct -= {"finalize"}
+
+        return matrix | direct
+
+    def required_stages(self) -> set[str]:
+        """Return the stages finalization requires a receipt for."""
+        block = re.search(
+            r"local expected_stages=\(\n(?P<body>.*?)\n\s*\)",
+            self.script,
+            re.S,
+        )
+        self.assertIsNotNone(block, "the orchestrator declares no expected stages")
+
+        return {line.strip() for line in block.group("body").splitlines() if line.strip()}
+
+    def test_finalization_requires_exactly_what_the_tag_produces(self) -> None:
+        """Reject any drift between the two declarations."""
+        self.assertEqual(self.workflow_stages(), self.required_stages())
+
+    def test_no_imported_gate_is_required_as_a_receipt(self) -> None:
+        """Keep branch-verified gates out of the receipt requirement.
+
+        Requiring a receipt for a gate the tag never runs would make every
+        release unfinishable; accepting one silently would let an old artifact
+        stand in for this commit.
+        """
+        for imported in ("quality", "repository-tests", "specification",
+                         "integration", "coverage", "performance-mysql84",
+                         "performance-mariadb118"):
+            with self.subTest(stage=imported):
+                self.assertNotIn(imported, self.required_stages())
 
 
 if __name__ == "__main__":

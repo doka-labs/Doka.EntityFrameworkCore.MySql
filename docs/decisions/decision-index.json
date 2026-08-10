@@ -304,7 +304,7 @@
     {
       "id": "D-026",
       "title": "Qualify releases from bound evidence and paired performance runs",
-      "status": "proposed",
+      "status": "implemented",
       "date": "2026-08-09",
       "path": "docs/decisions/D-026-release-qualification-and-paired-performance.md",
       "supersedes": [],

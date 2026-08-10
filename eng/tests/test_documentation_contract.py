@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -116,6 +117,57 @@ class DocumentationContractTests(unittest.TestCase):
             "target escapes the repository root",
             result.errors[0].reason,
         )
+
+
+class ReleaseRunbookAgreementTests(unittest.TestCase):
+    """Prove the runbook describes the release path the workflows implement.
+
+    An operator follows the runbook, not the YAML. When the two drift, the
+    procedure silently teaches a sequence that no longer exists -- which is how
+    a manual dispatch survived in writing after the tag began starting the
+    candidate by itself.
+    """
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def setUp(self) -> None:
+        """Read the runbook and the workflows it describes."""
+        self.runbook = (
+            self.ROOT / "docs" / "operations" / "release-publication.md"
+        ).read_text(encoding="utf-8")
+        self.candidate = (
+            self.ROOT / ".github" / "workflows" / "release-candidate.yml"
+        ).read_text(encoding="utf-8")
+
+    def test_the_runbook_names_the_required_aggregator(self) -> None:
+        """Point the operator at the check the tag actually imports."""
+        self.assertIn("repository-qualification", self.runbook)
+
+    def test_the_runbook_names_the_pre_tag_check(self) -> None:
+        """Keep the documented preparation step pointing at a real command."""
+        self.assertIn("./eng/pre-tag-check.sh", self.runbook)
+        self.assertTrue((self.ROOT / "eng" / "pre-tag-check.sh").is_file())
+
+    def test_the_runbook_describes_an_automatic_tag_trigger(self) -> None:
+        """Match the documented start of qualification to the workflow."""
+        self.assertIn("starts the `release-candidate` workflow automatically",
+                      self.runbook)
+        self.assertIn("push:", self.candidate)
+        self.assertIn("- \"v*\"", self.candidate)
+
+    def test_the_runbook_states_the_receipt_count_the_workflow_produces(self) -> None:
+        """Reject a documented stage count the workflow cannot satisfy."""
+        stages = set(
+            re.findall(r"release-candidate\.sh --stage ([a-z-]+)", self.candidate)
+        ) - {"finalize"}
+        stages |= set(re.findall(r"^\s+- stage: ([a-z-]+)$", self.candidate, re.M))
+
+        self.assertEqual(6, len(stages))
+        self.assertIn("exactly six required stage", self.runbook)
+
+    def test_the_runbook_no_longer_promises_a_local_rehearsal(self) -> None:
+        """Keep a removed command out of the documented procedure."""
+        self.assertNotIn("./eng/rehearse-release.sh", self.runbook)
 
 
 if __name__ == "__main__":

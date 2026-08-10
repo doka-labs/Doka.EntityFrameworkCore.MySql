@@ -166,76 +166,8 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Restore against requested EF Core patch
-        run: dotnet restore Doka.EntityFrameworkCore.MySql.slnx --tl:off
-
-      - name: Assert and record resolved EF Core patch
-        run: |
-          evidence_dir="artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}"
-          mkdir -p "${evidence_dir}"
-          dotnet package list \
-            --project Doka.EntityFrameworkCore.MySql.slnx \
-            --include-transitive \
-            --format json \
-            --no-restore > "${evidence_dir}/resolved-packages.json"
-          jq -e --arg pattern "${DOKA_EF_CORE_RESOLVED_PATTERN}" '
-            [
-              .projects[].frameworks[].topLevelPackages[]?
-              | select(
-                  .id == "Microsoft.EntityFrameworkCore.Design"
-                  or .id == "Microsoft.EntityFrameworkCore.Relational"
-                  or .id == "Microsoft.EntityFrameworkCore.Relational.Specification.Tests"
-                )
-            ] as $packages
-            | ($packages | length) >= 3
-              and ($packages | map(.resolvedVersion) | unique | length) == 1
-              and ($packages | all(.resolvedVersion | test($pattern)))
-          ' "${evidence_dir}/resolved-packages.json"
-          jq -r '
-            .projects[].frameworks[].topLevelPackages[]?
-            | select(
-                .id == "Microsoft.EntityFrameworkCore.Design"
-                or .id == "Microsoft.EntityFrameworkCore.Relational"
-                or .id == "Microsoft.EntityFrameworkCore.Relational.Specification.Tests"
-              )
-            | "\(.id) requested=\(.requestedVersion) resolved=\(.resolvedVersion)"
-          ' "${evidence_dir}/resolved-packages.json" | sort -u
-
-      - name: Run repo-local test path against pinned EF Core
-        run: bash ./eng/test.sh
-
-      - name: Run specification and live suite against MySQL 8.4
-        env:
-          DOKA_SPEC_TEST_TARGET: mysql84
-          DOKA_TEST_DATABASE_EVIDENCE_FILE: ${{ github.workspace }}/artifacts/efcore-patch-matrix/${{ matrix.artifact-suffix }}/mysql84/test-database-evidence.json
-        run: |
-          dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
-            --configuration Release --no-build --no-restore --tl:off \
-            --filter "Category=Spec|Category=Live" \
-            --logger trx \
-            --results-directory "artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mysql84"
-          bash ./eng/testing/check-spec-results.sh \
-            mysql84 \
-            "artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mysql84"
-
-      - name: Run specification and live suite against MariaDB 11.8
-        env:
-          DOKA_SPEC_TEST_TARGET: mariadb118
-          DOKA_TEST_DATABASE_EVIDENCE_FILE: ${{ github.workspace }}/artifacts/efcore-patch-matrix/${{ matrix.artifact-suffix }}/mariadb118/test-database-evidence.json
-        run: |
-          dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
-            --configuration Release --no-build --no-restore --tl:off \
-            --filter "Category=Spec|Category=Live" \
-            --logger trx \
-            --results-directory "artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mariadb118"
-          bash ./eng/testing/check-spec-results.sh \
-            mariadb118 \
-            "artifacts/efcore-patch-matrix/${DOKA_EF_CORE_ARTIFACT_SUFFIX}/mariadb118"
-
-      - name: Run representative live integration matrix
-        env:
-          DOKA_INTEGRATION_TARGETS: mysql84,mariadb118
-        run: bash ./eng/test-integration.sh
+      - name: Run EF Core patch matrix row
+        run: bash ./eng/testing/test-efcore-matrix.sh
 
       - name: Upload EF Core patch evidence
         if: always()
@@ -542,6 +474,59 @@ jobs:
           DOKA_RUNTIME_TARGET_IMAGE: >-
             mysql:8.4.11@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
         run: bash ./eng/test-runtime-posture.sh --test-only
+
+  # The required status check for the protected branch. It exists because
+  # GitHub treats a conditionally skipped job as successful and skips the
+  # dependents of a failed one, so a required check that merely depended on the
+  # gates below would report success in exactly the cases it must catch. Running
+  # with always() and inspecting each result explicitly is what makes the check
+  # mean what its name says.
+  repository-qualification:
+    # The baseline-proposal dispatch runs none of the gates below, so this
+    # check has nothing to aggregate and would report failure on every such
+    # run. Skipping is safe here and only here: a skipped job counts as
+    # success to branch protection, but this profile is reachable only by
+    # workflow_dispatch, and the release trust root accepts qualification
+    # evidence only when the producing run's event was a push. A skipped
+    # aggregator on a dispatch can therefore never be imported as evidence.
+    if: >-
+      always()
+      && (github.event_name != 'workflow_dispatch'
+      || inputs.profile != 'baseline-proposal')
+    needs:
+      - quality-gates
+      - repo-tests
+      - spec-test-suite
+      - integration-smoke
+      - coverage-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Require every commit-exact gate to have succeeded
+        env:
+          RESULTS: >-
+            quality-gates=${{ needs.quality-gates.result }}
+            repo-tests=${{ needs.repo-tests.result }}
+            spec-test-suite=${{ needs.spec-test-suite.result }}
+            integration-smoke=${{ needs.integration-smoke.result }}
+            coverage-gate=${{ needs.coverage-gate.result }}
+        run: |
+          status=0
+          for entry in ${RESULTS}; do
+            gate="${entry%%=*}"
+            result="${entry##*=}"
+            if [[ "${result}" != "success" ]]; then
+              echo "::error title=Repository qualification::${gate} concluded '${result}'."
+              status=1
+            else
+              echo "${gate}: success"
+            fi
+          done
+          exit "${status}"
 
   benchmark-smoke:
     if: >-

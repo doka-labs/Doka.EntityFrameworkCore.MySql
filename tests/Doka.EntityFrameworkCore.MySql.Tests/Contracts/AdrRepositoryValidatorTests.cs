@@ -8,7 +8,7 @@ public sealed class AdrRepositoryValidatorTests
         var report = AdrRepositoryValidator.Validate(FindRepositoryRoot());
 
         Assert.True(report.IsValid, FormatErrors(report));
-        Assert.Equal(25, report.Documents.Count);
+        Assert.Equal(26, report.Documents.Count);
     }
 
     [Fact]
@@ -57,9 +57,31 @@ public sealed class AdrRepositoryValidatorTests
             "DOKA_BENCHMARK_RUN_ID=\"${release_candidate_run_id}\"",
             releaseCandidateScript,
             StringComparison.Ordinal);
-        Assert.Contains(
-            "DOKA_BENCHMARK_GATE_RUN_ID=\"${release_candidate_run_id}\"",
+        // The historical gate re-evaluated imported scorecards under the
+        // release run identity. D-026 replaced it: the tag measures once, as a
+        // paired comparison, and the verdict travels in the evaluation the run
+        // produced. What has to hold now is that the release consumes that
+        // verdict rather than re-deriving one, and that every required engine
+        // is covered.
+        Assert.DoesNotContain(
+            "DOKA_BENCHMARK_GATE_RUN_ID",
             releaseCandidateScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "run_paired_performance_gate",
+            normalizedReleaseCandidateScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "paired-evaluation.json",
+            releaseCandidateScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "contract[\"requiredTargets\"]",
+            releaseCandidateScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "assemble_qualification_manifest",
+            normalizedReleaseCandidateScript,
             StringComparison.Ordinal);
 
         var benchmarkGateScript = File.ReadAllText(
@@ -101,10 +123,32 @@ public sealed class AdrRepositoryValidatorTests
             "host-preflight",
             benchmarkScript,
             StringComparison.Ordinal);
+        // The host identity export moved into a shared helper because two
+        // orchestrations need it. Asserting it here alone would have kept
+        // passing while the paired comparison launched a driver that could not
+        // assemble a report, which is exactly what happened. Both callers are
+        // therefore bound to the one implementation.
+        var hostPreflightScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "performance", "host-preflight.sh"));
         Assert.Contains(
             "DOKA_BENCHMARK_HOST_CPU_UTILIZATION",
-            benchmarkScript,
+            hostPreflightScript,
             StringComparison.Ordinal);
+        Assert.Contains(
+            "DOKA_BENCHMARK_HOST_LOAD_AVERAGE_1M",
+            hostPreflightScript,
+            StringComparison.Ordinal);
+
+        var pairedScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "performance", "paired-benchmark.sh"));
+        foreach (var caller in new[] { benchmarkScript, pairedScript })
+        {
+            Assert.Contains(
+                "eng/performance/host-preflight.sh",
+                caller,
+                StringComparison.Ordinal);
+            Assert.Contains("capture_host_preflight", caller, StringComparison.Ordinal);
+        }
         Assert.Contains(
             "--host \"${host_evidence}\"",
             benchmarkGateScript,
@@ -441,11 +485,35 @@ public sealed class AdrRepositoryValidatorTests
             $"  benchmark-smoke:\n    {exhaustiveCondition}",
             workflow,
             StringComparison.Ordinal);
-        // No job condition runs under always() any more; the coverage gate
-        // asserts that its producers succeeded instead, so a failed test job
-        // cannot yield a met floor. Step-level always() stays legitimate for
-        // artifact uploads and is therefore not covered by this assertion.
-        Assert.DoesNotContain("    if: >-\n      always()", workflow, StringComparison.Ordinal);
+        // The required aggregator is the one job that must run under always():
+        // GitHub reports a skipped job as success, so a check that merely
+        // depended on the gates would pass in exactly the cases it exists to
+        // catch. It inspects every producer result explicitly instead, which is
+        // what makes it fail closed. Every other job still has to state a real
+        // condition, so the prohibition holds outside that job.
+        var aggregatorStart = workflow.IndexOf(
+            "  repository-qualification:",
+            StringComparison.Ordinal);
+        Assert.True(aggregatorStart >= 0, "The required aggregator is missing.");
+        var aggregatorEnd = workflow.IndexOf(
+            "\n  benchmark-smoke:",
+            aggregatorStart,
+            StringComparison.Ordinal);
+        Assert.True(aggregatorEnd > aggregatorStart, "The aggregator has no successor job.");
+
+        var outsideAggregator = workflow[..aggregatorStart] + workflow[aggregatorEnd..];
+        Assert.DoesNotContain(
+            "    if: >-\n      always()",
+            outsideAggregator,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "always()",
+            workflow[aggregatorStart..aggregatorEnd],
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Require every commit-exact gate to have succeeded",
+            workflow[aggregatorStart..aggregatorEnd],
+            StringComparison.Ordinal);
         Assert.Contains(
             "Require successful coverage producers",
             workflow,

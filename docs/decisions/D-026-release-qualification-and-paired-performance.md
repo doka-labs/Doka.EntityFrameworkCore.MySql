@@ -1,6 +1,6 @@
 ---
 id: D-026
-status: proposed
+status: implemented
 date: 2026-08-09
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
@@ -806,6 +806,8 @@ manifest verification.
   signed tag.
 - 2026-08-10: Defined deterministic rerun selection, the signed-tag trust root,
   protected-check receipts, and the retained non-qualifying benchmark smoke.
+- 2026-08-10: Status changed from proposed to accepted.
+- 2026-08-10: Status changed from accepted to implemented.
 
 ### Implementation References
 

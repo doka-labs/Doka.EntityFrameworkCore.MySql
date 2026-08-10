@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "2026-08-10.1",
+  "documentation": [
+    "Every gate a release depends on produces evidence for the tagged commit.",
+    "There is no reuse model: no relevant-input classifier, no evidence-age",
+    "limit, and no ancestry path for importing gate evidence from an earlier",
+    "commit. The ancestry checks that bind the tag to protected main and the",
+    "performance reference to the candidate are separate and remain mandatory."
+  ],
+  "selectionRule": {
+    "version": 1,
+    "eligibility": [
+      "commit",
+      "repository",
+      "gate",
+      "producer",
+      "policyDigest",
+      "conclusion"
+    ],
+    "order": [
+      {
+        "field": "workflowRunId",
+        "direction": "greatest"
+      },
+      {
+        "field": "runAttempt",
+        "direction": "greatest"
+      }
+    ],
+    "tagProducedAttemptNotNewerThanAssembling": true,
+    "frozenAtManifestAssembly": true
+  },
+  "gates": [
+    {
+      "id": "repository-qualification",
+      "kind": "protected-check",
+      "producerWorkflow": ".github/workflows/ci.yml",
+      "checkName": "repository-qualification",
+      "requiredEvent": "push",
+      "requiredRef": "refs/heads/main",
+      "boundIdentities": [
+        "commit",
+        "treeId",
+        "workflowPath",
+        "workflowRunId",
+        "runAttempt",
+        "event",
+        "conclusion",
+        "apiResourceId",
+        "responseDigest"
+      ]
+    },
+    {
+      "id": "migration-deployment",
+      "kind": "tag-produced",
+      "producerWorkflow": ".github/workflows/release-candidate.yml",
+      "implementation": "eng/testing/test-migration-deployment.sh",
+      "boundIdentities": [
+        "commit",
+        "treeId",
+        "sourceHash",
+        "workflowPath",
+        "workflowRunId",
+        "runAttempt",
+        "conclusion",
+        "artifactId",
+        "artifactDigest"
+      ]
+    },
+    {
+      "id": "runtime-posture",
+      "kind": "tag-produced",
+      "producerWorkflow": ".github/workflows/release-candidate.yml",
+      "implementation": "eng/testing/test-runtime-posture.sh",
+      "boundIdentities": [
+        "commit",
+        "treeId",
+        "sourceHash",
+        "workflowPath",
+        "workflowRunId",
+        "runAttempt",
+        "conclusion",
+        "artifactId",
+        "artifactDigest"
+      ]
+    },
+    {
+      "id": "efcore-patch-matrix",
+      "kind": "tag-produced",
+      "producerWorkflow": ".github/workflows/release-candidate.yml",
+      "implementation": "eng/testing/test-efcore-matrix.sh",
+      "boundIdentities": [
+        "commit",
+        "treeId",
+        "sourceHash",
+        "dependencySnapshotDigest",
+        "workflowPath",
+        "workflowRunId",
+        "runAttempt",
+        "conclusion",
+        "artifactId",
+        "artifactDigest"
+      ]
+    },
+    {
+      "id": "mysqlconnector-patch-matrix",
+      "kind": "tag-produced",
+      "producerWorkflow": ".github/workflows/release-candidate.yml",
+      "implementation": "eng/testing/test-mysqlconnector-matrix.sh",
+      "boundIdentities": [
+        "commit",
+        "treeId",
+        "sourceHash",
+        "dependencySnapshotDigest",
+        "workflowPath",
+        "workflowRunId",
+        "runAttempt",
+        "conclusion",
+        "artifactId",
+        "artifactDigest"
+      ]
+    },
+    {
+      "id": "performance-qualification",
+      "kind": "tag-produced",
+      "producerWorkflow": ".github/workflows/benchmark-scorecard.yml",
+      "implementation": "eng/performance/paired.py",
+      "boundIdentities": [
+        "commit",
+        "treeId",
+        "sourceHash",
+        "benchmarkDriverSourceHash",
+        "contractDigest",
+        "referenceCommit",
+        "workflowPath",
+        "workflowRunId",
+        "runAttempt",
+        "conclusion",
+        "artifactDigest"
+      ]
+    }
+  ],
+  "trustedTagSigners": {
+    "allowedSignersFile": ".github/allowed_signers",
+    "requireApiVerification": true,
+    "requireLocalVerification": true,
+    "signers": [
+      {
+        "principals": [
+          "kdominic@gmx.de",
+          "54367198+kdominic89@users.noreply.github.com"
+        ],
+        "keyType": "ssh-ed25519",
+        "fingerprint": "SHA256:Nkug92pcXECxr/ahDdfnvayqT8E4gWRYHIuUXQzstZI"
+      }
+    ]
+  },
+  "requiredProtectedChecks": [
+    "repository-qualification"
+  ]
+}

@@ -65,33 +65,41 @@ gh api "repos/${repo}/code-scanning/default-setup"
 
 ## Required
 
-### Actions must not be able to approve pull requests
+### Actions must be able to create the reviewed baseline proposal
 
-`can_approve_pull_request_reviews` must be `false`.
+`default_workflow_permissions` must remain `read`, while
+`can_approve_pull_request_reviews` must be `true`.
 
-The baseline-proposal job in `benchmark.yml` holds `pull-requests: write` and
-opens a pull request that it then enables auto-merge on. The merge is gated by
-the branch ruleset's one-approval requirement. If workflows may submit
-approving reviews, that requirement becomes reachable from inside the same
-automation it is meant to gate. The current workflow does not attempt it; this
-setting removes the possibility rather than relying on the code staying that
-way.
+GitHub couples pull-request creation and approving reviews in one repository
+setting; it does not expose a create-only variant. The baseline-proposal job in
+`benchmark.yml` needs that setting to open its single-file proposal and enable
+squash auto-merge. The job receives explicit `pull-requests: write` and
+`contents: write` permissions only on the trusted `main` workflow path.
+
+Enabling the setting does not itself approve a pull request. The workflow has
+no review command, refuses any proposal branch that changes more than the
+canonical baseline, and schedules auto-merge only for the exact head commit.
+The `main` ruleset must still require an independent maintainer approval and
+the protected checks. Those controls are the review boundary because GitHub's
+combined setting cannot make creation available while technically forbidding
+approval.
 
 ```bash
 gh api --method PUT "repos/${repo}/actions/permissions/workflow" \
   --field default_workflow_permissions=read \
-  --field can_approve_pull_request_reviews=false
+  --field can_approve_pull_request_reviews=true
 ```
 
-UI: Settings -> Actions -> General -> Workflow permissions -> clear "Allow
+UI: Settings -> Actions -> General -> Workflow permissions -> enable "Allow
 GitHub Actions to create and approve pull requests".
 
 ### The nuget environment must require a human reviewer
 
-The `nuget` environment currently carries only a branch policy. The publish job
-in `nuget-publish.yml` requests the short-lived NuGet trusted-publishing token
-and pushes packages to nuget.org. Package publication is irreversible: a
-version, once pushed, cannot be replaced.
+The `nuget` environment must carry both its `main`-only branch policy and a
+required reviewer. The publish job in `nuget-publish.yml` requests the
+short-lived NuGet trusted-publishing token and pushes packages to nuget.org.
+Package publication is irreversible: a version, once pushed, cannot be
+replaced.
 
 Add at least one required reviewer so the credential boundary opens only after
 a person confirms the run.
@@ -171,20 +179,23 @@ as the contributor installed it and is not digest-checked.
 
 ### Required status checks must match the current lanes
 
-ADR D-025 moved specification conformance and the coverage gate into the
-per-event lane. Until the ruleset lists them, they run on every pull request
-but do not block a merge.
+ADR D-026 adds a stable aggregator for the commit-exact release inputs. The
+individual specification and coverage jobs remain visible, but
+`repository-qualification` is the fail-closed contract: it runs with
+`always()`, inspects every dependency result, and fails when one was skipped or
+failed. The three inexpensive checks remain individually required because the
+restricted baseline-proposal profile deliberately runs only those checks.
 
 Expected required checks on `main`:
 
+- `repository-qualification`
 - `quality-gates`
 - `repo-tests`
 - `integration-smoke`
-- `spec-test-suite (mysql84)`
-- `spec-test-suite (mariadb114)`
-- `spec-test-suite (mariadb118)`
-- `coverage-gate`
 - `dependency-review`
+
+CodeQL remains enforced through the ruleset's `code_scanning` rule rather than
+as another status-check context.
 
 A check becomes selectable only after it has reported once, so this step
 follows the first complete run rather than preceding it.
@@ -205,13 +216,10 @@ jq '{
   rules: (.rules | map(
     if .type == "required_status_checks" then
       .parameters.required_status_checks = [
+        {context: "repository-qualification", integration_id: 15368},
         {context: "quality-gates", integration_id: 15368},
         {context: "repo-tests", integration_id: 15368},
         {context: "integration-smoke", integration_id: 15368},
-        {context: "spec-test-suite (mysql84)", integration_id: 15368},
-        {context: "spec-test-suite (mariadb114)", integration_id: 15368},
-        {context: "spec-test-suite (mariadb118)", integration_id: 15368},
-        {context: "coverage-gate", integration_id: 15368},
         {context: "dependency-review", integration_id: 15368}
       ]
     else . end))
@@ -233,10 +241,6 @@ gh api "repos/${repo}/rulesets/16526347" --jq \
    | select(.type=="required_status_checks")
    | .parameters.required_status_checks[].context]'
 ```
-
-The specification job names its matrix legs explicitly, so the contexts read
-`spec-test-suite (mysql84)` rather than the generated `spec-test-suite
-(mysql84, mysql84)`.
 
 Keep `strict_required_status_checks_policy` enabled so a stale branch must
 merge `main` before its checks count.
@@ -295,3 +299,18 @@ Confirm in Settings -> Actions -> General that "Require approval for all
 external contributors" is selected under Fork pull request workflows, so a
 first-time contributor's workflow run needs a maintainer click before it
 executes.
+
+## Primary Sources
+
+Sources were retrieved on 2026-08-10.
+
+- GitHub,
+  [Managing GitHub Actions settings for a repository][github-actions-settings],
+  including the combined create-and-approve setting and fork-workflow approval.
+- GitHub, [GITHUB_TOKEN][github-token],
+  including permissions, lifetime, and workflow-trigger behavior.
+
+[github-actions-settings]:
+  https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository
+[github-token]:
+  https://docs.github.com/en/actions/concepts/security/github_token

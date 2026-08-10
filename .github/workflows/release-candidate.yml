@@ -1,6 +1,12 @@
 name: release-candidate
 
 on:
+  # A signed tag is the release identity, so the tag push is what starts
+  # qualification. Manual dispatch remains available for diagnosis; it can
+  # never qualify a release because the trust root below requires the tag.
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:
@@ -25,6 +31,14 @@ jobs:
   preflight:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
+    # The trust root resolves the qualification check down to the workflow run
+    # behind it, which is an Actions resource. An explicit permissions block
+    # does not inherit anything, so a job that omits this is refused by the API
+    # at the first request rather than at review.
+    permissions:
+      actions: read
+      contents: read
 
     steps:
       - name: Checkout tagged source
@@ -64,6 +78,33 @@ jobs:
 
       # Fail before any expensive stage if the runner, shell contract, or
       # receipt implementation differs from the reviewed repository state.
+      # The trust root runs before any tooling or evidence work. Its checks are
+      # seconds long and each answers a question the previous shape left open:
+      # who signed the tag, whether its commit ever reached protected main, and
+      # whether the branch evidence came from the branch rather than from a
+      # pull request against it.
+      - name: Establish the release tag trust root
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_tag="${GITHUB_REF#refs/tags/}"
+          git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main
+          if ! python3 -m eng.release.trust verify \
+              --repo . \
+              --tag "${release_tag}" \
+              --commit "${GITHUB_SHA}" \
+              --repository "${GITHUB_REPOSITORY}" \
+              --policy eng/release/evidence-policy.json \
+              --output artifacts/release-tag-trust-root.json; then
+            message="Sign the tag with a key registered in "
+            message+="eng/release/evidence-policy.json, create it on a commit "
+            message+="reachable from protected main, and wait for the "
+            message+="repository-qualification check to conclude on that "
+            message+="branch push before tagging again."
+            echo "::error title=Release tag trust root required::${message}" >&2
+            exit 1
+          fi
+
       - name: Verify release tooling contracts
         run: |
           bash ./eng/common/verify-dotnet.sh
@@ -75,25 +116,6 @@ jobs:
             eng.tests.test_release_stage_checkpoint \
             eng.tests.test_release_workflow_policy
 
-      # Release qualification is compare-only. Resolve the complete hosted
-      # runner pair before allocating any build or database matrix runner.
-      - name: Verify accepted hosted performance baseline
-        run: |
-          mkdir -p artifacts
-          if ! python3 -m eng.release.evidence validate-performance-baseline \
-              --repo . \
-              --contract benchmarks/performance-contract.json \
-              --baseline benchmarks/baselines/doka-benchmark-baseline.json \
-              --profile scorecard \
-              --runner-class github-ubuntu-latest-x64 \
-              --output artifacts/release-baseline-readiness.json; then
-            message="Run the benchmark workflow from main, review and merge its "
-            message+="validated baseline pull request, then create a new release "
-            message+="tag from the updated green main commit."
-            echo "::error title=Hosted performance baseline required::${message}" >&2
-            exit 1
-          fi
-
   foundation:
     needs: preflight
     runs-on: ubuntu-latest
@@ -102,12 +124,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - stage: quality
-            timeout_minutes: 35
-            deadline_seconds: 1800
-          - stage: repository-tests
-            timeout_minutes: 50
-            deadline_seconds: 2700
+          # Quality gates and repository tests are commit-exact on the
+          # default branch and are imported rather than repeated. Packing
+          # stays here because it produces the release payload.
           - stage: package
             timeout_minutes: 25
             deadline_seconds: 1200
@@ -160,18 +179,23 @@ jobs:
       max-parallel: 3
       matrix:
         include:
-          - stage: specification
-            timeout_minutes: 75
-            deadline_seconds: 4200
-          - stage: integration
-            timeout_minutes: 105
-            deadline_seconds: 6000
+          # The specification and integration suites are commit-exact on
+          # the default branch and are imported. The gates below are not:
+          # both patch matrices resolve a floating dependency leg, and
+          # migration and runtime posture compile the tagged provider
+          # source, so week-old evidence would not describe this commit.
           - stage: migration-deployment
             timeout_minutes: 60
             deadline_seconds: 3300
           - stage: runtime
             timeout_minutes: 40
             deadline_seconds: 2100
+          - stage: efcore-patch-matrix
+            timeout_minutes: 120
+            deadline_seconds: 6600
+          - stage: mysqlconnector-patch-matrix
+            timeout_minutes: 45
+            deadline_seconds: 2400
 
     env:
       DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
@@ -213,130 +237,17 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  # Performance qualification has one owner. The reusable scorecard performs
-  # the bounded measurement attempts; release stages only import its verified,
-  # digest-bound result and therefore cannot measure or classify it again.
-  performance-scorecard:
-    needs: foundation
+  # The one measurement the tag performs. It is safe here precisely because it
+  # is paired: reference and candidate run in the same allocated job, so no
+  # processor mismatch and no historical comparator can fail it for an
+  # infrastructure reason. What remains is a transient measurement condition,
+  # which reruns on the same tag, or a genuine regression, which needs a source
+  # change and therefore a new tag in any design.
+  performance-qualification:
+    needs: preflight
     uses: ./.github/workflows/benchmark-scorecard.yml
     with:
-      baseline_mode: compare
-
-  performance-import:
-    needs: performance-scorecard
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: mysql84
-            stage: performance-mysql84
-          - target: mariadb118
-            stage: performance-mariadb118
-
-    permissions:
-      actions: read
-      contents: read
-
-    env:
-      DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: 600
-      DOKA_RELEASE_CANDIDATE_RESUME: 1
-      DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/${{ matrix.stage }}
-      DOKA_RELEASE_CANDIDATE_PERFORMANCE_ARTIFACT_ROOT: artifacts/qualified-performance/${{ matrix.target }}
-
-    steps:
-      - name: Checkout tagged source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      - name: Download qualified ${{ matrix.target }} performance evidence
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: benchmark-artifacts-${{ matrix.target }}
-          path: ${{ env.DOKA_RELEASE_CANDIDATE_PERFORMANCE_ARTIFACT_ROOT }}
-
-      - name: Import verified ${{ matrix.stage }} state
-        run: bash ./eng/release-candidate.sh --stage "${{ matrix.stage }}"
-
-      - name: Upload verified ${{ matrix.stage }} state
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-stage-${{ matrix.stage }}-attempt-${{ github.run_attempt }}
-          path: |
-            artifacts/release-candidate/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
-            artifacts/release-candidate-checkpoints/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Retain incomplete ${{ matrix.stage }} diagnostics
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-diagnostics-${{ matrix.stage }}-${{ github.run_attempt }}
-          path: artifacts
-          if-no-files-found: warn
-          retention-days: 7
-
-  coverage:
-    needs: engine-contracts
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    permissions:
-      actions: read
-      contents: read
-
-    env:
-      DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: 900
-      DOKA_RELEASE_CANDIDATE_RESUME: 1
-      DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/coverage
-
-    steps:
-      - name: Checkout tagged source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      # A failed downstream job can be rerun without rerunning successful
-      # producers. Resolve the newest immutable receipt for each dependency
-      # from this workflow run instead of assuming one shared attempt number.
-      - name: Restore coverage inputs
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          bash ./eng/release/restore-release-stage-artifacts.sh \
-            --output artifacts \
-            --selection-output \
-              "artifacts/release-candidate-checkpoints/${DOKA_RELEASE_CANDIDATE_RUN_ID}/coverage-input-artifacts.json" \
-            --stage repository-tests \
-            --stage integration
-
-      - name: Run coverage stage
-        run: bash ./eng/release-candidate.sh --stage coverage
-
-      - name: Upload verified coverage state
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-stage-coverage-attempt-${{ github.run_attempt }}
-          path: |
-            artifacts/release-candidate/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
-            artifacts/release-candidate-checkpoints/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
-          if-no-files-found: error
-          retention-days: 7
+      comparison_mode: paired
 
   sbom:
     needs: foundation
@@ -391,8 +302,7 @@ jobs:
     needs:
       - foundation
       - engine-contracts
-      - performance-import
-      - coverage
+      - performance-qualification
       - sbom
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -430,20 +340,45 @@ jobs:
             --output artifacts \
             --selection-output \
               "artifacts/release-candidate-checkpoints/${DOKA_RELEASE_CANDIDATE_RUN_ID}/assemble-input-artifacts.json" \
-            --stage quality \
-            --stage repository-tests \
-            --stage specification \
-            --stage integration \
             --stage migration-deployment \
             --stage runtime \
-            --stage coverage \
+            --stage efcore-patch-matrix \
+            --stage mysqlconnector-patch-matrix \
             --stage package \
-            --stage sbom \
-            --stage performance-mysql84 \
-            --stage performance-mariadb118
+            --stage sbom
+
+      # The paired comparison is the one measurement the tag performs, so its
+      # evaluations are an input to assembly rather than a separate report. The
+      # qualification manifest pins them by digest alongside every other gate.
+      - name: Restore qualified MySQL 8.4 performance evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: benchmark-artifacts-mysql84
+          path: artifacts/benchmarks/mysql84
+
+      - name: Restore qualified MariaDB 11.8 performance evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: benchmark-artifacts-mariadb118
+          path: artifacts/benchmarks/mariadb118
 
       - name: Assemble immutable release candidate
+        env:
+          DOKA_RELEASE_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: bash ./eng/release-candidate.sh --stage finalize
+
+      # Assembly verifies the manifest it wrote. This verifies it again from
+      # the artifact tree, against the identities this job knows independently,
+      # so a manifest that only agrees with itself does not leave the job.
+      - name: Verify the canonical qualification manifest
+        run: |
+          python3 -m eng.release.qualification verify \
+            --manifest "artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}/release-qualification-manifest.json" \
+            --expected-repository "${GITHUB_REPOSITORY}" \
+            --expected-commit "${GITHUB_SHA}" \
+            --expected-tree-id "$(git rev-parse 'HEAD^{tree}')" \
+            --expected-tag "${GITHUB_REF#refs/tags/}"
 
       - name: Upload immutable release candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

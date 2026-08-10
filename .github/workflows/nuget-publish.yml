@@ -142,6 +142,36 @@ jobs:
             --output "${evidence_dir}/validated-candidate.json" \
             --github-output "${GITHUB_OUTPUT}"
 
+      # Identity validation above proves the candidate is the one requested.
+      # This proves what it was qualified on: the canonical manifest pins one
+      # result per gate, and a manifest assembled under a different evidence
+      # policy or describing a different tag cannot authorize this publication.
+      - name: Verify the canonical qualification manifest
+        env:
+          DOKA_CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          DOKA_RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_COMMIT: ${{ steps.candidate.outputs.source_commit }}
+        run: |
+          candidate_root="${RUNNER_TEMP}/candidate/github-${DOKA_CANDIDATE_RUN_ID}"
+          manifest="${candidate_root}/release-qualification-manifest.json"
+          # --root is what makes the digests load-bearing. Without it the
+          # manifest is only checked for internal consistency, and the
+          # packages this job is about to publish are never compared against
+          # the bytes the candidate was qualified on.
+          if ! python3 -m eng.release.qualification verify \
+              --manifest "${manifest}" \
+              --root "${candidate_root}/packages" \
+              --policy eng/release/evidence-policy.json \
+              --expected-repository "${GITHUB_REPOSITORY}" \
+              --expected-commit "${SOURCE_COMMIT}" \
+              --expected-tag "${DOKA_RELEASE_TAG}"; then
+            message="The candidate carries no verifiable qualification "
+            message+="manifest. Re-run the release-candidate workflow on the "
+            message+="same tag and publish the candidate it assembles."
+            echo "::error title=Qualification manifest required::${message}" >&2
+            exit 1
+          fi
+
       - name: Derive exact public symbol probes
         env:
           DOKA_CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
