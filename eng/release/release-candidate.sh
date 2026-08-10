@@ -54,6 +54,7 @@ release_version_override="${DOKA_RELEASE_VERSION:-}"
 performance_reuse_source="${DOKA_RELEASE_CANDIDATE_REUSE_PERFORMANCE_FROM:-}"
 resume_mode="${DOKA_RELEASE_CANDIDATE_RESUME:-0}"
 maximum_release_duration_seconds="${DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS:-7200}"
+chain_probe="${DOKA_RELEASE_CHAIN_PROBE:-0}"
 selected_stage="all"
 release_source_ref=""
 release_tag=""
@@ -67,6 +68,32 @@ if (( $# > 0 )); then
     fi
 
     selected_stage="$2"
+fi
+
+# The executable-chain contract asks the real entry point whether a workflow
+# stage is accepted. Resolve that contract before the process-wide deadline or
+# any release state is created, so structural tests can never start a build,
+# database matrix, or publication gate.
+case "${selected_stage}" in
+    all | quality | repository-tests | specification | integration \
+        | migration-deployment | runtime | efcore-patch-matrix \
+        | mysqlconnector-patch-matrix | coverage | package | sbom \
+        | performance-mysql84 | performance-mariadb118 | finalize)
+        ;;
+    *)
+        echo "Unknown release-candidate stage '${selected_stage}'." >&2
+        exit 1
+        ;;
+esac
+
+if [[ "${chain_probe}" != "0" && "${chain_probe}" != "1" ]]; then
+    echo "DOKA_RELEASE_CHAIN_PROBE must be 0 or 1." >&2
+    exit 1
+fi
+
+if [[ "${chain_probe}" == "1" ]]; then
+    echo "Accepted release-candidate stage '${selected_stage}'."
+    exit 0
 fi
 
 if [[ ! "${maximum_release_duration_seconds}" =~ ^[1-9][0-9]*$ ]]; then
@@ -1111,18 +1138,6 @@ write_evidence() {
 require_command jq
 require_command python3
 cd "${repo_root}"
-
-case "${selected_stage}" in
-    all | quality | repository-tests | specification | integration \
-        | migration-deployment | runtime | efcore-patch-matrix \
-        | mysqlconnector-patch-matrix | coverage | package | sbom \
-        | performance-mysql84 | performance-mariadb118 | finalize)
-        ;;
-    *)
-        echo "Unknown release-candidate stage '${selected_stage}'." >&2
-        exit 1
-        ;;
-esac
 
 # Do not reorder these gates without updating the evidence contract. The final
 # manifest inventory must observe every retained artifact and must be written
