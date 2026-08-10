@@ -11,11 +11,9 @@ no test downloads a tool or reaches the network.
 
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 import tempfile
-import textwrap
 import unittest
 from pathlib import Path
 

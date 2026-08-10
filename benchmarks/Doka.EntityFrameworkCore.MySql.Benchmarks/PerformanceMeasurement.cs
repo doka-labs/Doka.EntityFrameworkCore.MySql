@@ -81,6 +81,18 @@ internal sealed class PerformanceProfileContract
 
     public double MaximumCalibrationRelativeStandardError { get; init; }
 
+    /// <summary>
+    /// Whether a measurement-quality shortfall stops the run or is recorded.
+    /// </summary>
+    /// <remarks>
+    /// `observe` records the shortfall and lets the evidence carry it, so the
+    /// validator decides; `enforce` stops the run. The distinction already
+    /// governed the sample cap on the validation side while the driver applied
+    /// neither, which made a calibration shortfall an unhandled exception no
+    /// policy could soften.
+    /// </remarks>
+    public string MeasurementQualityPolicy { get; init; } = "enforce";
+
     public int SoakIterations { get; init; }
 
     public int SoakConcurrency { get; init; }

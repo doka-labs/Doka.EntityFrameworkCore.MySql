@@ -8,7 +8,7 @@ import re
 import subprocess
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 BASELINE_PATH = Path("benchmarks/baselines/doka-benchmark-baseline.json")
 
@@ -51,6 +51,14 @@ LATENCY_METRICS = {
 }
 HOST_ADMISSION_METRIC = "interval-host-cpu-utilization"
 MEASUREMENT_QUALITY_EXIT_CODE = 75
+# A comparison can fail for reasons that are not a provider verdict. Each such
+# reason gets its own exit code so the workflow can distinguish an
+# infrastructure condition, which may retry, from a regression, which may not.
+# The values continue the 75 range rather than reusing 1, which stays reserved
+# for a conclusive gate failure.
+ENVIRONMENT_NOT_COMPARABLE_EXIT_CODE = 76
+RECALIBRATION_REQUIRED_EXIT_CODE = 77
+INVALID_EVIDENCE_EXIT_CODE = 78
 # Why sampling stopped. The runner never exceeds the configured sample cap, so
 # a capped run is a typed observation whose usability the quality policy
 # decides. Mirrors the constants in PerformanceWorkloadRunner.
@@ -65,6 +73,28 @@ class PerformanceEvidenceError(RuntimeError):
 
 class MeasurementQualityError(PerformanceEvidenceError):
     """Raised when environmental noise prevents a conclusive measurement."""
+
+
+class EnvironmentNotComparableError(PerformanceEvidenceError):
+    """The comparator environment is not the measured environment.
+
+    A hosted runner label is not a processor-model contract, so a historical
+    comparator can legitimately describe different hardware. That is an
+    infrastructure condition, never a provider regression.
+    """
+
+
+class RecalibrationRequiredError(PerformanceEvidenceError):
+    """The accepted reference cannot run under the current contract.
+
+    Raised when a reference provider, benchmark driver, runtime, or
+    contract change
+    invalidates the comparator itself, so no comparison exists to judge.
+    """
+
+
+class InvalidEvidenceError(PerformanceEvidenceError):
+    """Evidence is incomplete, inconsistent, or not bound to its identity."""
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -385,10 +415,460 @@ def validate_contract_version(value: str) -> None:
         )
 
 
+# The paired policy is pre-registered: every value that can move a release
+# decision is named here before any measurement runs. There are deliberately no
+# implementation defaults, because a default would let a silently incomplete
+# contract still produce a verdict.
+# Each set holds exactly the procedures the evaluator implements. Listing an
+# alternative the code cannot perform is worse than omitting it: the contract
+# would validate a policy that reads as a deliberate choice while the run
+# silently applies the only procedure there ever was, and the divergence would
+# surface as a reviewer trusting a document the evidence does not support.
+PAIRED_INTERVAL_METHODS = frozenset({"bca-bootstrap"})
+PAIRED_MULTIPLE_COMPARISON_PROCEDURES = frozenset({"benjamini-hochberg"})
+PAIRED_RETRY_COMBINATIONS = frozenset({"replace-attempt"})
+
+# The paired comparison measures every registered workload; there is no
+# narrowing path and no consumer for one.
+PAIRED_WORKLOAD_SCOPES = frozenset({"complete-matrix"})
+PAIRED_LATENCY_METRICS = frozenset(
+    {"normalizedMedian", "normalizedP95", "normalizedP99"}
+)
+
+_PAIRED_POLICY_SHAPE: dict[str, tuple[str, ...]] = {
+    "executionOrder": (
+        "blockPatterns",
+        "startingSideAlternatesPerBlock",
+    ),
+    "primaryFamily": ("workloadScope", "metric"),
+    "practicalBudgets": (),
+    "interval": (
+        "sidedness",
+        "confidenceLevel",
+        "method",
+        "resampleCount",
+        "resamplingSeed",
+    ),
+    "blocks": (
+        "minimumCompleteBlocks",
+        "maximumCompleteBlocks",
+        "startingSamplesPerSidePerBlock",
+        "maximumSampleCountRatio",
+        "maximumRelativeStandardError",
+        "profile",
+    ),
+    "multipleComparison": ("procedure", "falseDiscoveryRate"),
+    "retry": ("eligibleAttemptStates", "maximumRetries", "combination"),
+    "durations": (
+        "maximumPairedRunSeconds",
+        "maximumWorkloadSeconds",
+        "closingReserveSeconds",
+        "finalizationReserveSeconds",
+    ),
+    "absoluteCeilings": ("appliesTo", "source", "metrics"),
+    "soak": ("required", "appliesTo", "source"),
+}
+
+# Resource metrics are scalars per side per block rather than sample series, so
+# they are guarded by a ratio against the paired reference instead of by an
+# interval. A bootstrap over a deterministic quantity would describe the
+# resampling, not the provider.
+PAIRED_RESOURCE_METRICS = frozenset(
+    {"allocatedBytesPerOperation", "gen2CollectionsPer1000"}
+)
+
+
+def _paired_number(value: Any, label: str, *, minimum: float) -> float:
+    """Validate one numeric policy value as evidence rather than as input.
+
+    Every deviation from the registered policy is `invalid-evidence`, so the
+    generic numeric guard is re-raised in that domain instead of surfacing as
+    an ordinary contract error.
+    """
+    try:
+        return finite_number(value, label, minimum=minimum)
+    except PerformanceEvidenceError as error:
+        raise InvalidEvidenceError(str(error)) from error
+
+
+def validate_paired_policy(contract: dict[str, Any]) -> dict[str, Any]:
+    """Validate the pre-registered paired-comparison policy.
+
+    Every failure raises rather than falling back, so an incomplete policy can
+    never produce a qualification. The caller maps that to `invalid-evidence`.
+    """
+    policy = contract.get("pairedPolicy")
+    if not isinstance(policy, dict) or not policy:
+        raise InvalidEvidenceError("Performance contract must define pairedPolicy.")
+
+    for block, fields in _PAIRED_POLICY_SHAPE.items():
+        section = policy.get(block)
+        if not isinstance(section, dict) or not section:
+            raise InvalidEvidenceError(f"pairedPolicy.{block} is required.")
+        for field in fields:
+            if field not in section:
+                raise InvalidEvidenceError(
+                    f"pairedPolicy.{block}.{field} is required."
+                )
+
+    families = policy.get("secondaryFamilies")
+    if not isinstance(families, list):
+        raise InvalidEvidenceError("pairedPolicy.secondaryFamilies is required.")
+
+    scope = policy["primaryFamily"]["workloadScope"]
+    if scope not in PAIRED_WORKLOAD_SCOPES:
+        raise InvalidEvidenceError(
+            f"pairedPolicy.primaryFamily.workloadScope '{scope}' is not a scope "
+            "the comparison can measure."
+        )
+
+    primary_metric = policy["primaryFamily"]["metric"]
+    metrics = [primary_metric]
+    for index, family in enumerate(families):
+        if not isinstance(family, dict) or "metric" not in family:
+            raise InvalidEvidenceError(
+                f"pairedPolicy.secondaryFamilies[{index}].metric is required."
+            )
+        metrics.append(family["metric"])
+    for metric in metrics:
+        if metric not in PAIRED_LATENCY_METRICS:
+            raise InvalidEvidenceError(
+                f"pairedPolicy declares unknown metric '{metric}'."
+            )
+    if len(set(metrics)) != len(metrics):
+        raise InvalidEvidenceError("pairedPolicy declares a metric family twice.")
+
+    # Every declared family needs its own practical bound. Without one, a
+    # statistically detectable change would have nothing to be compared against
+    # and the separation of practical from statistical significance collapses.
+    budgets = policy["practicalBudgets"]
+    for metric in metrics:
+        _paired_number(
+            budgets.get(metric),
+            f"pairedPolicy.practicalBudgets.{metric}",
+            minimum=1,
+        )
+    extra = sorted(set(budgets) - set(metrics))
+    if extra:
+        raise InvalidEvidenceError(
+            f"pairedPolicy.practicalBudgets has no family for: {', '.join(extra)}."
+        )
+
+    interval = policy["interval"]
+    if interval["sidedness"] not in ("one-sided", "two-sided"):
+        raise InvalidEvidenceError("pairedPolicy.interval.sidedness is invalid.")
+    if interval["method"] not in PAIRED_INTERVAL_METHODS:
+        raise InvalidEvidenceError(
+            f"pairedPolicy.interval.method '{interval['method']}' is unknown."
+        )
+    confidence = _paired_number(
+        interval["confidenceLevel"], "pairedPolicy.interval.confidenceLevel",
+        minimum=0,
+    )
+    if not 0 < confidence < 1:
+        raise InvalidEvidenceError(
+            "pairedPolicy.interval.confidenceLevel must lie between 0 and 1."
+        )
+    resamples = _paired_number(
+        interval["resampleCount"], "pairedPolicy.interval.resampleCount", minimum=1
+    )
+    if resamples < 1000:
+        raise InvalidEvidenceError(
+            "pairedPolicy.interval.resampleCount must be at least 1000 so the "
+            "interval is stable across runs."
+        )
+    _paired_number(
+        interval["resamplingSeed"], "pairedPolicy.interval.resamplingSeed", minimum=0
+    )
+
+    blocks = policy["blocks"]
+    minimum_blocks = _paired_number(
+        blocks["minimumCompleteBlocks"],
+        "pairedPolicy.blocks.minimumCompleteBlocks",
+        minimum=2,
+    )
+    maximum_blocks = _paired_number(
+        blocks["maximumCompleteBlocks"],
+        "pairedPolicy.blocks.maximumCompleteBlocks",
+        minimum=2,
+    )
+    if maximum_blocks < minimum_blocks:
+        raise InvalidEvidenceError(
+            "pairedPolicy.blocks.maximumCompleteBlocks must not be below the "
+            "minimum."
+        )
+    samples = _paired_number(
+        blocks["startingSamplesPerSidePerBlock"],
+        "pairedPolicy.blocks.startingSamplesPerSidePerBlock",
+        minimum=1,
+    )
+
+    # Where a block starts is registered; where it ends is measured. The
+    # extension is driven by the profile's error budget and bounded by its
+    # sample cap, and the achieved population travels in the report. Claiming a
+    # fixed population here would describe a run that does not happen:
+    # expensive workloads allocate differently and any workload may override.
+    block_profile = contract.get("profiles", {}).get(blocks["profile"])
+    if not isinstance(block_profile, dict):
+        raise InvalidEvidenceError(
+            f"pairedPolicy.blocks.profile '{blocks['profile']}' is not a "
+            "registered profile."
+        )
+    starting = block_profile.get("measurementSamples")
+    if starting != samples:
+        raise InvalidEvidenceError(
+            f"pairedPolicy.blocks.startingSamplesPerSidePerBlock is {samples:g} "
+            f"while profile '{blocks['profile']}' starts at {starting}; the "
+            "paired policy and the profile must start from the same population."
+        )
+    floor = block_profile.get("minimumValidSamples")
+    if not isinstance(floor, int) or samples < floor:
+        raise InvalidEvidenceError(
+            f"pairedPolicy.blocks.startingSamplesPerSidePerBlock is {samples:g}, "
+            f"below the {floor} samples profile '{blocks['profile']}' requires "
+            "for a valid measurement."
+        )
+
+    # The execution order is a registered plan, not a description. Every
+    # pattern has to cover both sides equally, or the counterbalancing the
+    # pairing depends on would be an assumption instead of a property.
+    order = policy["executionOrder"]
+    patterns = order["blockPatterns"]
+    if not isinstance(patterns, list) or not patterns:
+        raise InvalidEvidenceError(
+            "pairedPolicy.executionOrder.blockPatterns must name at least one "
+            "pattern."
+        )
+    for index, pattern in enumerate(patterns):
+        sides = str(pattern).split("-")
+        if len(sides) < 2 or set(sides) != {"A", "B"}:
+            raise InvalidEvidenceError(
+                f"pairedPolicy.executionOrder.blockPatterns[{index}] "
+                f"'{pattern}' is not an A/B execution pattern."
+            )
+        if sides.count("A") != sides.count("B"):
+            raise InvalidEvidenceError(
+                f"pairedPolicy.executionOrder.blockPatterns[{index}] "
+                f"'{pattern}' does not measure both sides equally often."
+            )
+    if order["startingSideAlternatesPerBlock"] is not True:
+        raise InvalidEvidenceError(
+            "pairedPolicy.executionOrder.startingSideAlternatesPerBlock must "
+            "be true; a fixed starting side gives one provider every warm-up "
+            "advantage in the run."
+        )
+    starting = {str(pattern).split("-")[0] for pattern in patterns}
+    if starting != {"A", "B"}:
+        raise InvalidEvidenceError(
+            "pairedPolicy.executionOrder.blockPatterns must offer a pattern "
+            "starting with each side so the starting side can alternate."
+        )
+    _paired_number(
+        blocks["maximumRelativeStandardError"],
+        "pairedPolicy.blocks.maximumRelativeStandardError",
+        minimum=0,
+    )
+    ratio = _paired_number(
+        blocks["maximumSampleCountRatio"],
+        "pairedPolicy.blocks.maximumSampleCountRatio",
+        minimum=1,
+    )
+    if ratio < 1:
+        raise InvalidEvidenceError(
+            "pairedPolicy.blocks.maximumSampleCountRatio must be at least 1."
+        )
+
+    procedure = policy["multipleComparison"]["procedure"]
+    if procedure not in PAIRED_MULTIPLE_COMPARISON_PROCEDURES:
+        raise InvalidEvidenceError(
+            f"pairedPolicy.multipleComparison.procedure '{procedure}' is unknown."
+        )
+    rate = _paired_number(
+        policy["multipleComparison"]["falseDiscoveryRate"],
+        "pairedPolicy.multipleComparison.falseDiscoveryRate",
+        minimum=0,
+    )
+    if not 0 < rate < 1:
+        raise InvalidEvidenceError(
+            "pairedPolicy.multipleComparison.falseDiscoveryRate must lie between "
+            "0 and 1."
+        )
+
+    retry = policy["retry"]
+    eligible = retry["eligibleAttemptStates"]
+    if not isinstance(eligible, list) or not eligible:
+        raise InvalidEvidenceError(
+            "pairedPolicy.retry.eligibleAttemptStates must name at least one state."
+        )
+    for state in eligible:
+        if state not in ("measurement-inconclusive", "environment-not-comparable"):
+            raise InvalidEvidenceError(
+                f"pairedPolicy.retry may not make '{state}' retryable; a retry "
+                "would select away a verdict about the code."
+            )
+
+    # The registered states have to be the states the recorder actually treats
+    # as retryable. Two lists describing one decision are free to drift, and
+    # the contract would keep describing a policy nothing applies.
+    if __package__:
+        from .attempts import MAXIMUM_ATTEMPTS, RETRYABLE_STATES
+    else:  # pragma: no cover - direct execution path
+        from attempts import MAXIMUM_ATTEMPTS, RETRYABLE_STATES
+    if set(eligible) != set(RETRYABLE_STATES):
+        raise InvalidEvidenceError(
+            "pairedPolicy.retry.eligibleAttemptStates is "
+            f"{sorted(eligible)} while the attempt recorder retries "
+            f"{sorted(RETRYABLE_STATES)}."
+        )
+    registered_retries = _paired_number(
+        retry["maximumRetries"], "pairedPolicy.retry.maximumRetries", minimum=0
+    )
+    if registered_retries + 1 != MAXIMUM_ATTEMPTS:
+        raise InvalidEvidenceError(
+            f"pairedPolicy.retry.maximumRetries is {registered_retries:g} while "
+            f"the attempt path bounds a run at {MAXIMUM_ATTEMPTS} attempts."
+        )
+    if retry["combination"] not in PAIRED_RETRY_COMBINATIONS:
+        raise InvalidEvidenceError(
+            f"pairedPolicy.retry.combination '{retry['combination']}' is unknown."
+        )
+
+    durations = policy["durations"]
+    run_seconds = _paired_number(
+        durations["maximumPairedRunSeconds"],
+        "pairedPolicy.durations.maximumPairedRunSeconds",
+        minimum=1,
+    )
+    workload_seconds = _paired_number(
+        durations["maximumWorkloadSeconds"],
+        "pairedPolicy.durations.maximumWorkloadSeconds",
+        minimum=1,
+    )
+    closing_reserve = _paired_number(
+        durations["closingReserveSeconds"],
+        "pairedPolicy.durations.closingReserveSeconds",
+        minimum=1,
+    )
+    finalization_reserve = _paired_number(
+        durations["finalizationReserveSeconds"],
+        "pairedPolicy.durations.finalizationReserveSeconds",
+        minimum=1,
+    )
+    if finalization_reserve >= closing_reserve:
+        raise InvalidEvidenceError(
+            f"pairedPolicy.durations.finalizationReserveSeconds is "
+            f"{finalization_reserve:g}, which leaves nothing of the "
+            f"{closing_reserve:g}s closing reserve for the sustained-use run."
+        )
+    if closing_reserve >= run_seconds:
+        raise InvalidEvidenceError(
+            f"pairedPolicy.durations.closingReserveSeconds is {closing_reserve:g}, "
+            f"which leaves nothing of the {run_seconds:g}s paired budget for "
+            "measuring."
+        )
+
+    # These two are bounds on the profile the blocks run under, not a second
+    # set of timers. The driver enforces the profile; the policy states what
+    # the profile is allowed to be. Stating a limit that nothing compares
+    # against is how a registered value ends up describing nothing.
+    profile_total = block_profile.get("maximumTotalDurationSeconds")
+    if not isinstance(profile_total, (int, float)) or profile_total > run_seconds:
+        raise InvalidEvidenceError(
+            f"Profile '{blocks['profile']}' allows {profile_total} seconds per "
+            f"block, above the registered paired run budget of {run_seconds:g}."
+        )
+    profile_workload = block_profile.get("maximumWorkloadDurationSeconds")
+    if (
+        not isinstance(profile_workload, (int, float))
+        or profile_workload > workload_seconds
+    ):
+        raise InvalidEvidenceError(
+            f"Profile '{blocks['profile']}' allows {profile_workload} seconds "
+            f"per workload, above the registered paired ceiling of "
+            f"{workload_seconds:g}."
+        )
+
+
+    # A ratio-only comparison qualifies a candidate that is no worse than its
+    # reference, which says nothing about whether either is acceptable. The
+    # absolute ceilings keep the released provider bound to the same budgets
+    # the historical gate enforced, so a pair that regressed together is still
+    # rejected.
+    ceilings = policy["absoluteCeilings"]
+    if ceilings["appliesTo"] != "candidate":
+        raise InvalidEvidenceError(
+            "pairedPolicy.absoluteCeilings.appliesTo must be 'candidate'; the "
+            "released provider is the one that must satisfy the budget."
+        )
+    if ceilings["source"] != "familyBudgets":
+        raise InvalidEvidenceError(
+            "pairedPolicy.absoluteCeilings.source must be 'familyBudgets'."
+        )
+    ceiling_metrics = ceilings["metrics"]
+    if not isinstance(ceiling_metrics, list) or not ceiling_metrics:
+        raise InvalidEvidenceError(
+            "pairedPolicy.absoluteCeilings.metrics must name at least one budget."
+        )
+    for metric in ceiling_metrics:
+        for family, budget in contract.get("familyBudgets", {}).items():
+            if metric not in budget:
+                raise InvalidEvidenceError(
+                    f"familyBudgets.{family} has no '{metric}' for the paired "
+                    "absolute ceiling."
+                )
+
+    resources = policy.get("resourceFamilies")
+    if not isinstance(resources, list) or not resources:
+        raise InvalidEvidenceError(
+            "pairedPolicy.resourceFamilies must guard at least one resource."
+        )
+    seen_resources = set()
+    for index, family in enumerate(resources):
+        if not isinstance(family, dict):
+            raise InvalidEvidenceError(
+                f"pairedPolicy.resourceFamilies[{index}] is not an object."
+            )
+        for field in ("metric", "budget"):
+            if field not in family:
+                raise InvalidEvidenceError(
+                    f"pairedPolicy.resourceFamilies[{index}].{field} is required."
+                )
+        if family["metric"] not in PAIRED_RESOURCE_METRICS:
+            raise InvalidEvidenceError(
+                f"pairedPolicy.resourceFamilies[{index}].metric "
+                f"'{family['metric']}' is not a resource metric."
+            )
+        if family["metric"] in seen_resources:
+            raise InvalidEvidenceError(
+                f"pairedPolicy.resourceFamilies declares '{family['metric']}' twice."
+            )
+        seen_resources.add(family["metric"])
+        _paired_number(
+            family["budget"],
+            f"pairedPolicy.resourceFamilies[{index}].budget",
+            minimum=1,
+        )
+
+    soak = policy["soak"]
+    if soak["required"] is not True:
+        raise InvalidEvidenceError(
+            "pairedPolicy.soak.required must be true; sustained-use evidence is "
+            "not produced by a block comparison and would otherwise be lost."
+        )
+    if soak["appliesTo"] != "candidate":
+        raise InvalidEvidenceError(
+            "pairedPolicy.soak.appliesTo must be 'candidate'."
+        )
+    if soak["source"] != "soakBudgets":
+        raise InvalidEvidenceError("pairedPolicy.soak.source must be 'soakBudgets'.")
+
+    return policy
+
+
 def validate_contract(contract: dict[str, Any]) -> None:
     """Validate uniqueness, references, and required dimension coverage."""
-    if contract.get("schemaVersion") != 6:
-        raise PerformanceEvidenceError("Performance contract schemaVersion must be 6.")
+    if contract.get("schemaVersion") != 7:
+        raise PerformanceEvidenceError("Performance contract schemaVersion must be 7.")
 
     validate_contract_version(
         required_string(contract, "contractVersion", "contract")
@@ -410,6 +890,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
     historical_budgets = contract.get("historicalBudgets")
     benchmark_controls = contract.get("benchmarkDotNetControls")
     soak_budgets = contract.get("soakBudgets")
+    validate_paired_policy(contract)
 
     if not isinstance(targets, dict) or not targets:
         raise PerformanceEvidenceError("Performance contract must define requiredTargets.")

@@ -102,7 +102,6 @@ class BenchmarkGateTests(unittest.TestCase):
         workload_report["runId"] = "test-run"
         workload_report["profile"] = "smoke"
         smoke_profile = self._contract["profiles"]["smoke"]
-        evidence = performance_evidence
         definitions = {
             definition["id"]: definition
             for definition in self._contract["workloads"]

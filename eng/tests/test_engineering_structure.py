@@ -237,6 +237,66 @@ class EngineeringStructureTests(unittest.TestCase):
                         "as one of its consumers.",
                     )
 
+    def test_no_shell_script_needs_a_bash_beyond_the_system_one(self) -> None:
+        """Reject a builtin the macOS system Bash 3.2 does not have.
+
+        Contributors run the system Bash locally while CI runs Bash 5, so a
+        script using a newer builtin passes every hosted check and fails the
+        first time someone runs it on a workstation. `mapfile` did exactly
+        that: the paired runner died on its first local invocation.
+        """
+        forbidden = {
+            "mapfile": "use a `while IFS= read -r` loop",
+            "readarray": "use a `while IFS= read -r` loop",
+            "declare -A": "use parallel indexed arrays or a case statement",
+        }
+
+        for path in sorted(REPOSITORY_ROOT.glob("eng/**/*.sh")):
+            body = path.read_text(encoding="utf-8")
+            for builtin, remedy in forbidden.items():
+                # A line that names the builtin only to explain its absence is
+                # documentation, not usage.
+                uses = [
+                    line
+                    for line in body.splitlines()
+                    if builtin in line and not line.lstrip().startswith("#")
+                ]
+                with self.subTest(script=path.name, builtin=builtin):
+                    self.assertEqual(
+                        [],
+                        uses,
+                        f"{path} uses `{builtin}`, which Bash 3.2 lacks; {remedy}",
+                    )
+
+    def test_no_module_shadows_one_of_its_own_definitions(self) -> None:
+        """Reject a second definition that silently replaces the first.
+
+        A rewrite that appends the new implementation without removing the old
+        one leaves both in the file. Python keeps the last, so the first
+        becomes unreachable while still reading as live code: a reviewer can
+        check it, and an edit to it has no effect at all.
+        """
+        for path in sorted((REPOSITORY_ROOT / "eng").rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            scopes = [tree] + [
+                node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)
+            ]
+            for scope in scopes:
+                names = [
+                    node.name
+                    for node in scope.body
+                    if isinstance(
+                        node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+                    )
+                ]
+                duplicates = sorted({name for name in names if names.count(name) > 1})
+                with self.subTest(module=path.name, scope=getattr(scope, "name", "module")):
+                    self.assertEqual(
+                        [],
+                        duplicates,
+                        f"{path} defines {', '.join(duplicates)} more than once",
+                    )
+
     def test_python_domains_follow_the_dependency_direction(self) -> None:
         """Reject cross-domain imports that bypass the reviewed dependency graph."""
         for domain, contract in self.domains.items():

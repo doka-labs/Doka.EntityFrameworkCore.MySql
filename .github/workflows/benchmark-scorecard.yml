@@ -8,7 +8,18 @@ on:
     inputs:
       baseline_mode:
         description: Validated comparison or seed mode selected by the caller.
-        required: true
+        required: false
+        default: compare
+        type: string
+      comparison_mode:
+        # `historical` compares one measurement against an accepted
+        # baseline recorded on another host, which is why it needs
+        # baseline_mode. `paired` measures a reference and a candidate
+        # provider in the same allocated job, so it needs neither a
+        # baseline nor an environment match against a recorded machine.
+        description: Which comparison the scorecard performs.
+        required: false
+        default: historical
         type: string
 
 permissions:
@@ -21,6 +32,7 @@ jobs:
 
     outputs:
       status: ${{ steps.receipt.outputs.status }}
+      retry: ${{ steps.receipt.outputs.retry }}
 
     services:
       mysql84:
@@ -43,6 +55,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # A paired comparison packs the provider from its reference commit,
+          # so the history back to that commit must be present. A shallow
+          # checkout fails at the worktree, after the runner is allocated.
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -51,10 +67,23 @@ jobs:
 
       - name: Resolve immutable attempt identity
         id: identity
+        env:
+          COMPARISON_MODE: ${{ inputs.comparison_mode }}
+          DISPATCH_PROFILE: scorecard
         run: |
           echo "run-id=github-${GITHUB_RUN_ID}-mysql84-attempt-1" >> "${GITHUB_OUTPUT}"
           source_hash="$(python3 -m eng.performance.cli source-hash --repo .)"
           echo "source-hash=${source_hash}" >> "${GITHUB_OUTPUT}"
+          # A paired run measures under the registered block profile, not under
+          # the profile this job is dispatched with. The receipt has to record
+          # the one that measured.
+          attempt_profile="$(
+            python3 -m eng.performance.cli attempt-profile \
+              --contract benchmarks/performance-contract.json \
+              --profile "${DISPATCH_PROFILE}" \
+              --comparison-mode "${COMPARISON_MODE}"
+          )"
+          echo "attempt-profile=${attempt_profile}" >> "${GITHUB_OUTPUT}"
 
       # The raw exit is recorded as evidence so only the typed selector can
       # authorize a retry; this step must not collapse every nonzero exit into
@@ -64,6 +93,7 @@ jobs:
         env:
           DOKA_BENCHMARK_PROFILE: scorecard
           DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.baseline_mode }}
+          DOKA_BENCHMARK_COMPARISON_MODE: ${{ inputs.comparison_mode }}
           DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
           DOKA_BENCHMARK_TARGET: mysql84
           DOKA_BENCHMARK_RUN_ID: ${{ steps.identity.outputs.run-id }}
@@ -82,6 +112,8 @@ jobs:
         id: receipt
         env:
           ATTEMPT_COMMIT: ${{ github.sha }}
+          ATTEMPT_COMPARISON_MODE: ${{ inputs.comparison_mode }}
+          ATTEMPT_PROFILE: ${{ steps.identity.outputs.attempt-profile }}
           ATTEMPT_EXIT_CODE: ${{ steps.benchmark.outputs.exit-code }}
           ATTEMPT_RUN_ID: ${{ steps.identity.outputs.run-id }}
           ATTEMPT_SOURCE_HASH: ${{ steps.identity.outputs.source-hash }}
@@ -92,19 +124,17 @@ jobs:
             --artifact-root "${artifact_root}" \
             --report-directory "${artifact_root}/reports/${ATTEMPT_RUN_ID}" \
             --target mysql84 \
-            --profile scorecard \
+            --profile "${ATTEMPT_PROFILE}" \
             --attempt 1 \
             --run-id "${ATTEMPT_RUN_ID}" \
             --commit "${ATTEMPT_COMMIT}" \
             --source-hash "${ATTEMPT_SOURCE_HASH}" \
             --runner-class github-ubuntu-latest-x64 \
             --exit-code "${ATTEMPT_EXIT_CODE}" \
+            --comparison-mode "${ATTEMPT_COMPARISON_MODE}" \
             --output "${receipt}"
-          status="$(
-            python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["status"])' \
-              "${receipt}"
-          )"
-          echo "status=${status}" >> "${GITHUB_OUTPUT}"
+          python3 -m eng.performance.cli attempt-outputs \
+            --receipt "${receipt}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload MySQL 8.4 attempt 1
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -116,12 +146,13 @@ jobs:
 
   mysql84-attempt-2:
     needs: mysql84-attempt-1
-    if: needs.mysql84-attempt-1.outputs.status == 'inconclusive'
+    if: needs.mysql84-attempt-1.outputs.retry == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 180
 
     outputs:
       status: ${{ steps.receipt.outputs.status }}
+      retry: ${{ steps.receipt.outputs.retry }}
 
     services:
       mysql84:
@@ -144,6 +175,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # A paired comparison packs the provider from its reference commit,
+          # so the history back to that commit must be present. A shallow
+          # checkout fails at the worktree, after the runner is allocated.
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -152,16 +187,30 @@ jobs:
 
       - name: Resolve immutable attempt identity
         id: identity
+        env:
+          COMPARISON_MODE: ${{ inputs.comparison_mode }}
+          DISPATCH_PROFILE: scorecard
         run: |
           echo "run-id=github-${GITHUB_RUN_ID}-mysql84-attempt-2" >> "${GITHUB_OUTPUT}"
           source_hash="$(python3 -m eng.performance.cli source-hash --repo .)"
           echo "source-hash=${source_hash}" >> "${GITHUB_OUTPUT}"
+          # A paired run measures under the registered block profile, not under
+          # the profile this job is dispatched with. The receipt has to record
+          # the one that measured.
+          attempt_profile="$(
+            python3 -m eng.performance.cli attempt-profile \
+              --contract benchmarks/performance-contract.json \
+              --profile "${DISPATCH_PROFILE}" \
+              --comparison-mode "${COMPARISON_MODE}"
+          )"
+          echo "attempt-profile=${attempt_profile}" >> "${GITHUB_OUTPUT}"
 
       - name: Run MySQL 8.4 scorecard attempt 2
         id: benchmark
         env:
           DOKA_BENCHMARK_PROFILE: scorecard
           DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.baseline_mode }}
+          DOKA_BENCHMARK_COMPARISON_MODE: ${{ inputs.comparison_mode }}
           DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
           DOKA_BENCHMARK_TARGET: mysql84
           DOKA_BENCHMARK_RUN_ID: ${{ steps.identity.outputs.run-id }}
@@ -178,6 +227,8 @@ jobs:
         id: receipt
         env:
           ATTEMPT_COMMIT: ${{ github.sha }}
+          ATTEMPT_COMPARISON_MODE: ${{ inputs.comparison_mode }}
+          ATTEMPT_PROFILE: ${{ steps.identity.outputs.attempt-profile }}
           ATTEMPT_EXIT_CODE: ${{ steps.benchmark.outputs.exit-code }}
           ATTEMPT_RUN_ID: ${{ steps.identity.outputs.run-id }}
           ATTEMPT_SOURCE_HASH: ${{ steps.identity.outputs.source-hash }}
@@ -188,19 +239,17 @@ jobs:
             --artifact-root "${artifact_root}" \
             --report-directory "${artifact_root}/reports/${ATTEMPT_RUN_ID}" \
             --target mysql84 \
-            --profile scorecard \
+            --profile "${ATTEMPT_PROFILE}" \
             --attempt 2 \
             --run-id "${ATTEMPT_RUN_ID}" \
             --commit "${ATTEMPT_COMMIT}" \
             --source-hash "${ATTEMPT_SOURCE_HASH}" \
             --runner-class github-ubuntu-latest-x64 \
             --exit-code "${ATTEMPT_EXIT_CODE}" \
+            --comparison-mode "${ATTEMPT_COMPARISON_MODE}" \
             --output "${receipt}"
-          status="$(
-            python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["status"])' \
-              "${receipt}"
-          )"
-          echo "status=${status}" >> "${GITHUB_OUTPUT}"
+          python3 -m eng.performance.cli attempt-outputs \
+            --receipt "${receipt}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload MySQL 8.4 attempt 2
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -266,6 +315,7 @@ jobs:
 
     outputs:
       status: ${{ steps.receipt.outputs.status }}
+      retry: ${{ steps.receipt.outputs.retry }}
 
     services:
       mariadb118:
@@ -288,6 +338,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # A paired comparison packs the provider from its reference commit,
+          # so the history back to that commit must be present. A shallow
+          # checkout fails at the worktree, after the runner is allocated.
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -296,16 +350,30 @@ jobs:
 
       - name: Resolve immutable attempt identity
         id: identity
+        env:
+          COMPARISON_MODE: ${{ inputs.comparison_mode }}
+          DISPATCH_PROFILE: scorecard
         run: |
           echo "run-id=github-${GITHUB_RUN_ID}-mariadb118-attempt-1" >> "${GITHUB_OUTPUT}"
           source_hash="$(python3 -m eng.performance.cli source-hash --repo .)"
           echo "source-hash=${source_hash}" >> "${GITHUB_OUTPUT}"
+          # A paired run measures under the registered block profile, not under
+          # the profile this job is dispatched with. The receipt has to record
+          # the one that measured.
+          attempt_profile="$(
+            python3 -m eng.performance.cli attempt-profile \
+              --contract benchmarks/performance-contract.json \
+              --profile "${DISPATCH_PROFILE}" \
+              --comparison-mode "${COMPARISON_MODE}"
+          )"
+          echo "attempt-profile=${attempt_profile}" >> "${GITHUB_OUTPUT}"
 
       - name: Run MariaDB 11.8 scorecard attempt 1
         id: benchmark
         env:
           DOKA_BENCHMARK_PROFILE: scorecard
           DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.baseline_mode }}
+          DOKA_BENCHMARK_COMPARISON_MODE: ${{ inputs.comparison_mode }}
           DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
           DOKA_BENCHMARK_TARGET: mariadb118
           DOKA_BENCHMARK_RUN_ID: ${{ steps.identity.outputs.run-id }}
@@ -322,6 +390,8 @@ jobs:
         id: receipt
         env:
           ATTEMPT_COMMIT: ${{ github.sha }}
+          ATTEMPT_COMPARISON_MODE: ${{ inputs.comparison_mode }}
+          ATTEMPT_PROFILE: ${{ steps.identity.outputs.attempt-profile }}
           ATTEMPT_EXIT_CODE: ${{ steps.benchmark.outputs.exit-code }}
           ATTEMPT_RUN_ID: ${{ steps.identity.outputs.run-id }}
           ATTEMPT_SOURCE_HASH: ${{ steps.identity.outputs.source-hash }}
@@ -332,19 +402,17 @@ jobs:
             --artifact-root "${artifact_root}" \
             --report-directory "${artifact_root}/reports/${ATTEMPT_RUN_ID}" \
             --target mariadb118 \
-            --profile scorecard \
+            --profile "${ATTEMPT_PROFILE}" \
             --attempt 1 \
             --run-id "${ATTEMPT_RUN_ID}" \
             --commit "${ATTEMPT_COMMIT}" \
             --source-hash "${ATTEMPT_SOURCE_HASH}" \
             --runner-class github-ubuntu-latest-x64 \
             --exit-code "${ATTEMPT_EXIT_CODE}" \
+            --comparison-mode "${ATTEMPT_COMPARISON_MODE}" \
             --output "${receipt}"
-          status="$(
-            python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["status"])' \
-              "${receipt}"
-          )"
-          echo "status=${status}" >> "${GITHUB_OUTPUT}"
+          python3 -m eng.performance.cli attempt-outputs \
+            --receipt "${receipt}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload MariaDB 11.8 attempt 1
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -356,12 +424,13 @@ jobs:
 
   mariadb118-attempt-2:
     needs: mariadb118-attempt-1
-    if: needs.mariadb118-attempt-1.outputs.status == 'inconclusive'
+    if: needs.mariadb118-attempt-1.outputs.retry == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 180
 
     outputs:
       status: ${{ steps.receipt.outputs.status }}
+      retry: ${{ steps.receipt.outputs.retry }}
 
     services:
       mariadb118:
@@ -384,6 +453,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # A paired comparison packs the provider from its reference commit,
+          # so the history back to that commit must be present. A shallow
+          # checkout fails at the worktree, after the runner is allocated.
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -392,16 +465,30 @@ jobs:
 
       - name: Resolve immutable attempt identity
         id: identity
+        env:
+          COMPARISON_MODE: ${{ inputs.comparison_mode }}
+          DISPATCH_PROFILE: scorecard
         run: |
           echo "run-id=github-${GITHUB_RUN_ID}-mariadb118-attempt-2" >> "${GITHUB_OUTPUT}"
           source_hash="$(python3 -m eng.performance.cli source-hash --repo .)"
           echo "source-hash=${source_hash}" >> "${GITHUB_OUTPUT}"
+          # A paired run measures under the registered block profile, not under
+          # the profile this job is dispatched with. The receipt has to record
+          # the one that measured.
+          attempt_profile="$(
+            python3 -m eng.performance.cli attempt-profile \
+              --contract benchmarks/performance-contract.json \
+              --profile "${DISPATCH_PROFILE}" \
+              --comparison-mode "${COMPARISON_MODE}"
+          )"
+          echo "attempt-profile=${attempt_profile}" >> "${GITHUB_OUTPUT}"
 
       - name: Run MariaDB 11.8 scorecard attempt 2
         id: benchmark
         env:
           DOKA_BENCHMARK_PROFILE: scorecard
           DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.baseline_mode }}
+          DOKA_BENCHMARK_COMPARISON_MODE: ${{ inputs.comparison_mode }}
           DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
           DOKA_BENCHMARK_TARGET: mariadb118
           DOKA_BENCHMARK_RUN_ID: ${{ steps.identity.outputs.run-id }}
@@ -418,6 +505,8 @@ jobs:
         id: receipt
         env:
           ATTEMPT_COMMIT: ${{ github.sha }}
+          ATTEMPT_COMPARISON_MODE: ${{ inputs.comparison_mode }}
+          ATTEMPT_PROFILE: ${{ steps.identity.outputs.attempt-profile }}
           ATTEMPT_EXIT_CODE: ${{ steps.benchmark.outputs.exit-code }}
           ATTEMPT_RUN_ID: ${{ steps.identity.outputs.run-id }}
           ATTEMPT_SOURCE_HASH: ${{ steps.identity.outputs.source-hash }}
@@ -428,19 +517,17 @@ jobs:
             --artifact-root "${artifact_root}" \
             --report-directory "${artifact_root}/reports/${ATTEMPT_RUN_ID}" \
             --target mariadb118 \
-            --profile scorecard \
+            --profile "${ATTEMPT_PROFILE}" \
             --attempt 2 \
             --run-id "${ATTEMPT_RUN_ID}" \
             --commit "${ATTEMPT_COMMIT}" \
             --source-hash "${ATTEMPT_SOURCE_HASH}" \
             --runner-class github-ubuntu-latest-x64 \
             --exit-code "${ATTEMPT_EXIT_CODE}" \
+            --comparison-mode "${ATTEMPT_COMPARISON_MODE}" \
             --output "${receipt}"
-          status="$(
-            python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["status"])' \
-              "${receipt}"
-          )"
-          echo "status=${status}" >> "${GITHUB_OUTPUT}"
+          python3 -m eng.performance.cli attempt-outputs \
+            --receipt "${receipt}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload MariaDB 11.8 attempt 2
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -629,8 +629,17 @@ def public_workload_metrics(
 def validate_absolute_budgets(
     workloads: Sequence[dict[str, Any]],
     contract: dict[str, Any],
+    *,
+    strict: bool = True,
 ) -> list[dict[str, Any]]:
-    """Evaluate every workload against its family's absolute ceilings."""
+    """Evaluate every workload against its family's absolute ceilings.
+
+    The historical gate treats a breach as unusable evidence and stops. The
+    paired comparison needs the same measurements as a verdict instead: a
+    candidate over its ceiling is a regression, not a run that failed to
+    produce a result. `strict=False` returns the complete set of checks and
+    leaves that decision to the caller.
+    """
     checks: list[dict[str, Any]] = []
     metric_map = {
         "medianNanoseconds": "medianNanoseconds",
@@ -662,7 +671,7 @@ def validate_absolute_budgets(
                     "passed": passed,
                 }
             )
-            if not passed:
+            if not passed and strict:
                 raise PerformanceEvidenceError(
                     f"Absolute budget failed for '{workload['id']}' {metric_name}: "
                     f"{actual} > {maximum}."

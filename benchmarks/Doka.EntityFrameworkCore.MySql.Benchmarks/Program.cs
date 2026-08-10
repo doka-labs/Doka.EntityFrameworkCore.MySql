@@ -55,6 +55,16 @@ public static class Program
 
             return failed ? 1 : 0;
         }
+        catch (MeasurementQualityException exception)
+        {
+            // A measurement condition leaves through its own exit code so the
+            // attempt path records `measurement-inconclusive` and may retry.
+            // Exit 1 would classify as a regression, which is a verdict about
+            // the provider that this run never reached.
+            Console.Error.WriteLine(exception.Message);
+
+            return MeasurementQualityException.ExitCode;
+        }
         catch (Exception exception)
         {
             Console.Error.WriteLine(exception);

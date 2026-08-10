@@ -5,14 +5,46 @@
     <RootNamespace>Doka.EntityFrameworkCore.MySql.Benchmarks</RootNamespace>
   </PropertyGroup>
 
+  <!--
+    A paired comparison measures two provider revisions under one benchmark driver, so
+    the provider reference has to be switchable. Leaving it a project reference
+    would mean building the reference side from its own commit, which produces
+    a different benchmark driver as well and compares benchmark driver-and-provider pairs rather
+    than providers. Setting DokaBenchmarkProviderVersion binds this benchmark driver to
+    a packaged provider instead; the property is unset everywhere else, so the
+    ordinary build keeps the project reference and nothing changes for it.
+  -->
+  <PropertyGroup>
+    <DokaBenchmarkUsesPackagedProvider
+      Condition="'$(DokaBenchmarkProviderVersion)' != ''">true</DokaBenchmarkUsesPackagedProvider>
+    <DokaBenchmarkUsesPackagedProvider
+      Condition="'$(DokaBenchmarkUsesPackagedProvider)' == ''">false</DokaBenchmarkUsesPackagedProvider>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
     <InternalsVisibleTo Include="Doka.EntityFrameworkCore.MySql.Tests" />
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(DokaBenchmarkUsesPackagedProvider)' == 'false'">
     <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj" />
     <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj" />
+  </ItemGroup>
+
+  <!--
+    VersionOverride rather than Version: this repository uses Central Package
+    Management, under which a PackageReference may not carry a Version and a
+    restore that tries fails with NU1008. VersionOverride is the sanctioned way
+    to pin one reference to a version the central file does not declare, which
+    is exactly what a packed reference provider is.
+  -->
+  <ItemGroup Condition="'$(DokaBenchmarkUsesPackagedProvider)' == 'true'">
+    <PackageReference
+      Include="Doka.EntityFrameworkCore.MySql"
+      VersionOverride="$(DokaBenchmarkProviderVersion)" />
+    <PackageReference
+      Include="Doka.EntityFrameworkCore.MySql.NetTopologySuite"
+      VersionOverride="$(DokaBenchmarkProviderVersion)" />
   </ItemGroup>
 
   <ItemGroup>

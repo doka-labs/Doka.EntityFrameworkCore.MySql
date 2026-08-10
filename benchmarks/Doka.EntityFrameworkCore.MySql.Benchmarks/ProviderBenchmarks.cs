@@ -389,7 +389,7 @@ public class PaginationBenchmarks
     [ParamsSource(nameof(OffsetValues))]
     public int Offset { get; set; }
 
-    public IEnumerable<int> OffsetValues() => BenchmarkProfiles.IsScorecard() || BenchmarkProfiles.IsStress()
+    public IEnumerable<int> OffsetValues() => BenchmarkProfiles.MeasuresCompleteMatrix()
         ?
         [
             0,

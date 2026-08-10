@@ -26,13 +26,22 @@ class PerformanceEvidenceFixtureMixin:
         """Load the versioned contract shared by every evidence fixture."""
         self.contract = performance_evidence.load_json(self._contract_path)
 
-    def _workload_report(self, target: str) -> dict[str, Any]:
-        """Build a complete scorecard workload report for one target."""
+    def _workload_report(
+        self,
+        target: str,
+        profile_name: str = "scorecard",
+    ) -> dict[str, Any]:
+        """Build a complete workload report for one target under one profile.
+
+        The profile is a parameter because the paired comparison measures under
+        its own registered block profile, and a report built for another one
+        would be rejected by the very contract these fixtures exist to satisfy.
+        """
         maximum_cpu_utilization = self.contract["hostPreconditions"][
             "maximumCpuUtilization"
         ]
         workloads = []
-        profile = self.contract["profiles"]["scorecard"]
+        profile = self.contract["profiles"][profile_name]
 
         for definition in self.contract["workloads"]:
             sample_count = performance_evidence.expected_measurement_sample_count(
@@ -49,7 +58,28 @@ class PerformanceEvidenceFixtureMixin:
                 / sample_count
                 / operations_per_sample
             )
-            sample_base = max(100.0, minimum_sample_nanoseconds * 1.05)
+            # A real run keeps the per-operation time inside the family budget
+            # and reaches the duration floor by extending the population; it
+            # does not stretch a fixed number of samples until each one is slow
+            # enough. Deriving the base from the duration floor alone produced
+            # samples above the absolute ceilings for any profile that starts
+            # small, which describes no run the runner would ever emit.
+            family_budget = self.contract["familyBudgets"][definition["family"]]
+            budget_sample_nanoseconds = (
+                family_budget["medianNanoseconds"] / operations_per_sample / 2
+            )
+            sample_base = max(100.0, min(
+                minimum_sample_nanoseconds * 1.05,
+                budget_sample_nanoseconds,
+            ))
+            # Whatever the population has to be for that per-sample time to
+            # clear the duration floor, exactly as the adaptive extension does.
+            if sample_base * operations_per_sample > 0:
+                required = math.ceil(
+                    minimum_duration_nanoseconds
+                    / (sample_base * operations_per_sample)
+                )
+                sample_count = max(sample_count, required)
             samples = [sample_base + (index % 10) for index in range(sample_count)]
             sorted_samples = sorted(samples)
             calibration_samples = [100.0] * sample_count
@@ -121,7 +151,7 @@ class PerformanceEvidenceFixtureMixin:
             "contractVersion": self.contract["contractVersion"],
             "runId": "run-1",
             "target": target,
-            "profile": "scorecard",
+            "profile": profile_name,
             "commit": "0" * 40,
             "sourceHash": "a" * 64,
             "runnerClass": "test-runner",

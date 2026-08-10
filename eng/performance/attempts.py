@@ -9,8 +9,14 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .contract import (
+    ENVIRONMENT_NOT_COMPARABLE_EXIT_CODE,
+    INVALID_EVIDENCE_EXIT_CODE,
     MEASUREMENT_QUALITY_EXIT_CODE,
+    RECALIBRATION_REQUIRED_EXIT_CODE,
+    EnvironmentNotComparableError,
+    InvalidEvidenceError,
     MeasurementQualityError,
+    RecalibrationRequiredError,
     PerformanceEvidenceError,
     load_json,
     required_commit,
@@ -21,22 +27,90 @@ from .contract import (
     write_json,
 )
 
-ATTEMPT_SCHEMA_VERSION = 1
+ATTEMPT_SCHEMA_VERSION = 2
 ATTEMPT_KIND = "performance-attempt-receipt"
 SELECTION_KIND = "performance-attempt-selection"
 IMPORT_KIND = "performance-attempt-import"
 MAXIMUM_ATTEMPTS = 2
-VALID_STATUSES = {"passed", "inconclusive", "failed"}
+
+# Attempt states describe one measurement run. Qualification states describe
+# the release verdict derived from the attempts. Keeping the two vocabularies
+# apart is what lets two non-comparable attempts resolve to `inconclusive`
+# without either attempt ever having claimed a regression.
+ATTEMPT_STATES = (
+    "passed",
+    "regression",
+    "measurement-inconclusive",
+    "environment-not-comparable",
+    "recalibration-required",
+    "invalid-evidence",
+)
+VALID_STATUSES = set(ATTEMPT_STATES)
+
+QUALIFICATION_STATES = (
+    "qualified",
+    "regression",
+    "inconclusive",
+    "recalibration-required",
+    "invalid-evidence",
+)
+
+# Only an infrastructure or sampling condition may be retried. A regression is
+# a verdict about the code and a retry could only select it away; invalid
+# evidence cannot be repaired by measuring again under the same defect.
+RETRYABLE_STATES = frozenset(
+    {"measurement-inconclusive", "environment-not-comparable"}
+)
+
+_EXIT_CODE_STATES = {
+    0: "passed",
+    1: "regression",
+    MEASUREMENT_QUALITY_EXIT_CODE: "measurement-inconclusive",
+    ENVIRONMENT_NOT_COMPARABLE_EXIT_CODE: "environment-not-comparable",
+    RECALIBRATION_REQUIRED_EXIT_CODE: "recalibration-required",
+    INVALID_EVIDENCE_EXIT_CODE: "invalid-evidence",
+}
 
 
 def classify_exit_code(exit_code: int) -> str:
-    """Map a benchmark exit code to its non-overlapping workflow state."""
-    if exit_code == 0:
-        return "passed"
-    if exit_code == MEASUREMENT_QUALITY_EXIT_CODE:
-        return "inconclusive"
+    """Map a benchmark exit code to its non-overlapping attempt state.
 
-    return "failed"
+    An unmapped non-zero code is `invalid-evidence` rather than a regression:
+    a runner that died for an unclassified reason produced no verdict, and
+    reporting one would attribute an infrastructure failure to the provider.
+    """
+    return _EXIT_CODE_STATES.get(exit_code, "invalid-evidence")
+
+
+def is_retryable(state: str) -> bool:
+    """Return whether one bounded retry may follow this attempt state."""
+    if state not in VALID_STATUSES:
+        raise PerformanceEvidenceError(f"Unknown attempt state '{state}'.")
+
+    return state in RETRYABLE_STATES
+
+
+def qualification_state(attempt_states: Sequence[str]) -> str:
+    """Derive the release verdict from the attempts that were performed.
+
+    Bounded retries exist so an infrastructure condition does not decide a
+    release. When every attempt hit such a condition, the release is blocked
+    as `inconclusive`, which withholds qualification without asserting that
+    the provider regressed.
+    """
+    if not attempt_states:
+        raise PerformanceEvidenceError("Qualification requires at least one attempt.")
+    for state in attempt_states:
+        if state not in VALID_STATUSES:
+            raise PerformanceEvidenceError(f"Unknown attempt state '{state}'.")
+
+    final = attempt_states[-1]
+    if final == "passed":
+        return "qualified"
+    if final in ("regression", "recalibration-required", "invalid-evidence"):
+        return final
+
+    return "inconclusive"
 
 
 def _relative_regular_file(path: Path, root: Path, label: str) -> str:
@@ -58,6 +132,50 @@ def _relative_regular_file(path: Path, root: Path, label: str) -> str:
     return relative_path.as_posix()
 
 
+# A historical run and a paired run answer the same question through different
+# evidence, so the attempt path is told which contract to hold the result to
+# rather than assuming one. Assuming the historical layout is what made every
+# successful paired run fail after the measurement: the verdict existed, under
+# a different name, and the recorder never looked for it.
+COMPARISON_MODES = ("historical", "paired")
+
+EVALUATION_CONTRACTS: dict[str, dict[str, Any]] = {
+    "historical": {
+        "relativePath": ("evidence", "performance-evaluation.json"),
+        "schemaVersion": 3,
+        "kind": "performance-evaluation",
+        "companions": (),
+    },
+    "paired": {
+        "relativePath": ("paired-evaluation.json",),
+        "schemaVersion": 2,
+        "kind": "paired-performance-evaluation",
+        # The verdict alone is not the evidence. Binding the measurements and
+        # the sustained-use report by digest keeps a receipt from outliving the
+        # files it was derived from.
+        "companions": ("paired-evidence.json", "paired-soak.json"),
+    },
+}
+
+
+def validate_comparison_mode(mode: str) -> str:
+    """Reject a comparison mode this repository does not implement."""
+    if mode not in COMPARISON_MODES:
+        raise PerformanceEvidenceError(
+            f"Unknown comparison mode '{mode}'; expected one of "
+            f"{', '.join(COMPARISON_MODES)}."
+        )
+
+    return mode
+
+
+def evaluation_path_for(report_directory: Path, comparison_mode: str) -> Path:
+    """Return where this comparison mode writes its verdict."""
+    contract = EVALUATION_CONTRACTS[validate_comparison_mode(comparison_mode)]
+
+    return report_directory.joinpath(*contract["relativePath"])
+
+
 def _validate_evaluation_identity(
     evaluation_path: Path,
     *,
@@ -67,12 +185,14 @@ def _validate_evaluation_identity(
     commit: str,
     source_hash: str,
     runner_class: str,
+    comparison_mode: str = "historical",
 ) -> dict[str, Any]:
     """Prove that a passed attempt owns its claimed evaluation."""
+    contract = EVALUATION_CONTRACTS[validate_comparison_mode(comparison_mode)]
     evaluation = load_json(evaluation_path)
     expected = {
-        "schemaVersion": 3,
-        "kind": "performance-evaluation",
+        "schemaVersion": contract["schemaVersion"],
+        "kind": contract["kind"],
         "success": True,
         "target": target,
         "profile": profile,
@@ -92,6 +212,28 @@ def _validate_evaluation_identity(
     return evaluation
 
 
+def _companion_bindings(
+    evaluation_path: Path,
+    artifact_root: Path,
+    comparison_mode: str,
+) -> list[dict[str, str]]:
+    """Bind the files a verdict was derived from, by relative path and digest."""
+    contract = EVALUATION_CONTRACTS[validate_comparison_mode(comparison_mode)]
+    bindings: list[dict[str, str]] = []
+    for name in contract["companions"]:
+        companion = evaluation_path.with_name(name)
+        bindings.append(
+            {
+                "relativePath": _relative_regular_file(
+                    companion, artifact_root, f"Performance evidence '{name}'"
+                ),
+                "sha256": sha256(companion),
+            }
+        )
+
+    return bindings
+
+
 def record_attempt(
     *,
     artifact_root: Path,
@@ -105,8 +247,10 @@ def record_attempt(
     source_hash: str,
     runner_class: str,
     exit_code: int,
+    comparison_mode: str = "historical",
 ) -> dict[str, Any]:
     """Persist one immutable classification receipt for a benchmark attempt."""
+    validate_comparison_mode(comparison_mode)
     if attempt < 1 or attempt > MAXIMUM_ATTEMPTS:
         raise PerformanceEvidenceError(
             f"Attempt must be between 1 and {MAXIMUM_ATTEMPTS}."
@@ -134,10 +278,9 @@ def record_attempt(
 
     evaluation_relative_path: str | None = None
     evaluation_sha256: str | None = None
+    companions: list[dict[str, str]] = []
     if status == "passed":
-        evaluation_path = (
-            report_directory / "evidence" / "performance-evaluation.json"
-        )
+        evaluation_path = evaluation_path_for(report_directory, comparison_mode)
         _validate_evaluation_identity(
             evaluation_path,
             target=target,
@@ -146,6 +289,7 @@ def record_attempt(
             commit=commit,
             source_hash=source_hash,
             runner_class=runner_class,
+            comparison_mode=comparison_mode,
         )
         evaluation_relative_path = _relative_regular_file(
             evaluation_path,
@@ -153,6 +297,9 @@ def record_attempt(
             "Performance evaluation",
         )
         evaluation_sha256 = sha256(evaluation_path)
+        companions = _companion_bindings(
+            evaluation_path, artifact_root, comparison_mode
+        )
 
     payload: dict[str, Any] = {
         "schemaVersion": ATTEMPT_SCHEMA_VERSION,
@@ -170,9 +317,16 @@ def record_attempt(
         "runnerClass": runner_class,
         "exitCode": exit_code,
         "status": status,
+        # The retry decision travels with the receipt so no caller has to
+        # restate which states are retryable. A workflow condition comparing
+        # against a literal state name silently stops matching the moment the
+        # state vocabulary changes, and the retry it guarded never fires again.
+        "retryEligible": is_retryable(status),
+        "comparisonMode": comparison_mode,
         "reportRelativePath": report_relative_path,
         "evaluationRelativePath": evaluation_relative_path,
         "evaluationSha256": evaluation_sha256,
+        "evidenceBindings": companions,
     }
     write_json(output, payload)
     return payload
@@ -201,6 +355,9 @@ def _validate_receipt(path: Path) -> dict[str, Any]:
     required_commit(receipt, "commit", "attempt receipt")
     required_sha256(receipt, "sourceHash", "attempt receipt")
     required_string(receipt, "runnerClass", "attempt receipt")
+    validate_comparison_mode(
+        required_string(receipt, "comparisonMode", "attempt receipt")
+    )
     attempt = required_positive_integer(receipt, "attempt", "attempt receipt")
     if attempt > MAXIMUM_ATTEMPTS:
         raise PerformanceEvidenceError(
@@ -279,6 +436,33 @@ def _validate_artifact_directory(path: Path, label: str) -> Path:
     return path.resolve()
 
 
+def _terminal_error(state: str, subject: str) -> PerformanceEvidenceError:
+    """Return the typed error for a conclusive attempt state."""
+    if state == "regression":
+        return PerformanceEvidenceError(
+            f"{subject} exceeded a correctness or budget gate; a retry cannot "
+            "mask that verdict."
+        )
+    if state == "recalibration-required":
+        return RecalibrationRequiredError(
+            f"{subject} could not run its accepted reference under the current "
+            "contract; reviewed replacement evidence is required."
+        )
+
+    return InvalidEvidenceError(
+        f"{subject} produced evidence that is incomplete, inconsistent, or "
+        "not bound to its identity."
+    )
+
+
+def _retryable_error(state: str, message: str) -> PerformanceEvidenceError:
+    """Return the typed error for an exhausted retryable state."""
+    if state == "environment-not-comparable":
+        return EnvironmentNotComparableError(message)
+
+    return MeasurementQualityError(message)
+
+
 def select_attempt(
     *,
     receipt_paths: Sequence[Path],
@@ -301,7 +485,16 @@ def select_attempt(
             "Attempt receipts must form the consecutive sequence starting at 1."
         )
 
-    identity_keys = ("target", "profile", "commit", "sourceHash", "runnerClass")
+    # The comparison mode is part of the identity: two attempts that measured
+    # the same commit in different ways did not measure the same thing.
+    identity_keys = (
+        "target",
+        "profile",
+        "commit",
+        "sourceHash",
+        "runnerClass",
+        "comparisonMode",
+    )
     first = loaded[0][1]
     for _, receipt in loaded[1:]:
         for key in identity_keys:
@@ -311,33 +504,34 @@ def select_attempt(
                 )
 
     selected_index: int | None = None
-    if first["status"] == "passed":
+    first_state = first["status"]
+    if first_state == "passed":
         if len(loaded) != 1:
             raise PerformanceEvidenceError(
                 "A passing first benchmark attempt must not be followed by a retry."
             )
         selected_index = 0
-    elif first["status"] == "failed":
-        raise PerformanceEvidenceError(
-            "The first benchmark attempt failed a correctness or budget gate; "
-            "a retry cannot mask that failure."
-        )
+    elif not is_retryable(first_state):
+        # A conclusive attempt decides the qualification. Allowing a retry here
+        # would let a second measurement select away a verdict about the code.
+        raise _terminal_error(first_state, "The first benchmark attempt")
     elif len(loaded) == 1:
-        raise MeasurementQualityError(
-            "The first benchmark attempt was inconclusive and no bounded retry "
-            "receipt was supplied."
+        raise _retryable_error(
+            first_state,
+            f"The first benchmark attempt was {first_state} and no bounded "
+            "retry receipt was supplied.",
         )
     else:
-        second = loaded[1][1]
-        if second["status"] == "passed":
+        second_state = loaded[1][1]["status"]
+        if second_state == "passed":
             selected_index = 1
-        elif second["status"] == "failed":
-            raise PerformanceEvidenceError(
-                "The bounded retry failed a correctness or budget gate."
-            )
+        elif not is_retryable(second_state):
+            raise _terminal_error(second_state, "The bounded retry")
         else:
-            raise MeasurementQualityError(
-                "Both benchmark attempts were inconclusive on independent runners."
+            raise _retryable_error(
+                second_state,
+                f"Both benchmark attempts were {first_state} and "
+                f"{second_state} on independent runners.",
             )
 
     selected_path, selected = loaded[selected_index]
@@ -356,11 +550,25 @@ def select_attempt(
         commit=selected["commit"],
         source_hash=selected["sourceHash"],
         runner_class=selected["runnerClass"],
+        comparison_mode=selected.get("comparisonMode", "historical"),
     )
     if sha256(evaluation_path) != selected.get("evaluationSha256"):
         raise PerformanceEvidenceError(
             "Selected performance evaluation digest does not match its receipt."
         )
+
+    # The files the verdict was derived from are re-checked here too. A receipt
+    # that survived while its measurements were replaced would let a selection
+    # pin a verdict nothing supports any more.
+    for binding in selected.get("evidenceBindings", []):
+        companion = _bound_receipt_file(
+            artifact_root, binding.get("relativePath"), "Bound performance evidence"
+        )
+        if sha256(companion) != binding.get("sha256"):
+            raise PerformanceEvidenceError(
+                f"Bound performance evidence '{binding.get('relativePath')}' "
+                "does not match its receipt digest."
+            )
 
     destination = destination.resolve()
     _copy_artifact_tree(artifact_root, destination)

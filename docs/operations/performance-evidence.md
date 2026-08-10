@@ -3,12 +3,13 @@
 This runbook describes the reproducible performance gate defined by
 [D-019](../decisions/D-019-performance-gate-architecture.md).
 
-The release-qualified path has six independent controls:
+Every enforced path has six independent controls:
 
 1. A persisted interval host-CPU admission and processor-identity preflight.
 2. BenchmarkDotNet same-run controls and allocation evidence.
 3. A complete named workload matrix with raw and adjacent calibration samples.
-4. Raw absolute and calibration-normalized historical budgets.
+4. Raw absolute ceilings plus either calibration-normalized historical budgets
+   or a same-run paired practical budget.
 5. Sustained resource invariants for caches, buffers, connections, locks,
    process memory, and concurrent throughput.
 6. Hard deadlines and source-bound checkpoints for safe interruption and
@@ -40,24 +41,68 @@ The adjustment is deliberately one-sided: a slower current control can
 discount external contention, while a faster current control never amplifies
 the provider metric into an artificial regression.
 
-Do not compare latency from different runner classes. The gate matches
-baselines by target, profile, and runner class. It additionally requires an
-exact match for runtime, OS, architecture, concrete processor model, processor
-count, and server image. BenchmarkDotNet must report that same processor and
-process architecture. A matching runner label alone is not sufficient.
+Do not compare historical latency from different runner classes. The scorecard
+matches baselines by target, profile, and runner class. It additionally
+requires an exact match for runtime, OS, architecture, concrete processor
+model, processor count, and server image. BenchmarkDotNet must report that same
+processor and process architecture. A matching runner label alone is not
+sufficient. Release qualification instead requires environment equality
+inside each reference-and-candidate pair and never compares processors from
+different runs.
 
 ## Profiles
 
 | Profile | Purpose | Workload samples | Soak | Baseline |
 |---|---|---:|---|---|
 | `smoke` | Fast harness and contract check | 1 to 3 | Optional | Not required |
-| `scorecard` | Release evidence | 256; 128 expensive, adaptively extended up to 64x | Required | Required |
+| `paired-block` | One block of a paired comparison | starts at 16, extended on precision up to 64x | Required once per run | Not required |
+| `scorecard` | Hosted historical evidence | 256; 128 expensive, adaptively extended up to 64x | Required | Required |
 | `stress` | Extended investigation | 512; 256 expensive, adaptively extended up to 64x | Required | Required |
 
-Only `scorecard` and `stress` execute the complete 55-cell workload matrix.
+`paired-block` needs no baseline because a paired run carries its own
+reference, and it observes rather than enforces the per-block error budget:
+the run's precision comes from many blocks, not from one. A block that is so
+noisy its ratio would be meaningless is still rejected, per side, against
+`pairedPolicy.blocks.maximumRelativeStandardError`.
+
+It measures the complete workload matrix -- the same fifty-five workloads the
+scorecard measures -- and starts each workload at the smallest population the
+profile accepts, extending only until the registered error budget is met. The
+two sides of a block therefore need not reach the same population: extension
+equalizes precision, not count, and a noisier side needs more samples to reach
+the same budget. A real one-block run diverged on sixteen of fifty-five
+workloads. A fixed larger population would spend the same wall clock on a
+workload that converged in a quarter of it, and a paired run pays that cost
+twice per block.
+The achieved population travels in each workload report.
+
+### Deadlines are error bounds, not budgets
+
+Four watchdogs nest, and none of them reserves time for the next:
+
+| Watchdog | Bounds |
+|---|---|
+| Workload | One hanging workload |
+| Matrix | One complete side run |
+| Paired run | The whole comparison, independent of the inner maxima |
+| Job timeout | The forge's emergency stop, with room left for cleanup |
+
+A side run stops at `min(side watchdog, remaining paired-run budget)`, so
+staying inside the local watchdog does not by itself make a run valid. Before
+each further block the runner forecasts from the blocks it has already measured
+and stops early when the remaining budget cannot hold another one plus the
+closing work: the sustained-use run, the evidence assembly, and the evaluation
+all sit inside the same deadline. The outer watchdog is translated as well --
+its own timeout code would otherwise be filed as invalid evidence, which no
+retry can clear. Every deadline stop therefore reports
+`measurement-inconclusive`: a measurement condition, retryable, and never a
+verdict about the provider.
+
+`paired-block`, `scorecard`, and `stress` execute the complete 55-cell
+workload matrix; only `smoke` narrows it.
 Expensive cells retain at least 100 observations for p99 while avoiding a
 second full population of large writes. The scorecard accepts at most 25%
-relative standard error; stress accepts at most 15%. A release workload that
+relative standard error; stress accepts at most 15%. An enforcing workload that
 misses its error budget is extended in calibration-aligned blocks up to the
 contract-owned multiplier. The workload and matrix deadlines bound that
 extension, and they are the real ceiling: the multiplier only keeps a single
@@ -474,12 +519,12 @@ second measurement-quality result also fails the scorecard; retrying cannot
 turn a functional, budget, contract, or infrastructure failure into a pass.
 
 The selector verifies the identity and digests of every attempt before it
-copies the selected report tree into the stable engine artifact. The
-release-candidate workflow invokes that reusable scorecard for the exact
-release commit and imports the selected MySQL and MariaDB artifacts. Import
-verification binds the evidence to its target, commit, selection receipt, and
-evaluation digest. The release candidate does not measure or classify the same
-performance evidence a second time.
+copies the selected report tree into the stable engine artifact. Those
+historical artifacts belong only to the `benchmark` workflow. Release
+qualification invokes the same reusable workflow in `paired` mode, which
+measures a reference and the candidate on the tagged commit's allocated runner
+and produces a separate paired artifact. It neither imports nor reclassifies a
+historical baseline.
 
 Both engine jobs must succeed before a seed run can propose a baseline update.
 A seed still enforces the complete workload, absolute budgets, statistical
@@ -536,9 +581,10 @@ external application is required. This repository setting and its security
 implications are documented by GitHub's
 [Actions policy reference][github-actions-policy].
 
-Release qualification always uses strict `compare` mode and fails closed when
-the accepted current runner pair is absent. Its preflight tells the operator to
-review and merge the automated proposal before creating a new release tag.
+The historical workflow uses strict `compare` mode only when the accepted
+runner pair is present. A missing or stale pair enters the reviewed seed path,
+but that state is not a release precondition. Release qualification is decided
+exclusively by the paired same-run evidence described below.
 
 This design follows GitHub's documented `GITHUB_TOKEN` event behavior,
 approval-gated workflow-run contract, and latest-commit status-check contract.
@@ -616,7 +662,7 @@ Doka.EntityFrameworkCore.MySql.Benchmarks.dll \
 Set the same `DOKA_BENCHMARK_*` identity variables used by the scorecard before
 running the command. The output kind is
 `performance-workload-diagnostic`; the evaluator deliberately rejects it as
-release evidence. A diagnostic result can explain a failure, but only a fresh
+gate evidence. A diagnostic result can explain a failure, but only a fresh
 complete matrix can close the gate.
 
 ### Soak failure
@@ -628,33 +674,130 @@ requirement.
 
 ## Release-candidate use
 
-The hosted release-candidate workflow runs the reusable dual-engine scorecard
-once. Its engine import stages verify the selected attempt receipts and copy
-the exact digest-bound report trees into:
+The release tag measures performance itself, once, as a paired comparison. It
+does not import an accepted baseline and does not compare against a run from
+another machine.
+
+### What a paired run measures
+
+A reference and the candidate provider revision are measured alternately on one
+allocated runner. The reference provider is packed from its reference commit
+and bound into the candidate benchmark driver, so only the provider differs
+between the two sides. Because both sides share the processor, the runtime, the
+engine image, and the database preparation, the machine cancels out of every
+ratio instead of having to be matched.
+
+The order is counterbalanced: the side that measures first alternates between
+blocks, so any warm-up advantage cancels across the run rather than accruing to
+one provider.
+
+### What decides the run
+
+| Check | What it answers | Failure means |
+|---|---|---|
+| Latency families | Does the candidate exceed its practical budget on median, p95, or p99 | The interval sits above the registered budget |
+| Resource families | Does the candidate allocate or collect more than its reference | The median block ratio exceeds the registered budget |
+| Absolute ceilings | Is the candidate inside its family budgets at all | A pair that regressed together would otherwise qualify |
+| Soak | Does sustained use leak | A leak appears over thousands of iterations and never inside a block |
+
+The latency verdict separates statistical detectability from practical impact:
+a change the family procedure can detect is a regression only when the interval
+also lies outside the reviewed budget. Between the two, the run is
+`inconclusive`, which withholds qualification without asserting a regression.
+
+Multiple comparison is controlled across the workload matrix with the
+Benjamini-Hochberg procedure, so running one test per workload does not produce
+false alarms in proportion to the matrix size.
+
+### Reruns and retries
+
+An attempt receipt classifies the run into one of six states and carries
+whether a retry is permitted. Only `measurement-inconclusive` and
+`environment-not-comparable` are retryable: a retry may not select away a
+verdict about the code. The workflow reads that field rather than comparing
+against a state name, so the retry policy has exactly one home.
+
+### Evidence layout
+
+A paired run writes into the report directory the attempt machinery already
+collects. The recorder is told which comparison produced the verdict and holds
+it to that contract: a paired attempt binds `paired-evaluation.json` together
+with the measurements and the sustained-use report behind it, and selection
+re-checks every one of those digests. Two attempts that measured the same
+commit in different ways cannot be mixed.
 
 ```text
-artifacts/release-candidate/<run-id>/performance/
+artifacts/benchmarks/<target>/reports/<run-id>/paired-evidence.json
+artifacts/benchmarks/<target>/reports/<run-id>/paired-evaluation.json
+artifacts/benchmarks/<target>/reports/<run-id>/paired-soak.json
+artifacts/benchmarks/<target>/reports/<run-id>/execution-order.json
+artifacts/benchmarks/<target>/reports/<run-id>/blocks/
 ```
 
-The import must match the requested engine and the release-candidate commit.
-The combined gate verifies both imported selections instead of rerunning the
-benchmarks or re-evaluating their reports under a different run identity. A
-direct local invocation without an imported artifact root retains the explicit
-benchmark path for operator diagnostics and local release rehearsals.
+`execution-order.json` records the order the run followed as it ran, one entry
+per block, and `blocks/` holds every per-side measurement and the driver
+identity behind it. The evaluator compares the recorded order against the
+registered patterns and refuses a run that deviated, so the counterbalancing
+is proven rather than documented.
 
-Each hosted release-candidate job has its own bounded workflow timeout. The
-performance runner additionally enforces the selected profile deadline and the
-named workload timeout floor from `timeoutPolicies`; it uses the stricter of
-those two limits. This keeps expensive workloads bounded without imposing one
-global deadline on unrelated release stages.
+Build inputs -- the reference worktree, the local package feed, and the two
+published drivers -- stay under `artifacts/paired/<target>/<run-id>/` so no
+consumer has to skip past them.
+
+The release candidate copies this tree into
+`artifacts/release-candidate/<run-id>/performance/<target>/` and binds every
+file in it by digest. Benchmark artifacts expire in days; the candidate is
+retained for ninety, and a performance claim nobody can re-derive after its
+inputs expire is not evidence.
+
+### What the contract controls
+
+Every value the paired policy registers has something that reads it, and a
+value nothing compares against would describe nothing:
+
+| Registered value | What reads it |
+|---|---|
+| `blocks.profile`, `blocks.startingSamplesPerSidePerBlock` | The contract refuses a policy whose starting population differs from the profile that measures it, or falls below its valid-sample floor |
+| `blocks.maximumSampleCountRatio` | Applied per block: the two sides may reach different populations, but not populations far enough apart to have measured different stretches of time |
+| `interval.method`, `multipleComparison.procedure`, `retry.combination`, `primaryFamily.workloadScope` | Each admits only the procedure the evaluator performs; a policy naming another is refused |
+| `executionOrder.blockPatterns` | The runner takes each block's order from the list, records what it executed, and the evaluator refuses an order that deviates or never alternates the starting side |
+| `retry.eligibleAttemptStates`, `retry.maximumRetries` | The contract refuses a policy that disagrees with the states and bound the attempt recorder implements; the receipt carries the resulting decision, which the workflow condition reads |
+| `durations.closingReserveSeconds` | Withheld from every side watchdog and from the block forecast, so the closing work always has room |
+| `durations.finalizationReserveSeconds` | Withheld again from the sustained-use run, so assembling and evaluating the evidence keep their share of the closing reserve |
+| `blocks.profile` (termination) | The runner's own convergence verdict travels per side per block; a workload that stopped at its sample cap is withheld from its metric family entirely, so its unusable p-value cannot move the false-discovery threshold for the workloads that did converge |
+| The canonical workload contract | Every raw block report passes it before assembly: a foreign schema or kind, an impossible termination, a count that contradicts its samples, and any statistic that does not follow from the persisted samples are all invalid evidence |
+| The audit projection's shape | The candidate summary carries exactly seven fields -- the workload, its family, and the five metrics the ceilings decide on -- and one function produces it for the runner and the fixtures alike. Anything more is refused: passing the workload report through put a second, unchecked copy of every sample, calibration and pulse into the document beside the canonical one, so a reader could find numbers there that no decision used |
+| The calibration's origin | The divisor of each sample is not read from the evidence, it is rebuilt from the calibration pulses the run recorded and the pulse each sample was measured against, under the invariants the workload report is held to at measurement time: the train starts at the first pulse, advances one pulse at a time, uses every pulse it records, and reuses none beyond the registered interval. Without that, the arithmetic was provable and its origin was not -- a document could leave every raw latency untouched and rescale a real regression into a qualification by choosing a divisor |
+| One measured population per block | A block records three views of the same operations: the calibration-normalized samples the pairing decides on, the raw nanosecond samples the absolute ceilings decide on, and the calibration pulse that divides one into the other. They must be equal in size, agree with the recorded sample count, and satisfy the identity the workload report proves at measurement time -- each normalized sample is its own latency over its own pulse. Without that, a document could pair sixteen observations while holding one unrelated observation to the budget |
+| The absolute ceilings | Every input is the measurement the paired decision is formed from. The latencies are the recorded nanosecond samples of each block, not a per-block summary: the ratio decision uses calibration-normalized samples, which no budget in nanoseconds can be applied to, so the raw samples travel with the evidence and the ceilings read those. The workload family selects the budget, and the family comes from the contract, so a workload cannot re-declare itself into a more generous ceiling. The per-block summary remains in the document as an audit view and is checked against what those measurements produce |
+| The driver identity | A clean checkout records the Git tree identifier; a working tree with uncommitted benchmark changes records a full SHA-256 over the commit tree, the diff, and the contents of every untracked file. Both shapes are what the evaluator accepts, so a local run cannot discard the evidence it just produced |
+| The assembled-evidence contract | `evaluate-paired` is its own trust boundary and re-checks the finished document: a declared block count inside the registered range, every parallel record and the recorded order against it, candidate measurements covering every block and every registered workload, both environments complete and still comparable, provenance in digest form naming one candidate revision and the contract this evaluation actually loaded, a convergence claim against the duration floor, and a cap claim against the population the cap actually permits. Types are checked before values throughout, because reading a field first turns broken evidence into an ordinary failure -- and the attempt recorder reads that as a regression |
+| `blocks.minimumValidSamples` (via `blocks.profile`) | Applied per side per block; a population below the profile floor is invalid evidence |
+| `durations.maximumPairedRunSeconds` | The paired run's own wall clock, and an upper bound on the block profile's ceiling |
+| `durations.maximumWorkloadSeconds` | An upper bound on the block profile's per-workload ceiling |
+| `blocks.maximumRelativeStandardError` | Applied per side per block during assembly |
+
+### Early warning on the default branch
+
+The dedicated `benchmark` workflow keeps the hosted historical baseline current
+on `main`. It is early warning: it never qualifies and never blocks a release.
+The sections above on baselines, historical budgets, and the accepted runner
+pair describe that path.
+
+### Timeouts and interruption
+
+Each hosted job has its own bounded workflow timeout. The performance runner
+additionally enforces the selected profile deadline and the named workload
+timeout floor from `timeoutPolicies`, using the stricter of the two. This
+bounds expensive workloads without imposing one global deadline on unrelated
+release stages.
 
 Every finished stage writes a source-bound receipt outside the portable
-candidate directory.
-Continue a safely interrupted run with the same
-`DOKA_RELEASE_CANDIDATE_RUN_ID` and
-`DOKA_RELEASE_CANDIDATE_RESUME=1`. A stage is skipped only after every artifact
-digest in its receipt is recomputed successfully. Partial output from an
-unfinished stage is archived before that stage restarts.
+candidate directory. Continue a safely interrupted run with the same
+`DOKA_RELEASE_CANDIDATE_RUN_ID` and `DOKA_RELEASE_CANDIDATE_RESUME=1`. A stage
+is skipped only after every artifact digest in its receipt is recomputed
+successfully. Partial output from an unfinished stage is archived before that
+stage restarts.
 
 `DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1` is a development-loop bypass. Any
 evidence produced with that bypass is not release eligible.

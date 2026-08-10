@@ -19,7 +19,12 @@ benchmark_project="${repo_root}/benchmarks/Doka.EntityFrameworkCore.MySql.Benchm
 benchmark_project="${benchmark_project}/Doka.EntityFrameworkCore.MySql.Benchmarks.csproj"
 benchmark_assembly="${repo_root}/artifacts/bin/Doka.EntityFrameworkCore.MySql.Benchmarks/release"
 benchmark_assembly="${benchmark_assembly}/Doka.EntityFrameworkCore.MySql.Benchmarks.dll"
-performance_contract="${repo_root}/benchmarks/performance-contract.json"
+# The path is overridable so a test can exercise this entry point against a
+# modified policy without editing the repository it runs in. The digest the
+# evidence records is taken from whatever file was loaded, so a run under an
+# override cannot present itself as a run under the shipped contract: release
+# qualification loads the shipped path and rejects the mismatch.
+performance_contract="${DOKA_BENCHMARK_CONTRACT_PATH:-${repo_root}/benchmarks/performance-contract.json}"
 baseline_manifest="${DOKA_BENCHMARK_BASELINE_PATH:-${repo_root}/benchmarks/baselines/doka-benchmark-baseline.json}"
 evidence_module="eng.performance.cli"
 deadline_module="eng.common.deadline"
@@ -31,6 +36,11 @@ repo_fingerprint="$(printf '%s' "${repo_root}" | cksum | awk '{print $1}')"
 compose_project_name="${DOKA_BENCHMARK_COMPOSE_PROJECT_NAME:-doka-benchmark-${repo_fingerprint}-${benchmark_target}}"
 compose_command=(docker compose -p "${compose_project_name}" -f "${compose_file}")
 baseline_mode="${DOKA_BENCHMARK_BASELINE_MODE:-compare}"
+# `historical` compares one measurement against an accepted baseline recorded
+# on another host. `paired` measures a reference and a candidate provider
+# alternately on this machine, which is a different orchestration entirely and
+# is delegated below rather than folded into this one.
+comparison_mode="${DOKA_BENCHMARK_COMPARISON_MODE:-historical}"
 resume_mode="${DOKA_BENCHMARK_RESUME:-0}"
 runner_class="${DOKA_BENCHMARK_RUNNER_CLASS:-local-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)}"
 benchmark_commit="${DOKA_BENCHMARK_COMMIT:-$(git -C "${repo_root}" rev-parse HEAD)}"
@@ -64,19 +74,44 @@ verified_server_image=""
 # deadline. The helper owns a new process group, so timeout cleanup includes
 # BenchmarkDotNet and any database client descendants rather than only Bash.
 if [[ "${DOKA_BENCHMARK_DEADLINE_ACTIVE:-0}" != "1" ]]; then
-    maximum_total_duration_seconds="$(
-        jq -er \
-            --arg profile "${benchmark_profile}" \
-            '.profiles[$profile].maximumTotalDurationSeconds' \
-            "${performance_contract}"
-    )"
+    # A paired run measures two providers across many blocks, so the profile
+    # deadline of a single scorecard would end it well inside its own budget.
+    # The comparison that owns the run owns its wall clock.
+    if [[ "${DOKA_BENCHMARK_COMPARISON_MODE:-historical}" == "paired" ]]; then
+        maximum_total_duration_seconds="$(
+            jq -er '.pairedPolicy.durations.maximumPairedRunSeconds' \
+                "${performance_contract}"
+        )"
+    else
+        maximum_total_duration_seconds="$(
+            jq -er \
+                --arg profile "${benchmark_profile}" \
+                '.profiles[$profile].maximumTotalDurationSeconds' \
+                "${performance_contract}"
+        )"
+    fi
 
     export DOKA_BENCHMARK_DEADLINE_ACTIVE=1
     export DOKA_BENCHMARK_RUN_ID="${benchmark_run_id}"
-    exec python3 -m "${deadline_module}" \
+
+    # Not exec: the deadline helper reports its own timeout as 124, which the
+    # attempt recorder does not know and therefore files as invalid evidence --
+    # a state no retry can clear. A run the clock cut short produced no verdict
+    # about the provider, so it leaves as the registered measurement-quality
+    # code and keeps its bounded retry.
+    deadline_status=0
+    python3 -m "${deadline_module}" \
         --seconds "${maximum_total_duration_seconds}" \
         --label "${benchmark_profile} performance qualification" \
-        -- bash "$0" "$@"
+        -- bash "$0" "$@" || deadline_status=$?
+
+    if (( deadline_status == 124 )); then
+        echo "The ${benchmark_profile} run exceeded" \
+            "${maximum_total_duration_seconds}s." >&2
+        exit 75
+    fi
+
+    exit "${deadline_status}"
 fi
 
 print_usage() {
@@ -387,38 +422,14 @@ ensure_fresh_run_directory() {
     mkdir -p "${workload_checkpoint_dir}"
 }
 
-capture_host_preflight() {
-    # Require current CPU headroom across a bounded admission window. This
-    # rejects sustained contention without mistaking the preceding build's
-    # lifetime process averages for live host saturation.
-    local output_path="$1"
+# Shared with the paired comparison so both orchestrations export exactly the
+# identity the measurement report requires.
+# shellcheck source=eng/performance/host-preflight.sh
+source "${repo_root}/eng/performance/host-preflight.sh"
 
-    python3 -m "${evidence_module}" host-preflight \
-        --contract "${performance_contract}" \
-        --output "${output_path}"
-
-    export DOKA_BENCHMARK_PROCESSOR
-    DOKA_BENCHMARK_PROCESSOR="$(jq -er '.processor' "${output_path}")"
-    export DOKA_BENCHMARK_HOST_LOAD_AVERAGE_1M
-    DOKA_BENCHMARK_HOST_LOAD_AVERAGE_1M="$(jq -er '.loadAverage1Minute' "${output_path}")"
-    export DOKA_BENCHMARK_HOST_LOAD_AVERAGE_5M
-    DOKA_BENCHMARK_HOST_LOAD_AVERAGE_5M="$(jq -er '.loadAverage5Minutes' "${output_path}")"
-    export DOKA_BENCHMARK_HOST_LOAD_AVERAGE_15M
-    DOKA_BENCHMARK_HOST_LOAD_AVERAGE_15M="$(jq -er '.loadAverage15Minutes' "${output_path}")"
-    export DOKA_BENCHMARK_HOST_LOAD_RATIO_1M
-    DOKA_BENCHMARK_HOST_LOAD_RATIO_1M="$(jq -er '.loadAverage1MinutePerProcessor' "${output_path}")"
-    export DOKA_BENCHMARK_HOST_ADMISSION_METRIC
-    DOKA_BENCHMARK_HOST_ADMISSION_METRIC="$(jq -er '.admissionMetric' "${output_path}")"
-    export DOKA_BENCHMARK_HOST_CPU_UTILIZATION
-    DOKA_BENCHMARK_HOST_CPU_UTILIZATION="$(jq -er '.admittedCpuUtilization' "${output_path}")"
-    export DOKA_BENCHMARK_HOST_MAXIMUM_CPU_UTILIZATION
-    DOKA_BENCHMARK_HOST_MAXIMUM_CPU_UTILIZATION="$(
-        jq -er '.maximumCpuUtilization' "${output_path}"
-    )"
-}
 
 run_host_preflight() {
-    capture_host_preflight "${host_evidence}"
+    capture_host_preflight "${host_evidence}" "${performance_contract}" "${evidence_module}"
 }
 
 run_benchmarkdotnet() {
@@ -524,7 +535,8 @@ confirm_historical_tail_if_required() {
             confirmation_host="${tail_confirmation_dir}/${safe_workload_id}.${run_index}.host.json"
             confirmation_report="${tail_confirmation_dir}/${safe_workload_id}.${run_index}.json"
 
-            capture_host_preflight "${confirmation_host}"
+            capture_host_preflight \
+                "${confirmation_host}" "${performance_contract}" "${evidence_module}"
             dotnet "${benchmark_assembly}" \
                 --workload "${workload_id}" \
                 "${confirmation_report}"
@@ -697,4 +709,29 @@ case "${mode}" in
 esac
 
 verify_benchmark_container_identity
-run_benchmarks
+
+case "${comparison_mode}" in
+    historical)
+        run_benchmarks
+        ;;
+    paired)
+        # The paired orchestration builds a second provider revision and
+        # alternates the two sides, so it owns the measurement loop. The
+        # container lifecycle above is already established for it, and the
+        # verified image digest is handed over rather than re-derived: it is
+        # part of the identity both sides must share, and the check that
+        # produced it has already run.
+        "${repo_root}/eng/common/verify-dotnet.sh"
+        DOKA_BENCHMARK_TARGET="${benchmark_target}" \
+        DOKA_BENCHMARK_RUN_ID="${benchmark_run_id}" \
+        DOKA_BENCHMARK_COMMIT="${benchmark_commit}" \
+        DOKA_BENCHMARK_SOURCE_HASH="${benchmark_source_hash}" \
+        DOKA_BENCHMARK_RUNNER_CLASS="${runner_class}" \
+        DOKA_BENCHMARK_SERVER_IMAGE="${verified_server_image}" \
+            bash "${repo_root}/eng/performance/paired-benchmark.sh"
+        ;;
+    *)
+        echo "Unsupported comparison mode '${comparison_mode}'." >&2
+        exit 1
+        ;;
+esac

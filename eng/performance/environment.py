@@ -7,6 +7,7 @@ from typing import Any
 if __package__:
     from .contract import (
         COMPARABLE_ENVIRONMENT_FIELDS,
+        InvalidEvidenceError,
         PerformanceEvidenceError,
         close_enough,
         finite_number,
@@ -14,6 +15,7 @@ if __package__:
 else:
     from contract import (
         COMPARABLE_ENVIRONMENT_FIELDS,
+        InvalidEvidenceError,
         PerformanceEvidenceError,
         close_enough,
         finite_number,
@@ -155,3 +157,93 @@ def validate_bdn_workload_environment(
         )
     if str(bdn_host.get("Configuration", "")).upper() != "RELEASE":
         raise PerformanceEvidenceError("BenchmarkDotNet evidence was not built in Release mode.")
+
+# A paired run measures both sides on one allocated runner, so its environment
+# check asks the opposite question from the historical one: not whether this
+# machine matches a recorded machine, but whether both sides of this pair saw
+# the same machine. Processor identity stays recorded evidence either way.
+PAIRED_IDENTITY_FIELDS = (
+    "frameworkDescription",
+    "osDescription",
+    "osArchitecture",
+    "processArchitecture",
+    "processor",
+    "processorCount",
+    "engineFamily",
+    "serverVersion",
+    "serverImage",
+)
+
+
+def validate_paired_environment(
+    reference: dict[str, Any],
+    candidate: dict[str, Any],
+) -> None:
+    """Reject a paired comparison whose sides did not share one environment.
+
+    The pairing is what removes the machine from the comparison. If the two
+    sides ran under different runtimes, engines, or processors, the ratio
+    carries that difference and no longer describes the provider.
+    """
+    # Completeness before comparison. Comparing alone made two empty objects
+    # agree -- every field was absent on both sides, so every comparison held,
+    # and the claim that both providers ran on one machine was established by
+    # recording nothing at all.
+    for side, observed in (("reference", reference), ("candidate", candidate)):
+        if not isinstance(observed, dict):
+            raise InvalidEvidenceError(
+                f"The {side} environment is not an object."
+            )
+        for field in PAIRED_IDENTITY_FIELDS:
+            if field not in observed:
+                raise InvalidEvidenceError(
+                    f"The {side} environment records no '{field}'."
+                )
+            value = observed[field]
+            if field == "processorCount":
+                if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                    raise InvalidEvidenceError(
+                        f"The {side} environment reports processorCount "
+                        f"{value!r}, which is not a processor count."
+                    )
+                continue
+            if not isinstance(value, str) or not value.strip():
+                raise InvalidEvidenceError(
+                    f"The {side} environment records no usable '{field}'."
+                )
+
+    mismatches = [
+        field
+        for field in PAIRED_IDENTITY_FIELDS
+        if reference[field] != candidate[field]
+    ]
+    if mismatches:
+        raise InvalidEvidenceError(
+            "Paired reference and candidate ran under different environments "
+            f"for field(s): {', '.join(mismatches)}."
+        )
+
+
+def validate_paired_benchmark_driver(
+    reference: dict[str, Any],
+    candidate: dict[str, Any],
+) -> None:
+    """Reject a pair whose sides were measured by different benchmark driver code.
+
+    The benchmark project references the provider by project, so building each
+    side from its own commit would compare benchmark driver-and-provider pairs rather
+    than providers. A differing benchmark driver or contract digest is invalid evidence,
+    never a provider regression.
+    """
+    for field in ("benchmarkDriverSourceHash", "contractDigest"):
+        expected = reference.get(field)
+        actual = candidate.get(field)
+        if expected is None or actual is None:
+            raise InvalidEvidenceError(
+                f"Paired evidence must record '{field}' for both sides."
+            )
+        if expected != actual:
+            raise InvalidEvidenceError(
+                f"Paired reference and candidate disagree on '{field}'; the "
+                "candidate benchmark driver and contract are normative for both sides."
+            )

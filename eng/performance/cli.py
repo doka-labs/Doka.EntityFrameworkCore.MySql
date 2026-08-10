@@ -3,6 +3,11 @@
 
 The command surface composes responsibility-focused modules while tests and
 shell automation retain one supported entry point.
+
+Names imported in the `name as name` form are that aggregate API: this module
+does not use them itself, it publishes them for callers that import it as one
+facade. Anything imported plainly is used here, so an import this module has
+outgrown shows up as a lint finding rather than accumulating.
 """
 
 import argparse
@@ -12,99 +17,70 @@ from typing import Sequence
 
 if __package__:
     from .contract import (
-        BASELINE_PATH,
-        SOAK_SCENARIO_IDS,
-        COMPARABLE_ENVIRONMENT_FIELDS,
-        LATENCY_CONFIRMATION_RUNS,
-        P99_CONFIRMATION_RUNS,
-        P99_EXPECTED_EXCEEDANCE_PROBABILITY,
-        P99_SIGNIFICANCE_LEVEL,
-        LATENCY_METRICS,
-        HOST_ADMISSION_METRIC,
+        HOST_ADMISSION_METRIC as HOST_ADMISSION_METRIC,
+        ENVIRONMENT_NOT_COMPARABLE_EXIT_CODE,
+        INVALID_EVIDENCE_EXIT_CODE,
         MEASUREMENT_QUALITY_EXIT_CODE,
+        RECALIBRATION_REQUIRED_EXIT_CODE,
+        EnvironmentNotComparableError,
+        InvalidEvidenceError,
         MeasurementQualityError,
+        RecalibrationRequiredError,
         PerformanceEvidenceError,
         load_json,
         write_json,
         sha256,
         repository_source_hash,
-        finite_number,
-        required_string,
-        required_positive_integer,
-        non_negative_integer,
-        expected_warmup_sample_count,
-        expected_measurement_sample_count,
-        expected_workload_timeout_seconds,
-        required_sha256,
-        required_commit,
-        required_current_timestamp,
-        require_identity,
+        expected_warmup_sample_count as expected_warmup_sample_count,
+        expected_measurement_sample_count as expected_measurement_sample_count,
+        expected_workload_timeout_seconds as expected_workload_timeout_seconds,
         validate_contract,
-        applicable_workloads,
-        close_enough,
+    )
+    from .paired import (
+        assemble_evidence as assemble_paired_evidence,
+        evaluate_paired_comparison,
     )
     from .host import (
-        HostCpuCounterSnapshot,
-        calculate_host_cpu_utilization,
-        capture_host_cpu_counters,
+        HostCpuCounterSnapshot as HostCpuCounterSnapshot,
+        calculate_host_cpu_utilization as calculate_host_cpu_utilization,
         capture_host_preflight,
-        capture_linux_cpu_counters,
-        capture_macos_cpu_counters,
-        parse_linux_cpu_counters,
-        resolve_processor_identity,
-        sample_host_cpu_utilization,
-        validate_host_preflight,
+        parse_linux_cpu_counters as parse_linux_cpu_counters,
+        validate_host_preflight as validate_host_preflight,
     )
     from .statistics import (
-        percentile,
-        standard_error,
-        binomial_survival_probability,
-        calibration_adjustment_factor,
-        historical_p99_check,
-        historical_latency_check,
-        validate_confirmed_latency_check,
-        validate_confirmed_p99_check,
+        percentile as percentile,
+        historical_p99_check as historical_p99_check,
+        validate_confirmed_p99_check as validate_confirmed_p99_check,
+        standard_error as standard_error,
     )
     from .reports import (
-        validate_workload_report,
-        public_workload_metrics,
-        validate_absolute_budgets,
+        validate_workload_report as validate_workload_report,
+        validate_absolute_budgets as validate_absolute_budgets,
     )
     from .soak import (
-        validate_soak_report,
-        validate_soak_scenario,
-        require_exact_keys,
-        soak_budget,
+        validate_soak_report as validate_soak_report,
     )
     from .benchmarkdotnet import (
         validate_bdn_reports,
-        validate_bdn_entry,
-        evaluate_bdn_control,
     )
     from .confirmation import (
-        load_matching_baseline,
-        historical_p99_confirmation_candidates,
-        historical_latency_confirmation_candidates,
+        historical_latency_confirmation_candidates as historical_latency_confirmation_candidates,
+        historical_p99_confirmation_candidates as historical_p99_confirmation_candidates,
         plan_tail_confirmation,
-        merge_workload_tail_samples,
+        merge_workload_tail_samples as merge_workload_tail_samples,
         merge_tail_confirmations,
-        validate_historical_budgets,
+        validate_historical_budgets as validate_historical_budgets,
     )
     from .environment import (
-        validate_environment_compatibility,
-        validate_host_workload_binding,
-        canonical_processor_identity,
-        validate_bdn_workload_environment,
+        validate_environment_compatibility as validate_environment_compatibility,
+        validate_bdn_workload_environment as validate_bdn_workload_environment,
     )
     from .evaluation import (
-        collect_gc_diagnostics,
+        collect_gc_diagnostics as collect_gc_diagnostics,
         evaluate,
     )
     from .baseline import (
-        reject_truncated_measurements,
-        validate_seed_evaluation,
-        validate_normalized_workloads,
-        validate_compare_evaluation,
+        reject_truncated_measurements as reject_truncated_measurements,
         promote_baseline,
         seed_baseline,
         compare_baseline_files,
@@ -127,99 +103,70 @@ else:
         sys.path.insert(0, module_directory)
 
     from performance.contract import (
-        BASELINE_PATH,
-        SOAK_SCENARIO_IDS,
-        COMPARABLE_ENVIRONMENT_FIELDS,
-        LATENCY_CONFIRMATION_RUNS,
-        P99_CONFIRMATION_RUNS,
-        P99_EXPECTED_EXCEEDANCE_PROBABILITY,
-        P99_SIGNIFICANCE_LEVEL,
-        LATENCY_METRICS,
-        HOST_ADMISSION_METRIC,
+        HOST_ADMISSION_METRIC as HOST_ADMISSION_METRIC,
+        ENVIRONMENT_NOT_COMPARABLE_EXIT_CODE,
+        INVALID_EVIDENCE_EXIT_CODE,
         MEASUREMENT_QUALITY_EXIT_CODE,
+        RECALIBRATION_REQUIRED_EXIT_CODE,
+        EnvironmentNotComparableError,
+        InvalidEvidenceError,
         MeasurementQualityError,
+        RecalibrationRequiredError,
         PerformanceEvidenceError,
         load_json,
         write_json,
         sha256,
         repository_source_hash,
-        finite_number,
-        required_string,
-        required_positive_integer,
-        non_negative_integer,
-        expected_warmup_sample_count,
-        expected_measurement_sample_count,
-        expected_workload_timeout_seconds,
-        required_sha256,
-        required_commit,
-        required_current_timestamp,
-        require_identity,
+        expected_warmup_sample_count as expected_warmup_sample_count,
+        expected_measurement_sample_count as expected_measurement_sample_count,
+        expected_workload_timeout_seconds as expected_workload_timeout_seconds,
         validate_contract,
-        applicable_workloads,
-        close_enough,
+    )
+    from performance.paired import (
+        assemble_evidence as assemble_paired_evidence,
+        evaluate_paired_comparison,
     )
     from performance.host import (
-        HostCpuCounterSnapshot,
-        calculate_host_cpu_utilization,
-        capture_host_cpu_counters,
+        HostCpuCounterSnapshot as HostCpuCounterSnapshot,
+        calculate_host_cpu_utilization as calculate_host_cpu_utilization,
         capture_host_preflight,
-        capture_linux_cpu_counters,
-        capture_macos_cpu_counters,
-        parse_linux_cpu_counters,
-        resolve_processor_identity,
-        sample_host_cpu_utilization,
-        validate_host_preflight,
+        parse_linux_cpu_counters as parse_linux_cpu_counters,
+        validate_host_preflight as validate_host_preflight,
     )
     from performance.statistics import (
-        percentile,
-        standard_error,
-        binomial_survival_probability,
-        calibration_adjustment_factor,
-        historical_p99_check,
-        historical_latency_check,
-        validate_confirmed_latency_check,
-        validate_confirmed_p99_check,
+        percentile as percentile,
+        historical_p99_check as historical_p99_check,
+        validate_confirmed_p99_check as validate_confirmed_p99_check,
+        standard_error as standard_error,
     )
     from performance.reports import (
-        validate_workload_report,
-        public_workload_metrics,
-        validate_absolute_budgets,
+        validate_workload_report as validate_workload_report,
+        validate_absolute_budgets as validate_absolute_budgets,
     )
     from performance.soak import (
-        validate_soak_report,
-        validate_soak_scenario,
-        require_exact_keys,
-        soak_budget,
+        validate_soak_report as validate_soak_report,
     )
     from performance.benchmarkdotnet import (
         validate_bdn_reports,
-        validate_bdn_entry,
-        evaluate_bdn_control,
     )
     from performance.confirmation import (
-        load_matching_baseline,
-        historical_p99_confirmation_candidates,
-        historical_latency_confirmation_candidates,
+        historical_latency_confirmation_candidates as historical_latency_confirmation_candidates,
+        historical_p99_confirmation_candidates as historical_p99_confirmation_candidates,
         plan_tail_confirmation,
-        merge_workload_tail_samples,
+        merge_workload_tail_samples as merge_workload_tail_samples,
         merge_tail_confirmations,
-        validate_historical_budgets,
+        validate_historical_budgets as validate_historical_budgets,
     )
     from performance.environment import (
-        validate_environment_compatibility,
-        validate_host_workload_binding,
-        canonical_processor_identity,
-        validate_bdn_workload_environment,
+        validate_environment_compatibility as validate_environment_compatibility,
+        validate_bdn_workload_environment as validate_bdn_workload_environment,
     )
     from performance.evaluation import (
-        collect_gc_diagnostics,
+        collect_gc_diagnostics as collect_gc_diagnostics,
         evaluate,
     )
     from performance.baseline import (
-        reject_truncated_measurements,
-        validate_seed_evaluation,
-        validate_normalized_workloads,
-        validate_compare_evaluation,
+        reject_truncated_measurements as reject_truncated_measurements,
         promote_baseline,
         seed_baseline,
         compare_baseline_files,
@@ -304,6 +251,50 @@ def build_parser() -> argparse.ArgumentParser:
     comparison_parser.add_argument("--candidate", required=True)
     comparison_parser.add_argument("--output", required=True)
 
+    # A paired comparison measures a reference and a candidate provider under
+    # one benchmark driver on one machine, so it needs neither a baseline nor
+    # an environment match against a recorded host.
+    assemble_paired_parser = subparsers.add_parser("assemble-paired-evidence")
+    assemble_paired_parser.add_argument("--blocks", required=True)
+    assemble_paired_parser.add_argument("--contract", required=True)
+    assemble_paired_parser.add_argument("--target", required=True)
+    assemble_paired_parser.add_argument("--run-id", required=True)
+    assemble_paired_parser.add_argument("--candidate-commit", required=True)
+    assemble_paired_parser.add_argument("--reference-commit", required=True)
+    assemble_paired_parser.add_argument("--driver-source-hash", required=True)
+    assemble_paired_parser.add_argument("--contract-digest", required=True)
+    assemble_paired_parser.add_argument("--profile", required=True)
+    assemble_paired_parser.add_argument("--source-hash", required=True)
+    assemble_paired_parser.add_argument("--runner-class", required=True)
+    assemble_paired_parser.add_argument("--execution-order", required=True)
+    assemble_paired_parser.add_argument("--soak", required=True)
+    assemble_paired_parser.add_argument("--output", required=True)
+
+    # The workflow reads the attempt decision from the receipt rather than
+    # comparing against a state name in YAML, so the retry policy has exactly
+    # one home.
+    attempt_outputs_parser = subparsers.add_parser("attempt-outputs")
+    attempt_outputs_parser.add_argument("--receipt", required=True)
+
+    # The profile a receipt records is the profile that measured, which is not
+    # the profile the caller orchestrates with: a paired run is dispatched
+    # under the caller's profile and measures under the registered block
+    # profile. Resolving that in one place is what keeps the receipt and the
+    # evaluation from disagreeing about which profile produced the numbers.
+    attempt_profile_parser = subparsers.add_parser("attempt-profile")
+    attempt_profile_parser.add_argument("--contract", required=True)
+    attempt_profile_parser.add_argument("--profile", required=True)
+    attempt_profile_parser.add_argument(
+        "--comparison-mode",
+        choices=("historical", "paired"),
+        default="historical",
+    )
+
+    evaluate_paired_parser = subparsers.add_parser("evaluate-paired")
+    evaluate_paired_parser.add_argument("--contract", required=True)
+    evaluate_paired_parser.add_argument("--evidence", required=True)
+    evaluate_paired_parser.add_argument("--output", required=True)
+
     resolve_parser = subparsers.add_parser("resolve-baseline-mode")
     resolve_parser.add_argument("--contract", required=True)
     resolve_parser.add_argument("--baseline", required=True)
@@ -334,6 +325,11 @@ def build_parser() -> argparse.ArgumentParser:
     attempt_parser.add_argument("--source-hash", required=True)
     attempt_parser.add_argument("--runner-class", required=True)
     attempt_parser.add_argument("--exit-code", required=True, type=int)
+    attempt_parser.add_argument(
+        "--comparison-mode",
+        choices=("historical", "paired"),
+        default="historical",
+    )
     attempt_parser.add_argument("--output", required=True)
 
     selection_parser = subparsers.add_parser("select-attempt")
@@ -370,6 +366,63 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        if args.command == "attempt-profile":
+            contract = load_json(Path(args.contract))
+            if args.comparison_mode == "paired":
+                print(contract["pairedPolicy"]["blocks"]["profile"])
+            else:
+                print(args.profile)
+            return 0
+        if args.command == "attempt-outputs":
+            receipt = load_json(Path(args.receipt))
+            print(f"status={receipt['status']}")
+            print(f"retry={str(receipt['retryEligible']).lower()}")
+            return 0
+        if args.command == "assemble-paired-evidence":
+            payload = assemble_paired_evidence(
+                Path(args.blocks),
+                contract=load_json(Path(args.contract)),
+                target=args.target,
+                run_id=args.run_id,
+                candidate_commit=args.candidate_commit,
+                reference_commit=args.reference_commit,
+                driver_source_hash=args.driver_source_hash,
+                contract_digest=args.contract_digest,
+                profile=args.profile,
+                source_hash=args.source_hash,
+                runner_class=args.runner_class,
+                execution_order=load_json(Path(args.execution_order)),
+                soak_report=load_json(Path(args.soak)),
+            )
+            write_json(Path(args.output), payload)
+            print(f"Paired evidence assembled: {args.output}")
+            return 0
+        if args.command == "evaluate-paired":
+            contract_path = Path(args.contract)
+            contract = load_json(contract_path)
+            evidence = load_json(Path(args.evidence))
+            # The digest of the file this evaluation actually read. Evidence
+            # that names another contract was decided against other budgets,
+            # caps, and workloads than the ones about to judge it.
+            payload = evaluate_paired_comparison(
+                evidence, contract, contract_digest=sha256(contract_path)
+            )
+            write_json(Path(args.output), payload)
+            # The qualification state is the release verdict, so it leaves
+            # through the exit code rather than only through the document. A
+            # caller that ignored the document would otherwise treat a
+            # regression as a successful measurement.
+            qualification = payload["qualification"]
+            print(f"Paired comparison {qualification}: {args.output}")
+            if qualification == "qualified":
+                return 0
+            if qualification == "regression":
+                return 1
+            if qualification == "inconclusive":
+                return MEASUREMENT_QUALITY_EXIT_CODE
+            if qualification == "recalibration-required":
+                return RECALIBRATION_REQUIRED_EXIT_CODE
+            return INVALID_EVIDENCE_EXIT_CODE
         if args.command == "source-hash":
             print(repository_source_hash(Path(args.repo)))
             return 0
@@ -404,6 +457,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 source_hash=args.source_hash,
                 runner_class=args.runner_class,
                 exit_code=args.exit_code,
+                comparison_mode=args.comparison_mode,
             )
             print(
                 f"Recorded performance attempt {payload['attempt']} as "
@@ -509,6 +563,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     except MeasurementQualityError as error:
         print(f"Performance evidence inconclusive: {error}", file=sys.stderr)
         return MEASUREMENT_QUALITY_EXIT_CODE
+    except EnvironmentNotComparableError as error:
+        print(f"Performance environment not comparable: {error}", file=sys.stderr)
+        return ENVIRONMENT_NOT_COMPARABLE_EXIT_CODE
+    except RecalibrationRequiredError as error:
+        print(f"Performance comparator requires recalibration: {error}",
+              file=sys.stderr)
+        return RECALIBRATION_REQUIRED_EXIT_CODE
+    except InvalidEvidenceError as error:
+        print(f"Performance evidence is invalid: {error}", file=sys.stderr)
+        return INVALID_EVIDENCE_EXIT_CODE
     except PerformanceEvidenceError as error:
         print(f"Performance evidence failed: {error}", file=sys.stderr)
         return 1

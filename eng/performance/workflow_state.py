@@ -18,7 +18,6 @@ from typing import Any, Sequence
 if __package__:
     from . import cli as performance_evidence
     from .inputs import (
-        ACCEPTED_EVIDENCE_FILES,
         MEASUREMENT_INPUT_FILES,
         MEASUREMENT_INPUT_PREFIXES,
         affects_measurement,
@@ -26,7 +25,6 @@ if __package__:
 else:
     import cli as performance_evidence
     from inputs import (
-        ACCEPTED_EVIDENCE_FILES,
         MEASUREMENT_INPUT_FILES,
         MEASUREMENT_INPUT_PREFIXES,
         affects_measurement,

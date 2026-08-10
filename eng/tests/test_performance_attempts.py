@@ -9,7 +9,10 @@ from pathlib import Path
 
 from eng.performance import attempts
 from eng.performance.contract import (
+    ENVIRONMENT_NOT_COMPARABLE_EXIT_CODE,
+    INVALID_EVIDENCE_EXIT_CODE,
     MEASUREMENT_QUALITY_EXIT_CODE,
+    RECALIBRATION_REQUIRED_EXIT_CODE,
     MeasurementQualityError,
     PerformanceEvidenceError,
     sha256,
@@ -102,13 +105,66 @@ class PerformanceAttemptTests(unittest.TestCase):
         return selection, selection_path
 
     def test_exit_codes_have_non_overlapping_states(self) -> None:
-        """Classify success, measurement noise, and hard failures separately."""
+        """Give every terminating condition its own attempt state.
+
+        The distinction is load-bearing: an infrastructure condition must be
+        retryable while a verdict about the code must not, and an unclassified
+        crash must not be reported as a provider regression.
+        """
         self.assertEqual("passed", attempts.classify_exit_code(0))
+        self.assertEqual("regression", attempts.classify_exit_code(1))
         self.assertEqual(
-            "inconclusive",
+            "measurement-inconclusive",
             attempts.classify_exit_code(MEASUREMENT_QUALITY_EXIT_CODE),
         )
-        self.assertEqual("failed", attempts.classify_exit_code(1))
+        self.assertEqual(
+            "environment-not-comparable",
+            attempts.classify_exit_code(ENVIRONMENT_NOT_COMPARABLE_EXIT_CODE),
+        )
+        self.assertEqual(
+            "recalibration-required",
+            attempts.classify_exit_code(RECALIBRATION_REQUIRED_EXIT_CODE),
+        )
+        self.assertEqual(
+            "invalid-evidence",
+            attempts.classify_exit_code(INVALID_EVIDENCE_EXIT_CODE),
+        )
+        self.assertEqual("invalid-evidence", attempts.classify_exit_code(139))
+
+    def test_only_infrastructure_states_are_retryable(self) -> None:
+        """Keep a retry from selecting away a verdict about the code."""
+        self.assertTrue(attempts.is_retryable("measurement-inconclusive"))
+        self.assertTrue(attempts.is_retryable("environment-not-comparable"))
+        for state in ("passed", "regression", "recalibration-required",
+                      "invalid-evidence"):
+            with self.subTest(state=state):
+                self.assertFalse(attempts.is_retryable(state))
+        with self.assertRaises(PerformanceEvidenceError):
+            attempts.is_retryable("unknown-state")
+
+    def test_qualification_derives_from_the_final_attempt(self) -> None:
+        """Separate the attempt domain from the release verdict.
+
+        Two attempts that could not compare their environments block the
+        release without ever asserting that the provider regressed.
+        """
+        cases = {
+            ("passed",): "qualified",
+            ("measurement-inconclusive", "passed"): "qualified",
+            ("regression",): "regression",
+            ("environment-not-comparable", "regression"): "regression",
+            ("environment-not-comparable", "environment-not-comparable"):
+                "inconclusive",
+            ("measurement-inconclusive", "measurement-inconclusive"):
+                "inconclusive",
+            ("recalibration-required",): "recalibration-required",
+            ("invalid-evidence",): "invalid-evidence",
+        }
+        for states, expected in cases.items():
+            with self.subTest(states=states):
+                self.assertEqual(expected, attempts.qualification_state(list(states)))
+        with self.assertRaises(PerformanceEvidenceError):
+            attempts.qualification_state([])
 
     def test_non_passing_attempt_does_not_require_report_artifacts(self) -> None:
         """Persist early measurement and gate failures even without reports."""
@@ -122,7 +178,7 @@ class PerformanceAttemptTests(unittest.TestCase):
             )
 
             payload = json.loads(receipt.read_text(encoding="utf-8"))
-            self.assertEqual("inconclusive", payload["status"])
+            self.assertEqual("measurement-inconclusive", payload["status"])
             self.assertIsNone(payload["evaluationRelativePath"])
 
     def test_first_pass_is_selected_without_retry(self) -> None:
@@ -156,7 +212,7 @@ class PerformanceAttemptTests(unittest.TestCase):
 
             self.assertEqual(2, selection["selectedAttempt"])
             self.assertEqual(
-                ["inconclusive", "passed"],
+                ["measurement-inconclusive", "passed"],
                 [receipt["status"] for receipt in selection["receipts"]],
             )
             for receipt in selection["receipts"]:
@@ -195,7 +251,7 @@ class PerformanceAttemptTests(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 MeasurementQualityError,
-                "Both benchmark attempts were inconclusive",
+                "Both benchmark attempts were measurement-inconclusive",
             ):
                 attempts.select_attempt(
                     receipt_paths=receipts,

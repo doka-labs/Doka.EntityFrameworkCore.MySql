@@ -149,6 +149,7 @@ internal static class PerformanceWorkloadRunner
                         profile.CalibrationSamplesPerPulse,
                         profile.CalibrationIntervalSamples,
                         profile.MaximumCalibrationRelativeStandardError,
+                        profile.MeasurementQualityPolicy,
                         workloadTimeoutSource.Token)
                     .ConfigureAwait(false);
             }
@@ -271,6 +272,7 @@ internal static class PerformanceWorkloadRunner
         int calibrationSamplesPerPulse,
         int calibrationIntervalSamples,
         double maximumCalibrationRelativeStandardError,
+        string measurementQualityPolicy,
         CancellationToken cancellationToken
     )
     {
@@ -475,10 +477,21 @@ internal static class PerformanceWorkloadRunner
 
         if (calibrationRelativeStandardError > maximumCalibrationRelativeStandardError)
         {
-            throw new InvalidOperationException(
+            var diagnostic =
                 $"Workload '{workload.Id}' calibration relative standard error "
                 + $"{calibrationRelativeStandardError:F6} exceeds "
-                + $"{maximumCalibrationRelativeStandardError:F6}.");
+                + $"{maximumCalibrationRelativeStandardError:F6}.";
+
+            // A calibration that will not settle describes the machine, not the
+            // provider. Throwing an ordinary exception here exits 1, which the
+            // attempt path classifies as a regression and refuses to retry, so
+            // a busy runner could convict a provider it never measured.
+            if (string.Equals(measurementQualityPolicy, "enforce", StringComparison.Ordinal))
+            {
+                throw new MeasurementQualityException(diagnostic);
+            }
+
+            Console.Error.WriteLine($"Measurement quality observation: {diagnostic}");
         }
 
         return new PerformanceWorkloadResult
@@ -640,9 +653,15 @@ internal static class PerformanceWorkloadRunner
         string profileName
     )
     {
+        // Only the smoke profile narrows the workload set. Naming it positively
+        // keeps a profile that is not recognized here from silently inheriting
+        // the narrow set while its evidence claims the complete matrix.
+        var narrowsToSmoke = string.Equals(
+            profileName,
+            BenchmarkProfiles.SmokeProfile,
+            StringComparison.Ordinal);
         var definitions = contract
-            .Workloads.Where(definition =>
-                !string.Equals(profileName, "smoke", StringComparison.Ordinal) || definition.Smoke)
+            .Workloads.Where(definition => !narrowsToSmoke || definition.Smoke)
             .OrderBy(definition => definition.Id, StringComparer.Ordinal)
             .ToList();
 

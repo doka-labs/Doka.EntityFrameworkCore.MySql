@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-import math
 import json
 import tempfile
 import unittest
