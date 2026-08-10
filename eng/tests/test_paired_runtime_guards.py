@@ -6,12 +6,12 @@ driver hash binding the contents of untracked files, and the reference publish
 leaving the ordinary build intact. A property proven once is a property that
 regresses silently.
 
-These tests run the real mechanisms, and none of them writes into the
-repository they run in. The build-isolation case performs the complete cycle --
-both packs, both publishes, and an ordinary build afterwards -- because the
-property under test is whether the reference publish leaves that build intact,
-and only running it answers that. Its cost is the reason it is the one case
-gated on a restore being available.
+These tests run the real mechanisms, and none of them writes generated state
+into the repository it runs in. The build-isolation case performs the complete
+cycle -- both packs, both publishes, and an ordinary build afterwards --
+because the property under test is whether the reference publish leaves that
+build intact, and only running it answers that. Every build graph receives a
+test-owned artifacts root so a warm checkout cannot hide a missing restore.
 """
 
 from __future__ import annotations
@@ -73,10 +73,21 @@ class OuterDeadlineClassificationTests(unittest.TestCase):
         if the process was killed.
         """
         with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
             contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
             contract["pairedPolicy"]["durations"]["maximumPairedRunSeconds"] = 1
-            replacement = Path(directory) / "performance-contract.json"
+            replacement = root / "performance-contract.json"
             replacement.write_text(json.dumps(contract), encoding="utf-8")
+
+            # A test-owned Docker executable blocks after the entry point has
+            # completed its ordinary validation. The outer deadline therefore
+            # owns the only possible exit, without requiring a live database
+            # or racing against process startup on differently sized runners.
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            fake_docker = fake_bin / "docker"
+            fake_docker.write_text("#!/usr/bin/env bash\nsleep 30\n", encoding="ascii")
+            fake_docker.chmod(0o755)
 
             result = subprocess.run(
                 ["bash", "eng/benchmark.sh", "--test-only"],
@@ -89,6 +100,8 @@ class OuterDeadlineClassificationTests(unittest.TestCase):
                     DOKA_BENCHMARK_PROFILE="smoke",
                     DOKA_BENCHMARK_COMPARISON_MODE="paired",
                     DOKA_BENCHMARK_CONTRACT_PATH=str(replacement),
+                    DOKA_BENCHMARK_PORT="1",
+                    PATH=f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}",
                 ),
             )
 
@@ -358,6 +371,16 @@ class ReferenceBuildIsolationTests(unittest.TestCase):
             feed = root / "feed"
             feed.mkdir()
             version = "0.0.0-paired-cycle-probe"
+            ordinary_artifacts = root / "artifacts-ordinary"
+            pack_artifacts = root / "artifacts-pack"
+
+            # Establish the ordinary project-reference graph in a fresh root.
+            # The final no-restore build must consume exactly these assets,
+            # proving neither packaged-provider publish rewrote them.
+            self.run_dotnet(
+                "restore", str(BENCHMARK_PROJECT), "--tl:off",
+                f"-p:ArtifactsPath={ordinary_artifacts}",
+            )
 
             for project in (
                 "Doka.EntityFrameworkCore.MySql",
@@ -367,6 +390,7 @@ class ReferenceBuildIsolationTests(unittest.TestCase):
                     "pack", f"src/{project}/{project}.csproj",
                     "--configuration", "Release", "--tl:off",
                     f"-p:Version={version}", "--output", str(feed),
+                    f"-p:ArtifactsPath={pack_artifacts}",
                 )
 
             self.run_dotnet(
@@ -399,6 +423,7 @@ class ReferenceBuildIsolationTests(unittest.TestCase):
             self.run_dotnet(
                 "build", str(BENCHMARK_PROJECT),
                 "--configuration", "Release", "--tl:off", "--no-restore",
+                f"-p:ArtifactsPath={ordinary_artifacts}",
             )
 
     def run_dotnet(self, *arguments: str) -> None:
