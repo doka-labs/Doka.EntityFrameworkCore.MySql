@@ -49,20 +49,22 @@ This provider is designed for teams that need:
 
 ## Installation
 
-The repository is prepared for the `10.0.0-rc.3` prerelease. Once published,
-install it with an explicit version so NuGet does not restrict resolution to
-stable packages.
+Install prereleases with the exact version shown by the corresponding GitHub
+release and NuGet.org listing. Keeping the version explicit makes restores
+reproducible and avoids NuGet's stable-only default resolution.
 
 **Main provider:**
 
 ```bash
-dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.3
+release_version="<published-version>"
+dotnet add package Doka.EntityFrameworkCore.MySql --version "${release_version}"
 ```
 
 **Optional spatial extension** (NetTopologySuite integration -- only install if you use spatial types):
 
 ```bash
-dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.3
+release_version="<published-version>"
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version "${release_version}"
 ```
 
 ## Supported Engines
@@ -350,7 +352,8 @@ The provider ships with:
 - `tests/Doka.EntityFrameworkCore.MySql.TestUtilities`
   Shared test helpers and log sinks.
 - `benchmarks/`
-  `BenchmarkDotNet` scorecard harness with reviewable baselines.
+  `BenchmarkDotNet` harness for reviewed historical scorecards and paired
+  release qualification.
 - [`examples/`](examples/README.md)
   Seventeen runnable public-API samples. Fourteen participate in the supported
   live engine matrix; ten also enforce explicit scenario invariants. The
@@ -373,16 +376,18 @@ The provider ships with:
 dotnet build Doka.EntityFrameworkCore.MySql.slnx
 ./eng/test.sh
 ./eng/test-integration.sh   # requires Docker; owns and cleans up its databases
-./eng/test-examples.sh      # release-only live example matrix; owns its containers
-bash eng/check-publication-readiness.sh   # must pass before tag or publication
+./eng/test-examples.sh      # explicit live example matrix; owns its containers
+bash ./eng/check-publication-readiness.sh # verifies provider completeness
+./eng/pre-tag-check.sh                    # verifies a green main commit is tag-ready
 ```
 
 ## Performance and Memory Evidence
 
-The release scorecard executes 55 named provider workloads across MySQL 8.4
-and MariaDB 11.8. It covers sync and async execution, compiled queries, retry,
-diagnostic listeners, context and connection pooling, concurrency, data sizes,
-batch sizes, JSON, spatial materialization, migrations, and HiLo allocation.
+The hosted historical scorecard executes 55 named provider workloads across
+MySQL 8.4 and MariaDB 11.8. It covers sync and async execution, compiled
+queries, retry, diagnostic listeners, context and connection pooling,
+concurrency, data sizes, batch sizes, JSON, spatial materialization,
+migrations, and HiLo allocation.
 
 Scorecard evidence includes raw and workload-local calibration samples,
 median, p95, p99, standard error, managed allocation, GC counts, retained
@@ -391,6 +396,13 @@ admission, and SHA-256 hashes. The CPU model and BenchmarkDotNet host must
 match the workload host. Raw absolute limits, calibration-normalized
 matching-runner historical budgets, allocation limits, and six sustained
 resource invariants must all pass.
+
+Release qualification does not compare measurements from different machines.
+For each engine, it alternates a reference provider and the candidate provider
+on one allocated runner, applies the registered paired statistical policy and
+absolute ceilings, and retains the raw measurements with the candidate. The
+historical scorecard remains early warning on `main`; it neither qualifies nor
+blocks a release.
 
 Run a fast structural check:
 
@@ -477,6 +489,7 @@ MIT -- see [LICENSE](LICENSE).
 - [Documentation index](docs/README.md)
 - [Release governance and diagnostics catalog](docs/release-governance.md)
 - [Operations and release runbook](docs/operations-runbook.md)
+- [Release publication procedure](docs/operations/release-publication.md)
 - [Host integration examples](docs/host-integration-examples.md)
 - [External engine and EF Core limitations](docs/limitations.md)
 - [Complex types](docs/complex-types.md)

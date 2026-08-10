@@ -177,8 +177,8 @@ the supported update and delete contracts.
 
 The [TemporalTablesAndCtes example](../examples/TemporalTablesAndCtes/README.md)
 creates, updates, and deletes a temporal row and verifies `TemporalAll` and
-`TemporalAsOf`. The release-candidate gate executes that invariant on MySQL
-8.4, MariaDB 11.4, and MariaDB 11.8.
+`TemporalAsOf`. `./eng/test-examples.sh` executes that invariant on MySQL 8.4,
+MariaDB 11.4, and MariaDB 11.8 in the explicit live example matrix.
 
 The live integration matrix additionally verifies every temporal query root,
 half-open and inclusive interval endpoints, server-side aggregates, transaction

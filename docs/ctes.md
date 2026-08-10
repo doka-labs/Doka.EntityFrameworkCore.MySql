@@ -63,10 +63,10 @@ issue that grammar against MariaDB 11.4 or 11.8.
 
 The [TemporalTablesAndCtes example](../examples/TemporalTablesAndCtes/README.md)
 executes a parameterized recursive CTE followed by a composed LINQ predicate.
-The release-candidate gate runs the invariant on MySQL 8.4, MariaDB 11.4, and
-MariaDB 11.8. Provider functional tests additionally cover composability,
-parameterization, synchronous and asynchronous execution, and affected command
-boundaries.
+`./eng/test-examples.sh` runs the invariant on MySQL 8.4, MariaDB 11.4, and
+MariaDB 11.8 in the explicit live example matrix. Provider functional tests
+additionally cover composability, parameterization, synchronous and
+asynchronous execution, and affected command boundaries.
 
 ## Related Limitations
 
