@@ -71,16 +71,25 @@ class OrchestratorStageTests(unittest.TestCase):
                 result = run(
                     "bash", "eng/release-candidate.sh", "--stage", stage,
                     env={
+                        # Bound a regressed probe through the orchestrator's
+                        # own process-group deadline. This keeps the contract
+                        # cheap even if the early probe exit is moved or lost.
+                        "DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS": "5",
                         "DOKA_RELEASE_REQUIRE_TAG": "0",
                         "DOKA_RELEASE_VERSION": "0.0.0-chain-probe",
                         "DOKA_RELEASE_CHAIN_PROBE": "1",
                     },
                 )
                 combined = f"{result.stdout}\n{result.stderr}"
-                self.assertNotIn(
-                    "Unknown release-candidate stage",
-                    combined,
-                    f"the orchestrator rejects the dispatched stage '{stage}'",
+                self.assertEqual(
+                    0,
+                    result.returncode,
+                    f"the orchestrator could not probe dispatched stage '{stage}':\n{combined}",
+                )
+                self.assertIn(
+                    f"Accepted release-candidate stage '{stage}'.",
+                    result.stdout,
+                    f"the orchestrator did not acknowledge dispatched stage '{stage}'",
                 )
 
 
