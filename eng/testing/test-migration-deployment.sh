@@ -18,11 +18,13 @@ evidence_dir="${evidence_root}/${run_id}"
 bundle_path="${evidence_dir}/efbundle"
 summary_file="${evidence_dir}/migration-deployment-summary.md"
 evidence_file="${evidence_dir}/migration-deployment-evidence.json"
+database_evidence_file="${evidence_dir}/test-database-evidence.json"
 repo_fingerprint="$(printf '%s' "${repo_root}" | cksum | awk '{print $1}')"
 compose_run_id="$(printf '%s' "${run_id}" | tr '[:upper:]' '[:lower:]')"
 compose_project_name="${DOKA_MIGRATION_COMPOSE_PROJECT_NAME:-doka-migration-${repo_fingerprint}-${compose_run_id}}"
 compose_command=(docker compose -p "${compose_project_name}" -f "${compose_file}")
 should_stop_compose=0
+database_evidence_written=0
 
 cleanup() {
     local exit_code="$1"
@@ -38,6 +40,17 @@ cleanup() {
         # Preserve an earlier workflow failure when both operations fail.
         if [[ "${exit_code}" -eq 0 && "${down_exit_code}" -ne 0 ]]; then
             exit_code="${down_exit_code}"
+        fi
+
+        if [[ "${down_exit_code}" -eq 0 && "${database_evidence_written}" -eq 1 ]]; then
+            set +e
+            finalize_database_evidence
+            local evidence_exit_code=$?
+            set -e
+
+            if [[ "${exit_code}" -eq 0 && "${evidence_exit_code}" -ne 0 ]]; then
+                exit_code="${evidence_exit_code}"
+            fi
         fi
     fi
 
@@ -112,9 +125,55 @@ run_bundle_lifecycle() {
     run_workflow_command "${connection_string}" "${server_version}" "verify-latest"
 }
 
+write_target_identity() {
+    local target_id="$1"
+    local engine="$2"
+    local server_version="$3"
+    local container_id
+    local image
+
+    container_id="$("${compose_command[@]}" ps -q "${target_id}")"
+    if [[ -z "${container_id}" ]]; then
+        echo "No running container identity was found for ${target_id}." >&2
+        return 1
+    fi
+
+    image="$(docker inspect --format '{{.Config.Image}}' "${container_id}")"
+    if [[ "${image}" != *@sha256:* ]]; then
+        echo "Migration target ${target_id} did not run a digest-pinned image." >&2
+        return 1
+    fi
+
+    jq -n \
+        --arg targetId "${target_id}" \
+        --arg engine "${engine}" \
+        --arg serverVersionToken "${server_version}" \
+        --arg image "${image}" \
+        --arg containerId "${container_id}" \
+        '{
+          targetId: $targetId,
+          engine: $engine,
+          serverVersionToken: $serverVersionToken,
+          source: "compose",
+          image: $image,
+          containerId: $containerId
+        }'
+}
+
+finalize_database_evidence() {
+    local temporary_file="${database_evidence_file}.tmp"
+
+    jq '.lifecycleState = "cleanup-completed"' \
+        "${database_evidence_file}" > "${temporary_file}"
+    mv "${temporary_file}" "${database_evidence_file}"
+}
+
 write_evidence() {
+    local target_identities_file="${database_evidence_file}.targets.tmp"
+
     # This function is reached only after all target lifecycles complete. The
-    # release manifest hashes both forms only after the cleanup trap succeeds.
+    # lifecycle remains pending until the cleanup trap removes every owned
+    # container and volume; only then can release assembly consume it.
     cat > "${summary_file}" <<EOF
 # Migration deployment summary
 
@@ -123,8 +182,11 @@ write_evidence() {
 - modelSnapshot: pass
 - bundleGeneration: pass
 - mysql84Lifecycle: pass
+- mysql97Lifecycle: pass
+- mariadb1011Lifecycle: pass
 - mariadb114Lifecycle: pass
 - mariadb118Lifecycle: pass
+- mariadb123Lifecycle: pass
 
 The lifecycle applies, reapplies, rolls back to zero, reapplies, and reads back
 the checked-in migration through the generated EF Core migration bundle.
@@ -138,11 +200,36 @@ EOF
   "bundleGeneration": "pass",
   "targets": {
     "mysql84": "pass",
+    "mysql97": "pass",
+    "mariadb1011": "pass",
     "mariadb114": "pass",
-    "mariadb118": "pass"
+    "mariadb118": "pass",
+    "mariadb123": "pass"
   }
 }
 EOF
+
+    : > "${target_identities_file}"
+    {
+        write_target_identity "mysql84" "MySql" "mysql:8.4"
+        write_target_identity "mysql97" "MySql" "mysql:9.7"
+        write_target_identity "mariadb1011" "MariaDb" "mariadb:10.11"
+        write_target_identity "mariadb114" "MariaDb" "mariadb:11.4"
+        write_target_identity "mariadb118" "MariaDb" "mariadb:11.8"
+        write_target_identity "mariadb123" "MariaDb" "mariadb:12.3"
+    } >> "${target_identities_file}"
+
+    jq -s \
+        --arg generatedUtc "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+        '{
+          schemaVersion: 1,
+          generatedUtc: $generatedUtc,
+          lifecycleState: "cleanup-pending",
+          targets: .
+        }' \
+        "${target_identities_file}" > "${database_evidence_file}"
+    rm -f "${target_identities_file}"
+    database_evidence_written=1
 }
 
 require_docker_compose
@@ -161,8 +248,11 @@ dotnet tool run dotnet-ef -- migrations bundle \
     --output "${bundle_path}"
 
 export DOKA_MYSQL84_PORT="${DOKA_MYSQL84_PORT:-0}"
+export DOKA_MYSQL97_PORT="${DOKA_MYSQL97_PORT:-0}"
+export DOKA_MARIADB1011_PORT="${DOKA_MARIADB1011_PORT:-0}"
 export DOKA_MARIADB114_PORT="${DOKA_MARIADB114_PORT:-0}"
 export DOKA_MARIADB118_PORT="${DOKA_MARIADB118_PORT:-0}"
+export DOKA_MARIADB123_PORT="${DOKA_MARIADB123_PORT:-0}"
 
 should_stop_compose=1
 "${compose_command[@]}" up \
@@ -170,12 +260,18 @@ should_stop_compose=1
     --wait \
     --wait-timeout 120 \
     mysql84 \
+    mysql97 \
+    mariadb1011 \
     mariadb114 \
-    mariadb118
+    mariadb118 \
+    mariadb123
 
 run_bundle_lifecycle "mysql84" "$(published_port mysql84)" "mysql:8.4"
+run_bundle_lifecycle "mysql97" "$(published_port mysql97)" "mysql:9.7"
+run_bundle_lifecycle "mariadb1011" "$(published_port mariadb1011)" "mariadb:10.11"
 run_bundle_lifecycle "mariadb114" "$(published_port mariadb114)" "mariadb:11.4"
 run_bundle_lifecycle "mariadb118" "$(published_port mariadb118)" "mariadb:11.8"
+run_bundle_lifecycle "mariadb123" "$(published_port mariadb123)" "mariadb:12.3"
 
 write_evidence
 

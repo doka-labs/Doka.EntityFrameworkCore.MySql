@@ -50,7 +50,7 @@ Usage:
   ./eng/test-examples.sh
 
 Environment:
-  DOKA_EXAMPLE_TARGETS=mysql84,mariadb114,mariadb118
+  DOKA_EXAMPLE_TARGETS=mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123
   DOKA_EXAMPLE_EVIDENCE_DIR=<evidence output directory>
   DOKA_EXAMPLE_RUN_ID=<stable run identity>
 
@@ -72,7 +72,7 @@ require_command() {
 configure_targets() {
     # Normalize the operator input once and reject duplicates before Docker
     # resources are created.
-    local configured_targets="${DOKA_EXAMPLE_TARGETS:-mysql84,mariadb114,mariadb118}"
+    local configured_targets="${DOKA_EXAMPLE_TARGETS:-mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123}"
     local normalized_target
     local existing_target
 
@@ -89,11 +89,11 @@ configure_targets() {
         fi
 
         case "${normalized_target}" in
-            mysql84|mariadb114|mariadb118)
+            mysql84|mysql97|mariadb1011|mariadb114|mariadb118|mariadb123)
                 ;;
             *)
                 echo "Unsupported example target '${normalized_target}'." >&2
-                echo "Accepted targets are mysql84, mariadb114, and mariadb118." >&2
+                echo "Accepted targets are mysql84, mysql97, mariadb1011, mariadb114, mariadb118, and mariadb123." >&2
                 exit 1
                 ;;
         esac
@@ -162,10 +162,10 @@ database_client() {
     local target="$1"
 
     case "${target}" in
-        mysql84)
+        mysql84|mysql97)
             printf '%s\n' "mysql"
             ;;
-        mariadb114|mariadb118)
+        mariadb1011|mariadb114|mariadb118|mariadb123)
             printf '%s\n' "mariadb"
             ;;
         *)
@@ -240,8 +240,11 @@ run_example_matrix() {
     # Port zero asks Docker for a free loopback port. This prevents the live
     # example gate from colliding with developer databases or parallel jobs.
     export DOKA_MYSQL84_PORT=0
+    export DOKA_MYSQL97_PORT=0
+    export DOKA_MARIADB1011_PORT=0
     export DOKA_MARIADB114_PORT=0
     export DOKA_MARIADB118_PORT=0
+    export DOKA_MARIADB123_PORT=0
 
     echo "Starting isolated live-example stack '${compose_project_name}'..."
     cleanup_required=true

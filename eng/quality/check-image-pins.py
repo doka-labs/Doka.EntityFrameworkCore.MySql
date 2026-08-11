@@ -1,9 +1,9 @@
 """Keep every copy of a database image pin on the one Dependabot maintains.
 
-The same pin appears in the Compose stack, two workflows, the performance
-contract, and a C# constant. Dependabot only ever edits the Compose stack, so
-each accepted image update leaves the other copies behind, and a candidate then
-measures one engine version while claiming another.
+Every supported pin appears in the Compose stack and a C# constant. The two
+representative performance targets also appear in hosted workflows and the
+performance contract. Dependabot edits only the Compose stack, so an accepted
+update leaves its applicable copies behind until they are reconciled.
 
 The Compose stack is the source: it is what the update lands in. Every other
 copy is held against it, and `--fix` rewrites them.
@@ -34,28 +34,35 @@ COMPOSE = "docker/compose.yml"
 # Compose service -> the target it pins.
 SERVICES = {
     "mysql84": "mysql84",
+    "mysql97": "mysql97",
+    "mariadb1011": "mariadb1011",
     "mariadb114": "mariadb114",
     "mariadb118": "mariadb118",
+    "mariadb123": "mariadb123",
 }
 
-# The release line each target is allowed to sit on. The specification suites,
-# the performance contract, and the accepted baseline are all calibrated to
-# these, so an image from another series measures and tests something the
-# provider does not claim to support. Update proposals follow the highest
-# published version rather than a line, which is how a jump to a different
-# series arrives looking like a routine patch. Changing a line here is the
-# deliberate act that such a move requires.
+# The release line each target is allowed to sit on. Specification evidence is
+# calibrated to every entry; the representative target entries additionally
+# bind the performance contract and baseline. An image from another series
+# therefore tests a different contract. Changing a line here is the deliberate
+# act that such a support decision requires.
 SUPPORTED_LINES = {
     "mysql84": "mysql:8.4",
+    "mysql97": "mysql:9.7",
+    "mariadb1011": "mariadb:10.11",
     "mariadb114": "mariadb:11.4",
     "mariadb118": "mariadb:11.8",
+    "mariadb123": "mariadb:12.3",
 }
 
 CSHARP_FILE = "tests/Doka.EntityFrameworkCore.MySql.TestUtilities/TestDatabaseImages.cs"
 CSHARP_CONSTANTS = {
     "mysql84": "MySql84",
+    "mysql97": "MySql97",
+    "mariadb1011": "MariaDb1011",
     "mariadb114": "MariaDb114",
     "mariadb118": "MariaDb118",
+    "mariadb123": "MariaDb123",
 }
 
 # How many references to each target a copy has to carry. The count is part of
@@ -67,7 +74,14 @@ MIRROR_TARGETS = {
     ".github/workflows/ci.yml": {"mysql84": 3, "mariadb118": 1},
     ".github/workflows/benchmark-scorecard.yml": {"mysql84": 2, "mariadb118": 2},
     "benchmarks/performance-contract.json": {"mysql84": 1, "mariadb118": 1},
-    CSHARP_FILE: {"mysql84": 1, "mariadb114": 1, "mariadb118": 1},
+    CSHARP_FILE: {
+        "mysql84": 1,
+        "mysql97": 1,
+        "mariadb1011": 1,
+        "mariadb114": 1,
+        "mariadb118": 1,
+        "mariadb123": 1,
+    },
 }
 
 # Two patterns, deliberately: one to find, one to judge.
@@ -108,9 +122,10 @@ def is_digest_pin(reference: str) -> bool:
 def release_line(reference: str) -> str:
     """Return the release line a reference belongs to, such as 'mariadb:11.8'.
 
-    Two MariaDB lines are pinned at once, so the image name alone cannot say
-    which copy an update belongs to. The line does, and a patch update never
-    leaves it. A move to a new line is a decision, not a synchronization.
+    Multiple lines from each image family are pinned at once, so the image name
+    alone cannot say which copy an update belongs to. The line does, and a patch
+    update never leaves it. A move to a new line is a decision, not a
+    synchronization.
     """
     parsed = REFERENCE_HEAD.match(reference)
     if parsed is None:

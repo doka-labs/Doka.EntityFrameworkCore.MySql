@@ -30,7 +30,9 @@ jobs:
 
       - name: Run scheduled container compatibility path
         env:
-          DOKA_INTEGRATION_TARGETS: mysql84,mariadb114,mariadb118
+          DOKA_INTEGRATION_TARGETS: >-
+            mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123
+          DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX: 1
         run: bash ./eng/test-integration.sh
 
       - name: Upload compatibility artifacts

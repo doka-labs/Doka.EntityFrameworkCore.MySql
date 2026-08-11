@@ -33,7 +33,14 @@ else:
 SCHEMA_VERSION = 1
 MANIFEST_NAME = "release-candidate-evidence.json"
 CHECKSUM_NAME = "release-candidate-evidence.sha256"
-REQUIRED_ENGINE_TARGETS = ("mariadb114", "mariadb118", "mysql84")
+REQUIRED_ENGINE_TARGETS = (
+    "mariadb1011",
+    "mariadb114",
+    "mariadb118",
+    "mariadb123",
+    "mysql84",
+    "mysql97",
+)
 REQUIRED_PACKAGES = (
     "Microsoft.EntityFrameworkCore.Design",
     "Microsoft.EntityFrameworkCore.Relational",
@@ -386,7 +393,8 @@ def collect_engines(root: Path) -> list[dict[str, str]]:
     and ephemeral connection data is deliberately excluded from the manifest.
     """
     engines: dict[str, dict[str, str]] = {}
-    for path in root.rglob("test-database-evidence.json"):
+    sources: dict[str, set[str]] = {}
+    for path in sorted(root.rglob("test-database-evidence.json")):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exception:
@@ -399,10 +407,10 @@ def collect_engines(root: Path) -> list[dict[str, str]]:
                 "targetId": target_id,
                 "engine": target.get("engine"),
                 "serverVersionToken": target.get("serverVersionToken"),
-                "source": target.get("source"),
                 "image": target.get("image"),
             }
-            if not all(identity.values()):
+            source = target.get("source")
+            if not all(identity.values()) or not source:
                 raise EvidenceError(f"Engine evidence is missing an immutable identity: {path}")
             _, separator, digest = identity["image"].rpartition("@sha256:")
             if separator == "" or len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
@@ -410,6 +418,7 @@ def collect_engines(root: Path) -> list[dict[str, str]]:
             previous = engines.setdefault(target_id, identity)
             if previous != identity:
                 raise EvidenceError(f"Conflicting engine identities were recorded for {target_id}.")
+            sources.setdefault(target_id, set()).add(source)
 
     missing = sorted(set(REQUIRED_ENGINE_TARGETS) - set(engines))
     if missing:
@@ -417,7 +426,13 @@ def collect_engines(root: Path) -> list[dict[str, str]]:
     unexpected = sorted(set(engines) - set(REQUIRED_ENGINE_TARGETS))
     if unexpected:
         raise EvidenceError(f"Unexpected engine evidence for: {', '.join(unexpected)}")
-    return [engines[target] for target in sorted(engines)]
+    return [
+        {
+            **engines[target],
+            "source": "+".join(sorted(sources[target])),
+        }
+        for target in sorted(engines)
+    ]
 
 
 def validate_runtime_posture(

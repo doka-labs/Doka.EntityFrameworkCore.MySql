@@ -240,8 +240,11 @@ jobs:
       matrix:
         engine:
           - { name: mysql84, target: "mysql84" }
+          - { name: mysql97, target: "mysql97" }
+          - { name: mariadb1011, target: "mariadb1011" }
           - { name: mariadb114, target: "mariadb114" }
           - { name: mariadb118, target: "mariadb118" }
+          - { name: mariadb123, target: "mariadb123" }
 
     steps:
       - name: Checkout
@@ -270,6 +273,7 @@ jobs:
           dotnet build tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --configuration Release --no-restore --tl:off
 
       - name: Verify specification disposition contract and discovery
+        if: matrix.engine.name == 'mysql84'
         run: |
           bash ./eng/testing/check-spec-contract.sh
           dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
@@ -348,6 +352,18 @@ jobs:
           name: spec-tests-coverage-mysql84
           path: artifacts/coverage/spec-mysql84
 
+      - name: Download mysql97 spec coverage
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: spec-tests-coverage-mysql97
+          path: artifacts/coverage/spec-mysql97
+
+      - name: Download mariadb1011 spec coverage
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: spec-tests-coverage-mariadb1011
+          path: artifacts/coverage/spec-mariadb1011
+
       - name: Download mariadb118 spec coverage
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -359,6 +375,12 @@ jobs:
         with:
           name: spec-tests-coverage-mariadb114
           path: artifacts/coverage/spec-mariadb114
+
+      - name: Download mariadb123 spec coverage
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: spec-tests-coverage-mariadb123
+          path: artifacts/coverage/spec-mariadb123
 
       - name: Download integration coverage
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
