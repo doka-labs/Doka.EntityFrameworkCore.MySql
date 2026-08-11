@@ -14,18 +14,39 @@ compose_project_name="${DOKA_COMPOSE_PROJECT_NAME:-doka-${repo_fingerprint}}"
 compose_command=(docker compose -p "${compose_project_name}" -f "${compose_file}")
 integration_run_id="${DOKA_INTEGRATION_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 
+resolve_repo_path() {
+    local configured_path="$1"
+
+    if [[ "${configured_path}" == /* ]]; then
+        printf '%s\n' "${configured_path}"
+        return
+    fi
+
+    # VSTest changes the test host's working directory to its build output.
+    # Passing an absolute path keeps evidence in the repository artifact tree
+    # even when an operator configures a convenient relative output path.
+    printf '%s/%s\n' "${repo_root}" "${configured_path}"
+}
+
 # Release orchestration overrides this root so lifecycle identity and cleanup
 # evidence are hashed inside the same immutable candidate package.
-integration_artifacts_dir="${DOKA_INTEGRATION_ARTIFACTS_DIR:-${repo_root}/artifacts/integration/${integration_run_id}}"
+integration_artifacts_dir="$(
+    resolve_repo_path "${DOKA_INTEGRATION_ARTIFACTS_DIR:-artifacts/integration/${integration_run_id}}"
+)"
 integration_summary_file="${integration_artifacts_dir}/compatibility-matrix-summary.md"
 integration_evidence_file="${integration_artifacts_dir}/compatibility-matrix-evidence.json"
-database_evidence_file="${integration_artifacts_dir}/test-database-evidence.json"
+database_evidence_file="$(
+    resolve_repo_path "${DOKA_TEST_DATABASE_EVIDENCE_FILE:-${integration_artifacts_dir}/test-database-evidence.json}"
+)"
 integration_targets_var="DOKA_INTEGRATION_TARGETS"
 
 mysql80_target_id="mysql80"
 mysql84_target_id="mysql84"
+mysql97_target_id="mysql97"
+mariadb1011_target_id="mariadb1011"
 mariadb114_target_id="mariadb114"
 mariadb118_target_id="mariadb118"
+mariadb123_target_id="mariadb123"
 
 # Only the legacy MySQL 8.0 target names its connection-string variable in a
 # diagnostic; the supported targets resolve theirs through the test host.
@@ -33,14 +54,18 @@ mysql80_env_var="DOKA_MYSQL80_CONNECTION_STRING"
 
 mode="testcontainers"
 should_stop_compose_on_exit=0
-configured_target_selection="${DOKA_INTEGRATION_TARGETS:-mysql84,mariadb114,mariadb118}"
+configured_target_selection="${DOKA_INTEGRATION_TARGETS:-mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123}"
 integration_test_filter="${DOKA_INTEGRATION_TEST_FILTER:-}"
 require_full_configuration_matrix="${DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX:-0}"
 target_selection_label=""
+selected_targets=()
 mysql80_target_enabled=0
 mysql84_target_enabled=0
+mysql97_target_enabled=0
+mariadb1011_target_enabled=0
 mariadb114_target_enabled=0
 mariadb118_target_enabled=0
+mariadb123_target_enabled=0
 
 print_usage() {
     cat <<'EOF'
@@ -57,13 +82,16 @@ Modes:
   --down           Remove the explicit Compose debugging stack and its volumes.
 
 Environment:
-  DOKA_INTEGRATION_TARGETS=mysql84,mariadb114,mariadb118
+  DOKA_INTEGRATION_TARGETS=mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123
   DOKA_INTEGRATION_ARTIFACTS_DIR=<evidence output directory>
   DOKA_INTEGRATION_TEST_FILTER=<optional dotnet test filter>
   DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=0|1
   DOKA_MYSQL84_CONNECTION_STRING=<external override>
+  DOKA_MYSQL97_CONNECTION_STRING=<external override>
+  DOKA_MARIADB1011_CONNECTION_STRING=<external override>
   DOKA_MARIADB114_CONNECTION_STRING=<external override>
   DOKA_MARIADB118_CONNECTION_STRING=<external override>
+  DOKA_MARIADB123_CONNECTION_STRING=<external override>
 
 MySQL 8.0 is outside the supported release matrix. Its legacy tests can only be
 selected explicitly with DOKA_INTEGRATION_TARGETS=mysql80 and an external
@@ -122,6 +150,20 @@ configure_target_selection() {
                 fi
                 mysql84_target_enabled=1
                 ;;
+            "${mysql97_target_id}")
+                if [[ "${mysql97_target_enabled}" -eq 1 ]]; then
+                    echo "Duplicate integration target '${normalized_target}'." >&2
+                    exit 1
+                fi
+                mysql97_target_enabled=1
+                ;;
+            "${mariadb1011_target_id}")
+                if [[ "${mariadb1011_target_enabled}" -eq 1 ]]; then
+                    echo "Duplicate integration target '${normalized_target}'." >&2
+                    exit 1
+                fi
+                mariadb1011_target_enabled=1
+                ;;
             "${mariadb114_target_id}")
                 if [[ "${mariadb114_target_enabled}" -eq 1 ]]; then
                     echo "Duplicate integration target '${normalized_target}'." >&2
@@ -136,9 +178,16 @@ configure_target_selection() {
                 fi
                 mariadb118_target_enabled=1
                 ;;
+            "${mariadb123_target_id}")
+                if [[ "${mariadb123_target_enabled}" -eq 1 ]]; then
+                    echo "Duplicate integration target '${normalized_target}'." >&2
+                    exit 1
+                fi
+                mariadb123_target_enabled=1
+                ;;
             *)
                 echo "Unsupported integration target '${normalized_target}' in ${integration_targets_var}." >&2
-                echo "Accepted values are: mysql80, mysql84, mariadb114, mariadb118." >&2
+                echo "Accepted values are: mysql80, mysql84, mysql97, mariadb1011, mariadb114, mariadb118, mariadb123." >&2
                 exit 1
                 ;;
         esac
@@ -148,6 +197,8 @@ configure_target_selection() {
         else
             target_selection_label="${target_selection_label},${normalized_target}"
         fi
+
+        selected_targets+=("${normalized_target}")
     done
 
     if [[ -z "${target_selection_label}" ]]; then
@@ -174,10 +225,13 @@ validate_full_configuration_matrix() {
     fi
 
     if [[ "${mysql84_target_enabled}" -ne 1 \
+        || "${mysql97_target_enabled}" -ne 1 \
+        || "${mariadb1011_target_enabled}" -ne 1 \
         || "${mariadb114_target_enabled}" -ne 1 \
         || "${mariadb118_target_enabled}" -ne 1 \
+        || "${mariadb123_target_enabled}" -ne 1 \
         || "${mysql80_target_enabled}" -ne 0 ]]; then
-        echo "The full configuration matrix requires mysql84, mariadb114, and mariadb118 only." >&2
+        echo "The full configuration matrix requires every active LTS target and excludes mysql80." >&2
         exit 1
     fi
 
@@ -202,8 +256,11 @@ ensure_docker_compose_available() {
 configure_compose_overrides() {
     local compose_services=()
     local mysql84_port="${DOKA_MYSQL84_PORT:-33068}"
+    local mysql97_port="${DOKA_MYSQL97_PORT:-33070}"
+    local mariadb1011_port="${DOKA_MARIADB1011_PORT:-33066}"
     local mariadb114_port="${DOKA_MARIADB114_PORT:-33067}"
     local mariadb118_port="${DOKA_MARIADB118_PORT:-33069}"
+    local mariadb123_port="${DOKA_MARIADB123_PORT:-33071}"
 
     if [[ "${mysql80_target_enabled}" -eq 1 && -z "${DOKA_MYSQL80_CONNECTION_STRING:-}" ]]; then
         echo "MySQL 8.0 has no bundled Compose service because it is outside the supported matrix." >&2
@@ -216,6 +273,16 @@ configure_compose_overrides() {
         export DOKA_MYSQL84_CONNECTION_STRING="Server=127.0.0.1;Port=${mysql84_port};Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;"
     fi
 
+    if [[ "${mysql97_target_enabled}" -eq 1 && -z "${DOKA_MYSQL97_CONNECTION_STRING:-}" ]]; then
+        compose_services+=("mysql97")
+        export DOKA_MYSQL97_CONNECTION_STRING="Server=127.0.0.1;Port=${mysql97_port};Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;"
+    fi
+
+    if [[ "${mariadb1011_target_enabled}" -eq 1 && -z "${DOKA_MARIADB1011_CONNECTION_STRING:-}" ]]; then
+        compose_services+=("mariadb1011")
+        export DOKA_MARIADB1011_CONNECTION_STRING="Server=127.0.0.1;Port=${mariadb1011_port};Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;"
+    fi
+
     if [[ "${mariadb114_target_enabled}" -eq 1 && -z "${DOKA_MARIADB114_CONNECTION_STRING:-}" ]]; then
         compose_services+=("mariadb114")
         export DOKA_MARIADB114_CONNECTION_STRING="Server=127.0.0.1;Port=${mariadb114_port};Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;"
@@ -224,6 +291,11 @@ configure_compose_overrides() {
     if [[ "${mariadb118_target_enabled}" -eq 1 && -z "${DOKA_MARIADB118_CONNECTION_STRING:-}" ]]; then
         compose_services+=("mariadb118")
         export DOKA_MARIADB118_CONNECTION_STRING="Server=127.0.0.1;Port=${mariadb118_port};Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;"
+    fi
+
+    if [[ "${mariadb123_target_enabled}" -eq 1 && -z "${DOKA_MARIADB123_CONNECTION_STRING:-}" ]]; then
+        compose_services+=("mariadb123")
+        export DOKA_MARIADB123_CONNECTION_STRING="Server=127.0.0.1;Port=${mariadb123_port};Database=doka_provider;User ID=root;Password=root_password;Persist Security Info=True;"
     fi
 
     # External endpoints and owned Compose services may coexist in one run;
@@ -239,28 +311,104 @@ configure_compose_overrides() {
 }
 
 run_integration_tests() {
-    local coverage_results_dir="${DOKA_COVERAGE_RESULTS_DIR:-${repo_root}/artifacts/coverage/integration}"
-    local test_arguments=(
-        --configuration Release
-        --no-restore
-        --tl:off
-        --collect:"XPlat Code Coverage"
-        --results-directory "${coverage_results_dir}"
-        --logger trx
-    )
+    local coverage_results_dir
+    local target_evidence_dir="${integration_artifacts_dir}/database-targets"
+    local matrix_exit_code=0
+    local target
+    local target_exit_code
+    local target_evidence_file
+    local target_results_dir
+    local target_evidence_files=()
 
-    if [[ -n "${integration_test_filter}" ]]; then
-        test_arguments+=(--filter "${integration_test_filter}")
-    fi
+    coverage_results_dir="$(
+        resolve_repo_path "${DOKA_COVERAGE_RESULTS_DIR:-artifacts/coverage/integration}"
+    )"
 
-    mkdir -p "${coverage_results_dir}" "${integration_artifacts_dir}"
-    # The .NET fixture owns containers in the canonical path and writes exact
-    # image and cleanup identity to the shared evidence file.
-    export DOKA_TEST_DATABASE_EVIDENCE_FILE="${DOKA_TEST_DATABASE_EVIDENCE_FILE:-${database_evidence_file}}"
+    mkdir -p \
+        "${coverage_results_dir}" \
+        "${integration_artifacts_dir}" \
+        "${target_evidence_dir}" \
+        "$(dirname "${database_evidence_file}")"
 
     "${repo_root}/eng/common/verify-dotnet.sh" || return $?
     dotnet restore "${integration_test_project}" --tl:off || return $?
-    dotnet test "${integration_test_project}" "${test_arguments[@]}"
+    dotnet build \
+        "${integration_test_project}" \
+        --configuration Release \
+        --no-restore \
+        --tl:off || return $?
+
+    # EF Core caches internal service providers process-wide. Server profiles
+    # legitimately differ between LTS targets, so one process per target keeps
+    # those singleton contracts isolated while preserving one operator command.
+    for target in "${selected_targets[@]}"; do
+        target_evidence_file="${target_evidence_dir}/${target}/test-database-evidence.json"
+        target_results_dir="${coverage_results_dir}/${target}"
+        target_evidence_files+=("${target_evidence_file}")
+
+        mkdir -p "$(dirname "${target_evidence_file}")" "${target_results_dir}"
+
+        local test_arguments=(
+            --configuration Release
+            --no-build
+            --no-restore
+            --tl:off
+            --collect:"XPlat Code Coverage"
+            --results-directory "${target_results_dir}"
+            --logger trx
+        )
+
+        if [[ -n "${integration_test_filter}" ]]; then
+            test_arguments+=(--filter "${integration_test_filter}")
+        fi
+
+        echo "Running isolated integration process for ${target}..."
+        DOKA_INTEGRATION_TARGETS="${target}" \
+        DOKA_TEST_DATABASE_EVIDENCE_FILE="${target_evidence_file}" \
+            dotnet test "${integration_test_project}" "${test_arguments[@]}"
+        target_exit_code=$?
+
+        if [[ "${target_exit_code}" -ne 0 ]]; then
+            matrix_exit_code="${target_exit_code}"
+        fi
+    done
+
+    merge_database_evidence "${target_evidence_files[@]}" || matrix_exit_code=1
+
+    return "${matrix_exit_code}"
+}
+
+merge_database_evidence() {
+    local evidence_files=("$@")
+    local evidence_file
+
+    for evidence_file in "${evidence_files[@]}"; do
+        if [[ ! -f "${evidence_file}" ]]; then
+            echo "Missing target database evidence: ${evidence_file}" >&2
+            return 1
+        fi
+    done
+
+    jq -s \
+        '{
+            schemaVersion: 1,
+            generatedUtc: (map(.generatedUtc) | max),
+            lifecycleState: (
+                if all(.[]; .lifecycleState == "cleanup-completed")
+                then "cleanup-completed"
+                else "cleanup-incomplete"
+                end
+            ),
+            targets: ([.[].targets[]] | sort_by(.targetId))
+        }' \
+        "${evidence_files[@]}" > "${database_evidence_file}"
+
+    jq -e \
+        --argjson expectedTargetCount "${#selected_targets[@]}" \
+        '.lifecycleState == "cleanup-completed"
+         and (.targets | length) == $expectedTargetCount
+         and ([.targets[].targetId] | unique | length) == $expectedTargetCount' \
+        "${database_evidence_file}" >/dev/null
 }
 
 write_matrix_evidence() {
@@ -278,12 +426,12 @@ write_matrix_evidence() {
         echo "- testFilter: ${integration_test_filter:-<all>}"
         echo "- fullConfigurationMatrixRequired: ${require_full_configuration_matrix}"
         echo "- testExitCode: ${test_exit_code}"
-        echo "- databaseEvidence: ${DOKA_TEST_DATABASE_EVIDENCE_FILE}"
+        echo "- databaseEvidence: ${database_evidence_file}"
         echo
         echo "The test database evidence records exact images, dynamic endpoints, ownership source, and cleanup state."
     } > "${integration_summary_file}"
 
-    if [[ -f "${DOKA_TEST_DATABASE_EVIDENCE_FILE}" ]]; then
+    if [[ -f "${database_evidence_file}" ]]; then
         jq \
             --arg generatedUtc "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
             --arg integrationRunId "${integration_run_id}" \
@@ -302,7 +450,7 @@ write_matrix_evidence() {
                 testExitCode: $testExitCode,
                 testDatabase: .
             }' \
-            "${DOKA_TEST_DATABASE_EVIDENCE_FILE}" > "${integration_evidence_file}"
+            "${database_evidence_file}" > "${integration_evidence_file}"
     else
         jq -n \
             --arg generatedUtc "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \

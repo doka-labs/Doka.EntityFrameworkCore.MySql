@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
-/// Verifies query translations against live MySQL 8.4 and MariaDB 11.8 with real data.
+/// Verifies query translations against live active-LTS MySQL and MariaDB servers with real data.
 /// Covers string methods, DateTime/DateOnly/TimeOnly arithmetic, Math, GROUP_CONCAT,
 /// REGEXP, JSON functions.
 /// </summary>
@@ -13,16 +13,24 @@ public sealed class MySqlQueryTranslationIntegrationTests
     // -- String Methods --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task String_methods_execute_correctly_on_mysql84()
-    {
+    public async Task String_methods_execute_correctly_on_mysql84() =>
         await RunStringMethodTests(IntegrationDatabaseTarget.MySql84);
-    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task String_methods_execute_correctly_on_mysql97() =>
+        await RunStringMethodTests(IntegrationDatabaseTarget.MySql97);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task String_methods_execute_correctly_on_mariadb1011() =>
+        await RunStringMethodTests(IntegrationDatabaseTarget.MariaDb1011);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task String_methods_execute_correctly_on_mariadb118()
-    {
+    public async Task String_methods_execute_correctly_on_mariadb118() =>
         await RunStringMethodTests(IntegrationDatabaseTarget.MariaDb118);
-    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task String_methods_execute_correctly_on_mariadb123() =>
+        await RunStringMethodTests(IntegrationDatabaseTarget.MariaDb123);
 
     private static async Task RunStringMethodTests(
         IntegrationDatabaseTarget target
@@ -248,30 +256,48 @@ public sealed class MySqlQueryTranslationIntegrationTests
     /// MySQL's actual binary and unsigned-bitwise behavior.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Scalar_edge_cases_execute_correctly_on_mysql84()
-    {
+    public async Task Scalar_edge_cases_execute_correctly_on_mysql84() =>
         await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MySql84);
-    }
+
+    /// <summary>
+    /// Verifies binary GUID formatting and width-aware integral shifts against
+    /// MySQL 9.7's actual binary and unsigned-bitwise behavior.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task Scalar_edge_cases_execute_correctly_on_mysql97() =>
+        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MySql97);
+
+    /// <summary>
+    /// Verifies binary GUID formatting and width-aware integral shifts against
+    /// MariaDB 10.11's actual binary and unsigned-bitwise behavior.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task Scalar_edge_cases_execute_correctly_on_mariadb1011() =>
+        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb1011);
 
     /// <summary>
     /// Verifies binary GUID formatting and width-aware integral shifts against
     /// MariaDB 11.4's actual binary and unsigned-bitwise behavior.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public async Task Scalar_edge_cases_execute_correctly_on_mariadb114()
-    {
+    public async Task Scalar_edge_cases_execute_correctly_on_mariadb114() =>
         await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb114);
-    }
 
     /// <summary>
     /// Verifies binary GUID formatting and width-aware integral shifts against
     /// MariaDB 11.8's actual binary and unsigned-bitwise behavior.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task Scalar_edge_cases_execute_correctly_on_mariadb118()
-    {
+    public async Task Scalar_edge_cases_execute_correctly_on_mariadb118() =>
         await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb118);
-    }
+
+    /// <summary>
+    /// Verifies binary GUID formatting and width-aware integral shifts against
+    /// MariaDB 12.3's actual binary and unsigned-bitwise behavior.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task Scalar_edge_cases_execute_correctly_on_mariadb123() =>
+        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb123);
 
     private static async Task RunScalarEdgeCaseTests(
         IntegrationDatabaseTarget target
@@ -419,16 +445,11 @@ public sealed class MySqlQueryTranslationIntegrationTests
     // -- GROUP_CONCAT --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Group_concat_executes_on_mysql84()
-    {
-        await RunGroupConcatTest(IntegrationDatabaseTarget.MySql84);
-    }
+    public async Task Group_concat_executes_on_mysql84() => await RunGroupConcatTest(IntegrationDatabaseTarget.MySql84);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task Group_concat_executes_on_mariadb118()
-    {
+    public async Task Group_concat_executes_on_mariadb118() =>
         await RunGroupConcatTest(IntegrationDatabaseTarget.MariaDb118);
-    }
 
     private static async Task RunGroupConcatTest(
         IntegrationDatabaseTarget target
@@ -491,16 +512,10 @@ public sealed class MySqlQueryTranslationIntegrationTests
     // -- REGEXP --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Regexp_executes_on_mysql84()
-    {
-        await RunRegexpTest(IntegrationDatabaseTarget.MySql84);
-    }
+    public async Task Regexp_executes_on_mysql84() => await RunRegexpTest(IntegrationDatabaseTarget.MySql84);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task Regexp_executes_on_mariadb118()
-    {
-        await RunRegexpTest(IntegrationDatabaseTarget.MariaDb118);
-    }
+    public async Task Regexp_executes_on_mariadb118() => await RunRegexpTest(IntegrationDatabaseTarget.MariaDb118);
 
     private static async Task RunRegexpTest(
         IntegrationDatabaseTarget target
@@ -589,10 +604,8 @@ public sealed class MySqlQueryTranslationIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
-        var builder = new DbContextOptionsBuilder<QueryContext>();
-        var serverVersion = target is IntegrationDatabaseTarget.MariaDb114 or IntegrationDatabaseTarget.MariaDb118
-            ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
-            : MySqlServerVersion.MySql(new Version(8, 4, 0));
+        var builder = IntegrationTestDbContextOptions.Create<QueryContext>();
+        var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
         builder.UseMySql(connectionString, serverVersion);
         return builder.Options;
     }
@@ -601,7 +614,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
         string connectionString
     )
     {
-        var builder = new DbContextOptionsBuilder<JsonQueryContext>();
+        var builder = IntegrationTestDbContextOptions.Create<JsonQueryContext>();
         builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
         return builder.Options;
     }

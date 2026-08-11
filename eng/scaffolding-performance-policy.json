@@ -1,12 +1,12 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "scenarioId": "large-and-restricted-scaffolding-v1",
   "tableCount": 128,
   "columnsPerTable": 8,
   "restrictedVisibleTableCount": 4,
   "measuredRuns": 2,
   "budgets": {
-    "maximumMetadataCommandsPerRun": 14,
+    "maximumSetBasedMetadataCommandsPerRun": 14,
     "maximumElapsedMillisecondsPerRun": 15000,
     "maximumAllocatedBytesPerRun": 268435456,
     "maximumManagedHeapGrowthBytesPerRun": 201326592

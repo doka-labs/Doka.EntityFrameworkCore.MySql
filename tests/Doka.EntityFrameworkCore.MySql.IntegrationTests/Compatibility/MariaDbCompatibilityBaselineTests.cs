@@ -9,6 +9,15 @@ public sealed class MariaDbCompatibilityBaselineTests
     private const string TableName = "Phase3MariaDbEntities";
 
     /// <summary>
+    /// Verifies the approved capability-driven baseline against MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public Task MariaDb1011_capability_driven_runtime_baseline_succeeds() =>
+        VerifyMariaDbCompatibilityBaselineAsync(
+            IntegrationDatabaseTarget.MariaDb1011,
+            new Version(10, 11, 0));
+
+    /// <summary>
     /// Verifies the approved capability-driven baseline against MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
@@ -23,6 +32,15 @@ public sealed class MariaDbCompatibilityBaselineTests
     public Task MariaDb118_capability_driven_runtime_baseline_succeeds() => VerifyMariaDbCompatibilityBaselineAsync(
         IntegrationDatabaseTarget.MariaDb118,
         new Version(11, 8, 0));
+
+    /// <summary>
+    /// Verifies the approved capability-driven baseline against MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public Task MariaDb123_capability_driven_runtime_baseline_succeeds() =>
+        VerifyMariaDbCompatibilityBaselineAsync(
+            IntegrationDatabaseTarget.MariaDb123,
+            new Version(12, 3, 0));
 
     private static async Task VerifyMariaDbCompatibilityBaselineAsync(
         IntegrationDatabaseTarget target,
@@ -148,7 +166,7 @@ public sealed class MariaDbCompatibilityBaselineTests
         Version mariaDbVersion
     )
     {
-        var builder = new DbContextOptionsBuilder<MariaDbCompatibilityContext>();
+        var builder = IntegrationTestDbContextOptions.Create<MariaDbCompatibilityContext>();
 
         builder.UseMySql(
             connectionString,

@@ -197,7 +197,7 @@ public sealed class MariaDbModelingIntegrationTests
     )
         where T : DbContext
     {
-        var b = new DbContextOptionsBuilder<T>();
+        var b = IntegrationTestDbContextOptions.Create<T>();
         b.UseMySql(cs, MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
         return b.Options;
     }

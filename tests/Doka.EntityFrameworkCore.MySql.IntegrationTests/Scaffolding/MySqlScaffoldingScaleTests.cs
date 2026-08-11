@@ -16,7 +16,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed class MySqlScaffoldingScaleTests
 {
     private const string TablePrefix = "doka_scale_t";
-    private const int ExpectedPolicySchemaVersion = 1;
+    private const int ExpectedPolicySchemaVersion = 2;
     private const int ExpectedColumnsPerTable = 8;
     private static readonly JsonSerializerOptions s_policySerializerOptions = new()
     {
@@ -43,6 +43,26 @@ public sealed class MySqlScaffoldingScaleTests
     }
 
     /// <summary>
+    /// Verifies the scale and restricted-metadata policy against MySQL 9.7.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task MySql97_large_and_restricted_schemas_meet_declared_budgets()
+    {
+        await RunScaleContractAsync(IntegrationDatabaseTarget.MySql97)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies the scale and restricted-metadata policy against MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task MariaDb1011_large_and_restricted_schemas_meet_declared_budgets()
+    {
+        await RunScaleContractAsync(IntegrationDatabaseTarget.MariaDb1011)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Verifies the scale and restricted-metadata policy against MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
@@ -59,6 +79,16 @@ public sealed class MySqlScaffoldingScaleTests
     public async Task MariaDb118_large_and_restricted_schemas_meet_declared_budgets()
     {
         await RunScaleContractAsync(IntegrationDatabaseTarget.MariaDb118)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies the scale and restricted-metadata policy against MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task MariaDb123_large_and_restricted_schemas_meet_declared_budgets()
+    {
+        await RunScaleContractAsync(IntegrationDatabaseTarget.MariaDb123)
             .ConfigureAwait(false);
     }
 
@@ -119,35 +149,36 @@ public sealed class MySqlScaffoldingScaleTests
                 tableNames);
 
             Assert.Equal(firstQueryRun.CommandCount, secondQueryRun.CommandCount);
-            Assert.InRange(
-                firstQueryRun.CommandCount,
-                1,
-                policy.Budgets.MaximumMetadataCommandsPerRun);
-            Assert.All(
-                firstQueryRun.CommandTexts,
-                commandText => Assert.StartsWith(
-                    "SELECT",
-                    commandText.TrimStart(),
-                    StringComparison.OrdinalIgnoreCase));
+            AssertMetadataCommandContract(
+                firstQueryRun,
+                target,
+                tableNames.Length,
+                policy.Budgets.MaximumSetBasedMetadataCommandsPerRun);
+            AssertMetadataCommandContract(
+                secondQueryRun,
+                target,
+                tableNames.Length,
+                policy.Budgets.MaximumSetBasedMetadataCommandsPerRun);
             _output.WriteLine(
-                "{0} metadata commands: first={1}; second={2}; budget={3}",
+                "{0} metadata commands: first={1}; second={2}; setBasedBudget={3}",
                 target,
                 firstQueryRun.CommandCount,
                 secondQueryRun.CommandCount,
-                policy.Budgets.MaximumMetadataCommandsPerRun);
+                policy.Budgets.MaximumSetBasedMetadataCommandsPerRun);
 
             var restrictedCommandCount = await VerifyRestrictedMetadataAsync(
                     connectionString,
                     tableNames,
                     policy.RestrictedVisibleTableCount,
-                    policy.Budgets.MaximumMetadataCommandsPerRun)
+                    policy.Budgets.MaximumSetBasedMetadataCommandsPerRun,
+                    target)
                 .ConfigureAwait(false);
             _output.WriteLine(
-                "{0} restricted metadata: visibleTables={1}; commands={2}; commandBudget={3}",
+                "{0} restricted metadata: visibleTables={1}; commands={2}; setBasedBudget={3}",
                 target,
                 policy.RestrictedVisibleTableCount,
                 restrictedCommandCount,
-                policy.Budgets.MaximumMetadataCommandsPerRun);
+                policy.Budgets.MaximumSetBasedMetadataCommandsPerRun);
         }
         finally
         {
@@ -235,7 +266,8 @@ public sealed class MySqlScaffoldingScaleTests
         string rootConnectionString,
         string[] tableNames,
         int visibleTableCount,
-        int maximumMetadataCommands
+        int maximumSetBasedMetadataCommands,
+        IntegrationDatabaseTarget target
     )
     {
         var account = RestrictedAccount.Create();
@@ -281,10 +313,13 @@ public sealed class MySqlScaffoldingScaleTests
                 .ToArray();
 
             Assert.Equal(expectedVisibleTables, actualVisibleTables);
-            Assert.InRange(
-                connection.ExecutedCommandCount,
-                1,
-                maximumMetadataCommands);
+            AssertMetadataCommandContract(
+                new MetadataCommandMetrics(
+                    connection.ExecutedCommandCount,
+                    connection.ExecutedCommandTexts),
+                target,
+                visibleTableCount,
+                maximumSetBasedMetadataCommands);
             Assert.Equal(ConnectionState.Open, connection.State);
             executedCommandCount = connection.ExecutedCommandCount;
         }
@@ -298,6 +333,51 @@ public sealed class MySqlScaffoldingScaleTests
 
         return executedCommandCount;
     }
+
+    private static void AssertMetadataCommandContract(
+        MetadataCommandMetrics metrics,
+        IntegrationDatabaseTarget target,
+        int selectedTableCount,
+        int maximumSetBasedMetadataCommands
+    )
+    {
+        var expectedDefinitionCommands = RequiresPerTableDefinitionFallback(target)
+            ? selectedTableCount
+            : 0;
+        var definitionCommands = metrics.CommandTexts
+            .Count(IsTableDefinitionCommand);
+
+        Assert.Equal(expectedDefinitionCommands, definitionCommands);
+        Assert.InRange(
+            metrics.CommandCount,
+            1,
+            maximumSetBasedMetadataCommands + expectedDefinitionCommands);
+        Assert.All(
+            metrics.CommandTexts,
+            commandText => Assert.True(
+                commandText.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)
+                || IsTableDefinitionCommand(commandText),
+                $"Unexpected scaffolding metadata command: {commandText}"));
+    }
+
+    private static bool RequiresPerTableDefinitionFallback(
+        IntegrationDatabaseTarget target
+    )
+    {
+        var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
+
+        // MariaDB exposes period-role catalog columns only from 11.4.1. Older
+        // releases therefore require exactly one SHOW CREATE TABLE command for
+        // every selected table; the set-based command cap remains unchanged.
+        return serverVersion.IsMariaDb
+            && serverVersion.Version < new Version(11, 4, 1);
+    }
+
+    private static bool IsTableDefinitionCommand(
+        string commandText
+    ) => commandText.TrimStart().StartsWith(
+        "SET STATEMENT sql_mode = '', sql_quote_show_create = 1 FOR SHOW CREATE TABLE ",
+        StringComparison.OrdinalIgnoreCase);
 
     private static async Task CreateRestrictedAccountAsync(
         string rootConnectionString,
@@ -571,7 +651,7 @@ public sealed class MySqlScaffoldingScaleTests
         Assert.True(policy.TableCount > policy.RestrictedVisibleTableCount);
         Assert.True(policy.RestrictedVisibleTableCount > 0);
         Assert.True(policy.MeasuredRuns >= 2);
-        Assert.True(policy.Budgets.MaximumMetadataCommandsPerRun > 0);
+        Assert.True(policy.Budgets.MaximumSetBasedMetadataCommandsPerRun > 0);
         Assert.True(policy.Budgets.MaximumElapsedMillisecondsPerRun > 0);
         Assert.True(policy.Budgets.MaximumAllocatedBytesPerRun > 0);
         Assert.True(policy.Budgets.MaximumManagedHeapGrowthBytesPerRun > 0);
@@ -745,7 +825,7 @@ public sealed class MySqlScaffoldingScaleTests
 
     private sealed class ScaffoldingPerformanceBudgets
     {
-        public required int MaximumMetadataCommandsPerRun { get; init; }
+        public required int MaximumSetBasedMetadataCommandsPerRun { get; init; }
 
         public required int MaximumElapsedMillisecondsPerRun { get; init; }
 

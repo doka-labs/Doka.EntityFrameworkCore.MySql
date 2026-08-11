@@ -1,8 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
-/// Integration tests for database creator lifecycle, advisory locks, sequence
-/// value generation, and HiLo runtime against supported live engines.
+/// Integration tests for database creator lifecycle, advisory locks, and
+/// sequence value generation against supported live engines.
 /// </summary>
 [Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlDatabaseLifecycleTests
@@ -13,6 +13,24 @@ public sealed class MySqlDatabaseLifecycleTests
         await AssertDatabaseExistsAsync(
                 IntegrationDatabaseTarget.MySql84,
                 MySqlServerVersion.MySql(new Version(8, 4, 0)))
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task Database_exists_returns_true_on_mysql97()
+    {
+        await AssertDatabaseExistsAsync(
+                IntegrationDatabaseTarget.MySql97,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97))
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task Database_exists_returns_true_on_mariadb1011()
+    {
+        await AssertDatabaseExistsAsync(
+                IntegrationDatabaseTarget.MariaDb1011,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
             .ConfigureAwait(false);
     }
 
@@ -34,12 +52,39 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task Database_exists_returns_true_on_mariadb123()
+    {
+        await AssertDatabaseExistsAsync(
+                IntegrationDatabaseTarget.MariaDb123,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
+            .ConfigureAwait(false);
+    }
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Advisory_lock_contract_holds_on_mysql84()
     {
         await AssertAdvisoryLockContractAsync(
                 IntegrationDatabaseTarget.MySql84,
                 MySqlServerVersion.MySql(new Version(8, 4, 0)))
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task Advisory_lock_contract_holds_on_mysql97()
+    {
+        await AssertAdvisoryLockContractAsync(
+                IntegrationDatabaseTarget.MySql97,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97))
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task Advisory_lock_contract_holds_on_mariadb1011()
+    {
+        await AssertAdvisoryLockContractAsync(
+                IntegrationDatabaseTarget.MariaDb1011,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
             .ConfigureAwait(false);
     }
 
@@ -61,6 +106,24 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task Advisory_lock_contract_holds_on_mariadb123()
+    {
+        await AssertAdvisoryLockContractAsync(
+                IntegrationDatabaseTarget.MariaDb123,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task Guid_binary16_and_char36_roundtrip_on_mariadb1011()
+    {
+        await AssertGuidRoundTripAsync(
+                IntegrationDatabaseTarget.MariaDb1011,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
+            .ConfigureAwait(false);
+    }
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task Guid_binary16_and_char36_roundtrip_on_mariadb114()
     {
@@ -76,6 +139,15 @@ public sealed class MySqlDatabaseLifecycleTests
         await AssertGuidRoundTripAsync(
                 IntegrationDatabaseTarget.MariaDb118,
                 MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task Guid_binary16_and_char36_roundtrip_on_mariadb123()
+    {
+        await AssertGuidRoundTripAsync(
+                IntegrationDatabaseTarget.MariaDb123,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
             .ConfigureAwait(false);
     }
 
@@ -188,53 +260,7 @@ public sealed class MySqlDatabaseLifecycleTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public void Sequence_table_emulation_sync_fetch_returns_start_then_increment()
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
-        var seqName = $"test_seq_{Guid.NewGuid():N}"[..30];
-
-        using var connection = new MySqlConnection(connectionString);
-        connection.Open();
-
-        try
-        {
-            using (var createCmd = connection.CreateCommand())
-            {
-                createCmd.CommandText = $"CREATE TABLE IF NOT EXISTS `__efsequence_{seqName}` ("
-                    + "  `id` TINYINT UNSIGNED NOT NULL,"
-                    + "  `value` BIGINT NOT NULL,"
-                    + "  `is_called` BOOLEAN NOT NULL,"
-                    + "  PRIMARY KEY (`id`),"
-                    + "  CHECK (`id` = 1)"
-                    + ") ENGINE=InnoDB;"
-                    + $"INSERT INTO `__efsequence_{seqName}` (`id`, `value`, `is_called`) VALUES (1, 42, FALSE);";
-                createCmd.ExecuteNonQuery();
-            }
-
-            var value1 = MySqlSequenceValueGenerator.GetNextValue(
-                connection,
-                seqName,
-                7,
-                supportsNativeSequences: false);
-            var value2 = MySqlSequenceValueGenerator.GetNextValue(
-                connection,
-                seqName,
-                7,
-                supportsNativeSequences: false);
-
-            Assert.Equal(42, value1);
-            Assert.Equal(49, value2);
-            Assert.True(value2 > value1);
-
-            using var duplicateRowCommand = connection.CreateCommand();
-            duplicateRowCommand.CommandText =
-                $"INSERT INTO `__efsequence_{seqName}` (`id`, `value`, `is_called`) VALUES (2, 100, FALSE);";
-            Assert.Throws<MySqlException>(() => duplicateRowCommand.ExecuteNonQuery());
-        }
-        finally
-        {
-            using var dropCmd = connection.CreateCommand();
-            dropCmd.CommandText = $"DROP TABLE IF EXISTS `__efsequence_{seqName}`;";
-            dropCmd.ExecuteNonQuery();
-        }
+        AssertTableSequenceSync(IntegrationDatabaseTarget.MySql84);
     }
 
     /// <summary>
@@ -244,8 +270,74 @@ public sealed class MySqlDatabaseLifecycleTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Sequence_table_emulation_async_fetch_returns_start_then_increment()
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
-        var seqName = $"test_seq_{Guid.NewGuid():N}"[..30];
+        await AssertTableSequenceAsync(IntegrationDatabaseTarget.MySql84)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies both table-emulation I/O paths on MySQL 9.7, whose engine still
+    /// has no native sequence object.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task MySql97_sequence_table_emulation_preserves_sync_and_async_contracts()
+    {
+        AssertTableSequenceSync(IntegrationDatabaseTarget.MySql97);
+        await AssertTableSequenceAsync(IntegrationDatabaseTarget.MySql97)
+            .ConfigureAwait(false);
+    }
+
+    private static void AssertTableSequenceSync(
+        IntegrationDatabaseTarget target
+    )
+    {
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
+        var sequenceName = $"test_seq_{Guid.NewGuid():N}"[..30];
+
+        using var connection = new MySqlConnection(connectionString);
+        connection.Open();
+
+        try
+        {
+            using (var createCommand = connection.CreateCommand())
+            {
+                createCommand.CommandText = CreateTableSequenceSql(sequenceName);
+                createCommand.ExecuteNonQuery();
+            }
+
+            var firstValue = MySqlSequenceValueGenerator.GetNextValue(
+                connection,
+                sequenceName,
+                7,
+                supportsNativeSequences: false);
+            var secondValue = MySqlSequenceValueGenerator.GetNextValue(
+                connection,
+                sequenceName,
+                7,
+                supportsNativeSequences: false);
+
+            Assert.Equal(42, firstValue);
+            Assert.Equal(49, secondValue);
+            Assert.True(secondValue > firstValue);
+
+            using var duplicateRowCommand = connection.CreateCommand();
+            duplicateRowCommand.CommandText =
+                $"INSERT INTO `__efsequence_{sequenceName}` (`id`, `value`, `is_called`) VALUES (2, 100, FALSE);";
+            Assert.Throws<MySqlException>(() => duplicateRowCommand.ExecuteNonQuery());
+        }
+        finally
+        {
+            using var dropCommand = connection.CreateCommand();
+            dropCommand.CommandText = $"DROP TABLE IF EXISTS `__efsequence_{sequenceName}`;";
+            dropCommand.ExecuteNonQuery();
+        }
+    }
+
+    private static async Task AssertTableSequenceAsync(
+        IntegrationDatabaseTarget target
+    )
+    {
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
+        var sequenceName = $"test_seq_{Guid.NewGuid():N}"[..30];
 
         await using var connection = new MySqlConnection(connectionString);
         await connection
@@ -254,49 +346,53 @@ public sealed class MySqlDatabaseLifecycleTests
 
         try
         {
-            await using (var createCmd = connection.CreateCommand())
+            await using (var createCommand = connection.CreateCommand())
             {
-                createCmd.CommandText = $"CREATE TABLE IF NOT EXISTS `__efsequence_{seqName}` ("
-                    + "  `id` TINYINT UNSIGNED NOT NULL,"
-                    + "  `value` BIGINT NOT NULL,"
-                    + "  `is_called` BOOLEAN NOT NULL,"
-                    + "  PRIMARY KEY (`id`),"
-                    + "  CHECK (`id` = 1)"
-                    + ") ENGINE=InnoDB;"
-                    + $"INSERT INTO `__efsequence_{seqName}` (`id`, `value`, `is_called`) VALUES (1, 42, FALSE);";
-                await createCmd
+                createCommand.CommandText = CreateTableSequenceSql(sequenceName);
+                await createCommand
                     .ExecuteNonQueryAsync()
                     .ConfigureAwait(false);
             }
 
-            var value1 = await MySqlSequenceValueGenerator
+            var firstValue = await MySqlSequenceValueGenerator
                 .GetNextValueAsync(
                     connection,
-                    seqName,
+                    sequenceName,
                     7,
                     supportsNativeSequences: false)
                 .ConfigureAwait(false);
-            var value2 = await MySqlSequenceValueGenerator
+            var secondValue = await MySqlSequenceValueGenerator
                 .GetNextValueAsync(
                     connection,
-                    seqName,
+                    sequenceName,
                     7,
                     supportsNativeSequences: false)
                 .ConfigureAwait(false);
 
-            Assert.Equal(42, value1);
-            Assert.Equal(49, value2);
-            Assert.True(value2 > value1);
+            Assert.Equal(42, firstValue);
+            Assert.Equal(49, secondValue);
+            Assert.True(secondValue > firstValue);
         }
         finally
         {
-            await using var dropCmd = connection.CreateCommand();
-            dropCmd.CommandText = $"DROP TABLE IF EXISTS `__efsequence_{seqName}`;";
-            await dropCmd
+            await using var dropCommand = connection.CreateCommand();
+            dropCommand.CommandText = $"DROP TABLE IF EXISTS `__efsequence_{sequenceName}`;";
+            await dropCommand
                 .ExecuteNonQueryAsync()
                 .ConfigureAwait(false);
         }
     }
+
+    private static string CreateTableSequenceSql(
+        string sequenceName
+    ) => $"CREATE TABLE IF NOT EXISTS `__efsequence_{sequenceName}` ("
+        + "  `id` TINYINT UNSIGNED NOT NULL,"
+        + "  `value` BIGINT NOT NULL,"
+        + "  `is_called` BOOLEAN NOT NULL,"
+        + "  PRIMARY KEY (`id`),"
+        + "  CHECK (`id` = 1)"
+        + ") ENGINE=InnoDB;"
+        + $"INSERT INTO `__efsequence_{sequenceName}` (`id`, `value`, `is_called`) VALUES (1, 42, FALSE);";
 
     // -- MariaDB Native Sequence --
 
@@ -306,10 +402,22 @@ public sealed class MySqlDatabaseLifecycleTests
         AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb114);
     }
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public void Mariadb1011_native_sequence_sync_fetch_returns_start_then_increment()
+    {
+        AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb1011);
+    }
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public void Mariadb118_native_sequence_sync_fetch_returns_start_then_increment()
     {
         AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb118);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public void Mariadb123_native_sequence_sync_fetch_returns_start_then_increment()
+    {
+        AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb123);
     }
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
@@ -319,10 +427,24 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task Mariadb1011_native_sequence_async_fetch_returns_start_then_increment()
+    {
+        await AssertNativeSequenceAsync(IntegrationDatabaseTarget.MariaDb1011)
+            .ConfigureAwait(false);
+    }
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Mariadb118_native_sequence_async_fetch_returns_start_then_increment()
     {
         await AssertNativeSequenceAsync(IntegrationDatabaseTarget.MariaDb118)
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task Mariadb123_native_sequence_async_fetch_returns_start_then_increment()
+    {
+        await AssertNativeSequenceAsync(IntegrationDatabaseTarget.MariaDb123)
             .ConfigureAwait(false);
     }
 
@@ -425,7 +547,7 @@ public sealed class MySqlDatabaseLifecycleTests
         MySqlServerVersion serverVersion
     )
     {
-        var builder = new DbContextOptionsBuilder<LifecycleContext>();
+        var builder = IntegrationTestDbContextOptions.Create<LifecycleContext>();
         builder.UseMySql(connectionString, serverVersion);
         return builder.Options;
     }
@@ -435,7 +557,7 @@ public sealed class MySqlDatabaseLifecycleTests
         MySqlServerVersion serverVersion
     )
     {
-        var builder = new DbContextOptionsBuilder<GuidContext>();
+        var builder = IntegrationTestDbContextOptions.Create<GuidContext>();
         builder.UseMySql(connectionString, serverVersion);
         return builder.Options;
     }

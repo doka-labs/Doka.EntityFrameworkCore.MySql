@@ -208,7 +208,7 @@ public sealed class MySqlHiLoConcurrencyTests
         string connectionString
     )
     {
-        var builder = new DbContextOptionsBuilder<HiLoContext>();
+        var builder = IntegrationTestDbContextOptions.Create<HiLoContext>();
         builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
         return builder.Options;
     }
@@ -217,7 +217,7 @@ public sealed class MySqlHiLoConcurrencyTests
         MySqlDataSource dataSource
     )
     {
-        var builder = new DbContextOptionsBuilder<HiLoContext>();
+        var builder = IntegrationTestDbContextOptions.Create<HiLoContext>();
         builder.UseMySql(dataSource, MySqlServerVersion.MySql(new Version(8, 4, 0)));
         return builder.Options;
     }
@@ -226,7 +226,7 @@ public sealed class MySqlHiLoConcurrencyTests
         DbConnection connection
     )
     {
-        var builder = new DbContextOptionsBuilder<HiLoContext>();
+        var builder = IntegrationTestDbContextOptions.Create<HiLoContext>();
         builder.UseMySql(connection, MySqlServerVersion.MySql(new Version(8, 4, 0)));
         return builder.Options;
     }

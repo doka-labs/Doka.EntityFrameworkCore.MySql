@@ -47,6 +47,32 @@ public sealed class MySqlTlsAuthenticationContractTests
     }
 
     /// <summary>
+    /// Verifies transport and authentication profiles against MySQL 9.7.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task MySql97_satisfies_the_tls_and_authentication_contract()
+    {
+        await AssertSecurityContractAsync(
+                IntegrationDatabaseTarget.MySql97,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97),
+                "caching_sha2_password")
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies transport and authentication profiles against MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task MariaDb1011_satisfies_the_tls_and_authentication_contract()
+    {
+        await AssertSecurityContractAsync(
+                IntegrationDatabaseTarget.MariaDb1011,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011),
+                "mysql_native_password")
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Verifies transport and authentication profiles against MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
@@ -68,6 +94,19 @@ public sealed class MySqlTlsAuthenticationContractTests
         await AssertSecurityContractAsync(
                 IntegrationDatabaseTarget.MariaDb118,
                 MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                "mysql_native_password")
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies transport and authentication profiles against MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task MariaDb123_satisfies_the_tls_and_authentication_contract()
+    {
+        await AssertSecurityContractAsync(
+                IntegrationDatabaseTarget.MariaDb123,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123),
                 "mysql_native_password")
             .ConfigureAwait(false);
     }
@@ -145,7 +184,7 @@ public sealed class MySqlTlsAuthenticationContractTests
                 return password;
             },
         };
-        var options = new DbContextOptionsBuilder<SecurityContractContext>()
+        var options = IntegrationTestDbContextOptions.Create<SecurityContractContext>()
             .UseMySql(connection, serverVersion)
             .Options;
 
@@ -233,7 +272,7 @@ public sealed class MySqlTlsAuthenticationContractTests
                     return ValueTask.CompletedTask;
                 })
                 .Build();
-            var options = new DbContextOptionsBuilder<SecurityContractContext>().UseMySql(dataSource, serverVersion)
+            var options = IntegrationTestDbContextOptions.Create<SecurityContractContext>().UseMySql(dataSource, serverVersion)
                 .Options;
 
             await AssertLifecycleOperationsAsync(options)
@@ -360,7 +399,7 @@ public sealed class MySqlTlsAuthenticationContractTests
         Assert.False(string.IsNullOrWhiteSpace(reader.GetString(1)));
 
         await using var context = new SecurityContractContext(
-            new DbContextOptionsBuilder<SecurityContractContext>().UseMySql(connectionString, serverVersion)
+            IntegrationTestDbContextOptions.Create<SecurityContractContext>().UseMySql(connectionString, serverVersion)
                 .Options);
 
         Assert.Equal(
@@ -607,7 +646,7 @@ public sealed class MySqlTlsAuthenticationContractTests
     )
     {
         await using var context = new SecurityContractContext(
-            new DbContextOptionsBuilder<SecurityContractContext>().UseMySql(connectionString, serverVersion)
+            IntegrationTestDbContextOptions.Create<SecurityContractContext>().UseMySql(connectionString, serverVersion)
                 .Options);
 
         Assert.Equal(

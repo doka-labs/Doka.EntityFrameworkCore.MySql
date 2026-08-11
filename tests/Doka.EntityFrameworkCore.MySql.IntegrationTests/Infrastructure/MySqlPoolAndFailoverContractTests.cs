@@ -25,6 +25,30 @@ public sealed class MySqlPoolAndFailoverContractTests
     }
 
     /// <summary>
+    /// Verifies the pool and failover contract against MySQL 9.7.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task MySql97_satisfies_the_pool_and_failover_contract()
+    {
+        await AssertPoolAndFailoverContractAsync(
+                IntegrationDatabaseTarget.MySql97,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies the pool and failover contract against MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task MariaDb1011_satisfies_the_pool_and_failover_contract()
+    {
+        await AssertPoolAndFailoverContractAsync(
+                IntegrationDatabaseTarget.MariaDb1011,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Verifies the pool and failover contract against MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
@@ -45,6 +69,18 @@ public sealed class MySqlPoolAndFailoverContractTests
         await AssertPoolAndFailoverContractAsync(
                 IntegrationDatabaseTarget.MariaDb118,
                 MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies the pool and failover contract against MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task MariaDb123_satisfies_the_pool_and_failover_contract()
+    {
+        await AssertPoolAndFailoverContractAsync(
+                IntegrationDatabaseTarget.MariaDb123,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
             .ConfigureAwait(false);
     }
 
@@ -118,7 +154,7 @@ public sealed class MySqlPoolAndFailoverContractTests
             Assert.Equal(releasedServerThread, recoveredConnection.ServerThread);
 
             await using var context = new PoolContractContext(
-                new DbContextOptionsBuilder<PoolContractContext>().UseMySql(recoveredConnection, serverVersion)
+                IntegrationTestDbContextOptions.Create<PoolContractContext>().UseMySql(recoveredConnection, serverVersion)
                     .Options);
 
             Assert.Equal(
@@ -276,11 +312,19 @@ public sealed class MySqlPoolAndFailoverContractTests
     )
     {
         var directBuilder = new MySqlConnectionStringBuilder(directConnectionString);
-        await using var proxy = new TcpFaultProxy(directBuilder.Server, checked((int)directBuilder.Port));
-        var unavailableHost = IPAddress.Parse("::2");
+        var healthyHost = IPAddress.IPv6Loopback;
+        await using var proxy = new TcpFaultProxy(
+            directBuilder.Server,
+            checked((int)directBuilder.Port),
+            healthyHost);
+        var unavailableHost = IPAddress.Loopback;
 
-        using (var unavailableClient = new TcpClient(AddressFamily.InterNetworkV6))
+        using (var unavailableClient = new TcpClient(AddressFamily.InterNetwork))
         {
+            // Use IP literals on the two platform-defined loopback endpoints.
+            // The first refuses immediately while the proxy listens on the
+            // second, so the test measures ordered host failover rather than
+            // DNS or an operating-system connect timeout.
             _ = await Assert
                 .ThrowsAsync<SocketException>(() => unavailableClient.ConnectAsync(unavailableHost, proxy.Port))
                 .ConfigureAwait(false);
@@ -288,7 +332,7 @@ public sealed class MySqlPoolAndFailoverContractTests
 
         var failoverConnectionString = new MySqlConnectionStringBuilder(directConnectionString)
         {
-            Server = $"{unavailableHost},127.0.0.1",
+            Server = $"{unavailableHost},{proxy.Host}",
             Port = (uint)proxy.Port,
             LoadBalance = MySqlLoadBalance.FailOver,
             Pooling = false,
@@ -297,7 +341,7 @@ public sealed class MySqlPoolAndFailoverContractTests
         }.ConnectionString;
 
         await using var context = new PoolContractContext(
-            new DbContextOptionsBuilder<PoolContractContext>().UseMySql(failoverConnectionString, serverVersion)
+            IntegrationTestDbContextOptions.Create<PoolContractContext>().UseMySql(failoverConnectionString, serverVersion)
                 .Options);
 
         Assert.Equal(

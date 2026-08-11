@@ -35,6 +35,34 @@ public sealed class RepoLocalCompatibilityMatrixTests
     }
 
     /// <summary>
+    /// Verifies the explicit matrix contract for MySQL 9.7.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public Task MySql97_matrix_contract_is_visible()
+    {
+        return VerifyMatrixContractAsync(
+            IntegrationDatabaseTarget.MySql97,
+            expectedVersion: new Version(9, 7, 0),
+            isMariaDb: false,
+            usesJsonAlias: false,
+            supportsNativeJsonType: true);
+    }
+
+    /// <summary>
+    /// Verifies the explicit matrix contract for MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public Task MariaDb1011_matrix_contract_is_visible()
+    {
+        return VerifyMatrixContractAsync(
+            IntegrationDatabaseTarget.MariaDb1011,
+            expectedVersion: new Version(10, 11, 0),
+            isMariaDb: true,
+            usesJsonAlias: true,
+            supportsNativeJsonType: false);
+    }
+
+    /// <summary>
     /// Verifies the explicit matrix contract for MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
@@ -57,6 +85,20 @@ public sealed class RepoLocalCompatibilityMatrixTests
         return VerifyMatrixContractAsync(
             IntegrationDatabaseTarget.MariaDb118,
             expectedVersion: new Version(11, 8, 0),
+            isMariaDb: true,
+            usesJsonAlias: true,
+            supportsNativeJsonType: false);
+    }
+
+    /// <summary>
+    /// Verifies the explicit matrix contract for MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public Task MariaDb123_matrix_contract_is_visible()
+    {
+        return VerifyMatrixContractAsync(
+            IntegrationDatabaseTarget.MariaDb123,
+            expectedVersion: new Version(12, 3, 0),
             isMariaDb: true,
             usesJsonAlias: true,
             supportsNativeJsonType: false);

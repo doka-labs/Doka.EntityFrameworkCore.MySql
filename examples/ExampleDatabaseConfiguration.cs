@@ -71,10 +71,14 @@ internal sealed class ExampleDatabaseConfiguration
     ) => target switch
     {
         "mysql84" => MySqlServerVersion.MySql(new Version(8, 4, 0)),
+        "mysql97" => MySqlServerVersion.MySql(new Version(9, 7, 0)),
+        "mariadb1011" => MySqlServerVersion.MariaDb(new Version(10, 11, 0)),
         "mariadb114" => MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
         "mariadb118" => MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+        "mariadb123" => MySqlServerVersion.MariaDb(new Version(12, 3, 0)),
         _ => throw new InvalidOperationException(
-            "DOKA_EXAMPLE_DATABASE_TARGET must be mysql84, mariadb114, or mariadb118."),
+            "DOKA_EXAMPLE_DATABASE_TARGET must be mysql84, mysql97, mariadb1011, "
+            + "mariadb114, mariadb118, or mariadb123."),
     };
 
     private static string DefaultConnectionString(
@@ -82,9 +86,13 @@ internal sealed class ExampleDatabaseConfiguration
     ) => target switch
     {
         "mysql84" => "Server=localhost;Port=33068;User ID=root;Password=root_password;",
+        "mysql97" => "Server=localhost;Port=33070;User ID=root;Password=root_password;",
+        "mariadb1011" => "Server=localhost;Port=33066;User ID=root;Password=root_password;",
         "mariadb114" => "Server=localhost;Port=33067;User ID=root;Password=root_password;",
         "mariadb118" => "Server=localhost;Port=33069;User ID=root;Password=root_password;",
+        "mariadb123" => "Server=localhost;Port=33071;User ID=root;Password=root_password;",
         _ => throw new InvalidOperationException(
-            "DOKA_EXAMPLE_DATABASE_TARGET must be mysql84, mariadb114, or mariadb118."),
+            "DOKA_EXAMPLE_DATABASE_TARGET must be mysql84, mysql97, mariadb1011, "
+            + "mariadb114, mariadb118, or mariadb123."),
     };
 }

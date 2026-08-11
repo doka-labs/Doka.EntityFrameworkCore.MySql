@@ -18,6 +18,24 @@ public sealed class MySqlCrossLayerObservabilityTests
             .ConfigureAwait(false);
     }
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task MySql97_correlates_the_complete_observability_stack()
+    {
+        await AssertCrossLayerContractAsync(
+                IntegrationDatabaseTarget.MySql97,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97))
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task MariaDb1011_correlates_the_complete_observability_stack()
+    {
+        await AssertCrossLayerContractAsync(
+                IntegrationDatabaseTarget.MariaDb1011,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
+            .ConfigureAwait(false);
+    }
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_correlates_the_complete_observability_stack()
     {
@@ -33,6 +51,15 @@ public sealed class MySqlCrossLayerObservabilityTests
         await AssertCrossLayerContractAsync(
                 IntegrationDatabaseTarget.MariaDb118,
                 MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task MariaDb123_correlates_the_complete_observability_stack()
+    {
+        await AssertCrossLayerContractAsync(
+                IntegrationDatabaseTarget.MariaDb123,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
             .ConfigureAwait(false);
     }
 
@@ -60,7 +87,7 @@ public sealed class MySqlCrossLayerObservabilityTests
         // Server-version resolution is a one-shot singleton initialization signal.
         // Disable EF's provider cache so this test observes that boundary itself.
         await using var context = new ObservabilityContext(
-            new DbContextOptionsBuilder<ObservabilityContext>()
+            IntegrationTestDbContextOptions.Create<ObservabilityContext>()
                 .EnableServiceProviderCaching(false)
                 .UseLoggerFactory(loggerFactory)
                 .UseMySql(connectionStringBuilder.ConnectionString, serverVersion)

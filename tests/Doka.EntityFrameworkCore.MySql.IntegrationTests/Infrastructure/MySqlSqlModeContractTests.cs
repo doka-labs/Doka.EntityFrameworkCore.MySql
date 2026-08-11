@@ -34,6 +34,30 @@ public sealed class MySqlSqlModeContractTests
     }
 
     /// <summary>
+    /// Verifies every configured SQL mode against MySQL 9.7.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task MySql97_preserves_text_literals_across_supported_sql_modes()
+    {
+        await AssertTextLiteralContractAsync(
+                IntegrationDatabaseTarget.MySql97,
+                MySqlServerVersion.MySql(new Version(9, 7, 0)))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies every configured SQL mode against MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task MariaDb1011_preserves_text_literals_across_supported_sql_modes()
+    {
+        await AssertTextLiteralContractAsync(
+                IntegrationDatabaseTarget.MariaDb1011,
+                MySqlServerVersion.MariaDb(new Version(10, 11, 0)))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Verifies every configured SQL mode against MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
@@ -57,6 +81,18 @@ public sealed class MySqlSqlModeContractTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Verifies every configured SQL mode against MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task MariaDb123_preserves_text_literals_across_supported_sql_modes()
+    {
+        await AssertTextLiteralContractAsync(
+                IntegrationDatabaseTarget.MariaDb123,
+                MySqlServerVersion.MariaDb(new Version(12, 3, 0)))
+            .ConfigureAwait(false);
+    }
+
     private static async Task AssertTextLiteralContractAsync(
         IntegrationDatabaseTarget target,
         MySqlServerVersion serverVersion
@@ -75,7 +111,7 @@ public sealed class MySqlSqlModeContractTests
             .ConfigureAwait(false);
 
         await using var context = new SqlModeContractContext(
-            new DbContextOptionsBuilder<SqlModeContractContext>().UseMySql(connection, serverVersion)
+            IntegrationTestDbContextOptions.Create<SqlModeContractContext>().UseMySql(connection, serverVersion)
                 .Options);
         var mapping = context
             .GetService<IRelationalTypeMappingSource>()

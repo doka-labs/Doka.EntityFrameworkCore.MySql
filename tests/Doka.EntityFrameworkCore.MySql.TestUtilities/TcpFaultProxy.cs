@@ -26,20 +26,39 @@ public sealed class TcpFaultProxy : IAsyncDisposable
     /// </summary>
     /// <param name="upstreamHost">The upstream database host.</param>
     /// <param name="upstreamPort">The upstream database port.</param>
+    /// <param name="listenerAddress">
+    /// The loopback address to expose, or <see langword="null"/> for the
+    /// platform's default IPv4 loopback address.
+    /// </param>
     public TcpFaultProxy(
         string upstreamHost,
-        int upstreamPort
+        int upstreamPort,
+        IPAddress? listenerAddress = null
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(upstreamHost);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(upstreamPort);
+        listenerAddress ??= IPAddress.Loopback;
+
+        if (!IPAddress.IsLoopback(listenerAddress))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(listenerAddress),
+                listenerAddress,
+                "The fault proxy must remain confined to a loopback interface.");
+        }
 
         _upstreamHost = upstreamHost;
         _upstreamPort = upstreamPort;
-        _listener = new TcpListener(IPAddress.Loopback, 0);
+        _listener = new TcpListener(listenerAddress, 0);
         _listener.Start();
         _acceptLoop = AcceptConnectionsAsync(_shutdown.Token);
     }
+
+    /// <summary>
+    /// Gets the loopback address on which the proxy accepts connections.
+    /// </summary>
+    public string Host => ((IPEndPoint)_listener.LocalEndpoint).Address.ToString();
 
     /// <summary>
     /// Gets the ephemeral loopback port on which the proxy accepts connections.
@@ -148,7 +167,7 @@ public sealed class TcpFaultProxy : IAsyncDisposable
     {
         var builder = new MySqlConnectionStringBuilder(connectionString)
         {
-            Server = IPAddress.Loopback.ToString(),
+            Server = Host,
             Port = (uint)Port,
             Pooling = false,
             Pipelining = false,

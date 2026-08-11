@@ -9,8 +9,8 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// - Capability-driven fallback: <c>ALTER TABLE ... CHANGE COLUMN old new &lt;definition&gt;</c>
 ///   exercised by forcing an older MariaDB version string so the engine profile drops
 ///   <see cref="EngineCapability.RenameColumnSyntax"/>.
-/// MySQL 8.4 + MariaDB 11.4 share the modern path; the snapshot DDL test pins both
-/// paths against the live server to keep the fallback honest.
+/// Every active MySQL and MariaDB LTS target shares the modern path; the snapshot
+/// DDL test pins both paths against live servers to keep the fallback honest.
 /// </summary>
 [Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlMigrationRenameColumnTests
@@ -42,6 +42,30 @@ public sealed class MySqlMigrationRenameColumnTests
     }
 
     /// <summary>
+    /// Verifies the native rename path and comment preservation on MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task MariaDb1011_native_rename_column_persists_data()
+    {
+        await RunRenameRoundTrip(
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011),
+            expectFallback: false);
+    }
+
+    /// <summary>
+    /// Verifies the native rename path and comment preservation on MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task MariaDb123_native_rename_column_persists_data()
+    {
+        await RunRenameRoundTrip(
+            IntegrationDatabaseTarget.MariaDb123,
+            IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123),
+            expectFallback: false);
+    }
+
+    /// <summary>
     /// Forces the legacy MariaDB capability profile and verifies its live fallback.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
@@ -67,6 +91,18 @@ public sealed class MySqlMigrationRenameColumnTests
         await RunRenameRoundTrip(
             IntegrationDatabaseTarget.MySql84,
             MySqlServerVersion.MySql(new Version(8, 4, 0)),
+            expectFallback: false);
+    }
+
+    /// <summary>
+    /// Verifies the native rename path and data preservation on MySQL 9.7.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task MySql97_native_rename_column_persists_data()
+    {
+        await RunRenameRoundTrip(
+            IntegrationDatabaseTarget.MySql97,
+            IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97),
             expectFallback: false);
     }
 
@@ -159,7 +195,7 @@ public sealed class MySqlMigrationRenameColumnTests
     )
         where T : DbContext
     {
-        var builder = new DbContextOptionsBuilder<T>();
+        var builder = IntegrationTestDbContextOptions.Create<T>();
         builder.UseMySql(connectionString, serverVersion);
         return builder.Options;
     }

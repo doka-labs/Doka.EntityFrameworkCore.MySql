@@ -434,7 +434,7 @@ public sealed class MySql84CrudBaselineTests
         DbCommandInterceptor? interceptor
     )
     {
-        var builder = new DbContextOptionsBuilder<MySql84CrudContext>();
+        var builder = IntegrationTestDbContextOptions.Create<MySql84CrudContext>();
 
         builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
@@ -552,7 +552,7 @@ public sealed class MySql84CrudBaselineTests
         string connectionString
     )
     {
-        var builder = new DbContextOptionsBuilder<GuidRoundtripContext>();
+        var builder = IntegrationTestDbContextOptions.Create<GuidRoundtripContext>();
 
         builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
