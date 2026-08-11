@@ -1,9 +1,9 @@
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 
 /// <summary>
-/// Marks an inherited EF Core specification fact as unsupported on explicitly named
-/// database targets because the engine cannot express the required relational operation.
-/// The disposition ID links the executable skip to its primary-source-backed ledger entry.
+/// Marks an inherited EF Core specification fact as unsupported because the
+/// engine cannot express the required relational operation. The disposition ID
+/// links discovery directly to its primary-source-backed ledger entry.
 /// </summary>
 /// <remarks>
 /// Setting <c>DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true</c> disables the skip so an engine
@@ -13,13 +13,14 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 public sealed class SpecEngineLimitationFactAttribute : FactAttribute
 {
     /// <summary>
-    /// Creates an engine-limited fact disposition for the supplied test targets.
+    /// Creates an engine-limited fact disposition.
     /// </summary>
     /// <param name="dispositionId">
     /// Stable identifier of the corresponding machine-readable disposition.
     /// </param>
     /// <param name="unsupportedTargets">
-    /// Exact <c>DOKA_SPEC_TEST_TARGET</c> values on which discovery must skip the fact.
+    /// Targets covered when the source annotation was authored. The ledger may
+    /// add later LTS targets, but it cannot silently remove an annotated target.
     /// </param>
     public SpecEngineLimitationFactAttribute(
         string dispositionId,
@@ -30,10 +31,12 @@ public sealed class SpecEngineLimitationFactAttribute : FactAttribute
         ArgumentNullException.ThrowIfNull(unsupportedTargets);
 
         DispositionId = dispositionId;
-        UnsupportedTargets = unsupportedTargets;
+        UnsupportedTargets = SpecEngineDispositionCatalog.GetTargets(
+            dispositionId,
+            unsupportedTargets);
 
         var target = SpecTestTarget.Resolve();
-        if (unsupportedTargets.Contains(target, StringComparer.OrdinalIgnoreCase)
+        if (UnsupportedTargets.Contains(target, StringComparer.OrdinalIgnoreCase)
             && !SpecTestTarget.IsEngineLimitationProbeEnabled())
         {
             Skip =

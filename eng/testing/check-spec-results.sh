@@ -11,7 +11,7 @@ target="${1:-}"
 trx_path="${2:-}"
 
 if [[ -z "${target}" || -z "${trx_path}" ]]; then
-    echo "Usage: $(basename "$0") <mysql84|mariadb114|mariadb118> <trx-file-or-directory>" >&2
+    echo "Usage: $(basename "$0") <active-lts-target> <trx-file-or-directory>" >&2
     exit 2
 fi
 

@@ -99,6 +99,18 @@ public sealed class FunctionalDatabaseFixture : IAsyncLifetime
                 "mysql:8.4",
                 TestDatabaseImages.MySql84,
                 ConnectionStringEnvironmentVariable),
+            "mysql97" => new TestDatabaseRequest(
+                "mysql97",
+                TestDatabaseEngine.MySql,
+                "mysql:9.7",
+                TestDatabaseImages.MySql97,
+                ConnectionStringEnvironmentVariable),
+            "mariadb1011" => new TestDatabaseRequest(
+                "mariadb1011",
+                TestDatabaseEngine.MariaDb,
+                "mariadb:10.11",
+                TestDatabaseImages.MariaDb1011,
+                ConnectionStringEnvironmentVariable),
             "mariadb114" => new TestDatabaseRequest(
                 "mariadb114",
                 TestDatabaseEngine.MariaDb,
@@ -111,9 +123,15 @@ public sealed class FunctionalDatabaseFixture : IAsyncLifetime
                 "mariadb:11.8",
                 TestDatabaseImages.MariaDb118,
                 ConnectionStringEnvironmentVariable),
+            "mariadb123" => new TestDatabaseRequest(
+                "mariadb123",
+                TestDatabaseEngine.MariaDb,
+                "mariadb:12.3",
+                TestDatabaseImages.MariaDb123,
+                ConnectionStringEnvironmentVariable),
             _ => throw new InvalidOperationException(
                 $"Unsupported functional-test target '{targetId}' in {SpecTestTarget.EnvironmentVariableName}. "
-                + "Supported values are: mysql84, mariadb114, mariadb118."),
+                + "Supported values are: mysql84, mysql97, mariadb1011, mariadb114, mariadb118, mariadb123."),
         };
     }
 

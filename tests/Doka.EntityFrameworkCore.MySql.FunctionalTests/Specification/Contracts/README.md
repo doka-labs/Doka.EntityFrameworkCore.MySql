@@ -13,8 +13,8 @@ not architecture decisions.
   provider test type, the official `NonSharedModelTestBase` exemption, or
   provider-owned suite debt. The debt count may only decrease.
 - `SpecDiscovery.<version>.json` records the exact xUnit display IDs discovered
-  for MySQL 8.4, MariaDB 11.4, and MariaDB 11.8. It detects missing fixtures,
-  missing Theory rows, duplicate IDs, and unexpected discovery growth.
+  for every active LTS target. It detects missing fixtures, missing Theory rows,
+  duplicate IDs, and unexpected discovery growth.
 - The discovery gate also compares the complete specification namespace with
   `Category=Spec`, so an adapter cannot silently fall out of the release matrix.
 - `../SpecDispositions.json` records only executable engine, upstream-framework,
@@ -38,30 +38,41 @@ The baseline retrieved on 2026-07-27 recorded 9 implemented base mappings,
 are now closed: the repository validator reports provider suite debt `0/317`
 for both supported EF Core patch contracts.
 
-Discovery regenerated on 2026-08-05 records the complete concrete provider
+Discovery regenerated on 2026-08-11 records the complete concrete provider
 surface:
 
-| EF Core | MySQL 8.4 | MariaDB 11.4 | MariaDB 11.8 |
-| --- | ---: | ---: | ---: |
-| 10.0.8 | 29,746 | 29,410 | 29,411 |
-| 10.0.10 | 29,754 | 29,418 | 29,419 |
+| EF Core | Target | Discovered |
+| --- | --- | ---: |
+| 10.0.8 | MySQL 8.4 | 29,746 |
+| 10.0.8 | MySQL 9.7 | 29,746 |
+| 10.0.8 | MariaDB 10.11 | 29,412 |
+| 10.0.8 | MariaDB 11.4 | 29,410 |
+| 10.0.8 | MariaDB 11.8 | 29,411 |
+| 10.0.8 | MariaDB 12.3 | 29,417 |
+| 10.0.10 | MySQL 8.4 | 29,754 |
+| 10.0.10 | MySQL 9.7 | 29,754 |
+| 10.0.10 | MariaDB 10.11 | 29,420 |
+| 10.0.10 | MariaDB 11.4 | 29,418 |
+| 10.0.10 | MariaDB 11.8 | 29,419 |
+| 10.0.10 | MariaDB 12.3 | 29,425 |
 
-Every target was executed in full on 2026-07-30:
+The complete six-target matrix was executed in full against EF Core 10.0.10
+on 2026-08-11:
 
 | EF Core | Target | Passed | Skipped | Failed | Total |
 | --- | --- | ---: | ---: | ---: | ---: |
-| 10.0.8 | MySQL 8.4 | 29,418 | 327 | 0 | 29,745 |
-| 10.0.8 | MariaDB 11.4 | 28,707 | 702 | 0 | 29,409 |
-| 10.0.8 | MariaDB 11.8 | 28,709 | 701 | 0 | 29,410 |
-| 10.0.10 | MySQL 8.4 | 29,426 | 327 | 0 | 29,753 |
-| 10.0.10 | MariaDB 11.4 | 28,715 | 702 | 0 | 29,417 |
-| 10.0.10 | MariaDB 11.8 | 28,717 | 701 | 0 | 29,418 |
+| 10.0.10 | MySQL 8.4 | 29,427 | 327 | 0 | 29,754 |
+| 10.0.10 | MySQL 9.7 | 29,427 | 327 | 0 | 29,754 |
+| 10.0.10 | MariaDB 10.11 | 28,720 | 700 | 0 | 29,420 |
+| 10.0.10 | MariaDB 11.4 | 28,716 | 702 | 0 | 29,418 |
+| 10.0.10 | MariaDB 11.8 | 28,718 | 701 | 0 | 29,419 |
+| 10.0.10 | MariaDB 12.3 | 28,730 | 695 | 0 | 29,425 |
 
-Those exact TRX totals and display IDs matched the discovery contracts current
-on 2026-07-30. Every skip matched its ledger ID, method, and target; every other
-discovered test passed. The 2026-08-05 regeneration adds one repository-only
-documentation-consistency contract per target. The dated live matrix remains
-historical execution evidence and is not presented as a newer full-matrix run.
+The TRX totals and display IDs matched the discovery contracts regenerated on
+2026-08-11. Every skip matched its ledger ID, method, and target; every other
+discovered test passed. The three newly admitted targets were also executed
+against the minimum EF Core 10.0.8 patch on the same date, while the scheduled
+patch matrix continues to enforce both supported dependency endpoints.
 The source contract also rejects inherited upstream skips unless the provider
 activates the assertion or records an executable framework disposition.
 

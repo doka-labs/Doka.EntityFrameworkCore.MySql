@@ -9,7 +9,14 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 functional_test_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj"
 contract_project="${repo_root}/eng/tools/Doka.EntityFrameworkCore.MySql.SpecificationContract/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj"
-discovery_targets=("mysql84" "mariadb114" "mariadb118")
+discovery_targets=(
+    "mysql84"
+    "mysql97"
+    "mariadb1011"
+    "mariadb114"
+    "mariadb118"
+    "mariadb123"
+)
 discovery_directory="$(mktemp -d "${TMPDIR:-/tmp}/doka-spec-discovery.XXXXXX")"
 
 cleanup() {
