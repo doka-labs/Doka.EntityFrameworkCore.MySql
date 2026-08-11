@@ -45,6 +45,17 @@ internal static class TemporalTableLoader
             return;
         }
 
+        var periodColumns = context.Profile.Engine.Has(EngineCapability.TemporalPeriodCatalog)
+            ? LoadCatalogPeriodColumns(context)
+            : LoadColumnExpressionPeriodColumns(temporalTables);
+
+        ApplyNativePeriodColumns(temporalTables, periodColumns);
+    }
+
+    private static Dictionary<string, NativePeriodColumns> LoadCatalogPeriodColumns(
+        ScaffoldingPipelineContext context
+    )
+    {
         using var command = context.Connection.CreateCommand();
         command.CommandText = """
                               SELECT
@@ -90,6 +101,47 @@ internal static class TemporalTableLoader
             }
         }
 
+        return periodColumns;
+    }
+
+    private static Dictionary<string, NativePeriodColumns> LoadColumnExpressionPeriodColumns(
+        IEnumerable<DatabaseTable> temporalTables
+    )
+    {
+        var periodColumns = new Dictionary<string, NativePeriodColumns>(StringComparer.Ordinal);
+
+        // MariaDB exposed ROW START/ROW END through GENERATION_EXPRESSION
+        // before the dedicated period catalogs arrived in 11.4. The values are
+        // engine metadata, so this fallback remains independent of user naming.
+        foreach (var table in temporalTables)
+        {
+            var columns = new NativePeriodColumns();
+
+            foreach (var column in table.Columns)
+            {
+                var expression = column.ComputedColumnSql?.Trim();
+
+                if (string.Equals(expression, "ROW START", StringComparison.OrdinalIgnoreCase))
+                {
+                    columns.StartColumns.Add(column.Name);
+                }
+                else if (string.Equals(expression, "ROW END", StringComparison.OrdinalIgnoreCase))
+                {
+                    columns.EndColumns.Add(column.Name);
+                }
+            }
+
+            periodColumns[table.Name] = columns;
+        }
+
+        return periodColumns;
+    }
+
+    private static void ApplyNativePeriodColumns(
+        IEnumerable<DatabaseTable> temporalTables,
+        IReadOnlyDictionary<string, NativePeriodColumns> periodColumns
+    )
+    {
         foreach (var table in temporalTables)
         {
             if (!periodColumns.TryGetValue(table.Name, out var columns)

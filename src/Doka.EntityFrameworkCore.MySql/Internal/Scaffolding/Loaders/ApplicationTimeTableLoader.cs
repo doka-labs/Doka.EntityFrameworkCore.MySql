@@ -2,7 +2,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Reconstructs MariaDB application-time periods and their <c>WITHOUT OVERLAPS</c>
-/// constraints from the 11.4+ INFORMATION_SCHEMA period catalogs.
+/// constraints from period catalogs or canonical table definitions.
 /// </summary>
 internal static class ApplicationTimeTableLoader
 {
@@ -12,16 +12,19 @@ internal static class ApplicationTimeTableLoader
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        // MariaDB exposes no stable catalog contract for application-time periods
-        // before 11.4. Guessing from column names or SHOW CREATE TABLE would make
-        // reverse engineering depend on formatting and user naming conventions.
-        if (!context.Profile.Engine.Has(EngineCapability.TemporalPeriodCatalog))
+        if (!context.Profile.Engine.Has(EngineCapability.ApplicationTimePeriods))
         {
             return;
         }
 
-        LoadPeriods(context);
-        LoadWithoutOverlapsConstraints(context);
+        if (context.Profile.Engine.Has(EngineCapability.TemporalPeriodCatalog))
+        {
+            LoadPeriods(context);
+            LoadWithoutOverlapsConstraints(context);
+            return;
+        }
+
+        LoadCanonicalTableDefinitions(context);
     }
 
     private static void LoadPeriods(
@@ -64,24 +67,12 @@ internal static class ApplicationTimeTableLoader
             var startColumnName = reader.GetString(2);
             var endColumnName = reader.GetString(3);
 
-            if (!context.Columns.ContainsKey((tableName, startColumnName))
-                || !context.Columns.ContainsKey((tableName, endColumnName)))
-            {
-                throw new InvalidOperationException(
-                    $"Application-time table '{tableName}' exposes period '{periodName}' with missing boundary "
-                    + $"columns '{startColumnName}' and '{endColumnName}'.");
-            }
-
-            if (table.FindAnnotation(MySqlAnnotationNames.IsApplicationTime) is not null)
-            {
-                throw new InvalidOperationException(
-                    $"Application-time table '{tableName}' exposes more than one application-time period.");
-            }
-
-            table.SetAnnotation(MySqlAnnotationNames.IsApplicationTime, true);
-            table.SetAnnotation(MySqlAnnotationNames.ApplicationTimePeriodName, periodName);
-            table.SetAnnotation(MySqlAnnotationNames.ApplicationTimePeriodStartColumn, startColumnName);
-            table.SetAnnotation(MySqlAnnotationNames.ApplicationTimePeriodEndColumn, endColumnName);
+            ApplyPeriod(
+                context,
+                table,
+                periodName,
+                startColumnName,
+                endColumnName);
         }
     }
 
@@ -120,48 +111,130 @@ internal static class ApplicationTimeTableLoader
             var constraintName = reader.GetString(1);
             var periodName = reader.GetString(2);
 
-            if (!string.Equals(
-                    table.FindAnnotation(MySqlAnnotationNames.ApplicationTimePeriodName)
-                        ?.Value as string,
-                    periodName,
-                    StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException(
-                    $"Application-time constraint '{constraintName}' on table '{tableName}' references unknown "
-                    + $"period '{periodName}'.");
-            }
+            ApplyWithoutOverlaps(table, constraintName, periodName);
+        }
+    }
 
-            if (string.Equals(constraintName, "PRIMARY", StringComparison.OrdinalIgnoreCase))
+    private static void LoadCanonicalTableDefinitions(
+        ScaffoldingPipelineContext context
+    )
+    {
+        // Before 11.4 MariaDB has no bulk period catalogs, so one SHOW CREATE
+        // TABLE round trip per selected table is unavoidable. SET STATEMENT
+        // keeps that canonical output independent of the caller's SQL mode.
+        // Clearing ANSI_QUOTES is also a parser safety property: identifiers
+        // remain backtick-quoted instead of looking like string literals.
+        foreach (var table in context.TableLookup.Values)
+        {
+            if (table is DatabaseView)
             {
-                if (table.PrimaryKey is null)
-                {
-                    throw new InvalidOperationException(
-                        $"Application-time table '{tableName}' exposes a PRIMARY WITHOUT OVERLAPS constraint "
-                        + "without a primary key.");
-                }
-
-                table.PrimaryKey.SetAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps, true);
-                table.SetAnnotation(MySqlAnnotationNames.ApplicationTimeWithoutOverlaps, true);
                 continue;
             }
 
-            var uniqueConstraint = table.UniqueConstraints.SingleOrDefault(constraint =>
-                string.Equals(constraint.Name, constraintName, StringComparison.Ordinal));
-            var index = table.Indexes.SingleOrDefault(candidate => string.Equals(
-                candidate.Name,
-                constraintName,
-                StringComparison.Ordinal));
+            using var command = context.Connection.CreateCommand();
+            command.CommandText = "SET STATEMENT sql_mode = '', sql_quote_show_create = 1 "
+                + "FOR SHOW CREATE TABLE "
+                + MySqlIdentifierEscaping.DelimitIdentifier(table.Name)
+                + ";";
 
-            if (uniqueConstraint is null
-                && index is null)
+            using var reader = command.ExecuteReader();
+
+            if (!reader.Read())
             {
-                throw new InvalidOperationException(
-                    $"Application-time table '{tableName}' exposes WITHOUT OVERLAPS constraint "
-                    + $"'{constraintName}' without matching unique constraint or index metadata.");
+                throw new InvalidOperationException($"SHOW CREATE TABLE returned no definition for '{table.Name}'.");
             }
 
-            uniqueConstraint?.SetAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps, true);
-            index?.SetAnnotation(MySqlAnnotationNames.ApplicationTimeIndexWithoutOverlaps, true);
+            var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(reader.GetString(1));
+
+            if (definition is null)
+            {
+                continue;
+            }
+
+            ApplyPeriod(context, table, definition.PeriodName, definition.StartColumnName, definition.EndColumnName);
+
+            foreach (var constraintName in definition.WithoutOverlapsConstraints)
+            {
+                ApplyWithoutOverlaps(table, constraintName, definition.PeriodName);
+            }
         }
+    }
+
+    private static void ApplyPeriod(
+        ScaffoldingPipelineContext context,
+        DatabaseTable table,
+        string periodName,
+        string startColumnName,
+        string endColumnName
+    )
+    {
+        if (!context.Columns.ContainsKey((table.Name, startColumnName))
+            || !context.Columns.ContainsKey((table.Name, endColumnName)))
+        {
+            throw new InvalidOperationException(
+                $"Application-time table '{table.Name}' exposes period '{periodName}' with missing boundary "
+                + $"columns '{startColumnName}' and '{endColumnName}'.");
+        }
+
+        if (table.FindAnnotation(MySqlAnnotationNames.IsApplicationTime) is not null)
+        {
+            throw new InvalidOperationException(
+                $"Application-time table '{table.Name}' exposes more than one application-time period.");
+        }
+
+        table.SetAnnotation(MySqlAnnotationNames.IsApplicationTime, true);
+        table.SetAnnotation(MySqlAnnotationNames.ApplicationTimePeriodName, periodName);
+        table.SetAnnotation(MySqlAnnotationNames.ApplicationTimePeriodStartColumn, startColumnName);
+        table.SetAnnotation(MySqlAnnotationNames.ApplicationTimePeriodEndColumn, endColumnName);
+    }
+
+    private static void ApplyWithoutOverlaps(
+        DatabaseTable table,
+        string constraintName,
+        string periodName
+    )
+    {
+        if (!string.Equals(
+                table.FindAnnotation(MySqlAnnotationNames.ApplicationTimePeriodName)
+                    ?.Value as string,
+                periodName,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Application-time constraint '{constraintName}' on table '{table.Name}' references unknown "
+                + $"period '{periodName}'.");
+        }
+
+        if (string.Equals(constraintName, "PRIMARY", StringComparison.OrdinalIgnoreCase))
+        {
+            if (table.PrimaryKey is null)
+            {
+                throw new InvalidOperationException(
+                    $"Application-time table '{table.Name}' exposes a PRIMARY WITHOUT OVERLAPS constraint "
+                    + "without a primary key.");
+            }
+
+            table.PrimaryKey.SetAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps, true);
+            table.SetAnnotation(MySqlAnnotationNames.ApplicationTimeWithoutOverlaps, true);
+            return;
+        }
+
+        var uniqueConstraint = table.UniqueConstraints.SingleOrDefault(constraint =>
+            string.Equals(constraint.Name, constraintName, StringComparison.Ordinal));
+        var index = table.Indexes.SingleOrDefault(candidate => string.Equals(
+            candidate.Name,
+            constraintName,
+            StringComparison.Ordinal));
+
+        if (uniqueConstraint is null
+            && index is null)
+        {
+            throw new InvalidOperationException(
+                $"Application-time table '{table.Name}' exposes WITHOUT OVERLAPS constraint "
+                + $"'{constraintName}' without matching unique constraint or index metadata.");
+        }
+
+        uniqueConstraint?.SetAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps, true);
+        index?.SetAnnotation(MySqlAnnotationNames.ApplicationTimeIndexWithoutOverlaps, true);
     }
 }

@@ -14,40 +14,19 @@ public sealed class MySqlServerVersionTests
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 
         Assert.False(serverVersion.IsMariaDb);
-        Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.JsonColumns));
-        Assert.Equal(
-            ProviderSupportStatus.UnsupportedByEngine,
-            serverVersion.Profile.GetSupport(ProviderCapability.ReturningClause));
-        Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.Savepoints));
-        Assert.Equal(
-            ProviderSupportStatus.Native,
-            serverVersion.Profile.GetSupport(ProviderCapability.GeneratedColumnNullabilityClause));
-        Assert.Equal(
-            ProviderSupportStatus.Native,
-            serverVersion.Profile.GetSupport(ProviderCapability.VirtualGeneratedColumns));
-        Assert.Equal(
-            ProviderSupportStatus.Native,
-            serverVersion.Profile.GetSupport(ProviderCapability.StoredGeneratedColumns));
-        Assert.Equal(
-            ProviderSupportStatus.Native,
-            serverVersion.Profile.GetSupport(ProviderCapability.CommonTableExpressions));
-        Assert.Equal(
-            ProviderSupportStatus.Emulated,
-            serverVersion.Profile.GetSupport(ProviderCapability.TemporalTables));
-        Assert.Equal(
-            ProviderSupportStatus.Native,
-            serverVersion.Profile.GetSupport(ProviderCapability.SpatialColumnSridAttribute));
-        Assert.Equal(ProviderSupportStatus.Emulated, serverVersion.Profile.GetSupport(ProviderCapability.Sequences));
-        Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.RenameColumn));
-        Assert.Equal(
-            ProviderSupportStatus.Native,
-            serverVersion.Profile.GetSupport(ProviderCapability.LateralDerivedTables));
-        Assert.Equal(
-            ProviderSupportStatus.Emulated,
-            serverVersion.Profile.GetSupport(ProviderCapability.SelfReferencingMutations));
-        Assert.Equal(
-            ProviderSupportStatus.Native,
-            serverVersion.Profile.GetSupport(ProviderCapability.FunctionalIndexScaffolding));
+        AssertMySqlProviderProfile(serverVersion);
+    }
+
+    /// <summary>
+    /// Verifies that MySQL 9.7 retains the complete MySQL provider profile.
+    /// </summary>
+    [Fact]
+    public void MySql97_factory_creates_the_expected_mysql_capabilities()
+    {
+        var serverVersion = MySqlServerVersion.MySql(new Version(9, 7, 0));
+
+        Assert.False(serverVersion.IsMariaDb);
+        AssertMySqlProviderProfile(serverVersion);
     }
 
     /// <summary>
@@ -75,6 +54,30 @@ public sealed class MySqlServerVersionTests
     }
 
     /// <summary>
+    /// Verifies that MariaDB 10.11 retains the complete MariaDB provider profile.
+    /// </summary>
+    [Fact]
+    public void MariaDb1011_factory_creates_the_expected_mariadb_capabilities()
+    {
+        var serverVersion = MySqlServerVersion.MariaDb(new Version(10, 11, 0));
+
+        Assert.True(serverVersion.IsMariaDb);
+        AssertMariaDbProviderProfile(serverVersion);
+    }
+
+    /// <summary>
+    /// Verifies that MariaDB 12.3 retains the complete MariaDB provider profile.
+    /// </summary>
+    [Fact]
+    public void MariaDb123_factory_creates_the_expected_mariadb_capabilities()
+    {
+        var serverVersion = MySqlServerVersion.MariaDb(new Version(12, 3, 0));
+
+        Assert.True(serverVersion.IsMariaDb);
+        AssertMariaDbProviderProfile(serverVersion);
+    }
+
+    /// <summary>
     /// Verifies that MariaDB version strings are detected correctly.
     /// </summary>
     [Fact]
@@ -84,6 +87,20 @@ public sealed class MySqlServerVersionTests
 
         Assert.True(serverVersion.IsMariaDb);
         Assert.Equal(new Version(11, 8, 1), serverVersion.Version);
+    }
+
+    /// <summary>
+    /// Verifies that MariaDB's legacy client-compatibility prefix cannot mask
+    /// the authoritative release token returned by the server.
+    /// </summary>
+    [Fact]
+    public void Parse_ignores_mariadb_legacy_compatibility_prefix()
+    {
+        var serverVersion = MySqlServerVersion.Parse("5.5.5-10.11.18-MariaDB-ubu2204");
+
+        Assert.True(serverVersion.IsMariaDb);
+        Assert.Equal(new Version(10, 11, 18), serverVersion.Version);
+        Assert.Equal(MySqlServerVersionSupportStatus.Supported, serverVersion.SupportStatus);
     }
 
     /// <summary>
@@ -121,13 +138,21 @@ public sealed class MySqlServerVersionTests
     [Theory]
     [InlineData(false, 8, 3, 99, MySqlServerVersionSupportStatus.Legacy)]
     [InlineData(false, 8, 4, 99, MySqlServerVersionSupportStatus.Supported)]
-    [InlineData(false, 8, 5, 0, MySqlServerVersionSupportStatus.Future)]
-    [InlineData(true, 11, 3, 99, MySqlServerVersionSupportStatus.Legacy)]
+    [InlineData(false, 8, 5, 0, MySqlServerVersionSupportStatus.Unvalidated)]
+    [InlineData(false, 9, 6, 99, MySqlServerVersionSupportStatus.Unvalidated)]
+    [InlineData(false, 9, 7, 99, MySqlServerVersionSupportStatus.Supported)]
+    [InlineData(false, 9, 8, 0, MySqlServerVersionSupportStatus.Future)]
+    [InlineData(true, 10, 10, 99, MySqlServerVersionSupportStatus.Legacy)]
+    [InlineData(true, 10, 11, 99, MySqlServerVersionSupportStatus.Supported)]
+    [InlineData(true, 11, 3, 99, MySqlServerVersionSupportStatus.Unvalidated)]
     [InlineData(true, 11, 4, 99, MySqlServerVersionSupportStatus.Supported)]
     [InlineData(true, 11, 5, 0, MySqlServerVersionSupportStatus.Unvalidated)]
     [InlineData(true, 11, 7, 99, MySqlServerVersionSupportStatus.Unvalidated)]
     [InlineData(true, 11, 8, 99, MySqlServerVersionSupportStatus.Supported)]
-    [InlineData(true, 11, 9, 0, MySqlServerVersionSupportStatus.Future)]
+    [InlineData(true, 11, 9, 0, MySqlServerVersionSupportStatus.Unvalidated)]
+    [InlineData(true, 12, 2, 99, MySqlServerVersionSupportStatus.Unvalidated)]
+    [InlineData(true, 12, 3, 99, MySqlServerVersionSupportStatus.Supported)]
+    [InlineData(true, 12, 4, 0, MySqlServerVersionSupportStatus.Future)]
     public void Server_version_release_lines_are_classified_explicitly(
         bool isMariaDb,
         int major,
@@ -169,6 +194,46 @@ public sealed class MySqlServerVersionTests
             MySqlServerVersion.MySql(
                 new Version(8, 4, 0),
                 (MySqlServerVersionCompatibilityMode)int.MaxValue));
+    }
+
+    private static void AssertMySqlProviderProfile(
+        MySqlServerVersion serverVersion
+    )
+    {
+        Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.JsonColumns));
+        Assert.Equal(
+            ProviderSupportStatus.UnsupportedByEngine,
+            serverVersion.Profile.GetSupport(ProviderCapability.ReturningClause));
+        Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.Savepoints));
+        Assert.Equal(
+            ProviderSupportStatus.Native,
+            serverVersion.Profile.GetSupport(ProviderCapability.GeneratedColumnNullabilityClause));
+        Assert.Equal(
+            ProviderSupportStatus.Native,
+            serverVersion.Profile.GetSupport(ProviderCapability.VirtualGeneratedColumns));
+        Assert.Equal(
+            ProviderSupportStatus.Native,
+            serverVersion.Profile.GetSupport(ProviderCapability.StoredGeneratedColumns));
+        Assert.Equal(
+            ProviderSupportStatus.Native,
+            serverVersion.Profile.GetSupport(ProviderCapability.CommonTableExpressions));
+        Assert.Equal(
+            ProviderSupportStatus.Emulated,
+            serverVersion.Profile.GetSupport(ProviderCapability.TemporalTables));
+        Assert.Equal(
+            ProviderSupportStatus.Native,
+            serverVersion.Profile.GetSupport(ProviderCapability.SpatialColumnSridAttribute));
+        Assert.Equal(ProviderSupportStatus.Emulated, serverVersion.Profile.GetSupport(ProviderCapability.Sequences));
+        Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.RenameColumn));
+        Assert.Equal(
+            ProviderSupportStatus.Native,
+            serverVersion.Profile.GetSupport(ProviderCapability.LateralDerivedTables));
+        Assert.Equal(
+            ProviderSupportStatus.Emulated,
+            serverVersion.Profile.GetSupport(ProviderCapability.SelfReferencingMutations));
+        Assert.Equal(
+            ProviderSupportStatus.Native,
+            serverVersion.Profile.GetSupport(ProviderCapability.FunctionalIndexScaffolding));
     }
 
     private static void AssertMariaDbProviderProfile(
