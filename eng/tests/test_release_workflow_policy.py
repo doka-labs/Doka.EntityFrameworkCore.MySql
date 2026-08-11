@@ -189,10 +189,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "uses: ./.github/workflows/benchmark-scorecard.yml",
             scorecard,
         )
-        self.assertIn(
-            "baseline_mode: ${{ needs.resolve-baseline-mode.outputs.mode }}",
-            scorecard,
-        )
+        self.assertNotIn("baseline_mode:", scorecard)
         self.assertIn(
             "needs.resolve-baseline-mode.outputs.proposal-required == 'true'",
             proposal,
@@ -334,18 +331,40 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         )
 
         self.assertIn("  workflow_call:\n", scorecard_workflow)
-        self.assertIn("baseline_mode:", scorecard_workflow)
+        self.assertNotIn("      baseline_mode:", scorecard_workflow)
+        comparison_input = scorecard_workflow[
+            scorecard_workflow.index("      comparison_mode:"):
+            scorecard_workflow.index("\n\npermissions:")
+        ]
+        self.assertIn("required: true", comparison_input)
+        self.assertNotIn("default:", comparison_input)
         self.assertIn(
             "uses: ./.github/workflows/benchmark-scorecard.yml",
+            scorecard_call,
+        )
+        self.assertIn(
+            "comparison_mode: "
+            "${{ needs.resolve-baseline-mode.outputs.comparison-mode }}",
             scorecard_call,
         )
         self.assertNotIn("runs-on:", scorecard_call)
         self.assertNotIn("services:", control_plane)
         self.assertNotIn("bash ./eng/benchmark.sh --test-only", control_plane)
         self.assertIn("services:", scorecard_workflow)
-        self.assertIn(
-            "DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.baseline_mode }}",
-            scorecard_workflow,
+        baseline_mode_binding = (
+            "DOKA_BENCHMARK_BASELINE_MODE: "
+            "${{ inputs.comparison_mode == 'historical' "
+            "&& 'seed' || 'compare' }}"
+        )
+        self.assertEqual(
+            4,
+            scorecard_workflow.count(baseline_mode_binding),
+        )
+        self.assertEqual(
+            4,
+            scorecard_workflow.count(
+                '--comparison-mode "${COMPARISON_MODE}"',
+            ),
         )
         self.assertIn(
             "bash ./eng/benchmark.sh --test-only",

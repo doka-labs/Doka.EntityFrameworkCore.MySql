@@ -245,6 +245,14 @@ weekly run surfaces that near the day it happens. The benchmark workflow keeps
 its classifier and monthly schedule for the same reason. Neither schedule
 qualifies or blocks a release; the tag measures for itself.
 
+For the dedicated benchmark workflow, resolved `compare` mode also means a
+paired same-run comparison. Only resolved `seed` mode uses a historical
+scorecard, because its purpose is to create reviewable replacement baseline
+evidence rather than judge the candidate against another machine. The reusable
+workflow accepts one comparison choice and derives the corresponding baseline
+behavior. A caller therefore cannot express a contradictory `paired`/`seed` or
+`historical`/`compare` combination, and no historical default is inherited.
+
 This amends D-025: scheduled execution remains the detector for external drift,
 but it is no longer a producer of release evidence.
 
@@ -334,11 +342,12 @@ hosted run by itself never consumes a new version.
 ### Performance comparison
 
 The comparison runs in the release-candidate workflow as one logical
-qualification per release against the tagged commit. Policy-bounded
-measurement attempts and workflow reruns remain attempts of that same logical
-qualification. It is the one measurement family the tag performs, and it
-replaces the historical cross-run comparison entirely rather than
-supplementing it.
+qualification per release against the tagged commit. The automatic benchmark
+workflow uses the same paired architecture for performance-relevant `main`
+changes and monthly early warning. Policy-bounded measurement attempts and
+workflow reruns remain attempts of their respective logical comparison. It is
+the one measurement family the tag performs, and it replaces the historical
+cross-run comparison entirely rather than supplementing it.
 
 The architecture is a **paired same-run comparison**. Reference and
 candidate run in one allocated job on the same processor, runtime,
@@ -367,10 +376,12 @@ both sides:
 A benchmark driver or contract change cannot therefore be classified as a provider
 regression against an incompatible executable.
 
-Under the historical comparison, an exact processor mismatch against a
-historical baseline yields a typed `environment-not-comparable` attempt. It
-may request one bounded retry on a fresh runner, never qualifies a release,
-and is never reported as a provider regression.
+If an explicitly invoked historical comparison encounters an exact processor
+mismatch, it exits with code `76` and yields a typed
+`environment-not-comparable` state when an attempt receipt is recorded. It is
+never reported as a provider regression. No automatic hosted comparison uses
+that path: hosted `compare` mode is paired, and hosted historical mode is
+reserved for seeding rather than comparison.
 
 ### Statistical contract
 
@@ -787,8 +798,8 @@ manifest verification.
 - The tag-time gate set grows until a release takes materially longer than the
   work it publishes; the split between tag-time and early-warning execution is
   revisited without reintroducing evidence reuse.
-- The paired comparison ships; the interim historical-processor handling is
-  removed.
+- GitHub begins guaranteeing a stable processor model for standard runners;
+  the need for paired hosted comparisons is reconsidered.
 - A repository-approved hardware-independent instrument becomes available for
   the complete .NET and live-database workload.
 - Dedicated capacity becomes acceptable in plan, budget, security, and
@@ -808,6 +819,11 @@ manifest verification.
   protected-check receipts, and the retained non-qualifying benchmark smoke.
 - 2026-08-10: Status changed from proposed to accepted.
 - 2026-08-10: Status changed from accepted to implemented.
+- 2026-08-11: Required paired mode for automatic comparisons, retained
+  historical mode only for reviewed baseline seeding, and removed the reusable
+  workflow's implicit historical default.
+- 2026-08-11: Collapsed the reusable workflow boundary to one comparison mode
+  and derived baseline behavior so contradictory mode pairs cannot be passed.
 
 ### Implementation References
 

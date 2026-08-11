@@ -181,7 +181,7 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
         baseline["processorCount"] += 1
 
         with self.assertRaisesRegex(
-            performance_evidence.PerformanceEvidenceError,
+            performance_evidence.EnvironmentNotComparableError,
             "environment drift.*processorCount",
         ):
             performance_evidence.validate_environment_compatibility(

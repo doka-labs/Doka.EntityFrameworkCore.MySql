@@ -422,6 +422,11 @@ class BaselineRolloverTests(unittest.TestCase):
             benchmark,
         )
         self.assertIn("uses: ./.github/workflows/benchmark-scorecard.yml", benchmark)
+        self.assertIn(
+            "comparison_mode: "
+            "${{ needs.resolve-baseline-mode.outputs.comparison-mode }}",
+            benchmark,
+        )
 
         # Measurement results become a reviewed proposal, never a direct push
         # to the default branch.
@@ -691,6 +696,7 @@ class ReleaseCandidateShapeTests(unittest.TestCase):
     def test_performance_is_qualified_in_paired_mode(self) -> None:
         """Require the one measurement the tag performs to be the paired one."""
         self.assertIn("comparison_mode: paired", self.text)
+        self.assertNotIn("baseline_mode:", self.text)
 
     def test_no_historical_baseline_gate_remains(self) -> None:
         """Reject a leftover import of the historical comparison result."""

@@ -132,6 +132,7 @@ Environment:
   DOKA_BENCHMARK_TARGET=mysql84|mariadb118
   DOKA_BENCHMARK_PROFILE=smoke|scorecard|stress
   DOKA_BENCHMARK_BASELINE_MODE=compare|seed
+  DOKA_BENCHMARK_COMPARISON_MODE=historical|paired
   DOKA_BENCHMARK_RESUME=0|1
   DOKA_BENCHMARK_RUNNER_CLASS=<stable comparable runner identity>
   DOKA_BENCHMARK_SOURCE_HASH=<optional exact 64-character source digest>
