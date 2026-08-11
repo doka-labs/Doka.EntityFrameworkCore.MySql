@@ -21,6 +21,24 @@ public sealed class MySqlNetworkFaultContractTests
             .ConfigureAwait(false);
     }
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task MySql97_satisfies_the_complete_network_fault_contract()
+    {
+        await AssertFaultContractAsync(
+                IntegrationDatabaseTarget.MySql97,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97))
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task MariaDb1011_satisfies_the_complete_network_fault_contract()
+    {
+        await AssertFaultContractAsync(
+                IntegrationDatabaseTarget.MariaDb1011,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
+            .ConfigureAwait(false);
+    }
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_satisfies_the_complete_network_fault_contract()
     {
@@ -36,6 +54,15 @@ public sealed class MySqlNetworkFaultContractTests
         await AssertFaultContractAsync(
                 IntegrationDatabaseTarget.MariaDb118,
                 MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+            .ConfigureAwait(false);
+    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task MariaDb123_satisfies_the_complete_network_fault_contract()
+    {
+        await AssertFaultContractAsync(
+                IntegrationDatabaseTarget.MariaDb123,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
             .ConfigureAwait(false);
     }
 
@@ -289,7 +316,7 @@ public sealed class MySqlNetworkFaultContractTests
         ILoggerFactory? loggerFactory = null
     )
     {
-        var options = new DbContextOptionsBuilder<FaultContractContext>();
+        var options = IntegrationTestDbContextOptions.Create<FaultContractContext>();
 
         if (loggerFactory is not null)
         {

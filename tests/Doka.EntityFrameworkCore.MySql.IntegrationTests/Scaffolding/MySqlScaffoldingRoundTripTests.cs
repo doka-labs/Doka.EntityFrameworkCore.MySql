@@ -37,6 +37,26 @@ public sealed class MySqlScaffoldingRoundTripTests
     }
 
     /// <summary>
+    /// Verifies core schema-metadata fidelity against MySQL 9.7.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task MySql97_core_schema_metadata_roundtrips()
+    {
+        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MySql97)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies core schema-metadata fidelity against MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task MariaDb1011_core_schema_metadata_roundtrips()
+    {
+        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MariaDb1011)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Verifies core schema-metadata fidelity against MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
@@ -57,6 +77,16 @@ public sealed class MySqlScaffoldingRoundTripTests
     }
 
     /// <summary>
+    /// Verifies core schema-metadata fidelity against MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task MariaDb123_core_schema_metadata_roundtrips()
+    {
+        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MariaDb123)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Verifies index, store-type, spatial, sequence, and functional-part fidelity
     /// against MySQL 8.4.
     /// </summary>
@@ -64,6 +94,27 @@ public sealed class MySqlScaffoldingRoundTripTests
     public async Task MySql84_index_and_store_metadata_roundtrips()
     {
         await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MySql84)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies index, store-type, spatial, sequence, and functional-part fidelity
+    /// against MySQL 9.7.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task MySql97_index_and_store_metadata_roundtrips()
+    {
+        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MySql97)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies index, store-type, spatial, and native-sequence fidelity against MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task MariaDb1011_index_and_store_metadata_roundtrips()
+    {
+        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MariaDb1011)
             .ConfigureAwait(false);
     }
 
@@ -88,12 +139,42 @@ public sealed class MySqlScaffoldingRoundTripTests
     }
 
     /// <summary>
+    /// Verifies index, store-type, spatial, and native-sequence fidelity against MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task MariaDb123_index_and_store_metadata_roundtrips()
+    {
+        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MariaDb123)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Verifies compiled generated-code execution and schema reconstruction on MySQL 8.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task MySql84_generated_context_compiles_and_executes()
     {
         await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MySql84)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies compiled generated-code execution and schema reconstruction on MySQL 9.7.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task MySql97_generated_context_compiles_and_executes()
+    {
+        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MySql97)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies compiled generated-code execution and schema reconstruction on MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task MariaDb1011_generated_context_compiles_and_executes()
+    {
+        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MariaDb1011)
             .ConfigureAwait(false);
     }
 
@@ -114,6 +195,16 @@ public sealed class MySqlScaffoldingRoundTripTests
     public async Task MariaDb118_generated_context_compiles_and_executes()
     {
         await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MariaDb118)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies compiled generated-code execution and schema reconstruction on MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task MariaDb123_generated_context_compiles_and_executes()
+    {
+        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MariaDb123)
             .ConfigureAwait(false);
     }
 
@@ -793,8 +884,7 @@ public sealed class MySqlScaffoldingRoundTripTests
 
     private static bool IsMariaDb(
         IntegrationDatabaseTarget target
-    ) => target is IntegrationDatabaseTarget.MariaDb114
-        or IntegrationDatabaseTarget.MariaDb118;
+    ) => IntegrationTestEnvironment.GetServerVersion(target).IsMariaDb;
 
     private static async Task ExecuteNonQueryAsync(
         MySqlConnection connection,

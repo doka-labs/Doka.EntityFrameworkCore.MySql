@@ -30,13 +30,11 @@ updates:
         patterns:
           - "*"
     ignore:
-      # The provider supports MySQL 8.4 LTS and MariaDB 11.4 / 11.8 LTS, and
-      # the specification suites, the performance contract, and the accepted
-      # baseline are all calibrated to those lines. Proposals follow the
-      # highest published version, which is a different series entirely, so
-      # only patches within a supported line are wanted here. Moving to
-      # another line is a provider decision with its own matrix and baseline
-      # work, not something an update proposal can carry.
+      # The provider qualifies six explicit MySQL and MariaDB LTS lines. A
+      # proposal follows the highest published series rather than preserving
+      # that support matrix, so only patches within each configured line are
+      # wanted here. Adding or removing a line is a provider-contract decision,
+      # not something an update proposal can carry.
       - dependency-name: mysql
         update-types:
           - version-update:semver-major

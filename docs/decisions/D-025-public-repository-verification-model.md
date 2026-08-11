@@ -72,9 +72,8 @@ actually detects while keeping pull-request feedback bounded.
 
 Every push to `main` and every pull request runs quality gates, repository
 tests, the representative dual-engine integration path, specification
-conformance across MySQL 8.4, MariaDB 11.4 and MariaDB 11.8, and the merged
-coverage gate. These lanes detect regressions caused by the change under
-review.
+conformance across every active LTS target, and the merged coverage gate. These
+lanes detect regressions caused by the change under review.
 
 The scheduled lane retains migration deployment, the EF Core floor and latest
 matrix, the MySqlConnector matrix, runtime posture, and both benchmark smoke
@@ -216,6 +215,8 @@ version control. They are documented in
 - 2026-08-08: Decision recorded with status accepted.
 - 2026-08-08: Supersedes D-023 after the repository became public and its
   runner-minute premise no longer applied.
+- 2026-08-11: Expanded per-event specification conformance from three
+  representative targets to every active MySQL and MariaDB LTS line.
 
 ### Implementation References
 

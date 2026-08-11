@@ -39,16 +39,36 @@ public sealed class CommonTableExpressionIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task Cte_contract_executes_on_mysql84() => RunQueryContractAsync(IntegrationDatabaseTarget.MySql84);
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public Task Cte_contract_executes_on_mysql97() => RunQueryContractAsync(IntegrationDatabaseTarget.MySql97);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public Task Cte_contract_executes_on_mariadb1011() =>
+        RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb1011);
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task Cte_contract_executes_on_mariadb114() => RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb114);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task Cte_contract_executes_on_mariadb118() => RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb118);
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public Task Cte_contract_executes_on_mariadb123() => RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb123);
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Cte_update_executes_on_mysql84()
+    public Task Cte_update_executes_on_mysql84() => RunUpdateContractAsync(IntegrationDatabaseTarget.MySql84);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public Task Cte_update_executes_on_mysql97() => RunUpdateContractAsync(IntegrationDatabaseTarget.MySql97);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public Task Cte_update_executes_on_mariadb123() => RunUpdateContractAsync(IntegrationDatabaseTarget.MariaDb123);
+
+    private static async Task RunUpdateContractAsync(
+        IntegrationDatabaseTarget target
+    )
     {
-        await using var context = CreateContext(IntegrationDatabaseTarget.MySql84);
+        await using var context = CreateContext(target);
         await SetupAsync(context);
 
         try
@@ -156,7 +176,7 @@ public sealed class CommonTableExpressionIntegrationTests
         params IInterceptor[] interceptors
     )
     {
-        var optionsBuilder = new DbContextOptionsBuilder<CteContext>().UseMySql(
+        var optionsBuilder = IntegrationTestDbContextOptions.Create<CteContext>().UseMySql(
             IntegrationTestEnvironment.GetConnectionString(target),
             IntegrationTestEnvironment.GetServerVersion(target));
 

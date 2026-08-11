@@ -13,8 +13,11 @@ internal static class SpecificationBaseline
     internal static readonly string[] SupportedTargets =
     [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
         "mariadb118",
+        "mariadb123",
     ];
 
     /// <summary>

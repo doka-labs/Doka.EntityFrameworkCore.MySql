@@ -42,3 +42,45 @@ class TestRunnerTests(unittest.TestCase):
             '"${project_obj}/${project_name}.csproj.nuget.g.targets"',
             script,
         )
+
+    def test_integration_runner_passes_absolute_evidence_paths_to_vstest(self) -> None:
+        """Keep relative operator inputs out of VSTest's build directory."""
+        repository_root = Path(__file__).resolve().parents[2]
+        script = (
+            repository_root / "eng" / "testing" / "test-integration.sh"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("resolve_repo_path()", script)
+        self.assertIn(
+            'resolve_repo_path "${DOKA_INTEGRATION_ARTIFACTS_DIR:',
+            script,
+        )
+        self.assertIn(
+            'resolve_repo_path "${DOKA_TEST_DATABASE_EVIDENCE_FILE:',
+            script,
+        )
+        self.assertIn(
+            'resolve_repo_path "${DOKA_COVERAGE_RESULTS_DIR:',
+            script,
+        )
+
+    def test_migration_runner_records_the_complete_engine_identity_matrix(self) -> None:
+        """Bind release assembly to the engines the migration gate executes."""
+        repository_root = Path(__file__).resolve().parents[2]
+        script = (
+            repository_root / "eng" / "testing" / "test-migration-deployment.sh"
+        ).read_text(encoding="utf-8")
+
+        for target in (
+            "mysql84",
+            "mysql97",
+            "mariadb1011",
+            "mariadb114",
+            "mariadb118",
+            "mariadb123",
+        ):
+            with self.subTest(target=target):
+                self.assertIn(f'write_target_identity "{target}"', script)
+
+        self.assertIn('lifecycleState: "cleanup-pending"', script)
+        self.assertIn('.lifecycleState = "cleanup-completed"', script)

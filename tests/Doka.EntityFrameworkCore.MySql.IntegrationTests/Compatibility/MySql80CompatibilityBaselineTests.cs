@@ -82,7 +82,7 @@ public sealed class MySql80CompatibilityBaselineTests
         string connectionString
     )
     {
-        var optionsBuilder = new DbContextOptionsBuilder<MySql80CompatibilityContext>();
+        var optionsBuilder = IntegrationTestDbContextOptions.Create<MySql80CompatibilityContext>();
 
         optionsBuilder.UseMySql(
             connectionString,

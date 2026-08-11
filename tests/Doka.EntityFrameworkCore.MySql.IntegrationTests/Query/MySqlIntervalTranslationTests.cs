@@ -20,9 +20,21 @@ public sealed class MySqlIntervalTranslationTests
     public async Task Parametrized_AddDays_filters_server_side_on_mysql84() =>
         await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MySql84);
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task Parametrized_AddDays_filters_server_side_on_mysql97() =>
+        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MySql97);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task Parametrized_AddDays_filters_server_side_on_mariadb1011() =>
+        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb1011);
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Parametrized_AddDays_filters_server_side_on_mariadb118() =>
         await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb118);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task Parametrized_AddDays_filters_server_side_on_mariadb123() =>
+        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb123);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Parametrized_AddHours_filters_server_side_on_mysql84() =>
@@ -163,11 +175,9 @@ public sealed class MySqlIntervalTranslationTests
         IntegrationDatabaseTarget target
     )
     {
-        var serverVersion = target == IntegrationDatabaseTarget.MariaDb118
-            ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
-            : MySqlServerVersion.MySql(new Version(8, 4, 0));
+        var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
 
-        var builder = new DbContextOptionsBuilder<IntervalContext>();
+        var builder = IntegrationTestDbContextOptions.Create<IntervalContext>();
         builder.UseMySql(connectionString, serverVersion);
         return builder.Options;
     }

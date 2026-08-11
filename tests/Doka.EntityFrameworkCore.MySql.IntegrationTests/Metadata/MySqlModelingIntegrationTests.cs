@@ -427,7 +427,7 @@ public sealed class MySqlModelingIntegrationTests
     )
         where TContext : DbContext
     {
-        var builder = new DbContextOptionsBuilder<TContext>();
+        var builder = IntegrationTestDbContextOptions.Create<TContext>();
         builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
         return builder.Options;
     }

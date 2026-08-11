@@ -449,7 +449,14 @@ run_specification_gate() {
         --results-directory "${specification_dir}/contract"
     bash "${repo_root}/eng/testing/check-spec-discovery.sh"
 
-    local targets=("mysql84" "mariadb114" "mariadb118")
+    local targets=(
+        "mysql84"
+        "mysql97"
+        "mariadb1011"
+        "mariadb114"
+        "mariadb118"
+        "mariadb123"
+    )
     local target
     for target in "${targets[@]}"; do
         echo "Running release specification suite against ${target}..."
@@ -487,7 +494,7 @@ run_integration_configuration_and_failure_gate() {
     DOKA_COVERAGE_RESULTS_DIR="${coverage_input_dir}/integration" \
     DOKA_INTEGRATION_ARTIFACTS_DIR="${integration_dir}" \
     DOKA_INTEGRATION_RUN_ID="${release_candidate_run_id}" \
-    DOKA_INTEGRATION_TARGETS="mysql84,mariadb114,mariadb118" \
+    DOKA_INTEGRATION_TARGETS="mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123" \
     DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=1 \
     DOKA_TEST_DATABASE_EVIDENCE_FILE="${integration_dir}/test-database-evidence.json" \
         bash "${repo_root}/eng/testing/test-integration.sh"
@@ -496,7 +503,7 @@ run_integration_configuration_and_failure_gate() {
     # invariants against every supported engine after the infrastructure
     # contracts pass; this is intentionally a release gate, not a push gate.
     DOKA_EXAMPLE_RUN_ID="${release_candidate_run_id}" \
-    DOKA_EXAMPLE_TARGETS="mysql84,mariadb114,mariadb118" \
+    DOKA_EXAMPLE_TARGETS="mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123" \
     DOKA_EXAMPLE_EVIDENCE_DIR="${integration_dir}/examples" \
         bash "${repo_root}/eng/testing/test-examples.sh"
 }

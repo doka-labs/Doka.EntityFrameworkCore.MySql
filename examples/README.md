@@ -6,9 +6,8 @@ supported live engine matrix; ten of those additionally fail when an explicit
 scenario invariant is not satisfied. The live runner also verifies after every
 example that the caller-selected sentinel catalog remains intact.
 
-The release-candidate gate executes the fourteen live-matrix examples
-against MySQL 8.4, MariaDB 11.4, and MariaDB 11.8. Run the same isolated matrix
-locally with:
+The release-candidate gate executes the fourteen live-matrix examples against
+all six supported LTS lines. Run the same isolated matrix locally with:
 
 ```bash
 ./eng/test-examples.sh
@@ -16,7 +15,7 @@ locally with:
 
 The runner uses dynamic loopback ports and removes its test-owned containers
 and volumes. Narrow `DOKA_EXAMPLE_TARGETS` only for local diagnosis; release
-qualification always requires all three supported targets.
+qualification always requires all six supported targets.
 
 ## Prerequisites
 
@@ -37,11 +36,12 @@ export DOKA_EXAMPLE_DATABASE_TARGET=mariadb114
 docker compose -f docker/compose.yml up -d mariadb114
 ```
 
-Accepted target values are `mysql84`, `mariadb114`, and `mariadb118`. Supply a
-custom endpoint through `DOKA_EXAMPLE_CONNECTION_STRING`. The examples always
-replace its database name with an example-owned name before creating or
-deleting data. The live gate supplies a populated sentinel catalog and verifies
-after every example that neither the catalog nor its marker was modified.
+Accepted target values are `mysql84`, `mysql97`, `mariadb1011`, `mariadb114`,
+`mariadb118`, and `mariadb123`. Supply a custom endpoint through
+`DOKA_EXAMPLE_CONNECTION_STRING`. The examples always replace its database
+name with an example-owned name before creating or deleting data. The live gate
+supplies a populated sentinel catalog and verifies after every example that
+neither the catalog nor its marker was modified.
 
 Use disposable development infrastructure only. An interrupted process can
 leave its isolated example database behind for inspection.

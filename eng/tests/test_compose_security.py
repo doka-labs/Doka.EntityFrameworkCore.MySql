@@ -23,8 +23,11 @@ class ComposeSecurityTests(unittest.TestCase):
         self.assertEqual(
             {
                 "127.0.0.1:${DOKA_MYSQL84_PORT:-33068}:3306",
-                "127.0.0.1:${DOKA_MARIADB118_PORT:-33069}:3306",
+                "127.0.0.1:${DOKA_MYSQL97_PORT:-33070}:3306",
+                "127.0.0.1:${DOKA_MARIADB1011_PORT:-33066}:3306",
                 "127.0.0.1:${DOKA_MARIADB114_PORT:-33067}:3306",
+                "127.0.0.1:${DOKA_MARIADB118_PORT:-33069}:3306",
+                "127.0.0.1:${DOKA_MARIADB123_PORT:-33071}:3306",
             },
             published_database_ports,
         )

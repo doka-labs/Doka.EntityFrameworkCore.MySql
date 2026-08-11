@@ -14,25 +14,46 @@ public sealed class MigrationProcessRecoveryTests
     private const string PauseFileEnvironmentVariable = "DOKA_MIGRATION_PAUSE_FILE";
 
     /// <summary>
-    /// Verifies process-abort recovery against the supported MySQL release.
+    /// Verifies process-abort recovery against MySQL 8.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mysql84() =>
         VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MySql84);
 
     /// <summary>
-    /// Verifies process-abort recovery against the oldest supported MariaDB release.
+    /// Verifies process-abort recovery against MySQL 9.7.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mysql97() =>
+        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MySql97);
+
+    /// <summary>
+    /// Verifies process-abort recovery against MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb1011() =>
+        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb1011);
+
+    /// <summary>
+    /// Verifies process-abort recovery against MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb114() =>
         VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb114);
 
     /// <summary>
-    /// Verifies process-abort recovery against the newest supported MariaDB release.
+    /// Verifies process-abort recovery against MariaDB 11.8.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb118() =>
         VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb118);
+
+    /// <summary>
+    /// Verifies process-abort recovery against MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb123() =>
+        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb123);
 
     private static async Task VerifyProcessRecoveryAsync(
         IntegrationDatabaseTarget target

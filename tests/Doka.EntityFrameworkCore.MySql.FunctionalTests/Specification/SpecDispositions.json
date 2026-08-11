@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "lastReviewedAt": "2026-07-29",
+  "lastReviewedAt": "2026-08-11",
   "policy": {
     "providerGapBudget": 0,
     "statement": "Every applicable EF Core relational specification behavior must run. A skip is permitted only for a primary-source-backed database-engine limitation, an upstream EF Core limitation reached before provider-owned translation can solve it, or a structurally inapplicable historical test.",
@@ -21,8 +21,11 @@
   },
   "supportedTargets": [
     "mysql84",
+    "mysql97",
+    "mariadb1011",
     "mariadb114",
-    "mariadb118"
+    "mariadb118",
+    "mariadb123"
   ],
   "activeDispositions": [
     {
@@ -32,10 +35,13 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.UdfDbFunctionMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
-      "summary": "MySQL 8.4 and MariaDB 11.4/11.8 stored functions return one scalar value and cannot expose a parameterized relational rowset in a FROM clause.",
+      "summary": "MySQL 8.4/9.7 and MariaDB 10.11/11.4/11.8/12.3 stored functions return one scalar value and cannot expose a parameterized relational rowset in a FROM clause.",
       "testMethods": [
         "UdfDbFunctionMySqlTest.DbSet_mapped_to_function",
         "UdfDbFunctionMySqlTest.QF_Correlated_Func_Call_With_Navigation",
@@ -113,15 +119,30 @@
           "url": "https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/create-function",
           "retrievedAt": "2026-07-29",
           "supports": "The complete grammar requires RETURNS followed by a MariaDB data type, and its SELECT-body documentation requires the subquery to return one scalar value."
+        },
+        {
+          "publisher": "MySQL",
+          "title": "MySQL 9.7 Reference Manual: Stored Routine Syntax",
+          "url": "https://dev.mysql.com/doc/refman/9.7/en/stored-routines-syntax.html",
+          "retrievedAt": "2026-08-11",
+          "supports": "The manual defines stored functions as statement expressions that return a scalar value; procedures are the routine form that can return result sets."
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~UdfDbFunctionMySqlTest",
         "observations": [
           {
             "target": "mysql84",
             "result": "All 26 rowset-function invocations fail at execution because the generated FROM function-name(arguments) shape is not part of MySQL grammar; the 80 scalar and non-rowset UDF contracts pass after fixture seeding."
+          },
+          {
+            "target": "mysql97",
+            "result": "All 26 rowset-function invocations fail at execution because the generated FROM function-name(arguments) shape is not part of MySQL 9.7 grammar; scalar and non-rowset UDF contracts pass."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "All 26 rowset-function invocations fail at the FROM function-name(arguments) syntax boundary; scalar stored functions remain executable on MariaDB 10.11."
           },
           {
             "target": "mariadb114",
@@ -130,6 +151,10 @@
           {
             "target": "mariadb118",
             "result": "All 26 rowset-function invocations fail at the same FROM function-name(arguments) syntax boundary; MariaDB 11.8 has not added a table-valued stored-function form."
+          },
+          {
+            "target": "mariadb123",
+            "result": "All 26 rowset-function invocations fail at the FROM function-name(arguments) syntax boundary; MariaDB 12.3 has not added a table-valued stored-function form."
           }
         ]
       },
@@ -143,10 +168,13 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
-      "summary": "MySQL 8.4 and MariaDB 11.4/11.8 native TIME values retain at most six fractional-second digits, while System.TimeSpan retains seven decimal digits at 100-nanosecond resolution.",
+      "summary": "MySQL 8.4/9.7 and MariaDB 10.11/11.4/11.8/12.3 native TIME values retain at most six fractional-second digits, while System.TimeSpan retains seven decimal digits at 100-nanosecond resolution.",
       "testMethods": [
         "AdHocAdvancedMappingsQueryMySqlTest.Query_generates_correct_datetime2_parameter_definition_at_precision_7",
         "AdHocAdvancedMappingsQueryMySqlTest.Query_generates_correct_timespan_parameter_definition_at_precision_7",
@@ -175,15 +203,30 @@
           "url": "https://mariadb.com/docs/server/reference/sql-functions/date-time-functions/microseconds-in-mariadb",
           "retrievedAt": "2026-07-29",
           "supports": "The documentation states that TIME, DATETIME, and TIMESTAMP precision is the number of fractional digits and can range only from 0 through 6."
+        },
+        {
+          "publisher": "MySQL",
+          "title": "MySQL 9.7 Reference Manual: Fractional Seconds in Time Values",
+          "url": "https://dev.mysql.com/doc/refman/9.7/en/fractional-seconds.html",
+          "retrievedAt": "2026-08-11",
+          "supports": "The manual limits TIME, DATETIME, and TIMESTAMP fractional-second precision to an fsp range from 0 through 6."
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~Non_string_concat_uses_appropriate_type_mapping|FullyQualifiedName~Query_generates_correct_datetime2_parameter_definition_at_precision_7|FullyQualifiedName~Query_generates_correct_timespan_parameter_definition_at_precision_7\"",
         "observations": [
           {
             "target": "mysql84",
             "result": "The native datetime(7) and time(7) mapping probes fail because MySQL accepts only precisions 0 through 6. All six sync and async TPH, TPT, and TPC invocations materialize 02:00:15.4562010 instead of the source TimeSpan value 02:00:15.4562014 because TIME(6) cannot retain the seventh fractional digit."
+          },
+          {
+            "target": "mysql97",
+            "result": "The native datetime(7) and time(7) mapping probes fail because MySQL 9.7 accepts only precisions 0 through 6. All six query invocations lose the seventh TimeSpan fractional digit."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The native datetime(7) and time(7) mapping probes fail because MariaDB 10.11 accepts only precisions 0 through 6. All six query invocations lose the seventh TimeSpan digit."
           },
           {
             "target": "mariadb114",
@@ -192,6 +235,10 @@
           {
             "target": "mariadb118",
             "result": "The native datetime(7) and time(7) mapping probes fail because MariaDB accepts only precisions 0 through 6. All six query invocations lose the seventh TimeSpan fractional digit; MariaDB 11.8 retains the same documented microsecond ceiling."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The native datetime(7) and time(7) mapping probes fail because MariaDB 12.3 accepts only precisions 0 through 6. All six query invocations lose the seventh TimeSpan digit."
           }
         ]
       },
@@ -205,10 +252,13 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.AdHocJsonQueryMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
-      "summary": "MySQL 8.4 and MariaDB 11.4/11.8 reject syntactically invalid JSON documents before EF Core can exercise its malformed-document materialization contract.",
+      "summary": "MySQL 8.4/9.7 and MariaDB 10.11/11.4/11.8/12.3 reject syntactically invalid JSON documents before EF Core can exercise its malformed-document materialization contract.",
       "testMethods": [
         "AdHocJsonQueryMySqlTest.Bad_json_properties_null_navigations",
         "AdHocJsonQueryMySqlTest.Bad_json_properties_null_scalars"
@@ -231,15 +281,30 @@
           "url": "https://mariadb.com/docs/server/reference/data-types/string-data-types/json",
           "retrievedAt": "2026-07-29",
           "supports": "MariaDB documents JSON as a LONGTEXT alias with an automatically included JSON_VALID constraint that guarantees valid JSON documents."
+        },
+        {
+          "publisher": "MySQL",
+          "title": "MySQL 9.7 Reference Manual: The JSON Data Type",
+          "url": "https://dev.mysql.com/doc/refman/9.7/en/json.html",
+          "retrievedAt": "2026-08-11",
+          "supports": "The manual states that native JSON values are validated and invalid documents produce an error."
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~Bad_json_properties_null_navigations|FullyQualifiedName~Bad_json_properties_null_scalars\"",
         "observations": [
           {
             "target": "mysql84",
             "result": "All four tracking and no-tracking cases reach the exact upstream malformed-document seed and fail with MySQL invalid-JSON errors before query materialization."
+          },
+          {
+            "target": "mysql97",
+            "result": "Both malformed-document methods fail for synchronous and asynchronous rows because MySQL 9.7 validates native JSON before the EF Core materializer can read the document."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "Both malformed-document methods fail for synchronous and asynchronous rows because MariaDB 10.11 enforces JSON_VALID before the EF Core materializer reads the document."
           },
           {
             "target": "mariadb114",
@@ -248,6 +313,10 @@
           {
             "target": "mariadb118",
             "result": "All four cases reach the exact upstream malformed-document seed and fail its JSON_VALID constraint before query materialization."
+          },
+          {
+            "target": "mariadb123",
+            "result": "Both malformed-document methods fail for synchronous and asynchronous rows because MariaDB 12.3 enforces JSON_VALID before the EF Core materializer reads the document."
           }
         ]
       },
@@ -255,14 +324,15 @@
       "reevaluateWhen": "Re-run the probe when a supported MySQL or MariaDB release documents a native JSON storage mode that can retain syntactically invalid documents, or when EF Core replaces the malformed-document contract with one that uses a text store type."
     },
     {
-      "id": "MYSQL84-POINT-EMPTY",
+      "id": "MYSQL-POINT-EMPTY",
       "classification": "engine-limitation",
       "suite": "query",
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Spatial.MySqlSpatialTest",
       "targets": [
-        "mysql84"
+        "mysql84",
+        "mysql97"
       ],
-      "summary": "MySQL 8.4 accepts an empty GeometryCollection but rejects an empty Point, which the official spatial contract requires as a distinct geometry subtype.",
+      "summary": "MySQL 8.4/9.7 reject POINT EMPTY input instead of storing the empty point required by the inherited spatial round-trip contract.",
       "testMethods": [
         "MySqlSpatialTest.Translators_handle_static_members"
       ],
@@ -276,19 +346,30 @@
           "url": "https://dev.mysql.com/doc/refman/8.4/en/spatial-function-argument-handling.html",
           "retrievedAt": "2026-07-29",
           "supports": "The manual states that an empty geometry is geometrically undefined and that the only valid empty geometry representation is an empty geometry collection."
+        },
+        {
+          "publisher": "MySQL",
+          "title": "MySQL 9.7 Reference Manual: Spatial Function Argument Handling",
+          "url": "https://dev.mysql.com/doc/refman/9.7/en/spatial-function-argument-handling.html",
+          "retrievedAt": "2026-08-11",
+          "supports": "The manual defines invalid GIS input handling; the executable probe confirms POINT EMPTY is rejected on MySQL 9.7."
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=mysql84 dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~MySqlSpatialTest.Translators_handle_static_members",
         "observations": [
           {
             "target": "mysql84",
             "result": "The Point.Empty case reaches ST_GeomFromText('POINT EMPTY') and MySQL rejects it as invalid GIS data; the remaining static spatial-member cases execute."
+          },
+          {
+            "target": "mysql97",
+            "result": "The Point.Empty case reaches ST_GeomFromText('POINT EMPTY') and MySQL 9.7 rejects it as invalid GIS data; the remaining static spatial-member cases execute."
           }
         ]
       },
-      "providerWorkaroundAssessment": "Rewriting Point.Empty to GeometryCollection.Empty would change the geometry subtype, CLR materialization result, and SQL type semantics. A sentinel point would no longer be empty. MariaDB 11.4 and 11.8 execute the same official test, so the disposition is intentionally limited to MySQL 8.4.",
+      "providerWorkaroundAssessment": "Rewriting Point.Empty to GeometryCollection.Empty would change the geometry subtype, CLR materialization result, and SQL type semantics. A sentinel point would no longer be empty. MariaDB 10.11/11.4/11.8/12.3 execute the same official test, so the disposition is intentionally limited to MySQL 8.4/9.7.",
       "reevaluateWhen": "Re-run the probe when a supported MySQL release documents and accepts an empty Point representation as distinct from an empty GeometryCollection."
     },
     {
@@ -298,10 +379,13 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Spatial.MySqlSpatialTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
-      "summary": "MySQL 8.4 and MariaDB 11.4/11.8 native geometry storage retain two-dimensional X/Y coordinates but do not preserve Point Z or M ordinates.",
+      "summary": "MySQL 8.4/9.7 and MariaDB 10.11/11.4/11.8/12.3 native geometry storage is two-dimensional and does not preserve NetTopologySuite Z or M ordinates.",
       "testMethods": [
         "MySqlSpatialTest.Can_roundtrip_Z_and_M"
       ],
@@ -322,15 +406,30 @@
           "url": "https://mariadb.com/docs/server/reference/system-tables/information-schema/information-schema-tables/information-schema-geometry_columns-table",
           "retrievedAt": "2026-07-29",
           "supports": "MariaDB documents the geometry coordinate dimension as 2 for geometry columns."
+        },
+        {
+          "publisher": "MySQL",
+          "title": "MySQL 9.7 Reference Manual: The Geometry Class Hierarchy",
+          "url": "https://dev.mysql.com/doc/refman/9.7/en/gis-class-geometry.html",
+          "retrievedAt": "2026-08-11",
+          "supports": "The geometry model defines Point by X and Y coordinates and does not define native Z or M ordinates."
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~MySqlSpatialTest.Can_roundtrip_Z_and_M",
         "observations": [
           {
             "target": "mysql84",
             "result": "Round-tripping Point Z, Point M, and Point ZM through native POINT columns returns NaN for the additional ordinates instead of the source values."
+          },
+          {
+            "target": "mysql97",
+            "result": "Round-tripping through MySQL 9.7 native POINT columns returns NaN for Z and M instead of preserving the source ordinates."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "Round-tripping through MariaDB 10.11 native POINT columns returns NaN for Z and M at the documented two-dimensional storage boundary."
           },
           {
             "target": "mariadb114",
@@ -339,6 +438,10 @@
           {
             "target": "mariadb118",
             "result": "Round-tripping through native POINT columns returns NaN for the Z and M ordinates; MariaDB 11.8 retains the documented two-dimensional geometry model."
+          },
+          {
+            "target": "mariadb123",
+            "result": "Round-tripping through MariaDB 12.3 native POINT columns returns NaN for Z and M; the native geometry model remains two-dimensional."
           }
         ]
       },
@@ -352,10 +455,13 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
-      "summary": "MySQL 8.4 and MariaDB 11.4/11.8 expose no server-side operation that canonicalizes arbitrary geometry component order as required by NTS Normalize.",
+      "summary": "MySQL 8.4/9.7 and MariaDB 10.11/11.4/11.8/12.3 expose no server function that implements NetTopologySuite geometry normalization.",
       "testMethods": [
         "SpatialQueryMySqlTest.Normalized"
       ],
@@ -376,15 +482,30 @@
           "url": "https://mariadb.com/docs/server/reference/sql-statements/geometry-constructors",
           "retrievedAt": "2026-07-29",
           "supports": "The exhaustive MariaDB geometry statement inventory contains no geometry normalization or geometry reversal function."
+        },
+        {
+          "publisher": "MySQL",
+          "title": "MySQL 9.7 Reference Manual: Spatial Function Reference",
+          "url": "https://dev.mysql.com/doc/refman/9.7/en/spatial-function-reference.html",
+          "retrievedAt": "2026-08-11",
+          "supports": "The complete spatial function inventory contains no geometry normalization operation."
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~SpatialQueryMySqlTest.Normalized",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both synchronous and asynchronous invocations fail because the engine has no normalization function and the expression therefore reaches client evaluation over server-null rows."
+          },
+          {
+            "target": "mysql97",
+            "result": "Both invocations fail because MySQL 9.7 has no normalization function and the expression therefore reaches client evaluation over server-null rows."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "Both invocations fail at the missing server-side geometry-normalization boundary on MariaDB 10.11."
           },
           {
             "target": "mariadb114",
@@ -393,6 +514,10 @@
           {
             "target": "mariadb118",
             "result": "Both invocations fail at the same missing server-operation boundary as MariaDB 11.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "Both invocations fail at the missing server-side geometry-normalization boundary on MariaDB 12.3."
           }
         ]
       },
@@ -400,14 +525,15 @@
       "reevaluateWhen": "Re-run the probe when every supported engine documents a server-side geometry normalization function or a composable equivalent over arbitrary geometry values."
     },
     {
-      "id": "MYSQL84-SPATIAL-RELATE",
+      "id": "MYSQL-SPATIAL-RELATE",
       "classification": "engine-limitation",
       "suite": "query",
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query",
       "targets": [
-        "mysql84"
+        "mysql84",
+        "mysql97"
       ],
-      "summary": "MySQL 8.4 cannot evaluate an arbitrary DE-9IM relation matrix because it exposes no ST_Relate operation.",
+      "summary": "MySQL 8.4/9.7 expose no server function for evaluating an arbitrary DE-9IM relation pattern.",
       "testMethods": [
         "SpatialQueryMySqlTest.Relate"
       ],
@@ -421,15 +547,26 @@
           "url": "https://dev.mysql.com/doc/refman/8.4/en/spatial-function-reference.html",
           "retrievedAt": "2026-07-29",
           "supports": "The exhaustive MySQL 8.4 spatial function inventory contains no geometry normalization, geometry reversal, or ST_Relate function."
+        },
+        {
+          "publisher": "MySQL",
+          "title": "MySQL 9.7 Reference Manual: Spatial Function Reference",
+          "url": "https://dev.mysql.com/doc/refman/9.7/en/spatial-function-reference.html",
+          "retrievedAt": "2026-08-11",
+          "supports": "The complete spatial function inventory contains no arbitrary DE-9IM relation-pattern function."
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=mysql84 dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~SpatialQueryMySqlTest.Relate",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both synchronous and asynchronous invocations fail because MySQL 8.4 has no server translation for an arbitrary DE-9IM relation pattern."
+          },
+          {
+            "target": "mysql97",
+            "result": "Both synchronous and asynchronous invocations fail because MySQL 9.7 has no server translation for an arbitrary DE-9IM relation pattern."
           }
         ]
       },
@@ -443,10 +580,13 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
-      "summary": "MySQL 8.4 and MariaDB 11.4/11.8 expose no server-side operation that reverses arbitrary geometry component order.",
+      "summary": "MySQL 8.4/9.7 and MariaDB 10.11/11.4/11.8/12.3 expose no server function that reverses arbitrary geometry coordinate order.",
       "testMethods": [
         "SpatialQueryMySqlTest.Reverse"
       ],
@@ -467,15 +607,30 @@
           "url": "https://mariadb.com/docs/server/reference/sql-statements/geometry-constructors",
           "retrievedAt": "2026-07-29",
           "supports": "The exhaustive MariaDB geometry statement inventory contains no geometry normalization or geometry reversal function."
+        },
+        {
+          "publisher": "MySQL",
+          "title": "MySQL 9.7 Reference Manual: Spatial Function Reference",
+          "url": "https://dev.mysql.com/doc/refman/9.7/en/spatial-function-reference.html",
+          "retrievedAt": "2026-08-11",
+          "supports": "The complete spatial function inventory contains no arbitrary geometry reversal operation."
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~SpatialQueryMySqlTest.Reverse",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both synchronous and asynchronous invocations fail because the engine has no geometry reversal function and the expression reaches client evaluation over server-null rows."
+          },
+          {
+            "target": "mysql97",
+            "result": "Both invocations fail because MySQL 9.7 has no geometry reversal function and the expression reaches client evaluation over server-null rows."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "Both invocations fail at the missing server-side geometry-reversal boundary on MariaDB 10.11."
           },
           {
             "target": "mariadb114",
@@ -484,6 +639,10 @@
           {
             "target": "mariadb118",
             "result": "Both invocations fail at the same missing server-operation boundary as MariaDB 11.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "Both invocations fail at the missing server-side geometry-reversal boundary on MariaDB 12.3."
           }
         ]
       },
@@ -496,10 +655,12 @@
       "suite": "query",
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query",
       "targets": [
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
-      "summary": "MariaDB 11.4 and 11.8 accept only distance for ST_Buffer and cannot represent the NTS quadrant-segment strategy.",
+      "summary": "MariaDB 10.11/11.4/11.8/12.3 ST_Buffer does not accept the strategy argument required by the inherited buffer-with-configuration contract.",
       "testMethods": [
         "SpatialQueryMySqlTest.Buffer_quadrantSegments"
       ],
@@ -516,9 +677,13 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~SpatialQueryMySqlTest.Buffer_quadrantSegments",
         "observations": [
+          {
+            "target": "mariadb1011",
+            "result": "Both invocations fail with an incorrect parameter-count error when the required buffer strategy is supplied to MariaDB 10.11 ST_Buffer."
+          },
           {
             "target": "mariadb114",
             "result": "Both synchronous and asynchronous invocations fail with an incorrect parameter-count error when the required buffer strategy is supplied."
@@ -526,6 +691,10 @@
           {
             "target": "mariadb118",
             "result": "Both invocations fail with the same two-argument ST_Buffer boundary as MariaDB 11.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "Both invocations fail with an incorrect parameter-count error when the required buffer strategy is supplied to MariaDB 12.3 ST_Buffer."
           }
         ]
       },
@@ -538,10 +707,11 @@
       "suite": "query",
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query",
       "targets": [
+        "mariadb1011",
         "mariadb114",
         "mariadb118"
       ],
-      "summary": "MariaDB 11.4 and 11.8 do not provide the spatial collection aggregate introduced in MariaDB 12.0.",
+      "summary": "MariaDB 10.11/11.4/11.8 do not provide ST_Collect; the function is available from MariaDB 12.0 and the MariaDB 12.3 target executes these contracts.",
       "testMethods": [
         "SpatialQueryMySqlTest.Combine_aggregate",
         "SpatialQueryMySqlTest.EnvelopeCombine_aggregate",
@@ -559,12 +729,23 @@
           "url": "https://mariadb.com/docs/server/reference/sql-statements/geometry-constructors/miscellaneous-gis-functions/st_collect",
           "retrievedAt": "2026-07-29",
           "supports": "The official reference marks ST_Collect as available from MariaDB 12.0; neither supported MariaDB 11.x target provides it."
+        },
+        {
+          "publisher": "MariaDB",
+          "title": "MariaDB 12.0 Changes and Improvements",
+          "url": "https://mariadb.com/docs/release-notes/mariadb-community-server-release-notes/what-is-mariadb-120",
+          "retrievedAt": "2026-08-11",
+          "supports": "The official MariaDB 12.0 feature inventory lists ST_Collect and ST_IsValid as newly added GIS functions."
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~SpatialQueryMySqlTest.Combine_aggregate|FullyQualifiedName~SpatialQueryMySqlTest.EnvelopeCombine_aggregate|FullyQualifiedName~SpatialQueryMySqlTest.Union_aggregate\"",
         "observations": [
+          {
+            "target": "mariadb1011",
+            "result": "All six synchronous and asynchronous aggregate invocations fail because ST_Collect is absent from MariaDB 10.11."
+          },
           {
             "target": "mariadb114",
             "result": "All six synchronous and asynchronous aggregate invocations fail because ST_Collect is absent."
@@ -584,10 +765,11 @@
       "suite": "query",
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query",
       "targets": [
+        "mariadb1011",
         "mariadb114",
         "mariadb118"
       ],
-      "summary": "MariaDB 11.4 and 11.8 do not provide ST_IsValid, which was introduced in MariaDB 12.0.",
+      "summary": "MariaDB 10.11/11.4/11.8 do not provide ST_IsValid; the function was added in MariaDB 12.0 and the MariaDB 12.3 target executes this contract.",
       "testMethods": [
         "SpatialQueryMySqlTest.IsValid"
       ],
@@ -601,12 +783,23 @@
           "url": "https://mariadb.com/docs/server/reference/sql-statements/geometry-constructors/miscellaneous-gis-functions/st_isvalid",
           "retrievedAt": "2026-07-29",
           "supports": "The official reference marks ST_IsValid as available from MariaDB 12.0; neither supported MariaDB 11.x target provides it."
+        },
+        {
+          "publisher": "MariaDB",
+          "title": "MariaDB 12.0 Changes and Improvements",
+          "url": "https://mariadb.com/docs/release-notes/mariadb-community-server-release-notes/what-is-mariadb-120",
+          "retrievedAt": "2026-08-11",
+          "supports": "The official MariaDB 12.0 feature inventory lists ST_Collect and ST_IsValid as newly added GIS functions."
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~SpatialQueryMySqlTest.IsValid",
         "observations": [
+          {
+            "target": "mariadb1011",
+            "result": "Both synchronous and asynchronous invocations fail because ST_IsValid is absent from MariaDB 10.11."
+          },
           {
             "target": "mariadb114",
             "result": "Both synchronous and asynchronous invocations fail because ST_IsValid is absent."
@@ -627,9 +820,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates.TphInheritanceBulkUpdatesMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114"
       ],
-      "summary": "MySQL 8.4 and MariaDB 11.4 immediately enforce a self-referencing NO ACTION foreign key while deleting a set that contains both the dependent and principal rows.",
+      "summary": "MySQL 8.4/9.7 and MariaDB 10.11/11.4 reject the selected self-referencing delete when the foreign-key constraint is checked immediately; MariaDB 11.8/12.3 execute it.",
       "testMethods": [
         "TphInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_3"
       ],
@@ -650,15 +845,30 @@
           "url": "https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/optimization-and-indexes/foreign-keys",
           "retrievedAt": "2026-07-27",
           "supports": "The Constraints section states that RESTRICT is the default ON DELETE behavior, NO ACTION is its synonym, and the change fails with error 1451 when a child row exists."
+        },
+        {
+          "publisher": "MySQL",
+          "title": "MySQL 9.7 Reference Manual: FOREIGN KEY Constraints",
+          "url": "https://dev.mysql.com/doc/refman/9.7/en/create-table-foreign-keys.html",
+          "retrievedAt": "2026-08-11",
+          "supports": "The manual documents immediate foreign-key constraint checking and rejection of statements that violate a referencing constraint."
         }
       ],
       "probe": {
-        "performedAt": "2026-07-27",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~TphInheritanceBulkUpdatesMySqlTest.Delete_GroupBy_Where_Select_First_3",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both sync and async invocations fail with error 1451 because Animals.EagleId still references the selected principal row when InnoDB checks the delete."
+          },
+          {
+            "target": "mysql97",
+            "result": "Both invocations fail with error 1451 because Animals.EagleId still references the selected principal row when MySQL 9.7 checks the delete."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "Both invocations fail with error 1451 because Animals.EagleId still references the selected principal row when MariaDB 10.11 checks the delete."
           },
           {
             "target": "mariadb114",
@@ -676,10 +886,13 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Migrations.FullMigrationsMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
-      "summary": "MySQL 8.4 and MariaDB 11.4/11.8 do not provide a predicate clause for partial or filtered indexes.",
+      "summary": "MySQL 8.4/9.7 and MariaDB 10.11/11.4/11.8/12.3 CREATE INDEX grammar has no WHERE predicate for filtered or partial indexes.",
       "testMethods": [
         "FullMigrationsMySqlTest.Create_index_with_filter",
         "FullMigrationsMySqlTest.Create_unique_index_with_filter"
@@ -702,15 +915,30 @@
           "url": "https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/create-index",
           "retrievedAt": "2026-07-28",
           "supports": "The complete CREATE INDEX grammar for the supported MariaDB lines permits column key parts and documented index options but defines no WHERE predicate or partial-index clause."
+        },
+        {
+          "publisher": "MySQL",
+          "title": "MySQL 9.7 Reference Manual: CREATE INDEX Statement",
+          "url": "https://dev.mysql.com/doc/refman/9.7/en/create-index.html",
+          "retrievedAt": "2026-08-11",
+          "supports": "The complete CREATE INDEX grammar has no WHERE predicate for filtered or partial indexes."
         }
       ],
       "probe": {
-        "performedAt": "2026-07-28",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~FullMigrationsMySqlTest.Create_index_with_filter|FullyQualifiedName~FullMigrationsMySqlTest.Create_unique_index_with_filter",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both the non-unique and unique CREATE INDEX statements fail with a syntax error at their WHERE predicate."
+          },
+          {
+            "target": "mysql97",
+            "result": "Both non-unique and unique CREATE INDEX statements fail with a MySQL 9.7 syntax error at the WHERE predicate."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "Both CREATE INDEX statements fail with a MariaDB 10.11 syntax error at the WHERE predicate."
           },
           {
             "target": "mariadb114",
@@ -719,6 +947,10 @@
           {
             "target": "mariadb118",
             "result": "Both statements fail with the same syntax error at WHERE, confirming that MariaDB 11.8 has not added filtered-index grammar."
+          },
+          {
+            "target": "mariadb123",
+            "result": "Both CREATE INDEX statements fail with a MariaDB 12.3 syntax error at the WHERE predicate."
           }
         ]
       },
@@ -732,8 +964,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "EF Core rejects ExecuteDelete directly over a grouped projection whose shaper is an entity.",
       "testMethods": [
@@ -762,12 +997,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-27",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Specification.BulkUpdates",
         "observations": [
           {
             "target": "mysql84",
             "result": "All 12 sync and async invocations fail before provider SQL generation with ExecuteDeleteOnNonEntityType."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted probe reproduces the existing result: All 12 sync and async invocations fail before provider SQL generation with ExecuteDeleteOnNonEntityType."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted probe reproduces the existing result: All 12 sync and async invocations fail before provider SQL generation with ExecuteDeleteOnNonEntityType."
           },
           {
             "target": "mariadb114",
@@ -776,6 +1019,10 @@
           {
             "target": "mariadb118",
             "result": "All 12 invocations fail at the same EF Core non-entity-projection boundary before provider SQL generation."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted probe reproduces the existing result: All 12 sync and async invocations fail before provider SQL generation with ExecuteDeleteOnNonEntityType."
           }
         ]
       },
@@ -789,8 +1036,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "EF Core cannot bind entity key properties from a GroupBy projection followed by First or FirstOrDefault.",
       "testMethods": [
@@ -821,12 +1071,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-27",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Specification.BulkUpdates",
         "observations": [
           {
             "target": "mysql84",
             "result": "All 14 sync and async invocations fail while EF Core binds EF.Property for the grouped First or FirstOrDefault entity, before provider SQL generation."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted probe reproduces the existing result: All 14 sync and async invocations fail while EF Core binds EF.Property for the grouped First or FirstOrDefault entity, before provider SQL generation."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted probe reproduces the existing result: All 14 sync and async invocations fail while EF Core binds EF.Property for the grouped First or FirstOrDefault entity, before provider SQL generation."
           },
           {
             "target": "mariadb114",
@@ -835,6 +1093,10 @@
           {
             "target": "mariadb118",
             "result": "All 14 invocations fail at the same EF Core property-binding boundary before provider SQL generation."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted probe reproduces the existing result: All 14 sync and async invocations fail while EF Core binds EF.Property for the grouped First or FirstOrDefault entity, before provider SQL generation."
           }
         ]
       },
@@ -849,8 +1111,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "EF Core rejects ExecuteUpdate on a non-leaf TPC entity before provider-owned update validation.",
       "testMethods": [
@@ -878,12 +1143,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-27",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Update_where_hierarchy_subquery",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both TPC fixture variants fail in sync and async mode with ExecuteOperationOnTPC before provider update validation."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted probe reproduces the existing result: Both TPC fixture variants fail in sync and async mode with ExecuteOperationOnTPC before provider update validation."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted probe reproduces the existing result: Both TPC fixture variants fail in sync and async mode with ExecuteOperationOnTPC before provider update validation."
           },
           {
             "target": "mariadb114",
@@ -892,6 +1165,10 @@
           {
             "target": "mariadb118",
             "result": "Both TPC fixture variants fail at the same EF Core TpcTablesExpression guard before provider update validation."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted probe reproduces the existing result: Both TPC fixture variants fail in sync and async mode with ExecuteOperationOnTPC before provider update validation."
           }
         ]
       },
@@ -904,10 +1181,12 @@
       "suite": "query",
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query",
       "targets": [
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
-      "summary": "MariaDB cannot express a correlated derived table because FROM-subqueries cannot be correlated and the JOIN grammar has no LATERAL derived-table form.",
+      "summary": "MariaDB 10.11/11.4/11.8/12.3 cannot express a correlated derived table because FROM-subqueries cannot be correlated and the JOIN grammar has no LATERAL derived-table form.",
       "testMethods": [
         "AdHocNavigationsQueryMySqlTest.Let_multiple_references_with_reference_to_outer",
         "AdHocNavigationsQueryMySqlTest.Projection_with_multiple_includes_and_subquery_with_set_operation",
@@ -1669,9 +1948,13 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~JsonQueryMySqlTest|FullyQualifiedName~NorthwindAggregateOperatorsQueryMySqlTest|FullyQualifiedName~NorthwindEfPropertyIncludeQueryMySqlTest|FullyQualifiedName~NorthwindGroupByQueryMySqlTest|FullyQualifiedName~NorthwindIncludeNoTrackingQueryMySqlTest|FullyQualifiedName~NorthwindIncludeQueryMySqlTest|FullyQualifiedName~NorthwindJoinQueryMySqlTest|FullyQualifiedName~NorthwindMiscellaneousQueryMySqlTest|FullyQualifiedName~NorthwindNavigationsQueryMySqlTest|FullyQualifiedName~NorthwindSelectQueryMySqlTest|FullyQualifiedName~NorthwindSplitIncludeNoTrackingQueryMySqlTest|FullyQualifiedName~NorthwindSplitIncludeQueryMySqlTest|FullyQualifiedName~NorthwindStringIncludeQueryMySqlTest\"",
         "observations": [
+          {
+            "target": "mariadb1011",
+            "result": "All 689 affected invocations fail at the correlated FROM-subquery or missing LATERAL boundary on MariaDB 10.11."
+          },
           {
             "target": "mariadb114",
             "result": "All 689 affected invocations fail at the correlated FROM-subquery boundary: 160 previously classified invocations plus 529 newly unmasked invocations across official query and association contracts. Representative failures are ERROR 1054 for an outer column below a derived-table boundary and the provider's explicit correlated-derived-table capability exception."
@@ -1679,6 +1962,10 @@
           {
             "target": "mariadb118",
             "result": "The same 689 invocations fail at the correlated FROM-subquery or missing LATERAL boundary as MariaDB 11.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "All 689 affected invocations fail at the correlated FROM-subquery or missing LATERAL boundary on MariaDB 12.3."
           }
         ]
       },
@@ -1694,7 +1981,7 @@
         "mariadb114",
         "mariadb118"
       ],
-      "summary": "MariaDB JSON_TABLE cannot extract a JSON object or array into a JSON-typed result column.",
+      "summary": "MariaDB 11.4/11.8 JSON_TABLE cannot extract a JSON object or array into a JSON-typed result column; the verified 10.11 and 12.3 targets execute these contracts.",
       "testMethods": [
         "JsonQueryMySqlTest.Custom_naming_projection_everything",
         "JsonQueryMySqlTest.Custom_naming_projection_owned_scalar"
@@ -1713,7 +2000,7 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-27",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~JsonQueryMySqlTest.Custom_naming_projection\"",
         "observations": [
           {
@@ -1736,8 +2023,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.JsonQueryMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "EF Core cannot identify a stable collection identifier for a JSON collection property projection followed by Distinct.",
       "testMethods": [
@@ -1756,12 +2046,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-27",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Json_collection_anonymous_projection_distinct_in_projection",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both async modes fail in EF Core collection-shaping translation before provider SQL execution."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted probe reproduces the existing result: Both async modes fail in EF Core collection-shaping translation before provider SQL execution."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted probe reproduces the existing result: Both async modes fail in EF Core collection-shaping translation before provider SQL execution."
           },
           {
             "target": "mariadb114",
@@ -1770,6 +2068,10 @@
           {
             "target": "mariadb118",
             "result": "Both async modes fail at the same EF Core collection-shaping boundary as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted probe reproduces the existing result: Both async modes fail in EF Core collection-shaping translation before provider SQL execution."
           }
         ]
       },
@@ -1783,8 +2085,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.JsonQueryMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "EF Core cannot translate GroupBy followed by ordering on a JSON scalar and FirstOrDefault.",
       "testMethods": [
@@ -1803,12 +2108,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-27",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Group_by_json_scalar_Orderby_json_scalar_FirstOrDefault",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both async modes fail in RelationalSqlTranslatingExpressionVisitor while binding the owned JSON property."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted probe reproduces the existing result: Both async modes fail in RelationalSqlTranslatingExpressionVisitor while binding the owned JSON property."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted probe reproduces the existing result: Both async modes fail in RelationalSqlTranslatingExpressionVisitor while binding the owned JSON property."
           },
           {
             "target": "mariadb114",
@@ -1817,6 +2130,10 @@
           {
             "target": "mariadb118",
             "result": "Both async modes fail at the same EF Core property-binding boundary as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted probe reproduces the existing result: Both async modes fail in RelationalSqlTranslatingExpressionVisitor while binding the owned JSON property."
           }
         ]
       },
@@ -1830,8 +2147,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.JsonQueryMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "EF Core cannot bind a JSON owned property above a FirstOrDefault subquery for structural comparison.",
       "testMethods": [
@@ -1850,12 +2170,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-27",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Project_json_entity_FirstOrDefault_subquery_with_entity_comparison_on_top",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both async modes fail inside EF Core with an invalid cast from JsonQueryExpression to StructuralTypeProjectionExpression."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted probe reproduces the existing result: Both async modes fail inside EF Core with an invalid cast from JsonQueryExpression to StructuralTypeProjectionExpression."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted probe reproduces the existing result: Both async modes fail inside EF Core with an invalid cast from JsonQueryExpression to StructuralTypeProjectionExpression."
           },
           {
             "target": "mariadb114",
@@ -1864,6 +2192,10 @@
           {
             "target": "mariadb118",
             "result": "Both async modes fail with the same EF Core internal expression-type cast as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted probe reproduces the existing result: Both async modes fail inside EF Core with an invalid cast from JsonQueryExpression to StructuralTypeProjectionExpression."
           }
         ]
       },
@@ -1877,8 +2209,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.JsonQueryMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "EF Core cannot backtrack from a nested JSON owned entity to its parent during query translation.",
       "testMethods": [
@@ -1897,12 +2232,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-27",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Json_entity_backtracking",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both async modes fail during EF Core owned-navigation expansion before provider SQL execution."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted probe reproduces the existing result: Both async modes fail during EF Core owned-navigation expansion before provider SQL execution."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted probe reproduces the existing result: Both async modes fail during EF Core owned-navigation expansion before provider SQL execution."
           },
           {
             "target": "mariadb114",
@@ -1911,6 +2254,10 @@
           {
             "target": "mariadb118",
             "result": "Both async modes fail at the same EF Core navigation-expansion boundary as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted probe reproduces the existing result: Both async modes fail during EF Core owned-navigation expansion before provider SQL execution."
           }
         ]
       },
@@ -1924,8 +2271,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.JsonQueryMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "EF Core cannot preserve a nested JSON collection projection through two subquery pushdowns.",
       "testMethods": [
@@ -1944,12 +2294,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-27",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Json_subquery_reference_pushdown_reference_pushdown_anonymous_projection",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both async modes fail in RelationalProjectionBindingExpressionVisitor because the nested owned JSON collection cannot be translated after the second pushdown."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted probe reproduces the existing result: Both async modes fail in RelationalProjectionBindingExpressionVisitor because the nested owned JSON collection cannot be translated after the second pushdown."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted probe reproduces the existing result: Both async modes fail in RelationalProjectionBindingExpressionVisitor because the nested owned JSON collection cannot be translated after the second pushdown."
           },
           {
             "target": "mariadb114",
@@ -1958,6 +2316,10 @@
           {
             "target": "mariadb118",
             "result": "Both async modes fail at the same EF Core projection-binding boundary as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted probe reproduces the existing result: Both async modes fail in RelationalProjectionBindingExpressionVisitor because the nested owned JSON collection cannot be translated after the second pushdown."
           }
         ]
       },
@@ -1971,8 +2333,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.JsonQueryMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "EF Core null comparison semantics are incorrect for a property converter that handles nulls.",
       "testMethods": [
@@ -1991,12 +2356,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-27",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Json_predicate_on_nullableenumwithconverterthathandlesnulls2",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both async modes return two rows instead of the one row required by converter-aware null semantics."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted probe reproduces the existing result: Both async modes return two rows instead of the one row required by converter-aware null semantics."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted probe reproduces the existing result: Both async modes return two rows instead of the one row required by converter-aware null semantics."
           },
           {
             "target": "mariadb114",
@@ -2005,6 +2378,10 @@
           {
             "target": "mariadb118",
             "result": "Both async modes reproduce the same two-versus-one framework null-semantics mismatch as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted probe reproduces the existing result: Both async modes return two rows instead of the one row required by converter-aware null semantics."
           }
         ]
       },
@@ -2018,8 +2395,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindGroupByQueryMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "EF Core cannot expand a navigation reached through a grouping key after the grouping operation.",
       "testMethods": [
@@ -2038,12 +2418,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~GroupBy_with_group_key_being_navigation_with_complex_projection",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both sync and async invocations return a null nested navigation component where the specification expects customer VINET."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted probe reproduces the existing result: Both sync and async invocations return a null nested navigation component where the specification expects customer VINET."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted probe reproduces the existing result: Both sync and async invocations return a null nested navigation component where the specification expects customer VINET."
           },
           {
             "target": "mariadb114",
@@ -2052,6 +2440,10 @@
           {
             "target": "mariadb118",
             "result": "Both sync and async invocations reproduce the same null nested navigation component as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted probe reproduces the existing result: Both sync and async invocations return a null nested navigation component where the specification expects customer VINET."
           }
         ]
       },
@@ -2065,8 +2457,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindGroupByQueryMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "EF Core can bind an aggregate from an outer grouping to an inner grouping when equivalent aggregate expressions are simplified.",
       "testMethods": [
@@ -2087,12 +2482,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~GroupBy_aggregate_from_multiple_query_in_same_projection|FullyQualifiedName~GroupBy_aggregate_from_multiple_query_in_same_projection_3\"",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both methods reproduce the framework aggregate-binding defect in sync and async mode; the projected count is 4 where the specification requires 8."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted probe reproduces the existing result: Both methods reproduce the framework aggregate-binding defect in sync and async mode; the projected count is 4 where the specification requires 8."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted probe reproduces the existing result: Both methods reproduce the framework aggregate-binding defect in sync and async mode; the projected count is 4 where the specification requires 8."
           },
           {
             "target": "mariadb114",
@@ -2101,6 +2504,10 @@
           {
             "target": "mariadb118",
             "result": "The third projection returns 4 instead of 8 in both modes. The other projection reaches the same correlated-derived-table boundary as MariaDB 11.4 after framework translation."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted probe reproduces the existing result: Both methods reproduce the framework aggregate-binding defect in sync and async mode; the projected count is 4 where the specification requires 8."
           }
         ]
       },
@@ -2114,8 +2521,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NorthwindJoinQueryMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "EF Core does not preserve every component of nested anonymous-object join keys during relational translation.",
       "testMethods": [
@@ -2136,12 +2546,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~GroupJoin_aggregate_nested_anonymous_key_selectors|FullyQualifiedName~Join_with_key_selectors_being_nested_anonymous_objects\"",
         "observations": [
           {
             "target": "mysql84",
             "result": "The Join method emits a predicate ending in AND before ORDER BY. The GroupJoin method reaches EF Core's expected translation-failure assertion; both sync and async modes reproduce the upstream boundary."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted probe reproduces the existing result: The Join method emits a predicate ending in AND before ORDER BY. The GroupJoin method reaches EF Core's expected translation-failure assertion; both sync and async modes reproduce the upstream boundary."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted probe reproduces the existing result: The Join method emits a predicate ending in AND before ORDER BY. The GroupJoin method reaches EF Core's expected translation-failure assertion; both sync and async modes reproduce the upstream boundary."
           },
           {
             "target": "mariadb114",
@@ -2150,6 +2568,10 @@
           {
             "target": "mariadb118",
             "result": "Both methods reproduce the same incomplete-predicate or framework translation-failure behavior as MySQL 8.4 in sync and async mode."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted probe reproduces the existing result: The Join method emits a predicate ending in AND before ORDER BY. The GroupJoin method reaches EF Core's expected translation-failure assertion; both sync and async modes reproduce the upstream boundary."
           }
         ]
       },
@@ -2163,8 +2585,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Modeling.TptTableSplittingMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "The official EF Core relational TPT table-splitting contract excludes inserting the dependent with only one parent because that graph is invalid for TPT.",
       "testMethods": [
@@ -2183,8 +2608,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Migrations.MigrationsMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "Doka first ships on EF Core 10 and cannot possess provider-generated EF Core 2.1, 2.2, or 3.0 snapshots from an earlier public release.",
       "testMethods": [
@@ -2209,8 +2637,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Tracking.ComplexTypesTrackingMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "execution": "inherited-upstream-skip",
       "summary": "EF Core does not yet track every struct, readonly-struct, record, and array complex collection shape exercised by its upstream specification suite.",
@@ -2338,12 +2769,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~ComplexTypesTrackingMySqlTest",
         "observations": [
           {
             "target": "mysql84",
             "result": "Disabling the upstream skips produces 158 failures across the 48 methods. The failures occur in model membership, constructor binding, fixed-size collection mutation, or change tracking before provider SQL can supply missing framework semantics."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted run confirms that all 48 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted run confirms that all 48 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           },
           {
             "target": "mariadb114",
@@ -2352,6 +2791,10 @@
           {
             "target": "mariadb118",
             "result": "The same 158 framework failures are reproduced with the MariaDB 11.8 target."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted run confirms that all 48 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           }
         ]
       },
@@ -2365,8 +2808,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Tracking.PropertyValuesMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "execution": "inherited-upstream-skip",
       "summary": "EF Core cannot expose complex collection store values through the EntityEntry property-value APIs.",
@@ -2392,12 +2838,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~PropertyValuesMySqlTest",
         "observations": [
           {
             "target": "mysql84",
             "result": "All four reactivated methods fail in EF Core property-value shaping before a provider command can restore the missing complex collection entries."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted run confirms that all 4 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted run confirms that all 4 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           },
           {
             "target": "mariadb114",
@@ -2406,6 +2860,10 @@
           {
             "target": "mariadb118",
             "result": "All four methods reproduce the same framework property-value failure as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted run confirms that all 4 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           }
         ]
       },
@@ -2419,8 +2877,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Tracking.OptimisticConcurrencyMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "execution": "inherited-upstream-skip",
       "summary": "EF Core cannot consistently aggregate nested complex members through EntityEntry database-value APIs during concurrency conflict resolution.",
@@ -2440,12 +2901,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Concurrency_issue_where_a_complex_type_nested_member_is_the_concurrency_token_can_be_handled",
         "observations": [
           {
             "target": "mysql84",
             "result": "The reactivated method reaches EF Core concurrency value aggregation and fails with multiple matching value entries."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           },
           {
             "target": "mariadb114",
@@ -2454,6 +2923,10 @@
           {
             "target": "mariadb118",
             "result": "The method reproduces the same EF Core value-aggregation failure as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           }
         ]
       },
@@ -2467,8 +2940,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Modeling",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "execution": "inherited-upstream-skip",
       "summary": "EF Core table splitting with shared complex-type columns requires shadow complex properties that core model validation rejects.",
@@ -2494,12 +2970,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~TableSplittingMySqlTest",
         "observations": [
           {
             "target": "mysql84",
             "result": "All four methods terminate in EF Core ModelValidator with ComplexTypeShadowProperty before provider SQL generation."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted run confirms that all 4 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted run confirms that all 4 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           },
           {
             "target": "mariadb114",
@@ -2508,6 +2992,10 @@
           {
             "target": "mariadb118",
             "result": "All four methods terminate at the same target-independent EF Core model-validation boundary."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted run confirms that all 4 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           }
         ]
       },
@@ -2521,8 +3009,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "execution": "inherited-upstream-skip",
       "summary": "EF Core leaves correlated navigation pagination inside an ordinary join instead of constructing a semantically valid APPLY shape.",
@@ -2564,12 +3055,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~Nav_expansion_inside_ElementAt_correlated_to_source|FullyQualifiedName~Nav_expansion_inside_Skip_correlated_to_source|FullyQualifiedName~Nav_expansion_inside_Take_correlated_to_source|FullyQualifiedName~Nav_expansion_with_member_pushdown_inside_Take_correlated_to_source\"",
         "observations": [
           {
             "target": "mysql84",
             "result": "All 24 TPH, TPC, and TPT rows fail. Adding LATERAL at SQL generation removes the alias-scope error but still produces incorrect collections and null shaping, proving that the relational tree has already lost the required semantics."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted run confirms that all 12 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted run confirms that all 12 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           },
           {
             "target": "mariadb114",
@@ -2578,6 +3077,10 @@
           {
             "target": "mariadb118",
             "result": "All 24 rows reproduce the same malformed framework join shape as MariaDB 11.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted run confirms that all 12 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           }
         ]
       },
@@ -2591,8 +3094,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "execution": "inherited-upstream-skip",
       "summary": "EF Core cannot merge equivalent many-to-many include paths into one consistent graph across tracking and no-tracking queries.",
@@ -2658,12 +3164,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~Includes_accessed_via_different_path_are_merged|FullyQualifiedName~Throws_when_different_filtered_then_include_via_different_paths\"",
         "observations": [
           {
             "target": "mysql84",
             "result": "All 48 tracking, no-tracking, TPH, TPC, and TPT rows fail in EF Core graph merging or filtered-include validation despite successful SQL execution."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted run confirms that all 24 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted run confirms that all 24 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           },
           {
             "target": "mariadb114",
@@ -2672,6 +3186,10 @@
           {
             "target": "mariadb118",
             "result": "All 48 rows reproduce the same framework graph-merging failures as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted run confirms that all 24 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           }
         ]
       },
@@ -2685,8 +3203,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.AdHocJsonQueryMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "execution": "inherited-upstream-skip",
       "summary": "EF Core's JSON collection reader expects a primitive-array token but receives an object token for this projected collection shape.",
@@ -2706,12 +3227,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Project_json_array_of_primitives_on_collection",
         "observations": [
           {
             "target": "mysql84",
             "result": "The reactivated method fails in EF Core JSON collection materialization with Invalid token type: StartObject."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           },
           {
             "target": "mariadb114",
@@ -2720,6 +3249,10 @@
           {
             "target": "mariadb118",
             "result": "The method reproduces the same EF Core JSON reader exception as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           }
         ]
       },
@@ -2733,8 +3266,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.NullSemanticsQueryMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "execution": "inherited-upstream-skip",
       "summary": "EF Core converts nullable boolean join keys to two-valued CASE expressions even when relational null semantics require SQL NULL to remain non-matching.",
@@ -2754,12 +3290,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Null_comparison_in_join_key_with_relational_nulls",
         "observations": [
           {
             "target": "mysql84",
             "result": "Both sync and async rows return extra join matches after EF Core converts nullable predicates to two-valued CASE keys."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           },
           {
             "target": "mariadb114",
@@ -2768,6 +3312,10 @@
           {
             "target": "mariadb118",
             "result": "Both rows reproduce the same framework null-semantics mismatch as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           }
         ]
       },
@@ -2781,8 +3329,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.PrecompiledQueryMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "execution": "inherited-upstream-skip",
       "summary": "EF Core cannot expand JSON-owned navigation projections across set operations during precompiled query generation.",
@@ -2808,12 +3359,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~OnEntitiesWithJson\"",
         "observations": [
           {
             "target": "mysql84",
             "result": "All four methods fail inside EF Core PrecompiledQueryCodeGenerator while expanding the JSON owned navigation; no executable provider command is generated."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted run confirms that all 4 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted run confirms that all 4 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           },
           {
             "target": "mariadb114",
@@ -2822,6 +3381,10 @@
           {
             "target": "mariadb118",
             "result": "All four methods reproduce the same precompilation failure as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted run confirms that all 4 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           }
         ]
       },
@@ -2835,8 +3398,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.PrimitiveCollectionsQueryMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "execution": "inherited-upstream-skip",
       "summary": "EF Core cannot distinguish an empty projected collection from a collection containing NULL when all Distinct identifier columns are nullable.",
@@ -2856,12 +3422,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Project_collection_of_nullable_ints_with_distinct",
         "observations": [
           {
             "target": "mysql84",
             "result": "The reactivated method materializes two elements where the specification requires three because EF Core loses the NULL collection element."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           },
           {
             "target": "mariadb114",
@@ -2870,6 +3444,10 @@
           {
             "target": "mariadb118",
             "result": "The method reproduces the same two-versus-three framework shaping mismatch as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           }
         ]
       },
@@ -2883,8 +3461,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.QueryNoClientEvalMySqlTest",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "execution": "inherited-upstream-skip",
       "summary": "EF Core's no-client-evaluation GroupBy guard reaches an invalid internal collection state instead of the expected translation boundary.",
@@ -2904,12 +3485,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Throws_when_group_by",
         "observations": [
           {
             "target": "mysql84",
             "result": "The reactivated method fails inside EF Core with a null internal collection before the provider receives translatable SQL."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           },
           {
             "target": "mariadb114",
@@ -2918,6 +3507,10 @@
           {
             "target": "mariadb118",
             "result": "The method reproduces the same framework pipeline failure as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted run confirms that all 1 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           }
         ]
       },
@@ -2931,8 +3524,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "execution": "inherited-upstream-skip",
       "summary": "EF Core rejects set operations over different inheritance projections before the provider receives a relational tree that could be translated.",
@@ -2974,12 +3570,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-29",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter \"FullyQualifiedName~InheritanceQueryMySqlTest.OfType_Union_|FullyQualifiedName~InheritanceQueryMySqlTest.Union_entity_equality|FullyQualifiedName~InheritanceQueryMySqlTest.Union_siblings_with_duplicate_property_in_subquery\"",
         "observations": [
           {
             "target": "mysql84",
             "result": "All 24 sync and async TPH, TPC, and TPT rows fail in EF Core navigation expansion or relational set-operation type validation before SQL generation."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted run confirms that all 12 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted run confirms that all 12 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           },
           {
             "target": "mariadb114",
@@ -2988,6 +3592,10 @@
           {
             "target": "mariadb118",
             "result": "All 24 rows reproduce the same framework set-operation rejection as MySQL 8.4."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted run confirms that all 12 disposition methods retain the inherited upstream skip; the cited EF Core source contract remains target-independent."
           }
         ]
       },
@@ -3001,8 +3609,11 @@
       "fixture": "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.ModelBuilding",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "summary": "EF Core rejects shadow properties on complex types during model validation before provider SQL generation.",
       "testMethods": [
@@ -3255,12 +3866,20 @@
         }
       ],
       "probe": {
-        "performedAt": "2026-07-28",
+        "performedAt": "2026-08-11",
         "command": "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true DOKA_SPEC_TEST_TARGET=<target> dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --no-build --filter FullyQualifiedName~Specification.ModelBuilding",
         "observations": [
           {
             "target": "mysql84",
             "result": "The in-memory model-building probe reports 130 failures, 1366 passes, and 12 inherited upstream skips; every reactivated failure terminates in EF Core ModelValidator with ComplexTypeShadowProperty before provider SQL generation."
+          },
+          {
+            "target": "mysql97",
+            "result": "The MySQL 9.7.2 targeted probe reproduces 130 framework-boundary failures and 12 inherited upstream skips across the 142 disposition methods; the failing paths terminate in EF Core ModelValidator before provider SQL."
+          },
+          {
+            "target": "mariadb1011",
+            "result": "The MariaDB 10.11.18 targeted probe reproduces 130 framework-boundary failures and 12 inherited upstream skips across the 142 disposition methods; the failing paths terminate in EF Core ModelValidator before provider SQL."
           },
           {
             "target": "mariadb114",
@@ -3269,6 +3888,10 @@
           {
             "target": "mariadb118",
             "result": "The target-independent model-building probe produces the same 130 framework failures, 1366 passes, and 12 inherited upstream skips."
+          },
+          {
+            "target": "mariadb123",
+            "result": "The MariaDB 12.3.2 targeted probe reproduces 130 framework-boundary failures and 12 inherited upstream skips across the 142 disposition methods; the failing paths terminate in EF Core ModelValidator before provider SQL."
           }
         ]
       },
@@ -3282,8 +3905,11 @@
       "status": "implemented",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "testMethods": [
         "NorthwindWhereQueryMySqlTest.Where_multiple_contains_in_subquery_with_or",
@@ -3305,9 +3931,16 @@
           "url": "https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/subqueries/subquery-limitations",
           "retrievedAt": "2026-07-27",
           "supports": "The manual documents ERROR 1235 for the same LIMIT and IN, ALL, ANY, or SOME combination."
+        },
+        {
+          "publisher": "MySQL",
+          "title": "MySQL 9.7 Reference Manual: Restrictions on Subqueries",
+          "url": "https://dev.mysql.com/doc/refman/9.7/en/subquery-restrictions.html",
+          "retrievedAt": "2026-08-11",
+          "supports": "The MySQL 9.7 manual retains the documented subquery restrictions addressed by the provider's derived-table rewrite."
         }
       ],
-      "verification": "Verified 2026-07-27 against EF Core 10.0.8 and 10.0.10 in the full functional suite with both specification methods active. For each EF Core version, MySQL 8.4 passed 1234, failed 0, skipped 10; MariaDB 11.4 and 11.8 each passed 1192, failed 0, skipped 31."
+      "verification": "Verified on 2026-08-11 by the full active-LTS specification probes: both methods execute on MySQL 8.4/9.7 and MariaDB 10.11/11.4/11.8/12.3, with no unmapped failure outside the explicit engine-disposition ledger."
     },
     {
       "id": "MYSQL-JSON-TABLE-EXISTS-114897",
@@ -3343,8 +3976,11 @@
       "status": "implemented",
       "targets": [
         "mysql84",
+        "mysql97",
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "testMethods": [
         "UpdatesMySqlTest.Identifiers_are_generated_correctly"
@@ -3365,16 +4001,25 @@
           "url": "https://mariadb.com/docs/server/reference/sql-structure/sql-language-structure/identifier-names",
           "retrievedAt": "2026-07-27",
           "supports": "The Maximum Length section lists 64 characters for databases, tables, columns, indexes, constraints, and the other relevant schema identifiers."
+        },
+        {
+          "publisher": "MySQL",
+          "title": "MySQL 9.7 Reference Manual: Identifier Length Limits",
+          "url": "https://dev.mysql.com/doc/refman/9.7/en/identifier-length.html",
+          "retrievedAt": "2026-08-11",
+          "supports": "The MySQL 9.7 manual retains the 64-character limits for the relevant schema identifiers."
         }
       ],
-      "verification": "Verified 2026-07-27 against EF Core 10.0.8 and 10.0.10 in the full functional suite with identifier assertions active, plus the DDL coverage regression for convention-generated foreign-key names. For each EF Core version, MySQL 8.4 passed 1234, failed 0, skipped 10; MariaDB 11.4 and 11.8 each passed 1192, failed 0, skipped 31."
+      "verification": "Verified on 2026-08-11 by the full active-LTS specification probes and the convention-generated foreign-key DDL regression across MySQL 8.4/9.7 and MariaDB 10.11/11.4/11.8/12.3."
     },
     {
       "id": "MARIADB-SPATIAL-COVERS-DE9IM",
       "status": "implemented",
       "targets": [
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "testMethods": [
         "SpatialQueryMySqlTest.CoveredBy",
@@ -3391,14 +4036,16 @@
           "supports": "MariaDB documents ST_Relate as a server predicate that accepts an arbitrary DE-9IM pattern string."
         }
       ],
-      "verification": "Verified 2026-07-29 with all synchronous and asynchronous Covers and CoveredBy specification rows passing on MariaDB 11.4 and 11.8; each complete SpatialQueryMySqlTest target run passed 154 tests, skipped 7, and failed 0."
+      "verification": "Verified on 2026-08-11 with all synchronous and asynchronous Covers and CoveredBy rows executing in the full MariaDB 10.11/11.4/11.8/12.3 specification probes."
     },
     {
       "id": "MARIADB-SPATIAL-STATIC-SRID",
       "status": "implemented",
       "targets": [
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "testMethods": [
         "SpatialQueryMySqlTest.Distance_constant",
@@ -3423,20 +4070,22 @@
           "supports": "MariaDB documents the optional SRID argument on ST_GeomFromWKB."
         }
       ],
-      "verification": "Verified 2026-07-29 through the complete SpatialQueryMySqlTest target runs on MariaDB 11.4 and 11.8; each passed 154 tests, skipped 7, and failed 0."
+      "verification": "Verified on 2026-08-11 by the full MariaDB 10.11/11.4/11.8/12.3 specification probes, including every static-SRID distance row."
     },
     {
       "id": "MARIADB-SPATIAL-MEMBER-DIALECT",
       "status": "implemented",
       "targets": [
+        "mariadb1011",
         "mariadb114",
-        "mariadb118"
+        "mariadb118",
+        "mariadb123"
       ],
       "testMethods": [
         "SpatialQueryMySqlTest.IsSimple",
         "SpatialQueryMySqlTest.NumInteriorRings"
       ],
-      "engineRestriction": "MariaDB names the polygon member ST_NumInteriorRings and MariaDB 11.x returns -1 for ST_IsSimple(NULL) despite documenting a NULL result.",
+      "engineRestriction": "MariaDB names the polygon member ST_NumInteriorRings; supported releases may return a non-null sentinel for ST_IsSimple(NULL) despite documenting a NULL result.",
       "implementation": "MySqlNetTopologySuiteMemberTranslator selects the MariaDB plural function name and wraps ST_IsSimple in a null-preserving CASE expression.",
       "primarySources": [
         {
@@ -3454,7 +4103,7 @@
           "supports": "MariaDB documents that ST_IsSimple returns NULL for a NULL argument, which is the contract preserved by the provider adapter."
         }
       ],
-      "verification": "Verified 2026-07-29 with synchronous and asynchronous NumInteriorRings and IsSimple rows passing on MariaDB 11.4 and 11.8; each complete SpatialQueryMySqlTest target run passed 154 tests, skipped 7, and failed 0."
+      "verification": "Verified on 2026-08-11 with synchronous and asynchronous NumInteriorRings and IsSimple rows executing in the full MariaDB 10.11/11.4/11.8/12.3 specification probes."
     }
   ]
 }

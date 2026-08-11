@@ -22,6 +22,30 @@ public sealed class MySqlOperabilityBaselineTests
     }
 
     /// <summary>
+    /// Verifies the command-timeout diagnostic against MySQL 9.7.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task MySql97_command_timeout_logs_timeout_exhaustion()
+    {
+        await AssertCommandTimeoutAsync(
+                IntegrationDatabaseTarget.MySql97,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies the command-timeout diagnostic against MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task MariaDb1011_command_timeout_logs_timeout_exhaustion()
+    {
+        await AssertCommandTimeoutAsync(
+                IntegrationDatabaseTarget.MariaDb1011,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Verifies that MariaDB 11.4 surfaces the provider timeout diagnostic
     /// without being treated as a retry.
     /// </summary>
@@ -47,12 +71,48 @@ public sealed class MySqlOperabilityBaselineTests
     }
 
     /// <summary>
+    /// Verifies the command-timeout diagnostic against MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task MariaDb123_command_timeout_logs_timeout_exhaustion()
+    {
+        await AssertCommandTimeoutAsync(
+                IntegrationDatabaseTarget.MariaDb123,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Verifies that async cancellation honors the supplied token and emits a cancellation diagnostic.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Cancellation_token_honors_driver_cancellation_and_logs_cancellation_path()
     {
         await AssertCancellationAsync(IntegrationDatabaseTarget.MySql84, MySqlServerVersion.MySql(new Version(8, 4, 0)))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies driver cancellation and its diagnostic against MySQL 9.7.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task MySql97_cancellation_token_honors_driver_cancellation_and_logs_cancellation_path()
+    {
+        await AssertCancellationAsync(
+                IntegrationDatabaseTarget.MySql97,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies driver cancellation and its diagnostic against MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task MariaDb1011_cancellation_token_honors_driver_cancellation_and_logs_cancellation_path()
+    {
+        await AssertCancellationAsync(
+                IntegrationDatabaseTarget.MariaDb1011,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
             .ConfigureAwait(false);
     }
 
@@ -78,6 +138,18 @@ public sealed class MySqlOperabilityBaselineTests
         await AssertCancellationAsync(
                 IntegrationDatabaseTarget.MariaDb118,
                 MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies driver cancellation and its diagnostic against MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task MariaDb123_cancellation_token_honors_driver_cancellation_and_logs_cancellation_path()
+    {
+        await AssertCancellationAsync(
+                IntegrationDatabaseTarget.MariaDb123,
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
             .ConfigureAwait(false);
     }
 
@@ -149,7 +221,7 @@ public sealed class MySqlOperabilityBaselineTests
         ILoggerFactory loggerFactory
     )
     {
-        var builder = new DbContextOptionsBuilder<OperabilityContext>();
+        var builder = IntegrationTestDbContextOptions.Create<OperabilityContext>();
 
         builder.UseLoggerFactory(loggerFactory);
         builder.UseMySql(

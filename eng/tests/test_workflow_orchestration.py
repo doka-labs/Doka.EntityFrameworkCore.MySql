@@ -194,8 +194,8 @@ class ArtifactHandoffTests(unittest.TestCase):
                         f"{workflow} downloads '{name}', which no workflow uploads.",
                     )
 
-    def test_coverage_gate_downloads_one_artifact_per_specification_engine(self) -> None:
-        """Bind the coverage inputs to the engines the matrix actually runs.
+    def test_coverage_gate_downloads_one_artifact_per_specification_target(self) -> None:
+        """Bind the coverage inputs to the targets the matrix actually runs.
 
         The generic producer/consumer check above cannot catch a typo here: the
         producer's name is templated on the matrix value, so any string sharing
@@ -203,20 +203,20 @@ class ArtifactHandoffTests(unittest.TestCase):
         """
         text = workflow_text("ci.yml")
 
-        engines = re.findall(r"- \{ name: (?P<engine>[\w-]+), target:", text)
+        targets = re.findall(r"- \{ name: (?P<target>[\w-]+), target:", text)
         self.assertEqual(
-            3,
-            len(engines),
-            "The specification matrix is expected to cover three engines.",
+            6,
+            len(targets),
+            "The specification matrix must cover every active LTS target.",
         )
 
         downloads = artifact_names(text, DOWNLOAD_STEP)
-        for engine in engines:
-            with self.subTest(engine=engine):
+        for target in targets:
+            with self.subTest(target=target):
                 self.assertIn(
-                    f"spec-tests-coverage-{engine}",
+                    f"spec-tests-coverage-{target}",
                     downloads,
-                    f"The coverage gate does not download the {engine} evidence "
+                    f"The coverage gate does not download the {target} evidence "
                     "that the specification matrix produces.",
                 )
 
@@ -225,12 +225,12 @@ class ArtifactHandoffTests(unittest.TestCase):
             for name in downloads
             if name.startswith("spec-tests-coverage-")
             and name != "spec-tests-coverage-<expr>"
-            and name.removeprefix("spec-tests-coverage-") not in engines
+            and name.removeprefix("spec-tests-coverage-") not in targets
         }
         self.assertEqual(
             set(),
             stale,
-            "The coverage gate downloads specification evidence for an engine "
+            "The coverage gate downloads specification evidence for a target "
             "the matrix does not run.",
         )
 
@@ -255,6 +255,32 @@ class ArtifactHandoffTests(unittest.TestCase):
 
         self.assertIn("performance-qualification:", candidate)
         self.assertIn("- performance-qualification", candidate)
+
+
+class CompatibilityMatrixTests(unittest.TestCase):
+    """The scheduled compatibility lane must enforce the advertised matrix."""
+
+    def test_container_matrix_requires_every_active_lts_target(self) -> None:
+        """Reject a partial scheduled run presented as full qualification."""
+        text = workflow_text("container-matrix.yml")
+        selection = re.search(
+            r"DOKA_INTEGRATION_TARGETS:\s*>-\s*\n\s*(?P<targets>[^\n]+)",
+            text,
+        )
+
+        self.assertIsNotNone(selection)
+        self.assertEqual(
+            {
+                "mysql84",
+                "mysql97",
+                "mariadb1011",
+                "mariadb114",
+                "mariadb118",
+                "mariadb123",
+            },
+            set(selection.group("targets").split(",")),
+        )
+        self.assertIn("DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX: 1", text)
 
 
 class CrossWorkflowDispatchTests(unittest.TestCase):

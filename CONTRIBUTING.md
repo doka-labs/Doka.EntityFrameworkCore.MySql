@@ -81,7 +81,10 @@ This runs unit and functional tests with `--no-build --no-restore` after a singl
 ./eng/test-integration.sh
 ```
 
-The test assembly starts isolated containers on dynamic ports for MySQL 8.4, MariaDB 11.4, and MariaDB 11.8, waits for database readiness, runs the live tests, and removes every owned container. No database service needs to be running before the command starts.
+The test assembly starts isolated containers on dynamic ports for every active
+LTS target, waits for database readiness, runs the live tests, and removes
+every owned container. No database service needs to be running before the
+command starts.
 
 For a representative subset, scope the target selection:
 
@@ -99,7 +102,10 @@ DOKA_SPEC_TEST_TARGET=mysql84 dotnet test \
   --filter "Category=Spec"
 ```
 
-Accepted specification targets are `mysql84`, `mariadb114`, and `mariadb118`. Set `DOKA_SPEC_TEST_CONNECTION_STRING` together with `DOKA_SPEC_TEST_SERVER_VERSION` only when validating an external database.
+Accepted specification targets are `mysql84`, `mysql97`, `mariadb1011`,
+`mariadb114`, `mariadb118`, and `mariadb123`. Set
+`DOKA_SPEC_TEST_CONNECTION_STRING` together with
+`DOKA_SPEC_TEST_SERVER_VERSION` only when validating an external database.
 
 The specification contract is stricter than a passing aggregate test count:
 

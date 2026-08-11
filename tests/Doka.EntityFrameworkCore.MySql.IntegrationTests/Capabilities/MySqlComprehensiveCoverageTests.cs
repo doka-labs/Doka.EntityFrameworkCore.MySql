@@ -17,16 +17,24 @@ public sealed class MySqlComprehensiveCoverageTests
     // ======================================================================
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Scaffolding_roundtrip_on_mysql84()
-    {
+    public async Task Scaffolding_roundtrip_on_mysql84() =>
         await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MySql84);
-    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task Scaffolding_roundtrip_on_mysql97() =>
+        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MySql97);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task Scaffolding_roundtrip_on_mariadb1011() =>
+        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb1011);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task Scaffolding_roundtrip_on_mariadb118()
-    {
+    public async Task Scaffolding_roundtrip_on_mariadb118() =>
         await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb118);
-    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task Scaffolding_roundtrip_on_mariadb123() =>
+        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb123);
 
     private static async Task RunScaffoldingRoundTripTest(
         IntegrationDatabaseTarget target
@@ -469,16 +477,24 @@ public sealed class MySqlComprehensiveCoverageTests
     // ======================================================================
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mysql84()
-    {
+    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mysql84() =>
         await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MySql84);
-    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mysql97() =>
+        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MySql97);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mariadb1011() =>
+        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb1011);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mariadb118()
-    {
+    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mariadb118() =>
         await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb118);
-    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mariadb123() =>
+        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb123);
 
     private static async Task RunEnsureCreatedDeletedTest(
         IntegrationDatabaseTarget target
@@ -585,23 +601,18 @@ public sealed class MySqlComprehensiveCoverageTests
     )
         where T : DbContext
     {
-        var b = new DbContextOptionsBuilder<T>();
+        var b = IntegrationTestDbContextOptions.Create<T>();
         b.UseMySql(cs, sv);
         return b.Options;
     }
 
     private static MySqlServerVersion GetServerVersion(
         IntegrationDatabaseTarget target
-    ) => target switch
-    {
-        IntegrationDatabaseTarget.MySql80 => MySqlServerVersion.MySql(
+    ) => target == IntegrationDatabaseTarget.MySql80
+        ? MySqlServerVersion.MySql(
             new Version(8, 0, 0),
-            MySqlServerVersionCompatibilityMode.AllowUnsupported),
-        IntegrationDatabaseTarget.MySql84 => MySqlServerVersion.MySql(new Version(8, 4, 0)),
-        IntegrationDatabaseTarget.MariaDb114 => MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
-        IntegrationDatabaseTarget.MariaDb118 => MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
-        _ => throw new ArgumentOutOfRangeException(nameof(target)),
-    };
+            MySqlServerVersionCompatibilityMode.AllowUnsupported)
+        : IntegrationTestEnvironment.GetServerVersion(target);
 
     private static string ReplaceDatabase(
         string cs,

@@ -6,7 +6,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal static class ServerVersionSupportPolicy
 {
-    public const string SupportedMatrix = "MySQL 8.4; MariaDB 11.4 and 11.8";
+    public const string SupportedMatrix =
+        "MySQL 8.4 and 9.7; MariaDB 10.11, 11.4, 11.8, and 12.3";
 
     public static MySqlServerVersionSupportStatus Classify(
         EngineFamily family,
@@ -40,32 +41,40 @@ internal static class ServerVersionSupportPolicy
         Version version
     )
     {
-        var lineComparison = CompareReleaseLine(version, major: 8, minor: 4);
-
-        return lineComparison switch
+        if (IsReleaseLine(version, major: 8, minor: 4)
+            || IsReleaseLine(version, major: 9, minor: 7))
         {
-            0 => MySqlServerVersionSupportStatus.Supported,
-            < 0 => MySqlServerVersionSupportStatus.Legacy,
-            > 0 => MySqlServerVersionSupportStatus.Future,
-        };
+            return MySqlServerVersionSupportStatus.Supported;
+        }
+
+        if (CompareReleaseLine(version, major: 8, minor: 4) < 0)
+        {
+            return MySqlServerVersionSupportStatus.Legacy;
+        }
+
+        return CompareReleaseLine(version, major: 9, minor: 7) > 0
+            ? MySqlServerVersionSupportStatus.Future
+            : MySqlServerVersionSupportStatus.Unvalidated;
     }
 
     private static MySqlServerVersionSupportStatus ClassifyMariaDb(
         Version version
     )
     {
-        if (IsReleaseLine(version, major: 11, minor: 4)
-            || IsReleaseLine(version, major: 11, minor: 8))
+        if (IsReleaseLine(version, major: 10, minor: 11)
+            || IsReleaseLine(version, major: 11, minor: 4)
+            || IsReleaseLine(version, major: 11, minor: 8)
+            || IsReleaseLine(version, major: 12, minor: 3))
         {
             return MySqlServerVersionSupportStatus.Supported;
         }
 
-        if (CompareReleaseLine(version, major: 11, minor: 4) < 0)
+        if (CompareReleaseLine(version, major: 10, minor: 11) < 0)
         {
             return MySqlServerVersionSupportStatus.Legacy;
         }
 
-        return CompareReleaseLine(version, major: 11, minor: 8) > 0
+        return CompareReleaseLine(version, major: 12, minor: 3) > 0
             ? MySqlServerVersionSupportStatus.Future
             : MySqlServerVersionSupportStatus.Unvalidated;
     }

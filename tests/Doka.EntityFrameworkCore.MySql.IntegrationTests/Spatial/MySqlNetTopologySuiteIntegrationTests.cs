@@ -13,16 +13,28 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     /// Verifies that the MySQL 8.4 runtime can persist, query, and materialize the spatial baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task MySql84_spatial_queries_and_materialization_succeed()
+    public Task MySql84_spatial_queries_and_materialization_succeed() =>
+        RunMySqlSpatialQueriesAsync(IntegrationDatabaseTarget.MySql84);
+
+    /// <summary>
+    /// Verifies that the MySQL 9.7 runtime can persist, query, and materialize the spatial baseline.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public Task MySql97_spatial_queries_and_materialization_succeed() =>
+        RunMySqlSpatialQueriesAsync(IntegrationDatabaseTarget.MySql97);
+
+    private static async Task RunMySqlSpatialQueriesAsync(
+        IntegrationDatabaseTarget target
+    )
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
         await ResetSpatialObjectsAsync(connectionString)
             .ConfigureAwait(false);
 
         try
         {
-            await using var context = new SpatialDbContext(CreateMySqlOptions(connectionString));
+            await using var context = new SpatialDbContext(CreateSpatialOptions(connectionString, target));
 
             await context
                 .Database.ExecuteSqlRawAsync(
@@ -78,16 +90,35 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     /// Verifies that the MariaDB 11.8 runtime executes the approved spatial helper baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task MariaDb118_spatial_helpers_succeed()
+    public Task MariaDb118_spatial_helpers_succeed() =>
+        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb118);
+
+    /// <summary>
+    /// Verifies that the MariaDB 10.11 runtime executes the approved spatial helper baseline.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public Task MariaDb1011_spatial_helpers_succeed() =>
+        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb1011);
+
+    /// <summary>
+    /// Verifies that the MariaDB 12.3 runtime executes the approved spatial helper baseline.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public Task MariaDb123_spatial_helpers_succeed() =>
+        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb123);
+
+    private static async Task RunMariaDbSpatialHelpersAsync(
+        IntegrationDatabaseTarget target
+    )
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
         await ResetSpatialObjectsAsync(connectionString)
             .ConfigureAwait(false);
 
         try
         {
-            await using var context = new SpatialDbContext(CreateMariaDbOptions(connectionString));
+            await using var context = new SpatialDbContext(CreateSpatialOptions(connectionString, target));
 
             await context
                 .Database.ExecuteSqlRawAsync(
@@ -159,7 +190,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
 
         try
         {
-            await using var context = new SpatialDbContext(CreateMariaDbOptions(connectionString));
+            await using var context = new SpatialDbContext(
+                CreateSpatialOptions(connectionString, IntegrationDatabaseTarget.MariaDb118));
 
             await context
                 .Database.ExecuteSqlRawAsync(
@@ -215,7 +247,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
 
         try
         {
-            await using var context = new SpatialDbContext(CreateMariaDbOptions(connectionString));
+            await using var context = new SpatialDbContext(
+                CreateSpatialOptions(connectionString, IntegrationDatabaseTarget.MariaDb118));
 
             await context
                 .Database.ExecuteSqlRawAsync(
@@ -275,7 +308,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         var sink = new SridWarningSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new SridWarningLoggerProvider(sink)));
 
-        var builder = new DbContextOptionsBuilder<SridWarningContext>();
+        var builder = IntegrationTestDbContextOptions.Create<SridWarningContext>();
         builder
             .UseLoggerFactory(loggerFactory)
             .UseMySql(
@@ -298,7 +331,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         var sink = new SridWarningSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new SridWarningLoggerProvider(sink)));
 
-        var builder = new DbContextOptionsBuilder<SridWarningContext>();
+        var builder = IntegrationTestDbContextOptions.Create<SridWarningContext>();
         builder
             .UseLoggerFactory(loggerFactory)
             .UseMySql(
@@ -405,29 +438,16 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         }
     }
 
-    private static DbContextOptions<SpatialDbContext> CreateMySqlOptions(
-        string connectionString
+    private static DbContextOptions<SpatialDbContext> CreateSpatialOptions(
+        string connectionString,
+        IntegrationDatabaseTarget target
     )
     {
-        var builder = new DbContextOptionsBuilder<SpatialDbContext>();
+        var builder = IntegrationTestDbContextOptions.Create<SpatialDbContext>();
 
         builder.UseMySql(
             connectionString,
-            MySqlServerVersion.MySql(new Version(8, 4, 0)),
-            options => options.UseNetTopologySuite());
-
-        return builder.Options;
-    }
-
-    private static DbContextOptions<SpatialDbContext> CreateMariaDbOptions(
-        string connectionString
-    )
-    {
-        var builder = new DbContextOptionsBuilder<SpatialDbContext>();
-
-        builder.UseMySql(
-            connectionString,
-            MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+            IntegrationTestEnvironment.GetServerVersion(target),
             options => options.UseNetTopologySuite());
 
         return builder.Options;

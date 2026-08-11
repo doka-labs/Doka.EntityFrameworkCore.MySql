@@ -146,13 +146,13 @@ Three structural improvements:
 
 ### Engine support matrix
 
-| Feature | MySQL 8.4 LTS | MariaDB 11.4 LTS | MariaDB 11.8 LTS |
-|---|---|---|---|
-| `ST_Distance` SRID-strict check | yes (hard error on mismatch) | no (silent Cartesian) | no (silent Cartesian) |
-| WKB SRID-header prefix on read | yes (4-byte LE prefix) | no (canonical OGC) | no (canonical OGC) |
-| Spatial index on NULLABLE column | rejected | accepted (functionally ignores NULLs) | accepted (functionally ignores NULLs) |
-| `ST_Buffer` quadrant-segment count default | 8 | 32 | 32 |
-| Geography (`GEOGRAPHY`) type | no (Geometry-only) | no (Geometry-only) | no (Geometry-only) |
+| Feature | MySQL 8.4 / 9.7 LTS | MariaDB 10.11 / 11.4 / 11.8 / 12.3 LTS |
+|---|---|---|
+| `ST_Distance` SRID-strict check | yes (hard error on mismatch) | no (silent Cartesian) |
+| WKB SRID-header prefix on read | yes (4-byte LE prefix) | no (canonical OGC) |
+| Spatial index on NULLABLE column | rejected | accepted (functionally ignores NULLs) |
+| `ST_Buffer` quadrant-segment count default | 8 | 32 |
+| Geography (`GEOGRAPHY`) type | no (Geometry-only) | no (Geometry-only) |
 
 ### Additional Alternative Rationale
 
@@ -184,6 +184,9 @@ Three structural improvements:
 
 - 2026-05-16: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-08-11: Reconciled the engine matrix with all six active LTS targets;
+  MariaDB 12.3 capability additions remain governed by executable
+  dispositions rather than a family-wide assumption.
 
 ### Implementation References
 

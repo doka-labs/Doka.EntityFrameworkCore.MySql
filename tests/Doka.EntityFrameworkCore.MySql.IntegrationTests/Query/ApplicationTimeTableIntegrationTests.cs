@@ -22,6 +22,10 @@ public sealed class ApplicationTimeTableIntegrationTests
     private static readonly DateTime s_updateTo = new(2026, 7, 1);
     private static readonly DateTime s_initialTo = new(2027, 1, 1);
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public Task Bitemporal_contract_executes_on_mariadb1011() =>
+        RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb1011);
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task Bitemporal_contract_executes_on_mariadb114() =>
         RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb114);
@@ -29,6 +33,10 @@ public sealed class ApplicationTimeTableIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task Bitemporal_contract_executes_on_mariadb118() =>
         RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb118);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public Task Bitemporal_contract_executes_on_mariadb123() =>
+        RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb123);
 
     private static async Task RunBitemporalContractAsync(
         IntegrationDatabaseTarget target
@@ -49,7 +57,7 @@ public sealed class ApplicationTimeTableIntegrationTests
                 bitemporalContext,
                 connection,
                 GetDifferences(emptyContext, bitemporalContext));
-            await AssertPhysicalContractAsync(connection);
+            await AssertPhysicalContractAsync(connection, target);
             AssertScaffoldingContract(connectionString);
             await AssertPortionMutationContractAsync(target);
 
@@ -66,7 +74,8 @@ public sealed class ApplicationTimeTableIntegrationTests
     }
 
     private static async Task AssertPhysicalContractAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        IntegrationDatabaseTarget target
     )
     {
         Assert.Equal(1, await CountTablesAsync(connection));
@@ -81,6 +90,24 @@ public sealed class ApplicationTimeTableIntegrationTests
                   AND TABLE_NAME = @tableName;
                 """,
                 ("@tableName", TableName)));
+        if (!IntegrationTestEnvironment
+                .GetServerVersion(target)
+                .Profile.Engine.Has(EngineCapability.TemporalPeriodCatalog))
+        {
+            var createTableSql = await ReadCreateTableAsync(connection);
+
+            Assert.Contains(
+                $"PERIOD FOR `{ApplicationPeriodName}` "
+                + $"(`{ApplicationPeriodStartColumnName}`, `{ApplicationPeriodEndColumnName}`)",
+                createTableSql,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                $"`{ApplicationPeriodName}` WITHOUT OVERLAPS",
+                createTableSql,
+                StringComparison.Ordinal);
+            return;
+        }
+
         Assert.Equal(
             1,
             await CountAsync(
@@ -272,7 +299,7 @@ public sealed class ApplicationTimeTableIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
-        var options = new DbContextOptionsBuilder<BitemporalContext>().UseMySql(
+        var options = IntegrationTestDbContextOptions.Create<BitemporalContext>().UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
             .Options;
@@ -284,7 +311,7 @@ public sealed class ApplicationTimeTableIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
-        var options = new DbContextOptionsBuilder<EmptyApplicationTimeContext>().UseMySql(
+        var options = IntegrationTestDbContextOptions.Create<EmptyApplicationTimeContext>().UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
             .Options;
@@ -303,6 +330,21 @@ public sealed class ApplicationTimeTableIntegrationTests
           AND TABLE_NAME = @tableName;
         """,
         ("@tableName", TableName));
+
+    private static async Task<string> ReadCreateTableAsync(
+        MySqlConnection connection
+    )
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            "SET STATEMENT sql_mode = '', sql_quote_show_create = 1 "
+            + $"FOR SHOW CREATE TABLE `{TableName}`;";
+
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+
+        return reader.GetString(1);
+    }
 
     private static async Task<int> CountAsync(
         MySqlConnection connection,

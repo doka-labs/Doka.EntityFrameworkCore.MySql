@@ -13,8 +13,11 @@ public sealed class MySqlServerVersionSupportTests
     /// </summary>
     [Theory]
     [InlineData(false, 8, 4)]
+    [InlineData(false, 9, 7)]
+    [InlineData(true, 10, 11)]
     [InlineData(true, 11, 4)]
     [InlineData(true, 11, 8)]
+    [InlineData(true, 12, 3)]
     public void Supported_release_lines_pass_default_validation(
         bool isMariaDb,
         int major,
@@ -36,8 +39,11 @@ public sealed class MySqlServerVersionSupportTests
     /// </summary>
     [Theory]
     [InlineData(false, 8, 0, MySqlServerVersionSupportStatus.Legacy)]
+    [InlineData(false, 9, 6, MySqlServerVersionSupportStatus.Unvalidated)]
+    [InlineData(false, 9, 8, MySqlServerVersionSupportStatus.Future)]
+    [InlineData(true, 10, 6, MySqlServerVersionSupportStatus.Legacy)]
     [InlineData(true, 11, 6, MySqlServerVersionSupportStatus.Unvalidated)]
-    [InlineData(false, 9, 0, MySqlServerVersionSupportStatus.Future)]
+    [InlineData(true, 12, 4, MySqlServerVersionSupportStatus.Future)]
     public void Unsupported_release_lines_fail_default_validation(
         bool isMariaDb,
         int major,
@@ -64,8 +70,11 @@ public sealed class MySqlServerVersionSupportTests
     /// </summary>
     [Theory]
     [InlineData(false, 8, 0)]
+    [InlineData(false, 9, 6)]
+    [InlineData(false, 9, 8)]
+    [InlineData(true, 10, 6)]
     [InlineData(true, 11, 6)]
-    [InlineData(false, 9, 0)]
+    [InlineData(true, 12, 4)]
     public void Explicit_compatibility_mode_allows_unsupported_release_lines(
         bool isMariaDb,
         int major,

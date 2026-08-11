@@ -90,7 +90,7 @@ public sealed class SpatialQueryMySqlTest
     /// MySQL 8.4 spatial function reference</see>.
     /// </remarks>
     [SpecEngineLimitationTheory(
-        "MYSQL84-SPATIAL-RELATE",
+        "MYSQL-SPATIAL-RELATE",
         "mysql84")]
     [MemberData(nameof(IsAsyncData))]
     public override Task Relate(
@@ -130,8 +130,9 @@ public sealed class SpatialQueryMySqlTest
     ) => base.Buffer_quadrantSegments(async);
 
     /// <summary>
-    /// MariaDB 11.4 and 11.8 do not expose the spatial aggregate required by NTS
-    /// collection-combine semantics.
+    /// MariaDB 10.11, 11.4, and 11.8 do not expose the spatial aggregate
+    /// required by NTS collection-combine semantics. MariaDB 12.3 executes the
+    /// inherited contract through the function added in MariaDB 12.0.
     /// </summary>
     [SpecEngineLimitationTheory(
         "MARIADB-SPATIAL-COLLECT",
@@ -143,8 +144,9 @@ public sealed class SpatialQueryMySqlTest
     ) => base.Combine_aggregate(async);
 
     /// <summary>
-    /// MariaDB 11.4 and 11.8 do not expose the spatial aggregate required before
-    /// computing a collection envelope.
+    /// MariaDB 10.11, 11.4, and 11.8 do not expose the spatial aggregate
+    /// required before computing a collection envelope. MariaDB 12.3 executes
+    /// the inherited contract through the function added in MariaDB 12.0.
     /// </summary>
     [SpecEngineLimitationTheory(
         "MARIADB-SPATIAL-COLLECT",
@@ -156,8 +158,10 @@ public sealed class SpatialQueryMySqlTest
     ) => base.EnvelopeCombine_aggregate(async);
 
     /// <summary>
-    /// MariaDB 11.4 and 11.8 do not expose the spatial aggregate required before
-    /// computing a unary collection union.
+    /// MariaDB 10.11, 11.4, and 11.8 do not expose the spatial aggregate
+    /// required before computing a unary collection union. MariaDB 12.3
+    /// executes the inherited contract through the function added in MariaDB
+    /// 12.0.
     /// </summary>
     [SpecEngineLimitationTheory(
         "MARIADB-SPATIAL-COLLECT",
@@ -169,8 +173,9 @@ public sealed class SpatialQueryMySqlTest
     ) => base.Union_aggregate(async);
 
     /// <summary>
-    /// MariaDB adds server-side OGC validity testing only after the supported 11.x
-    /// targets.
+    /// MariaDB 10.11, 11.4, and 11.8 predate server-side OGC validity testing.
+    /// MariaDB 12.3 executes the inherited contract through the function added
+    /// in MariaDB 12.0.
     /// </summary>
     [SpecEngineLimitationTheory(
         "MARIADB-SPATIAL-VALIDITY",

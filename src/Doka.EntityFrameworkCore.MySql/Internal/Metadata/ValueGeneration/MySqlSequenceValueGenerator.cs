@@ -104,6 +104,7 @@ internal static class MySqlSequenceValueGenerator
         object? result
     ) => result switch
     {
+        null or DBNull => throw new InvalidOperationException("The database did not return a sequence value."),
         long longValue => longValue,
         int intValue => intValue,
         decimal decimalValue => (long)decimalValue,

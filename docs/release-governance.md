@@ -52,7 +52,8 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/mysqlconnector-patch-matrix/<matrix-entry>/test-database-evidence.json`
     - `artifacts/mysqlconnector-patch-matrix/<matrix-entry>/unit/...`
     - `artifacts/mysqlconnector-patch-matrix/<matrix-entry>/live/...`
-  - specification targets: `mysql84`, `mariadb114`, and `mariadb118`
+  - specification targets: `mysql84`, `mysql97`, `mariadb1011`, `mariadb114`,
+    `mariadb118`, and `mariadb123`
   - merged source-coverage gate: `coverage-gate`
   - migration deployment lifecycle: `./eng/test-migration-deployment.sh`
   - runtime smoke: `./eng/test-runtime-posture.sh --test-only`
@@ -63,7 +64,8 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - workflow: `.github/workflows/container-matrix.yml`
   - cadence: weekly and on demand
   - local path: `./eng/test-integration.sh`
-  - targets: `mysql84`, `mariadb114`, and `mariadb118`
+  - targets: `mysql84`, `mysql97`, `mariadb1011`, `mariadb114`, `mariadb118`,
+    and `mariadb123`
   - includes the complete configuration, security, and failure categories
   - retained evidence:
     - `artifacts/integration/<run-id>/compatibility-matrix-summary.md`
@@ -238,8 +240,7 @@ cannot prove:
 - static and dynamically indexed JSON paths apply JSON-path escaping first and
   then use the same mode-independent SQL literal generator as other text
 - the reusable driver, lifecycle, network-fault, operability, transaction, and
-  cross-layer observability contracts run on MariaDB 11.4 as well as MySQL 8.4
-  and MariaDB 11.8
+  cross-layer observability contracts run on all six active LTS targets
 - test-owned certificate authorities and server/client certificates prove
   verified TLS, rejected plaintext, rejected untrusted and name-mismatched
   certificates, password success/failure, engine-default authentication
@@ -250,7 +251,7 @@ cannot prove:
   proves ordered multi-host failover through an actual provider query
 
 The fast push lane excludes the three dedicated categories. The scheduled
-`container-matrix` workflow selects MySQL 8.4, MariaDB 11.4, and MariaDB 11.8
+`container-matrix` workflow selects every active MySQL and MariaDB LTS target
 explicitly and runs without a filter. The shared runner persists its selected
 targets, filter, exit code, and full-matrix marker so the result remains
 auditable instead of being inferred from a green job alone. This scheduled

@@ -440,7 +440,7 @@ public sealed class MySqlMigrationConcurrencyTests
         int? commandTimeout = null
     )
     {
-        var builder = new DbContextOptionsBuilder<LockContext>();
+        var builder = IntegrationTestDbContextOptions.Create<LockContext>();
         builder.UseMySql(
             connectionString,
             MySqlServerVersion.MySql(new Version(8, 4, 0)),
@@ -458,7 +458,7 @@ public sealed class MySqlMigrationConcurrencyTests
         MySqlDataSource dataSource
     )
     {
-        var builder = new DbContextOptionsBuilder<LockContext>();
+        var builder = IntegrationTestDbContextOptions.Create<LockContext>();
         builder.UseMySql(dataSource, MySqlServerVersion.MySql(new Version(8, 4, 0)));
         return builder.Options;
     }

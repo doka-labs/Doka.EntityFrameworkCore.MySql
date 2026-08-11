@@ -10,6 +10,27 @@ public sealed class MySqlTransactionOperabilityTests
     private const string TransactionTableName = "Phase3TransactionEntities";
 
     /// <summary>
+    /// Verifies every reusable transaction-operability contract against MySQL 9.7.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public Task MySql97_satisfies_the_transaction_operability_contract() =>
+        AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MySql97);
+
+    /// <summary>
+    /// Verifies every reusable transaction-operability contract against MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public Task MariaDb1011_satisfies_the_transaction_operability_contract() =>
+        AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MariaDb1011);
+
+    /// <summary>
+    /// Verifies every reusable transaction-operability contract against MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public Task MariaDb123_satisfies_the_transaction_operability_contract() =>
+        AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MariaDb123);
+
+    /// <summary>
     /// Verifies that rolling back to a savepoint preserves the pre-savepoint state.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
@@ -153,6 +174,22 @@ public sealed class MySqlTransactionOperabilityTests
         await AssertTransactionScopeAsyncFlowCommitsAsync(
                 IntegrationDatabaseTarget.MariaDb118,
                 MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+            .ConfigureAwait(false);
+    }
+
+    private static async Task AssertTransactionOperabilityContractAsync(
+        IntegrationDatabaseTarget target
+    )
+    {
+        var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
+
+        await AssertSavepointsPreserveStateAsync(target, serverVersion)
+            .ConfigureAwait(false);
+        await AssertUserManagedTransactionsAreRejectedAsync(target, serverVersion)
+            .ConfigureAwait(false);
+        await AssertVerifySucceededPatternAsync(target, serverVersion)
+            .ConfigureAwait(false);
+        await AssertTransactionScopeAsyncFlowCommitsAsync(target, serverVersion)
             .ConfigureAwait(false);
     }
 
@@ -366,7 +403,7 @@ public sealed class MySqlTransactionOperabilityTests
         MySqlServerVersion serverVersion
     )
     {
-        var builder = new DbContextOptionsBuilder<TransactionOperabilityContext>();
+        var builder = IntegrationTestDbContextOptions.Create<TransactionOperabilityContext>();
 
         builder.UseMySql(
             connectionString,

@@ -58,7 +58,7 @@ public sealed class MySqlSpatialTest : SpatialTestBase<MySqlSpatialFixture>
         IDbContextTransaction transaction
     ) => facade.UseTransaction(transaction.GetDbTransaction());
 
-    [SpecEngineLimitationFact("MYSQL84-POINT-EMPTY", "mysql84")]
+    [SpecEngineLimitationFact("MYSQL-POINT-EMPTY", "mysql84")]
     public override void Translators_handle_static_members() => base.Translators_handle_static_members();
 
     [SpecEngineLimitationFact("MYSQL-MARIADB-SPATIAL-ZM-ORDINATES", "mysql84", "mariadb114", "mariadb118")]

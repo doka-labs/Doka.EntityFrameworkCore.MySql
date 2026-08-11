@@ -4,7 +4,7 @@
     <RootNamespace>Doka.EntityFrameworkCore.MySql</RootNamespace>
     <PackageId>Doka.EntityFrameworkCore.MySql</PackageId>
     <Title>Doka.EntityFrameworkCore.MySql</Title>
-    <Description>Entity Framework Core 10 provider for MySQL 8.4 LTS and MariaDB 11.4 / 11.8 LTS. Native JSON, HiLo and sequences, advisory-lock-protected migrations, GUID Binary16/Char36 support, full query translation (REGEXP, MATCH/AGAINST, GROUP_CONCAT, JSON functions), trim- and AOT-aware.</Description>
+    <Description>Entity Framework Core 10 provider for MySQL 8.4 / 9.7 LTS and MariaDB 10.11 / 11.4 / 11.8 / 12.3 LTS. Native JSON, HiLo and sequences, advisory-lock-protected migrations, GUID Binary16/Char36 support, full query translation (REGEXP, MATCH/AGAINST, GROUP_CONCAT, JSON functions), trim- and AOT-aware.</Description>
     <PackageTags>entityframeworkcore;efcore;ef;orm;mysql;mariadb;mysqlconnector;database;provider</PackageTags>
     <GenerateDependencyFile>false</GenerateDependencyFile>
     <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>

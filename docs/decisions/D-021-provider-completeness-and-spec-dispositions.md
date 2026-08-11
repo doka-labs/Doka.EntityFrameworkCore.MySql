@@ -94,7 +94,7 @@ infrastructure, the provider is changed and the inherited assertion continues to
 
 - Run `SpecDispositionContractTests` and
   `eng/testing/check-spec-discovery.sh`.
-- Run the specification suite on MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
+- Run the specification suite on every active LTS target.
 
 ## Pros and Cons of the Options
 
@@ -248,6 +248,35 @@ discovery totals are 29,746, 29,410, and 29,411 for EF Core 10.0.8, and
 full live-matrix evidence; the regeneration is not represented as another
 full execution.
 
+### Active LTS expansion
+
+The 2026-08-11 support expansion retains one authoritative target set per
+disposition in `SpecDispositions.json`. Attribute target arguments are the
+source annotation that existed when a method was classified: discovery
+requires that annotation to remain a subset of the ledger, while the ledger
+extends the executable skip to a newly admitted LTS target only after that
+target has a primary-source entry and a probe observation. This avoids copying
+one lifecycle change into hundreds of inherited overrides without allowing an
+old source annotation to contradict the current evidence owner.
+
+The exact discovery contracts now bind both EF Core patch endpoints to all six
+active LTS targets:
+
+| Target | EF Core 10.0.8 | EF Core 10.0.10 |
+| --- | ---: | ---: |
+| MySQL 8.4 | 29,746 | 29,754 |
+| MySQL 9.7 | 29,746 | 29,754 |
+| MariaDB 10.11 | 29,412 | 29,420 |
+| MariaDB 11.4 | 29,410 | 29,418 |
+| MariaDB 11.8 | 29,411 | 29,419 |
+| MariaDB 12.3 | 29,417 | 29,425 |
+
+Engine probes on MySQL 9.7, MariaDB 10.11, and MariaDB 12.3 mapped every
+observed failure to an existing external disposition and found no provider
+gap. The normal EF Core 10.0.8 suites then completed on those three new targets
+with exact TRX reconciliation and zero failures. Existing targets retain their
+prior complete evidence; the automated per-change matrix now runs all six.
+
 ### Superseded process
 
 This decision replaces the descriptive skip-catalog mechanism in D-011 with the executable,
@@ -292,6 +321,9 @@ specification corpus; D-021 governs how exceptions are classified and enforced.
 - 2026-08-05: Moved the mutable external-limitations inventory to the public
   limitations document while retaining this decision as the classification
   and evidence-governance contract.
+- 2026-08-11: Added all active LTS targets, centralized disposition target
+  expansion in the ledger, recorded target-specific probes, and retained zero
+  provider debt.
 
 ### Implementation References
 

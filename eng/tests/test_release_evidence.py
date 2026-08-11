@@ -249,6 +249,41 @@ class ReleaseEvidenceTests(unittest.TestCase):
         with self.assertRaises(release_evidence.EvidenceError):
             self._generate()
 
+    def test_generate_reconciles_identical_engine_evidence_from_two_lifecycles(self) -> None:
+        """Retain every producer without treating its lifecycle as identity drift."""
+        source = self.root / "specification" / "mysql84" / "test-database-evidence.json"
+        evidence = json.loads(source.read_text(encoding="utf-8"))
+        evidence["targets"][0]["source"] = "compose"
+        destination = self.root / "migration-deployment" / "test-database-evidence.json"
+        destination.parent.mkdir()
+        destination.write_text(json.dumps(evidence), encoding="utf-8")
+
+        self._generate()
+
+        manifest = json.loads(
+            (self.root / release_evidence.MANIFEST_NAME).read_text(encoding="utf-8")
+        )
+        mysql84 = next(
+            engine for engine in manifest["engines"] if engine["targetId"] == "mysql84"
+        )
+        self.assertEqual("compose+testcontainers", mysql84["source"])
+
+    def test_generate_rejects_conflicting_duplicate_engine_evidence(self) -> None:
+        """Keep a second lifecycle from changing an already observed image."""
+        source = self.root / "specification" / "mysql84" / "test-database-evidence.json"
+        evidence = json.loads(source.read_text(encoding="utf-8"))
+        evidence["targets"][0]["source"] = "compose"
+        evidence["targets"][0]["image"] = f"mysql:8.4.11@sha256:{'7' * 64}"
+        destination = self.root / "migration-deployment" / "test-database-evidence.json"
+        destination.parent.mkdir()
+        destination.write_text(json.dumps(evidence), encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError,
+            "Conflicting engine identities",
+        ):
+            self._generate()
+
     def test_generate_rejects_an_unqualified_paired_engine(self) -> None:
         """Reject a release whose paired comparison did not qualify.
 
@@ -509,9 +544,16 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
 
         identities = {
-            "mysql84": ("MySql", "mysql:8.4", f"mysql:8.4.10@sha256:{'8' * 64}"),
+            "mysql84": ("MySql", "mysql:8.4", f"mysql:8.4.11@sha256:{'8' * 64}"),
+            "mysql97": ("MySql", "mysql:9.7", f"mysql:9.7.2@sha256:{'9' * 64}"),
+            "mariadb1011": (
+                "MariaDb",
+                "mariadb:10.11",
+                f"mariadb:10.11.18@sha256:{'0' * 64}",
+            ),
             "mariadb114": ("MariaDb", "mariadb:11.4", f"mariadb:11.4.12@sha256:{'1' * 64}"),
             "mariadb118": ("MariaDb", "mariadb:11.8", f"mariadb:11.8.8@sha256:{'2' * 64}"),
+            "mariadb123": ("MariaDb", "mariadb:12.3", f"mariadb:12.3.2@sha256:{'3' * 64}"),
         }
         integration_targets = []
         for target_id, (engine, version, image) in identities.items():
@@ -551,7 +593,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
                     },
                     "target": {
                         "targetId": "mysql84",
-                        "image": f"mysql:8.4.10@sha256:{'8' * 64}",
+                        "image": f"mysql:8.4.11@sha256:{'8' * 64}",
                     },
                     "runtimeIdentifier": "linux-x64",
                     "dotnetSdk": release_evidence.run_command(

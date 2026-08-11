@@ -6,8 +6,11 @@ internal static class IntegrationTestEnvironment
     private static readonly IntegrationDatabaseTarget[] s_supportedTargets =
     [
         IntegrationDatabaseTarget.MySql84,
+        IntegrationDatabaseTarget.MySql97,
+        IntegrationDatabaseTarget.MariaDb1011,
         IntegrationDatabaseTarget.MariaDb114,
         IntegrationDatabaseTarget.MariaDb118,
+        IntegrationDatabaseTarget.MariaDb123,
     ];
 
     private static TestDatabaseSession? s_session;
@@ -31,9 +34,18 @@ internal static class IntegrationTestEnvironment
     ) => target switch
     {
         IntegrationDatabaseTarget.MySql80 => MySqlServerVersion.MySql(new Version(8, 0, 0)),
-        IntegrationDatabaseTarget.MySql84 => MySqlServerVersion.MySql(new Version(8, 4, 0)),
-        IntegrationDatabaseTarget.MariaDb114 => MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
-        IntegrationDatabaseTarget.MariaDb118 => MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+        IntegrationDatabaseTarget.MySql84 => MySqlServerVersion.MySql(
+            ParsePinnedImageVersion(TestDatabaseImages.MySql84)),
+        IntegrationDatabaseTarget.MySql97 => MySqlServerVersion.MySql(
+            ParsePinnedImageVersion(TestDatabaseImages.MySql97)),
+        IntegrationDatabaseTarget.MariaDb1011 => MySqlServerVersion.MariaDb(
+            ParsePinnedImageVersion(TestDatabaseImages.MariaDb1011)),
+        IntegrationDatabaseTarget.MariaDb114 => MySqlServerVersion.MariaDb(
+            ParsePinnedImageVersion(TestDatabaseImages.MariaDb114)),
+        IntegrationDatabaseTarget.MariaDb118 => MySqlServerVersion.MariaDb(
+            ParsePinnedImageVersion(TestDatabaseImages.MariaDb118)),
+        IntegrationDatabaseTarget.MariaDb123 => MySqlServerVersion.MariaDb(
+            ParsePinnedImageVersion(TestDatabaseImages.MariaDb123)),
         _ => throw new ArgumentOutOfRangeException(
             nameof(target),
             target,
@@ -43,6 +55,31 @@ internal static class IntegrationTestEnvironment
     public static bool IsTargetSelected(
         IntegrationDatabaseTarget target
     ) => GetSelectedTargets().Contains(target);
+
+    /// <summary>
+    /// Returns every active repo-local database target independently of an
+    /// optional per-run target selection.
+    /// </summary>
+    public static IReadOnlyList<IntegrationDatabaseTarget> GetSupportedTargets() => s_supportedTargets;
+
+    internal static Version ParsePinnedImageVersion(
+        string image
+    )
+    {
+        var digestSeparator = image.IndexOf('@');
+        var tagSeparator = digestSeparator > 0 ? image.LastIndexOf(':', digestSeparator - 1) : -1;
+
+        if (tagSeparator < 0
+            || digestSeparator <= tagSeparator + 1
+            || !Version.TryParse(image.AsSpan(tagSeparator + 1, digestSeparator - tagSeparator - 1), out var version)
+            || version.Build < 0)
+        {
+            throw new InvalidOperationException(
+                $"The integration database image does not contain a numeric version tag: {image}");
+        }
+
+        return version;
+    }
 
     public static string GetTargetSelectionSkipReason(
         IEnumerable<IntegrationDatabaseTarget> targets
@@ -118,6 +155,18 @@ internal static class IntegrationTestEnvironment
                 "mysql:8.4",
                 TestDatabaseImages.MySql84,
                 IntegrationConnectionStringSettings.MySql84Variable),
+            IntegrationDatabaseTarget.MySql97 => new TestDatabaseRequest(
+                GetTargetId(target),
+                TestDatabaseEngine.MySql,
+                "mysql:9.7",
+                TestDatabaseImages.MySql97,
+                IntegrationConnectionStringSettings.MySql97Variable),
+            IntegrationDatabaseTarget.MariaDb1011 => new TestDatabaseRequest(
+                GetTargetId(target),
+                TestDatabaseEngine.MariaDb,
+                "mariadb:10.11",
+                TestDatabaseImages.MariaDb1011,
+                IntegrationConnectionStringSettings.MariaDb1011Variable),
             IntegrationDatabaseTarget.MariaDb114 => new TestDatabaseRequest(
                 GetTargetId(target),
                 TestDatabaseEngine.MariaDb,
@@ -130,6 +179,12 @@ internal static class IntegrationTestEnvironment
                 "mariadb:11.8",
                 TestDatabaseImages.MariaDb118,
                 IntegrationConnectionStringSettings.MariaDb118Variable),
+            IntegrationDatabaseTarget.MariaDb123 => new TestDatabaseRequest(
+                GetTargetId(target),
+                TestDatabaseEngine.MariaDb,
+                "mariadb:12.3",
+                TestDatabaseImages.MariaDb123,
+                IntegrationConnectionStringSettings.MariaDb123Variable),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(target),
                 target,
@@ -177,8 +232,11 @@ internal static class IntegrationTestEnvironment
         {
             "mysql80" => IntegrationDatabaseTarget.MySql80,
             "mysql84" => IntegrationDatabaseTarget.MySql84,
+            "mysql97" => IntegrationDatabaseTarget.MySql97,
+            "mariadb1011" => IntegrationDatabaseTarget.MariaDb1011,
             "mariadb114" => IntegrationDatabaseTarget.MariaDb114,
             "mariadb118" => IntegrationDatabaseTarget.MariaDb118,
+            "mariadb123" => IntegrationDatabaseTarget.MariaDb123,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(targetId),
                 targetId,
@@ -194,8 +252,11 @@ internal static class IntegrationTestEnvironment
         {
             IntegrationDatabaseTarget.MySql80 => "mysql80",
             IntegrationDatabaseTarget.MySql84 => "mysql84",
+            IntegrationDatabaseTarget.MySql97 => "mysql97",
+            IntegrationDatabaseTarget.MariaDb1011 => "mariadb1011",
             IntegrationDatabaseTarget.MariaDb114 => "mariadb114",
             IntegrationDatabaseTarget.MariaDb118 => "mariadb118",
+            IntegrationDatabaseTarget.MariaDb123 => "mariadb123",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(target),
                 target,

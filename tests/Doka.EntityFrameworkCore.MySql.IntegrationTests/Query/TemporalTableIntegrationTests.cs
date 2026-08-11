@@ -17,11 +17,24 @@ public sealed class TemporalTableIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task Temporal_contract_executes_on_mysql84() => RunTemporalContractAsync(IntegrationDatabaseTarget.MySql84);
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public Task Temporal_contract_executes_on_mysql97() => RunTemporalContractAsync(IntegrationDatabaseTarget.MySql97);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public Task Temporal_contract_executes_on_mariadb1011() =>
+        RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb1011);
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task Temporal_contract_executes_on_mariadb114() => RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb114);
+    public Task Temporal_contract_executes_on_mariadb114() =>
+        RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb114);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task Temporal_contract_executes_on_mariadb118() => RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb118);
+    public Task Temporal_contract_executes_on_mariadb118() =>
+        RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb118);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public Task Temporal_contract_executes_on_mariadb123() =>
+        RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb123);
 
     private static async Task RunTemporalContractAsync(
         IntegrationDatabaseTarget target
@@ -317,7 +330,7 @@ public sealed class TemporalTableIntegrationTests
             sourceTable.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodEndColumn)
                 ?.Value);
 
-        if (target == IntegrationDatabaseTarget.MySql84)
+        if (IsMySql(target))
         {
             Assert.Equal(
                 HistoryTableName,
@@ -349,7 +362,7 @@ public sealed class TemporalTableIntegrationTests
         Assert.Contains($"temporalTableBuilder.HasPeriodStart(\"{PeriodStartColumnName}\")", contextCode);
         Assert.Contains($"temporalTableBuilder.HasPeriodEnd(\"{PeriodEndColumnName}\")", contextCode);
 
-        if (target == IntegrationDatabaseTarget.MySql84)
+        if (IsMySql(target))
         {
             Assert.Contains(
                 $"temporalTableBuilder.UseHistoryTable(\"{HistoryTableName}\", " + $"\"{TestDatabaseName}\")",
@@ -394,9 +407,9 @@ public sealed class TemporalTableIntegrationTests
                 ("@tableName", TableName),
                 ("@periodStart", PeriodStartColumnName),
                 ("@periodEnd", PeriodEndColumnName),
-                ("@dataType", target == IntegrationDatabaseTarget.MySql84 ? "datetime" : "timestamp")));
+                ("@dataType", IsMySql(target) ? "datetime" : "timestamp")));
 
-        if (target == IntegrationDatabaseTarget.MySql84)
+        if (IsMySql(target))
         {
             Assert.Equal("BASE TABLE", await ReadTableTypeAsync(connection, TableName));
             Assert.Equal("InnoDB", await ReadTableEngineAsync(connection, TableName));
@@ -434,8 +447,8 @@ public sealed class TemporalTableIntegrationTests
                 WHERE TABLE_SCHEMA = DATABASE()
                   AND TABLE_NAME = @tableName
                   AND (
-                      (COLUMN_NAME = @periodStart AND IS_SYSTEM_TIME_PERIOD_START = 'YES')
-                      OR (COLUMN_NAME = @periodEnd AND IS_SYSTEM_TIME_PERIOD_END = 'YES')
+                      (COLUMN_NAME = @periodStart AND UPPER(TRIM(GENERATION_EXPRESSION)) = 'ROW START')
+                      OR (COLUMN_NAME = @periodEnd AND UPPER(TRIM(GENERATION_EXPRESSION)) = 'ROW END')
                   );
                 """,
                 ("@tableName", TableName),
@@ -540,7 +553,7 @@ public sealed class TemporalTableIntegrationTests
             TestDatabaseName,
             new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target)).Database);
 
-        var optionsBuilder = new DbContextOptionsBuilder<TemporalContext>().UseMySql(
+        var optionsBuilder = IntegrationTestDbContextOptions.Create<TemporalContext>().UseMySql(
             IntegrationTestEnvironment.GetConnectionString(target),
             IntegrationTestEnvironment.GetServerVersion(target));
 
@@ -556,7 +569,7 @@ public sealed class TemporalTableIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
-        var options = new DbContextOptionsBuilder<NonTemporalContext>().UseMySql(
+        var options = IntegrationTestDbContextOptions.Create<NonTemporalContext>().UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
             .Options;
@@ -568,7 +581,7 @@ public sealed class TemporalTableIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
-        var options = new DbContextOptionsBuilder<EmptyTemporalContext>().UseMySql(
+        var options = IntegrationTestDbContextOptions.Create<EmptyTemporalContext>().UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
             .Options;
@@ -601,7 +614,7 @@ public sealed class TemporalTableIntegrationTests
                 await ExecuteScalarAsync(connection, "SELECT @@SESSION.sql_mode;"),
                 CultureInfo.InvariantCulture)
             ?? "";
-        var alterHistoryMode = target == IntegrationDatabaseTarget.MySql84
+        var alterHistoryMode = IsMySql(target)
             ? null
             : Convert.ToString(
                 await ExecuteScalarAsync(connection, "SELECT @@SESSION.system_versioning_alter_history;"),
@@ -609,6 +622,10 @@ public sealed class TemporalTableIntegrationTests
 
         return new TemporalSessionState(sqlMode, alterHistoryMode);
     }
+
+    private static bool IsMySql(
+        IntegrationDatabaseTarget target
+    ) => !IntegrationTestEnvironment.GetServerVersion(target).IsMariaDb;
 
     private static Task<int> CountColumnsAsync(
         MySqlConnection connection,

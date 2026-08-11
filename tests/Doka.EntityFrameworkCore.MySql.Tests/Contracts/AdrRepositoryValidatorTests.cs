@@ -544,7 +544,7 @@ public sealed class AdrRepositoryValidatorTests
 
     /// <summary>
     /// Keeps the expensive configuration and failure matrix outside ordinary
-    /// pushes while making its unfiltered three-engine evidence mandatory for
+    /// pushes while making its unfiltered six-target evidence mandatory for
     /// every release candidate.
     /// </summary>
     [Fact]
@@ -593,7 +593,7 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("The full configuration matrix cannot use", integrationRunner, StringComparison.Ordinal);
         Assert.Contains("Duplicate integration target", integrationRunner, StringComparison.Ordinal);
         Assert.Contains(
-            "DOKA_INTEGRATION_TARGETS=\"mysql84,mariadb114,mariadb118\"",
+            "DOKA_INTEGRATION_TARGETS=\"mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123\"",
             releaseCandidate,
             StringComparison.Ordinal);
         Assert.Contains("DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=1", releaseCandidate, StringComparison.Ordinal);

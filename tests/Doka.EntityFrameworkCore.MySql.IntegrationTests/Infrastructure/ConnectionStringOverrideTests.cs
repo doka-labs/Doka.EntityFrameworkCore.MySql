@@ -15,6 +15,20 @@ public sealed class ConnectionStringOverrideTests
         VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MySql84);
 
     /// <summary>
+    /// Verifies the EF tooling connection override contract on MySQL 9.7.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public Task Database_creator_honors_connection_override_on_mysql97() =>
+        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MySql97);
+
+    /// <summary>
+    /// Verifies the EF tooling connection override contract on MariaDB 10.11.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public Task Database_creator_honors_connection_override_on_mariadb1011() =>
+        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb1011);
+
+    /// <summary>
     /// Verifies the EF tooling connection override contract on MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
@@ -27,6 +41,13 @@ public sealed class ConnectionStringOverrideTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task Database_creator_honors_connection_override_on_mariadb118() =>
         VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb118);
+
+    /// <summary>
+    /// Verifies the EF tooling connection override contract on MariaDB 12.3.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public Task Database_creator_honors_connection_override_on_mariadb123() =>
+        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb123);
 
     private static async Task VerifyConnectionOverrideAsync(
         IntegrationDatabaseTarget target
@@ -44,7 +65,7 @@ public sealed class ConnectionStringOverrideTests
         try
         {
             await using var context = new ConnectionOverrideContext(
-                new DbContextOptionsBuilder<ConnectionOverrideContext>().UseMySql(baseConnectionString, serverVersion)
+                IntegrationTestDbContextOptions.Create<ConnectionOverrideContext>().UseMySql(baseConnectionString, serverVersion)
                     .Options);
             context.Database.SetConnectionString(overriddenConnectionString);
 

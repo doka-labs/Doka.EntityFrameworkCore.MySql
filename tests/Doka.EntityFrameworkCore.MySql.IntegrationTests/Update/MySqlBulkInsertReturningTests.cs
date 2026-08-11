@@ -2,11 +2,12 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
 /// End-to-end coverage for the multi-row INSERT path and the MariaDB 10.5+ RETURNING
-/// routing. The matrix exercises four shapes:
-/// - MariaDB 11.8: multi-row INSERT + RETURNING with auto-increment (engine-supported single-statement path)
+/// routing. The active-LTS matrix exercises four shapes:
+/// - Active MariaDB LTS targets: multi-row INSERT + RETURNING with auto-increment
+///   (engine-supported single-statement path)
 /// - MariaDB 11.8: multi-row INSERT + RETURNING with trigger-modified column (server-side default visible)
 /// - MySQL 8.4: multi-row write-only INSERT (no read-back; engine cannot use RETURNING)
-/// - MySQL 8.4: multi-row INSERT with auto-increment (falls back to per-row loop)
+/// - Active MySQL LTS targets: multi-row INSERT with auto-increment (falls back to per-row loop)
 /// Plus the shape-mismatch case where two distinct write-column sets force a batch split.
 /// </summary>
 [Collection(IntegrationDatabaseTestGroup.Name)]
@@ -15,10 +16,23 @@ public sealed class MySqlBulkInsertReturningTests
     // -- MariaDB 11.8: multi-row INSERT + RETURNING with auto-increment --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task MariaDb118_multirow_insert_returning_populates_auto_increment_ids()
+    public Task MariaDb118_multirow_insert_returning_populates_auto_increment_ids() =>
+        RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb118);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public Task MariaDb1011_multirow_insert_returning_populates_auto_increment_ids() =>
+        RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb1011);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public Task MariaDb123_multirow_insert_returning_populates_auto_increment_ids() =>
+        RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb123);
+
+    private static async Task RunMariaDbInsertReturningAsync(
+        IntegrationDatabaseTarget target
+    )
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
-        var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
+        var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
         await using var context = new BulkContext(CreateOptions<BulkContext>(connectionString, serverVersion));
 
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `BulkItems`;");
@@ -144,10 +158,19 @@ public sealed class MySqlBulkInsertReturningTests
     // -- MySQL 8.4: multi-row INSERT with auto-increment falls back to per-row --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task MySql84_multirow_insert_with_auto_increment_populates_each_id_via_per_row_fallback()
+    public Task MySql84_multirow_insert_with_auto_increment_populates_each_id_via_per_row_fallback() =>
+        RunMySqlAutoIncrementFallbackAsync(IntegrationDatabaseTarget.MySql84);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public Task MySql97_multirow_insert_with_auto_increment_populates_each_id_via_per_row_fallback() =>
+        RunMySqlAutoIncrementFallbackAsync(IntegrationDatabaseTarget.MySql97);
+
+    private static async Task RunMySqlAutoIncrementFallbackAsync(
+        IntegrationDatabaseTarget target
+    )
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
-        var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
+        var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
         await using var context = new BulkContext(CreateOptions<BulkContext>(connectionString, serverVersion));
 
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `BulkItems`;");
@@ -226,7 +249,7 @@ public sealed class MySqlBulkInsertReturningTests
     )
         where T : DbContext
     {
-        var builder = new DbContextOptionsBuilder<T>();
+        var builder = IntegrationTestDbContextOptions.Create<T>();
         builder.UseMySql(connectionString, serverVersion);
         return builder.Options;
     }

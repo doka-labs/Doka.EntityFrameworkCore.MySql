@@ -141,8 +141,8 @@ public sealed record MySqlServerVersion
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(serverVersion);
 
-        var version = ParseVersion(serverVersion);
         var isMariaDb = serverVersion.Contains("mariadb", StringComparison.OrdinalIgnoreCase);
+        var version = ParseVersion(serverVersion, isMariaDb);
 
         return new MySqlServerVersion(version, isMariaDb, compatibilityMode);
     }
@@ -191,9 +191,38 @@ public sealed record MySqlServerVersion
     public override string ToString() => FormattableString.Invariant($"{(IsMariaDb ? "MariaDB" : "MySQL")} {Version}");
 
     private static Version ParseVersion(
-        string serverVersion
+        string serverVersion,
+        bool isMariaDb
     )
     {
+        if (isMariaDb)
+        {
+            var mariaDbMarker = serverVersion.IndexOf("-MariaDB", StringComparison.OrdinalIgnoreCase);
+
+            if (mariaDbMarker > 0)
+            {
+                var mariaDbVersionStart = mariaDbMarker;
+                while (mariaDbVersionStart > 0
+                       && (char.IsDigit(serverVersion[mariaDbVersionStart - 1])
+                           || serverVersion[mariaDbVersionStart - 1] == '.'))
+                {
+                    mariaDbVersionStart--;
+                }
+
+                var mariaDbVersionToken = serverVersion[mariaDbVersionStart..mariaDbMarker]
+                    .TrimEnd('.');
+
+                // MariaDB 10.x may prefix @@version with 5.5.5 for legacy
+                // client capability negotiation. The token immediately before
+                // "-MariaDB" is the authoritative server release.
+                if (mariaDbVersionToken.Contains('.', StringComparison.Ordinal)
+                    && Version.TryParse(mariaDbVersionToken, out var mariaDbVersion))
+                {
+                    return mariaDbVersion;
+                }
+            }
+        }
+
         var startIndex = -1;
         var endIndex = serverVersion.Length;
 

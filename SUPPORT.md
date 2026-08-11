@@ -40,10 +40,11 @@ sensitive values before posting.
 
 ## Supported Scope
 
-The supported runtime and engine matrix is documented in the
-[README](README.md#supported-engines). Unsupported versions may be exercised
-only through the explicit compatibility mode and do not carry a support
-guarantee.
+The supported runtime and engine matrix is summarized in the
+[README](README.md#supported-engines) and governed by
+[Supported Databases](docs/supported-databases.md). Unsupported versions may
+be exercised only through the explicit compatibility mode and do not carry a
+support guarantee.
 
 Provider defects, documentation gaps, and regressions in the supported matrix
 are in scope. Issues owned by EF Core, MySqlConnector, NetTopologySuite, MySQL,

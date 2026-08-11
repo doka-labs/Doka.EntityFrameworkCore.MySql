@@ -20,6 +20,48 @@ services:
       retries: 10
       start_period: 30s
 
+  mysql97:
+    image: mysql:9.7.2@sha256:257388edf9c84dbc04c763625446d5f3fa6ed60d1b0873bc552c614ba0a7ab4e
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: doka_provider
+      MYSQL_USER: doka
+      MYSQL_PASSWORD: doka_password
+    ports:
+      - "127.0.0.1:${DOKA_MYSQL97_PORT:-33070}:3306"
+    volumes:
+      - doka-mysql97-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=root_password mysqladmin ping -h 127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  mariadb1011:
+    image: mariadb:10.11.18@sha256:de61fed4a40d3842f3ee09944ba52792156cfd9adf489b2cc670fc6ded28df8d
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MARIADB_ROOT_PASSWORD: root_password
+      MARIADB_DATABASE: doka_provider
+      MARIADB_USER: doka
+      MARIADB_PASSWORD: doka_password
+    ports:
+      - "127.0.0.1:${DOKA_MARIADB1011_PORT:-33066}:3306"
+    volumes:
+      - doka-mariadb1011-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   mariadb118:
     image: mariadb:11.8.8@sha256:efb4959ef2c835cd735dbc388eb9ad6aab0c78dd64febcd51bc17481111890c4
     command:
@@ -34,6 +76,27 @@ services:
       - "127.0.0.1:${DOKA_MARIADB118_PORT:-33069}:3306"
     volumes:
       - doka-mariadb118-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  mariadb123:
+    image: mariadb:12.3.2@sha256:759869cb6f003234a95c6384cdee245b4bce7de26913fe607a8110362c0c007d
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MARIADB_ROOT_PASSWORD: root_password
+      MARIADB_DATABASE: doka_provider
+      MARIADB_USER: doka
+      MARIADB_PASSWORD: doka_password
+    ports:
+      - "127.0.0.1:${DOKA_MARIADB123_PORT:-33071}:3306"
+    volumes:
+      - doka-mariadb123-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -64,5 +127,8 @@ services:
 
 volumes:
   doka-mysql84-data:
+  doka-mysql97-data:
+  doka-mariadb1011-data:
   doka-mariadb118-data:
+  doka-mariadb123-data:
   doka-mariadb114-data:

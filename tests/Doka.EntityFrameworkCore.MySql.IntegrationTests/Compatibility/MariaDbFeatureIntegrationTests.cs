@@ -54,17 +54,21 @@ public sealed class MariaDbFeatureIntegrationTests
 
     // -- MariaDB JSON Alias (longtext + CHECK) CRUD --
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
+    public async Task MariaDb1011_json_alias_column_crud_roundtrip() =>
+        await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb1011);
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task MariaDb118_json_alias_column_crud_roundtrip()
-    {
+    public async Task MariaDb118_json_alias_column_crud_roundtrip() =>
         await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb118);
-    }
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public async Task MariaDb114_json_alias_column_crud_roundtrip()
-    {
+    public async Task MariaDb114_json_alias_column_crud_roundtrip() =>
         await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb114);
-    }
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
+    public async Task MariaDb123_json_alias_column_crud_roundtrip() =>
+        await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb123);
 
     private static async Task RunJsonAliasCrudTest(
         IntegrationDatabaseTarget target
@@ -322,7 +326,7 @@ public sealed class MariaDbFeatureIntegrationTests
     )
         where T : DbContext
     {
-        var b = new DbContextOptionsBuilder<T>();
+        var b = IntegrationTestDbContextOptions.Create<T>();
         b.UseMySql(cs, sv);
         return b.Options;
     }
@@ -331,16 +335,11 @@ public sealed class MariaDbFeatureIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
-        return target switch
-        {
-            IntegrationDatabaseTarget.MariaDb114 => MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
-            IntegrationDatabaseTarget.MariaDb118 => MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
-            IntegrationDatabaseTarget.MySql80 => MySqlServerVersion.MySql(
+        return target == IntegrationDatabaseTarget.MySql80
+            ? MySqlServerVersion.MySql(
                 new Version(8, 0, 0),
-                MySqlServerVersionCompatibilityMode.AllowUnsupported),
-            IntegrationDatabaseTarget.MySql84 => MySqlServerVersion.MySql(new Version(8, 4, 0)),
-            _ => throw new ArgumentOutOfRangeException(nameof(target)),
-        };
+                MySqlServerVersionCompatibilityMode.AllowUnsupported)
+            : IntegrationTestEnvironment.GetServerVersion(target);
     }
 
     private static string ReplaceDatabase(

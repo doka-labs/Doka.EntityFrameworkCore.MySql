@@ -75,7 +75,7 @@ body:
     attributes:
       label: Database engine version
       description: Provide the complete server version reported by the engine.
-      placeholder: MySQL 8.4.6 or MariaDB 11.8.3
+      placeholder: MySQL 9.7.2 or MariaDB 10.11.18
     validations:
       required: true
 

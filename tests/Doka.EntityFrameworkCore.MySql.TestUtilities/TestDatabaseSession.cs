@@ -54,12 +54,14 @@ public sealed class TestDatabaseSession : IAsyncDisposable
         var endpoints = new Dictionary<string, TestDatabaseEndpoint>(StringComparer.OrdinalIgnoreCase);
         var containers = new List<TestDatabaseContainer>();
 
-        using var startupCancellation = new CancellationTokenSource(s_startupTimeout);
-
         try
         {
             foreach (var request in requestArray)
             {
+                // Each image receives the complete startup budget. Sharing one
+                // deadline across a matrix makes later targets depend on pull
+                // and initialization time consumed by unrelated predecessors.
+                using var startupCancellation = new CancellationTokenSource(s_startupTimeout);
                 var externalConnectionString =
                     Environment.GetEnvironmentVariable(request.ConnectionStringEnvironmentVariable);
 

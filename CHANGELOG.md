@@ -20,6 +20,15 @@ machine cancels out of every ratio instead of having to be matched.
 
 ### Added
 
+- Support every active upstream LTS line: MySQL 9.7 and MariaDB 10.11 / 12.3
+  join the existing MySQL 8.4 and MariaDB 11.4 / 11.8 matrix. Exact image pins,
+  support-policy classification, specification dispositions, live integration,
+  migration deployment, runnable examples, and release qualification now
+  share the same six-target contract.
+- Execute CTE, temporal-table, and bitemporal live contracts on every newly
+  admitted line. MariaDB 12.3 additionally executes its native CTE
+  data-modification grammar while 10.11 / 11.4 / 11.8 retain the documented
+  engine limitation.
 - Establish a trust root before any expensive job is allocated. The tag
   signature is checked against the remote verdict and, independently, against
   the signers this repository registers; the tagged commit must be reachable
@@ -67,6 +76,12 @@ machine cancels out of every ratio instead of having to be matched.
 
 ### Fixed
 
+- Parse the authoritative MariaDB release token when `@@version` carries the
+  legacy `5.5.5-` client-compatibility prefix. This keeps automatic detection
+  and support-policy validation aligned on MariaDB 10.11.
+- Reconstruct MariaDB 10.11 system- and application-time boundaries from its
+  available generation-expression and canonical table-definition metadata,
+  closing the reverse-engineering gap left by the 11.4-only period catalogs.
 - Verify the exact EF Core package set a patch matrix resolved. The previous
   check counted packages, so a missing package could be compensated by a
   duplicate of another.

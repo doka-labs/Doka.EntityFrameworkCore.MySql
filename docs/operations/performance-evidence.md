@@ -361,10 +361,10 @@ version. Each accepted rebuild costs a benchmark run, so they are batched. A
 published vulnerability is handled when it is published and does not wait for
 that cadence.
 
-An update that leaves the supported release line -- MySQL 8.4, MariaDB 11.4,
-MariaDB 11.8 -- is not an image update but a support decision, with its own
-specification matrix and baseline work. The pin gate rejects it even when
-every copy agrees.
+An update that leaves one of the supported MySQL 8.4 / 9.7 or MariaDB 10.11 /
+11.4 / 11.8 / 12.3 release lines is not an image update but a support decision,
+with its own specification matrix and baseline work. The pin gate rejects it
+even when every copy agrees.
 
 ## Seed an accepted baseline
 

@@ -34,7 +34,14 @@ SCORECARD = ".github/workflows/benchmark-scorecard.yml"
 CONTRACT = "benchmarks/performance-contract.json"
 MIRRORS = (CI, SCORECARD, CONTRACT, CSHARP)
 
-TARGETS = ("mysql84", "mariadb114", "mariadb118")
+TARGETS = (
+    "mysql84",
+    "mysql97",
+    "mariadb1011",
+    "mariadb114",
+    "mariadb118",
+    "mariadb123",
+)
 DIGEST_PIN = re.compile(r"(?:mysql|mariadb):[0-9][0-9A-Za-z.-]*@sha256:[0-9a-f]{64}")
 
 
