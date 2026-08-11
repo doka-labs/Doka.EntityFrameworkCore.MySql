@@ -1,7 +1,7 @@
 # Complex Types
 
 The provider implements the provider-owned portion of the EF Core 10
-relational complex-type contract for MySQL 8.4 and MariaDB 11.4 / 11.8.
+relational complex-type contract on every supported LTS target.
 Complex types use the standard EF Core model API; no provider-specific opt-in
 or alternative change-tracking model is required. "Supported" below always
 means a CLR-backed shape that EF Core 10 can represent and track.

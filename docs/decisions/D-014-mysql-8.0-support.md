@@ -128,9 +128,21 @@ Chosen option: "Support only MySQL 8.4, MariaDB 11.4, and MariaDB 11.8", because
 ### Current lifecycle evidence
 
 Oracle now records MySQL 8.0 as EOL with 8.0.46 and under Sustaining Support
-from April 2026. MariaDB's first-party maintenance table records 11.4 and 11.8
-as LTS lines. These primary sources replace the historical aggregator evidence
-retained below, and the support-matrix outcome remains unchanged.
+from April 2026. These primary sources replace the historical aggregator
+evidence retained below; MySQL 8.0 remains outside the supported matrix.
+
+### Active LTS matrix amendment
+
+On 2026-08-11 the decision's maintained-LTS rule admitted every additional
+active line proved by first-party lifecycle and GA evidence. The current matrix
+is MySQL 8.4 / 9.7 plus MariaDB 10.11 / 11.4 / 11.8 / 12.3. MariaDB 10.6 is no
+longer under community maintenance and remains a legacy compatibility line.
+
+Each admitted line has an exact digest-pinned image, provider support-policy
+classification, upstream specification contract, live integration target,
+migration-deployment target, runnable-example target, and release-candidate
+requirement. The support decision follows the maintained LTS line; exact patch
+pins move independently after successful qualification.
 
 ### Additional Alternative Rationale
 
@@ -180,6 +192,9 @@ retained below, and the support-matrix outcome remains unchanged.
 - 2026-05-16: Decision recorded with status accepted.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
 - 2026-07-30: Made unsupported execution an explicit, diagnostic compatibility opt-in.
+- 2026-08-11: Extended the maintained-LTS rule to MySQL 9.7 and MariaDB
+  10.11 / 12.3, then bound all six active lines to the automated qualification
+  contract.
 
 ### Implementation References
 
@@ -194,3 +209,13 @@ retained below, and the support-matrix outcome remains unchanged.
 - [MySQL 8.0 release notes](https://dev.mysql.com/doc/relnotes/mysql/8.0/en/) (primary source; retrieved 2026-07-27)
 - [Oracle Lifetime Support Policy for Technology Products](https://www.oracle.com/us/support/library/lsp-tech-chart-069290.pdf) (primary source; retrieved 2026-07-27)
 - [MariaDB Server maintenance policy](https://mariadb.org/about/) (primary source; retrieved 2026-07-27)
+- [MySQL 9.7 release model and LTS policy](https://dev.mysql.com/doc/refman/9.7/en/mysql-releases.html)
+  (primary source; retrieved 2026-08-11)
+- [MySQL 8.4 release notes](https://dev.mysql.com/doc/relnotes/mysql/8.4/en/)
+  (primary source; retrieved 2026-08-11)
+- [MySQL 9.7 release notes](https://dev.mysql.com/doc/relnotes/mysql/9.7/en/)
+  (primary source; retrieved 2026-08-11)
+- [MariaDB Server release history](https://mariadb.org/mariadb/all-releases/)
+  (primary source; retrieved 2026-08-11)
+- [MariaDB 12.3 LTS announcement](https://mariadb.org/mariadb-server-12-3-lts-released/)
+  (primary source; retrieved 2026-08-11)

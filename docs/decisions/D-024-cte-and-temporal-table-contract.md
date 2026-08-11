@@ -74,27 +74,38 @@ uses the same receiver contract. Normal query execution still uses EF Core's
 query-shape compilation cache; the provider does not introduce a second,
 incompatible query API to bypass an upstream expression-pipeline boundary.
 
-MySQL 8.4 also accepts CTEs as read sources for `UPDATE` and `DELETE`. MariaDB
-11.4 and 11.8 do not provide the corresponding data-modification grammar;
-MariaDB documents CTE-enabled `UPDATE` starting with 12.3. The provider exposes
-the MySQL behavior and records the MariaDB boundary as an engine limitation,
-not as missing provider support.
+MySQL 8.4 / 9.7 also accept CTEs as read sources for `UPDATE` and `DELETE`.
+MariaDB 12.3 provides the corresponding data-modification grammar; MariaDB
+10.11 / 11.4 / 11.8 do not. The provider exposes the available behavior and
+records the older MariaDB boundary as an engine limitation, not as missing
+provider support.
 
 Temporal tables use public model-builder extensions for history-table and
 period-column metadata plus query roots for `AsOf`, `All`, `FromTo`, `Between`,
 and `ContainedIn`. Temporal query roots are no-tracking because one result can
 contain several historical versions with the same primary key.
 
-MariaDB 11.4 and 11.8 use `WITH SYSTEM VERSIONING`, `PERIOD FOR SYSTEM_TIME`,
-and `FOR SYSTEM_TIME` queries. MySQL 8.4 uses provider-owned history tables and
-triggers whose names, annotations, rollback behavior, and scaffolding contract
-are deterministic. Both routes share the same public metadata and query API.
+MariaDB 10.11 / 11.4 / 11.8 / 12.3 use `WITH SYSTEM VERSIONING`, `PERIOD FOR
+SYSTEM_TIME`, and `FOR SYSTEM_TIME` queries. MySQL 8.4 / 9.7 use provider-owned
+history tables and triggers whose names, annotations, rollback behavior, and
+scaffolding contract are deterministic. Both routes share the same public
+metadata and query API.
+
+MariaDB introduced the dedicated period information-schema catalogs in 11.4,
+after application-time periods themselves. Reverse engineering therefore uses
+those catalogs on 11.4 and later. On 10.11 it reads `ROW START` / `ROW END` from
+`GENERATION_EXPRESSION` and parses only grammar tokens from canonical `SHOW
+CREATE TABLE` output. The missing bulk catalogs require one metadata round trip
+per selected table on 10.11. `SET STATEMENT` fixes the rendering SQL mode for
+each query without mutating the caller-owned session and clears `ANSI_QUOTES`,
+so server-rendered identifiers cannot be mistaken for quoted string literals.
+
 MariaDB application-time periods and bitemporal tables use a separate typed
 provider contract. Model-builder extensions configure the application period,
 `WITHOUT OVERLAPS`, and both dimensions of a bitemporal table. Migrations,
 reverse engineering, generated model code, and typed `FOR PORTION OF`
 `ExecuteUpdate` / `ExecuteDelete` roots preserve that contract. MySQL rejects
-these exact operations as engine limitations because MySQL 8.4 has no
+these exact operations as engine limitations because MySQL 8.4 / 9.7 have no
 application-time period grammar.
 
 ### Consequences
@@ -128,8 +139,8 @@ application-time period grammar.
   and exact cancellation-token forwarding.
 - Run scaffolding round trips for native MariaDB and provider-emulated MySQL
   schemas.
-- Run MariaDB 11.4 and 11.8 bitemporal contracts through generated DDL,
-  `PERIODS` and `KEY_PERIOD_USAGE` readback, generated model code, and typed
+- Run MariaDB 10.11, 11.4, 11.8, and 12.3 bitemporal contracts through generated
+  DDL, version-appropriate metadata readback, generated model code, and typed
   portion update and delete operations.
 - Run the complete unit, functional, integration, documentation, trimming, and
   release-candidate verification gates.
@@ -181,6 +192,11 @@ semantics instead of normalizing them into one approximate range operation.
 - 2026-08-04: Decision recorded with status accepted.
 - 2026-08-05: Added the typed MariaDB application-time and bitemporal contract,
   including overlap constraints, reverse engineering, and portion mutations.
+- 2026-08-11: Reconciled the six-line active-LTS matrix and admitted MariaDB
+  12.3 CTE data modification while retaining the exact 10.11 / 11.4 / 11.8
+  engine boundary.
+- 2026-08-11: Closed the MariaDB 10.11 reverse-engineering gap with
+  generation-expression metadata and a canonical table-definition parser.
 
 ### Implementation References
 
@@ -203,6 +219,14 @@ semantics instead of normalizing them into one approximate range operation.
   (primary source; retrieved 2026-08-04)
 - [MySQL 8.4 stored-program restrictions](https://dev.mysql.com/doc/refman/8.4/en/stored-program-restrictions.html)
   (primary source; retrieved 2026-08-04)
+- [MySQL 9.7 common table expressions](https://dev.mysql.com/doc/refman/9.7/en/with.html)
+  (primary source; retrieved 2026-08-11)
+- [MySQL 9.7 DELETE statement](https://dev.mysql.com/doc/refman/9.7/en/delete.html)
+  (primary source; retrieved 2026-08-11)
+- [MySQL 9.7 trigger syntax](https://dev.mysql.com/doc/refman/9.7/en/trigger-syntax.html)
+  (primary source; retrieved 2026-08-11)
+- [MySQL 9.7 stored-program restrictions](https://dev.mysql.com/doc/refman/9.7/en/stored-program-restrictions.html)
+  (primary source; retrieved 2026-08-11)
 - [MySQL 8.0.1 release notes](https://dev.mysql.com/doc/relnotes/mysql/8.0/en/news-8-0-1.html)
   (primary source; retrieved 2026-08-04)
 - [MariaDB common table expressions](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/common-table-expressions/with)
@@ -223,6 +247,8 @@ semantics instead of normalizing them into one approximate range operation.
   (primary source; retrieved 2026-08-05)
 - [MariaDB KEY_PERIOD_USAGE information-schema table](https://mariadb.com/docs/server/reference/system-tables/information-schema/information-schema-key_period_usage-table)
   (primary source; retrieved 2026-08-05)
+- [MariaDB SHOW CREATE TABLE](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/show/show-create-table)
+  (primary source; retrieved 2026-08-11)
 - [MariaDB ALTER TABLE](https://mariadb.com/docs/server/reference/sql-statements/data-definition/alter/alter-table)
   (primary source; retrieved 2026-08-04)
 - [MariaDB SET STATEMENT](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/set-commands/set-statement)

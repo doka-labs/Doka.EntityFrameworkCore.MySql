@@ -128,7 +128,7 @@ verifies exception-entry attribution for a failed multi-row insert.
 - Run `MySqlBulkInsertReturningTests` on MySQL and MariaDB.
 - Run
   `NonSharedModelUpdatesMySqlTest.DbUpdateException_Entries_is_correct_with_multiple_inserts`
-  on MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
+  on every active LTS target.
 - Run `BulkInsertBenchmark` and the strict benchmark-ratio gate.
 
 ## Pros and Cons of the Options

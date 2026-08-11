@@ -6,16 +6,17 @@ execute non-recursive and recursive read CTEs natively.
 
 ## Support Matrix
 
-| Contract | MySQL 8.4 LTS | MariaDB 11.4 / 11.8 LTS |
-| --- | --- | --- |
-| Non-recursive CTE query | Native | Native |
-| Recursive CTE query | Native | Native |
-| Composable `FromSql` query root | Supported | Supported |
-| CTE `UPDATE` / `DELETE` engine SQL | Native | Unsupported by the target engine versions |
+| Contract | MySQL 8.4 / 9.7 LTS | MariaDB 10.11 / 11.4 / 11.8 LTS | MariaDB 12.3 LTS |
+| --- | --- | --- | --- |
+| Non-recursive CTE query | Native | Native | Native |
+| Recursive CTE query | Native | Native | Native |
+| Composable `FromSql` query root | Supported | Supported | Supported |
+| CTE `UPDATE` / `DELETE` engine SQL | Native | Unsupported by engine | Native |
 
 CTE data modification on MariaDB is an engine-version boundary: the MariaDB
-documentation introduces CTE-enabled `UPDATE` in 12.3, later than the
-supported 11.4 and 11.8 LTS lines.
+documentation introduces CTE-enabled `UPDATE` in 12.3. The provider therefore
+executes that contract on 12.3 while preserving the explicit engine boundary
+for 10.11, 11.4, and 11.8.
 
 ## Query CTEs Safely
 
@@ -56,17 +57,19 @@ with an `IQueryable` query root while funcletizing the compiled query and then
 rejects the extension call before provider translation. The official EF Core
 10 SQL Server temporal API has the same receiver contract. Normal execution
 still uses EF Core's query-shape compilation cache. MySQL-specific CTE data
-modification can be issued through the standard raw SQL command APIs. Do not
-issue that grammar against MariaDB 11.4 or 11.8.
+modification can be issued through the standard raw SQL command APIs. MariaDB
+12.3 accepts the corresponding documented grammar; do not issue it against
+MariaDB 10.11, 11.4, or 11.8.
 
 ## Runnable Verification
 
 The [TemporalTablesAndCtes example](../examples/TemporalTablesAndCtes/README.md)
 executes a parameterized recursive CTE followed by a composed LINQ predicate.
-`./eng/test-examples.sh` runs the invariant on MySQL 8.4, MariaDB 11.4, and
-MariaDB 11.8 in the explicit live example matrix. Provider functional tests
-additionally cover composability, parameterization, synchronous and
-asynchronous execution, and affected command boundaries.
+`./eng/test-examples.sh` runs the invariant on all six supported LTS targets in
+the explicit live example matrix. Provider functional tests additionally cover
+composability, parameterization, synchronous and asynchronous execution, and
+affected command boundaries. Live integration tests exercise CTE data
+modification on MySQL 8.4 / 9.7 and MariaDB 12.3.
 
 ## Related Limitations
 
@@ -76,13 +79,16 @@ only the exact documented shapes; read CTEs remain supported.
 
 ## Primary Sources
 
-All sources were retrieved on 2026-08-05.
+All sources were retrieved on 2026-08-11.
 
 - [MySQL 8.4 common table expressions](https://dev.mysql.com/doc/refman/8.4/en/with.html)
 - [MySQL 8.4 `SELECT`](https://dev.mysql.com/doc/refman/8.4/en/select.html)
 - [MySQL 8.4 `DELETE`](https://dev.mysql.com/doc/refman/8.4/en/delete.html)
+- [MySQL 9.7 common table expressions](https://dev.mysql.com/doc/refman/9.7/en/with.html)
+- [MySQL 9.7 `DELETE`](https://dev.mysql.com/doc/refman/9.7/en/delete.html)
 - [MariaDB common table expressions](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/common-table-expressions/with)
 - [MariaDB recursive CTEs](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/common-table-expressions/recursive-common-table-expressions-overview)
+- [MariaDB 12.3 `WITH`](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/common-table-expressions/with)
 - [MariaDB `UPDATE`](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/changing-deleting-data/update)
 - [EF Core SQL queries](https://learn.microsoft.com/en-us/ef/core/querying/sql-queries)
 - [EF Core advanced performance topics](https://learn.microsoft.com/en-us/ef/core/performance/advanced-performance-topics)

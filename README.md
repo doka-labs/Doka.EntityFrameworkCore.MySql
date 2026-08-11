@@ -8,8 +8,9 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13999/badge)](https://www.bestpractices.dev/projects/13999)
 
 `Doka.EntityFrameworkCore.MySql` is an Entity Framework Core 10 provider for
-MySQL and MariaDB. It targets MySQL 8.4 LTS and MariaDB 11.4 / 11.8 LTS on top
-of the [`MySqlConnector`](https://mysqlconnector.net) ADO.NET driver.
+MySQL and MariaDB. It targets the actively maintained MySQL 8.4 / 9.7 and
+MariaDB 10.11 / 11.4 / 11.8 / 12.3 LTS lines on top of the
+[`MySqlConnector`](https://mysqlconnector.net) ADO.NET driver.
 
 The main goal is release responsiveness for `.NET 10` and `EF Core 10`
 together with a maintainability- and performance-first architecture: separate
@@ -36,7 +37,8 @@ This provider is designed for teams that need:
 - EF Core 10.x (`Microsoft.EntityFrameworkCore.Relational`)
 - One of:
   - MySQL 8.4 LTS
-  - MariaDB 11.4 LTS or 11.8 LTS
+  - MySQL 9.7 LTS
+  - MariaDB 10.11 LTS, 11.4 LTS, 11.8 LTS, or 12.3 LTS
 - Transitive: [MySqlConnector](https://mysqlconnector.net) 2.5.0 through the latest stable 2.x release
   on the 2.x line. The supported floor and latest compatible 2.x release are
   validated separately by the scheduled live driver matrix.
@@ -71,8 +73,12 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version "${
 
 | Engine | Versions | Native JSON | Native sequences | `RETURNING` | CTEs | Temporal tables |
 | --- | --- | --- | --- | --- | --- | --- |
-| MySQL | 8.4 LTS | yes | emulated (table) | no (engine limitation) | native | emulated (InnoDB history and triggers) |
-| MariaDB | 11.4 LTS, 11.8 LTS | alias | yes (10.3+) | yes (10.5+) | native | native system, application, and bitemporal |
+| MySQL | 8.4 LTS, 9.7 LTS | yes | emulated (table) | no (engine limitation) | native | emulated (InnoDB history and triggers) |
+| MariaDB | 10.11 LTS, 11.4 LTS, 11.8 LTS, 12.3 LTS | alias | yes (10.3+) | yes (10.5+) | native | native system, application, and bitemporal |
+
+The pinned qualification matrix currently uses MySQL 8.4.11 / 9.7.2 and
+MariaDB 10.11.18 / 11.4.12 / 11.8.8 / 12.3.2. The project revalidates a line
+before moving its pin; support follows the LTS line rather than one patch.
 
 Engine facts and provider support are separate internal contracts. Runtime
 diagnostics report each provider capability as `Native`, `Emulated`, or
@@ -117,9 +123,9 @@ var history = await context.Employees
 ```
 
 Non-recursive and recursive CTEs compose through EF Core's parameterized
-`FromSql` and `SqlQuery` roots. MySQL 8.4 also accepts CTEs in data-modification
-SQL. MariaDB 11.4 and 11.8 do not, which is reported as an engine boundary
-rather than a provider limitation.
+`FromSql` and `SqlQuery` roots. MySQL 8.4 / 9.7 and MariaDB 12.3 also accept
+the documented CTE data-modification SQL. MariaDB 10.11 / 11.4 / 11.8 do not,
+which is reported as an engine boundary rather than a provider limitation.
 
 See [Temporal tables](docs/temporal-tables.md) and
 [Common table expressions](docs/ctes.md) for the complete contracts,
@@ -255,8 +261,8 @@ public class Document
 ### Complex types
 
 EF Core 10 complex types are supported as flattened columns or JSON documents
-on MySQL 8.4 and MariaDB 11.4 / 11.8 for CLR-backed shapes that EF Core can
-represent. Nested members, projections, materialization, updates, supported
+on every supported LTS line for CLR-backed shapes that EF Core can represent.
+Nested members, projections, materialization, updates, supported
 tracking shapes, reference-type JSON collections, compiled models, and
 precompiled `JSON_TABLE` expressions remain in the normal EF Core pipeline.
 The exact collection, property-value, shadow-property, inheritance, key, and
@@ -344,7 +350,7 @@ The provider ships with:
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests`
   EF-pipeline tests: model validation, SQL generation, type mapping, migrations, scaffolding.
 - `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests`
-  Self-provisioning live-database tests against MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
+  Self-provisioning live-database tests against all six supported LTS lines.
 - `tests/Doka.EntityFrameworkCore.MySql.SpecificationAdapters`
   Engine-specific adapters for the upstream EF Core specification contracts.
 - `tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke`
@@ -362,7 +368,9 @@ The provider ships with:
   workflow, multi-tenancy, bulk operations, character sets, Docker integration,
   temporal tables, recursive CTEs, performance guidance, and host observability.
 - `docker/compose.yml`
-  Optional, explicitly selected MySQL 8.4, MariaDB 11.4, and MariaDB 11.8 debugging stack. The canonical integration and specification tests own short-lived containers through Testcontainers.
+  Optional debugging stack for all six supported LTS lines. The canonical
+  integration and specification tests own short-lived containers through
+  Testcontainers.
 - `eng/`
   Developer scripts and executable quality contracts, including exact
   specification discovery/TRX reconciliation, assembly-aware coverage,
@@ -457,8 +465,8 @@ This repository ships that variant for each affected test/benchmark project, so 
 
 ## Compatibility and Hosted Targets
 
-The advertised support matrix covers self-hosted MySQL 8.4 LTS and MariaDB
-11.4 / 11.8 LTS.
+The advertised support matrix covers the self-hosted MySQL 8.4 / 9.7 and
+MariaDB 10.11 / 11.4 / 11.8 / 12.3 LTS lines.
 
 **Azure Database for MySQL** is not in the advertised support matrix. It is a
 future external-canary target when test credentials become available; no

@@ -160,8 +160,8 @@ Run the deployment lifecycle before a release candidate:
 ./eng/test-migration-deployment.sh
 ```
 
-This gate uses isolated, dynamically published MySQL 8.4, MariaDB 11.4, and
-MariaDB 11.8 containers. For each engine it:
+This gate uses isolated, dynamically published containers for all six active
+LTS targets. For each target it:
 
 1. generates an EF Core migration bundle
 2. applies the latest migration

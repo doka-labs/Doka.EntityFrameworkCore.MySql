@@ -8,7 +8,7 @@ native, emulated, and engine-unsupported behavior separately.
 
 ## Support Matrix
 
-| Contract | MySQL 8.4 LTS | MariaDB 11.4 / 11.8 LTS |
+| Contract | MySQL 8.4 / 9.7 LTS | MariaDB 10.11 / 11.4 / 11.8 / 12.3 LTS |
 | --- | --- | --- |
 | System-versioned temporal storage | Provider-emulated with InnoDB history and triggers | Native |
 | Portable temporal query operators | Supported | Supported |
@@ -41,10 +41,13 @@ Names are explicit so migrations, reverse engineering, and generated model
 code round-trip the same contract.
 
 Temporal tables participate in `EnsureCreated`, ordinary migrations, migration
-scripts, and reverse engineering. Native MariaDB metadata is discovered from
-the information schema. MySQL emulation is recognized only when the complete,
-strict provider marker and its current/history/trigger topology agree; partial
-or user-authored lookalikes are not silently classified as temporal tables.
+scripts, and reverse engineering. MariaDB 11.4 and later expose period metadata
+through dedicated information-schema catalogs. MariaDB 10.11 exposes system
+boundaries through `GENERATION_EXPRESSION`; application periods are reconstructed
+from the server's canonical `SHOW CREATE TABLE` output without inferring user
+naming. MySQL emulation is recognized only when the complete, strict provider
+marker and its current/history/trigger topology agree; partial or user-authored
+lookalikes are not silently classified as temporal tables.
 
 ## Query Temporal History
 
@@ -120,8 +123,8 @@ reports these invalid combinations before SQL generation.
 
 MariaDB application-time periods and bitemporal tables use typed model,
 migration, reverse-engineering, and mutation APIs. MySQL rejects these exact
-contracts as engine limitations because MySQL 8.4 has no corresponding period
-grammar.
+contracts as engine limitations because MySQL 8.4 / 9.7 have no corresponding
+period grammar.
 
 ```csharp
 modelBuilder.Entity<Price>(entity =>
@@ -150,8 +153,10 @@ modelBuilder.Entity<Price>(entity =>
 `UseWithoutOverlaps()` is available on primary or unique keys and indexes. It
 emits MariaDB's native period constraint instead of approximating overlap
 validation in application code. Reverse engineering reads `PERIODS` and
-`KEY_PERIOD_USAGE`, reconstructs the period, bitemporal marker, and overlap
-constraint, and emits the same Fluent API.
+`KEY_PERIOD_USAGE` on MariaDB 11.4 and later. On MariaDB 10.11 it tokenizes the
+canonical table definition under a statement-local SQL mode. Both routes
+reconstruct the period, bitemporal marker, overlap constraint, and identical
+Fluent API without changing caller-owned session state.
 
 Application-time mutation roots are half-open ranges. MariaDB splits affected
 rows as required by its native period semantics:
@@ -177,17 +182,18 @@ the supported update and delete contracts.
 
 The [TemporalTablesAndCtes example](../examples/TemporalTablesAndCtes/README.md)
 creates, updates, and deletes a temporal row and verifies `TemporalAll` and
-`TemporalAsOf`. `./eng/test-examples.sh` executes that invariant on MySQL 8.4,
-MariaDB 11.4, and MariaDB 11.8 in the explicit live example matrix.
+`TemporalAsOf`. `./eng/test-examples.sh` executes that invariant on all six
+supported LTS targets in the explicit live example matrix.
 
 The live integration matrix additionally verifies every temporal query root,
 half-open and inclusive interval endpoints, server-side aggregates, transaction
 rollback, optimistic concurrency, session-state isolation, reverse-engineering
 round trips, and the exact cancellation token delivered to the relational
-command boundary. MariaDB 11.4 and 11.8 also execute the complete bitemporal
-path from generated DDL and information-schema readback through typed portion
-updates and deletes. Separate command-operability contracts exercise
-cancellation inside MySqlConnector against a running database command.
+command boundary. MariaDB 10.11, 11.4, 11.8, and 12.3 also execute the complete
+bitemporal path from generated DDL and version-appropriate metadata readback
+through typed portion updates and deletes. Separate command-operability
+contracts exercise cancellation inside MySqlConnector against a running
+database command.
 
 ## Related Limitations
 
@@ -198,15 +204,18 @@ and the EF Core compiled-query-root boundary.
 
 ## Primary Sources
 
-All sources were retrieved on 2026-08-05.
+All sources were retrieved on 2026-08-11.
 
 - [MySQL 8.4 trigger syntax](https://dev.mysql.com/doc/refman/8.4/en/trigger-syntax.html)
 - [MySQL 8.4 stored-program restrictions](https://dev.mysql.com/doc/refman/8.4/en/stored-program-restrictions.html)
+- [MySQL 9.7 trigger syntax](https://dev.mysql.com/doc/refman/9.7/en/trigger-syntax.html)
+- [MySQL 9.7 stored-program restrictions](https://dev.mysql.com/doc/refman/9.7/en/stored-program-restrictions.html)
 - [MariaDB system-versioned tables](https://mariadb.com/docs/server/reference/sql-structure/temporal-tables/system-versioned-tables)
 - [MariaDB application-time periods](https://mariadb.com/docs/server/reference/sql-structure/temporal-tables/application-time-periods)
 - [MariaDB bitemporal tables](https://mariadb.com/docs/server/reference/sql-structure/temporal-tables/bitemporal-tables)
 - [MariaDB `PERIODS` information-schema table](https://mariadb.com/docs/server/reference/system-tables/information-schema/information-schema-periods-table)
 - [MariaDB `KEY_PERIOD_USAGE` information-schema table](https://mariadb.com/docs/server/reference/system-tables/information-schema/information-schema-key_period_usage-table)
+- [MariaDB `SHOW CREATE TABLE`](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/show/show-create-table)
 - [MariaDB `ALTER TABLE`](https://mariadb.com/docs/server/reference/sql-statements/data-definition/alter/alter-table)
 - [MariaDB `SET STATEMENT`](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/set-commands/set-statement)
 - [EF Core SQL Server temporal tables](https://learn.microsoft.com/en-us/ef/core/providers/sql-server/temporal-tables)

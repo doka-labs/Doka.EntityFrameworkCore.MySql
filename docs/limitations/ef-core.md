@@ -9,7 +9,7 @@ contract.
 ## Complex-Type Contract
 
 The provider implements the relational complex-type surface that EF Core 10
-can represent for CLR-backed model shapes on MySQL 8.4 and MariaDB 11.4 / 11.8.
+can represent for CLR-backed model shapes on every supported LTS target.
 That includes flattened and nested complex properties, JSON document mapping,
 EF Core-valid reference-type complex collections in JSON, query and update
 translation, materialization, tracking, compiled models, and provider
@@ -33,7 +33,7 @@ public complex-type contract for the current EF Core 10 line.
 - **Responsibility:** EF Core 11 adds complex types and JSON columns to TPT and
   TPC mapping. EF Core 10 rejects that combination before provider SQL
   translation.
-- **Targets:** MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
+- **Targets:** Every supported LTS target.
 - **Primary source:** [EF Core 11 complex-type
   improvements][efcore-11-whats-new], retrieved 2026-08-05.
 
@@ -47,7 +47,7 @@ public complex-type contract for the current EF Core 10 line.
 - **Responsibility:** EF Core 11 adds key and index support for nested complex
   members; the EF Core 10 metadata model does not expose the contract to the
   provider.
-- **Targets:** MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
+- **Targets:** Every supported LTS target.
 - **Primary source:** [EF Core 11 complex-type
   improvements][efcore-11-whats-new], retrieved 2026-08-05.
 
@@ -60,7 +60,7 @@ public complex-type contract for the current EF Core 10 line.
 - **Responsibility:** EF Core 10 documents struct complex properties but does
   not support struct elements in complex collections. The provider cannot
   supply a collection model that the framework does not represent.
-- **Targets:** MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
+- **Targets:** Every supported LTS target.
 - **Primary sources:** [EF Core 10 complex-type
   improvements][efcore-10-whats-new] and [EF Core 10 breaking
   changes][efcore-10-breaking], retrieved 2026-08-05.
@@ -72,7 +72,7 @@ behavior, and the full support matrix.
 
 The following 25 entries fail in framework-owned translation, validation, or
 materialization before provider SQL generation can supply the missing behavior.
-The targets are MySQL 8.4, MariaDB 11.4, and MariaDB 11.8 for every entry.
+Every entry applies to all six supported LTS targets.
 
 ### `EFCORE-28525-BULK-ENTITY-PROJECTION`
 
@@ -269,7 +269,7 @@ disposition represents them.
   contract. The upstream API-design issue remains open and in the backlog.
   This is not an engine limitation and did not result from removing the
   unconsumed D-004 flag.
-- **Targets:** MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
+- **Targets:** Every supported LTS target.
 - **Primary sources:** [dotnet/efcore window-function API
   epic][efcore-window-functions] and [EF Core SQL Queries][efcore-sql-queries],
   retrieved 2026-08-05.
@@ -287,7 +287,7 @@ disposition represents them.
   provider applies the same explicit-collation rule to the related string
   operations rather than emitting an approximation that can change semantics
   or prevent index use.
-- **Targets:** MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
+- **Targets:** Every supported LTS target.
 - **Primary source:** [EF Core Collations and Case
   Sensitivity][efcore-collations], retrieved 2026-08-05.
 
@@ -304,7 +304,7 @@ disposition represents them.
 - **Responsibility:** EF Core's compiled-query preprocessing replaces the
   `DbSet` receiver before these root-only extension methods are bound. The
   resulting expression is rejected by EF Core before provider translation.
-- **Targets:** MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
+- **Targets:** Every supported LTS target.
 - **Primary sources:** [EF Core advanced performance
   topics][efcore-advanced-performance], [EF Core 10.0.10 relational SQL query
   extensions][efcore-relational-query-extensions], and [EF Core 10.0.10 SQL

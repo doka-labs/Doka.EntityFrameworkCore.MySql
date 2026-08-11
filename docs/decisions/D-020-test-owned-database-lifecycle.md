@@ -111,7 +111,10 @@ The dependency addition was proposed explicitly and approved by the project owne
 
 ### CI and Compose Boundaries
 
-GitHub Actions no longer duplicates MySQL or MariaDB service definitions for integration and specification tests. Those jobs invoke the same fixture-owned lifecycle used locally. The specification matrix is binding for MySQL 8.4, MariaDB 11.4, and MariaDB 11.8; failures are not allowed to continue silently.
+GitHub Actions no longer duplicates MySQL or MariaDB service definitions for
+integration and specification tests. Those jobs invoke the same fixture-owned
+lifecycle used locally. The specification matrix is binding for all six active
+LTS targets; failures are not allowed to continue silently.
 
 Compose remains an operator-selected debugging and benchmark mechanism. `eng/test-integration.sh --up-test-down` is the compatibility path for an explicit Compose run and removes its volumes afterwards. The default `eng/test-integration.sh` path uses Testcontainers.
 
@@ -128,6 +131,8 @@ Compose remains an operator-selected debugging and benchmark mechanism. `eng/tes
 
 - 2026-07-27: Decision recorded with status accepted.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-08-11: Extended the test-owned lifecycle and exact image evidence to
+  MySQL 9.7 and MariaDB 10.11 / 12.3 as part of the six-line active-LTS matrix.
 
 ### Implementation References
 

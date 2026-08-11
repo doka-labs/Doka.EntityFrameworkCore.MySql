@@ -107,9 +107,9 @@ probes, and re-evaluation triggers.
   tests that need triage. The triage cost is bounded by the suite
   size but is non-trivial; the disposition discipline keeps it from
   ballooning.
-- CI runtime increases substantially. The specification suites are
-  large, and the dedicated matrix runs the exact contract against
-  MySQL 8.4, MariaDB 11.4, and MariaDB 11.8.
+- CI runtime increases substantially. The specification suites are large, and
+  the dedicated matrix runs the exact contract against every active LTS
+  target.
 - Specification-test fixtures depend on a real MySQL/MariaDB instance.
   The integration-test infrastructure (Docker Compose for local,
   containerized services for CI) becomes a hard requirement for any
@@ -152,10 +152,12 @@ probes, and re-evaluation triggers.
   exact image and endpoint evidence.
 - Version-bound inventories enumerate all 327 official compliance bases for
   EF Core 10.0.8 and 10.0.10.
-- Exact EF Core 10.0.8 discovery contracts contain 29,746 MySQL 8.4 tests,
-  29,410 MariaDB 11.4 tests, and 29,411 MariaDB 11.8 tests.
-- Exact EF Core 10.0.10 discovery contracts contain 29,754 MySQL 8.4 tests,
-  29,418 MariaDB 11.4 tests, and 29,419 MariaDB 11.8 tests.
+- Exact EF Core 10.0.8 discovery contracts contain 29,746 tests for each MySQL
+  target and 29,412 / 29,410 / 29,411 / 29,417 tests for MariaDB 10.11 / 11.4 /
+  11.8 / 12.3 respectively.
+- Exact EF Core 10.0.10 discovery contracts contain 29,754 tests for each
+  MySQL target and 29,420 / 29,418 / 29,419 / 29,425 tests for MariaDB 10.11 /
+  11.4 / 11.8 / 12.3 respectively.
 - A classification-drift gate proves that every test below the provider's
   `Specification` namespace carries `Category=Spec`; this prevents an
   unclassified official fixture from silently escaping the release matrix.
@@ -191,11 +193,13 @@ probes, and re-evaluation triggers.
 
 - 2026-05-16: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
-- 2026-07-29: Completed the zero-debt provider mapping and verified both
-  supported EF Core patches against MySQL 8.4, MariaDB 11.4, and MariaDB
-  11.8 with exact discovery and TRX reconciliation.
+- 2026-07-29: Completed the zero-debt provider mapping for the then-supported
+  three-engine matrix and verified both supported EF Core patches with exact
+  discovery and TRX reconciliation.
 - 2026-07-30: Activated or explicitly dispositioned every inherited upstream
-  skip and repeated the complete six-target matrix with zero failures.
+  skip and repeated all six EF-patch-by-engine runs with zero failures.
+- 2026-08-11: Expanded discovery and executable disposition ownership to all
+  six active LTS targets without introducing provider debt.
 
 ### Implementation References
 

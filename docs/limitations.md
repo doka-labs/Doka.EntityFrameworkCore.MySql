@@ -15,9 +15,9 @@ external limitation when the engine and EF Core can represent it: in that case
 the provider must implement it. The word "unavailable" applies only to the
 exact contract described by an entry, not to the surrounding feature family.
 
-The supported targets are MySQL 8.4, MariaDB 11.4, and MariaDB 11.8. Source
-retrieval dates are recorded per entry. This projection was last reconciled
-on 2026-08-05.
+The supported targets are MySQL 8.4 / 9.7 and MariaDB 10.11 / 11.4 / 11.8 /
+12.3. Source retrieval dates are recorded per entry. This projection was last
+reconciled on 2026-08-11.
 
 ## Inventory by Responsibility
 
@@ -40,19 +40,20 @@ consumer. A generally supported feature does not need a runtime switch.
 
 ### Window functions
 
-Native window functions remain supported. MySQL 8.4 and the supported MariaDB
-lines provide window-function syntax. The provider's dynamic-offset rewrite
-emits EF Core's `RowNumberExpression`, and provider tests exercise that
-generated `ROW_NUMBER()` shape. The removed flag had no production consumer
-and controlled neither path.
+Native window functions remain supported. Both supported MySQL lines and all
+supported MariaDB lines provide window-function syntax. The provider's
+dynamic-offset rewrite emits EF Core's `RowNumberExpression`, and provider
+tests exercise that generated `ROW_NUMBER()` shape. The removed flag had no
+production consumer and controlled neither path.
 
 The separate public boundary is the absence of a general strongly typed LINQ
 API for arbitrary window expressions. Raw SQL remains available for native
 window expressions; the exact boundary is documented below.
 
-Primary sources, retrieved 2026-08-05:
+Primary sources, retrieved 2026-08-11:
 
 - [MySQL 8.4 Window Function Descriptions][mysql-window-functions]
+- [MySQL 9.7 Window Function Descriptions][mysql97-window-functions]
 - [MariaDB Window Functions Overview][mariadb-window-functions]
 - [dotnet/efcore window-function API epic][efcore-window-functions]
 
@@ -64,9 +65,10 @@ always true for the supported targets and had no behavior-routing consumer.
 The distinct seven-digit .NET precision boundary is documented in the engine
 limitations inventory below.
 
-Primary sources, retrieved 2026-08-05:
+Primary sources, retrieved 2026-08-11:
 
 - [MySQL 8.4 Fractional Seconds in Time Values][mysql-fractional-seconds]
+- [MySQL 9.7 Fractional Seconds in Time Values][mysql97-fractional-seconds]
 - [MariaDB Microseconds in MariaDB][mariadb-microseconds]
 
 ### Generated invisible primary keys
@@ -77,20 +79,22 @@ provider capability boundary. The provider does not advertise this MySQL-only
 server setting as a portable model-building feature. Removing the diagnostic
 flag did not disable the MySQL server behavior.
 
-Primary source, retrieved 2026-08-05:
+Primary sources, retrieved 2026-08-11:
 
 - [MySQL 8.4 Generated Invisible Primary Keys][mysql-gipk]
+- [MySQL 9.7 Generated Invisible Primary Keys][mysql97-gipk]
 
 ### `INTERSECT` and `EXCEPT`
 
 Relational set operations remain supported on all supported targets. MySQL 8.4
-documents `INTERSECT` and `EXCEPT`, and MariaDB has supported `INTERSECT` since
-10.3. The provider uses EF Core's relational set-operation SQL tree; no
-version-routing flag is required for the supported version floor.
+and 9.7 document `INTERSECT` and `EXCEPT`, and MariaDB has supported
+`INTERSECT` since 10.3. The provider uses EF Core's relational set-operation SQL
+tree; no version-routing flag is required for the supported version floor.
 
-Primary sources, retrieved 2026-08-05:
+Primary sources, retrieved 2026-08-11:
 
 - [MySQL 8.4 Set Operations][mysql-set-operations]
+- [MySQL 9.7 Set Operations][mysql97-set-operations]
 - [MariaDB INTERSECT][mariadb-intersect]
 - [MariaDB EXCEPT][mariadb-except]
 
@@ -100,9 +104,10 @@ Full-text indexes and provider full-text query translation remain supported.
 Both engines expose FULLTEXT indexes. The removed flag did not gate migrations,
 scaffolding, or query translation and therefore represented dead metadata.
 
-Primary sources, retrieved 2026-08-05:
+Primary sources, retrieved 2026-08-11:
 
 - [MySQL 8.4 Full-Text Search Functions][mysql-full-text]
+- [MySQL 9.7 Full-Text Search Functions][mysql97-full-text]
 - [MariaDB Full-Text Index Overview][mariadb-full-text]
 
 ## Maintenance Contract
@@ -134,3 +139,8 @@ Primary sources, retrieved 2026-08-05:
 [mysql-gipk]: https://dev.mysql.com/doc/refman/8.4/en/create-table-gipks.html
 [mysql-set-operations]: https://dev.mysql.com/doc/refman/8.4/en/set-operations.html
 [mysql-window-functions]: https://dev.mysql.com/doc/refman/8.4/en/window-functions.html
+[mysql97-fractional-seconds]: https://dev.mysql.com/doc/refman/9.7/en/fractional-seconds.html
+[mysql97-full-text]: https://dev.mysql.com/doc/refman/9.7/en/fulltext-search.html
+[mysql97-gipk]: https://dev.mysql.com/doc/refman/9.7/en/create-table-gipks.html
+[mysql97-set-operations]: https://dev.mysql.com/doc/refman/9.7/en/set-operations.html
+[mysql97-window-functions]: https://dev.mysql.com/doc/refman/9.7/en/window-functions.html

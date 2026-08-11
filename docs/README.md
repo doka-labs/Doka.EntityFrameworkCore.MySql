@@ -7,6 +7,9 @@ and operational procedures.
 
 ## Use the Provider
 
+- [Supported Databases](supported-databases.md) defines the active LTS matrix,
+  exact qualified patches, test targets, unsupported-version behavior, and
+  primary lifecycle evidence.
 - [Host Integration](host-integration-examples.md) covers dependency injection,
   connection ownership, data sources, retry configuration, and telemetry.
 - [Complex Types](complex-types.md) covers mapping, querying, updates, JSON,
