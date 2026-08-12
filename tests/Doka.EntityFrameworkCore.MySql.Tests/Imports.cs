@@ -20,6 +20,7 @@ global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.Infrastructure;
 global using Microsoft.EntityFrameworkCore.Metadata;
 global using Microsoft.EntityFrameworkCore.Migrations;
+global using Microsoft.EntityFrameworkCore.Migrations.Operations;
 global using Microsoft.EntityFrameworkCore.Query;
 global using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 global using Microsoft.EntityFrameworkCore.Storage;

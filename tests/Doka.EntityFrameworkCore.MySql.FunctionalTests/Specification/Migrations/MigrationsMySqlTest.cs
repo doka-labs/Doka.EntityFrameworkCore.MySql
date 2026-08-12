@@ -37,10 +37,10 @@ public class MigrationsMySqlTest : MigrationsInfrastructureTestBase<MigrationsMy
         var connectionString = ((MySqlTestStore)Fixture.TestStore).ConnectionString;
         await using var connection = new MySqlConnection(connectionString);
         await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText = value;
-        command.CommandTimeout = MySqlTestStore.DefaultCommandTimeout;
-        await command.ExecuteNonQueryAsync();
+        await MySqlClientScriptExecutor.ExecuteAsync(
+            connection,
+            value,
+            MySqlTestStore.DefaultCommandTimeout);
     }
 
     [Fact(Skip = SnapshotInapplicableReason)]
