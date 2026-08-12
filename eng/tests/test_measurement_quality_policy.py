@@ -137,27 +137,24 @@ class CappedMeasurementEvidenceTests(PerformanceEvidenceFixtureMixin, unittest.T
         ):
             self.validate(report, self.contract)
 
-    def test_previous_schema_is_rejected_as_unsupported(self) -> None:
-        """Name the version transition instead of calling an old report invalid.
+    def test_previous_schemas_are_rejected_as_unsupported(self) -> None:
+        """Name version transitions instead of calling old reports invalid."""
+        for schema_version in (3, 4):
+            with self.subTest(schema_version=schema_version):
+                report = self._workload_report("mysql84")
+                report["schemaVersion"] = schema_version
 
-        A schema-3 document was valid under the contract that produced it. It
-        must be refused for predating the fields, not reported as though it had
-        always been malformed.
-        """
-        report = self._workload_report("mysql84")
-        report["schemaVersion"] = 3
-
-        with self.assertRaisesRegex(
-            performance_evidence.PerformanceEvidenceError,
-            "schema version 3",
-        ):
-            self.validate(report, self.contract)
+                with self.assertRaisesRegex(
+                    performance_evidence.PerformanceEvidenceError,
+                    f"schema version {schema_version}",
+                ):
+                    self.validate(report, self.contract)
 
     def test_current_schema_is_accepted(self) -> None:
         """Pin the version the current producer emits."""
         report = self._workload_report("mysql84")
 
-        self.assertEqual(4, report["schemaVersion"])
+        self.assertEqual(5, report["schemaVersion"])
         self.validate(report, self.contract)
 
     def test_contradictory_duration_and_reason_are_rejected(self) -> None:

@@ -3,8 +3,8 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 /// <summary>
 /// Executes named provider workloads outside BenchmarkDotNet so release evidence
 /// retains per-operation-normalized samples for median, p95, and p99
-/// evaluation. Fixed contract-owned batches amortize timer overhead for fast
-/// idempotent workloads.
+/// evaluation. Contract-owned batches amortize timer overhead; paired runs use
+/// a bounded pilot to keep sample duration independent from runner speed.
 /// </summary>
 internal static class PerformanceWorkloadRunner
 {
@@ -111,7 +111,6 @@ internal static class PerformanceWorkloadRunner
             // Tail-sensitive, allocation-free workloads can require a larger
             // contract-owned population than stateful database operations.
             var sampleCount = definition.MeasurementSamples ?? profileSampleCount;
-            var warmupSamples = GetWarmupSampleCount(definition, profile.WarmupSamples);
             var calibrationKind = PerformanceCalibration.ResolveKind(
                 contract.Calibration,
                 definition.Family);
@@ -140,10 +139,14 @@ internal static class PerformanceWorkloadRunner
                 result = await MeasureAsync(
                         workload,
                         definition,
-                        warmupSamples,
+                        profile.WarmupSamples,
                         sampleCount,
                         profile.MinimumMeasurementDurationMilliseconds,
                         profile.MaximumMeasurementSampleMultiplier,
+                        profile.AdaptiveOperationsPerSample,
+                        profile.OperationBatchingDurationHeadroomPercent,
+                        profile.OperationBatchingPilotSamples,
+                        profile.MaximumOperationsPerSampleMultiplier,
                         profile.MaximumRelativeStandardError,
                         calibrationKind,
                         profile.CalibrationSamplesPerPulse,
@@ -260,13 +263,17 @@ internal static class PerformanceWorkloadRunner
         }
     }
 
-    private static async Task<PerformanceWorkloadResult> MeasureAsync(
+    internal static async Task<PerformanceWorkloadResult> MeasureAsync(
         PerformanceWorkload workload,
         PerformanceWorkloadDefinition definition,
-        int warmupSamples,
+        int profileWarmupSamples,
         int minimumSampleCount,
         int minimumMeasurementDurationMilliseconds,
         int maximumMeasurementSampleMultiplier,
+        bool adaptiveOperationsPerSample,
+        int operationBatchingDurationHeadroomPercent,
+        int operationBatchingPilotSamples,
+        int maximumOperationsPerSampleMultiplier,
         double maximumRelativeStandardError,
         string calibrationKind,
         int calibrationSamplesPerPulse,
@@ -297,6 +304,19 @@ internal static class PerformanceWorkloadRunner
             throw new InvalidDataException($"Workload '{workload.Id}' has a non-positive operations-per-sample value.");
         }
 
+        if (adaptiveOperationsPerSample
+            && (operationBatchingDurationHeadroomPercent < 100
+                || operationBatchingPilotSamples <= 0
+                || maximumOperationsPerSampleMultiplier <= 0))
+        {
+            throw new InvalidDataException(
+                $"Workload '{workload.Id}' has an invalid adaptive operation-batching profile.");
+        }
+
+        var warmupSamples = GetWarmupSampleCount(
+            definition,
+            profileWarmupSamples);
+
         if (calibrationSamplesPerPulse <= 0
             || calibrationIntervalSamples <= 0)
         {
@@ -322,6 +342,33 @@ internal static class PerformanceWorkloadRunner
                 await CleanupAsync(workload, cancellationToken)
                     .ConfigureAwait(false);
             }
+        }
+
+        var operationsPerSample = definition.OperationsPerSample;
+        var pilotSamplesElapsedTicks = Array.Empty<long>();
+        var operationBatchingMode = "fixed";
+
+        if (adaptiveOperationsPerSample)
+        {
+            // Pilot only after warmup. Measuring the first invocation would
+            // size steady-state samples from JIT and cold-start work instead.
+            var targetSampleTicks = PerformanceSampling.ResolveTargetSampleTicks(
+                minimumMeasurementDurationMilliseconds,
+                Stopwatch.Frequency,
+                operationBatchingDurationHeadroomPercent,
+                minimumSampleCount);
+            pilotSamplesElapsedTicks = await MeasurePilotSamplesAsync(
+                    workload,
+                    definition.OperationsPerSample,
+                    operationBatchingPilotSamples,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            operationsPerSample = PerformanceSampling.ResolveOperationsPerSample(
+                definition.OperationsPerSample,
+                PerformanceSampling.ResolvePilotElapsedTicks(pilotSamplesElapsedTicks),
+                targetSampleTicks,
+                maximumOperationsPerSampleMultiplier);
+            operationBatchingMode = "pilot";
         }
 
         var retainedBefore = ReadManagedHeapSizeAfterFullCollection();
@@ -379,7 +426,7 @@ internal static class PerformanceWorkloadRunner
 
                 try
                 {
-                    for (var operation = 0; operation < definition.OperationsPerSample; operation++)
+                    for (var operation = 0; operation < operationsPerSample; operation++)
                     {
                         sampleChecksum = unchecked(sampleChecksum
                             + await workload
@@ -401,7 +448,7 @@ internal static class PerformanceWorkloadRunner
 
                 checksum = unchecked(checksum + sampleChecksum);
                 measuredTicks = checked(measuredTicks + elapsed);
-                var nanoseconds = elapsed * (1_000_000_000d / Stopwatch.Frequency) / definition.OperationsPerSample;
+                var nanoseconds = elapsed * (1_000_000_000d / Stopwatch.Frequency) / operationsPerSample;
 
                 if (!double.IsFinite(nanoseconds)
                     || nanoseconds <= 0)
@@ -458,7 +505,7 @@ internal static class PerformanceWorkloadRunner
         var retainedAfter = ReadManagedHeapSizeAfterFullCollection();
         var retainedBytes = Math.Max(0, retainedAfter - retainedBefore);
         var measuredSampleCount = samples.Count;
-        var measuredOperations = checked((long)measuredSampleCount * definition.OperationsPerSample);
+        var measuredOperations = checked((long)measuredSampleCount * operationsPerSample);
         var sortedSamples = samples
             .Order()
             .ToArray();
@@ -502,7 +549,10 @@ internal static class PerformanceWorkloadRunner
             SampleCount = measuredSampleCount,
             TerminationReason = terminationReason,
             MinimumDurationReached = minimumDurationReached,
-            OperationsPerSample = definition.OperationsPerSample,
+            ConfiguredOperationsPerSample = definition.OperationsPerSample,
+            OperationBatchingMode = operationBatchingMode,
+            PilotSamplesElapsedTicks = pilotSamplesElapsedTicks,
+            OperationsPerSample = operationsPerSample,
             Checksum = checksum,
             MeasuredUtc = DateTimeOffset.UtcNow,
             MedianNanoseconds = PerformanceSampling.Percentile(sortedSamples, 0.5),
@@ -526,6 +576,52 @@ internal static class PerformanceWorkloadRunner
             CalibrationPulseIndices = calibrationPulseIndices,
             NormalizedSamples = normalizedSamples,
         };
+    }
+
+    private static async Task<long[]> MeasurePilotSamplesAsync(
+        PerformanceWorkload workload,
+        int operationsPerSample,
+        int pilotSampleCount,
+        CancellationToken cancellationToken
+    )
+    {
+        var samples = new long[pilotSampleCount];
+
+        for (var sample = 0; sample < samples.Length; sample++)
+        {
+            await PrepareAsync(workload, cancellationToken)
+                .ConfigureAwait(false);
+
+            try
+            {
+                var started = Stopwatch.GetTimestamp();
+
+                for (var operation = 0; operation < operationsPerSample; operation++)
+                {
+                    _ = await workload
+                        .ExecuteAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                var elapsed = Stopwatch.GetTimestamp() - started;
+
+                if (elapsed <= 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Workload '{workload.Id}' produced a non-positive pilot duration.");
+                }
+
+                samples[sample] = elapsed;
+            }
+            finally
+            {
+                await CleanupAsync(workload, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+        }
+
+        return samples;
     }
 
     private static bool TryLoadCheckpoint(

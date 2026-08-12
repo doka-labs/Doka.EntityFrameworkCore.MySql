@@ -55,7 +55,7 @@ different runs.
 | Profile | Purpose | Workload samples | Soak | Baseline |
 |---|---|---:|---|---|
 | `smoke` | Fast harness and contract check | 1 to 3 | Optional | Not required |
-| `paired-block` | One block of a paired comparison | starts at 16, extended on precision up to 64x | Required once per run | Not required |
+| `paired-block` | One block of a paired comparison | starts at 16 with pilot-sized operation batches, extended on precision up to 64x | Required once per run | Not required |
 | `scorecard` | Hosted baseline-seed evidence | 256; 128 expensive, adaptively extended up to 64x | Required | Required |
 | `stress` | Extended investigation | 512; 256 expensive, adaptively extended up to 64x | Required | Required |
 
@@ -75,6 +75,18 @@ workloads. A fixed larger population would spend the same wall clock on a
 workload that converged in a quarter of it, and a paired run pays that cost
 twice per block.
 The achieved population travels in each workload report.
+
+After warmup, `paired-block` measures one configured operation batch and uses
+that pilot to distribute 120 percent of the two-second duration floor over the
+workload's starting population. A sixteen-sample workload therefore targets
+150 milliseconds per sample, while an explicitly registered 8,192-sample
+workload targets about 293 microseconds. The multiplier is rounded up and
+capped at 1,024. Every workload uses the fastest of three pilot observations so
+one scheduler stall cannot undersize it. This plans at least 2.4 seconds of measured work without
+inflating high-population tail workloads or consuming the separate sample-count
+cap. The reference and candidate sides pilot independently because sample size
+is an execution property; the paired statistic continues to compare normalized
+time per operation.
 
 ### Deadlines are error bounds, not budgets
 
@@ -265,13 +277,18 @@ a contract that does not fit the workload -- not a corrupt one.
 | `terminationReason` | `precision_reached` | The relative standard error met the contract, and the minimum duration was satisfied. |
 | | `sample_cap_reached` | The cap bound first while the duration or the precision target was still unmet. |
 | `minimumDurationReached` | `true` / `false` | Whether the contract's `minimumMeasurementDurationMilliseconds` was satisfied. |
+| `configuredOperationsPerSample` | positive integer | The workload's checked-in operation batch before adaptive sizing. |
+| `operationBatchingMode` | `fixed` / `pilot` | Whether the profile retained the configured batch or sized it from a pilot. |
+| `pilotSamplesElapsedTicks` | positive integer array | Stopwatch ticks measured by the three registered pilot observations; empty for fixed batching. |
+| `operationsPerSample` | positive integer | The actual operation batch used for warmup and measurement. |
 
-Both fields are required and were introduced with **schema version 4** of the
-raw workload report (`kind: performance-workloads`). A version-3 document
-predates them; the validator rejects it with an explicit unsupported-version
-message rather than reporting it as incomplete. Re-measure with the current
-benchmark build to produce a version-4 report. The accepted baseline and the
-evaluation record keep their own schema versions.
+The termination fields were introduced with schema version 4 of the raw
+workload report (`kind: performance-workloads`). The operation-batching
+provenance is required by the current **schema version 5**. The validator
+rejects older documents with an explicit unsupported-version message rather
+than reporting them as incomplete. Re-measure with the current benchmark build
+to produce a version-5 report. The accepted baseline and the evaluation record
+keep their own schema versions.
 
 The validator derives the allowed population from the contract as
 `measurementSamples` (or the workload's own override) multiplied by
@@ -287,6 +304,11 @@ verdict:
 - an unreached minimum duration with any reason other than
   `sample_cap_reached`;
 - a measurement shorter than the minimum duration without sitting at the cap;
+- an adaptive operation batch that cannot be derived exactly from the recorded
+  fastest pilot, duration floor, workload population, headroom, and multiplier
+  cap;
+- pilot provenance on a fixed profile, or missing pilot provenance on an
+  adaptive profile;
 - `minimumDurationReached` disagreeing with the duration computed from the
   samples and `operationsPerSample`;
 - an unknown termination reason.
@@ -323,20 +345,25 @@ rejects it by workload id and names the recalibration levers.
 
 A capped result on one run and a clean result on the retry is host noise; that
 is what the bounded retry exists for. The same workload capping run after run
-is not noise -- it says the contract cannot be satisfied on this hardware.
+is not noise -- it says the profile cannot satisfy its contract within its
+registered sizing limits.
 
 The diagnostic prints all three pairs listed above -- samples against the
 derived cap, measured duration against the required minimum, and achieved
 relative standard error against the allowed ceiling -- so the decision needs no
-rerun. Read which pair is the outlier, then recalibrate exactly one of
-`operationsPerSample` (more work per sample reaches the duration without more
-samples), the minimum duration, or the cap.
-Raising the cap alone treats the symptom; more work per sample is usually the
-correct lever, and it is what BenchmarkDotNet's pilot stage and Go's `predictN`
-solve for.
+rerun. For fixed historical profiles, read which pair is the outlier and
+recalibrate exactly one of `operationsPerSample`, the minimum duration, or the
+cap. Raising the cap alone treats the symptom; more work per sample is usually
+the correct lever.
 
-Recalibration is a reviewed contract change with its own version bump. It is
-never applied automatically from a failing run.
+The paired profile performs that sample-size calibration automatically and
+records every input needed to reproduce it. This follows the separation used
+by BenchmarkDotNet's pilot stage and Go's `predictN`: duration determines the
+amount of work in one sample, while the cap limits how many samples may be
+collected. A repeated paired cap therefore points to the registered pilot
+multiplier ceiling, precision policy, or time budget rather than to processor
+speed alone. Changes to those bounds remain reviewed contract changes with a
+version bump.
 
 ## Accept an engine image update
 

@@ -27,6 +27,17 @@ class PerformanceContractTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
         """Accept the checked-in contract only when every coverage token has a workload."""
         performance_evidence.validate_contract(self.contract)
 
+    def test_adaptive_operation_batch_must_fit_the_runner_integer_range(self) -> None:
+        """Reject a reviewed multiplier the C# runner cannot represent."""
+        contract = copy.deepcopy(self.contract)
+        contract["workloads"][0]["operationsPerSample"] = 2_147_483_647
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "adaptive operation batch exceeds",
+        ):
+            performance_evidence.validate_contract(contract)
+
     def test_json_comparer_warmup_reaches_the_contract_operation_floor(self) -> None:
         """Keep tiered-JIT promotion outside JSON comparer tail measurements."""
         definitions = {
@@ -280,6 +291,45 @@ class PerformanceContractTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
         with self.assertRaisesRegex(
             performance_evidence.PerformanceEvidenceError,
             "measurementQualityPolicy",
+        ):
+            performance_evidence.validate_contract(contract)
+
+    def test_adaptive_operation_batching_requires_duration_headroom(self) -> None:
+        """Reject a pilot target below the registered measurement floor."""
+        contract = copy.deepcopy(self.contract)
+        contract["profiles"]["paired-block"][
+            "operationBatchingDurationHeadroomPercent"
+        ] = 99
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "operationBatchingDurationHeadroomPercent",
+        ):
+            performance_evidence.validate_contract(contract)
+
+    def test_fixed_profiles_carry_no_adaptive_batching_knobs(self) -> None:
+        """Reject dormant pilot settings on profiles that never consume them."""
+        contract = copy.deepcopy(self.contract)
+        contract["profiles"]["scorecard"][
+            "operationBatchingDurationHeadroomPercent"
+        ] = 101
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "configures adaptive operation-batching knobs",
+        ):
+            performance_evidence.validate_contract(contract)
+
+    def test_adaptive_operation_batching_requires_pilot_samples(self) -> None:
+        """Reject an adaptive profile without scheduler-noise observations."""
+        contract = copy.deepcopy(self.contract)
+        contract["profiles"]["paired-block"][
+            "operationBatchingPilotSamples"
+        ] = 0
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "without pilot samples",
         ):
             performance_evidence.validate_contract(contract)
 

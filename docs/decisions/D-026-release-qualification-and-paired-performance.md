@@ -719,6 +719,32 @@ distribution rather than a quotient of two unrelated summary values. The
 paired design follows both constraints by measuring reference and candidate
 within one allocated environment and retaining the ratio distribution.
 
+BenchmarkDotNet's pilot stage estimates how many invocations an iteration needs
+to approach its requested duration. Go's benchmark runner likewise predicts a
+larger iteration count from observed time and keeps the iteration-count limit as
+a separate bound. The paired workload runner follows that separation: after
+warmup, one configured operation batch is timed, then the measured batch is
+scaled so the workload's starting population plans 120 percent of the minimum
+duration, with a maximum 1,024-fold multiplier. Sixteen starting samples target
+150 milliseconds each; an explicit 8,192-sample tail population targets about
+293 microseconds each. Both plan at least 2.4 seconds against the two-second
+duration floor. Every workload uses the fastest of three pilot observations so
+a scheduler stall cannot undersize it. Raw evidence schema 5 records the
+configured batch, batching mode, every pilot duration, and the actual batch,
+and the validator recomputes the choice from those fields.
+
+This sizing is restricted to paired evidence. Historical scorecard and stress
+profiles keep fixed batches so accepted baselines retain their original
+measurement contract. The sample cap remains a count bound in every profile;
+it is not used to manufacture the minimum duration.
+
+Benchmark run 31568808053 exposed the former coupling on both performance
+release targets: MySQL 8.4 and MariaDB 11.8 each exhausted the 1,024-sample cap
+on two independent runners without reaching the duration floor. The selector correctly
+withheld both attempts as `measurement-inconclusive`; changing retry or
+selection semantics would only have hidden valid evidence. Pilot sizing removes
+the contract defect that made a faster workload consume the count cap.
+
 The Rust compiler performance infrastructure demonstrates the alternative:
 own dedicated collectors and disable sources of machine variance. That model
 is valid but carries an operational boundary this project has not accepted.
@@ -824,6 +850,8 @@ manifest verification.
   workflow's implicit historical default.
 - 2026-08-11: Collapsed the reusable workflow boundary to one comparison mode
   and derived baseline behavior so contradictory mode pairs cannot be passed.
+- 2026-08-12: Separated paired sample duration from sample count by adding
+  bounded pilot-based operation batching and verifiable schema-5 provenance.
 
 ### Implementation References
 
@@ -852,6 +880,8 @@ manifest verification.
   (primary source; retrieved 2026-08-10)
 - [Main benchmark resolver run 31332817720][benchmark-run]
   (primary source; retrieved 2026-08-10)
+- [Repeated capped benchmark run 31568808053][capped-benchmark-run]
+  (primary source; retrieved 2026-08-12)
 - [GitHub-hosted runners reference][github-runners]
   (primary source; retrieved 2026-08-10)
 - [GitHub workflow runs API][github-runs-api]
@@ -874,6 +904,12 @@ manifest verification.
   (primary source; retrieved 2026-08-10)
 - [BenchmarkDotNet baselines][bdn-baselines]
   (primary source; retrieved 2026-08-10)
+- [BenchmarkDotNet console arguments][bdn-console-arguments]
+  (primary source; retrieved 2026-08-12)
+- [BenchmarkDotNet measurement stages][bdn-how-it-works]
+  (primary source; retrieved 2026-08-12)
+- [Go benchmark runner source][go-benchmark-source]
+  (primary source; retrieved 2026-08-12)
 - [rustc-perf deployment documentation][rustc-perf-deployment]
   (primary source; retrieved 2026-08-10)
 - [rustc-perf collector documentation][rustc-perf-collector]
@@ -888,6 +924,8 @@ manifest verification.
   https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31334669273
 [benchmark-run]:
   https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31332817720
+[capped-benchmark-run]:
+  https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31568808053
 [github-runners]:
   https://docs.github.com/en/actions/reference/runners/github-hosted-runners
 [github-runs-api]: https://docs.github.com/en/rest/actions/workflow-runs
@@ -906,6 +944,10 @@ manifest verification.
 [bdn-good-practices]:
   https://benchmarkdotnet.org/articles/guides/good-practices.html
 [bdn-baselines]: https://benchmarkdotnet.org/articles/features/baselines.html
+[bdn-console-arguments]:
+  https://benchmarkdotnet.org/articles/guides/console-args.html
+[bdn-how-it-works]: https://benchmarkdotnet.org/articles/guides/how-it-works.html
+[go-benchmark-source]: https://go.dev/src/testing/benchmark.go
 [rustc-perf-deployment]:
   https://github.com/rust-lang/rustc-perf/blob/main/docs/deployment.md
 [rustc-perf-collector]:

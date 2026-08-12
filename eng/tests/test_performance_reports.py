@@ -120,6 +120,59 @@ class PerformanceReportTests(PerformanceEvidenceFixtureMixin, unittest.TestCase)
                 profile="scorecard",
             )
 
+    def test_adaptive_workload_report_binds_batch_size_to_the_pilot(self) -> None:
+        """Reject a paired sample batch that its recorded pilot cannot derive."""
+        report = self._workload_report("mysql84", profile_name="paired-block")
+        report["workloads"][0]["pilotSamplesElapsedTicks"] = [10_000_000] * 3
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "pilot requires",
+        ):
+            performance_evidence.validate_workload_report(
+                report,
+                self.contract,
+                run_id="run-1",
+                target="mysql84",
+                profile="paired-block",
+            )
+
+    def test_adaptive_workload_report_binds_the_pilot_population(self) -> None:
+        """Reject a fast workload that omits a registered pilot observation."""
+        report = self._workload_report("mysql84", profile_name="paired-block")
+        report["workloads"][0]["pilotSamplesElapsedTicks"] = report[
+            "workloads"
+        ][0]["pilotSamplesElapsedTicks"][:2]
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "no adaptive batching pilot",
+        ):
+            performance_evidence.validate_workload_report(
+                report,
+                self.contract,
+                run_id="run-1",
+                target="mysql84",
+                profile="paired-block",
+            )
+
+    def test_adaptive_workload_report_requires_pilot_provenance(self) -> None:
+        """Reject a paired batch presented as a fixed contract value."""
+        report = self._workload_report("mysql84", profile_name="paired-block")
+        report["workloads"][0]["operationBatchingMode"] = "fixed"
+
+        with self.assertRaisesRegex(
+            performance_evidence.PerformanceEvidenceError,
+            "no adaptive batching pilot",
+        ):
+            performance_evidence.validate_workload_report(
+                report,
+                self.contract,
+                run_id="run-1",
+                target="mysql84",
+                profile="paired-block",
+            )
+
     def test_workload_report_rejects_warmup_count_drift(self) -> None:
         """Reject a report produced with fewer warmups than the active profile."""
         report = self._workload_report("mysql84")

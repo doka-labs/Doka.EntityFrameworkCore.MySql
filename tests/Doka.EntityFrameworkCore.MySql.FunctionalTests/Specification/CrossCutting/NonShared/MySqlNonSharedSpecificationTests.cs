@@ -28,6 +28,51 @@ public sealed class OwnedEntityQueryMySqlTest : OwnedEntityQueryRelationalTestBa
     ) : base(fixture) { }
 
     protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+
+    /// <summary>
+    /// Verifies null comparison for an owned navigation in a correlated
+    /// collection while making the upstream assertion order deterministic.
+    /// </summary>
+    public override async Task Correlated_subquery_with_owned_navigation_being_compared_to_null_works()
+    {
+        var contextFactory = await InitializeAsync<Context13157>(seed: context => context.SeedAsync());
+
+        using var context = contextFactory.CreateContext();
+
+        // The upstream test asserts collection positions but does not order
+        // its relational query. Order by the child key so the assertion keeps
+        // testing owned-navigation null semantics rather than storage order.
+        var query = context.Partners
+            .Select(partner => new
+            {
+                Addresses = partner.Addresses
+                    .OrderBy(address => address.Id)
+                    .Select(address => new
+                    {
+                        Turnovers = address.Turnovers == null
+                            ? null
+                            : new { address.Turnovers.AmountIn },
+                    })
+                    .ToList(),
+            });
+
+        Assert.Contains(
+            "ORDER BY `p`.`Id`, `a`.`Id`",
+            query.ToQueryString(),
+            StringComparison.Ordinal);
+
+        var partners = query.ToList();
+
+        Assert.Single(partners);
+        Assert.Collection(
+            partners[0].Addresses,
+            address =>
+            {
+                Assert.NotNull(address.Turnovers);
+                Assert.Equal(10, address.Turnovers.AmountIn);
+            },
+            address => Assert.Null(address.Turnovers));
+    }
 }
 
 /// <summary>
