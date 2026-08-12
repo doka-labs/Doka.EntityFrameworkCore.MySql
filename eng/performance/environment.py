@@ -7,6 +7,7 @@ from typing import Any
 if __package__:
     from .contract import (
         COMPARABLE_ENVIRONMENT_FIELDS,
+        EnvironmentNotComparableError,
         InvalidEvidenceError,
         PerformanceEvidenceError,
         close_enough,
@@ -15,6 +16,7 @@ if __package__:
 else:
     from contract import (
         COMPARABLE_ENVIRONMENT_FIELDS,
+        EnvironmentNotComparableError,
         InvalidEvidenceError,
         PerformanceEvidenceError,
         close_enough,
@@ -32,7 +34,10 @@ def validate_environment_compatibility(
         if current.get(field) != baseline.get(field)
     ]
     if mismatches:
-        raise PerformanceEvidenceError(
+        # A hosted runner label does not promise one processor model. This is
+        # an infrastructure condition, not a verdict about provider code, so
+        # it must use the dedicated non-comparable exit instead of regression.
+        raise EnvironmentNotComparableError(
             "Historical baseline environment drift for field(s): "
             f"{', '.join(mismatches)}."
         )

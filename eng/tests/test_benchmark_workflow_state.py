@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import subprocess
 import tempfile
 import unittest
@@ -36,6 +38,89 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                 for target in ("mysql84", "mariadb118")
             ],
         }
+
+    def test_comparison_mode_separates_checks_from_baseline_seeding(
+        self,
+    ) -> None:
+        """Keep normal checks CPU-independent without breaking recalibration."""
+        self.assertEqual(
+            "paired",
+            benchmark_workflow_state.comparison_mode_for_baseline_mode(
+                "compare",
+            ),
+        )
+        self.assertEqual(
+            "historical",
+            benchmark_workflow_state.comparison_mode_for_baseline_mode(
+                "seed",
+            ),
+        )
+        with self.assertRaisesRegex(
+            benchmark_workflow_state.WorkflowStateError,
+            "Unsupported resolved baseline mode",
+        ):
+            benchmark_workflow_state.comparison_mode_for_baseline_mode(
+                "unknown",
+            )
+
+    def test_main_persists_the_resolved_comparison_mode(self) -> None:
+        """Bind the control-plane payload to the resolved comparison mode."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "workflow-state.json"
+            arguments = argparse.Namespace(
+                repo=self.repo,
+                event_name="push",
+                before_revision="before-commit",
+                current_revision="current-commit",
+                baseline_mode="compare",
+                contract=self.contract_path,
+                proposed_baseline=None,
+                proposal_head_ref=None,
+                profile="scorecard",
+                runner_class="github-ubuntu-latest-x64",
+                output=output,
+            )
+            proposal = benchmark_workflow_state.ProposalState(
+                disposition="absent",
+                reason="No proposal exists.",
+            )
+
+            with (
+                patch.object(
+                    benchmark_workflow_state,
+                    "parse_args",
+                    return_value=arguments,
+                ),
+                patch.object(
+                    benchmark_workflow_state.performance_evidence,
+                    "load_json",
+                    return_value=self.contract,
+                ),
+                patch.object(
+                    benchmark_workflow_state.performance_evidence,
+                    "validate_contract",
+                ),
+                patch.object(
+                    benchmark_workflow_state,
+                    "event_requires_scorecard",
+                    return_value=(True, ("src/Provider.cs",)),
+                ),
+                patch.object(
+                    benchmark_workflow_state,
+                    "inspect_proposal",
+                    return_value=proposal,
+                ),
+                patch.object(
+                    benchmark_workflow_state,
+                    "decide_work",
+                    return_value=(True, False, False),
+                ),
+            ):
+                self.assertEqual(0, benchmark_workflow_state.main())
+
+            payload = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual("compare", payload["baselineMode"])
+            self.assertEqual("paired", payload["comparisonMode"])
 
     def test_performance_inputs_are_limited_to_measurement_inputs(
         self,

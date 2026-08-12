@@ -6,20 +6,12 @@ name: benchmark-scorecard
 on:
   workflow_call:
     inputs:
-      baseline_mode:
-        description: Validated comparison or seed mode selected by the caller.
-        required: false
-        default: compare
-        type: string
       comparison_mode:
-        # `historical` compares one measurement against an accepted
-        # baseline recorded on another host, which is why it needs
-        # baseline_mode. `paired` measures a reference and a candidate
-        # provider in the same allocated job, so it needs neither a
-        # baseline nor an environment match against a recorded machine.
-        description: Which comparison the scorecard performs.
-        required: false
-        default: historical
+        # `paired` performs a same-run comparison. `historical` is reserved
+        # for reviewed baseline seeding. The benchmark baseline mode is
+        # derived below, so callers cannot submit a contradictory pair.
+        description: Paired comparison or historical baseline seeding.
+        required: true
         type: string
 
 permissions:
@@ -92,7 +84,7 @@ jobs:
         id: benchmark
         env:
           DOKA_BENCHMARK_PROFILE: scorecard
-          DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.baseline_mode }}
+          DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.comparison_mode == 'historical' && 'seed' || 'compare' }}
           DOKA_BENCHMARK_COMPARISON_MODE: ${{ inputs.comparison_mode }}
           DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
           DOKA_BENCHMARK_TARGET: mysql84
@@ -209,7 +201,7 @@ jobs:
         id: benchmark
         env:
           DOKA_BENCHMARK_PROFILE: scorecard
-          DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.baseline_mode }}
+          DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.comparison_mode == 'historical' && 'seed' || 'compare' }}
           DOKA_BENCHMARK_COMPARISON_MODE: ${{ inputs.comparison_mode }}
           DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
           DOKA_BENCHMARK_TARGET: mysql84
@@ -372,7 +364,7 @@ jobs:
         id: benchmark
         env:
           DOKA_BENCHMARK_PROFILE: scorecard
-          DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.baseline_mode }}
+          DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.comparison_mode == 'historical' && 'seed' || 'compare' }}
           DOKA_BENCHMARK_COMPARISON_MODE: ${{ inputs.comparison_mode }}
           DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
           DOKA_BENCHMARK_TARGET: mariadb118
@@ -487,7 +479,7 @@ jobs:
         id: benchmark
         env:
           DOKA_BENCHMARK_PROFILE: scorecard
-          DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.baseline_mode }}
+          DOKA_BENCHMARK_BASELINE_MODE: ${{ inputs.comparison_mode == 'historical' && 'seed' || 'compare' }}
           DOKA_BENCHMARK_COMPARISON_MODE: ${{ inputs.comparison_mode }}
           DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
           DOKA_BENCHMARK_TARGET: mariadb118

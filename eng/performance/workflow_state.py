@@ -2,8 +2,8 @@
 """Resolve the cheap control plane for the hosted benchmark workflow.
 
 The scorecard matrix is intentionally expensive. This module keeps the event,
-baseline, and open-proposal decisions in locally testable Python instead of
-embedding them in GitHub Actions shell conditions.
+comparison, baseline, and open-proposal decisions in locally testable Python
+instead of embedding them in GitHub Actions shell conditions.
 """
 
 from __future__ import annotations
@@ -35,10 +35,29 @@ ZERO_REVISION = "0" * 40
 
 PERFORMANCE_INPUT_FILES = MEASUREMENT_INPUT_FILES
 PERFORMANCE_INPUT_PREFIXES = MEASUREMENT_INPUT_PREFIXES
+COMPARISON_MODES_BY_BASELINE_MODE = {
+    "compare": "paired",
+    "seed": "historical",
+}
 
 
 class WorkflowStateError(RuntimeError):
     """Report an invalid or uninspectable benchmark workflow state."""
+
+
+def comparison_mode_for_baseline_mode(baseline_mode: str) -> str:
+    """Select CPU-independent comparison or historical seed measurement.
+
+    A normal comparison must measure reference and candidate on one allocated
+    runner. A seed has no compatible accepted baseline yet, so it measures one
+    candidate historically and submits that evidence for review instead.
+    """
+    try:
+        return COMPARISON_MODES_BY_BASELINE_MODE[baseline_mode]
+    except KeyError as error:
+        raise WorkflowStateError(
+            f"Unsupported resolved baseline mode: {baseline_mode}",
+        ) from error
 
 
 @dataclass(frozen=True)
@@ -374,6 +393,7 @@ def main() -> int:
 
     payload = {
         "baselineMode": args.baseline_mode,
+        "comparisonMode": comparison_mode_for_baseline_mode(args.baseline_mode),
         "eventRequiresScorecard": event_required,
         "eventRelevantChanges": list(event_changes),
         "proposal": {

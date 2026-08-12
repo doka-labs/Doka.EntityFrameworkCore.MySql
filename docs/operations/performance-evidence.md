@@ -56,7 +56,7 @@ different runs.
 |---|---|---:|---|---|
 | `smoke` | Fast harness and contract check | 1 to 3 | Optional | Not required |
 | `paired-block` | One block of a paired comparison | starts at 16, extended on precision up to 64x | Required once per run | Not required |
-| `scorecard` | Hosted historical evidence | 256; 128 expensive, adaptively extended up to 64x | Required | Required |
+| `scorecard` | Hosted baseline-seed evidence | 256; 128 expensive, adaptively extended up to 64x | Required | Required |
 | `stress` | Extended investigation | 512; 256 expensive, adaptively extended up to 64x | Required | Required |
 
 `paired-block` needs no baseline because a paired run carries its own
@@ -486,12 +486,17 @@ starting services or either expensive matrix job:
   the harness, and `.github/workflows/benchmark-scorecard.yml` as scorecard
   inputs;
 - a `main` push that changes any scorecard input runs both the MySQL and
-  MariaDB scorecards;
+  MariaDB performance qualifications;
 - changes confined to the parent workflow, resolver, documentation, tests, or
   accepted baseline output remain on the inexpensive resolver path;
 - an exact current-contract `github-ubuntu-latest-x64` pair selects `compare`;
 - a missing baseline, an older contract, or a missing runner pair selects
   `seed`;
+- `compare` always selects the paired same-run comparison, while `seed`
+  selects the historical scorecard that creates reviewable baseline evidence;
+- the reusable scorecard workflow accepts only that comparison selection and
+  derives its baseline behavior, so a caller cannot submit a contradictory
+  `paired`/`seed` or `historical`/`compare` combination;
 - malformed or partial current-contract evidence fails before the matrix;
 - monthly and manual runs always request fresh scorecard evidence;
 - manual runs default to `auto`; select `seed` only for an intentional
@@ -519,12 +524,17 @@ second measurement-quality result also fails the scorecard; retrying cannot
 turn a functional, budget, contract, or infrastructure failure into a pass.
 
 The selector verifies the identity and digests of every attempt before it
-copies the selected report tree into the stable engine artifact. Those
-historical artifacts belong only to the `benchmark` workflow. Release
-qualification invokes the same reusable workflow in `paired` mode, which
-measures a reference and the candidate on the tagged commit's allocated runner
-and produces a separate paired artifact. It neither imports nor reclassifies a
-historical baseline.
+copies the selected report tree into the stable engine artifact. Normal
+`benchmark` comparisons and release qualification invoke the reusable workflow
+in `paired` mode, which measures a reference and the candidate on the allocated
+runner. Seed runs alone produce historical artifacts, and those artifacts may
+only enter the reviewed baseline proposal. Release qualification neither
+imports nor reclassifies a historical baseline.
+
+The routing is the CPU-independence mechanism: every automatic comparison is
+paired before a measurement job starts. The typed exit code `76` remains a
+defense for an explicitly requested local historical comparison; no automatic
+hosted comparison relies on that recovery path.
 
 Both engine jobs must succeed before a seed run can propose a baseline update.
 A seed still enforces the complete workload, absolute budgets, statistical
@@ -581,8 +591,8 @@ external application is required. This repository setting and its security
 implications are documented by GitHub's
 [Actions policy reference][github-actions-policy].
 
-The historical workflow uses strict `compare` mode only when the accepted
-runner pair is present. A missing or stale pair enters the reviewed seed path,
+The hosted workflow uses paired `compare` mode when the accepted reference pair
+is present. A missing or stale pair enters the reviewed historical seed path,
 but that state is not a release precondition. Release qualification is decided
 exclusively by the paired same-run evidence described below.
 
@@ -779,10 +789,13 @@ value nothing compares against would describe nothing:
 
 ### Early warning on the default branch
 
-The dedicated `benchmark` workflow keeps the hosted historical baseline current
-on `main`. It is early warning: it never qualifies and never blocks a release.
-The sections above on baselines, historical budgets, and the accepted runner
-pair describe that path.
+The dedicated `benchmark` workflow performs a paired same-run comparison for
+performance-relevant `main` changes and its monthly refresh. It is early
+warning: it never qualifies and never blocks a release. Because reference and
+candidate share one allocated runner, a new hosted CPU model cannot turn that
+comparison into a regression. Historical scorecards exist only when `seed`
+produces a reviewed replacement for a missing or incompatible accepted
+reference pair.
 
 ### Timeouts and interruption
 
