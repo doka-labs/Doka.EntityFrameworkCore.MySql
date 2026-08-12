@@ -255,6 +255,37 @@ class BaselineModeDriftTests(unittest.TestCase):
         contract["contractVersion"] = baseline["contractVersion"]
         self.contract.write_text(json.dumps(contract, indent=2), encoding="utf-8")
 
+    def complete_baseline_control_matrix(self) -> None:
+        """Keep this drift probe focused when the contract adds a control.
+
+        A stale baseline naturally lacks controls introduced by a new contract
+        revision. This test targets the more dangerous state where the version
+        was not revised, so its temporary baseline must first be structurally
+        complete enough to reach the contract-byte binding.
+        """
+        contract = json.loads(self.contract.read_text(encoding="utf-8"))
+        baseline = json.loads(self.baseline.read_text(encoding="utf-8"))
+
+        for entry in baseline["baselines"]:
+            controls = entry["benchmarkDotNetControls"]
+            existing_ids = {control["id"] for control in controls}
+
+            for expected in contract["benchmarkDotNetControls"]:
+                if expected["id"] in existing_ids:
+                    continue
+
+                controls.append(
+                    {
+                        "id": expected["id"],
+                        "metric": expected["metric"],
+                        "actual": 0,
+                        "maximum": expected["maximum"],
+                        "passed": True,
+                    }
+                )
+
+        self.baseline.write_text(json.dumps(baseline, indent=2), encoding="utf-8")
+
     def test_same_version_with_different_bytes_stops_the_run(self) -> None:
         """Reject the state this module exists for.
 
@@ -263,6 +294,7 @@ class BaselineModeDriftTests(unittest.TestCase):
         let the matrix measure against evidence that does not describe it.
         """
         self.align_versions()
+        self.complete_baseline_control_matrix()
 
         result = resolve(self.contract, self.baseline, self.output)
 

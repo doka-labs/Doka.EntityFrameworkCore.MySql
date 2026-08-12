@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "stability": "public",
   "sources": {
     "provider": "Doka.EntityFrameworkCore.MySql",
@@ -11,7 +11,7 @@
       "id": "server-version-resolution",
       "eventIds": [1000, 1005],
       "span": "db.serverversion.resolve",
-      "metric": "doka_mysql_server_version_resolution_total",
+      "metrics": ["doka_mysql_server_version_resolution_total"],
       "metricTagDomains": {
         "engine": ["mariadb", "mysql"],
         "support_status": ["Future", "Legacy", "Supported", "Unvalidated"],
@@ -22,7 +22,7 @@
       "id": "migration-lock-acquire",
       "eventIds": [1100, 1101, 1103],
       "span": "db.migration.lock",
-      "metric": "doka_mysql_migration_lock_acquire_duration_seconds",
+      "metrics": ["doka_mysql_migration_lock_acquire_duration_seconds"],
       "metricTagDomains": {
         "engine": ["mariadb", "mysql"],
         "outcome": ["acquired", "failed", "timeout"]
@@ -32,7 +32,7 @@
       "id": "migration-lock-release-failure",
       "eventIds": [1102],
       "span": "db.migration.lock.release_failed",
-      "metric": "doka_mysql_migration_lock_release_failed_total",
+      "metrics": ["doka_mysql_migration_lock_release_failed_total"],
       "metricTagDomains": {
         "engine": ["mariadb", "mysql"]
       },
@@ -40,10 +40,43 @@
       "runbookAnchor": "mysql-migration-lock-failure"
     },
     {
+      "id": "migration-operation-handler",
+      "eventIds": [1110, 1111, 1112, 1113, 1114],
+      "span": "db.migration.operation_handler.generate",
+      "metrics": [
+        "doka_mysql_migration_operation_handler_calls_total",
+        "doka_mysql_migration_operation_handler_failures_total",
+        "doka_mysql_migration_operation_handler_contract_violations_total",
+        "doka_mysql_migration_operation_handler_duration_seconds"
+      ],
+      "metricTagDomains": {
+        "engine": ["mariadb", "mysql"],
+        "doka.mysql.migrations.generation.mode": [
+          "default",
+          "idempotent",
+          "idempotent_no_transactions",
+          "no_transactions",
+          "script",
+          "script_idempotent",
+          "script_idempotent_no_transactions",
+          "script_no_transactions",
+          "unknown"
+        ]
+      },
+      "metricTagBounds": {
+        "doka.mysql.migrations.handler.id": "validated registration snapshot; 1-200 ASCII characters, or provider-owned sentinel none/unknown",
+        "doka.mysql.migrations.handler.outcome": "validated package outcome code, or provider-owned handler_failed/invalid_handler_result/recursive_provider_rendering/invalid_registration/unknown_operation sentinel",
+        "doka.mysql.migrations.operation.type": "exact registered or encountered CLR operation type",
+        "error.type": "stable MySqlMigrationHandlerFailureCode"
+      },
+      "alert": "MYSQL-MIGRATION-HANDLER-FAILURE",
+      "runbookAnchor": "mysql-migration-operation-handler-failure"
+    },
+    {
       "id": "retry-attempt",
       "eventIds": [1500],
       "span": "db.retry.attempt",
-      "metric": "doka_mysql_retry_attempts_total",
+      "metrics": ["doka_mysql_retry_attempts_total"],
       "metricTagDomains": {
         "engine": ["mariadb", "mysql"],
         "outcome": ["attempt"]
@@ -53,7 +86,7 @@
       "id": "retry-exhausted",
       "eventIds": [1501],
       "span": "db.retry.exhausted",
-      "metric": "doka_mysql_retry_exhausted_total",
+      "metrics": ["doka_mysql_retry_exhausted_total"],
       "metricTagDomains": {
         "engine": ["mariadb", "mysql"]
       },
@@ -64,7 +97,7 @@
       "id": "command-cancellation",
       "eventIds": [1502, 1503],
       "span": "db.operation.cancel",
-      "metric": "doka_mysql_cancellation_total",
+      "metrics": ["doka_mysql_cancellation_total"],
       "metricTagDomains": {
         "engine": ["mariadb", "mysql"],
         "path": ["hard", "soft"]
@@ -76,7 +109,7 @@
       "id": "command-timeout",
       "eventIds": [1504],
       "span": "db.operation.timeout",
-      "metric": "doka_mysql_command_timeout_total",
+      "metrics": ["doka_mysql_command_timeout_total"],
       "metricTagDomains": {
         "engine": ["mariadb", "mysql"]
       },
@@ -87,7 +120,7 @@
       "id": "commit-unknown",
       "eventIds": [1505],
       "span": "db.transaction.commit_unknown",
-      "metric": "doka_mysql_commit_unknown_total",
+      "metrics": ["doka_mysql_commit_unknown_total"],
       "metricTagDomains": {
         "engine": ["mariadb", "mysql"]
       },
@@ -102,6 +135,10 @@
       "doka.mysql.compatibility.mode",
       "doka.mysql.connection.state",
       "doka.mysql.engine.family",
+      "doka.mysql.migrations.generation.mode",
+      "doka.mysql.migrations.handler.id",
+      "doka.mysql.migrations.handler.outcome",
+      "doka.mysql.migrations.operation.type",
       "doka.mysql.retry.attempt",
       "doka.mysql.server.version",
       "doka.mysql.support.status",
@@ -147,6 +184,13 @@
     "defaultDriverPoolName": "Doka.EntityFrameworkCore.MySql"
   },
   "alerts": [
+    {
+      "id": "MYSQL-MIGRATION-HANDLER-FAILURE",
+      "signal": "doka_mysql_migration_operation_handler_failures_total or doka_mysql_migration_operation_handler_contract_violations_total",
+      "condition": "increase over five minutes is greater than zero",
+      "severity": "critical",
+      "runbookAnchor": "mysql-migration-operation-handler-failure"
+    },
     {
       "id": "MYSQL-COMMIT-UNKNOWN",
       "signal": "doka_mysql_commit_unknown_total",

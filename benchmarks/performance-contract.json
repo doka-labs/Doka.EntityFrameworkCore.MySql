@@ -1,6 +1,6 @@
 {
   "schemaVersion": 8,
-  "contractVersion": "2026-08-12",
+  "contractVersion": "2026-08-13",
   "evidenceMaximumAgeHours": 12,
   "hostPreconditions": {
     "admissionMetric": "interval-host-cpu-utilization",
@@ -650,6 +650,13 @@
       "method": "GenerateTemporalMigrationSql",
       "metric": "allocatedBytes",
       "maximum": 458752
+    },
+    {
+      "id": "migration-operation-handler-dispatch-allocation",
+      "type": "MigrationOperationHandlerDispatchBenchmark",
+      "method": "DispatchExactTypeMatrix",
+      "metric": "allocatedBytes",
+      "maximum": 0
     }
   ],
   "soakBudgets": {

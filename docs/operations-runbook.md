@@ -11,6 +11,8 @@ response, migration safety, and release governance independently reviewable.
   first-response sequence.
 - [Migration Operations](operations/migrations.md) covers migration-lock
   recovery, clustered pre-flight checks, and deployment modes.
+- [Migration Operation Handlers](migration-operation-handlers.md) defines the
+  custom-operation package contract and its fail-closed ownership boundary.
 - [Resilience and Topology Operations](operations/resilience-and-topology.md)
   covers retries, commit-unknown handling, poolers, proxies, and load
   balancers.
@@ -28,6 +30,10 @@ runbook was separated by responsibility.
 <a id="mysql-migration-lock-failure"></a>
 
 - [Migration lock failure](operations/migrations.md#mysql-migration-lock-failure)
+
+<a id="mysql-migration-operation-handler-failure"></a>
+
+- [Migration-operation handler failure](operations/migrations.md#custom-migration-operation-handler-failure)
 
 <a id="mysql-commit-unknown"></a>
 

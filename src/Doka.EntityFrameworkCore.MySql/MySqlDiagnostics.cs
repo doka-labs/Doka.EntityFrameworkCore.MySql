@@ -50,6 +50,11 @@ public static class MySqlDiagnostics
     public const string MigrationLockReleaseFailedSpanName = "db.migration.lock.release_failed";
 
     /// <summary>
+    /// The span emitted around one custom migration-operation handler call.
+    /// </summary>
+    public const string MigrationOperationHandlerSpanName = "db.migration.operation_handler.generate";
+
+    /// <summary>
     /// The name of the retry-attempt span. Emitted around each retry the
     /// provider's execution strategy performs before the inner operation runs.
     /// </summary>
@@ -95,6 +100,22 @@ public static class MySqlDiagnostics
     /// </summary>
     public const string MigrationLockReleaseFailedTotalMetricName =
         "doka_mysql_migration_lock_release_failed_total";
+
+    /// <summary>The counter name for custom handler invocations.</summary>
+    public const string MigrationOperationHandlerCallsTotalMetricName =
+        "doka_mysql_migration_operation_handler_calls_total";
+
+    /// <summary>The counter name for custom handler execution failures.</summary>
+    public const string MigrationOperationHandlerFailuresTotalMetricName =
+        "doka_mysql_migration_operation_handler_failures_total";
+
+    /// <summary>The counter name for handler contract violations.</summary>
+    public const string MigrationOperationHandlerContractViolationsTotalMetricName =
+        "doka_mysql_migration_operation_handler_contract_violations_total";
+
+    /// <summary>The histogram name for custom handler wall-time, in seconds.</summary>
+    public const string MigrationOperationHandlerDurationMetricName =
+        "doka_mysql_migration_operation_handler_duration_seconds";
 
     /// <summary>
     /// The counter name for retry attempts. Carries an <c>outcome</c> tag whose

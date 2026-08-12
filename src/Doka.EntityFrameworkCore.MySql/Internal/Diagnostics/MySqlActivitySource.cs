@@ -40,6 +40,27 @@ internal static class MySqlActivitySource
         engineFamily,
         exception);
 
+    /// <summary>Starts one bounded custom migration-operation handler span.</summary>
+    public static Activity? StartMigrationOperationHandler(
+        string handlerId,
+        string operationType,
+        string generationMode,
+        EngineFamily engineFamily
+    )
+    {
+        var activity = StartActivity(
+            MySqlDiagnostics.MigrationOperationHandlerSpanName,
+            ActivityKind.Internal,
+            "GENERATE_MIGRATION_OPERATION",
+            engineFamily);
+
+        activity?.SetTag(MySqlDiagnosticTags.MigrationHandlerId, handlerId);
+        activity?.SetTag(MySqlDiagnosticTags.MigrationOperationType, operationType);
+        activity?.SetTag(MySqlDiagnosticTags.MigrationGenerationMode, generationMode);
+
+        return activity;
+    }
+
     /// <summary>
     /// Starts the <see cref="MySqlDiagnostics.RetryAttemptSpanName"/> span for
     /// a retry attempt. The strategy invokes this once per retry, before the
@@ -191,7 +212,9 @@ internal static class MySqlActivitySource
 
         var activity = s_source.StartActivity(spanName, kind);
 
-        activity?.SetTag(MySqlDiagnosticTags.DatabaseSystem, MySqlDiagnosticTags.GetDatabaseSystem(engineFamily));
+        var engineFamilyName = MySqlDiagnosticTags.GetDatabaseSystem(engineFamily);
+        activity?.SetTag(MySqlDiagnosticTags.DatabaseSystem, engineFamilyName);
+        activity?.SetTag(MySqlDiagnosticTags.EngineFamilyName, engineFamilyName);
         activity?.SetTag(MySqlDiagnosticTags.OperationName, operationName);
 
         return activity;

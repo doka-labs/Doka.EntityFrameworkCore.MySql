@@ -19,7 +19,7 @@ after the complete repository contract has passed against the replacement.
 Oracle documents 8.4 and 9.7 as consecutive MySQL LTS series. The MariaDB
 Foundation identifies 10.11, 11.4, 11.8, and 12.3 as LTS series; 12.3.2 is the
 first 12.3 GA release. This matrix was reconciled against the primary sources
-on 2026-08-11.
+on 2026-08-12.
 
 The horizon column preserves the vendors' distinct terminology. Oracle's
 published chart gives month-level Premier and Extended Support dates for 8.4;
@@ -78,13 +78,16 @@ until provider-owned live canaries exist.
 
 ## Primary Sources
 
-All sources were retrieved on 2026-08-11.
+All sources were retrieved on 2026-08-11. The current MySQL patch downloads
+and their exact release-note pages were reverified on 2026-08-12.
 
 - [MySQL release model and LTS policy](https://dev.mysql.com/doc/refman/9.7/en/mysql-releases.html)
 - [MySQL 8.4.0 GA release notes](https://dev.mysql.com/doc/relnotes/mysql/8.4/en/news-8-4-0.html)
 - [MySQL 8.4.11 release notes](https://dev.mysql.com/doc/relnotes/mysql/8.4/en/news-8-4-11.html)
+- [MySQL 8.4 LTS downloads](https://dev.mysql.com/downloads/mysql/8.4.html)
 - [MySQL 9.7.0 GA release notes](https://dev.mysql.com/doc/relnotes/mysql/9.7/en/news-9-7-0.html)
-- [MySQL 9.7 release notes](https://dev.mysql.com/doc/relnotes/mysql/9.7/en/)
+- [MySQL 9.7.2 release notes](https://dev.mysql.com/doc/relnotes/mysql/9.7/en/news-9-7-2.html)
+- [MySQL 9.7 LTS downloads](https://dev.mysql.com/downloads/mysql/9.7.html)
 - [Oracle Lifetime Support Policy for Technology Products](https://www.oracle.com/us/support/library/lifetime-support-technology-069183.pdf)
 - [MariaDB Server maintenance policy](https://mariadb.org/about/)
 - [MariaDB Server release history](https://mariadb.org/mariadb/all-releases/)

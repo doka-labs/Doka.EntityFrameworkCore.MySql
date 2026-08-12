@@ -41,12 +41,14 @@ internal static class MigrationWorkflowContextFactory
     )
     {
         var optionsBuilder = new DbContextOptionsBuilder<MigrationWorkflowContext>();
-        optionsBuilder.UseMySql(
-            Environment.GetEnvironmentVariable(ConnectionStringEnvironmentVariable)
-            ?? DefaultConnectionString,
-            MySqlServerVersion.Parse(
-                Environment.GetEnvironmentVariable(ServerVersionEnvironmentVariable)
-                ?? DefaultServerVersion));
+        optionsBuilder
+            .UseMySql(
+                Environment.GetEnvironmentVariable(ConnectionStringEnvironmentVariable)
+                ?? DefaultConnectionString,
+                MySqlServerVersion.Parse(
+                    Environment.GetEnvironmentVariable(ServerVersionEnvironmentVariable)
+                    ?? DefaultServerVersion))
+            .UseMigrationWorkflowOperationHandler();
 
         var pauseFile = Environment.GetEnvironmentVariable(PauseFileEnvironmentVariable);
         if (enableMigrationPause

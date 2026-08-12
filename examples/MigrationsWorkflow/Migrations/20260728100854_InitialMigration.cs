@@ -10,6 +10,8 @@ public partial class InitialMigration : Migration
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.CreateMigrationHandlerEvidence();
+
         migrationBuilder.CreateTable(
             name: "MigrationWorkflowItems",
             columns: table => new
@@ -43,5 +45,7 @@ public partial class InitialMigration : Migration
     {
         migrationBuilder.DropTable(
             name: "MigrationWorkflowItems");
+
+        migrationBuilder.DropMigrationHandlerEvidence();
     }
 }

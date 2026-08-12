@@ -27,6 +27,7 @@ release_run_attempt="${DOKA_RELEASE_RUN_ATTEMPT:-1}"
 release_runner_identity="${DOKA_RELEASE_RUNNER_IDENTITY:-local}"
 release_candidate_dir="${repo_root}/artifacts/release-candidate/${release_candidate_run_id}"
 packages_dir="${release_candidate_dir}/packages"
+local_package_consumer_dir="${release_candidate_dir}/local-package-consumer"
 audit_dir="${release_candidate_dir}/audit"
 sbom_dir="${release_candidate_dir}/sbom"
 sbom_components_dir="${release_candidate_dir}/sbom-components"
@@ -396,6 +397,8 @@ run_with_release_version() {
 }
 
 run_pack() {
+    local local_release_version
+
     mkdir -p "${packages_dir}"
     mkdir -p "${sbom_components_dir}/runtime" "${sbom_components_dir}/spatial"
 
@@ -423,6 +426,12 @@ run_pack() {
     run_with_release_version \
         dotnet pack "${spatial_project}" --configuration Release --no-build --no-restore \
         --output "${packages_dir}" --tl:off
+
+    local_release_version="$(package_version_from_file "Doka.EntityFrameworkCore.MySql")"
+    bash "${repo_root}/eng/testing/test-local-package-consumer.sh" \
+        "${local_release_version}" \
+        "${packages_dir}" \
+        "${local_package_consumer_dir}"
 
     # Persist the graph NuGet actually resolved. The manifest rejects missing
     # or ambiguous versions for the provider's contract dependencies.
@@ -1102,6 +1111,7 @@ run_all_stages() {
         "package" \
         run_pack \
         "${packages_dir}" \
+        "${local_package_consumer_dir}" \
         "${dependency_graph_file}" \
         "${sbom_components_dir}"
     run_named_stage "sbom" run_sbom_stage "${sbom_dir}"
@@ -1219,6 +1229,7 @@ case "${selected_stage}" in
             "package" \
             run_pack \
             "${packages_dir}" \
+            "${local_package_consumer_dir}" \
             "${dependency_graph_file}" \
             "${sbom_components_dir}"
         ;;

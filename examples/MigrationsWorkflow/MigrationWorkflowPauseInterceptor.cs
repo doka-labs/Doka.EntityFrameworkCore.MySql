@@ -11,7 +11,8 @@ namespace Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow;
 /// </summary>
 internal sealed class MigrationWorkflowPauseInterceptor : DbCommandInterceptor
 {
-    private const string MigrationCommandMarker = "CREATE TABLE `MigrationWorkflowItems`";
+    private const string MigrationCommandMarker =
+        "CREATE TABLE `" + MigrationWorkflowOperationHandlerExtensions.EvidenceTableName + "`";
     private readonly string _pauseFile;
     private int _pauseSignaled;
 
@@ -39,6 +40,9 @@ internal sealed class MigrationWorkflowPauseInterceptor : DbCommandInterceptor
         if (command.CommandText.Contains(MigrationCommandMarker, StringComparison.Ordinal)
             && Interlocked.Exchange(ref _pauseSignaled, 1) == 0)
         {
+            // MySQL DDL implicitly commits. Pausing before the first operation
+            // in Up prevents an aborted process from leaving schema changes
+            // that have no corresponding migration-history record.
             await File
                 .WriteAllTextAsync(
                     _pauseFile,

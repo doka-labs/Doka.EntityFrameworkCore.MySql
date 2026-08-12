@@ -6,7 +6,13 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal enum ProviderCapability
 {
+    SchemaOperations,
     JsonColumns,
+    CheckConstraints,
+    DescendingIndexes,
+    FilteredIndexes,
+    FunctionalIndexes,
+    IndexPrefixLengths,
     ReturningClause,
     Savepoints,
     GeneratedColumnNullabilityClause,
@@ -19,6 +25,11 @@ internal enum ProviderCapability
     BitemporalTables,
     Sequences,
     RenameColumn,
+    RenameIndex,
+    ExpressionDefaults,
+    PreparedDdl,
+    AtomicDdl,
+    TransactionalDdl,
     LateralDerivedTables,
     SelfReferencingMutations,
     FunctionalIndexScaffolding,

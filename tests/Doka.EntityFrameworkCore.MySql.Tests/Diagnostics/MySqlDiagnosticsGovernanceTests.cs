@@ -8,7 +8,7 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 public sealed class MySqlDiagnosticsGovernanceTests
 {
     private static readonly string[] s_expectedCategories =
-    {
+    [
         "Doka.EntityFrameworkCore.MySql.Configuration",
         "Doka.EntityFrameworkCore.MySql.Query",
         "Doka.EntityFrameworkCore.MySql.Update",
@@ -16,7 +16,7 @@ public sealed class MySqlDiagnosticsGovernanceTests
         "Doka.EntityFrameworkCore.MySql.Scaffolding",
         "Doka.EntityFrameworkCore.MySql.Resilience",
         "Doka.EntityFrameworkCore.MySql.Spatial",
-    };
+    ];
 
     /// <summary>
     /// Verifies that the stable provider logging categories match the documented taxonomy.
@@ -79,6 +79,11 @@ public sealed class MySqlDiagnosticsGovernanceTests
             [nameof(MySqlEventId.MigrationLockAcquired)] = 1100,
             [nameof(MySqlEventId.MigrationLockTimeout)] = 1101,
             [nameof(MySqlEventId.MigrationLockAcquireFailed)] = 1103,
+            [nameof(MySqlEventId.MigrationOperationHandlerSelected)] = 1110,
+            [nameof(MySqlEventId.InvalidMigrationOperationHandlerRegistration)] = 1111,
+            [nameof(MySqlEventId.MigrationOperationHandlerFailed)] = 1112,
+            [nameof(MySqlEventId.MigrationOperationHandlerContractViolation)] = 1113,
+            [nameof(MySqlEventId.UnknownMigrationOperation)] = 1114,
             [nameof(MySqlEventId.SpatialSridMismatchDetected)] = 1603,
         };
 
@@ -168,6 +173,11 @@ public sealed class MySqlDiagnosticsGovernanceTests
             [nameof(MySqlEventId.MigrationLockAcquired)] = (1100, 1199),
             [nameof(MySqlEventId.MigrationLockTimeout)] = (1100, 1199),
             [nameof(MySqlEventId.MigrationLockAcquireFailed)] = (1100, 1199),
+            [nameof(MySqlEventId.MigrationOperationHandlerSelected)] = (1100, 1199),
+            [nameof(MySqlEventId.InvalidMigrationOperationHandlerRegistration)] = (1100, 1199),
+            [nameof(MySqlEventId.MigrationOperationHandlerFailed)] = (1100, 1199),
+            [nameof(MySqlEventId.MigrationOperationHandlerContractViolation)] = (1100, 1199),
+            [nameof(MySqlEventId.UnknownMigrationOperation)] = (1100, 1199),
             [nameof(MySqlEventId.SpatialSridMismatchDetected)] = (1600, 1699),
         };
 

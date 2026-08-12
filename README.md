@@ -338,6 +338,10 @@ The provider ships with:
 - **Advisory-lock protection.** Concurrent migration attempts are serialized through MySQL's `GET_LOCK` on a dedicated non-pooled connection, so only one process applies migrations at a time.
 - **Idempotent script generation.** `dotnet ef migrations script --idempotent` emits stored-procedure-wrapped DDL that is safe to re-run against partially-applied databases.
 - **Engine-aware DDL.** Rename, sequence, spatial index, generated column, JSON alias, and `INVISIBLE` column operations select the correct SQL per engine automatically.
+- **Custom operation handlers.** Extension packages can register exact-type
+  handlers while retaining the provider's engine-aware baseline renderer,
+  command boundaries, diagnostics, and fail-closed behavior. See the
+  [migration operation handler guide](docs/migration-operation-handlers.md).
 
 ## Project Layout
 

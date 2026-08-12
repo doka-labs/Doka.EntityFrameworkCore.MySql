@@ -20,8 +20,26 @@ public static class Program
         "IL3050",
         Justification =
             "The smoke app intentionally exercises the documented EF Core NativeAOT runtime path with compiled models.")]
-    public static async Task<int> Main()
+    public static async Task<int> Main(
+        string[] arguments
+    )
     {
+        if (arguments.Contains("--migration-handler-only", StringComparer.Ordinal))
+        {
+            VerifyMigrationOperationHandlerConformance();
+            Console.WriteLine("Migration-operation handler package conformance OK.");
+            return 0;
+        }
+
+        if (RuntimeFeature.IsDynamicCodeSupported)
+        {
+            VerifyMigrationOperationHandlerConformance();
+        }
+        else
+        {
+            VerifyMigrationOperationHandlerApi();
+        }
+
         var supportsQueryExecution = RuntimeFeature.IsDynamicCodeSupported;
 
         await RunBasicCompiledModelSmokeAsync(supportsQueryExecution);
@@ -34,6 +52,173 @@ public static class Program
         Console.WriteLine("Runtime smoke OK.");
 
         return 0;
+    }
+
+    private static void VerifyMigrationOperationHandlerApi()
+    {
+        var services = new ServiceCollection();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IMySqlMigrationOperationHandler, RuntimeSmokeMigrationHandler>());
+
+        using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
+        using var scope = serviceProvider.CreateScope();
+        var handler = scope.ServiceProvider.GetRequiredService<IMySqlMigrationOperationHandler>();
+
+        if (handler.HandlerId != "runtime_smoke.operation"
+            || handler.OperationType != typeof(RuntimeSmokeMigrationOperation))
+        {
+            throw new InvalidOperationException(
+                "The public migration-operation handler registration contract did not round-trip.");
+        }
+    }
+
+    [RequiresUnreferencedCode(
+        "This smoke resolves EF Core's migrations service graph and executes the public handler SPI.")]
+    [RequiresDynamicCode("This smoke resolves EF Core's migrations service graph and executes the public handler SPI.")]
+    private static void VerifyMigrationOperationHandlerConformance()
+    {
+        foreach (var handlersBeforeProvider in new[] { false, true, })
+        {
+            VerifySuccessfulHandlerOrder(RuntimeSmokeHandlerOrder.PrimaryFirst, handlersBeforeProvider);
+            VerifySuccessfulHandlerOrder(RuntimeSmokeHandlerOrder.SecondaryFirst, handlersBeforeProvider);
+        }
+
+        VerifyExpectedHandlerFailure(
+            RuntimeSmokeHandlerOrder.ConflictingId,
+            () => new RuntimeSmokeMigrationOperation(),
+            MySqlMigrationHandlerFailureCode.DuplicateHandlerId);
+        VerifyExpectedHandlerFailure(
+            RuntimeSmokeHandlerOrder.ConflictingOperation,
+            () => new RuntimeSmokeMigrationOperation(),
+            MySqlMigrationHandlerFailureCode.DuplicateOperationOwnership);
+    }
+
+    private static void VerifySuccessfulHandlerOrder(
+        RuntimeSmokeHandlerOrder handlerOrder,
+        bool handlersBeforeProvider
+    )
+    {
+        using var context = CreateMigrationContext(handlerOrder, handlersBeforeProvider);
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var handlers = context
+            .GetService<IEnumerable<IMySqlMigrationOperationHandler>>()
+            .ToArray();
+
+        var primaryHandler = handlers
+            .OfType<RuntimeSmokeMigrationHandler>()
+            .Single();
+
+        var commands = generator.Generate(
+            [
+                new RuntimeSmokeMigrationOperation(),
+                new RuntimeSmokeSecondOperation(),
+            ],
+            context.Model);
+
+        if (commands.Count != 3
+            || !string.Equals(commands[0].CommandText.TrimEnd(), "SELECT 1;", StringComparison.Ordinal)
+            || !commands[0].TransactionSuppressed
+            || !string.Equals(commands[1].CommandText, "SELECT 2;", StringComparison.Ordinal)
+            || commands[1].TransactionSuppressed
+            || !string.Equals(commands[2].CommandText, "SELECT 3;", StringComparison.Ordinal)
+            || commands[2].TransactionSuppressed)
+        {
+            throw new InvalidOperationException(
+                "The package-only migration-operation handlers did not preserve dispatch or command boundaries.");
+        }
+
+        VerifyExpectedHandlerFailure(
+            generator,
+            context,
+            new DerivedRuntimeSmokeMigrationOperation(),
+            MySqlMigrationHandlerFailureCode.UnknownOperationType);
+        VerifyExpectedHandlerFailure(
+            generator,
+            context,
+            new UnregisteredRuntimeSmokeMigrationOperation(),
+            MySqlMigrationHandlerFailureCode.UnknownOperationType);
+
+        if (primaryHandler.LastContext is null)
+        {
+            throw new InvalidOperationException(
+                "The package-only migration-operation handler did not observe its invocation context.");
+        }
+
+        try
+        {
+            _ = primaryHandler.LastContext.RenderStandardOperation(new SqlOperation { Sql = "SELECT 4;" });
+        }
+        catch (MySqlMigrationOperationHandlerException exception) when (exception.FailureCode
+                                                                        == MySqlMigrationHandlerFailureCode
+                                                                            .ContextExpired)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            "The package-only migration-operation context remained usable after handler return.");
+    }
+
+    private static RuntimeSmokeMigrationContext CreateMigrationContext(
+        RuntimeSmokeHandlerOrder handlerOrder,
+        bool handlersBeforeProvider = false
+    )
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<RuntimeSmokeMigrationContext>();
+        var handlerExtension = new RuntimeSmokeMigrationHandlerOptionsExtension(handlerOrder);
+        if (handlersBeforeProvider)
+        {
+            ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(handlerExtension);
+        }
+
+        optionsBuilder.UseMySql("Server=localhost;Database=runtime_smoke;User ID=root;Password=unused;", s_mySql84);
+        if (!handlersBeforeProvider)
+        {
+            ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(handlerExtension);
+        }
+
+        return new RuntimeSmokeMigrationContext(optionsBuilder.Options);
+    }
+
+    private static void VerifyExpectedHandlerFailure(
+        RuntimeSmokeHandlerOrder handlerOrder,
+        Func<MigrationOperation> operationFactory,
+        MySqlMigrationHandlerFailureCode expectedFailureCode
+    )
+    {
+        try
+        {
+            using var context = CreateMigrationContext(handlerOrder);
+            var generator = context.GetService<IMigrationsSqlGenerator>();
+            _ = generator.Generate([operationFactory()], context.Model);
+        }
+        catch (MySqlMigrationOperationHandlerException exception) when (exception.FailureCode == expectedFailureCode)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"The package-only migration-operation handler did not fail with {expectedFailureCode}.");
+    }
+
+    private static void VerifyExpectedHandlerFailure(
+        IMigrationsSqlGenerator generator,
+        DbContext context,
+        MigrationOperation operation,
+        MySqlMigrationHandlerFailureCode expectedFailureCode
+    )
+    {
+        try
+        {
+            _ = generator.Generate([operation], context.Model);
+        }
+        catch (MySqlMigrationOperationHandlerException exception) when (exception.FailureCode == expectedFailureCode)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"The package-only migration-operation handler did not fail with {expectedFailureCode}.");
     }
 
     [RequiresUnreferencedCode(
@@ -52,7 +237,7 @@ public static class Program
             .UseModel(CompiledModelAccessor.GetBasicModel())
             .Options;
 
-        using var context = new BasicSmokeContext(options);
+        await using var context = new BasicSmokeContext(options);
         if (supportsQueryExecution)
         {
             await context
@@ -94,6 +279,166 @@ public static class Program
             throw new InvalidOperationException(
                 "The compiled-model basic smoke query did not execute through the MySQL provider path.");
         }
+    }
+
+    private class RuntimeSmokeMigrationOperation : MigrationOperation;
+
+    private sealed class DerivedRuntimeSmokeMigrationOperation : RuntimeSmokeMigrationOperation;
+
+    private sealed class RuntimeSmokeSecondOperation : MigrationOperation;
+
+    private sealed class UnregisteredRuntimeSmokeMigrationOperation : MigrationOperation;
+
+    private sealed class RuntimeSmokeMigrationHandler : IMySqlMigrationOperationHandler
+    {
+        public string HandlerId => "runtime_smoke.operation";
+
+        public Type OperationType => typeof(RuntimeSmokeMigrationOperation);
+
+        public MySqlMigrationOperationContext? LastContext { get; private set; }
+
+        public MySqlMigrationOperationResult Generate(
+            MySqlMigrationOperationContext context
+        )
+        {
+            LastContext = context;
+            var baseline = context.RenderStandardOperation(
+                new SqlOperation
+                {
+                    Sql = "SELECT 1;",
+                    SuppressTransaction = true,
+                });
+
+            return MySqlMigrationOperationResult.Generated(
+                baseline.Append(MySqlMigrationCommandSpec.Create("SELECT 2;")),
+                "runtime_smoke");
+        }
+    }
+
+    private sealed class RuntimeSmokeSecondHandler : IMySqlMigrationOperationHandler
+    {
+        public string HandlerId => "runtime_smoke.second";
+
+        public Type OperationType => typeof(RuntimeSmokeSecondOperation);
+
+        public MySqlMigrationOperationResult Generate(
+            MySqlMigrationOperationContext context
+        ) => MySqlMigrationOperationResult.Generated([MySqlMigrationCommandSpec.Create("SELECT 3;")], "runtime_smoke");
+    }
+
+    private sealed class RuntimeSmokeDuplicateIdHandler : IMySqlMigrationOperationHandler
+    {
+        public string HandlerId => "runtime_smoke.operation";
+
+        public Type OperationType => typeof(UnregisteredRuntimeSmokeMigrationOperation);
+
+        public MySqlMigrationOperationResult Generate(
+            MySqlMigrationOperationContext context
+        ) => throw new InvalidOperationException("A conflicting package-only handler must never be selected.");
+    }
+
+    private sealed class RuntimeSmokeDuplicateOperationHandler : IMySqlMigrationOperationHandler
+    {
+        public string HandlerId => "runtime_smoke.duplicate_operation";
+
+        public Type OperationType => typeof(RuntimeSmokeMigrationOperation);
+
+        public MySqlMigrationOperationResult Generate(
+            MySqlMigrationOperationContext context
+        ) => throw new InvalidOperationException("A conflicting package-only handler must never be selected.");
+    }
+
+    private sealed class RuntimeSmokeMigrationContext : DbContext
+    {
+        public RuntimeSmokeMigrationContext(
+            DbContextOptions<RuntimeSmokeMigrationContext> options
+        ) : base(options) { }
+    }
+
+    private sealed class RuntimeSmokeMigrationHandlerOptionsExtension : IDbContextOptionsExtension
+    {
+        private readonly RuntimeSmokeHandlerOrder _handlerOrder;
+        private DbContextOptionsExtensionInfo? _info;
+
+        public RuntimeSmokeMigrationHandlerOptionsExtension(
+            RuntimeSmokeHandlerOrder handlerOrder
+        )
+        {
+            _handlerOrder = handlerOrder;
+        }
+
+        public DbContextOptionsExtensionInfo Info => _info ??= new ExtensionInfo(this);
+
+        public void ApplyServices(
+            IServiceCollection services
+        )
+        {
+            if (_handlerOrder == RuntimeSmokeHandlerOrder.SecondaryFirst)
+            {
+                AddHandler<RuntimeSmokeSecondHandler>(services);
+                AddHandler<RuntimeSmokeMigrationHandler>(services);
+                return;
+            }
+
+            AddHandler<RuntimeSmokeMigrationHandler>(services);
+            AddHandler<RuntimeSmokeSecondHandler>(services);
+            if (_handlerOrder == RuntimeSmokeHandlerOrder.ConflictingId)
+            {
+                AddHandler<RuntimeSmokeDuplicateIdHandler>(services);
+            }
+            else if (_handlerOrder == RuntimeSmokeHandlerOrder.ConflictingOperation)
+            {
+                AddHandler<RuntimeSmokeDuplicateOperationHandler>(services);
+            }
+        }
+
+        public void Validate(
+            IDbContextOptions options
+        )
+        { }
+
+        private sealed class ExtensionInfo : DbContextOptionsExtensionInfo
+        {
+            private readonly RuntimeSmokeMigrationHandlerOptionsExtension _extension;
+
+            public ExtensionInfo(
+                RuntimeSmokeMigrationHandlerOptionsExtension extension
+            ) : base(extension)
+            {
+                _extension = extension;
+            }
+
+            public override bool IsDatabaseProvider => false;
+
+            public override string LogFragment => $"migration-handler=runtime-smoke:{_extension._handlerOrder} ";
+
+            public override int GetServiceProviderHashCode() => HashCode.Combine(
+                typeof(RuntimeSmokeMigrationHandler),
+                _extension._handlerOrder);
+
+            public override void PopulateDebugInfo(
+                IDictionary<string, string> debugInfo
+            ) => debugInfo["DokaMySqlMigrationHandler:runtime-smoke"] = _extension._handlerOrder.ToString();
+
+            public override bool ShouldUseSameServiceProvider(
+                DbContextOptionsExtensionInfo other
+            ) => other is ExtensionInfo extensionInfo
+                && extensionInfo._extension._handlerOrder == _extension._handlerOrder;
+        }
+    }
+
+    private static void AddHandler<THandler>(
+        IServiceCollection services
+    )
+        where THandler : class, IMySqlMigrationOperationHandler => services.TryAddEnumerable(
+        ServiceDescriptor.Scoped<IMySqlMigrationOperationHandler, THandler>());
+
+    private enum RuntimeSmokeHandlerOrder
+    {
+        PrimaryFirst,
+        SecondaryFirst,
+        ConflictingId,
+        ConflictingOperation,
     }
 
     [RequiresUnreferencedCode(

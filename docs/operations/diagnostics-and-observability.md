@@ -33,6 +33,11 @@ Full catalog (source of truth: `src/Doka.EntityFrameworkCore.MySql/MySqlEventId.
 | 1101 | `MigrationLockTimeout` | Warning | Migrations | Advisory-lock acquisition exhausted its timeout budget. |
 | 1102 | `LockReleaseFailed` | Warning | Migrations | The migration advisory lock could not be released cleanly via `RELEASE_LOCK`. Disposing the dedicated connection still releases the session-scoped lock implicitly; the warning surfaces an unusual server-side state worth investigating. |
 | 1103 | `MigrationLockAcquireFailed` | Error | Migrations | Non-timeout acquisition failure. |
+| 1110 | `MigrationOperationHandlerSelected` | Information | Migrations | Exact-type dispatch selected one validated custom operation handler. |
+| 1111 | `InvalidMigrationOperationHandlerRegistration` | Error | Migrations | The scoped handler registry contains an invalid or conflicting registration. |
+| 1112 | `MigrationOperationHandlerFailed` | Error | Migrations | The selected custom operation handler threw while generating its staged result. |
+| 1113 | `MigrationOperationHandlerContractViolation` | Error | Migrations | The selected handler violated its result, operation-ownership, or baseline-rendering contract. |
+| 1114 | `UnknownMigrationOperation` | Error | Migrations | Neither the provider nor a registered exact-type handler owns the custom operation. |
 | 1403 | `ForeignKeyPrincipalTableNotScaffolded` | Warning | Scaffolding | A foreign key is skipped during scaffolding because its principal table is excluded by the scaffolding filter. |
 | 1500 | `RetryAttempt` | Warning | Resilience | A transient operation will be retried. |
 | 1501 | `RetryLimitExceeded` | Error | Resilience | The configured retry budget for a transient failure is exhausted. |
@@ -74,6 +79,22 @@ events use `Microsoft.EntityFrameworkCore`; driver spans and metrics use
 Every provider metric carries the bounded `engine` tag (`mysql` or `mariadb`),
 so dashboards and alerts can separate the two supported engine families.
 
+Custom migration-operation generation emits the internal span
+`db.migration.operation_handler.generate`, three counters, and one duration
+histogram:
+
+- `doka_mysql_migration_operation_handler_calls_total`;
+- `doka_mysql_migration_operation_handler_failures_total`;
+- `doka_mysql_migration_operation_handler_contract_violations_total`;
+- `doka_mysql_migration_operation_handler_duration_seconds`.
+
+Handler telemetry uses the bounded handler ID, exact CLR operation type,
+generation mode, outcome, engine family, and error type. It never records SQL,
+connection strings, database or object names, migration identifiers, plugin
+exception messages, stack traces, or exception data. The immediate caller still
+receives the original exception as `InnerException` and must apply its own
+redaction policy before logging it.
+
 Provider telemetry deliberately excludes SQL, connection strings, raw database
 names, usernames, exception messages, and exception stack traces. Failure logs
 carry the exception type only. Provider-created connection strings receive the
@@ -111,3 +132,16 @@ SLO budget. Correlate `db.operation.timeout` with the MySqlConnector command
 span and EF Core command event. Do not blindly raise the timeout: determine
 whether the cause is query-plan regression, blocking, capacity, or transport
 latency and correct that cause first.
+
+<a id="mysql-migration-operation-handler-failure"></a>
+
+### Migration-operation handler failure
+
+Alert on any increase of
+`doka_mysql_migration_operation_handler_failures_total` or
+`doka_mysql_migration_operation_handler_contract_violations_total`. Custom DDL
+generation is fail closed; retrying the same migration artifact cannot correct
+an invalid registration, deterministic handler exception, unknown operation,
+or invalid staged result. Follow the
+[migration handler failure procedure](migrations.md#custom-migration-operation-handler-failure)
+before generating or applying another artifact.

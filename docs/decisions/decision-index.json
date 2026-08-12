@@ -314,6 +314,17 @@
         "D-025"
       ],
       "amendedBy": []
+    },
+    {
+      "id": "D-027",
+      "title": "Expose exact-type migration operation handlers",
+      "status": "implemented",
+      "date": "2026-08-11",
+      "path": "docs/decisions/D-027-migration-operation-handler-spi.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
     }
   ]
 }

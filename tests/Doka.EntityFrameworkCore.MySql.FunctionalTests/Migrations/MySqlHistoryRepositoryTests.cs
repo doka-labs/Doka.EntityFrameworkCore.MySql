@@ -43,6 +43,7 @@ public sealed class MySqlHistoryRepositoryTests
         var sql = repo.GetBeginIfNotExistsScript("20260410_InitialCreate");
 
         Assert.Contains("DROP PROCEDURE IF EXISTS", sql, StringComparison.Ordinal);
+        Assert.Contains("DELIMITER //", sql, StringComparison.Ordinal);
         Assert.Contains("`__ef_apply_migration`", sql, StringComparison.Ordinal);
         Assert.Contains("CREATE PROCEDURE", sql, StringComparison.Ordinal);
         Assert.Contains("IF NOT EXISTS", sql, StringComparison.Ordinal);
@@ -71,7 +72,8 @@ public sealed class MySqlHistoryRepositoryTests
         var sql = repo.GetEndIfScript();
 
         Assert.Contains("END IF", sql, StringComparison.Ordinal);
-        Assert.Contains("END;", sql, StringComparison.Ordinal);
+        Assert.Contains("END //", sql, StringComparison.Ordinal);
+        Assert.Contains("DELIMITER ;", sql, StringComparison.Ordinal);
         Assert.Contains("CALL `__ef_apply_migration`()", sql, StringComparison.Ordinal);
         Assert.Contains("DROP PROCEDURE IF EXISTS `__ef_apply_migration`", sql, StringComparison.Ordinal);
     }
@@ -89,6 +91,8 @@ public sealed class MySqlHistoryRepositoryTests
         Assert.Contains("IF NOT EXISTS", full, StringComparison.Ordinal);
         Assert.Contains("-- migration body", full, StringComparison.Ordinal);
         Assert.Contains("END IF", full, StringComparison.Ordinal);
+        Assert.Contains("DELIMITER //", full, StringComparison.Ordinal);
+        Assert.Contains("DELIMITER ;", full, StringComparison.Ordinal);
         Assert.Contains("CALL", full, StringComparison.Ordinal);
         Assert.Contains("DROP PROCEDURE IF EXISTS", full, StringComparison.Ordinal);
     }

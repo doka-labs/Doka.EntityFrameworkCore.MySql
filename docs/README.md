@@ -19,6 +19,9 @@ and operational procedures.
   application-time periods, and bitemporal storage.
 - [Common Table Expressions](ctes.md) covers recursive and non-recursive query
   roots, parameterization, composability, and data-modification boundaries.
+- [Migration Operation Handlers](migration-operation-handlers.md) defines the
+  additive custom-operation SPI, registration boundary, capability projection,
+  failure contract, and package-author verification matrix.
 - [External Limitations](limitations.md) inventories only engine-owned and
   EF Core-owned boundaries. Provider-owned gaps have a zero budget.
 

@@ -30,4 +30,12 @@ internal enum EngineCapability
     MariaDbSpatialSemantics,
     CheckConstraintCatalogIncludesTableName,
     FunctionalIndexExpressionMetadata,
+    CheckConstraints,
+    DescendingIndexes,
+    FunctionalIndexes,
+    IndexPrefixLengths,
+    RenameIndex,
+    ExpressionDefaults,
+    PreparedDdl,
+    AtomicDdl,
 }
