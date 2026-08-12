@@ -49,6 +49,11 @@ fi
 "${repo_root}/eng/common/verify-dotnet.sh"
 
 if [[ "${mode}" == "full" ]]; then
+    echo "Verifying release package dependency locks..."
+    # This must precede the solution restore, which may rewrite stale lock
+    # files and make dependency drift invisible in the current working tree.
+    "${repo_root}/eng/quality/verify-release-package-locks.sh"
+
     echo "Restoring the repository solution..."
     dotnet restore "${solution}" --tl:off
 elif [[ ! -f "${validator_assets}" ]]; then

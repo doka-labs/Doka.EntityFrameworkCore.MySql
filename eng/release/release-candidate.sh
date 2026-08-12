@@ -399,8 +399,9 @@ run_pack() {
     mkdir -p "${packages_dir}"
     mkdir -p "${sbom_components_dir}/runtime" "${sbom_components_dir}/spatial"
 
-    dotnet restore "${runtime_project}" --tl:off
-    dotnet restore "${spatial_project}" --tl:off
+    # Reuse the same dependency-closure gate as CI and pre-push. It runs before
+    # candidate bytes exist and does not narrow the ranges shipped to consumers.
+    "${repo_root}/eng/quality/verify-release-package-locks.sh"
 
     # Bind the exact restored dependency graphs to the package stage. SBOM
     # generation must consume these immutable candidate-local copies rather
