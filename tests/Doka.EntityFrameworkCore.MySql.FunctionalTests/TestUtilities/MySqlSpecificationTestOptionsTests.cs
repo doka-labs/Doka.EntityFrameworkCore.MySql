@@ -1,4 +1,6 @@
-namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
+using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
+
+namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
 /// Verifies the internal-service-provider isolation policy used by contracts
