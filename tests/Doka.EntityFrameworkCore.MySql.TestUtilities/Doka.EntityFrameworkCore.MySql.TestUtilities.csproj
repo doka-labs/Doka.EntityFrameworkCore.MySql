@@ -7,6 +7,12 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="MySqlConnector" />
+    <!--
+      Testcontainers 4.13.0 still requests the vulnerable SSH.NET 2025.1.0.
+      Keep this explicit test-only edge until upstream requires 2026.0.0 or
+      later so every TestUtilities consumer resolves the patched package.
+    -->
+    <PackageReference Include="SSH.NET" />
     <PackageReference Include="Testcontainers.MariaDb" />
     <PackageReference Include="Testcontainers.MySql" />
   </ItemGroup>
