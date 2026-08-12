@@ -455,6 +455,23 @@ jobs:
             --output "${evidence_dir}/nuget-publication-readback.json" \
             --timeout-seconds 3600
 
+      # The byte-level readback deliberately ignores only NuGet.org's added
+      # signature entry. Verify that signature cryptographically before the
+      # public packages can authorize runtime readback or a GitHub release.
+      - name: Verify public NuGet repository signatures
+        run: |
+          evidence_dir="${RUNNER_TEMP}/publication-evidence"
+
+          dotnet nuget verify \
+            "${evidence_dir}/packages/"*.nupkg \
+            --all \
+            --verbosity normal \
+            > "${evidence_dir}/nuget-signature-verification.txt" 2>&1
+
+          # Keep the verifier as the step's direct failure source. Printing its
+          # retained output afterwards cannot mask a non-zero verification exit.
+          cat "${evidence_dir}/nuget-signature-verification.txt"
+
       - name: Verify fresh consumer restore and runtime
         env:
           EVIDENCE_DIR: ${{ runner.temp }}/publication-evidence

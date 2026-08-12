@@ -100,6 +100,23 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
                 self.assertNotIn("dotnet-version:", text)
                 self.assertIn("global-json-file: global.json", text)
 
+    def test_nuget_signature_verification_cannot_be_masked_by_a_pipeline(self) -> None:
+        """Retain verifier output only after its direct exit status succeeds."""
+        workflow = self.workflow("nuget-publish.yml")
+        verification_start = workflow.index(
+            "      - name: Verify public NuGet repository signatures\n"
+        )
+        verification_end = workflow.index(
+            "      - name: Verify fresh consumer restore and runtime\n",
+            verification_start,
+        )
+        verification = workflow[verification_start:verification_end]
+
+        self.assertIn("dotnet nuget verify \\", verification)
+        self.assertIn("--all \\", verification)
+        self.assertIn("nuget-signature-verification.txt", verification)
+        self.assertNotIn("| tee", verification)
+
     def test_named_workflow_steps_have_exactly_one_execution_binding(self) -> None:
         """Reject empty steps and duplicate bindings hidden by YAML loaders."""
         for path in sorted(self.workflows.glob("*.yml")):
@@ -741,6 +758,20 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             readback.index("bash eng/testing/test-nuget-readback.sh"),
             len(readback),
         )
+
+    def test_public_readback_cryptographically_verifies_repository_signatures(self) -> None:
+        """Do not treat an unverified signature ZIP entry as provenance."""
+        text = self.workflow("nuget-publish.yml")
+        readback = self.job(text, "readback", "finalize-github-release")
+
+        payload_readback = readback.index("python3 -m eng.release.nuget readback")
+        signature_verification = readback.index("dotnet nuget verify")
+        runtime_readback = readback.index("bash eng/testing/test-nuget-readback.sh")
+
+        self.assertLess(payload_readback, signature_verification)
+        self.assertLess(signature_verification, runtime_readback)
+        self.assertEqual(1, readback.count("--all"))
+        self.assertIn("nuget-signature-verification.txt", readback)
 
     def test_github_release_finalization_preserves_verified_evidence(self) -> None:
         """Require the final job to consume and retain both evidence domains."""

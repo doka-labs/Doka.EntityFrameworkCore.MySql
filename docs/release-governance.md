@@ -172,6 +172,12 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - environment: `nuget`, restricted to the `main` branch
   - credential: a NuGet.org short-lived API key exchanged from GitHub OIDC
     immediately before the first push; no persistent NuGet API key is stored
+  - signing model: candidate packages are unsigned before ingestion. GitHub
+    provenance and Trusted Publishing bind their build and publisher identity;
+    NuGet.org adds the repository signature, whose presence and cryptographic
+    validity are required during public readback. Author signing would require
+    a separately approved certificate-custody and rotation contract and is not
+    silently simulated with a long-lived PFX secret
   - candidate binding: completed successful `release-candidate.yml` run,
     immutable artifact readback, canonical manifest verification, exact
     current `main` commit, exactly one matching semantic tag, matching hosted
@@ -189,8 +195,9 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     symbols; primary packages never use `--skip-duplicate`, while symbol-only
     uploads accept the endpoint's documented HTTP 409 pending state
   - public readback: bounded NuGet V3 and symbol-server polling, canonical
-    package comparison, Portable PDB retrieval using the candidate DLL's SSQP
-    key and SHA-256 checksum, empty-cache restore from NuGet.org only, and
+    package comparison, cryptographic verification of every downloaded NuGet
+    repository signature, Portable PDB retrieval using the candidate DLL's
+    SSQP key and SHA-256 checksum, empty-cache restore from NuGet.org only, and
     execution of the basic and spatial compiled-model runtime contract against
     the candidate's pinned MySQL 8.4 image
   - retained evidence:
@@ -198,6 +205,7 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `publication-preflight.json`
     - `symbol-readback-manifest.json`
     - `nuget-publication-readback.json`
+    - `nuget-signature-verification.txt`
     - `consumer-runtime-readback.json`
     - downloaded public package and Portable PDB payloads
   - retained hosted artifacts:
@@ -483,7 +491,13 @@ enumerates the expected evidence tree and rejects every additional file.
   [Dependabot supported ecosystems and repositories](https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories),
   retrieved 2026-08-03.
 - NuGet, [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing),
-  retrieved 2026-08-04.
+  retrieved 2026-08-12.
+- NuGet,
+  [`dotnet nuget verify`](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-nuget-verify),
+  retrieved 2026-08-12.
+- NuGet,
+  [repository signatures](https://learn.microsoft.com/en-us/nuget/api/repository-signatures-resource),
+  retrieved 2026-08-12.
 - NuGet, [`NuGet/login`](https://github.com/NuGet/login), retrieved
   2026-08-03.
 - NuGet, [`dotnet nuget push`](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-nuget-push),

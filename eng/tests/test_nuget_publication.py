@@ -119,6 +119,31 @@ class NuGetPublicationTests(unittest.TestCase):
                 self._COMMIT,
             )
 
+    def test_package_metadata_rejects_a_prepublication_signature(self) -> None:
+        """Keep author signing outside the keyless publication contract."""
+        provider = self.packages / nuget_publication.package_file_name(
+            nuget_publication.PROVIDER_PACKAGE_ID,
+            self._VERSION,
+            "nupkg",
+        )
+        provider.write_bytes(
+            self._package_bytes(
+                nuget_publication.PROVIDER_PACKAGE_ID,
+                signature=b"unexpected author signature",
+            )
+        )
+
+        with self.assertRaisesRegex(
+            nuget_publication.PublicationError,
+            "must be unsigned before NuGet.org ingestion",
+        ):
+            nuget_publication.validate_package_metadata(
+                self.root,
+                self._VERSION,
+                self._REPOSITORY,
+                self._COMMIT,
+            )
+
     def test_canonical_digest_ignores_only_repository_signature(self) -> None:
         """Allow NuGet repository signing without weakening payload comparison."""
         unsigned = self._package_bytes(nuget_publication.PROVIDER_PACKAGE_ID)
@@ -148,9 +173,10 @@ class NuGetPublicationTests(unittest.TestCase):
     def test_preflight_allows_absent_packages_and_matching_retry(self) -> None:
         """Permit first publication and a byte-identical partial retry."""
         receipt = self._receipt()
-        provider_bytes = (
-            self.root / str(receipt["packages"]["provider"]["package"])
-        ).read_bytes()
+        provider_bytes = self._package_bytes(
+            nuget_publication.PROVIDER_PACKAGE_ID,
+            signature=b"repository signature",
+        )
 
         def fetcher(url: str, _: float) -> bytes | None:
             if url == nuget_publication.remote_package_url(
@@ -167,7 +193,25 @@ class NuGetPublicationTests(unittest.TestCase):
         )
 
         self.assertEqual("matching", states["provider"]["status"])
+        self.assertTrue(states["provider"]["repositorySignaturePresent"])
         self.assertEqual("absent", states["spatial"]["status"])
+
+    def test_preflight_rejects_an_unsigned_matching_public_package(self) -> None:
+        """Require NuGet.org ingestion rather than payload equality alone."""
+        receipt = self._receipt()
+        provider_bytes = (
+            self.root / str(receipt["packages"]["provider"]["package"])
+        ).read_bytes()
+
+        with self.assertRaisesRegex(
+            nuget_publication.PublicationError,
+            "unsigned primary package",
+        ):
+            nuget_publication.remote_states(
+                receipt,
+                self.root,
+                fetcher=lambda _url, _timeout: provider_bytes,
+            )
 
     def test_preflight_rejects_conflicting_existing_package(self) -> None:
         """Never hide an immutable same-version conflict behind retry behavior."""
@@ -190,9 +234,11 @@ class NuGetPublicationTests(unittest.TestCase):
     def test_preflight_rejects_spatial_without_provider(self) -> None:
         """Reject an impossible dependency publication order before login."""
         receipt = self._receipt()
-        spatial_bytes = (
-            self.root / str(receipt["packages"]["spatial"]["package"])
-        ).read_bytes()
+        spatial_bytes = self._package_bytes(
+            nuget_publication.SPATIAL_PACKAGE_ID,
+            dependencies=[(nuget_publication.PROVIDER_PACKAGE_ID, self._VERSION)],
+            signature=b"repository signature",
+        )
 
         def fetcher(url: str, _: float) -> bytes | None:
             if url == nuget_publication.remote_package_url(

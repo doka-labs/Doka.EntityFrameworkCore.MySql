@@ -159,6 +159,22 @@ class GitHubReleaseTests(unittest.TestCase):
             package.writestr(name, payload)
         return buffer.getvalue()
 
+    @staticmethod
+    def _repository_signed_payload(payload: bytes) -> bytes:
+        """Add the NuGet-owned signature entry to a package fixture."""
+        buffer = io.BytesIO()
+        with (
+            zipfile.ZipFile(io.BytesIO(payload)) as source,
+            zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as destination,
+        ):
+            for entry in source.infolist():
+                destination.writestr(entry.filename, source.read(entry))
+            destination.writestr(
+                nuget_publication.NUGET_SIGNATURE_ENTRY,
+                b"repository signature",
+            )
+        return buffer.getvalue()
+
     def setUp(self) -> None:
         """Create one checksum-bound candidate and publication receipt set."""
         self.temporary_directory = tempfile.TemporaryDirectory()
@@ -313,8 +329,8 @@ class GitHubReleaseTests(unittest.TestCase):
             symbol_payloads[package_id] = payload
 
         symbol_entries = {entry["packageId"]: entry for entry in symbols}
-        preflight_packages: dict[str, dict[str, str]] = {}
-        readback_packages: dict[str, dict[str, str]] = {}
+        preflight_packages: dict[str, dict[str, object]] = {}
+        readback_packages: dict[str, dict[str, object]] = {}
         preflight_symbols: dict[str, dict[str, str]] = {}
         readback_symbols: dict[str, dict[str, str]] = {}
         public_packages = self.publication / "packages"
@@ -338,7 +354,10 @@ class GitHubReleaseTests(unittest.TestCase):
                 self._VERSION,
                 "nupkg",
             )
-            package_path.write_bytes(package_payloads[role])
+            public_package_payload = self._repository_signed_payload(
+                package_payloads[role]
+            )
+            package_path.write_bytes(public_package_payload)
             readback_packages[role] = {
                 "id": package_id,
                 "status": "matching",
@@ -346,8 +365,9 @@ class GitHubReleaseTests(unittest.TestCase):
                 "candidateContentDigest": candidate_digest,
                 "publishedContentDigest": candidate_digest,
                 "publishedSha256": hashlib.sha256(
-                    package_payloads[role]
+                    public_package_payload
                 ).hexdigest(),
+                "repositorySignaturePresent": True,
                 "readbackPath": str(package_path),
             }
 
@@ -416,6 +436,10 @@ class GitHubReleaseTests(unittest.TestCase):
                 json.dumps(value) + "\n",
                 encoding="utf-8",
             )
+        (self.publication / "nuget-signature-verification.txt").write_text(
+            "Successfully verified both NuGet.org repository signatures.\n",
+            encoding="utf-8",
+        )
 
         self.changelog.write_text(
             "# Changelog\n\n"
@@ -495,6 +519,73 @@ class GitHubReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(
             github_release.GitHubReleaseError,
             "Retained public package bytes are invalid",
+        ):
+            github_release.build_release_plan(
+                self._REPOSITORY,
+                self.candidate,
+                self.publication,
+                self.changelog,
+            )
+
+    def test_plan_rejects_unsigned_retained_public_package(self) -> None:
+        """Require repository signing at the final immutable boundary."""
+        role = "provider"
+        package = self.publication / "packages" / nuget_publication.package_file_name(
+            nuget_publication.PROVIDER_PACKAGE_ID,
+            self._VERSION,
+            "nupkg",
+        )
+        unsigned_payload = self._zip_payload(
+            f"payload/{role}.txt",
+            f"{role} primary package\n".encode("ascii"),
+        )
+        package.write_bytes(unsigned_payload)
+        readback_path = self.publication / "nuget-publication-readback.json"
+        readback = json.loads(readback_path.read_text(encoding="utf-8"))
+        readback["packages"][role]["publishedSha256"] = hashlib.sha256(
+            unsigned_payload
+        ).hexdigest()
+        readback_path.write_text(json.dumps(readback) + "\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            github_release.GitHubReleaseError,
+            "has no repository signature",
+        ):
+            github_release.build_release_plan(
+                self._REPOSITORY,
+                self.candidate,
+                self.publication,
+                self.changelog,
+            )
+
+    def test_plan_rejects_unbound_repository_signature_claim(self) -> None:
+        """Reject readback JSON that omits the repository-signature result."""
+        path = self.publication / "nuget-publication-readback.json"
+        readback = json.loads(path.read_text(encoding="utf-8"))
+        readback["packages"]["provider"].pop("repositorySignaturePresent")
+        path.write_text(json.dumps(readback) + "\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            github_release.GitHubReleaseError,
+            "Published package evidence is invalid",
+        ):
+            github_release.build_release_plan(
+                self._REPOSITORY,
+                self.candidate,
+                self.publication,
+                self.changelog,
+            )
+
+    def test_plan_rejects_empty_signature_verification_evidence(self) -> None:
+        """Bind the successful cryptographic verifier output into the release."""
+        (self.publication / "nuget-signature-verification.txt").write_text(
+            "",
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(
+            github_release.GitHubReleaseError,
+            "signature verification evidence is missing or empty",
         ):
             github_release.build_release_plan(
                 self._REPOSITORY,
