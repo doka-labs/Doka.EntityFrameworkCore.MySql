@@ -125,8 +125,9 @@ public abstract class CommandInterceptionMySqlTestBase
 /// </summary>
 /// <remarks>
 /// The upstream contract adds per-test interceptor instances to throwaway
-/// context options. Both provider-configuration paths keep those intentionally
-/// distinct providers out of EF Core's process-wide service-provider cache.
+/// context options. Both provider-configuration paths use transient providers,
+/// and their expected isolation diagnostic must not make results depend on the
+/// process-wide provider count established by earlier tests.
 /// </remarks>
 public abstract class ConnectionInterceptionMySqlTestBase
     : ConnectionInterceptionTestBase
@@ -143,7 +144,7 @@ public abstract class ConnectionInterceptionMySqlTestBase
     protected override DbContextOptionsBuilder ConfigureProvider(
         DbContextOptionsBuilder optionsBuilder
     ) => optionsBuilder
-        .EnableServiceProviderCaching(false)
+        .UseTransientInternalServiceProvider()
         .UseMySql(
             "Server=localhost;Database=DokaConnectionInterception;User ID=root;",
             s_serverVersion);
@@ -152,7 +153,7 @@ public abstract class ConnectionInterceptionMySqlTestBase
         DbContextOptionsBuilder optionsBuilder
     ) => new(
         optionsBuilder
-            .EnableServiceProviderCaching(false)
+            .UseTransientInternalServiceProvider()
             .UseMySql(new ThrowingDbConnection(), s_serverVersion)
             .Options);
 

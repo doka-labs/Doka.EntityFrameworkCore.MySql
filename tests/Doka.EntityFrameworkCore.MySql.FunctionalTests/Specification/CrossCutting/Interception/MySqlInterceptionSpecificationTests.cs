@@ -19,9 +19,9 @@ public abstract class QueryExpressionInterceptionMySqlTestBase : QueryExpression
             DbContextOptionsBuilder builder
         ) => base.AddOptions(
             // The isolation contract requires one provider per interceptor graph.
-            // Keeping those providers out of the global cache prevents order-dependent
-            // failures after other functional tests have populated that cache.
-            builder.EnableServiceProviderCaching(false));
+            // The shared option policy keeps that provider transient and makes
+            // the expected isolation diagnostic independent of suite order.
+            builder.UseTransientInternalServiceProvider());
 
         protected override IServiceCollection InjectInterceptors(
             IServiceCollection serviceCollection,
@@ -83,6 +83,11 @@ public sealed class MaterializationInterceptionMySqlTest : MaterializationInterc
     ) : base(fixture) { }
 
     protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+
+    protected override DbContextOptionsBuilder AddOptions(
+        DbContextOptionsBuilder builder
+    ) => base.AddOptions(
+        builder.UseTransientInternalServiceProvider());
 
     public sealed class MySqlLibraryContext : LibraryContext
     {
