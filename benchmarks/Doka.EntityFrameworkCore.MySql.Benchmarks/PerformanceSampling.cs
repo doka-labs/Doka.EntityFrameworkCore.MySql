@@ -7,6 +7,128 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 internal static class PerformanceSampling
 {
     /// <summary>
+    /// Selects the least contended pilot observation for adaptive sizing.
+    /// </summary>
+    public static long ResolvePilotElapsedTicks(
+        IReadOnlyCollection<long> pilotSamplesElapsedTicks
+    )
+    {
+        ArgumentNullException.ThrowIfNull(pilotSamplesElapsedTicks);
+
+        if (pilotSamplesElapsedTicks.Count == 0
+            || pilotSamplesElapsedTicks.Any(value => value <= 0))
+        {
+            throw new ArgumentException(
+                "Pilot samples must contain only positive durations.",
+                nameof(pilotSamplesElapsedTicks));
+        }
+
+        return pilotSamplesElapsedTicks.Min();
+    }
+
+    /// <summary>
+    /// Resolves the duration target for one sample from the complete
+    /// measurement floor and the workload's starting population.
+    /// </summary>
+    public static long ResolveTargetSampleTicks(
+        int minimumMeasurementDurationMilliseconds,
+        long stopwatchFrequency,
+        int durationHeadroomPercent,
+        int startingSampleCount
+    )
+    {
+        if (minimumMeasurementDurationMilliseconds <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(minimumMeasurementDurationMilliseconds),
+                "The minimum measurement duration must be positive.");
+        }
+
+        if (stopwatchFrequency <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(stopwatchFrequency),
+                "The stopwatch frequency must be positive.");
+        }
+
+        if (durationHeadroomPercent < 100)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(durationHeadroomPercent),
+                "The duration headroom must be at least 100 percent.");
+        }
+
+        if (startingSampleCount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(startingSampleCount),
+                "The starting sample count must be positive.");
+        }
+
+        var numerator = checked((long)minimumMeasurementDurationMilliseconds
+            * stopwatchFrequency
+            * durationHeadroomPercent);
+
+        var denominator = checked(1000L * 100 * startingSampleCount);
+
+        return checked((numerator + denominator - 1) / denominator);
+    }
+
+    /// <summary>
+    /// Resolves the operation population of one measurement sample from a
+    /// pilot batch.
+    /// </summary>
+    /// <remarks>
+    /// Duration is satisfied by making a sample larger, while the sample cap
+    /// remains an independent bound on statistical observations. The result is
+    /// a multiple of the reviewed workload batch so workload-specific
+    /// alignment is preserved.
+    /// </remarks>
+    public static int ResolveOperationsPerSample(
+        int configuredOperationsPerSample,
+        long pilotElapsedTicks,
+        long targetSampleTicks,
+        int maximumOperationsPerSampleMultiplier
+    )
+    {
+        if (configuredOperationsPerSample <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(configuredOperationsPerSample),
+                "The configured operation batch must be positive.");
+        }
+
+        if (pilotElapsedTicks <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(pilotElapsedTicks),
+                "The pilot duration must be positive.");
+        }
+
+        if (targetSampleTicks <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(targetSampleTicks),
+                "The target sample duration must be positive.");
+        }
+
+        if (maximumOperationsPerSampleMultiplier <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maximumOperationsPerSampleMultiplier),
+                "The operation-batch multiplier must be positive.");
+        }
+
+        var requiredMultiplier = targetSampleTicks <= pilotElapsedTicks
+            ? 1L
+            : ((targetSampleTicks - 1) / pilotElapsedTicks) + 1;
+
+        var boundedMultiplier = Math.Min(requiredMultiplier, maximumOperationsPerSampleMultiplier);
+
+        return checked(configuredOperationsPerSample * (int)boundedMultiplier);
+    }
+
+    /// <summary>
     /// Calculates a linearly interpolated percentile from an ordered sample.
     /// </summary>
     public static double Percentile(

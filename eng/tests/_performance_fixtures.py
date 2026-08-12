@@ -48,7 +48,11 @@ class PerformanceEvidenceFixtureMixin:
                 profile,
                 definition,
             )
-            operations_per_sample = definition.get("operationsPerSample", 1)
+            configured_operations_per_sample = definition.get(
+                "operationsPerSample",
+                1,
+            )
+            operations_per_sample = configured_operations_per_sample
             minimum_duration_nanoseconds = (
                 profile["minimumMeasurementDurationMilliseconds"]
                 * 1_000_000
@@ -72,6 +76,37 @@ class PerformanceEvidenceFixtureMixin:
                 minimum_sample_nanoseconds * 1.05,
                 budget_sample_nanoseconds,
             ))
+            operation_batching_mode = "fixed"
+            pilot_samples_elapsed_ticks: list[int] = []
+            if profile["adaptiveOperationsPerSample"]:
+                operation_batching_mode = "pilot"
+                pilot_elapsed_ticks = max(
+                    1,
+                    math.ceil(sample_base * configured_operations_per_sample),
+                )
+                target_sample_ticks_numerator = (
+                    profile["minimumMeasurementDurationMilliseconds"]
+                    * 1_000_000_000
+                    * profile["operationBatchingDurationHeadroomPercent"]
+                )
+                target_sample_ticks_denominator = 1000 * 100 * sample_count
+                target_sample_ticks = (
+                    target_sample_ticks_numerator
+                    + target_sample_ticks_denominator
+                    - 1
+                ) // target_sample_ticks_denominator
+                pilot_samples_elapsed_ticks = [
+                    pilot_elapsed_ticks
+                    for _ in range(profile["operationBatchingPilotSamples"])
+                ]
+                required_multiplier = max(
+                    1,
+                    math.ceil(target_sample_ticks / pilot_elapsed_ticks),
+                )
+                operations_per_sample *= min(
+                    required_multiplier,
+                    profile["maximumOperationsPerSampleMultiplier"],
+                )
             # Whatever the population has to be for that per-sample time to
             # clear the duration floor, exactly as the adaptive extension does.
             if sample_base * operations_per_sample > 0:
@@ -110,6 +145,9 @@ class PerformanceEvidenceFixtureMixin:
                     "sampleCount": len(samples),
                     "terminationReason": "precision_reached",
                     "minimumDurationReached": True,
+                    "configuredOperationsPerSample": configured_operations_per_sample,
+                    "operationBatchingMode": operation_batching_mode,
+                    "pilotSamplesElapsedTicks": pilot_samples_elapsed_ticks,
                     "operationsPerSample": operations_per_sample,
                     "checksum": 1,
                     "measuredUtc": datetime.now(timezone.utc).isoformat(),
@@ -146,7 +184,7 @@ class PerformanceEvidenceFixtureMixin:
             )
 
         return {
-            "schemaVersion": 4,
+            "schemaVersion": 5,
             "kind": "performance-workloads",
             "contractVersion": self.contract["contractVersion"],
             "runId": "run-1",

@@ -67,6 +67,29 @@ internal sealed class PerformanceProfileContract
 
     public int MaximumMeasurementSampleMultiplier { get; init; }
 
+    /// <summary>
+    /// Whether the runner uses a pilot measurement to size each sample.
+    /// </summary>
+    public bool AdaptiveOperationsPerSample { get; init; }
+
+    /// <summary>
+    /// Gets the percentage of the minimum measurement duration that adaptive
+    /// batches plan across the starting sample population.
+    /// </summary>
+    public int OperationBatchingDurationHeadroomPercent { get; init; }
+
+    /// <summary>
+    /// Gets the pilot observations used to reject one-off scheduler
+    /// stalls when sizing a fast workload.
+    /// </summary>
+    public int OperationBatchingPilotSamples { get; init; }
+
+    /// <summary>
+    /// Gets the maximum factor by which pilot sizing may grow a workload's
+    /// configured operations per sample.
+    /// </summary>
+    public int MaximumOperationsPerSampleMultiplier { get; init; }
+
     public int CalibrationSamplesPerPulse { get; init; }
 
     public int CalibrationIntervalSamples { get; init; }
@@ -152,10 +175,9 @@ internal sealed class SoakBudgetContract
 
 internal sealed class PerformanceRunReport
 {
-    // Version 4 added the required terminationReason and minimumDurationReached
-    // fields. A version-3 document predates them and is therefore not missing
-    // data; it belongs to a contract that never carried the fields.
-    public int SchemaVersion { get; init; } = 4;
+    // Version 5 binds adaptive batch sizing to its pilot observations. Earlier
+    // reports cannot prove why their operations-per-sample value was selected.
+    public int SchemaVersion { get; init; } = 5;
 
     public string Kind { get; init; } = "performance-workloads";
 
@@ -284,6 +306,23 @@ internal sealed class PerformanceWorkloadResult
     /// shorter than the contract intends and cannot be promoted to a baseline.
     /// </summary>
     public bool MinimumDurationReached { get; init; }
+
+    /// <summary>
+    /// Gets the workload's contract-owned lower bound before pilot sizing.
+    /// </summary>
+    public int ConfiguredOperationsPerSample { get; init; }
+
+    /// <summary>
+    /// Gets whether the operation batch was fixed or selected by a pilot.
+    /// </summary>
+    public string OperationBatchingMode { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the pilot batch durations in stopwatch ticks, or an empty array for
+    /// a fixed batch. Together with the report frequency, these make the
+    /// adaptive decision independently reproducible.
+    /// </summary>
+    public long[] PilotSamplesElapsedTicks { get; init; } = Array.Empty<long>();
 
     public int OperationsPerSample { get; init; }
 

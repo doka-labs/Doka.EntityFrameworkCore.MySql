@@ -66,13 +66,13 @@ def validate_workload_report(
         contract_version=contract_version,
     )
     schema_version = report.get("schemaVersion")
-    if schema_version == 3:
+    if schema_version in (3, 4):
         raise PerformanceEvidenceError(
-            "Workload report declares schema version 3, which predates the "
-            "required terminationReason and minimumDurationReached fields. "
-            "Re-measure with the current benchmark build to produce version 4."
+            f"Workload report declares schema version {schema_version}, which "
+            "predates pilot-bound operation batching. Re-measure with the "
+            "current benchmark build to produce version 5."
         )
-    if schema_version != 4 or report.get("kind") != "performance-workloads":
+    if schema_version != 5 or report.get("kind") != "performance-workloads":
         raise PerformanceEvidenceError("Workload report schema or kind is invalid.")
 
     required_commit(report, "commit", "workloadReport")
@@ -84,7 +84,15 @@ def validate_workload_report(
         "workloadReport",
         float(contract["evidenceMaximumAgeHours"]),
     )
-    finite_number(report.get("stopwatchFrequency"), "workloadReport.stopwatchFrequency", minimum=1)
+    stopwatch_frequency = finite_number(
+        report.get("stopwatchFrequency"),
+        "workloadReport.stopwatchFrequency",
+        minimum=1,
+    )
+    if not stopwatch_frequency.is_integer():
+        raise PerformanceEvidenceError(
+            "workloadReport.stopwatchFrequency must be an integer."
+        )
 
     environment = report.get("environment")
     if not isinstance(environment, dict):
@@ -210,6 +218,106 @@ def validate_workload_report(
                 f"expected '{definition['family']}'."
             )
 
+        configured_operations_per_sample = required_positive_integer(
+            entry,
+            "configuredOperationsPerSample",
+            workload_id,
+        )
+        expected_configured_operations = int(
+            definition.get("operationsPerSample", 1)
+        )
+        if configured_operations_per_sample != expected_configured_operations:
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' reports configuredOperationsPerSample="
+                f"{configured_operations_per_sample}, expected "
+                f"{expected_configured_operations}."
+            )
+
+        operation_batching_mode = required_string(
+            entry,
+            "operationBatchingMode",
+            workload_id,
+        )
+        pilot_samples_elapsed_ticks_payload = entry.get(
+            "pilotSamplesElapsedTicks"
+        )
+        if not isinstance(pilot_samples_elapsed_ticks_payload, list):
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' pilotSamplesElapsedTicks must be an array."
+            )
+        pilot_samples_elapsed_ticks = [
+            non_negative_integer(
+                value,
+                f"{workload_id}.pilotSamplesElapsedTicks[{index}]",
+            )
+            for index, value in enumerate(pilot_samples_elapsed_ticks_payload)
+        ]
+        operations_per_sample = required_positive_integer(
+            entry,
+            "operationsPerSample",
+            workload_id,
+        )
+        if profile_contract["adaptiveOperationsPerSample"]:
+            maximum_pilot_samples = int(
+                profile_contract["operationBatchingPilotSamples"]
+            )
+            if (
+                operation_batching_mode != "pilot"
+                or not pilot_samples_elapsed_ticks
+                or any(value == 0 for value in pilot_samples_elapsed_ticks)
+                or len(pilot_samples_elapsed_ticks) != maximum_pilot_samples
+            ):
+                raise PerformanceEvidenceError(
+                    f"Workload '{workload_id}' carries no adaptive batching pilot."
+                )
+            maximum_multiplier = int(
+                profile_contract["maximumOperationsPerSampleMultiplier"]
+            )
+            starting_sample_count = expected_measurement_sample_count(
+                profile_contract,
+                definition,
+            )
+            target_sample_ticks_numerator = (
+                int(profile_contract["minimumMeasurementDurationMilliseconds"])
+                * int(stopwatch_frequency)
+                * int(
+                    profile_contract[
+                        "operationBatchingDurationHeadroomPercent"
+                    ]
+                )
+            )
+            target_sample_ticks_denominator = 1000 * 100 * starting_sample_count
+            target_sample_ticks = (
+                target_sample_ticks_numerator
+                + target_sample_ticks_denominator
+                - 1
+            ) // target_sample_ticks_denominator
+            required_multiplier = max(
+                1,
+                (
+                    (target_sample_ticks - 1)
+                    // min(pilot_samples_elapsed_ticks)
+                )
+                + 1,
+            )
+            expected_multiplier = min(required_multiplier, maximum_multiplier)
+            expected_operations = configured_operations_per_sample * expected_multiplier
+            if operations_per_sample != expected_operations:
+                raise PerformanceEvidenceError(
+                    f"Workload '{workload_id}' reports operationsPerSample="
+                    f"{operations_per_sample}, but its pilot requires "
+                    f"{expected_operations}."
+                )
+        elif (
+            operation_batching_mode != "fixed"
+            or pilot_samples_elapsed_ticks
+            or operations_per_sample != configured_operations_per_sample
+        ):
+            raise PerformanceEvidenceError(
+                f"Workload '{workload_id}' operationsPerSample does not match "
+                "the fixed operation batch registered by its profile."
+            )
+
         warmup_samples = required_positive_integer(
             entry,
             "warmupSamples",
@@ -278,20 +386,6 @@ def validate_workload_report(
                 f"Workload '{workload_id}' reports an unreached minimum "
                 f"duration with termination reason '{termination_reason}'. "
                 "Only a capped run can miss the duration target."
-            )
-
-        operations_per_sample = required_positive_integer(
-            entry,
-            "operationsPerSample",
-            workload_id,
-        )
-        expected_operations_per_sample = int(
-            definition.get("operationsPerSample", 1)
-        )
-        if operations_per_sample != expected_operations_per_sample:
-            raise PerformanceEvidenceError(
-                f"Workload '{workload_id}' reports operationsPerSample="
-                f"{operations_per_sample}, expected {expected_operations_per_sample}."
             )
 
         samples_payload = entry.get("samplesNanoseconds")
@@ -595,6 +689,9 @@ def validate_workload_report(
                 "sampleCount": sample_count,
                 "terminationReason": termination_reason,
                 "minimumDurationReached": minimum_duration_reached,
+                "configuredOperationsPerSample": configured_operations_per_sample,
+                "operationBatchingMode": operation_batching_mode,
+                "pilotSamplesElapsedTicks": pilot_samples_elapsed_ticks,
                 "measuredUtc": measured_utc.isoformat().replace("+00:00", "Z"),
                 "operationsPerSample": operations_per_sample,
                 "measurementDurationNanoseconds": measurement_duration_nanoseconds,

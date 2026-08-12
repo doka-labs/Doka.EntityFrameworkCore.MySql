@@ -867,8 +867,8 @@ def validate_paired_policy(contract: dict[str, Any]) -> dict[str, Any]:
 
 def validate_contract(contract: dict[str, Any]) -> None:
     """Validate uniqueness, references, and required dimension coverage."""
-    if contract.get("schemaVersion") != 7:
-        raise PerformanceEvidenceError("Performance contract schemaVersion must be 7.")
+    if contract.get("schemaVersion") != 8:
+        raise PerformanceEvidenceError("Performance contract schemaVersion must be 8.")
 
     validate_contract_version(
         required_string(contract, "contractVersion", "contract")
@@ -969,6 +969,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
         "minimumValidSamples",
         "minimumBenchmarkDotNetSamples",
         "maximumMeasurementSampleMultiplier",
+        "maximumOperationsPerSampleMultiplier",
         "calibrationSamplesPerPulse",
         "calibrationIntervalSamples",
         "maximumWorkloadMatrixDurationSeconds",
@@ -1001,6 +1002,52 @@ def validate_contract(contract: dict[str, Any]) -> None:
             raise PerformanceEvidenceError(
                 f"profiles.{profile_name}.minimumMeasurementDurationMilliseconds "
                 "must be an integer."
+            )
+        adaptive_operations = profile_contract.get("adaptiveOperationsPerSample")
+        if not isinstance(adaptive_operations, bool):
+            raise PerformanceEvidenceError(
+                f"profiles.{profile_name}.adaptiveOperationsPerSample must be "
+                "a boolean."
+            )
+        duration_headroom_percent = finite_number(
+            profile_contract.get("operationBatchingDurationHeadroomPercent"),
+            f"profiles.{profile_name}.operationBatchingDurationHeadroomPercent",
+            minimum=100,
+        )
+        if not duration_headroom_percent.is_integer():
+            raise PerformanceEvidenceError(
+                f"profiles.{profile_name}.operationBatchingDurationHeadroomPercent "
+                "must be an integer."
+            )
+        maximum_pilot_samples = finite_number(
+            profile_contract.get("operationBatchingPilotSamples"),
+            f"profiles.{profile_name}.operationBatchingPilotSamples",
+            minimum=0,
+        )
+        if not maximum_pilot_samples.is_integer():
+            raise PerformanceEvidenceError(
+                f"profiles.{profile_name}.operationBatchingPilotSamples "
+                "must be an integer."
+            )
+        if adaptive_operations:
+            if minimum_measurement_duration <= 0:
+                raise PerformanceEvidenceError(
+                    f"profiles.{profile_name} enables adaptive operation "
+                    "batching without a positive minimum measurement duration."
+                )
+            if maximum_pilot_samples <= 0:
+                raise PerformanceEvidenceError(
+                    f"profiles.{profile_name} enables adaptive operation "
+                    "batching without pilot samples."
+                )
+        elif (
+            duration_headroom_percent != 100
+            or maximum_pilot_samples != 0
+            or profile_contract["maximumOperationsPerSampleMultiplier"] != 1
+        ):
+            raise PerformanceEvidenceError(
+                f"profiles.{profile_name} configures adaptive operation-batching "
+                "knobs while adaptiveOperationsPerSample is false."
             )
         finite_number(
             profile_contract.get("maximumRelativeStandardError"),
@@ -1173,6 +1220,17 @@ def validate_contract(contract: dict[str, Any]) -> None:
             raise PerformanceEvidenceError(
                 f"Workload '{workload_id}' operationsPerSample must be an integer."
             )
+        for profile_name, profile_contract in profiles.items():
+            if (
+                profile_contract["adaptiveOperationsPerSample"]
+                and operations_per_sample
+                * profile_contract["maximumOperationsPerSampleMultiplier"]
+                > 2_147_483_647
+            ):
+                raise PerformanceEvidenceError(
+                    f"Workload '{workload_id}' adaptive operation batch exceeds "
+                    f"the runner's integer range under profile '{profile_name}'."
+                )
         minimum_warmup_operations = workload.get("minimumWarmupOperations")
         if minimum_warmup_operations is not None:
             minimum_warmup_operations = finite_number(
