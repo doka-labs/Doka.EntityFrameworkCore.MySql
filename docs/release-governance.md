@@ -459,20 +459,28 @@ The cadence above is considered operational only when the repository captures ex
   - source link or release reference
   - reviewed date
   - owner
-  - impact classification:
+  - exactly one impact disposition:
     - code change required
     - reviewed no-op
-    - backlog item with target release
-  - supported-engine or provider-surface impact notes
+    - backlog follow-up required
+  - explicit `unchanged` or `changed` dispositions for public API, engine
+    differences, diagnostics or governance, and supported-engine policy
+  - evidence for a reviewed no-op or a target release and issue link for work
 - Monthly compatibility review issue:
   - review month
+  - reviewed date
   - owner
-  - repo-local matrix status for MySQL `8.4`, MariaDB `11.4`, and MariaDB `11.8`
+  - required `qualified`, `follow-up required`, or `not qualified` status for
+    MySQL `8.4` and `9.7` plus MariaDB `10.11`, `11.4`, `11.8`, and `12.3`
   - lifecycle change notes for supported engines
   - SLA risk notes
   - resulting actions or explicit no-op
 
-The repository issue templates are the review seam for these outputs. They intentionally stay repo-local and do not rely on GitHub organization labels, automations, or protected metadata outside the repository itself.
+The repository issue forms are the review seam for these outputs. Required
+dropdowns make each disposition singular and complete before submission, while
+required evidence fields prevent an empty no-op from becoming a review record.
+The forms intentionally stay repo-local and do not rely on GitHub organization
+labels, automations, or protected metadata outside the repository itself.
 
 ## Scope Boundaries
 
