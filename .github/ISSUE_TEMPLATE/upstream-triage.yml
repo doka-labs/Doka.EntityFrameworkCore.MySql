@@ -1,0 +1,124 @@
+name: Upstream triage
+description: Record the weekly impact review for an upstream release or contract change.
+title: "upstream triage: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Review the upstream primary source before selecting one disposition.
+        Do not submit an issue with unresolved or contradictory outcomes.
+
+  - type: input
+    id: source
+    attributes:
+      label: Upstream source
+      description: Link the authoritative release note, contract, or lifecycle notice.
+      placeholder: https://...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or release
+      description: Identify the exact upstream version or named change reviewed.
+    validations:
+      required: true
+
+  - type: input
+    id: published-date
+    attributes:
+      label: Published date
+      description: Record the upstream publication date.
+      placeholder: YYYY-MM-DD
+    validations:
+      required: true
+
+  - type: input
+    id: reviewed-date
+    attributes:
+      label: Reviewed date
+      description: Record the date on which provider impact was assessed.
+      placeholder: YYYY-MM-DD
+    validations:
+      required: true
+
+  - type: input
+    id: owner
+    attributes:
+      label: Review owner
+      description: Name the maintainer accountable for this triage result.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: disposition
+    attributes:
+      label: Impact disposition
+      description: Select exactly one outcome for this upstream change.
+      options:
+        - code change required
+        - reviewed no-op
+        - backlog follow-up required
+    validations:
+      required: true
+
+  - type: dropdown
+    id: public-api-impact
+    attributes:
+      label: Public API or options impact
+      options:
+        - unchanged
+        - changed
+    validations:
+      required: true
+
+  - type: dropdown
+    id: engine-difference-impact
+    attributes:
+      label: Engine-difference impact
+      options:
+        - unchanged
+        - changed
+    validations:
+      required: true
+
+  - type: dropdown
+    id: diagnostics-impact
+    attributes:
+      label: Diagnostics or governance impact
+      options:
+        - unchanged
+        - changed
+    validations:
+      required: true
+
+  - type: dropdown
+    id: supported-engine-impact
+    attributes:
+      label: Supported-engine policy impact
+      options:
+        - unchanged
+        - changed
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome and target
+      description: >-
+        Explain the selected disposition. Include the target release and issue
+        link for required work, or the evidence supporting a reviewed no-op.
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation-evidence
+    attributes:
+      label: Validation and evidence
+      description: Link every provider test, document, decision, or workflow result reviewed.
+    validations:
+      required: true

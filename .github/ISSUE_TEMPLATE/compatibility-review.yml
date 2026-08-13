@@ -1,0 +1,173 @@
+name: Compatibility review
+description: Record the monthly qualification and lifecycle review for every supported LTS target.
+title: "compatibility review: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Complete every field after reviewing the current repository evidence.
+        A submitted review is a durable governance record, not a planning stub.
+
+  - type: input
+    id: review-month
+    attributes:
+      label: Review month
+      description: Identify the calendar month covered by this review.
+      placeholder: YYYY-MM
+    validations:
+      required: true
+
+  - type: input
+    id: reviewed-date
+    attributes:
+      label: Reviewed date
+      description: Record the date on which the evidence was reconciled.
+      placeholder: YYYY-MM-DD
+    validations:
+      required: true
+
+  - type: input
+    id: owner
+    attributes:
+      label: Review owner
+      description: Name the maintainer accountable for this review.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mysql84
+    attributes:
+      label: MySQL 8.4 LTS
+      description: Classify the current repo-local qualification evidence.
+      options:
+        - qualified
+        - follow-up required
+        - not qualified
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mysql97
+    attributes:
+      label: MySQL 9.7 LTS
+      description: Classify the current repo-local qualification evidence.
+      options:
+        - qualified
+        - follow-up required
+        - not qualified
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mariadb1011
+    attributes:
+      label: MariaDB 10.11 LTS
+      description: Classify the current repo-local qualification evidence.
+      options:
+        - qualified
+        - follow-up required
+        - not qualified
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mariadb114
+    attributes:
+      label: MariaDB 11.4 LTS
+      description: Classify the current repo-local qualification evidence.
+      options:
+        - qualified
+        - follow-up required
+        - not qualified
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mariadb118
+    attributes:
+      label: MariaDB 11.8 LTS
+      description: Classify the current repo-local qualification evidence.
+      options:
+        - qualified
+        - follow-up required
+        - not qualified
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mariadb123
+    attributes:
+      label: MariaDB 12.3 LTS
+      description: Classify the current repo-local qualification evidence.
+      options:
+        - qualified
+        - follow-up required
+        - not qualified
+    validations:
+      required: true
+
+  - type: textarea
+    id: lifecycle-evidence
+    attributes:
+      label: Lifecycle evidence
+      description: >-
+        Cite current vendor lifecycle sources and describe any change. State
+        explicitly when no lifecycle change was identified.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: supported-engine-policy
+    attributes:
+      label: Supported-engine policy
+      description: State whether the advertised support policy changed.
+      options:
+        - unchanged
+        - changed
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sla-risk
+    attributes:
+      label: Servicing SLA
+      description: Classify the current servicing and release-timing risk.
+      options:
+        - no risk identified
+        - at risk
+        - breached
+    validations:
+      required: true
+
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Review outcome
+      description: Select the single disposition produced by this review.
+      options:
+        - reviewed no-op
+        - code change required
+        - backlog follow-up required
+        - support-policy decision required
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome-rationale
+    attributes:
+      label: Outcome rationale and follow-up
+      description: >-
+        Justify a no-op or identify owners, target releases, and issue links for
+        every required action.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repository-evidence
+    attributes:
+      label: Repository evidence
+      description: Link the CI runs, matrices, decisions, and backlog items reviewed.
+    validations:
+      required: true

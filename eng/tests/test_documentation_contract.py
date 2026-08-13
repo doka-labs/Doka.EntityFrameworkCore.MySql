@@ -119,6 +119,171 @@ class DocumentationContractTests(unittest.TestCase):
         )
 
 
+class PullRequestTemplateContractTests(unittest.TestCase):
+    """Keep every review obligation explicit without ambiguous checkboxes."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def setUp(self) -> None:
+        """Read the repository-owned pull-request review contract."""
+
+        self.template = (self.ROOT / ".github" / "pull_request_template.md").read_text(
+            encoding="ascii"
+        )
+
+    def test_every_conditional_gate_has_an_explicit_disposition(self) -> None:
+        """Require statuses instead of intentionally unchecked alternatives."""
+
+        self.assertNotIn("- [ ]", self.template)
+        self.assertEqual(2, self.template.count("`unchanged` or `changed`"))
+        self.assertIn("`passed`, `not applicable`, or `pending`", self.template)
+
+    def test_validation_table_keeps_every_repository_gate_visible(self) -> None:
+        """Prevent template simplification from hiding a qualification path."""
+
+        required_commands = (
+            "./eng/test.sh",
+            "./eng/test-integration.sh",
+            "./eng/test-runtime-posture.sh --up-test-down",
+            "./eng/benchmark.sh --up-smoke-down",
+            "./eng/release-candidate.sh",
+        )
+
+        for command in required_commands:
+            with self.subTest(command=command):
+                self.assertGreaterEqual(self.template.count(f"`{command}`"), 2)
+
+
+class MaintenanceIssueFormContractTests(unittest.TestCase):
+    """Keep maintenance reviews complete and mutually exclusive."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+    TEMPLATE_ROOT = ROOT / ".github" / "ISSUE_TEMPLATE"
+
+    @staticmethod
+    def form_element(form: str, element_id: str) -> str:
+        """Return one issue-form element by its stable field identifier."""
+
+        marker = f"    id: {element_id}\n"
+        marker_index = form.index(marker)
+        start = form.rfind("  - type: ", 0, marker_index)
+        end = form.find("\n  - type: ", marker_index)
+        return form[start:] if end == -1 else form[start:end]
+
+    def setUp(self) -> None:
+        """Read the two repository-maintenance forms and governance contract."""
+
+        self.compatibility = (
+            self.TEMPLATE_ROOT / "compatibility-review.yml"
+        ).read_text(encoding="ascii")
+        self.upstream = (self.TEMPLATE_ROOT / "upstream-triage.yml").read_text(
+            encoding="ascii"
+        )
+        self.governance = (self.ROOT / "docs" / "release-governance.md").read_text(
+            encoding="ascii"
+        )
+        self.supported_databases = (
+            self.ROOT / "docs" / "supported-databases.md"
+        ).read_text(encoding="ascii")
+
+    def test_legacy_maintenance_templates_are_replaced_by_required_forms(
+        self,
+    ) -> None:
+        """Reject optional Markdown stubs that permit incomplete reviews."""
+
+        self.assertFalse((self.TEMPLATE_ROOT / "compatibility-review.md").exists())
+        self.assertFalse((self.TEMPLATE_ROOT / "upstream-triage.md").exists())
+
+        for name, form in (
+            ("compatibility-review", self.compatibility),
+            ("upstream-triage", self.upstream),
+        ):
+            with self.subTest(form=name):
+                self.assertIn("name:", form)
+                self.assertIn("description:", form)
+                self.assertIn("body:\n", form)
+                for element in form.split("\n  - type: ")[1:]:
+                    if element.startswith("markdown\n"):
+                        continue
+
+                    self.assertIn("required: true", element)
+                    if element.startswith("dropdown\n"):
+                        self.assertNotIn("multiple: true", element)
+
+    def test_compatibility_review_requires_every_supported_lts_target(self) -> None:
+        """Keep the monthly matrix aligned with the advertised support lines."""
+
+        supported_target_ids = set(
+            re.findall(
+                r"\| `(mysql\d+|mariadb\d+)` \|$",
+                self.supported_databases,
+                flags=re.MULTILINE,
+            )
+        )
+        form_target_ids = set(
+            re.findall(
+                r"^    id: ((?:mysql|mariadb)\d+)$",
+                self.compatibility,
+                flags=re.MULTILINE,
+            )
+        )
+        expected_options = (
+            "- qualified",
+            "- follow-up required",
+            "- not qualified",
+        )
+
+        self.assertEqual(supported_target_ids, form_target_ids)
+        for target_id in sorted(supported_target_ids):
+            with self.subTest(target=target_id):
+                element = self.form_element(self.compatibility, target_id)
+                self.assertTrue(element.startswith("  - type: dropdown\n"))
+                self.assertIn("required: true", element)
+                for option in expected_options:
+                    self.assertIn(option, element)
+
+        supported_release_lines = set(
+            re.findall(
+                r"^\| (?:MySQL|MariaDB) \| ([0-9.]+) LTS \|",
+                self.supported_databases,
+                flags=re.MULTILINE,
+            )
+        )
+        for release_line in sorted(supported_release_lines):
+            with self.subTest(documented_release=release_line):
+                self.assertIn(f"`{release_line}`", self.governance)
+
+    def test_upstream_triage_requires_one_disposition_and_impact_vocabulary(
+        self,
+    ) -> None:
+        """Replace ambiguous alternatives with required single selections."""
+
+        disposition = self.form_element(self.upstream, "disposition")
+        self.assertTrue(disposition.startswith("  - type: dropdown\n"))
+        self.assertIn("required: true", disposition)
+        for option in (
+            "- code change required",
+            "- reviewed no-op",
+            "- backlog follow-up required",
+        ):
+            self.assertIn(option, disposition)
+
+        for impact_id in (
+            "public-api-impact",
+            "engine-difference-impact",
+            "diagnostics-impact",
+            "supported-engine-impact",
+        ):
+            with self.subTest(impact=impact_id):
+                element = self.form_element(self.upstream, impact_id)
+                self.assertTrue(element.startswith("  - type: dropdown\n"))
+                self.assertIn("- unchanged", element)
+                self.assertIn("- changed", element)
+                self.assertIn("required: true", element)
+
+        self.assertNotIn("type: checkboxes", self.upstream)
+
+
 class ReleaseRunbookAgreementTests(unittest.TestCase):
     """Prove the runbook describes the release path the workflows implement.
 
@@ -150,10 +315,11 @@ class ReleaseRunbookAgreementTests(unittest.TestCase):
 
     def test_the_runbook_describes_an_automatic_tag_trigger(self) -> None:
         """Match the documented start of qualification to the workflow."""
-        self.assertIn("starts the `release-candidate` workflow automatically",
-                      self.runbook)
+        self.assertIn(
+            "starts the `release-candidate` workflow automatically", self.runbook
+        )
         self.assertIn("push:", self.candidate)
-        self.assertIn("- \"v*\"", self.candidate)
+        self.assertIn('- "v*"', self.candidate)
 
     def test_the_runbook_states_the_receipt_count_the_workflow_produces(self) -> None:
         """Reject a documented stage count the workflow cannot satisfy."""
