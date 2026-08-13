@@ -20,6 +20,22 @@ machine cancels out of every ratio instead of having to be matched.
 
 ### Added
 
+- Add a public, scoped migration-operation handler SPI for extension packages.
+  Exact custom operation ownership, immutable staged commands, provider
+  baseline rendering, and fail-closed conflict and error behavior compose
+  without exposing or replacing the internal migrations SQL generator.
+- Expose an exhaustive migration feature projection for all six active LTS
+  profiles, including native, emulated, and engine-unsupported routes for JSON,
+  indexes, generated columns, temporal features, sequences, prepared DDL,
+  atomic DDL, and transactional DDL.
+- Add stable handler diagnostics: `MySqlEventId` 1110 through 1114, one
+  internal activity, three counters, one duration histogram, bounded tags, and
+  an operator runbook that excludes SQL and plugin exception payloads.
+- Add two independent conformance handlers, exact registry and result-contract
+  tests, packed-consumer compilation, executable normal and idempotent scripts,
+  six-LTS runtime, tooling, and bundle lifecycles, and a 0/1/8-handler dispatch
+  benchmark.
+
 - Support every active upstream LTS line: MySQL 9.7 and MariaDB 10.11 / 12.3
   join the existing MySQL 8.4 and MariaDB 11.4 / 11.8 matrix. Exact image pins,
   support-policy classification, specification dispositions, live integration,

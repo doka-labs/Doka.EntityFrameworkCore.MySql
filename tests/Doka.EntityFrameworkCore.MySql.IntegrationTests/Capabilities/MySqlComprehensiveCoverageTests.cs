@@ -453,17 +453,24 @@ public sealed class MySqlComprehensiveCoverageTests
         var body = "        SELECT 1;\n";
         var fullScript = begin + body + end;
 
+        // DELIMITER belongs to the MySQL and MariaDB command-line clients. ADO.NET sends
+        // the routine definition directly to the server, so this probe removes only the
+        // client-side framing while preserving the generated routine and condition body.
+        var directCommandText = fullScript
+            .Replace("DELIMITER //\n", string.Empty, StringComparison.Ordinal)
+            .Replace("END //\nDELIMITER ;", "END;", StringComparison.Ordinal);
+
         // Ensure history table exists.
         // Safe: SQL emitted by IHistoryRepository.GetCreateIfNotExistsScript().
         await context.Database.ExecuteSqlRawAsync(historyRepository.GetCreateIfNotExistsScript());
 
         try
         {
-            // Safe: fullScript is composed from IHistoryRepository's Begin/End helpers around a literal body.
-            await context.Database.ExecuteSqlRawAsync(fullScript);
+            // Safe: directCommandText is composed from IHistoryRepository's helpers around a literal body.
+            await context.Database.ExecuteSqlRawAsync(directCommandText);
 
             // Execute again -- should be idempotent (no error).
-            await context.Database.ExecuteSqlRawAsync(fullScript);
+            await context.Database.ExecuteSqlRawAsync(directCommandText);
         }
         finally
         {

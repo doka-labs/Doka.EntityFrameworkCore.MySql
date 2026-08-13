@@ -35,6 +35,7 @@ PUBLICATION_EVIDENCE_FILES = (
     "publication-preflight.json",
     "symbol-readback-manifest.json",
     "nuget-publication-readback.json",
+    "nuget-signature-verification.txt",
     "consumer-runtime-readback.json",
 )
 RELEASE_CANDIDATE_EVIDENCE_FILES = (
@@ -303,11 +304,19 @@ def validate_package_state(
         if (
             state.get("publishedContentDigest") != candidate_digest
             or not SHA256.fullmatch(str(state.get("publishedSha256", "")))
+            or state.get("repositorySignaturePresent") is not True
         ):
             raise GitHubReleaseError(
                 f"Published package evidence is invalid: {role}"
             )
-    elif "publishedContentDigest" in state or "publishedSha256" in state:
+    elif any(
+        key in state
+        for key in (
+            "publishedContentDigest",
+            "publishedSha256",
+            "repositorySignaturePresent",
+        )
+    ):
         raise GitHubReleaseError(
             f"Absent package evidence contains published content: {role}"
         )
@@ -410,6 +419,18 @@ def validate_public_readback_files(
             raise GitHubReleaseError(
                 f"Retained public package content is invalid: {role}"
             )
+        try:
+            repository_signature_present = nuget_publication.package_has_signature(
+                package_path
+            )
+        except nuget_publication.PublicationError as exception:
+            raise GitHubReleaseError(
+                f"Retained public package signature is invalid: {role}"
+            ) from exception
+        if not repository_signature_present:
+            raise GitHubReleaseError(
+                f"Retained public package has no repository signature: {role}"
+            )
 
         symbol_state = readback["symbols"][package_id]
         symbol_path = packages_root / "symbols" / symbol_state["pdbName"]
@@ -443,6 +464,16 @@ def validate_publication_evidence(
         paths["consumer-runtime-readback.json"],
         "consumer runtime readback",
     )
+    signature_evidence = paths["nuget-signature-verification.txt"]
+    if (
+        not signature_evidence.is_file()
+        or signature_evidence.is_symlink()
+        or signature_evidence.stat().st_size == 0
+    ):
+        raise GitHubReleaseError(
+            "NuGet signature verification evidence is missing or empty: "
+            f"{signature_evidence}"
+        )
 
     try:
         entries = nuget_publication.validated_symbol_entries(

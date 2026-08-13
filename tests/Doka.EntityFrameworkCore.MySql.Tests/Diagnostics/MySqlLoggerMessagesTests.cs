@@ -146,6 +146,61 @@ public sealed class MySqlLoggerMessagesTests
             entry => Assert.Contains("InvalidOperationException", entry.RenderedMessage, StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void Migration_handler_failure_log_does_not_serialize_plugin_exception_payloads()
+    {
+        var logger = new CapturingLogger();
+        var exception = new InvalidOperationException("password=secret;SELECT private_data");
+        exception.Data["private-context"] = "tenant=private_tenant";
+
+        MySqlLoggerMessages.MigrationOperationHandlerFailed(
+            logger,
+            "tests.handler",
+            "Tests.CustomOperation",
+            "default",
+            0,
+            MySqlMigrationHandlerFailureCode.HandlerFailed,
+            exception);
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(MySqlEventId.MigrationOperationHandlerFailed, entry.EventId);
+        Assert.Null(entry.Exception);
+        Assert.Contains("InvalidOperationException", entry.RenderedMessage, StringComparison.Ordinal);
+        Assert.Contains("HandlerFailed", entry.RenderedMessage, StringComparison.Ordinal);
+        Assert.DoesNotContain("password", entry.RenderedMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("private_data", entry.RenderedMessage, StringComparison.Ordinal);
+        Assert.DoesNotContain("private-context", entry.RenderedMessage, StringComparison.Ordinal);
+        Assert.DoesNotContain("private_tenant", entry.RenderedMessage, StringComparison.Ordinal);
+        var state = Assert.IsType<IReadOnlyList<KeyValuePair<string, object?>>>(entry.State, exactMatch: false);
+        Assert.DoesNotContain(
+            state,
+            field => field.Value?.ToString()?.Contains("private_tenant", StringComparison.Ordinal) == true);
+    }
+
+    [Theory]
+    [InlineData(MySqlMigrationHandlerFailureCode.InvalidHandlerResult)]
+    [InlineData(MySqlMigrationHandlerFailureCode.UnknownOperationType)]
+    [InlineData(MySqlMigrationHandlerFailureCode.RecursiveProviderRendering)]
+    public void Migration_handler_contract_violation_log_preserves_its_reachable_failure_code(
+        MySqlMigrationHandlerFailureCode failureCode
+    )
+    {
+        var logger = new CapturingLogger();
+
+        MySqlLoggerMessages.MigrationOperationHandlerContractViolation(
+            logger,
+            "tests.handler",
+            "Tests.CustomOperation",
+            "default",
+            0,
+            failureCode);
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(MySqlEventId.MigrationOperationHandlerContractViolation, entry.EventId);
+        Assert.Contains("invocation contract", entry.RenderedMessage, StringComparison.Ordinal);
+        Assert.Contains(failureCode.ToString(), entry.RenderedMessage, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Verifies that every object-bearing provider diagnostic replaces raw
     /// metadata with an opaque, structured scope identifier.

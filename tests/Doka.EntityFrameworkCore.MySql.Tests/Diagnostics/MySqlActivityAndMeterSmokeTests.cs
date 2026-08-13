@@ -58,6 +58,173 @@ public sealed class MySqlActivityAndMeterSmokeTests
     }
 
     [Fact]
+    public void Migration_operation_handler_emits_the_complete_diagnostic_surface()
+    {
+        using var activitySink = new ActivitySink();
+        using var calls = new CounterSink<long>(MySqlDiagnostics.MigrationOperationHandlerCallsTotalMetricName);
+        using var failures = new CounterSink<long>(MySqlDiagnostics.MigrationOperationHandlerFailuresTotalMetricName);
+        using var violations = new CounterSink<long>(
+            MySqlDiagnostics.MigrationOperationHandlerContractViolationsTotalMetricName);
+        using var duration = new HistogramSink<double>(MySqlDiagnostics.MigrationOperationHandlerDurationMetricName);
+        var tags = new TagList
+        {
+            { MySqlDiagnosticTags.MigrationHandlerId, "tests.handler" },
+            { MySqlDiagnosticTags.MigrationOperationType, "Tests.CustomOperation" },
+            { MySqlDiagnosticTags.MigrationGenerationMode, "default" },
+            { MySqlDiagnosticTags.MigrationHandlerOutcome, "generated" },
+            { MySqlDiagnosticTags.Engine, MySqlDiagnosticTags.MySql },
+        };
+
+        using (var activity = MySqlActivitySource.StartMigrationOperationHandler(
+                   "tests.handler",
+                   "Tests.CustomOperation",
+                   "default",
+                   EngineFamily.MySql))
+        {
+            activity?.SetTag(MySqlDiagnosticTags.MigrationHandlerOutcome, "generated");
+        }
+
+        MySqlMeter.MigrationOperationHandlerCallsTotal.Add(1, tags);
+        MySqlMeter.MigrationOperationHandlerFailuresTotal.Add(1, tags);
+        MySqlMeter.MigrationOperationHandlerContractViolationsTotal.Add(1, tags);
+        MySqlMeter.MigrationOperationHandlerDuration.Record(0.01, tags);
+
+        var recordedActivity = Assert.Single(
+            activitySink.Activities,
+            candidate => candidate.OperationName == MySqlDiagnostics.MigrationOperationHandlerSpanName);
+        Assert.Equal("tests.handler", recordedActivity.GetTagItem(MySqlDiagnosticTags.MigrationHandlerId));
+        Assert.Equal(MySqlDiagnosticTags.MySql, recordedActivity.GetTagItem(MySqlDiagnosticTags.DatabaseSystem));
+        Assert.Equal(MySqlDiagnosticTags.MySql, recordedActivity.GetTagItem(MySqlDiagnosticTags.EngineFamilyName));
+        Assert.True(calls.TotalDelta >= 1);
+        Assert.True(failures.TotalDelta >= 1);
+        Assert.True(violations.TotalDelta >= 1);
+        Assert.Contains(duration.Measurements, measurement => Math.Abs(measurement - 0.01) < 0.0001);
+        AssertEngineTags(calls.TagSets, MySqlDiagnosticTags.MySql);
+    }
+
+    [Fact]
+    public void Migration_operation_handler_propagates_its_terminal_outcome_to_span_and_metrics()
+    {
+        using var activitySink = new ActivitySink();
+        using var calls = new CounterSink<long>(MySqlDiagnostics.MigrationOperationHandlerCallsTotalMetricName);
+        using var duration = new HistogramSink<double>(MySqlDiagnostics.MigrationOperationHandlerDurationMetricName);
+        var services = new ServiceCollection();
+        services.AddScoped<IMySqlMigrationOperationHandler, OutcomeHandler>();
+        services.AddEntityFrameworkDokaMySql();
+
+        using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
+        var options = new DbContextOptionsBuilder<OutcomeContext>()
+            .UseInternalServiceProvider(serviceProvider)
+            .UseMySql(
+                "Server=localhost;Database=doka;User ID=root;Password=password;",
+                MySqlServerVersion.MySql(new Version(8, 4, 11)))
+            .Options;
+        using var context = new OutcomeContext(options);
+
+        _ = context
+            .GetService<IMigrationsSqlGenerator>()
+            .Generate([new OutcomeOperation()], context.Model);
+
+        var activity = Assert.Single(
+            activitySink.Activities,
+            candidate => candidate.OperationName == MySqlDiagnostics.MigrationOperationHandlerSpanName
+                && Equals(candidate.GetTagItem(MySqlDiagnosticTags.MigrationHandlerId), "tests.outcome"));
+        Assert.Equal("qualified", activity.GetTagItem(MySqlDiagnosticTags.MigrationHandlerOutcome));
+        Assert.True(calls.TotalDelta >= 1);
+        Assert.Contains(
+            calls.TagSets,
+            tags => Equals(tags[MySqlDiagnosticTags.MigrationHandlerId], "tests.outcome")
+                && Equals(tags[MySqlDiagnosticTags.MigrationHandlerOutcome], "qualified"));
+        Assert.NotEmpty(duration.Measurements);
+        Assert.Contains(
+            duration.TagSets,
+            tags => Equals(tags[MySqlDiagnosticTags.MigrationHandlerId], "tests.outcome")
+                && Equals(tags[MySqlDiagnosticTags.MigrationHandlerOutcome], "qualified"));
+    }
+
+    [Fact]
+    public void Migration_operation_handler_failure_keeps_plugin_payload_out_of_integrated_telemetry()
+    {
+        const string sensitiveMessage = "password=secret;SELECT private_data";
+        const string sensitiveData = "tenant=private_tenant";
+        using var activitySink = new ActivitySink();
+        using var failures = new CounterSink<long>(MySqlDiagnostics.MigrationOperationHandlerFailuresTotalMetricName);
+        using var duration = new HistogramSink<double>(MySqlDiagnostics.MigrationOperationHandlerDurationMetricName);
+        var logSink = new TestLogSink();
+        using var loggerFactory = LoggerFactory.Create(builder => builder
+            .SetMinimumLevel(LogLevel.Trace)
+            .AddProvider(new TestLoggerProvider(logSink)));
+        var services = new ServiceCollection();
+        services.AddSingleton<ILoggerFactory>(loggerFactory);
+        services.AddScoped<IMySqlMigrationOperationHandler, FailureHandler>();
+        services.AddEntityFrameworkDokaMySql();
+
+        using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
+        var options = new DbContextOptionsBuilder<FailureContext>()
+            .UseInternalServiceProvider(serviceProvider)
+            .UseMySql(
+                "Server=localhost;Database=doka;User ID=root;Password=password;",
+                MySqlServerVersion.MySql(new Version(8, 4, 11)))
+            .Options;
+        using var context = new FailureContext(options);
+
+        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() => context
+            .GetService<IMigrationsSqlGenerator>()
+            .Generate([new FailureOperation()], context.Model));
+
+        Assert.Equal(MySqlMigrationHandlerFailureCode.HandlerFailed, exception.FailureCode);
+        var pluginException = Assert.IsType<InvalidOperationException>(exception.InnerException);
+        Assert.Equal(sensitiveMessage, pluginException.Message);
+        Assert.Equal(sensitiveData, pluginException.Data["private-context"]);
+
+        var log = Assert.Single(
+            logSink.Entries,
+            entry => entry.EventId == MySqlEventId.MigrationOperationHandlerFailed);
+        Assert.Null(log.ExceptionType);
+        Assert.Contains(nameof(InvalidOperationException), log.Message, StringComparison.Ordinal);
+
+        var activity = Assert.Single(
+            activitySink.Activities,
+            candidate => candidate.OperationName == MySqlDiagnostics.MigrationOperationHandlerSpanName
+                && Equals(candidate.GetTagItem(MySqlDiagnosticTags.MigrationHandlerId), "tests.failure"));
+        Assert.Equal(ActivityStatusCode.Error, activity.Status);
+        Assert.Equal(
+            nameof(MySqlMigrationHandlerFailureCode.HandlerFailed),
+            activity.GetTagItem(MySqlDiagnosticTags.ErrorType));
+
+        var failureTags = Assert.Single(
+            failures.TagSets,
+            tags => Equals(tags[MySqlDiagnosticTags.MigrationHandlerId], "tests.failure"));
+        Assert.Equal(
+            nameof(MySqlMigrationHandlerFailureCode.HandlerFailed),
+            failureTags[MySqlDiagnosticTags.ErrorType]);
+        Assert.Contains(
+            duration.TagSets,
+            tags => Equals(tags[MySqlDiagnosticTags.MigrationHandlerId], "tests.failure")
+                && Equals(tags[MySqlDiagnosticTags.ErrorType], nameof(MySqlMigrationHandlerFailureCode.HandlerFailed)));
+
+        var serializedTelemetry = string.Join(
+            Environment.NewLine,
+            log.Message,
+            string.Join(Environment.NewLine, log.State.Select(field => $"{field.Key}={field.Value}")),
+            string.Join(Environment.NewLine, activity.TagObjects.Select(tag => $"{tag.Key}={tag.Value}")),
+            string.Join(
+                Environment.NewLine,
+                activity.Events.SelectMany(activityEvent =>
+                    activityEvent.Tags.Select(tag => $"{activityEvent.Name}:{tag.Key}={tag.Value}"))),
+            string.Join(Environment.NewLine, activity.Baggage.Select(item => $"{item.Key}={item.Value}")),
+            string.Join(
+                Environment.NewLine,
+                failures
+                    .TagSets.Concat(duration.TagSets)
+                    .SelectMany(tags => tags)
+                    .Select(tag => $"{tag.Key}={tag.Value}")));
+        Assert.DoesNotContain(sensitiveMessage, serializedTelemetry, StringComparison.Ordinal);
+        Assert.DoesNotContain(sensitiveData, serializedTelemetry, StringComparison.Ordinal);
+        Assert.DoesNotContain("private-context", serializedTelemetry, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Server_version_resolve_emits_span()
     {
         using var activitySink = new ActivitySink();
@@ -234,13 +401,63 @@ public sealed class MySqlActivityAndMeterSmokeTests
 
     private static void AssertEngineTags(
         IEnumerable<IReadOnlyDictionary<string, object?>> tagSets,
-        string expectedEngine
+        string expectedEngine,
+        string tagName = MySqlDiagnosticTags.Engine
     )
     {
         Assert.NotEmpty(tagSets);
-        Assert.All(
-            tagSets,
-            tags => Assert.Equal(expectedEngine, tags[MySqlDiagnosticTags.Engine]));
+        Assert.All(tagSets, tags => Assert.Equal(expectedEngine, tags[tagName]));
+    }
+
+    private sealed class OutcomeContext : DbContext
+    {
+        public OutcomeContext(
+            DbContextOptions<OutcomeContext> options
+        ) : base(options) { }
+    }
+
+    private sealed class OutcomeOperation : MigrationOperation;
+
+    private sealed class OutcomeHandler : IMySqlMigrationOperationHandler
+    {
+        public string HandlerId => "tests.outcome";
+
+        public Type OperationType => typeof(OutcomeOperation);
+
+        public MySqlMigrationOperationResult Generate(
+            MySqlMigrationOperationContext context
+        ) => MySqlMigrationOperationResult.Generated([MySqlMigrationCommandSpec.Create("SELECT 1;")], "qualified");
+    }
+
+    private sealed class FailureContext : DbContext
+    {
+        public FailureContext(
+            DbContextOptions<FailureContext> options
+        ) : base(options) { }
+    }
+
+    private sealed class FailureOperation : MigrationOperation;
+
+    private sealed class FailureHandler : IMySqlMigrationOperationHandler
+    {
+        public string HandlerId => "tests.failure";
+
+        public Type OperationType => typeof(FailureOperation);
+
+        public MySqlMigrationOperationResult Generate(
+            MySqlMigrationOperationContext context
+        )
+        {
+            var exception =
+                new InvalidOperationException("password=secret;SELECT private_data")
+                {
+                    Data =
+                    {
+                        ["private-context"] = "tenant=private_tenant",
+                    },
+                };
+            throw exception;
+        }
     }
 
     private sealed class ActivitySink : IDisposable

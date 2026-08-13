@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace Doka.EntityFrameworkCore.MySql.Internal.Metadata;
 
 /// <summary>

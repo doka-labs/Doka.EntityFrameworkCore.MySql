@@ -2,7 +2,44 @@
 
 This runbook covers migration-lock recovery, clustered pre-flight checks, and
 safe migration deployment modes. Use it whenever schema changes are applied to
-a live MySQL or MariaDB estate.
+a live MySQL or MariaDB estate. Package authors implementing custom operations
+should begin with the
+[migration-operation handler contract](../migration-operation-handlers.md).
+
+<a id="mysql-migration-operation-handler-failure"></a>
+
+## Custom Migration-Operation Handler Failure
+
+Any increase in `doka_mysql_migration_operation_handler_failures_total` or
+`doka_mysql_migration_operation_handler_contract_violations_total` is a
+stop-the-line migration signal. Do not retry the same artifact blindly.
+
+1. Identify the bounded `handler.id`, `operation.type`, `generation.mode`, and
+   `error.type` tags. Provider telemetry deliberately excludes SQL, object
+   names, connection strings, and plugin exception messages.
+2. Reproduce generation offline with the same migration assembly, provider
+   package, server-version descriptor, and generation options.
+3. Correct the handler registration, exception, or invalid result. A handler
+   must return at least one immutable command, a bounded outcome code, and the
+   intended transaction-suppression boundary for every command.
+4. Regenerate and review the complete migration script before deployment.
+
+`UnknownMigrationOperation` (1114) means no built-in or registered exact-type
+handler owns the custom operation. `InvalidMigrationOperationHandlerRegistration`
+(1111) means the scoped service graph is invalid and must be corrected before
+any SQL generation can proceed.
+
+For invocation-time handler contract violations, inspect `error.type`:
+`UnknownOperationType` requires passing a provider-owned standard operation to
+the baseline renderer,
+`RecursiveProviderRendering` requires removing recursive or concurrent baseline
+rendering, and `InvalidHandlerResult` requires correcting the returned command
+or outcome metadata.
+
+`ContextExpired` is raised directly to code that invokes a retained context
+after its handler has returned. Because the handler invocation and its span have
+already completed, this post-lifetime misuse is not attributed to the earlier
+invocation's log, metric, or activity.
 
 <a id="mysql-migration-lock-failure"></a>
 
@@ -163,12 +200,14 @@ Run the deployment lifecycle before a release candidate:
 This gate uses isolated, dynamically published containers for all six active
 LTS targets. For each target it:
 
-1. generates an EF Core migration bundle
-2. applies the latest migration
-3. reapplies it to prove idempotence
-4. rolls back to migration `0`
-5. verifies that the application schema is absent
-6. reapplies and reads back the latest schema and seed data
+1. applies and reapplies through `Database.MigrateAsync()`
+2. applies and reapplies through `IMigrator.MigrateAsync()`
+3. applies, reapplies, and rolls back through `dotnet ef database update`
+4. generates and executes normal and idempotent SQL scripts
+5. generates an EF Core migration bundle
+6. applies, reapplies, and rolls every path back to migration `0`
+7. independently reads back both the latest and absent application schema
+8. reapplies the bundle and verifies the latest schema and seed data
 
 Evidence is retained under
 `artifacts/migration-deployment/<run-id>/migration-deployment-evidence.json`.
@@ -240,9 +279,19 @@ identity, execution result, and post-deployment readback. An idempotent script
 reduces repeat-application risk; it does not make concurrent script runners
 safe.
 
+Idempotent scripts frame their stored-procedure guards with the native MySQL
+and MariaDB `DELIMITER` client command. Apply the complete generated file with
+the `mysql` or `mariadb` client, or with deployment tooling that implements the
+same delimiter semantics. Do not submit `DELIMITER` as server SQL through an
+ADO.NET command.
+
 ### Primary sources
 
 - Microsoft, [Applying Migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying),
   retrieved 2026-07-28.
 - Microsoft, [Managing Migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/managing),
   retrieved 2026-07-28.
+- MySQL, [CREATE PROCEDURE and CREATE FUNCTION Statements](https://dev.mysql.com/doc/refman/8.4/en/create-procedure.html),
+  retrieved 2026-08-11.
+- MariaDB, [mariadb Command-Line Client](https://mariadb.com/docs/server/clients-and-utilities/mariadb-client/mariadb-command-line-client),
+  retrieved 2026-08-11.

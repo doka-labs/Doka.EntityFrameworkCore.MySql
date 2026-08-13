@@ -16,6 +16,7 @@ run_id="${DOKA_MIGRATION_DEPLOYMENT_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 evidence_root="${DOKA_MIGRATION_DEPLOYMENT_EVIDENCE_ROOT:-${repo_root}/artifacts/migration-deployment}"
 evidence_dir="${evidence_root}/${run_id}"
 bundle_path="${evidence_dir}/efbundle"
+scripts_dir="${evidence_dir}/scripts"
 summary_file="${evidence_dir}/migration-deployment-summary.md"
 evidence_file="${evidence_dir}/migration-deployment-evidence.json"
 database_evidence_file="${evidence_dir}/test-database-evidence.json"
@@ -79,6 +80,127 @@ published_port() {
     echo "${port_output##*:}"
 }
 
+database_client() {
+    local target_id="$1"
+
+    case "${target_id}" in
+        mysql84|mysql97)
+            printf '%s\n' "mysql"
+            ;;
+        mariadb1011|mariadb114|mariadb118|mariadb123)
+            printf '%s\n' "mariadb"
+            ;;
+        *)
+            echo "Unsupported migration target '${target_id}'." >&2
+            return 1
+            ;;
+    esac
+}
+
+connection_string_for_port() {
+    local port="$1"
+
+    printf '%s' "Server=127.0.0.1;Port=${port};Database=doka_provider;"
+    printf '%s' "User ID=root;Password=root_password;Persist Security Info=True;"
+}
+
+normal_script_path_for() {
+    local target_id="$1"
+
+    printf '%s\n' "${scripts_dir}/${target_id}/migration.sql"
+}
+
+idempotent_script_path_for() {
+    local target_id="$1"
+
+    printf '%s\n' "${scripts_dir}/${target_id}/migration-idempotent.sql"
+}
+
+generate_scripts() {
+    local target_id="$1"
+    local server_version="$2"
+    local target_scripts_dir="${scripts_dir}/${target_id}"
+    local normal_script_path
+    local idempotent_script_path
+
+    normal_script_path="$(normal_script_path_for "${target_id}")"
+    idempotent_script_path="$(idempotent_script_path_for "${target_id}")"
+    mkdir -p "${target_scripts_dir}"
+
+    DOKA_MIGRATION_SERVER_VERSION="${server_version}" \
+        dotnet tool run dotnet-ef -- migrations script \
+        --project "${migration_project}" \
+        --startup-project "${migration_project}" \
+        --context "${migration_context}" \
+        --configuration Release \
+        --no-build \
+        --no-color \
+        --output "${normal_script_path}"
+
+    DOKA_MIGRATION_SERVER_VERSION="${server_version}" \
+        dotnet tool run dotnet-ef -- migrations script \
+        --project "${migration_project}" \
+        --startup-project "${migration_project}" \
+        --context "${migration_context}" \
+        --configuration Release \
+        --no-build \
+        --no-color \
+        --idempotent \
+        --output "${idempotent_script_path}"
+
+    for script_path in "${normal_script_path}" "${idempotent_script_path}"; do
+        if ! grep -Fq "CREATE TABLE \`MigrationWorkflowHandlerEvidence\`" "${script_path}"; then
+            echo "Migration handler evidence is missing from ${script_path}." >&2
+            return 1
+        fi
+    done
+}
+
+execute_script() {
+    local target_id="$1"
+    local script_path="$2"
+    local container_id
+    local client
+
+    container_id="$("${compose_command[@]}" ps -q "${target_id}")"
+    client="$(database_client "${target_id}")"
+
+    docker exec \
+        --interactive \
+        --env "MYSQL_PWD=root_password" \
+        "${container_id}" \
+        "${client}" \
+        --user=root \
+        doka_provider < "${script_path}"
+}
+
+run_dotnet_ef_update() {
+    local connection_string="$1"
+    local server_version="$2"
+    local target_migration="${3:-}"
+    local arguments=(
+        database update
+    )
+
+    if [[ -n "${target_migration}" ]]; then
+        arguments+=("${target_migration}")
+    fi
+
+    arguments+=(
+        --project "${migration_project}"
+        --startup-project "${migration_project}"
+        --context "${migration_context}"
+        --configuration Release
+        --no-build
+        --no-color
+        --connection "${connection_string}"
+    )
+
+    DOKA_MIGRATION_CONNECTION_STRING="${connection_string}" \
+    DOKA_MIGRATION_SERVER_VERSION="${server_version}" \
+        dotnet tool run dotnet-ef -- "${arguments[@]}"
+}
+
 run_workflow_command() {
     local connection_string="$1"
     local server_version="$2"
@@ -98,6 +220,58 @@ run_bundle_command() {
         "${bundle_path}" "$@" --connection "${connection_string}"
 }
 
+rollback_to_zero() {
+    local connection_string="$1"
+    local server_version="$2"
+
+    run_bundle_command "${connection_string}" "${server_version}" 0
+    run_workflow_command "${connection_string}" "${server_version}" "verify-rolled-back"
+}
+
+run_tooling_lifecycle() {
+    local target_id="$1"
+    local port="$2"
+    local server_version="$3"
+    local connection_string
+    local normal_script_path
+    local idempotent_script_path
+
+    connection_string="$(connection_string_for_port "${port}")"
+    normal_script_path="$(normal_script_path_for "${target_id}")"
+    idempotent_script_path="$(idempotent_script_path_for "${target_id}")"
+
+    echo "Applying Database.MigrateAsync on ${target_id}..."
+    run_workflow_command "${connection_string}" "${server_version}" "migrate"
+    run_workflow_command "${connection_string}" "${server_version}" "migrate"
+    run_workflow_command "${connection_string}" "${server_version}" "verify-latest"
+    rollback_to_zero "${connection_string}" "${server_version}"
+
+    echo "Applying IMigrator.MigrateAsync on ${target_id}..."
+    run_workflow_command "${connection_string}" "${server_version}" "migrate-direct"
+    run_workflow_command "${connection_string}" "${server_version}" "migrate-direct"
+    run_workflow_command "${connection_string}" "${server_version}" "verify-latest"
+    rollback_to_zero "${connection_string}" "${server_version}"
+
+    echo "Applying dotnet ef database update on ${target_id}..."
+    run_dotnet_ef_update "${connection_string}" "${server_version}"
+    run_dotnet_ef_update "${connection_string}" "${server_version}"
+    run_workflow_command "${connection_string}" "${server_version}" "verify-latest"
+    run_dotnet_ef_update "${connection_string}" "${server_version}" 0
+    run_workflow_command "${connection_string}" "${server_version}" "verify-rolled-back"
+
+    echo "Applying normal SQL script on ${target_id}..."
+    execute_script "${target_id}" "${normal_script_path}"
+    run_workflow_command "${connection_string}" "${server_version}" "verify-latest"
+    rollback_to_zero "${connection_string}" "${server_version}"
+
+    echo "Applying idempotent SQL script on ${target_id}..."
+    execute_script "${target_id}" "${idempotent_script_path}"
+    run_workflow_command "${connection_string}" "${server_version}" "verify-latest"
+    execute_script "${target_id}" "${idempotent_script_path}"
+    run_workflow_command "${connection_string}" "${server_version}" "verify-latest"
+    rollback_to_zero "${connection_string}" "${server_version}"
+}
+
 run_bundle_lifecycle() {
     local target_id="$1"
     local port="$2"
@@ -106,8 +280,7 @@ run_bundle_lifecycle() {
 
     # These credentials belong only to the isolated repository Compose stack;
     # no externally supplied database is mutated by this deployment gate.
-    connection_string="Server=127.0.0.1;Port=${port};Database=doka_provider;"
-    connection_string+="User ID=root;Password=root_password;Persist Security Info=True;"
+    connection_string="$(connection_string_for_port "${port}")"
 
     echo "Applying migration bundle to ${target_id}..."
     run_bundle_command "${connection_string}" "${server_version}"
@@ -180,6 +353,13 @@ write_evidence() {
 - generatedUtc: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 - runId: ${run_id}
 - modelSnapshot: pass
+- normalScriptGeneration: pass
+- idempotentScriptGeneration: pass
+- databaseMigrateAsync: pass
+- directMigratorMigrateAsync: pass
+- dotnetEfDatabaseUpdate: pass
+- normalScriptExecution: pass
+- idempotentScriptExecution: pass
 - bundleGeneration: pass
 - mysql84Lifecycle: pass
 - mysql97Lifecycle: pass
@@ -188,8 +368,9 @@ write_evidence() {
 - mariadb118Lifecycle: pass
 - mariadb123Lifecycle: pass
 
-The lifecycle applies, reapplies, rolls back to zero, reapplies, and reads back
-the checked-in migration through the generated EF Core migration bundle.
+Each target passes Database.MigrateAsync, direct IMigrator, dotnet ef database
+update, normal and idempotent script execution, and bundle apply, reapply,
+rollback-to-zero, recovery, and independent readback.
 EOF
 
     cat > "${evidence_file}" <<EOF
@@ -197,6 +378,13 @@ EOF
   "generatedUtc": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
   "runId": "${run_id}",
   "modelSnapshot": "pass",
+  "normalScriptGeneration": "pass",
+  "idempotentScriptGeneration": "pass",
+  "databaseMigrateAsync": "pass",
+  "directMigratorMigrateAsync": "pass",
+  "dotnetEfDatabaseUpdate": "pass",
+  "normalScriptExecution": "pass",
+  "idempotentScriptExecution": "pass",
   "bundleGeneration": "pass",
   "targets": {
     "mysql84": "pass",
@@ -237,6 +425,15 @@ mkdir -p "${evidence_dir}"
 
 bash "${repo_root}/eng/quality/check-migration-model.sh"
 
+# Generate through every active profile rather than assuming one family's
+# offline SQL also proves the other family's handler context.
+generate_scripts "mysql84" "mysql:8.4"
+generate_scripts "mysql97" "mysql:9.7"
+generate_scripts "mariadb1011" "mariadb:10.11"
+generate_scripts "mariadb114" "mariadb:11.4"
+generate_scripts "mariadb118" "mariadb:11.8"
+generate_scripts "mariadb123" "mariadb:12.3"
+
 dotnet tool run dotnet-ef -- migrations bundle \
     --project "${migration_project}" \
     --startup-project "${migration_project}" \
@@ -265,6 +462,13 @@ should_stop_compose=1
     mariadb114 \
     mariadb118 \
     mariadb123
+
+run_tooling_lifecycle "mysql84" "$(published_port mysql84)" "mysql:8.4"
+run_tooling_lifecycle "mysql97" "$(published_port mysql97)" "mysql:9.7"
+run_tooling_lifecycle "mariadb1011" "$(published_port mariadb1011)" "mariadb:10.11"
+run_tooling_lifecycle "mariadb114" "$(published_port mariadb114)" "mariadb:11.4"
+run_tooling_lifecycle "mariadb118" "$(published_port mariadb118)" "mariadb:11.8"
+run_tooling_lifecycle "mariadb123" "$(published_port mariadb123)" "mariadb:12.3"
 
 run_bundle_lifecycle "mysql84" "$(published_port mysql84)" "mysql:8.4"
 run_bundle_lifecycle "mysql97" "$(published_port mysql97)" "mysql:9.7"

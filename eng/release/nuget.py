@@ -31,7 +31,7 @@ from xml.etree import ElementTree
 from . import evidence as release_evidence
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 PUBLICATION_RECEIPT_SCHEMA_VERSION = 2
 PROVIDER_PACKAGE_ID = "Doka.EntityFrameworkCore.MySql"
 SPATIAL_PACKAGE_ID = "Doka.EntityFrameworkCore.MySql.NetTopologySuite"
@@ -242,6 +242,19 @@ def canonical_package_digest(value: bytes | Path) -> str:
         raise PublicationError("NuGet package is not a readable canonical ZIP archive.") from exception
 
 
+def package_has_signature(value: bytes | Path) -> bool:
+    """Return whether one canonical NuGet signature entry is present."""
+    try:
+        package_source = BytesIO(value) if isinstance(value, bytes) else value
+        with zipfile.ZipFile(package_source) as package:
+            return any(
+                entry.filename.casefold() == NUGET_SIGNATURE_ENTRY
+                for entry in safe_zip_entries(package)
+            )
+    except (OSError, zipfile.BadZipFile, UnicodeError) as exception:
+        raise PublicationError("NuGet package is not a readable canonical ZIP archive.") from exception
+
+
 def package_metadata(path: Path) -> dict[str, Any]:
     """Read the identity, repository, and dependencies from one package."""
     try:
@@ -323,6 +336,10 @@ def validate_package_metadata(
 
         metadata = package_metadata(primary)
         symbol_metadata = package_metadata(symbols)
+        if package_has_signature(primary):
+            raise PublicationError(
+                f"Candidate package must be unsigned before NuGet.org ingestion: {primary.name}"
+            )
         if (
             metadata["id"] != package_id
             or metadata["version"] != version
@@ -805,6 +822,10 @@ def remote_states(
             raise PublicationError(
                 f"NuGet.org already contains conflicting bytes for {package_id} {version}."
             )
+        if not package_has_signature(remote):
+            raise PublicationError(
+                f"NuGet.org returned an unsigned primary package for {package_id} {version}."
+            )
         states[role] = {
             "id": package_id,
             "status": "matching",
@@ -812,6 +833,7 @@ def remote_states(
             "candidateContentDigest": candidate_digest,
             "publishedContentDigest": remote_digest,
             "publishedSha256": hashlib.sha256(remote).hexdigest(),
+            "repositorySignaturePresent": True,
         }
 
     # The extension cannot be usable without its exact provider dependency.
@@ -927,6 +949,10 @@ def readback(args: argparse.Namespace) -> None:
         if readback_digest != states[role]["candidateContentDigest"]:
             raise PublicationError(
                 f"Published package changed during readback: {package_id} {version}."
+            )
+        if not package_has_signature(remote):
+            raise PublicationError(
+                f"Published package lost its repository signature: {package_id} {version}."
             )
         destination = output_dir / package_file_name(package_id, version, "nupkg")
         destination.write_bytes(remote)

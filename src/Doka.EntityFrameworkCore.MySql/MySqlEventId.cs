@@ -127,6 +127,27 @@ public static class MySqlEventId
     /// </summary>
     public static readonly EventId MigrationLockAcquireFailed = new(1103, nameof(MigrationLockAcquireFailed));
 
+    /// <summary>Emitted when exact-type dispatch selects a custom migration handler.</summary>
+    public static readonly EventId MigrationOperationHandlerSelected = new(
+        1110,
+        nameof(MigrationOperationHandlerSelected));
+
+    /// <summary>Emitted when a custom migration handler registration is invalid.</summary>
+    public static readonly EventId InvalidMigrationOperationHandlerRegistration = new(
+        1111,
+        nameof(InvalidMigrationOperationHandlerRegistration));
+
+    /// <summary>Emitted when a selected custom migration handler throws.</summary>
+    public static readonly EventId MigrationOperationHandlerFailed = new(1112, nameof(MigrationOperationHandlerFailed));
+
+    /// <summary>Emitted when a custom migration handler violates its invocation contract.</summary>
+    public static readonly EventId MigrationOperationHandlerContractViolation = new(
+        1113,
+        nameof(MigrationOperationHandlerContractViolation));
+
+    /// <summary>Emitted when no built-in or custom handler owns an operation.</summary>
+    public static readonly EventId UnknownMigrationOperation = new(1114, nameof(UnknownMigrationOperation));
+
     /// <summary>
     /// Emitted at most once per <see cref="DbContext.SaveChanges()"/> batch when the
     /// projected prepared-statement parameter count would exceed the MySQL hard limit

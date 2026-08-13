@@ -14,10 +14,16 @@ internal sealed record ProviderProfile(EngineProfile Engine)
         ProviderCapability capability
     ) => capability switch
     {
+        ProviderCapability.SchemaOperations => ProviderSupportStatus.UnsupportedByEngine,
         ProviderCapability.JsonColumns =>
             Engine.Has(EngineCapability.NativeJsonType) ? ProviderSupportStatus.Native :
             Engine.Has(EngineCapability.JsonValidationFunction) ? ProviderSupportStatus.Emulated :
             ProviderSupportStatus.UnsupportedByEngine,
+        ProviderCapability.CheckConstraints => NativeWhen(EngineCapability.CheckConstraints),
+        ProviderCapability.DescendingIndexes => NativeWhen(EngineCapability.DescendingIndexes),
+        ProviderCapability.FilteredIndexes => ProviderSupportStatus.UnsupportedByEngine,
+        ProviderCapability.FunctionalIndexes => NativeWhen(EngineCapability.FunctionalIndexes),
+        ProviderCapability.IndexPrefixLengths => NativeWhen(EngineCapability.IndexPrefixLengths),
         ProviderCapability.ReturningClause => NativeWhen(EngineCapability.ReturningClause),
         ProviderCapability.Savepoints => NativeWhen(EngineCapability.Savepoints),
         ProviderCapability.GeneratedColumnNullabilityClause =>
@@ -44,6 +50,11 @@ internal sealed record ProviderProfile(EngineProfile Engine)
             Engine.Has(EngineCapability.RenameColumnSyntax)
                 ? ProviderSupportStatus.Native
                 : ProviderSupportStatus.Emulated,
+        ProviderCapability.RenameIndex => NativeWhen(EngineCapability.RenameIndex),
+        ProviderCapability.ExpressionDefaults => NativeWhen(EngineCapability.ExpressionDefaults),
+        ProviderCapability.PreparedDdl => NativeWhen(EngineCapability.PreparedDdl),
+        ProviderCapability.AtomicDdl => NativeWhen(EngineCapability.AtomicDdl),
+        ProviderCapability.TransactionalDdl => ProviderSupportStatus.UnsupportedByEngine,
         ProviderCapability.LateralDerivedTables => NativeWhen(EngineCapability.LateralDerivedTables),
         ProviderCapability.SelfReferencingMutations =>
             Engine.Has(EngineCapability.SelfReferencingMutationRequiresIsolation)

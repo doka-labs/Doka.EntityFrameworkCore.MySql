@@ -33,9 +33,7 @@ public sealed class MySqlObservabilityContractTests
             .ToHashSet(StringComparer.Ordinal);
 
         var contractMetrics = operations
-            .Select(operation => operation
-                .GetProperty("metric")
-                .GetString()!)
+            .SelectMany(MetricNames)
             .ToHashSet(StringComparer.Ordinal);
 
         var publicConstants = typeof(MySqlDiagnostics)
@@ -60,7 +58,9 @@ public sealed class MySqlObservabilityContractTests
                 .Distinct(StringComparer.Ordinal)
                 .Count());
         Assert.Equal(operations.Count, contractSpans.Count);
-        Assert.Equal(operations.Count, contractMetrics.Count);
+        Assert.Equal(
+            operations.Sum(operation => MetricNames(operation).Count),
+            contractMetrics.Count);
         Assert.True(publicSpans.SetEquals(contractSpans));
         Assert.True(publicMetrics.SetEquals(contractMetrics));
         Assert.Equal(
@@ -150,16 +150,12 @@ public sealed class MySqlObservabilityContractTests
                     operation
                         .GetProperty("span")
                         .GetString()));
-            Assert.False(
-                string.IsNullOrWhiteSpace(
-                    operation
-                        .GetProperty("metric")
-                        .GetString()));
             Assert.NotEmpty(
                 operation
                     .GetProperty("eventIds")
                     .EnumerateArray()
                     .ToList());
+            Assert.NotEmpty(MetricNames(operation));
         }
     }
 
@@ -270,10 +266,19 @@ public sealed class MySqlObservabilityContractTests
         {
             AssertDomain(
                 operation.GetProperty("metricTagDomains"),
-                "engine",
+                MySqlDiagnosticTags.Engine,
                 MySqlDiagnosticTags.MariaDb,
                 MySqlDiagnosticTags.MySql);
         }
+
+        var handlerOperation = operations
+            .Single(operation => OperationId(operation) == "migration-operation-handler");
+        var handlerBounds = handlerOperation.GetProperty("metricTagBounds");
+
+        Assert.True(handlerBounds.TryGetProperty(MySqlDiagnosticTags.MigrationHandlerId, out _));
+        Assert.True(handlerBounds.TryGetProperty(MySqlDiagnosticTags.MigrationHandlerOutcome, out _));
+        Assert.True(handlerBounds.TryGetProperty(MySqlDiagnosticTags.MigrationOperationType, out _));
+        Assert.True(handlerBounds.TryGetProperty(MySqlDiagnosticTags.ErrorType, out _));
 
         AssertDomain(serverDomains, "support_status", Enum.GetNames<MySqlServerVersionSupportStatus>());
         AssertDomain(serverDomains, "compatibility_mode", Enum.GetNames<MySqlServerVersionCompatibilityMode>());
@@ -294,7 +299,8 @@ public sealed class MySqlObservabilityContractTests
         using var sink = new ActivitySink();
         using var rootActivity = new Activity("observability-tag-contract").Start();
         var secret = "password=secret;database=tenant-42;SELECT secret_column";
-        var exception = new InvalidOperationException(secret);
+        var privateData = "tenant=private_tenant";
+        var exception = new InvalidOperationException(secret) { Data = { ["private-context"] = privateData } };
 
         using (MySqlActivitySource.StartMigrationLockAcquire(EngineFamily.MySql)) { }
 
@@ -315,6 +321,15 @@ public sealed class MySqlObservabilityContractTests
         using (MySqlActivitySource.StartCommitUnknown("Closed", EngineFamily.MySql, exception)) { }
 
         using (MySqlActivitySource.StartServerVersionResolve(EngineFamily.MariaDb)) { }
+
+        using (var handlerActivity = MySqlActivitySource.StartMigrationOperationHandler(
+                   "tests.handler",
+                   "Tests.CustomOperation",
+                   "default",
+                   EngineFamily.MySql))
+        {
+            handlerActivity?.SetTag(MySqlDiagnosticTags.MigrationHandlerOutcome, "generated");
+        }
 
         var tagContract = contract.RootElement.GetProperty("spanTagContract");
         var required = tagContract
@@ -341,7 +356,7 @@ public sealed class MySqlObservabilityContractTests
             .Activities.Where(activity => activity.TraceId == rootActivity.TraceId)
             .ToList();
 
-        Assert.Equal(8, activities.Count);
+        Assert.Equal(9, activities.Count);
 
         foreach (var activity in activities)
         {
@@ -357,6 +372,12 @@ public sealed class MySqlObservabilityContractTests
                 value => value
                         ?.ToString()
                         ?.Contains(secret, StringComparison.Ordinal)
+                    == true);
+            Assert.DoesNotContain(
+                tags.Values,
+                value => value
+                        ?.ToString()
+                        ?.Contains(privateData, StringComparison.Ordinal)
                     == true);
         }
 
@@ -402,6 +423,14 @@ public sealed class MySqlObservabilityContractTests
     ) => operation
         .GetProperty("id")
         .GetString()!;
+
+    private static IReadOnlyList<string> MetricNames(
+        JsonElement operation
+    ) => operation
+        .GetProperty("metrics")
+        .EnumerateArray()
+        .Select(value => value.GetString()!)
+        .ToArray();
 
     private static void AssertDomain(
         JsonElement domains,

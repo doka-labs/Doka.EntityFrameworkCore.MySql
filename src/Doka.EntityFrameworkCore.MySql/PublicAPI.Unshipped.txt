@@ -1,4 +1,13 @@
 #nullable enable
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.MigrationOperationHandlerCallsTotalMetricName = "doka_mysql_migration_operation_handler_calls_total" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.MigrationOperationHandlerContractViolationsTotalMetricName = "doka_mysql_migration_operation_handler_contract_violations_total" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.MigrationOperationHandlerDurationMetricName = "doka_mysql_migration_operation_handler_duration_seconds" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.MigrationOperationHandlerFailuresTotalMetricName = "doka_mysql_migration_operation_handler_failures_total" -> string!
+const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.MigrationOperationHandlerSpanName = "db.migration.operation_handler.generate" -> string!
+Doka.EntityFrameworkCore.MySql.IMySqlMigrationOperationHandler
+Doka.EntityFrameworkCore.MySql.IMySqlMigrationOperationHandler.Generate(Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext! context) -> Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult!
+Doka.EntityFrameworkCore.MySql.IMySqlMigrationOperationHandler.HandlerId.get -> string!
+Doka.EntityFrameworkCore.MySql.IMySqlMigrationOperationHandler.OperationType.get -> System.Type!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.MySqlDbContextOptionsBuilder(Microsoft.EntityFrameworkCore.DbContextOptionsBuilder! optionsBuilder) -> void
 Doka.EntityFrameworkCore.MySql.MySqlDbSetExtensions
@@ -26,6 +35,64 @@ const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.SourceName = "Doka.EntityF
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.CommandTimeout(int commandTimeout) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.DefaultGuidFormat(Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.EnableRetryOnFailure(int maxRetryCount = 6, System.TimeSpan? maxRetryDelay = null) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
+Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec
+Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec.CommandText.get -> string!
+Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec.TransactionSuppressed.get -> bool
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.ApplicationTimePeriods = 15 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.AtomicDdl = 19 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.BitemporalTables = 16 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.CheckConstraints = 2 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.DescendingIndexes = 3 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.ExpressionDefaults = 13 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.FilteredIndexes = 4 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.FunctionalIndexes = 5 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.GeneratedColumnNullabilityClause = 9 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.IndexPrefixLengths = 6 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.JsonColumns = 1 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.PreparedDdl = 18 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.RenameColumn = 7 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.RenameIndex = 8 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.SchemaOperations = 0 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.Sequences = 17 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.SpatialColumnSridAttribute = 12 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.StoredGeneratedColumns = 11 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.TemporalTables = 14 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.TransactionalDdl = 20 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.VirtualGeneratedColumns = 10 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeatureSet
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeatureSet.GetSupport(Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature feature) -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeatureSupport
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeatureSupport
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeatureSupport.Emulated = 2 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeatureSupport
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeatureSupport.Native = 1 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeatureSupport
+Doka.EntityFrameworkCore.MySql.MySqlMigrationFeatureSupport.Unsupported = 0 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeatureSupport
+Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode
+Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode.ContextExpired = 8 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode
+Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode.DuplicateHandlerId = 1 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode
+Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode.DuplicateOperationOwnership = 2 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode
+Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode.HandlerFailed = 5 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode
+Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode.InvalidHandlerResult = 6 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode
+Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode.InvalidRegistration = 0 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode
+Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode.RecursiveProviderRendering = 7 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode
+Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode.ReservedOperationType = 3 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode
+Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode.UnknownOperationType = 4 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.Features.get -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeatureSet!
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.Model.get -> Microsoft.EntityFrameworkCore.Metadata.IModel?
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.Operation.get -> Microsoft.EntityFrameworkCore.Migrations.Operations.MigrationOperation!
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.OperationOrdinal.get -> int
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.Options.get -> Microsoft.EntityFrameworkCore.Migrations.MigrationsSqlGenerationOptions
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.RenderStandardOperation(Microsoft.EntityFrameworkCore.Migrations.Operations.MigrationOperation! operation) -> System.Collections.Generic.IReadOnlyList<Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec!>!
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.ServerVersion.get -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationHandlerException
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationHandlerException.FailureCode.get -> Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationHandlerException.GenerationOptions.get -> Microsoft.EntityFrameworkCore.Migrations.MigrationsSqlGenerationOptions
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationHandlerException.HandlerId.get -> string?
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationHandlerException.OperationOrdinal.get -> int
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationHandlerException.OperationType.get -> string!
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult.Commands.get -> System.Collections.Generic.IReadOnlyList<Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec!>!
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult.OutcomeCode.get -> string!
 Doka.EntityFrameworkCore.MySql.MySqlOptionsExtension
 Doka.EntityFrameworkCore.MySql.MySqlOptionsExtension.MySqlOptionsExtension() -> void
 override Doka.EntityFrameworkCore.MySql.MySqlOptionsExtension.ApplyServices(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> void
@@ -64,6 +131,8 @@ Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions
 Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder
 Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder.ScaffoldTextGuidsAsGuids() -> Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping
+static Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec.Create(string! commandText, bool transactionSuppressed = false) -> Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec!
+static Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult.Generated(System.Collections.Generic.IEnumerable<Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec!>! commands, string! outcomeCode) -> Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult!
 static Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping.Default.get -> Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping!
 Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping.MySqlRowVersionTypeMapping() -> void
 Doka.EntityFrameworkCore.MySql.MySqlServerVersion
@@ -162,12 +231,16 @@ static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.ForeignKeyPrincipalT
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.HardCancellation -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.ImplicitDecimalPrecisionDefaulted -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.InvalidConfiguration -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.InvalidMigrationOperationHandlerRegistration -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MigrationOperationHandlerContractViolation -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.InvalidSpatialIndexConfiguration -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.KeyOrIndexMaxLengthRequired -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.LockReleaseFailed -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MigrationLockAcquired -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MigrationLockAcquireFailed -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MigrationLockTimeout -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MigrationOperationHandlerFailed -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MigrationOperationHandlerSelected -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MissingSpatialPackageDuringScaffolding -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.MissingSpatialTranslation -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.RetryAttempt -> Microsoft.Extensions.Logging.EventId
@@ -176,6 +249,7 @@ static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.SchemaUnsupported ->
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.ServerVersionResolved -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.SoftCancellation -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.SpatialSridMismatchDetected -> Microsoft.Extensions.Logging.EventId
+static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.UnknownMigrationOperation -> Microsoft.Extensions.Logging.EventId
 static readonly Doka.EntityFrameworkCore.MySql.MySqlEventId.UnsupportedServerVersion -> Microsoft.Extensions.Logging.EventId
 Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder
 Doka.EntityFrameworkCore.MySql.MySqlOwnedNavigationTemporalTableBuilder<TOwnerEntity, TDependentEntity>

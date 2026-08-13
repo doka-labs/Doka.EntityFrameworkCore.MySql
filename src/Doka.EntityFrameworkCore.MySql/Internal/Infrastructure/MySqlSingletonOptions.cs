@@ -7,6 +7,8 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
 
     public ProviderProfile? Profile { get; private set; }
 
+    public MySqlServerVersion? ServerVersion { get; private set; }
+
     public MySqlRetryOptions? RetryOptions { get; private set; }
 
     public MySqlGuidFormat DefaultGuidFormat { get; private set; } = MySqlGuidFormat.Binary16;
@@ -49,6 +51,7 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
             using var activity = MySqlActivitySource.StartServerVersionResolve(serverVersion.Profile.Engine.Family);
 
             Profile = serverVersion.Profile;
+            ServerVersion = serverVersion;
             RetryOptions = extension.RetryOptions;
             DefaultGuidFormat = extension.DefaultGuidFormat;
             UsesDataSource = extension.DataSource is not null;
@@ -99,7 +102,7 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
         var extension = options.FindExtension<MySqlOptionsExtension>()
             ?? throw new InvalidOperationException("The Doka MySQL options extension is not configured.");
 
-        if (!Equals(Profile, extension.ServerVersion?.Profile))
+        if (!Equals(ServerVersion, extension.ServerVersion))
         {
             LogConfigurationMismatch(
                 options,

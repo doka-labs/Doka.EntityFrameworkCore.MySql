@@ -16,13 +16,17 @@ internal static class EngineProfileTable
     /// </summary>
     internal const int Capacity = 128;
 
+    private static readonly Version s_mySql57 = new(5, 7, 0);
+    private static readonly Version s_mySql571 = new(5, 7, 1);
     private static readonly Version s_mySql576 = new(5, 7, 6);
     private static readonly Version s_mySql578 = new(5, 7, 8);
+    private static readonly Version s_mySql800 = new(8, 0, 0);
     private static readonly Version s_mySql801 = new(8, 0, 1);
     private static readonly Version s_mySql803 = new(8, 0, 3);
     private static readonly Version s_mySql804 = new(8, 0, 4);
     private static readonly Version s_mySql8013 = new(8, 0, 13);
     private static readonly Version s_mySql8014 = new(8, 0, 14);
+    private static readonly Version s_mySql8016 = new(8, 0, 16);
     private static readonly Version s_mariaDb52 = new(5, 2, 0);
     private static readonly Version s_mariaDb1021 = new(10, 2, 1);
     private static readonly Version s_mariaDb1022 = new(10, 2, 2);
@@ -33,6 +37,9 @@ internal static class EngineProfileTable
     private static readonly Version s_mariaDb105 = new(10, 5, 0);
     private static readonly Version s_mariaDb1052 = new(10, 5, 2);
     private static readonly Version s_mariaDb1053 = new(10, 5, 3);
+    private static readonly Version s_mariaDb1061 = new(10, 6, 1);
+    private static readonly Version s_mariaDb1062 = new(10, 6, 2);
+    private static readonly Version s_mariaDb108 = new(10, 8, 0);
     private static readonly Version s_mariaDb114 = new(11, 4, 0);
 
     // EF Core's options graph requires stable profile references for repeated
@@ -124,6 +131,17 @@ internal static class EngineProfileTable
         HashSet<EngineCapability> capabilities
     )
     {
+        if (IsAtLeast(version, s_mySql57))
+        {
+            capabilities.Add(EngineCapability.IndexPrefixLengths);
+            capabilities.Add(EngineCapability.PreparedDdl);
+        }
+
+        if (IsAtLeast(version, s_mySql571))
+        {
+            capabilities.Add(EngineCapability.RenameIndex);
+        }
+
         if (IsAtLeast(version, s_mySql576))
         {
             capabilities.Add(EngineCapability.VirtualGeneratedColumns);
@@ -136,9 +154,15 @@ internal static class EngineProfileTable
             capabilities.Add(EngineCapability.NativeJsonType);
         }
 
+        if (IsAtLeast(version, s_mySql800))
+        {
+            capabilities.Add(EngineCapability.AtomicDdl);
+        }
+
         if (IsAtLeast(version, s_mySql801))
         {
             capabilities.Add(EngineCapability.CommonTableExpressions);
+            capabilities.Add(EngineCapability.DescendingIndexes);
         }
 
         if (IsAtLeast(version, s_mySql803))
@@ -156,11 +180,18 @@ internal static class EngineProfileTable
         if (IsAtLeast(version, s_mySql8013))
         {
             capabilities.Add(EngineCapability.FunctionalIndexExpressionMetadata);
+            capabilities.Add(EngineCapability.FunctionalIndexes);
+            capabilities.Add(EngineCapability.ExpressionDefaults);
         }
 
         if (IsAtLeast(version, s_mySql8014))
         {
             capabilities.Add(EngineCapability.LateralDerivedTables);
+        }
+
+        if (IsAtLeast(version, s_mySql8016))
+        {
+            capabilities.Add(EngineCapability.CheckConstraints);
         }
 
         capabilities.Add(EngineCapability.SelfReferencingMutationRequiresIsolation);
@@ -178,6 +209,13 @@ internal static class EngineProfileTable
         {
             capabilities.Add(EngineCapability.VirtualGeneratedColumns);
             capabilities.Add(EngineCapability.StoredGeneratedColumns);
+            capabilities.Add(EngineCapability.IndexPrefixLengths);
+        }
+
+        if (IsAtLeast(version, s_mariaDb1021))
+        {
+            capabilities.Add(EngineCapability.CheckConstraints);
+            capabilities.Add(EngineCapability.ExpressionDefaults);
         }
 
         if (IsAtLeast(version, s_mariaDb52)
@@ -221,11 +259,27 @@ internal static class EngineProfileTable
         if (IsAtLeast(version, s_mariaDb1052))
         {
             capabilities.Add(EngineCapability.RenameColumnSyntax);
+            capabilities.Add(EngineCapability.RenameIndex);
         }
 
         if (IsAtLeast(version, s_mariaDb1053))
         {
             capabilities.Add(EngineCapability.ApplicationTimeWithoutOverlaps);
+        }
+
+        if (IsAtLeast(version, s_mariaDb1061))
+        {
+            capabilities.Add(EngineCapability.AtomicDdl);
+        }
+
+        if (IsAtLeast(version, s_mariaDb1062))
+        {
+            capabilities.Add(EngineCapability.PreparedDdl);
+        }
+
+        if (IsAtLeast(version, s_mariaDb108))
+        {
+            capabilities.Add(EngineCapability.DescendingIndexes);
         }
 
         if (IsAtLeast(version, s_mariaDb114))

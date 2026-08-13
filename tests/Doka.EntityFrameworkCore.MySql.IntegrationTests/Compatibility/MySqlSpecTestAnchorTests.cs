@@ -1,14 +1,14 @@
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
-/// Anchors an official EF relational specification test to the supported Phase 1 MySQL 8.4 baseline.
+/// Anchors an official EF relational specification test to the supported MySQL 8.4 LTS target.
 /// </summary>
 [Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlSpecTestAnchorTests
 {
     /// <summary>
     /// Verifies that the provider can execute a narrow migrations-infrastructure specification anchor
-    /// against the supported MySQL 8.4 baseline without claiming broader Phase 2 semantics.
+    /// against the supported MySQL 8.4 baseline independently of the broader functional suite.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Migration_infrastructure_spec_anchor_executes_against_mysql84()
@@ -48,6 +48,8 @@ public sealed class MySqlSpecTestAnchorTests
     private sealed class
         MySqlMigrationsInfrastructureAnchor : MigrationsInfrastructureTestBase<MySqlMigrationsInfrastructureFixture>
     {
+        private const int DefaultCommandTimeoutSeconds = 30;
+
         public MySqlMigrationsInfrastructureAnchor(
             MySqlMigrationsInfrastructureFixture fixture
         ) : base(fixture) { }
@@ -69,11 +71,8 @@ public sealed class MySqlSpecTestAnchorTests
                 .OpenAsync()
                 .ConfigureAwait(false);
 
-            await using var command = connection.CreateCommand();
-            command.CommandText = sql;
-
-            await command
-                .ExecuteNonQueryAsync()
+            await MySqlClientScriptExecutor
+                .ExecuteAsync(connection, sql, DefaultCommandTimeoutSeconds)
                 .ConfigureAwait(false);
         }
     }

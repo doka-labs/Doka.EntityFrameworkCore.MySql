@@ -8,7 +8,7 @@ public sealed class AdrRepositoryValidatorTests
         var report = AdrRepositoryValidator.Validate(FindRepositoryRoot());
 
         Assert.True(report.IsValid, FormatErrors(report));
-        Assert.Equal(26, report.Documents.Count);
+        Assert.Equal(27, report.Documents.Count);
     }
 
     [Fact]
@@ -246,6 +246,12 @@ public sealed class AdrRepositoryValidatorTests
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
 
         Assert.Contains("migrations has-pending-model-changes", modelGate, StringComparison.Ordinal);
+        Assert.Contains("migrations script", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains("--idempotent", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains("migrate-direct", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains("database update", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains("execute_script", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains("MigrationWorkflowHandlerEvidence", deploymentGate, StringComparison.Ordinal);
         Assert.Contains("migrations bundle", deploymentGate, StringComparison.Ordinal);
         Assert.Contains(
             "run_bundle_command \"${connection_string}\" \"${server_version}\" 0",
@@ -265,6 +271,26 @@ public sealed class AdrRepositoryValidatorTests
             StringComparison.Ordinal);
         Assert.Contains("run: bash eng/quality-gates.sh", workflow, StringComparison.Ordinal);
         Assert.Contains("run: bash eng/test-migration-deployment.sh", workflow, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Keeps an isolated build against the exact local package bytes inside the
+    /// release-candidate package stage.
+    /// </summary>
+    [Fact]
+    public void Release_candidate_package_stage_builds_a_package_only_consumer()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var packageConsumer = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "testing", "test-local-package-consumer.sh"));
+        var releaseCandidate = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
+
+        Assert.Contains("all(.libraries[]; .type != \"project\")", packageConsumer, StringComparison.Ordinal);
+        Assert.Contains("restored_provider_sha256", packageConsumer, StringComparison.Ordinal);
+        Assert.Contains("restored_spatial_sha256", packageConsumer, StringComparison.Ordinal);
+        Assert.Contains("test-local-package-consumer.sh", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains("${local_package_consumer_dir}", releaseCandidate, StringComparison.Ordinal);
     }
 
     /// <summary>

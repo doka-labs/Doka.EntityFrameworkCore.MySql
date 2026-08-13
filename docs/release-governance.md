@@ -124,6 +124,21 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - stable identity and controlled resume: the candidate root is keyed to
     `github.run_id`; a rerun may select only checksum-verified artifacts from
     that same run and no later than the assembling attempt
+  - package-consumer boundary: the package stage restores the exact candidate
+    `.nupkg` bytes into an empty cache and builds the public runtime consumer
+    outside the repository without a project reference. Its conformance suite
+    exercises both handler and provider registration orders, exact and unknown
+    operation dispatch, provider baseline rendering, command boundaries,
+    context expiry, and duplicate handler-ID and operation-type failures before
+    binding both restored package hashes
+  - dependency closure: both shipped projects carry reviewed
+    `packages.lock.json` files, and the package stage restores them in locked
+    mode before candidate bytes exist. These locks bind the release build's
+    direct and transitive graph; they do not narrow the dependency ranges
+    advertised by the library packages to downstream consumers. The shared
+    repository qualification gate performs the same locked restore before its
+    ordinary solution restore, so a stale lock fails on the originating pull
+    request rather than on a later release tag
   - artifact restoration: resolver jobs bind artifact ID, name, attempt, and
     digest before traversal- and symlink-safe extraction; missing, expired,
     ambiguous, future-attempt, mismatched, or conflicting artifacts fail closed
@@ -143,6 +158,7 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/release-candidate/<run-id>/release-candidate-evidence.json`
     - `artifacts/release-candidate/<run-id>/release-candidate-evidence.sha256`
     - `artifacts/release-candidate/<run-id>/packages/...`
+    - `artifacts/release-candidate/<run-id>/local-package-consumer/...`
     - `artifacts/release-candidate/<run-id>/sbom/...`
     - `artifacts/release-candidate/<run-id>/migration-deployment/...`
     - `artifacts/release-candidate/<run-id>/runtime/...`
@@ -172,6 +188,12 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - environment: `nuget`, restricted to the `main` branch
   - credential: a NuGet.org short-lived API key exchanged from GitHub OIDC
     immediately before the first push; no persistent NuGet API key is stored
+  - signing model: candidate packages are unsigned before ingestion. GitHub
+    provenance and Trusted Publishing bind their build and publisher identity;
+    NuGet.org adds the repository signature, whose presence and cryptographic
+    validity are required during public readback. Author signing would require
+    a separately approved certificate-custody and rotation contract and is not
+    silently simulated with a long-lived PFX secret
   - candidate binding: completed successful `release-candidate.yml` run,
     immutable artifact readback, canonical manifest verification, exact
     current `main` commit, exactly one matching semantic tag, matching hosted
@@ -189,8 +211,9 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     symbols; primary packages never use `--skip-duplicate`, while symbol-only
     uploads accept the endpoint's documented HTTP 409 pending state
   - public readback: bounded NuGet V3 and symbol-server polling, canonical
-    package comparison, Portable PDB retrieval using the candidate DLL's SSQP
-    key and SHA-256 checksum, empty-cache restore from NuGet.org only, and
+    package comparison, cryptographic verification of every downloaded NuGet
+    repository signature, Portable PDB retrieval using the candidate DLL's
+    SSQP key and SHA-256 checksum, empty-cache restore from NuGet.org only, and
     execution of the basic and spatial compiled-model runtime contract against
     the candidate's pinned MySQL 8.4 image
   - retained evidence:
@@ -198,6 +221,7 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `publication-preflight.json`
     - `symbol-readback-manifest.json`
     - `nuget-publication-readback.json`
+    - `nuget-signature-verification.txt`
     - `consumer-runtime-readback.json`
     - downloaded public package and Portable PDB payloads
   - retained hosted artifacts:
@@ -360,6 +384,11 @@ The current baseline uses these exact IDs:
   - `1101` `MigrationLockTimeout`
   - `1102` `LockReleaseFailed`
   - `1103` `MigrationLockAcquireFailed`
+  - `1110` `MigrationOperationHandlerSelected`
+  - `1111` `InvalidMigrationOperationHandlerRegistration`
+  - `1112` `MigrationOperationHandlerFailed`
+  - `1113` `MigrationOperationHandlerContractViolation`
+  - `1114` `UnknownMigrationOperation`
 - Resilience:
   - `1500` `RetryAttempt`
   - `1501` `RetryLimitExceeded`
@@ -390,6 +419,13 @@ Release hardening keeps review obligations explicit:
   - affected `MySqlEventId` values or ranges
   - affected benchmark, compatibility, or release-candidate evidence paths when applicable
 - benchmark-impacting or compatibility-impacting changes must point to the relevant evidence workflow or explain why no evidence path changed
+- migration-operation handler SPI changes must reconcile the exact-type
+  registry, public API, feature projection, package boundary, diagnostics,
+  observability contract, and dispatch benchmark in the same PR
+- a handler package must prove its options-extension registration, generated
+  SQL, engine matrix, recovery behavior, and packed-consumer boundary in its
+  own independently authoritative release gate; the provider does not depend
+  on or trigger that package's workflow
 
 The repository PR template is the review seam for these obligations.
 
@@ -483,7 +519,16 @@ enumerates the expected evidence tree and rejects every additional file.
   [Dependabot supported ecosystems and repositories](https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories),
   retrieved 2026-08-03.
 - NuGet, [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing),
-  retrieved 2026-08-04.
+  retrieved 2026-08-12.
+- NuGet,
+  [PackageReference lock files](https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#locking-dependencies),
+  retrieved 2026-08-12.
+- NuGet,
+  [`dotnet nuget verify`](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-nuget-verify),
+  retrieved 2026-08-12.
+- NuGet,
+  [repository signatures](https://learn.microsoft.com/en-us/nuget/api/repository-signatures-resource),
+  retrieved 2026-08-12.
 - NuGet, [`NuGet/login`](https://github.com/NuGet/login), retrieved
   2026-08-03.
 - NuGet, [`dotnet nuget push`](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-nuget-push),

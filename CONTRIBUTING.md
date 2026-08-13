@@ -242,13 +242,50 @@ Workflow for changes that add or remove public API:
 
 Post-v1.0 the project will additionally adopt `PackageValidation` (built-in to .NET 8+) so the released NuGet packages are compared against the previous baseline at `dotnet pack` time -- see ADR D-008 for the deferred-activation trigger.
 
+## Migration-Operation Handler Changes
+
+Changes to the public migration-operation handler SPI must preserve the exact
+ownership and fail-closed contract in ADR D-027. In addition to the normal
+public-API workflow:
+
+1. Keep handler registration scoped and additive through a package-owned
+   `IDbContextOptionsExtension.ApplyServices` implementation and
+   `TryAddEnumerable`. Do not assume an application service registration enters
+   EF Core's internal service provider.
+2. Add a concrete custom `MigrationOperation` type for each independent intent.
+   Do not claim a built-in EF Core operation or use a catch-all base type.
+3. Exercise both registration orders, multiple independent extensions, exact
+   dispatch, duplicate ownership, missing ownership, and every relevant
+   `MigrationsSqlGenerationOptions` combination.
+4. Preserve command order, command boundaries, and
+   `TransactionSuppressed`. Validate the complete staged result before any
+   outer builder mutation.
+5. Route every engine difference through `MySqlMigrationFeatureSet` and the
+   canonical internal capability chain. Do not add package-local version
+   comparisons.
+6. Prove that logs, activities, metrics, and provider-created exception text
+   contain no SQL, connection string, object name, payload, or plugin exception
+   message.
+7. Add live integration coverage only for behavior that reaches an engine.
+   Pure registration and in-memory SQL-generation contracts belong in unit,
+   functional, packed-consumer, and benchmark verification. Keep the
+   migration-workflow fixture wired through design-time normal and idempotent
+   scripts, runtime migration, and the release bundle so every EF tooling path
+   resolves the same options-owned handler graph.
+8. Update the feature guide, diagnostic catalog, machine-readable
+   observability contract, changelog, public API files, and ADR when their
+   corresponding contracts change.
+
+The complete package-author contract and verification matrix are documented in
+`docs/migration-operation-handlers.md`.
+
 ## Reporting Issues
 
 Use [GitHub Issues](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/issues)
 for bug reports and feature requests. The complete support scope and reporting
 requirements are documented in [SUPPORT.md](SUPPORT.md). Include:
 
-- the engine and version you are running against (MySQL 8.x or MariaDB 11.x)
+- the exact supported MySQL or MariaDB LTS engine and patch version
 - a minimal reproduction (connection configuration, model snippet, query)
 - the generated SQL if applicable (`query.ToQueryString()` works for `IQueryable`)
 

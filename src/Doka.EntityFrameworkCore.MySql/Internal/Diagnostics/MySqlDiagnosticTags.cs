@@ -22,6 +22,10 @@ internal static class MySqlDiagnosticTags
     public const string Engine = "engine";
     public const string MetricSupportStatus = "support_status";
     public const string MetricCompatibilityMode = "compatibility_mode";
+    public const string MigrationHandlerId = "doka.mysql.migrations.handler.id";
+    public const string MigrationOperationType = "doka.mysql.migrations.operation.type";
+    public const string MigrationGenerationMode = "doka.mysql.migrations.generation.mode";
+    public const string MigrationHandlerOutcome = "doka.mysql.migrations.handler.outcome";
 
     public const string MySql = "mysql";
     public const string MariaDb = "mariadb";

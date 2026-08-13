@@ -34,6 +34,26 @@ internal static class MySqlMeter
         unit: "{failure}",
         description: "Explicit migration advisory-lock release failures.");
 
+    public static readonly Counter<long> MigrationOperationHandlerCallsTotal = s_meter.CreateCounter<long>(
+        MySqlDiagnostics.MigrationOperationHandlerCallsTotalMetricName,
+        unit: "{call}",
+        description: "Custom migration-operation handler calls.");
+
+    public static readonly Counter<long> MigrationOperationHandlerFailuresTotal = s_meter.CreateCounter<long>(
+        MySqlDiagnostics.MigrationOperationHandlerFailuresTotalMetricName,
+        unit: "{failure}",
+        description: "Custom migration-operation handler execution failures.");
+
+    public static readonly Counter<long> MigrationOperationHandlerContractViolationsTotal = s_meter.CreateCounter<long>(
+        MySqlDiagnostics.MigrationOperationHandlerContractViolationsTotalMetricName,
+        unit: "{violation}",
+        description: "Custom migration-operation handler contract violations.");
+
+    public static readonly Histogram<double> MigrationOperationHandlerDuration = s_meter.CreateHistogram<double>(
+        MySqlDiagnostics.MigrationOperationHandlerDurationMetricName,
+        unit: "s",
+        description: "Wall-time spent inside custom migration-operation handlers.");
+
     /// <summary>
     /// Counter incremented once per retry attempt the execution strategy
     /// performs. The <c>outcome</c> tag carries <c>attempt</c>.

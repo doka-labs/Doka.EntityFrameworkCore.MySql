@@ -4,6 +4,9 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
 {
     private const string PreviousDdlCommentSqlModeVariable = "@__doka_previous_sql_mode";
     private readonly MySqlSingletonOptions _mySqlSingletonOptions;
+    private readonly MySqlMigrationFeatureSet _migrationFeatures;
+    private readonly MySqlMigrationOperationHandlerRegistry _operationHandlerRegistry;
+    private int _operationOrdinal = -1;
 
     private ProviderProfile Profile => _mySqlSingletonOptions.Profile
         ?? throw new InvalidOperationException(
@@ -11,7 +14,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
 
     public MySqlMigrationsSqlGenerator(
         MigrationsSqlGeneratorDependencies dependencies,
-        IEnumerable<ISingletonOptions> singletonOptions
+        IEnumerable<ISingletonOptions> singletonOptions,
+        IEnumerable<IMySqlMigrationOperationHandler>? operationHandlers = null
     ) : base(dependencies)
     {
         ArgumentNullException.ThrowIfNull(singletonOptions);
@@ -19,6 +23,32 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
         _mySqlSingletonOptions = singletonOptions
             .OfType<MySqlSingletonOptions>()
             .Single();
+        _migrationFeatures = new MySqlMigrationFeatureSet(Profile);
+
+        try
+        {
+            _operationHandlerRegistry = new MySqlMigrationOperationHandlerRegistry(
+                operationHandlers ?? []);
+        }
+        catch (MySqlMigrationOperationHandlerException exception)
+        {
+            MySqlLoggerMessages.InvalidMigrationOperationHandlerRegistration(
+                Dependencies.MigrationsLogger.Logger,
+                exception);
+
+            var operationType = exception.OperationType;
+            var tags = CreateHandlerMetricTags(
+                exception.HandlerId ?? "unknown",
+                operationType,
+                "default",
+                "invalid_registration",
+                Profile.Engine.Family,
+                exception.FailureCode.ToString());
+
+            MySqlMeter.MigrationOperationHandlerContractViolationsTotal.Add(1, tags);
+
+            throw;
+        }
     }
 
     private string DelimitMigrationIdentifier(

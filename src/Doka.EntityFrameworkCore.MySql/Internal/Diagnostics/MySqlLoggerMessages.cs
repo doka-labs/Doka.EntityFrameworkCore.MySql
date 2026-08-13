@@ -171,6 +171,57 @@ internal static class MySqlLoggerMessages
             "MySQL migration advisory lock acquisition failed. "
             + "LockScopeId={LockScopeId} DurationMs={DurationMs} ExceptionType={ExceptionType}");
 
+    private static readonly Action<ILogger, string, string, string, int, Exception?>
+        s_migrationOperationHandlerSelected = LoggerMessage.Define<string, string, string, int>(
+            LogLevel.Information,
+            MySqlEventId.MigrationOperationHandlerSelected,
+            "Selected custom migration-operation handler. HandlerId={HandlerId} "
+            + "OperationType={OperationType} GenerationMode={GenerationMode} "
+            + "OperationOrdinal={OperationOrdinal}");
+
+    private static readonly Action<ILogger, MySqlMigrationHandlerFailureCode, string, string, Exception?>
+        s_invalidMigrationOperationHandlerRegistration =
+            LoggerMessage.Define<MySqlMigrationHandlerFailureCode, string, string>(
+                LogLevel.Error,
+                MySqlEventId.InvalidMigrationOperationHandlerRegistration,
+                "Custom migration-operation handler registration is invalid. "
+                + "FailureCode={FailureCode} HandlerId={HandlerId} OperationType={OperationType}");
+
+    private static readonly Action<
+        ILogger,
+        string,
+        string,
+        string,
+        int,
+        MySqlMigrationHandlerFailureCode,
+        string,
+        Exception?> s_migrationOperationHandlerFailed =
+        LoggerMessage.Define<string, string, string, int, MySqlMigrationHandlerFailureCode, string>(
+            LogLevel.Error,
+            MySqlEventId.MigrationOperationHandlerFailed,
+            "Custom migration-operation handler failed. HandlerId={HandlerId} "
+            + "OperationType={OperationType} GenerationMode={GenerationMode} "
+            + "OperationOrdinal={OperationOrdinal} FailureCode={FailureCode} "
+            + "ExceptionType={ExceptionType}");
+
+    private static readonly Action<ILogger, string, string, string, int, MySqlMigrationHandlerFailureCode, Exception?>
+        s_migrationOperationHandlerContractViolation =
+            LoggerMessage.Define<string, string, string, int, MySqlMigrationHandlerFailureCode>(
+                LogLevel.Error,
+                MySqlEventId.MigrationOperationHandlerContractViolation,
+                "Custom migration-operation handler violated its invocation contract. "
+                + "HandlerId={HandlerId} OperationType={OperationType} "
+                + "GenerationMode={GenerationMode} OperationOrdinal={OperationOrdinal} "
+                + "FailureCode={FailureCode}");
+
+    private static readonly Action<ILogger, string, string, int, Exception?> s_unknownMigrationOperation =
+        LoggerMessage.Define<string, string, int>(
+            LogLevel.Error,
+            MySqlEventId.UnknownMigrationOperation,
+            "No built-in or custom migration-operation handler owns the operation. "
+            + "OperationType={OperationType} GenerationMode={GenerationMode} "
+            + "OperationOrdinal={OperationOrdinal}");
+
     public static void InvalidConfiguration(
         ILogger logger,
         MySqlConfigurationFailureReason reason,
@@ -193,7 +244,13 @@ internal static class MySqlLoggerMessages
     // than conflating an engine fact with provider availability.
     private static readonly (string Label, ProviderCapability Capability)[] s_capabilitySnapshot =
     [
+        ("SchemaOperations", ProviderCapability.SchemaOperations),
         ("JsonColumns", ProviderCapability.JsonColumns),
+        ("CheckConstraints", ProviderCapability.CheckConstraints),
+        ("DescendingIndexes", ProviderCapability.DescendingIndexes),
+        ("FilteredIndexes", ProviderCapability.FilteredIndexes),
+        ("FunctionalIndexes", ProviderCapability.FunctionalIndexes),
+        ("IndexPrefixLengths", ProviderCapability.IndexPrefixLengths),
         ("ReturningClause", ProviderCapability.ReturningClause),
         ("Savepoints", ProviderCapability.Savepoints),
         ("GeneratedColumnNullabilityClause", ProviderCapability.GeneratedColumnNullabilityClause),
@@ -206,6 +263,11 @@ internal static class MySqlLoggerMessages
         ("BitemporalTables", ProviderCapability.BitemporalTables),
         ("Sequences", ProviderCapability.Sequences),
         ("RenameColumn", ProviderCapability.RenameColumn),
+        ("RenameIndex", ProviderCapability.RenameIndex),
+        ("ExpressionDefaults", ProviderCapability.ExpressionDefaults),
+        ("PreparedDdl", ProviderCapability.PreparedDdl),
+        ("AtomicDdl", ProviderCapability.AtomicDdl),
+        ("TransactionalDdl", ProviderCapability.TransactionalDdl),
         ("LateralDerivedTables", ProviderCapability.LateralDerivedTables),
         ("SelfReferencingMutations", ProviderCapability.SelfReferencingMutations),
         ("FunctionalIndexScaffolding", ProviderCapability.FunctionalIndexScaffolding),
@@ -580,6 +642,98 @@ internal static class MySqlLoggerMessages
             duration.TotalMilliseconds,
             exception.GetType().Name,
             null);
+    }
+
+    public static void MigrationOperationHandlerSelected(
+        ILogger logger,
+        string handlerId,
+        string operationType,
+        string generationMode,
+        int operationOrdinal
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        s_migrationOperationHandlerSelected(
+            logger,
+            handlerId,
+            operationType,
+            generationMode,
+            operationOrdinal,
+            null);
+    }
+
+    public static void InvalidMigrationOperationHandlerRegistration(
+        ILogger logger,
+        MySqlMigrationOperationHandlerException exception
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(exception);
+
+        s_invalidMigrationOperationHandlerRegistration(
+            logger,
+            exception.FailureCode,
+            exception.HandlerId ?? "unknown",
+            exception.OperationType,
+            null);
+    }
+
+    public static void MigrationOperationHandlerFailed(
+        ILogger logger,
+        string handlerId,
+        string operationType,
+        string generationMode,
+        int operationOrdinal,
+        MySqlMigrationHandlerFailureCode failureCode,
+        Exception exception
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(exception);
+
+        s_migrationOperationHandlerFailed(
+            logger,
+            handlerId,
+            operationType,
+            generationMode,
+            operationOrdinal,
+            failureCode,
+            exception.GetType().FullName ?? exception.GetType().Name,
+            null);
+    }
+
+    public static void MigrationOperationHandlerContractViolation(
+        ILogger logger,
+        string handlerId,
+        string operationType,
+        string generationMode,
+        int operationOrdinal,
+        MySqlMigrationHandlerFailureCode failureCode
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        s_migrationOperationHandlerContractViolation(
+            logger,
+            handlerId,
+            operationType,
+            generationMode,
+            operationOrdinal,
+            failureCode,
+            null);
+    }
+
+    public static void UnknownMigrationOperation(
+        ILogger logger,
+        string operationType,
+        string generationMode,
+        int operationOrdinal
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        s_unknownMigrationOperation(logger, operationType, generationMode, operationOrdinal, null);
     }
 
     /// <summary>

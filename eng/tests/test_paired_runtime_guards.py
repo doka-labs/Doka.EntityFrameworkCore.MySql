@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import uuid
 from pathlib import Path
 
 
@@ -370,7 +371,10 @@ class ReferenceBuildIsolationTests(unittest.TestCase):
             root = Path(directory)
             feed = root / "feed"
             feed.mkdir()
-            version = "0.0.0-paired-cycle-probe"
+            # A unique package identity is part of test isolation. Reusing a
+            # fixed version lets NuGet satisfy the reference restore from its
+            # global cache even when this checkout just packed different bytes.
+            version = f"0.0.0-paired-cycle-probe-{uuid.uuid4().hex}"
             ordinary_artifacts = root / "artifacts-ordinary"
             pack_artifacts = root / "artifacts-pack"
 
@@ -434,8 +438,15 @@ class ReferenceBuildIsolationTests(unittest.TestCase):
             capture_output=True,
             text=True,
         )
+        output = "\n".join(
+            stream[-2000:]
+            for stream in (result.stdout, result.stderr)
+            if stream
+        )
         self.assertEqual(
-            0, result.returncode, f"dotnet {arguments[0]} failed:\n{result.stdout[-2000:]}"
+            0,
+            result.returncode,
+            f"dotnet {arguments[0]} failed:\n{output}",
         )
 
 

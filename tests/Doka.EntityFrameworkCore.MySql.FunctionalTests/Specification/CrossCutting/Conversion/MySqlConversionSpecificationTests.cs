@@ -195,8 +195,8 @@ public sealed class FieldMappingMySqlTest : FieldMappingTestBase<FieldMappingMyS
 /// </summary>
 /// <remarks>
 /// The upstream contract creates throwaway contexts with a replacement model-cache-key
-/// service. Those intentionally distinct test option graphs must not accumulate in EF
-/// Core's process-wide internal service-provider cache.
+/// service. Those intentionally distinct test option graphs use transient providers, and
+/// their expected isolation diagnostic must not make the result depend on suite order.
 /// </remarks>
 [Trait("Category", "Spec")]
 [Collection(FunctionalDatabaseTestGroup.Name)]
@@ -205,6 +205,5 @@ public sealed class BadDataJsonDeserializationMySqlTest : BadDataJsonDeserializa
     protected override void OnConfiguring(
         DbContextOptionsBuilder optionsBuilder
     ) => base.OnConfiguring(
-        MySqlTestHelpers.Instance.UseProviderOptions(
-            optionsBuilder.EnableServiceProviderCaching(false)));
+        MySqlTestHelpers.Instance.UseProviderOptions(optionsBuilder.UseTransientInternalServiceProvider()));
 }

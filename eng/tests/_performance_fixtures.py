@@ -537,6 +537,12 @@ class PerformanceEvidenceFixtureMixin:
                     100,
                     400000,
                 ),
+                benchmark(
+                    "MigrationOperationHandlerDispatchBenchmark",
+                    "DispatchExactTypeMatrix",
+                    100,
+                    0,
+                ),
             ],
         }
 

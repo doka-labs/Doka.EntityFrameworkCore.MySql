@@ -160,6 +160,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
 
         return $"""
                 DROP PROCEDURE IF EXISTS {procedure}{terminator}
+                DELIMITER //
                 CREATE PROCEDURE {procedure}()
                 BEGIN
                     IF {condition} (SELECT 1 FROM {tableName} WHERE {idColumn} = {migrationIdLiteral}) THEN
@@ -174,7 +175,8 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
 
         return $"""
                     END IF{terminator}
-                END{terminator}
+                END //
+                DELIMITER {terminator}
                 CALL {procedure}(){terminator}
                 DROP PROCEDURE IF EXISTS {procedure}{terminator}
 
