@@ -97,6 +97,7 @@ class ReferencedSubcommandTests(unittest.TestCase):
     """Prove every CLI subcommand a script invokes exists."""
 
     MODULES = {
+        "eng.quality.dependency_snapshot_readiness",
         "eng.performance.cli",
         "eng.release.evidence",
         "eng.release.trust",

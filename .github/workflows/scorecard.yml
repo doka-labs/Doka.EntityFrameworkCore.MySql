@@ -6,20 +6,20 @@ name: scorecard
 # the release and publication posture described in the security documentation.
 
 on:
-  branch_protection_rule:
   push:
     branches:
       - main
   schedule:
     - cron: "45 3 * * 1"
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  # Only the latest default-branch state is publishable evidence. A newer
+  # revision therefore supersedes an older scan that has not completed yet.
+  group: ${{ github.workflow }}-main
+  cancel-in-progress: true
 
 jobs:
   analysis:
