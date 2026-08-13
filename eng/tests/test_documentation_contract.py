@@ -119,6 +119,41 @@ class DocumentationContractTests(unittest.TestCase):
         )
 
 
+class PullRequestTemplateContractTests(unittest.TestCase):
+    """Keep every review obligation explicit without ambiguous checkboxes."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def setUp(self) -> None:
+        """Read the repository-owned pull-request review contract."""
+
+        self.template = (self.ROOT / ".github" / "pull_request_template.md").read_text(
+            encoding="ascii"
+        )
+
+    def test_every_conditional_gate_has_an_explicit_disposition(self) -> None:
+        """Require statuses instead of intentionally unchecked alternatives."""
+
+        self.assertNotIn("- [ ]", self.template)
+        self.assertEqual(2, self.template.count("`unchanged` or `changed`"))
+        self.assertIn("`passed`, `not applicable`, or `pending`", self.template)
+
+    def test_validation_table_keeps_every_repository_gate_visible(self) -> None:
+        """Prevent template simplification from hiding a qualification path."""
+
+        required_commands = (
+            "./eng/test.sh",
+            "./eng/test-integration.sh",
+            "./eng/test-runtime-posture.sh --up-test-down",
+            "./eng/benchmark.sh --up-smoke-down",
+            "./eng/release-candidate.sh",
+        )
+
+        for command in required_commands:
+            with self.subTest(command=command):
+                self.assertGreaterEqual(self.template.count(f"`{command}`"), 2)
+
+
 class ReleaseRunbookAgreementTests(unittest.TestCase):
     """Prove the runbook describes the release path the workflows implement.
 
@@ -150,10 +185,11 @@ class ReleaseRunbookAgreementTests(unittest.TestCase):
 
     def test_the_runbook_describes_an_automatic_tag_trigger(self) -> None:
         """Match the documented start of qualification to the workflow."""
-        self.assertIn("starts the `release-candidate` workflow automatically",
-                      self.runbook)
+        self.assertIn(
+            "starts the `release-candidate` workflow automatically", self.runbook
+        )
         self.assertIn("push:", self.candidate)
-        self.assertIn("- \"v*\"", self.candidate)
+        self.assertIn('- "v*"', self.candidate)
 
     def test_the_runbook_states_the_receipt_count_the_workflow_produces(self) -> None:
         """Reject a documented stage count the workflow cannot satisfy."""

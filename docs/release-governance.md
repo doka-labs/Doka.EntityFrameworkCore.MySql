@@ -427,7 +427,13 @@ Release hardening keeps review obligations explicit:
   own independently authoritative release gate; the provider does not depend
   on or trigger that package's workflow
 
-The repository PR template is the review seam for these obligations.
+The repository PR template is the review seam for these obligations. Every
+governance and evidence row must declare whether its contract is `unchanged`
+or `changed`; leaving the unaffected alternative unchecked is not evidence.
+Validation rows use `passed`, `not applicable`, or `pending`. A passed row must
+identify its execution evidence, a not-applicable row must explain why the
+change cannot exercise that path, and no pending row may remain when the PR is
+marked ready for review.
 
 ## Upstream Cadence and Servicing SLA
 

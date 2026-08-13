@@ -221,8 +221,12 @@ changes to `docs/decisions/README.md` or `decision-index.json` are rejected.
 - Target the `main` branch.
 - Keep each PR focused on a single concern.
 - New translation, type-mapping, migration DDL, or scaffolding paths must include both unit / functional tests and -- where behavior is engine-specific -- live integration tests against the relevant MySQL and MariaDB containers.
-- The build and all test suites must be green before requesting review.
+- The build and all applicable test suites must be green before requesting
+  review.
 - Summarize the motivation and approach in the PR description.
+- Complete every governance, evidence, and validation row in the PR template.
+  Use `not applicable` only with a change-specific rationale; an unchecked or
+  unexplained validation surface is not a reviewable disposition.
 
 ## Public-API Changes
 

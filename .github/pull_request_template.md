@@ -2,32 +2,53 @@
 
 - change summary:
 - why now:
+- risk and rollback:
 
-## Governance Checks
+## Governance Impact
 
-- [ ] Diagnostics categories or `MySqlEventId` values did not change
-- [ ] Diagnostics categories or `MySqlEventId` values changed, and the affected ranges/tests/docs were updated in the same PR
-- [ ] Engine-difference handling did not change
-- [ ] Engine-difference handling changed, and the compatibility impact is described below
-- [ ] Public API shape did not change
-- [ ] Public API shape changed, and the contract/documentation impact is described below
+Use `unchanged` or `changed` for every row. A changed contract requires a
+concise impact description and links to the corresponding tests or documents.
+
+| Contract | Disposition | Impact and evidence |
+| --- | --- | --- |
+| Diagnostics categories and `MySqlEventId` values |  |  |
+| Engine-difference handling and supported-engine policy |  |  |
+| Public API shape |  |  |
 
 ## Evidence Impact
 
-- [ ] No benchmark, compatibility, or release-candidate evidence path changed
-- [ ] Benchmark evidence path changed
-- [ ] Compatibility evidence path changed
-- [ ] Release-candidate evidence path changed
+Use `unchanged` or `changed` for every row. Describe how changed evidence paths
+are validated in this PR.
 
-Evidence notes:
+| Evidence path | Disposition | Impact and evidence |
+| --- | --- | --- |
+| Benchmark evidence |  |  |
+| Compatibility evidence |  |  |
+| Release-candidate evidence |  |  |
 
 ## Validation
 
-- [ ] `./eng/test.sh`
-- [ ] `./eng/test-integration.sh`
-- [ ] `./eng/test-runtime-posture.sh --up-test-down`
-- [ ] `./eng/benchmark.sh --up-smoke-down`
-- [ ] `./eng/release-candidate.sh`
-- [ ] Other relevant checks are described below
+Use `passed`, `not applicable`, or `pending` for every row. A `passed` result
+must identify where it ran. `Not applicable` requires a change-specific reason.
+Resolve every `pending` row before marking the PR ready for review.
 
-Additional validation notes:
+Applicability:
+
+- `./eng/test.sh`: source, test, build, engineering-tool, or workflow changes.
+- `./eng/test-integration.sh`: database-visible behavior, engine differences,
+  containers, migrations, scaffolding, networking, or integration fixtures.
+- `./eng/test-runtime-posture.sh --up-test-down`: runtime posture, trimming,
+  deployment, packaging, or runtime dependency changes.
+- `./eng/benchmark.sh --up-smoke-down`: performance-sensitive provider paths,
+  benchmark infrastructure, or performance-evidence changes.
+- `./eng/release-candidate.sh`: release qualification, packaging, SBOM,
+  publication, or release-evidence orchestration changes.
+
+| Validation | Status | Evidence or rationale |
+| --- | --- | --- |
+| `./eng/test.sh` |  |  |
+| `./eng/test-integration.sh` |  |  |
+| `./eng/test-runtime-posture.sh --up-test-down` |  |  |
+| `./eng/benchmark.sh --up-smoke-down` |  |  |
+| `./eng/release-candidate.sh` |  |  |
+| Other targeted checks |  |  |
