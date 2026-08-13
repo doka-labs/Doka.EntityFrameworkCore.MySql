@@ -107,16 +107,32 @@ runs the offline shell subset; push and CI run the complete contract.
 Dependency review runs per pull request against the repository license policy.
 A preceding job restores the solution with the pinned SDK, converts the
 resulting `project.assets.json` files into a NuGet snapshot, and submits it for
-every pushed `main` revision and every trusted pull-request head. Both event
-paths use the same stable detector and correlator identity. Dependency Review
-therefore compares two graphs produced by the same restore contract instead of
-classifying packages that only one detector can see as newly introduced. The
-converter is repository-owned and dependency-free; it does not execute a
-moving detector binary after review. The review job fails closed when trusted
-head submission fails and retries snapshot warnings briefly to cover graph API
-propagation. Main-push submissions are never cancelled because every pushed SHA
-can remain the base of an open pull request; superseded PR-head runs remain
-latest-wins.
+every pushed `main` revision and every trusted pull-request head after
+bootstrap. Both event paths use the same stable detector and correlator
+identity. Dependency Review therefore compares two graphs produced by the same
+restore contract instead of classifying packages that only one detector can
+see as newly introduced. The converter is repository-owned and
+dependency-free; it does not execute a moving detector binary after review.
+
+The migration pull request is a bounded exception: its exact base workflow
+does not yet declare the canonical submission job, so submitting only the new
+head contract would create a hybrid comparison. The producer reads that base
+workflow at its exact SHA and selects `bootstrap`; it then leaves both sides on
+GitHub's pre-existing graph contract. Once the workflow reaches `main`, the
+structural job marker makes every later trusted pull request `canonical`
+without a manual input or permanent compatibility branch.
+
+Canonical review fails closed in three places. A failed trusted-head producer
+stops review. A repository-owned preflight then requires a successful GitHub
+Actions `dependency-submission` check run for the exact base SHA and rejects a
+missing or expired receipt with rebase guidance. Finally, it queries the
+base/head dependency comparison and accepts it only when the base64-encoded
+snapshot-warning header is absent. The preflight owns one shared 120-second
+retry window across both phases, rather than independently granting each phase
+the complete allowance. The third-party action's retry is disabled because
+that action continues after its retry expires. Main-push submissions are never
+cancelled because every pushed SHA can remain the base of an open pull request;
+superseded PR-head runs remain latest-wins.
 
 The producer is skipped for forks and Dependabot pull requests because GitHub
 deliberately gives those `pull_request` runs a read-only token by default; the
@@ -124,12 +140,20 @@ workflow does not replace that boundary with `pull_request_target`. Dependency
 review still runs, but the repository does not claim a submitted transitive
 snapshot for code outside its trusted same-repository branch boundary.
 
-OpenSSF Scorecard runs on every pushed `main` revision and weekly, using only
-the action's stable `push` and `schedule` triggers. A newer revision cancels a
-superseded in-flight scan because only the latest default-branch state is
-publishable evidence. CodeQL remains on GitHub's default setup for `csharp`,
-`python`, and `actions`; a repository-local CodeQL workflow is explicitly not
-adopted because advanced setup would displace the working default configuration.
+The dependency-review action's per-dependency OpenSSF lookup remains enabled
+for canonical, fork, and Dependabot reviews. It is disabled only for the
+structurally one-time bootstrap, whose hybrid package delta otherwise causes
+thousands of redundant remote lookups and can consume the complete job
+deadline. This bounded exception does not claim that the repository-level
+Scorecard replaces the dependency-level signal.
+
+Repository OpenSSF Scorecard runs on every pushed `main` revision and weekly,
+using only the action's stable `push` and `schedule` triggers. A newer revision
+cancels a superseded in-flight scan because only the latest default-branch
+state is publishable evidence. CodeQL remains on GitHub's default setup for
+`csharp`, `python`, and `actions`; a repository-local CodeQL workflow is
+explicitly not adopted because advanced setup would displace the working
+default configuration.
 
 ### Consequences
 
@@ -145,6 +169,11 @@ adopted because advanced setup would displace the working default configuration.
   additions.
 - Good, because a later `main` push cannot cancel the snapshot required by a
   pull request that retains the earlier commit as its base.
+- Good, because canonical review cannot turn an expired snapshot-warning retry
+  into a successful but incomplete policy result.
+- Good, because bootstrap is derived from the exact base workflow and becomes
+  unreachable after the migration reaches `main`; no operator switch can leave
+  it enabled.
 - Good, because the workflow surface is enforced by actionlint and zizmor
   rather than by one hand-written parser covering a single defect class.
 - Good, because the NuGet cache removes a full package restore from most jobs
@@ -156,8 +185,11 @@ adopted because advanced setup would displace the working default configuration.
   a trusted pull-request head so future comparisons retain a symmetric graph.
 - Bad, because rapid `main` pushes queue their snapshot submissions instead of
   discarding intermediate base revisions.
-- Bad, because the bootstrap pull request can still compare against the earlier
-  automatic baseline; graph symmetry begins after its first `main` submission.
+- Bad, because the bootstrap pull request deliberately remains on the earlier
+  graph contract and omits per-dependency OpenSSF output; full graph symmetry
+  and that signal begin after its first `main` submission.
+- Bad, because a pull request based on a revision whose exact check receipt is
+  unavailable must rebase before canonical dependency review can proceed.
 - Bad, because fork and Dependabot pull requests have no exact head snapshot;
   dependency review therefore cannot guarantee policy enforcement for
   transitive dependencies that become visible only after restore.
@@ -269,6 +301,11 @@ version control. They are documented in
   commits that can remain the base revision of an open pull request.
 - 2026-08-13: Restricted Scorecard execution to its stable `push` and `schedule`
   triggers and made superseded default-branch scans latest-wins.
+- 2026-08-13: Made the automatic-to-canonical snapshot migration a structural,
+  one-time bootstrap and required exact-base check evidence plus a warning-free
+  comparison for every later trusted pull request.
+- 2026-08-13: Retained per-dependency OpenSSF review everywhere except that
+  bounded bootstrap instead of replacing it with repository Scorecard output.
 
 ### Implementation References
 
@@ -278,9 +315,11 @@ version control. They are documented in
 - `eng/quality/lint-workflows.sh`
 - `eng/quality/check-vulnerability-audit.sh`
 - `eng/quality/dependency_snapshot.py`
+- `eng/quality/dependency_snapshot_readiness.py`
 - `eng/quality/restore-dependency-snapshot.sh`
 - `eng/performance/check-benchmark-ratios.sh`
 - `eng/tests/test_dependency_snapshot.py`
+- `eng/tests/test_dependency_snapshot_readiness.py`
 - `eng/tests/test_engineering_structure.py`
 - `docs/operations/repository-security-settings.md`
 
@@ -293,6 +332,16 @@ version control. They are documented in
 - [OpenSSF Scorecard action v2.4.4](https://github.com/ossf/scorecard-action/blob/v2.4.4/README.md)
   (primary source; retrieved 2026-08-13)
 - [Dependency review](https://docs.github.com/en/code-security/concepts/supply-chain-security/dependency-review)
+  (primary source; retrieved 2026-08-13)
+- [Dependency Review Action v5.0.0](https://github.com/actions/dependency-review-action/tree/a1d282b36b6f3519aa1f3fc636f609c47dddb294)
+  (primary source; retrieved 2026-08-13)
+- [Pinned Dependency Review comparison implementation](https://github.com/actions/dependency-review-action/blob/a1d282b36b6f3519aa1f3fc636f609c47dddb294/src/dependency-graph.ts)
+  (primary source; retrieved 2026-08-13)
+- [List check runs for a Git reference](https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference)
+  (primary source; retrieved 2026-08-13)
+- [Retention of checks](https://docs.github.com/en/pull-requests/reference/status-checks#retention-of-checks)
+  (primary source; retrieved 2026-08-13)
+- [Get repository content](https://docs.github.com/en/rest/repos/contents#get-repository-content)
   (primary source; retrieved 2026-08-13)
 - [Using the dependency submission API](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/use-dependency-submission-api)
   (primary source; retrieved 2026-08-13)

@@ -215,6 +215,11 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("contents: write", submission)
         self.assertNotIn("id-token: write", submission)
         self.assertIn(
+            "outputs:\n      mode: "
+            "${{ steps.snapshot_mode.outputs.mode }}",
+            submission,
+        )
+        self.assertIn(
             "ref: >-\n"
             "            ${{ github.event_name == 'pull_request'\n"
             "            && github.event.pull_request.head.sha\n"
@@ -227,6 +232,16 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             submission,
         )
         self.assertIn("global-json-file: global.json", submission)
+        self.assertIn(
+            "python3 -m eng.quality.dependency_snapshot_readiness "
+            "resolve-mode",
+            submission,
+        )
+        canonical_condition = (
+            "github.event_name == 'push'\n"
+            "          || steps.snapshot_mode.outputs.mode == 'canonical'"
+        )
+        self.assertEqual(3, submission.count(canonical_condition))
         self.assertIn(
             "bash eng/quality/restore-dependency-snapshot.sh",
             submission,
@@ -273,6 +288,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             review,
         )
         self.assertIn("contents: read", review)
+        self.assertIn("checks: read", review)
         self.assertNotIn("contents: write", review)
         self.assertIn(
             "needs.dependency-submission.result != 'success'",
@@ -287,14 +303,26 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         )
         self.assertIn("exit 1", review)
         self.assertIn(
-            "retry-on-snapshot-warnings: >-\n"
-            "            ${{ github.event.pull_request.head.repo.full_name "
-            "== github.repository\n"
-            "            && github.event.pull_request.user.login "
-            "!= 'dependabot[bot]' }}",
+            "python3 -m eng.quality.dependency_snapshot_readiness verify",
             review,
         )
-        self.assertIn("retry-on-snapshot-warnings-timeout: 120", review)
+        self.assertIn('--base-revision "${DOKA_BASE_REVISION}"', review)
+        self.assertIn('--head-revision "${DOKA_HEAD_REVISION}"', review)
+        self.assertIn("--wait-seconds 120", review)
+        self.assertIn(
+            "needs.dependency-submission.outputs.mode == 'canonical'",
+            review,
+        )
+        self.assertIn(
+            "show-openssf-scorecard: >-\n"
+            "            ${{ needs.dependency-submission.outputs.mode "
+            "!= 'bootstrap' }}",
+            review,
+        )
+        self.assertEqual(1, review.count("show-openssf-scorecard:"))
+        self.assertNotIn("show-openssf-scorecard: false", review)
+        self.assertIn("retry-on-snapshot-warnings: false", review)
+        self.assertNotIn("retry-on-snapshot-warnings-timeout", review)
 
     def test_benchmark_resolves_baseline_before_allocating_the_matrix(self) -> None:
         """Resolve compatibility and duplicate proposals before costly runs."""

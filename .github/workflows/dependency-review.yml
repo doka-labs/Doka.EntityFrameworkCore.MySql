@@ -36,6 +36,8 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      mode: ${{ steps.snapshot_mode.outputs.mode }}
 
     steps:
       # pull_request normally checks out a synthetic merge commit. Select the
@@ -50,7 +52,30 @@ jobs:
             || github.sha }}
           persist-credentials: false
 
+      # The first pull request cannot compare a repository-owned head snapshot
+      # with an equivalent base snapshot because the base workflow predates
+      # this job. Resolve that one-time bootstrap from the exact base revision;
+      # after merge the structural marker makes the mode permanently canonical.
+      - name: Resolve dependency snapshot mode
+        id: snapshot_mode
+        env:
+          DOKA_BASE_REVISION: ${{ github.event.pull_request.base.sha }}
+          DOKA_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 -m eng.quality.dependency_snapshot_readiness resolve-mode \
+            --event-name "${DOKA_EVENT_NAME}" \
+            --base-revision "${DOKA_BASE_REVISION}" \
+            --api-url "${GITHUB_API_URL}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --output artifacts/dependency-snapshot-mode.json
+          echo "mode=$(jq -er '.mode' artifacts/dependency-snapshot-mode.json)" \
+            >> "${GITHUB_OUTPUT}"
+
       - name: Setup .NET
+        if: >-
+          github.event_name == 'push'
+          || steps.snapshot_mode.outputs.mode == 'canonical'
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
@@ -59,9 +84,15 @@ jobs:
       # owned converter consumes its resolved project.assets.json files, so the
       # snapshot cannot drift through a detector downloaded at workflow time.
       - name: Resolve canonical snapshot dependencies
+        if: >-
+          github.event_name == 'push'
+          || steps.snapshot_mode.outputs.mode == 'canonical'
         run: bash eng/quality/restore-dependency-snapshot.sh
 
       - name: Submit canonical dependency snapshot
+        if: >-
+          github.event_name == 'push'
+          || steps.snapshot_mode.outputs.mode == 'canonical'
         env:
           DOKA_SNAPSHOT_REF: >-
             ${{ github.event_name == 'pull_request'
@@ -91,6 +122,7 @@ jobs:
     # trusted submission is converted into a hard failure below.
     if: ${{ github.event_name == 'pull_request' && !cancelled() }}
     permissions:
+      checks: read
       contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -110,6 +142,27 @@ jobs:
         with:
           persist-credentials: false
 
+      # The official action treats an expired snapshot-warning retry as a
+      # usable comparison. Canonical mode is stricter: bind the exact base SHA
+      # to its successful submission check and reject any remaining warning.
+      - name: Require symmetric canonical dependency snapshots
+        if: >-
+          github.event.pull_request.head.repo.full_name == github.repository
+          && github.event.pull_request.user.login != 'dependabot[bot]'
+          && needs.dependency-submission.outputs.mode == 'canonical'
+        env:
+          DOKA_BASE_REVISION: ${{ github.event.pull_request.base.sha }}
+          DOKA_HEAD_REVISION: ${{ github.event.pull_request.head.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 -m eng.quality.dependency_snapshot_readiness verify \
+            --base-revision "${DOKA_BASE_REVISION}" \
+            --head-revision "${DOKA_HEAD_REVISION}" \
+            --api-url "${GITHUB_API_URL}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --wait-seconds 120 \
+            --output artifacts/dependency-snapshot-readiness.json
+
       # The license set mirrors the repository dependency policy. Packages
       # whose license metadata is absent are reported separately rather than
       # blocked, so a missing SPDX field cannot masquerade as a policy breach.
@@ -127,9 +180,13 @@ jobs:
             MIT-0,
             Unlicense
           comment-summary-in-pr: never
-          # Submission is ordered before review, but the graph API can be
-          # briefly eventually consistent after accepting the snapshot.
-          retry-on-snapshot-warnings: >-
-            ${{ github.event.pull_request.head.repo.full_name == github.repository
-            && github.event.pull_request.user.login != 'dependabot[bot]' }}
-          retry-on-snapshot-warnings-timeout: 120
+          # Only the structurally one-time bootstrap omits per-dependency
+          # Scorecards. Normal internal, fork, and Dependabot reviews retain
+          # the OpenSSF signal; the separate repository Scorecard is not a
+          # substitute for it.
+          show-openssf-scorecard: >-
+            ${{ needs.dependency-submission.outputs.mode != 'bootstrap' }}
+          # Canonical mode already failed closed on snapshot warnings above.
+          # Bootstrap and untrusted PRs intentionally retain the action default
+          # instead of turning an incomplete comparison into a soft retry.
+          retry-on-snapshot-warnings: false
