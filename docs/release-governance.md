@@ -427,7 +427,13 @@ Release hardening keeps review obligations explicit:
   own independently authoritative release gate; the provider does not depend
   on or trigger that package's workflow
 
-The repository PR template is the review seam for these obligations.
+The repository PR template is the review seam for these obligations. Every
+governance and evidence row must declare whether its contract is `unchanged`
+or `changed`; leaving the unaffected alternative unchecked is not evidence.
+Validation rows use `passed`, `not applicable`, or `pending`. A passed row must
+identify its execution evidence, a not-applicable row must explain why the
+change cannot exercise that path, and no pending row may remain when the PR is
+marked ready for review.
 
 ## Upstream Cadence and Servicing SLA
 
@@ -453,20 +459,28 @@ The cadence above is considered operational only when the repository captures ex
   - source link or release reference
   - reviewed date
   - owner
-  - impact classification:
+  - exactly one impact disposition:
     - code change required
     - reviewed no-op
-    - backlog item with target release
-  - supported-engine or provider-surface impact notes
+    - backlog follow-up required
+  - explicit `unchanged` or `changed` dispositions for public API, engine
+    differences, diagnostics or governance, and supported-engine policy
+  - evidence for a reviewed no-op or a target release and issue link for work
 - Monthly compatibility review issue:
   - review month
+  - reviewed date
   - owner
-  - repo-local matrix status for MySQL `8.4`, MariaDB `11.4`, and MariaDB `11.8`
+  - required `qualified`, `follow-up required`, or `not qualified` status for
+    MySQL `8.4` and `9.7` plus MariaDB `10.11`, `11.4`, `11.8`, and `12.3`
   - lifecycle change notes for supported engines
   - SLA risk notes
   - resulting actions or explicit no-op
 
-The repository issue templates are the review seam for these outputs. They intentionally stay repo-local and do not rely on GitHub organization labels, automations, or protected metadata outside the repository itself.
+The repository issue forms are the review seam for these outputs. Required
+dropdowns make each disposition singular and complete before submission, while
+required evidence fields prevent an empty no-op from becoming a review record.
+The forms intentionally stay repo-local and do not rely on GitHub organization
+labels, automations, or protected metadata outside the repository itself.
 
 ## Scope Boundaries
 
