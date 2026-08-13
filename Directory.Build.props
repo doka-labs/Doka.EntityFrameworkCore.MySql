@@ -8,6 +8,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!--
+      Audit the complete direct and transitive package graph at every restore.
+      The low reporting threshold intentionally exposes every known severity;
+      TreatWarningsAsErrors then makes each finding fail closed. Any accepted
+      exception must target one advisory explicitly instead of weakening this
+      repository-wide contract.
+    -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
     <AnalysisLevel>latest-Recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <Deterministic>true</Deterministic>
