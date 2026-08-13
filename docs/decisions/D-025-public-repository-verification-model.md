@@ -105,10 +105,31 @@ set keeps a new caller from inheriting a gate that cannot run. The commit hook
 runs the offline shell subset; push and CI run the complete contract.
 
 Dependency review runs per pull request against the repository license policy.
-OpenSSF Scorecard runs weekly and publishes its result. CodeQL remains on
-GitHub's default setup for `csharp`, `python`, and `actions`; a repository-local
-CodeQL workflow is explicitly not adopted because advanced setup would displace
-the working default configuration.
+A preceding job restores the solution with the pinned SDK, converts the
+resulting `project.assets.json` files into a NuGet snapshot, and submits it for
+every pushed `main` revision and every trusted pull-request head. Both event
+paths use the same stable detector and correlator identity. Dependency Review
+therefore compares two graphs produced by the same restore contract instead of
+classifying packages that only one detector can see as newly introduced. The
+converter is repository-owned and dependency-free; it does not execute a
+moving detector binary after review. The review job fails closed when trusted
+head submission fails and retries snapshot warnings briefly to cover graph API
+propagation. Main-push submissions are never cancelled because every pushed SHA
+can remain the base of an open pull request; superseded PR-head runs remain
+latest-wins.
+
+The producer is skipped for forks and Dependabot pull requests because GitHub
+deliberately gives those `pull_request` runs a read-only token by default; the
+workflow does not replace that boundary with `pull_request_target`. Dependency
+review still runs, but the repository does not claim a submitted transitive
+snapshot for code outside its trusted same-repository branch boundary.
+
+OpenSSF Scorecard runs on every pushed `main` revision and weekly, using only
+the action's stable `push` and `schedule` triggers. A newer revision cancels a
+superseded in-flight scan because only the latest default-branch state is
+publishable evidence. CodeQL remains on GitHub's default setup for `csharp`,
+`python`, and `actions`; a repository-local CodeQL workflow is explicitly not
+adopted because advanced setup would displace the working default configuration.
 
 ### Consequences
 
@@ -116,6 +137,14 @@ the working default configuration.
   request that introduces it instead of on the following scheduled run.
 - Good, because a fork contribution can no longer reach a persisted credential
   through a later step in the same job.
+- Good, because dependency review no longer reports an empty internal-PR diff
+  merely because automatic dependency submission covers only the default
+  branch.
+- Good, because trusted pull-request heads and their future `main` baseline use
+  one stable submission identity and cannot turn detector drift into package
+  additions.
+- Good, because a later `main` push cannot cancel the snapshot required by a
+  pull request that retains the earlier commit as its base.
 - Good, because the workflow surface is enforced by actionlint and zizmor
   rather than by one hand-written parser covering a single defect class.
 - Good, because the NuGet cache removes a full package restore from most jobs
@@ -123,6 +152,15 @@ the working default configuration.
 - Good, because an unbounded job can no longer occupy a runner for six hours.
 - Bad, because pull-request feedback now takes longer than the three-job lane
   D-023 defined.
+- Bad, because each `main` push performs the same restore-backed submission as
+  a trusted pull-request head so future comparisons retain a symmetric graph.
+- Bad, because rapid `main` pushes queue their snapshot submissions instead of
+  discarding intermediate base revisions.
+- Bad, because the bootstrap pull request can still compare against the earlier
+  automatic baseline; graph symmetry begins after its first `main` submission.
+- Bad, because fork and Dependabot pull requests have no exact head snapshot;
+  dependency review therefore cannot guarantee policy enforcement for
+  transitive dependencies that become visible only after restore.
 - Bad, because the required status checks in the branch ruleset must be updated
   by an administrator before the newly per-event lanes actually block a merge.
 - Bad, because two additional third-party actions enter the supply chain and
@@ -143,6 +181,9 @@ the working default configuration.
   `persist-credentials: false` except the two baseline-proposal jobs that push,
   and that each of those two runs only from the default branch and requests no
   write scope beyond the one its push and pull-request creation need.
+- `python3 -m unittest eng.tests.test_release_workflow_policy` passes, including
+  the contract that binds internal dependency submission to the exact pull-
+  request head and keeps its write permissions out of the review job.
 - `grep -c "timeout-minutes" .github/workflows/*.yml` reports one entry per job
   in every workflow.
 - `python3 -m unittest eng.tests.test_benchmark_ratio_gate` passes, including
@@ -207,6 +248,8 @@ version control. They are documented in
   indicating the lane assignment is wrong.
 - A CodeQL configuration need arises that default setup cannot express, which
   would reopen the advanced-setup decision.
+- A contributor outside the trusted maintainer group receives repository write
+  access, reopening the same-repository pull-request token boundary.
 - zizmor or actionlint reports a finding class that must be permanently
   suppressed, indicating the tool no longer matches the repository posture.
 
@@ -217,6 +260,15 @@ version control. They are documented in
   runner-minute premise no longer applied.
 - 2026-08-11: Expanded per-event specification conformance from three
   representative targets to every active MySQL and MariaDB LTS line.
+- 2026-08-13: Bound same-repository dependency review to a preceding snapshot
+  for the exact pull-request head while preserving the read-only fork boundary.
+- 2026-08-13: Extended the canonical snapshot to pushed `main` revisions and
+  replaced per-PR correlators with one stable submission identity so both sides
+  of a dependency comparison share the same graph contract.
+- 2026-08-13: Prevented later `main` pushes from cancelling snapshots for
+  commits that can remain the base revision of an open pull request.
+- 2026-08-13: Restricted Scorecard execution to its stable `push` and `schedule`
+  triggers and made superseded default-branch scans latest-wins.
 
 ### Implementation References
 
@@ -225,7 +277,10 @@ version control. They are documented in
 - `.github/workflows/scorecard.yml`
 - `eng/quality/lint-workflows.sh`
 - `eng/quality/check-vulnerability-audit.sh`
+- `eng/quality/dependency_snapshot.py`
+- `eng/quality/restore-dependency-snapshot.sh`
 - `eng/performance/check-benchmark-ratios.sh`
+- `eng/tests/test_dependency_snapshot.py`
 - `eng/tests/test_engineering_structure.py`
 - `docs/operations/repository-security-settings.md`
 
@@ -235,4 +290,17 @@ version control. They are documented in
 - [Keeping your GitHub Actions and workflows secure: Untrusted input](https://securitylab.github.com/resources/github-actions-untrusted-input/) (primary source; retrieved 2026-08-08)
 - [zizmor documentation](https://docs.zizmor.sh/) (primary source; retrieved 2026-08-08)
 - [actionlint](https://github.com/rhysd/actionlint) (primary source; retrieved 2026-08-08)
-- [OpenSSF Scorecard action](https://github.com/ossf/scorecard-action) (primary source; retrieved 2026-08-08)
+- [OpenSSF Scorecard action v2.4.4](https://github.com/ossf/scorecard-action/blob/v2.4.4/README.md)
+  (primary source; retrieved 2026-08-13)
+- [Dependency review](https://docs.github.com/en/code-security/concepts/supply-chain-security/dependency-review)
+  (primary source; retrieved 2026-08-13)
+- [Using the dependency submission API](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/use-dependency-submission-api)
+  (primary source; retrieved 2026-08-13)
+- [Configuring automatic dependency submission](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/submit-dependencies-automatically)
+  (primary source; retrieved 2026-08-13)
+- [REST API endpoints for dependency submission](https://docs.github.com/en/rest/dependency-graph/dependency-submission)
+  (primary source; retrieved 2026-08-13)
+- [GitHub Dependency Submission Toolkit](https://github.com/github/dependency-submission-toolkit)
+  (primary source; retrieved 2026-08-13)
+- [Dependabot on GitHub Actions](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-on-actions)
+  (primary source; retrieved 2026-08-13)

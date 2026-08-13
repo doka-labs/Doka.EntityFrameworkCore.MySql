@@ -161,6 +161,141 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
                     any(line.startswith("- ") for line in text.splitlines()),
                 )
 
+    def test_scorecard_publishes_only_stable_latest_main_evidence(self) -> None:
+        """Keep Scorecard on supported triggers and supersede stale scans."""
+        text = self.workflow("scorecard.yml")
+        triggers = text[text.index("on:\n") : text.index("\npermissions:")]
+        analysis = self.job(text, "analysis")
+
+        self.assertEqual(
+            'on:\n  push:\n    branches:\n      - main\n  schedule:\n'
+            '    - cron: "45 3 * * 1"\n',
+            triggers,
+        )
+        self.assertNotIn("branch_protection_rule", text)
+        self.assertNotIn("workflow_dispatch", text)
+        self.assertIn("group: ${{ github.workflow }}-main", text)
+        self.assertIn("cancel-in-progress: true", text)
+        self.assertIn("security-events: write", analysis)
+        self.assertIn("id-token: write", analysis)
+        self.assertIn("publish_results: true", analysis)
+        self.assertIn("if-no-files-found: error", analysis)
+        self.assertLess(
+            analysis.index("- name: Upload result artifact"),
+            analysis.index("- name: Upload result to code scanning"),
+        )
+
+    def test_dependency_review_compares_symmetric_canonical_snapshots(
+        self,
+    ) -> None:
+        """Use one graph contract for pushed main and trusted PR revisions."""
+        text = self.workflow("dependency-review.yml")
+        submission = self.job(
+            text,
+            "dependency-submission",
+            "dependency-review",
+        )
+        review = self.job(text, "dependency-review")
+
+        self.assertIn(
+            "github.event_name == 'push'\n"
+            "      || (\n"
+            "        github.event.pull_request.head.repo.full_name == "
+            "github.repository\n"
+            "        && github.event.pull_request.user.login "
+            "!= 'dependabot[bot]'\n"
+            "      )",
+            submission,
+        )
+        self.assertIn("push:\n    branches:\n      - main", text)
+        self.assertIn(
+            "cancel-in-progress: ${{ github.event_name != 'push' }}",
+            text,
+        )
+        self.assertIn("contents: write", submission)
+        self.assertNotIn("id-token: write", submission)
+        self.assertIn(
+            "ref: >-\n"
+            "            ${{ github.event_name == 'pull_request'\n"
+            "            && github.event.pull_request.head.sha\n"
+            "            || github.sha }}",
+            submission,
+        )
+        self.assertIn(
+            "uses: actions/setup-dotnet@"
+            "a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0",
+            submission,
+        )
+        self.assertIn("global-json-file: global.json", submission)
+        self.assertIn(
+            "bash eng/quality/restore-dependency-snapshot.sh",
+            submission,
+        )
+        restore_script = (
+            self.repo / "eng" / "quality" / "restore-dependency-snapshot.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn("! -path '*/artifacts/*'", restore_script)
+        self.assertNotIn(
+            '! -path "${repo_root}/artifacts/*"',
+            restore_script,
+        )
+        self.assertIn(
+            "python3 -m eng.quality.dependency_snapshot",
+            submission,
+        )
+        self.assertIn(
+            "DOKA_SNAPSHOT_SHA: >-\n"
+            "            ${{ github.event_name == 'pull_request'\n"
+            "            && github.event.pull_request.head.sha\n"
+            "            || github.sha }}",
+            submission,
+        )
+        self.assertIn(
+            "DOKA_SNAPSHOT_REF: >-\n"
+            "            ${{ github.event_name == 'pull_request'\n"
+            "            && format('refs/heads/{0}', "
+            "github.event.pull_request.head.ref)\n"
+            "            || github.ref }}",
+            submission,
+        )
+        self.assertIn('--sha "${DOKA_SNAPSHOT_SHA}"', submission)
+        self.assertIn('--ref "${DOKA_SNAPSHOT_REF}"', submission)
+        self.assertIn(
+            '--correlator "dependency-review-nuget"',
+            submission,
+        )
+        self.assertNotIn("DOKA_PR_NUMBER", submission)
+        self.assertIn("--submit", submission)
+
+        self.assertIn("needs: dependency-submission", review)
+        self.assertIn(
+            "if: ${{ github.event_name == 'pull_request' && !cancelled() }}",
+            review,
+        )
+        self.assertIn("contents: read", review)
+        self.assertNotIn("contents: write", review)
+        self.assertIn(
+            "needs.dependency-submission.result != 'success'",
+            review,
+        )
+        self.assertEqual(
+            3,
+            text.count(
+                "github.event.pull_request.user.login != "
+                "'dependabot[bot]'"
+            ),
+        )
+        self.assertIn("exit 1", review)
+        self.assertIn(
+            "retry-on-snapshot-warnings: >-\n"
+            "            ${{ github.event.pull_request.head.repo.full_name "
+            "== github.repository\n"
+            "            && github.event.pull_request.user.login "
+            "!= 'dependabot[bot]' }}",
+            review,
+        )
+        self.assertIn("retry-on-snapshot-warnings-timeout: 120", review)
+
     def test_benchmark_resolves_baseline_before_allocating_the_matrix(self) -> None:
         """Resolve compatibility and duplicate proposals before costly runs."""
         text = self.workflow("benchmark.yml")

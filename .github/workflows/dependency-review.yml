@@ -8,20 +8,103 @@ name: dependency-review
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
-  cancel-in-progress: true
+  # Every pushed main SHA can remain the base of an open pull request and must
+  # therefore retain its own snapshot. Only superseded PR-head runs may cancel.
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
-  dependency-review:
+  dependency-submission:
+    # Fork and Dependabot pull requests intentionally retain their read-only
+    # token. Never move this job to pull_request_target or give untrusted code
+    # a token that can write dependency-graph state for the base repository.
+    if: >-
+      github.event_name == 'push'
+      || (
+        github.event.pull_request.head.repo.full_name == github.repository
+        && github.event.pull_request.user.login != 'dependabot[bot]'
+      )
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
+      # pull_request normally checks out a synthetic merge commit. Select the
+      # exact PR head there and the pushed main commit otherwise, so both sides
+      # of a future dependency comparison use the same restore-graph contract.
+      - name: Checkout snapshot revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: >-
+            ${{ github.event_name == 'pull_request'
+            && github.event.pull_request.head.sha
+            || github.sha }}
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      # The restore uses the reviewed SDK and package policy. The repository-
+      # owned converter consumes its resolved project.assets.json files, so the
+      # snapshot cannot drift through a detector downloaded at workflow time.
+      - name: Resolve canonical snapshot dependencies
+        run: bash eng/quality/restore-dependency-snapshot.sh
+
+      - name: Submit canonical dependency snapshot
+        env:
+          DOKA_SNAPSHOT_REF: >-
+            ${{ github.event_name == 'pull_request'
+            && format('refs/heads/{0}', github.event.pull_request.head.ref)
+            || github.ref }}
+          DOKA_SNAPSHOT_SHA: >-
+            ${{ github.event_name == 'pull_request'
+            && github.event.pull_request.head.sha
+            || github.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 -m eng.quality.dependency_snapshot \
+            --repo-root . \
+            --assets-root artifacts/obj \
+            --sha "${DOKA_SNAPSHOT_SHA}" \
+            --ref "${DOKA_SNAPSHOT_REF}" \
+            --correlator "dependency-review-nuget" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --api-url "${GITHUB_API_URL}" \
+            --output artifacts/dependency-snapshot.json \
+            --submit
+
+  dependency-review:
+    needs: dependency-submission
+    # A skipped producer is the expected untrusted-PR boundary; a failed
+    # trusted submission is converted into a hard failure below.
+    if: ${{ github.event_name == 'pull_request' && !cancelled() }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Require internal dependency snapshot
+        if: >-
+          github.event.pull_request.head.repo.full_name == github.repository
+          && github.event.pull_request.user.login != 'dependabot[bot]'
+          && needs.dependency-submission.result != 'success'
+        run: |
+          echo "::error title=Dependency snapshot unavailable::The pull-request head snapshot was not submitted successfully."
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -44,3 +127,9 @@ jobs:
             MIT-0,
             Unlicense
           comment-summary-in-pr: never
+          # Submission is ordered before review, but the graph API can be
+          # briefly eventually consistent after accepting the snapshot.
+          retry-on-snapshot-warnings: >-
+            ${{ github.event.pull_request.head.repo.full_name == github.repository
+            && github.event.pull_request.user.login != 'dependabot[bot]' }}
+          retry-on-snapshot-warnings-timeout: 120
