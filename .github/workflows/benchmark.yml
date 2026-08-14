@@ -188,6 +188,22 @@ jobs:
             echo "- Proposal write required: $(jq -r '.proposalRequired' artifacts/benchmark-workflow-state.json)"
           } >> "${GITHUB_STEP_SUMMARY}"
 
+      # Validate the external identity before allocating scorecard runners.
+      # The unused token is revoked by the action's post step; a fresh token is
+      # minted only after a proposal branch has actually been updated.
+      - name: Verify baseline automation identity
+        if: >-
+          steps.resolve.outputs.sync-required == 'true'
+          || steps.resolve.outputs.proposal-required == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.DOKA_AUTOMATION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DOKA_AUTOMATION_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
   sync-baseline-proposal:
     if: needs.resolve-baseline-mode.outputs.sync-required == 'true'
     needs: resolve-baseline-mode
@@ -277,6 +293,9 @@ jobs:
       - benchmark-scorecard
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
+    outputs:
+      baseline-changed: ${{ steps.candidate.outputs.baseline-changed }}
 
     permissions:
       actions: write
@@ -372,7 +391,8 @@ jobs:
 
       # The proposal is written by a trusted workflow and then receives a
       # bounded CI dispatch for its exact head. The dispatch executes only the
-      # three cheap required checks; it never approves or merges the proposal.
+      # three cheap required checks; automation never approves or bypasses the
+      # proposal's protected-branch requirements.
       - name: Propose reviewed baseline update
         if: steps.candidate.outputs.baseline-changed == 'true'
         env:
@@ -459,7 +479,7 @@ jobs:
             echo
             echo "The workflow validated the complete MySQL 8.4 and MariaDB 11.8 scorecard pair before opening this review."
             echo "The workflow never approves its own pull request."
-            echo "Squash auto-merge remains blocked until a maintainer approves the current revision and every required check passes."
+            echo "A repository-scoped GitHub App schedules squash auto-merge without bypassing maintainer approval or protected checks."
             echo
             echo "The workflow explicitly dispatches the three required repository checks for the exact proposal head."
             echo "Review the baseline diff and approve the pull request; no workflow approval or artifact download is required."
@@ -516,35 +536,180 @@ jobs:
             --ref "${BASELINE_BRANCH}" \
             --field profile=baseline-proposal
 
-          auto_merge_method="$(
+          {
+            echo "## Baseline review proposed"
+            echo
+            echo "- Branch: ${BASELINE_BRANCH}"
+            echo "- Pull-request checks: explicitly dispatched for the proposal head"
+            echo "- Auto-merge: delegated to the repository-scoped GitHub App"
+            echo "- Acceptance: maintainer approval and protected checks"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  ensure-baseline-auto-merge:
+    if: >-
+      always()
+      && (
+        needs.sync-baseline-proposal.result == 'success'
+        || (
+          needs.propose-baseline-update.result == 'success'
+          && needs.propose-baseline-update.outputs.baseline-changed == 'true'
+        )
+      )
+    needs:
+      - resolve-baseline-mode
+      - sync-baseline-proposal
+      - propose-baseline-update
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      # Branch and PR updates retain GITHUB_TOKEN plus the restricted CI
+      # dispatch. Only merge authority crosses the App boundary, so the App
+      # cannot create unreviewed content or multiply pull-request workflows.
+      - name: Create baseline automation token
+        id: baseline-automation-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.DOKA_AUTOMATION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DOKA_AUTOMATION_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Require App-owned squash auto-merge
+        env:
+          BASELINE_AUTOMATION_LOGIN: app/${{ steps.baseline-automation-token.outputs.app-slug }}
+          BASELINE_AUTOMATION_TOKEN: ${{ steps.baseline-automation-token.outputs.token }}
+          BASELINE_BRANCH: ${{ needs.resolve-baseline-mode.outputs.baseline-branch }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mapfile -t proposal_numbers < <(
+            gh pr list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --state open \
+              --head "${BASELINE_BRANCH}" \
+              --json number \
+              --jq '.[].number'
+          )
+
+          if [[ "${#proposal_numbers[@]}" -ne 1 ]]; then
+            echo "Expected exactly one open baseline proposal." >&2
+            exit 1
+          fi
+          proposal_number="${proposal_numbers[0]}"
+
+          proposal_contract="$(
             gh pr view \
               --repo "${GITHUB_REPOSITORY}" \
-              --json autoMergeRequest \
-              --jq '.autoMergeRequest.mergeMethod // empty' \
+              --json autoMergeRequest,headRefOid \
               "${proposal_number}"
           )"
+          auto_merge_method="$(
+            jq -r '.autoMergeRequest.mergeMethod // empty' \
+              <<< "${proposal_contract}"
+          )"
+          auto_merge_actor="$(
+            jq -r '.autoMergeRequest.enabledBy.login // empty' \
+              <<< "${proposal_contract}"
+          )"
+          proposal_head="$(jq -er '.headRefOid' <<< "${proposal_contract}")"
+
+          if [[ ! "${proposal_head}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "The baseline proposal head could not be verified." >&2
+            exit 1
+          fi
 
           if [[ -n "${auto_merge_method}" && "${auto_merge_method}" != "SQUASH" ]]; then
             echo "Refusing to replace unexpected ${auto_merge_method} auto-merge policy." >&2
             exit 1
           fi
 
+          if [[ -n "${auto_merge_method}" && -z "${auto_merge_actor}" ]]; then
+            echo "The existing auto-merge actor could not be verified." >&2
+            exit 1
+          fi
+
+          # Migrate an auto-merge request created by an earlier GITHUB_TOKEN
+          # workflow. GitHub's Actor contract renders that installation as
+          # app/github-actions, which differs from its commit-bot identity.
+          # A maintainer-owned request is already safe and remains untouched;
+          # every new request is registered by the dedicated app.
+          # Remove this transition branch after the first App-owned baseline
+          # proposal has merged and GitHub reports no open legacy request; the
+          # removal criterion is governed by D-019 and its contract test.
+          if [[ "${auto_merge_actor}" == "app/github-actions" ]]; then
+            GH_TOKEN="${BASELINE_AUTOMATION_TOKEN}" gh pr merge \
+              --repo "${GITHUB_REPOSITORY}" \
+              --disable-auto \
+              "${proposal_number}"
+            auto_merge_method=""
+            auto_merge_actor=""
+          fi
+
+          app_registration_required="false"
           if [[ -z "${auto_merge_method}" ]]; then
-            # Auto-merge schedules the protected merge; it does not approve the
-            # proposal or bypass the required review and status checks.
-            gh pr merge \
+            GH_TOKEN="${BASELINE_AUTOMATION_TOKEN}" gh pr merge \
               --repo "${GITHUB_REPOSITORY}" \
               --auto \
               --squash \
-              --match-head-commit "$(git rev-parse HEAD)" \
+              --match-head-commit "${proposal_head}" \
               "${proposal_number}"
+            app_registration_required="true"
+          fi
+
+          # Do not infer success from gh's zero exit code. Read the resulting
+          # actor back from GitHub and bind it to the exact App installation.
+          # An immediately mergeable pull request can already be closed by the
+          # time this read occurs, so both registered and merged states are
+          # part of the same successful App-owned transition.
+          if [[ "${app_registration_required}" == "true" ]]; then
+            registration_state="$(
+              gh pr view \
+                --repo "${GITHUB_REPOSITORY}" \
+                --json autoMergeRequest,mergedBy,state \
+                "${proposal_number}"
+            )"
+            proposal_state="$(jq -er '.state' <<< "${registration_state}")"
+
+            if [[ "${proposal_state}" == "OPEN" ]]; then
+              auto_merge_method="$(
+                jq -er '.autoMergeRequest.mergeMethod' \
+                  <<< "${registration_state}"
+              )"
+              auto_merge_actor="$(
+                jq -er '.autoMergeRequest.enabledBy.login' \
+                  <<< "${registration_state}"
+              )"
+              if [[ "${auto_merge_method}" != "SQUASH" \
+                || "${auto_merge_actor}" != "${BASELINE_AUTOMATION_LOGIN}" ]]; then
+                echo "The App-owned auto-merge registration could not be verified." >&2
+                exit 1
+              fi
+            elif [[ "${proposal_state}" == "MERGED" ]]; then
+              auto_merge_actor="$(
+                jq -er '.mergedBy.login' <<< "${registration_state}"
+              )"
+              if [[ "${auto_merge_actor}" != "${BASELINE_AUTOMATION_LOGIN}" ]]; then
+                echo "The immediate baseline merge was not performed by the App." >&2
+                exit 1
+              fi
+              auto_merge_method="SQUASH"
+            else
+              echo "Unexpected baseline proposal state: ${proposal_state}" >&2
+              exit 1
+            fi
           fi
 
           {
-            echo "## Baseline review proposed"
+            echo "## Baseline auto-merge"
             echo
-            echo "- Branch: ${BASELINE_BRANCH}"
-            echo "- Pull-request checks: explicitly dispatched for the proposal head"
-            echo "- Auto-merge: enabled (squash)"
+            echo "- Pull request: #${proposal_number}"
+            echo "- Method: squash"
+            echo "- Actor: ${auto_merge_actor}"
             echo "- Acceptance: maintainer approval and protected checks"
           } >> "${GITHUB_STEP_SUMMARY}"
