@@ -579,14 +579,27 @@ to that contract writes the canonical baseline on the automation branch and
 opens or updates its pull request. Proposal state is inspected and
 synchronized only for seed work.
 
-The workflow enables squash auto-merge for a semantic baseline proposal but
-never approves it. The normal operator path is therefore:
+The workflow opens or updates a semantic baseline proposal but never approves
+it. A private, repository-scoped GitHub App registers squash auto-merge without
+bypassing protected-branch policy. The normal operator path is therefore:
 
 1. Review the baseline diff and the linked benchmark run.
 2. Confirm that `quality-gates`, `repo-tests`, and `integration-smoke` passed
    for the current proposal head.
 3. Approve the current pull-request revision.
-4. Let GitHub squash-merge the proposal after every protected check passes.
+4. Let GitHub complete the App-owned squash merge after every requirement is
+   satisfied.
+
+The repository ruleset dismisses an approval when a later automation push
+changes the reviewed diff and also requires approval of the most recent
+reviewable push. A proposal that remains open after an earlier approval is
+therefore not a failed auto-merge. Review the new canonical-baseline diff,
+wait for `quality-gates`, `repo-tests`, and `integration-smoke` on the current
+head, and approve that revision again. GitHub keeps the existing auto-merge
+request active because the automation updating the branch has write permission,
+and the controller ensures that a request exists; no workflow rerun, artifact
+download, or manual merge is required. This behavior prevents a semantic
+baseline update from inheriting an approval issued for different bytes.
 
 The proposal and linked evidence expose the following review inputs:
 
@@ -609,14 +622,41 @@ manual workflow approval, baseline artifact download, or Run-ID handoff.
 
 Repository administrators must enable **Allow GitHub Actions to create and
 approve pull requests** under **Settings > Actions > General > Workflow
-permissions**. The workflow consumes the pull-request creation and auto-merge
-capabilities but contains no review, approval, or administrative-bypass
-command. The active ruleset therefore continues to require an independent
-maintainer approval and all protected checks. The restricted CI dispatch uses
-only the workflow's ephemeral `GITHUB_TOKEN`; no PAT, repository secret, or
-external application is required. This repository setting and its security
-implications are documented by GitHub's
-[Actions policy reference][github-actions-policy].
+permissions**. The workflow consumes only the pull-request creation capability
+and contains no review, approval, or administrative-bypass command. The active
+ruleset therefore continues to require an independent maintainer approval and
+all protected checks. Branch synchronization, pull-request maintenance, and
+the restricted CI dispatch retain the ephemeral `GITHUB_TOKEN`; this avoids a
+second full PR workflow fan-out. Only the auto-merge request uses a short-lived
+GitHub App installation token. The token is restricted to this repository and
+the `contents` and `pull-requests` write permissions, and GitHub revokes it at
+job completion. This keeps the final merge outside `GITHUB_TOKEN` recursion
+suppression without introducing a user PAT or a ruleset bypass. The required
+repository setting and App behavior are documented by GitHub's
+[Actions policy reference][github-actions-policy],
+[workflow-trigger reference][github-workflow-events], and the official
+[`create-github-app-token` action][github-app-token-action].
+
+GitHub exposes the Actions installation through the pull-request Actor login
+`app/github-actions`, not through the commit-bot name
+`github-actions[bot]`. The controller uses that real identity to migrate a
+legacy auto-merge request, then reads the resulting state back from GitHub. An
+App registration is accepted only when it remains an App-owned squash request
+or has already completed as an App-owned merge.
+
+The legacy migration is deliberately transitional. Remove its
+`app/github-actions` branch and matching contract assertions after the first
+dedicated-App baseline proposal has merged successfully and GitHub reports no
+open baseline proposal owned by the legacy Actor. Record the qualifying pull
+request and workflow run in D-019 before removal so the transition is closed
+by observed repository evidence rather than elapsed time.
+
+Before allocating scorecard runners, the cheap resolver also requests and
+immediately revokes an unused token whenever proposal maintenance may be
+required. This validates the Client ID, private key, installation, repository
+selection, and requested permissions before an external configuration error
+can waste the measured run. A fresh token is created after a proposal update;
+tokens never cross job boundaries.
 
 The hosted workflow uses paired `compare` mode when the accepted reference pair
 is present. A missing or stale pair enters the reviewed historical seed path,
@@ -624,13 +664,17 @@ but that state is not a release precondition. Release qualification is decided
 exclusively by the paired same-run evidence described below.
 
 This design follows GitHub's documented `GITHUB_TOKEN` event behavior,
-approval-gated workflow-run contract, and latest-commit status-check contract.
-The primary sources were retrieved on 2026-08-07:
+GitHub App attribution contract, approval-gated workflow-run contract, and
+latest-commit status-check contract. The primary sources were retrieved on
+2026-08-07 and revalidated for the App integration on 2026-08-14:
 
 - [Automatic token authentication][github-token-authentication]
 - [Triggering a workflow][github-workflow-events]
 - [Troubleshooting required status checks][github-required-checks]
 - [Skipping workflow runs][github-skipped-workflows]
+- [Authenticating as a GitHub App installation][github-app-authentication]
+- [`actions/create-github-app-token`][github-app-token-action]
+- [Rules available for rulesets][github-ruleset-reviews]
 
 ## Soak interpretation
 
@@ -852,3 +896,9 @@ evidence produced with that bypass is not release eligible.
   https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow
 [github-skipped-workflows]:
   https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs
+[github-app-authentication]:
+  https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation
+[github-app-token-action]:
+  https://github.com/actions/create-github-app-token
+[github-ruleset-reviews]:
+  https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets

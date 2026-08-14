@@ -185,144 +185,50 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             analysis.index("- name: Upload result to code scanning"),
         )
 
-    def test_dependency_review_compares_symmetric_canonical_snapshots(
+    def test_dependency_review_waits_for_complete_automatic_snapshots(
         self,
     ) -> None:
-        """Use one graph contract for pushed main and trusted PR revisions."""
+        """Use GitHub's single graph producer and fail closed on warnings."""
         text = self.workflow("dependency-review.yml")
-        submission = self.job(
-            text,
-            "dependency-submission",
-            "dependency-review",
-        )
         review = self.job(text, "dependency-review")
+        triggers = text[text.index("on:\n") : text.index("\npermissions:")]
 
+        self.assertEqual("on:\n  pull_request:\n", triggers)
         self.assertIn(
-            "github.event_name == 'push'\n"
-            "      || (\n"
-            "        github.event.pull_request.head.repo.full_name == "
-            "github.repository\n"
-            "        && github.event.pull_request.user.login "
-            "!= 'dependabot[bot]'\n"
-            "      )",
-            submission,
-        )
-        self.assertIn("push:\n    branches:\n      - main", text)
-        self.assertIn(
-            "cancel-in-progress: ${{ github.event_name != 'push' }}",
+            "group: ${{ github.workflow }}-${{ github.event.pull_request.number }}",
             text,
         )
-        self.assertIn("contents: write", submission)
-        self.assertNotIn("id-token: write", submission)
-        self.assertIn(
-            "outputs:\n      mode: "
-            "${{ steps.snapshot_mode.outputs.mode }}",
-            submission,
-        )
-        self.assertIn(
-            "ref: >-\n"
-            "            ${{ github.event_name == 'pull_request'\n"
-            "            && github.event.pull_request.head.sha\n"
-            "            || github.sha }}",
-            submission,
-        )
-        self.assertIn(
-            "uses: actions/setup-dotnet@"
-            "a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0",
-            submission,
-        )
-        self.assertIn("global-json-file: global.json", submission)
-        self.assertIn(
-            "python3 -m eng.quality.dependency_snapshot_readiness "
-            "resolve-mode",
-            submission,
-        )
-        canonical_condition = (
-            "github.event_name == 'push'\n"
-            "          || steps.snapshot_mode.outputs.mode == 'canonical'"
-        )
-        self.assertEqual(3, submission.count(canonical_condition))
-        self.assertIn(
-            "bash eng/quality/restore-dependency-snapshot.sh",
-            submission,
-        )
-        restore_script = (
-            self.repo / "eng" / "quality" / "restore-dependency-snapshot.sh"
-        ).read_text(encoding="utf-8")
-        self.assertIn("! -path '*/artifacts/*'", restore_script)
-        self.assertNotIn(
-            '! -path "${repo_root}/artifacts/*"',
-            restore_script,
-        )
-        self.assertIn(
-            "python3 -m eng.quality.dependency_snapshot",
-            submission,
-        )
-        self.assertIn(
-            "DOKA_SNAPSHOT_SHA: >-\n"
-            "            ${{ github.event_name == 'pull_request'\n"
-            "            && github.event.pull_request.head.sha\n"
-            "            || github.sha }}",
-            submission,
-        )
-        self.assertIn(
-            "DOKA_SNAPSHOT_REF: >-\n"
-            "            ${{ github.event_name == 'pull_request'\n"
-            "            && format('refs/heads/{0}', "
-            "github.event.pull_request.head.ref)\n"
-            "            || github.ref }}",
-            submission,
-        )
-        self.assertIn('--sha "${DOKA_SNAPSHOT_SHA}"', submission)
-        self.assertIn('--ref "${DOKA_SNAPSHOT_REF}"', submission)
-        self.assertIn(
-            '--correlator "dependency-review-nuget"',
-            submission,
-        )
-        self.assertNotIn("DOKA_PR_NUMBER", submission)
-        self.assertIn("--submit", submission)
-
-        self.assertIn("needs: dependency-submission", review)
-        self.assertIn(
-            "if: ${{ github.event_name == 'pull_request' && !cancelled() }}",
-            review,
-        )
+        self.assertIn("cancel-in-progress: true", text)
+        self.assertNotIn("dependency-submission:", text)
         self.assertIn("contents: read", review)
-        self.assertIn("checks: read", review)
         self.assertNotIn("contents: write", review)
+        self.assertNotIn("checks: read", review)
         self.assertIn(
-            "needs.dependency-submission.result != 'success'",
+            "uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
             review,
         )
-        self.assertEqual(
-            3,
-            text.count(
-                "github.event.pull_request.user.login != "
-                "'dependabot[bot]'"
-            ),
+        trusted_condition = (
+            "github.event.pull_request.head.repo.full_name == "
+            "github.repository\n"
+            "          && github.event.pull_request.user.login "
+            "!= 'dependabot[bot]'"
         )
-        self.assertIn("exit 1", review)
+        self.assertEqual(1, review.count(trusted_condition))
         self.assertIn(
             "python3 -m eng.quality.dependency_snapshot_readiness verify",
             review,
         )
         self.assertIn('--base-revision "${DOKA_BASE_REVISION}"', review)
         self.assertIn('--head-revision "${DOKA_HEAD_REVISION}"', review)
-        self.assertIn("--wait-seconds 120", review)
-        self.assertIn(
-            "needs.dependency-submission.outputs.mode == 'canonical'",
-            review,
-        )
-        self.assertIn(
-            "show-openssf-scorecard: >-\n"
-            "            ${{ needs.dependency-submission.outputs.mode "
-            "!= 'bootstrap' }}",
-            review,
-        )
+        self.assertIn("--wait-seconds 180", review)
         self.assertEqual(1, review.count("show-openssf-scorecard:"))
+        self.assertIn("show-openssf-scorecard: true", review)
         self.assertNotIn("show-openssf-scorecard: false", review)
-        self.assertIn("retry-on-snapshot-warnings: false", review)
-        self.assertNotIn("retry-on-snapshot-warnings-timeout", review)
+        self.assertIn("retry-on-snapshot-warnings: true", review)
+        self.assertIn("retry-on-snapshot-warnings-timeout: 180", review)
+        self.assertNotIn("resolve-mode", review)
+        self.assertNotIn("restore-dependency-snapshot", review)
+        self.assertNotIn("eng.quality.dependency_snapshot ", review)
 
     def test_benchmark_resolves_baseline_before_allocating_the_matrix(self) -> None:
         """Resolve compatibility and duplicate proposals before costly runs."""
@@ -342,7 +248,11 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "benchmark-scorecard",
             "propose-baseline-update",
         )
-        proposal = self.job(text, "propose-baseline-update")
+        proposal = self.job(
+            text,
+            "propose-baseline-update",
+            "ensure-baseline-auto-merge",
+        )
 
         self.assertIn("baseline_mode:", text)
         self.assertIn(
@@ -392,7 +302,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         )
 
     def test_baseline_proposal_has_bounded_write_authority(self) -> None:
-        """Confine mutations to the two bounded proposal-update jobs."""
+        """Pin the App boundary and Actor shape observed on baseline PR 42."""
         text = self.workflow("benchmark.yml")
         resolver = self.job(
             text,
@@ -409,20 +319,42 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "benchmark-scorecard",
             "propose-baseline-update",
         )
-        proposal = self.job(text, "propose-baseline-update")
+        proposal = self.job(
+            text,
+            "propose-baseline-update",
+            "ensure-baseline-auto-merge",
+        )
+        auto_merge = self.job(text, "ensure-baseline-auto-merge")
 
-        self.assertNotIn("contents: write", resolver)
-        self.assertNotIn("contents: write", scorecard)
-        self.assertNotIn("pull-requests: write", resolver)
-        self.assertNotIn("pull-requests: write", sync)
-        self.assertNotIn("pull-requests: write", scorecard)
+        job_contents_write = re.compile(
+            r"^      contents: write$",
+            re.MULTILINE,
+        )
+        job_pull_requests_write = re.compile(
+            r"^      pull-requests: write$",
+            re.MULTILINE,
+        )
+        self.assertIsNone(job_contents_write.search(resolver))
+        self.assertIsNone(job_contents_write.search(scorecard))
+        self.assertIsNone(job_contents_write.search(auto_merge))
+        self.assertIsNone(job_pull_requests_write.search(resolver))
+        self.assertIsNone(job_pull_requests_write.search(sync))
+        self.assertIsNone(job_pull_requests_write.search(scorecard))
+        self.assertIsNone(job_pull_requests_write.search(auto_merge))
         self.assertNotIn("actions: write", resolver)
         self.assertNotIn("actions: write", scorecard)
+        self.assertNotIn("actions: write", auto_merge)
         self.assertIn("actions: write", sync)
         self.assertIn("actions: write", proposal)
         self.assertEqual(2, text.count("actions: write"))
-        self.assertEqual(2, text.count("contents: write"))
-        self.assertEqual(1, text.count("pull-requests: write"))
+        self.assertEqual(
+            2,
+            len(job_contents_write.findall(text)),
+        )
+        self.assertEqual(
+            1,
+            len(job_pull_requests_write.findall(text)),
+        )
         self.assertIn("contents: write", sync)
         self.assertIn("gh pr create", proposal)
         self.assertIn("gh api", proposal)
@@ -432,16 +364,162 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             self.assertIn("gh workflow run ci.yml", update_job)
             self.assertIn("--ref \"${BASELINE_BRANCH}\"", update_job)
             self.assertIn("--field profile=baseline-proposal", update_job)
-        self.assertIn("gh pr merge", proposal)
-        self.assertIn("--auto", proposal)
-        self.assertIn("--squash", proposal)
-        self.assertIn("--match-head-commit", proposal)
-        self.assertIn("--json autoMergeRequest", proposal)
-        self.assertIn("unexpected ${auto_merge_method} auto-merge policy", proposal)
-        self.assertNotIn("--admin", proposal)
-        self.assertNotIn("gh pr review", proposal)
-        self.assertNotIn("--force", proposal)
-        self.assertNotIn("secrets.", proposal)
+        self.assertEqual(
+            2,
+            text.count(
+                "uses: actions/create-github-app-token@"
+                "bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3"
+            ),
+        )
+        app_contract = (
+            "client-id: ${{ vars.DOKA_AUTOMATION_APP_CLIENT_ID }}",
+            "private-key: "
+            "${{ secrets.DOKA_AUTOMATION_APP_PRIVATE_KEY }}",
+            "owner: ${{ github.repository_owner }}",
+            "repositories: ${{ github.event.repository.name }}",
+            "permission-contents: write",
+            "permission-pull-requests: write",
+        )
+        for entry in app_contract:
+            self.assertEqual(2, text.count(entry), entry)
+            self.assertIn(entry, resolver)
+            self.assertIn(entry, auto_merge)
+            self.assertNotIn(entry, sync)
+            self.assertNotIn(entry, proposal)
+            self.assertNotIn(entry, scorecard)
+        self.assertIn(
+            "BASELINE_AUTOMATION_LOGIN: app/"
+            "${{ steps.baseline-automation-token.outputs.app-slug }}",
+            auto_merge,
+        )
+        self.assertIn(
+            "steps.resolve.outputs.sync-required == 'true'",
+            resolver,
+        )
+        self.assertIn(
+            "steps.resolve.outputs.proposal-required == 'true'",
+            resolver,
+        )
+        self.assertIn(
+            "needs.sync-baseline-proposal.result == 'success'",
+            auto_merge,
+        )
+        self.assertIn(
+            "needs.propose-baseline-update.outputs.baseline-changed "
+            "== 'true'",
+            auto_merge,
+        )
+        self.assertIn(
+            "baseline-changed: "
+            "${{ steps.candidate.outputs.baseline-changed }}",
+            proposal,
+        )
+        self.assertNotIn("baseline-automation-token", sync)
+        self.assertNotIn("baseline-automation-token", proposal)
+        self.assertNotIn(
+            "token: ${{ steps.baseline-automation-token.outputs.token }}",
+            text,
+        )
+        self.assertEqual(
+            2,
+            auto_merge.count(
+                'GH_TOKEN="${BASELINE_AUTOMATION_TOKEN}" gh pr merge'
+            ),
+        )
+        self.assertIn("--disable-auto", auto_merge)
+        self.assertEqual(1, auto_merge.count("--auto"))
+        self.assertIn("--squash", auto_merge)
+        self.assertIn("--match-head-commit", auto_merge)
+        self.assertEqual(2, auto_merge.count("--json autoMergeRequest"))
+        self.assertIn("--json autoMergeRequest,headRefOid", auto_merge)
+        self.assertIn("GH_TOKEN: ${{ github.token }}", auto_merge)
+        self.assertIn(
+            '"${auto_merge_actor}" == "app/github-actions"',
+            auto_merge,
+        )
+        self.assertIn(
+            "Remove this transition branch after the first App-owned "
+            "baseline",
+            auto_merge,
+        )
+        self.assertNotIn('"github-actions[bot]"', auto_merge)
+        self.assertIn(
+            "--json autoMergeRequest,mergedBy,state",
+            auto_merge,
+        )
+        self.assertIn(
+            '"${auto_merge_actor}" != "${BASELINE_AUTOMATION_LOGIN}"',
+            auto_merge,
+        )
+        self.assertIn(
+            '"${proposal_state}" == "OPEN"',
+            auto_merge,
+        )
+        self.assertIn(
+            '"${proposal_state}" == "MERGED"',
+            auto_merge,
+        )
+        self.assertIn(
+            "The App-owned auto-merge registration could not be verified",
+            auto_merge,
+        )
+        self.assertIn(
+            "The immediate baseline merge was not performed by the App",
+            auto_merge,
+        )
+        self.assertIn(
+            "existing auto-merge actor could not be verified",
+            auto_merge,
+        )
+        self.assertIn(
+            "Acceptance: maintainer approval and protected checks",
+            auto_merge,
+        )
+        self.assertNotIn("gh pr merge", proposal)
+        self.assertNotIn("gh pr merge", sync)
+        self.assertNotIn("--admin", auto_merge)
+        self.assertNotIn("gh pr review", text)
+        self.assertNotIn("--force", auto_merge)
+        self.assertEqual(2, text.count("secrets."))
+
+    def test_baseline_runbook_closes_review_and_actor_transitions(self) -> None:
+        """Keep approval renewal and legacy-Actor retirement actionable."""
+        runbook = " ".join(
+            (
+                self.repo / "docs" / "operations" / "performance-evidence.md"
+            )
+            .read_text(encoding="utf-8")
+            .split()
+        )
+        decision = " ".join(
+            (
+                self.repo
+                / "docs"
+                / "decisions"
+                / "D-019-performance-gate-architecture.md"
+            )
+            .read_text(encoding="utf-8")
+            .split()
+        )
+
+        for required in (
+            "dismisses an approval",
+            "most recent reviewable push",
+            "approve that revision again",
+            "keeps the existing auto-merge request active",
+            "no workflow rerun, artifact download, or manual merge",
+        ):
+            with self.subTest(runbook_contract=required):
+                self.assertIn(required, runbook)
+
+        for required in (
+            "transition mechanism, not a permanent compatibility surface",
+            "first baseline proposal registered by the dedicated App",
+            "no open baseline proposal whose Actor is",
+            "must cite that pull request and its workflow run",
+        ):
+            with self.subTest(removal_contract=required):
+                self.assertIn(required, decision)
 
     @staticmethod
     def jobs(workflow: str) -> dict[str, str]:
@@ -621,7 +699,11 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "sync-baseline-proposal",
             "benchmark-scorecard",
         )
-        proposal = self.job(benchmark, "propose-baseline-update")
+        proposal = self.job(
+            benchmark,
+            "propose-baseline-update",
+            "ensure-baseline-auto-merge",
+        )
 
         self.assertIn("  pull_request:\n", ci)
         self.assertIn("  workflow_dispatch:\n", ci)
@@ -674,7 +756,11 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "resolve-baseline-mode",
             "sync-baseline-proposal",
         )
-        proposal = self.job(text, "propose-baseline-update")
+        proposal = self.job(
+            text,
+            "propose-baseline-update",
+            "ensure-baseline-auto-merge",
+        )
 
         self.assertIn('proposal_base="$(', resolver)
         self.assertIn("git merge-base \\", resolver)

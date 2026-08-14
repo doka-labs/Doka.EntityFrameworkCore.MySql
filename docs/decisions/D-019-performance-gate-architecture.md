@@ -306,8 +306,9 @@ that unexpected branch state.
 Both seed jobs must pass before automation combines and validates the complete
 MySQL and MariaDB pair. The workflow writes that candidate to a stable
 automation branch and opens or updates one pull request. It enables squash
-auto-merge but never approves its proposal. Only the proposal-update jobs
-receive contents write authority, and only the pull-request writer receives
+auto-merge through a private, repository-scoped GitHub App but never approves
+its proposal. Only the proposal-update jobs receive `GITHUB_TOKEN` contents
+write authority, and only the pull-request writer receives `GITHUB_TOKEN`
 pull-request write authority. Every measurement job remains read-only.
 Tree-diff guards confine both proposal creation and synchronization to the
 canonical baseline file.
@@ -316,11 +317,44 @@ Branch updates made with `GITHUB_TOKEN` do not recursively start normal push
 or pull-request workflows. After creating or synchronizing the proposal, the
 controller therefore dispatches a restricted CI profile on the exact proposal
 head. The profile runs only the three protected repository checks and skips
-the expensive scheduled and full-dispatch jobs. GitHub completes the scheduled
-squash merge only after those checks and an independent maintainer approval
-succeed. Protected-branch review remains the acceptance boundary. No PAT,
-repository secret, external application, downloaded handoff artifact,
-automatic approval, or administrative bypass is involved.
+the expensive scheduled and full-dispatch jobs. The built-in token retains
+branch and pull-request updates, which prevents an additional full PR workflow
+fan-out. A short-lived installation token is minted only when a semantic
+baseline proposal may need maintenance. The resolver immediately revokes that
+unused preflight token before allocating scorecard runners. After an actual
+proposal update, a fresh token is restricted to this repository and the
+`contents` and `pull-requests` write permissions and is used only to register
+squash auto-merge. GitHub attributes that API request to the App rather than
+`GITHUB_TOKEN`, so the eventual `main` push starts the normal repository
+workflows. An independent maintainer approval and every protected check remain
+mandatory. Protected-branch review remains the acceptance boundary. No PAT,
+automatic approval, administrative bypass, or downloaded handoff artifact is
+involved.
+
+The controller distinguishes GitHub's commit-bot identity from its
+pull-request Actor identity. An auto-merge request created with `GITHUB_TOKEN`
+reports `app/github-actions`, not `github-actions[bot]`. The controller rebinds
+that legacy request to the dedicated App and reads the resulting actor back
+before it accepts either an open auto-merge request or an immediately completed
+merge. The legacy Actor representation was verified against repository
+baseline PR 42 on 2026-08-14 instead of being inferred from the commit-bot
+display name.
+
+The legacy rebind is a transition mechanism, not a permanent compatibility
+surface. Remove it, together with its contract assertions, after the first
+baseline proposal registered by the dedicated App has merged successfully and
+the repository has no open baseline proposal whose Actor is
+`app/github-actions`. The removal change must cite that pull request and its
+workflow run so the criterion is satisfied by observed repository state.
+
+The App private key remains an organization secret restricted to this one
+repository. An unprotected Actions environment would not add an authorization
+boundary because a reviewed workflow can reference it, while a required-review
+environment would add a second human gate to every automated baseline cycle.
+The accepted boundary is therefore protected workflow review, a repository-only
+App installation, and job-level token permission narrowing. This decision is
+revisited if GitHub offers a non-interactive environment protection rule that
+can bind only this maintenance transition without adding an operator handoff.
 
 Every `main` push reaches the resolver so required-check coverage cannot be
 skipped by a path filter. The resolver delegates its common input policy to the
@@ -523,6 +557,10 @@ A baseline update requires:
 - 2026-08-07: Enabled squash auto-merge for the validated baseline proposal.
   Independent maintainer approval and every protected check remain mandatory;
   the workflow has no review or administrative-bypass command.
+- 2026-08-14: Moved squash auto-merge authority from `GITHUB_TOKEN` to a
+  private, repository-scoped GitHub App. The App token is short-lived and
+  permission-restricted, never approves or bypasses the proposal, and lets the
+  resulting `main` push produce commit-exact release qualification evidence.
 - 2026-08-07: Isolated the measured scorecard in a reusable workflow. The
   parent benchmark workflow and its event resolver are now an explicitly cheap
   control plane, so orchestration-only changes cannot allocate the hosted
@@ -599,6 +637,16 @@ A baseline update requires:
   (primary source; retrieved 2026-08-07)
 - [GitHub CLI `pr merge`][github-cli-pr-merge]
   (primary source; retrieved 2026-08-07)
+- [GitHub App installation authentication][github-app-authentication]
+  (primary source; retrieved 2026-08-14)
+- [GitHub `create-github-app-token` action][github-app-token-action]
+  (primary source; retrieved 2026-08-14)
+- [GitHub ruleset pull-request review rules][github-ruleset-reviews]
+  (primary source; retrieved 2026-08-14)
+- [GitHub deployment environments][github-deployment-environments]
+  (primary source; retrieved 2026-08-14)
+- [Repository baseline PR 42 Actor evidence][baseline-pr-42]
+  (primary source; retrieved 2026-08-14)
 
 [bdn-config]: https://benchmarkdotnet.org/articles/configs/configoptions.html
 [bdn-diagnosers]: https://benchmarkdotnet.org/articles/configs/diagnosers.html
@@ -631,3 +679,13 @@ A baseline update requires:
 [github-auto-merge]:
   https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-auto-merge-for-pull-requests-in-your-repository
 [github-cli-pr-merge]: https://cli.github.com/manual/gh_pr_merge
+[github-app-authentication]:
+  https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation
+[github-app-token-action]:
+  https://github.com/actions/create-github-app-token
+[github-ruleset-reviews]:
+  https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets
+[github-deployment-environments]:
+  https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments
+[baseline-pr-42]:
+  https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/pull/42

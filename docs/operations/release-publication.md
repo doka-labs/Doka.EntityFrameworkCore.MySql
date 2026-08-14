@@ -94,13 +94,16 @@ validates both release engines and opens one baseline review pull request.
 There is no artifact download, file replacement, or second benchmark dispatch.
 
 Review and merge that pull request through protected `main`. The automation
-never approves its own proposal. It enables squash auto-merge, which remains
-blocked until a maintainer approves the current revision and every protected
-check passes. GitHub creates the normal pull-request checks for the current
-proposal revision and holds them for a maintainer to select **Approve
-workflows to run**. No artifact download, Run-ID handoff, or second workflow
-dispatch is required. A current proposal is reused; if it is behind only
-unrelated `main` changes, automation synchronizes it without another
+never approves its own proposal. A private, repository-scoped GitHub App
+schedules squash auto-merge, which remains blocked until a maintainer approves
+the current revision and every protected check passes. Keeping the merge
+request outside `GITHUB_TOKEN` ensures that the resulting `main` push starts
+the workflows which produce commit-exact release evidence. The benchmark
+controller explicitly dispatches the three required checks for the exact
+proposal revision; no manual workflow approval, artifact download, Run-ID
+handoff, or second benchmark dispatch is required. A current proposal is
+reused; if it is behind only unrelated `main` changes, automation synchronizes
+it without another
 scorecard. Invalid or stale evidence is remeasured on the same stable proposal
 branch. Unexpected files on that branch fail before the matrix and require
 explicit review instead of being overwritten by automation.
