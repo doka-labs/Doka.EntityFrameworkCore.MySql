@@ -69,7 +69,8 @@ The `ci` workflow has two automatic lanes:
 2. A weekly schedule runs the complete workflow. Manual dispatch also runs the
    complete workflow. The exhaustive lane adds migration deployment, the EF
    Core floor/latest matrix, all three specification engines, the merged
-   coverage gate, runtime posture, and both benchmark-smoke targets.
+   coverage gate, runtime posture, and every benchmark-smoke target named by
+   the performance contract.
 
 The release-candidate workflow is manual. It remains the pre-tag gate and
 retains packaging, vulnerability, SBOM, publication-readiness, and complete

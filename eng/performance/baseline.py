@@ -978,7 +978,7 @@ def resolve_baseline_mode(args: argparse.Namespace) -> dict[str, Any]:
             baseline_disposition = "contract-version-mismatch"
         else:
             # Full validation must precede lookup. Otherwise a complete-looking
-            # runner pair could hide duplicate or partial groups elsewhere.
+            # runner matrix could hide duplicate or partial groups elsewhere.
             validate_baseline_file(
                 argparse.Namespace(
                     contract=args.contract,
@@ -994,21 +994,22 @@ def resolve_baseline_mode(args: argparse.Namespace) -> dict[str, Any]:
             required_targets = set(contract["requiredTargets"])
             if observed_targets == required_targets:
                 automatic_mode = "compare"
-                baseline_disposition = "accepted-runner-pair"
+                baseline_disposition = "accepted-runner-matrix"
             elif not observed_targets:
                 automatic_mode = "seed"
-                baseline_disposition = "runner-pair-missing"
+                baseline_disposition = "runner-matrix-missing"
             else:
                 # validate_baseline_file rejects this already. Keep the branch
                 # explicit so this resolver remains fail-closed if that contract
                 # changes independently in the future.
                 raise PerformanceEvidenceError(
-                    "Baseline contains a partial target pair for the requested runner."
+                    "Baseline contains a partial target matrix for the requested "
+                    "runner."
                 )
 
     if requested_mode == "compare" and automatic_mode != "compare":
         raise PerformanceEvidenceError(
-            "Compare mode requires a current accepted baseline pair for "
+            "Compare mode requires a current accepted baseline matrix for "
             f"profile '{profile}' and runner '{runner_class}'; disposition is "
             f"'{baseline_disposition}'."
         )

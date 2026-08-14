@@ -152,7 +152,7 @@ DOKA_BENCHMARK_PROFILE=scorecard \
 
 See
 [Performance and memory evidence](docs/operations/performance-evidence.md) for
-runner identity, dual-engine baseline acceptance, strict comparison, and
+runner identity, complete LTS baseline acceptance, strict comparison, and
 failure triage.
 
 **Pre-tag qualification lookup** (run only after the exact commit is green on

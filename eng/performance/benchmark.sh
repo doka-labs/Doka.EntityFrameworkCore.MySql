@@ -129,7 +129,7 @@ Modes:
   --up-run-down     Start the selected target, run the configured profile, then stop the stack.
 
 Environment:
-  DOKA_BENCHMARK_TARGET=mysql84|mariadb118
+  DOKA_BENCHMARK_TARGET=<requiredTargets key>
   DOKA_BENCHMARK_PROFILE=smoke|scorecard|stress
   DOKA_BENCHMARK_BASELINE_MODE=compare|seed
   DOKA_BENCHMARK_COMPARISON_MODE=historical|paired
@@ -194,26 +194,39 @@ can_connect() {
 }
 
 configure_benchmark_target() {
-    case "${benchmark_target}" in
-        mysql84)
-            benchmark_target_display_name="MySQL 8.4"
-            benchmark_target_host="127.0.0.1"
-            benchmark_target_port="${DOKA_BENCHMARK_PORT:-33068}"
-            benchmark_compose_service="mysql84"
-            export DOKA_MYSQL84_PORT="${benchmark_target_port}"
-            ;;
-        mariadb118)
-            benchmark_target_display_name="MariaDB 11.8"
-            benchmark_target_host="127.0.0.1"
-            benchmark_target_port="${DOKA_BENCHMARK_PORT:-33069}"
-            benchmark_compose_service="mariadb118"
-            export DOKA_MARIADB118_PORT="${benchmark_target_port}"
-            ;;
-        *)
-            echo "Unsupported benchmark target '${benchmark_target}'." >&2
-            exit 1
-            ;;
-    esac
+    local default_port
+    local port_variable
+
+    if ! jq -e --arg target "${benchmark_target}" \
+            '.requiredTargets[$target] != null' \
+            "${performance_contract}" >/dev/null; then
+        echo "Unsupported benchmark target '${benchmark_target}'." >&2
+        echo "Supported targets:" >&2
+        jq -r '.requiredTargets | keys[] | "  " + .' "${performance_contract}" >&2
+        exit 1
+    fi
+
+    benchmark_target_display_name="$(
+        jq -er --arg target "${benchmark_target}" \
+            '.requiredTargets[$target].displayName' \
+            "${performance_contract}"
+    )"
+    default_port="$(
+        jq -er --arg target "${benchmark_target}" \
+            '.requiredTargets[$target].hostPort' \
+            "${performance_contract}"
+    )"
+    benchmark_target_host="127.0.0.1"
+    benchmark_target_port="${DOKA_BENCHMARK_PORT:-${default_port}}"
+    benchmark_compose_service="${benchmark_target}"
+
+    # Compose exposes one target-specific port variable per supported image.
+    # Deriving the variable from the contract key avoids another six-way table
+    # that could accept a target while publishing the wrong container port.
+    port_variable="DOKA_$(
+        printf '%s' "${benchmark_target}" | tr '[:lower:]' '[:upper:]'
+    )_PORT"
+    export "${port_variable}=${benchmark_target_port}"
 }
 
 validate_configuration() {

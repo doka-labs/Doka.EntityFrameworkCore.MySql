@@ -244,17 +244,32 @@ class ArtifactHandoffTests(unittest.TestCase):
         """
         candidate = workflow_text("release-candidate.yml")
         scorecard = workflow_text("benchmark-scorecard.yml")
+        target_workflow = workflow_text("benchmark-target.yml")
 
-        for target in ("mysql84", "mariadb118"):
-            with self.subTest(target=target):
-                self.assertIn(
-                    f"name: benchmark-artifacts-{target}",
-                    scorecard,
-                    "The scorecard must publish this target's qualified evidence.",
-                )
+        self.assertIn(".requiredTargets | keys", scorecard)
+        self.assertIn("target: ${{ matrix.target }}", scorecard)
+        self.assertIn("name: benchmark-artifacts-${{ inputs.target }}", target_workflow)
+        self.assertIn("qualify-paired-scorecard:", scorecard)
+        self.assertIn("python3 -m eng.performance.cli qualify-scorecard", scorecard)
+        self.assertIn("name: benchmark-scorecard-qualification", scorecard)
+        self.assertIn(
+            "name: benchmark-dispersion-${{ inputs.target }}-1",
+            target_workflow,
+        )
+        self.assertIn(
+            "name: benchmark-dispersion-${{ inputs.target }}-2",
+            target_workflow,
+        )
+        self.assertEqual(2, target_workflow.count("retention-days: 90"))
+        self.assertEqual(
+            2,
+            target_workflow.count("title=Benchmark dispersion drift"),
+        )
 
         self.assertIn("performance-qualification:", candidate)
         self.assertIn("- performance-qualification", candidate)
+        self.assertIn("name: benchmark-scorecard-qualification", candidate)
+        self.assertIn("paired-scorecard-qualification.json", candidate)
 
 
 class CompatibilityMatrixTests(unittest.TestCase):

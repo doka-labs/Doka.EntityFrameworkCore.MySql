@@ -21,6 +21,9 @@ from pathlib import Path
 from typing import Any, Sequence
 
 if __package__:
+    from ..performance.contract import PerformanceEvidenceError
+    from ..performance.paired import evaluate_scorecard_qualification
+    from ..performance.sensitivity import validate_registered_characterization
     from .qualification import QualificationError, load_policy, policy_digest
     from .trust import (
         TrustRootError,
@@ -28,6 +31,9 @@ if __package__:
         run_git,
     )
 else:  # pragma: no cover - direct execution path
+    from eng.performance.contract import PerformanceEvidenceError
+    from eng.performance.paired import evaluate_scorecard_qualification
+    from eng.performance.sensitivity import validate_registered_characterization
     from qualification import QualificationError, load_policy, policy_digest
     from trust import TrustRootError, fetch_qualification_receipt, run_git
 
@@ -200,6 +206,7 @@ def performance_result(
     *,
     gate: dict[str, Any],
     evaluations: Sequence[Path],
+    contract_path: Path,
     root: Path,
     repository: str,
     commit: str,
@@ -209,11 +216,23 @@ def performance_result(
 ) -> dict[str, Any]:
     """Describe the paired performance gate from the evaluations it produced.
 
-    Every engine must have qualified. Accepting a partial set would let an
-    engine whose comparison never concluded be represented by one that did.
+    Every engine must have reached the run-wide finalizer. Accepting target
+    verdicts without replaying their global adjustment would recreate the
+    independent-family false-alarm problem at release assembly.
     """
     if not evaluations:
         raise QualificationError("No paired performance evaluations were produced.")
+
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    try:
+        validate_registered_characterization(
+            contract,
+            contract_path.resolve().parent.parent,
+        )
+    except PerformanceEvidenceError as error:
+        raise QualificationError(
+            f"Paired sensitivity characterization is invalid: {error}"
+        ) from error
 
     drivers: set[str] = set()
     contracts: set[str] = set()
@@ -226,10 +245,11 @@ def performance_result(
             )
         evaluation = json.loads(path.read_text(encoding="utf-8"))
         evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-        if evaluation.get("qualification") != "qualified":
+        if evaluation.get("qualification") != "pending-run-wide-adjustment":
             raise QualificationError(
                 f"{path.name} reports "
-                f"{evaluation.get('qualification')!r} rather than 'qualified'."
+                f"{evaluation.get('qualification')!r} rather than pending "
+                "run-wide adjustment."
             )
         if evidence.get("candidateCommit") != commit:
             raise QualificationError(
@@ -249,6 +269,32 @@ def performance_result(
             raise QualificationError(
                 f"Paired evaluations disagree on the {name}: {sorted(map(str, values))}."
             )
+
+    qualification_path = root / "paired-scorecard-qualification.json"
+    if not qualification_path.is_file() or qualification_path.is_symlink():
+        raise QualificationError(
+            "Paired performance carries no regular scorecard qualification."
+        )
+    qualification = json.loads(qualification_path.read_text(encoding="utf-8"))
+    try:
+        expected_qualification = evaluate_scorecard_qualification(
+            [json.loads(path.read_text(encoding="utf-8")) for path in evaluations],
+            contract,
+            contract_digest=digest_file(contract_path),
+        )
+    except PerformanceEvidenceError as error:
+        raise QualificationError(
+            f"Paired scorecard qualification is invalid: {error}"
+        ) from error
+    if qualification != expected_qualification:
+        raise QualificationError(
+            "Paired scorecard qualification does not reproduce from its target "
+            "evaluations."
+        )
+    if qualification.get("qualification") != "qualified":
+        raise QualificationError(
+            "Paired scorecard did not qualify the complete required target set."
+        )
 
     # The identity spans every retained file, not only the verdicts. Digesting
     # the evaluations alone would leave the measurements, the sustained-use
@@ -331,6 +377,7 @@ def derive(arguments: argparse.Namespace) -> list[dict[str, Any]]:
                     evaluations=sorted(
                         Path(arguments.performance_root).rglob("paired-evaluation.json")
                     ),
+                    contract_path=Path(arguments.performance_contract),
                     root=Path(arguments.performance_root),
                     repository=arguments.repository,
                     commit=commit,
@@ -399,6 +446,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     derive_parser.add_argument("--checkpoint-directory", required=True)
     derive_parser.add_argument("--evidence-root", required=True)
     derive_parser.add_argument("--performance-root", required=True)
+    derive_parser.add_argument("--performance-contract", required=True)
     derive_parser.add_argument("--assembling-attempt", required=True, type=int)
     derive_parser.add_argument("--policy", type=Path)
     derive_parser.add_argument("--output", required=True, type=Path)

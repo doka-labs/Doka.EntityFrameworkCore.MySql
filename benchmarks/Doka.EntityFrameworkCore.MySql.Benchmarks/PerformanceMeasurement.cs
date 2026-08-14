@@ -44,9 +44,13 @@ internal sealed class PerformanceContract
 
 internal sealed class PerformanceTargetContract
 {
+    public string DisplayName { get; init; } = string.Empty;
+
     public string EngineFamily { get; init; } = string.Empty;
 
     public string ServerVersion { get; init; } = string.Empty;
+
+    public int HostPort { get; init; }
 
     public string ServerImage { get; init; } = string.Empty;
 }

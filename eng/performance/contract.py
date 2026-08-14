@@ -425,12 +425,21 @@ def validate_contract_version(value: str) -> None:
 # silently applies the only procedure there ever was, and the divergence would
 # surface as a reviewer trusting a document the evidence does not support.
 PAIRED_INTERVAL_METHODS = frozenset({"bca-bootstrap"})
-PAIRED_MULTIPLE_COMPARISON_PROCEDURES = frozenset({"benjamini-hochberg"})
+PAIRED_MULTIPLE_COMPARISON_PROCEDURES = frozenset({"holm"})
 PAIRED_RETRY_COMBINATIONS = frozenset({"replace-attempt"})
+PAIRED_SENSITIVITY_METHODS = frozenset(
+    {"deterministic-lognormal-bca-exact-sign-flip"}
+)
+PAIRED_SENSITIVITY_FAMILY_CASES = frozenset({"single-regression"})
 
 # The paired comparison measures every registered workload; there is no
 # narrowing path and no consumer for one.
 PAIRED_WORKLOAD_SCOPES = frozenset({"complete-matrix"})
+PAIRED_ENDPOINT_ROLES = frozenset({"required", "observational"})
+PAIRED_PRIMARY_AGGREGATIONS = frozenset(
+    {"geometric-mean-across-workloads"}
+)
+PAIRED_SECONDARY_AGGREGATIONS = frozenset({"per-workload"})
 PAIRED_LATENCY_METRICS = frozenset(
     {"normalizedMedian", "normalizedP95", "normalizedP99"}
 )
@@ -440,7 +449,7 @@ _PAIRED_POLICY_SHAPE: dict[str, tuple[str, ...]] = {
         "blockPatterns",
         "startingSideAlternatesPerBlock",
     ),
-    "primaryFamily": ("workloadScope", "metric"),
+    "primaryFamily": ("workloadScope", "metric", "role", "aggregation"),
     "practicalBudgets": (),
     "interval": (
         "sidedness",
@@ -450,14 +459,28 @@ _PAIRED_POLICY_SHAPE: dict[str, tuple[str, ...]] = {
         "resamplingSeed",
     ),
     "blocks": (
-        "minimumCompleteBlocks",
-        "maximumCompleteBlocks",
+        "completeBlocks",
         "startingSamplesPerSidePerBlock",
         "maximumSampleCountRatio",
         "maximumRelativeStandardError",
         "profile",
     ),
-    "multipleComparison": ("procedure", "falseDiscoveryRate"),
+    "multipleComparison": (
+        "scope",
+        "procedure",
+        "familyWiseErrorRate",
+    ),
+    "sensitivity": (
+        "method",
+        "familyCase",
+        "minimumPower",
+        "simulationConfidenceLevel",
+        "simulationTrials",
+        "simulationSeed",
+        "maximumLogRatioStandardDeviation",
+        "minimumDetectableBudgetMultiple",
+        "characterization",
+    ),
     "retry": ("eligibleAttemptStates", "maximumRetries", "combination"),
     "durations": (
         "maximumPairedRunSeconds",
@@ -538,6 +561,48 @@ def validate_paired_policy(contract: dict[str, Any]) -> dict[str, Any]:
     if len(set(metrics)) != len(metrics):
         raise InvalidEvidenceError("pairedPolicy declares a metric family twice.")
 
+    primary_family = policy["primaryFamily"]
+    if primary_family["role"] != "required":
+        raise InvalidEvidenceError(
+            "pairedPolicy.primaryFamily.role must be 'required'."
+        )
+    if primary_family["aggregation"] not in PAIRED_PRIMARY_AGGREGATIONS:
+        raise InvalidEvidenceError(
+            "pairedPolicy.primaryFamily.aggregation is not implemented."
+        )
+    for index, family in enumerate(families):
+        if family.get("role") != "observational":
+            raise InvalidEvidenceError(
+                f"pairedPolicy.secondaryFamilies[{index}].role must be "
+                "'observational'."
+            )
+        if family.get("aggregation") not in PAIRED_SECONDARY_AGGREGATIONS:
+            raise InvalidEvidenceError(
+                f"pairedPolicy.secondaryFamilies[{index}].aggregation is not "
+                "implemented."
+            )
+
+    target_roles = policy.get("targetRoles")
+    if not isinstance(target_roles, dict) or not target_roles:
+        raise InvalidEvidenceError("pairedPolicy.targetRoles is required.")
+    required_targets = contract.get("requiredTargets")
+    if not isinstance(required_targets, dict) or set(target_roles) != set(
+        required_targets
+    ):
+        raise InvalidEvidenceError(
+            "pairedPolicy.targetRoles must classify every required target "
+            "exactly once."
+        )
+    for target, role in target_roles.items():
+        if role not in PAIRED_ENDPOINT_ROLES:
+            raise InvalidEvidenceError(
+                f"pairedPolicy.targetRoles.{target} has unknown role '{role}'."
+            )
+    if "required" not in target_roles.values():
+        raise InvalidEvidenceError(
+            "pairedPolicy.targetRoles must retain at least one required target."
+        )
+
     # Every declared family needs its own practical bound. Without one, a
     # statistically detectable change would have nothing to be compared against
     # and the separation of practical from statistical significance collapses.
@@ -582,20 +647,19 @@ def validate_paired_policy(contract: dict[str, Any]) -> dict[str, Any]:
     )
 
     blocks = policy["blocks"]
-    minimum_blocks = _paired_number(
-        blocks["minimumCompleteBlocks"],
-        "pairedPolicy.blocks.minimumCompleteBlocks",
-        minimum=2,
+    complete_blocks = _paired_number(
+        blocks["completeBlocks"],
+        "pairedPolicy.blocks.completeBlocks",
+        minimum=10,
     )
-    maximum_blocks = _paired_number(
-        blocks["maximumCompleteBlocks"],
-        "pairedPolicy.blocks.maximumCompleteBlocks",
-        minimum=2,
-    )
-    if maximum_blocks < minimum_blocks:
+    if complete_blocks != int(complete_blocks):
         raise InvalidEvidenceError(
-            "pairedPolicy.blocks.maximumCompleteBlocks must not be below the "
-            "minimum."
+            "pairedPolicy.blocks.completeBlocks must be a whole number."
+        )
+    if complete_blocks != 10:
+        raise InvalidEvidenceError(
+            "pairedPolicy.blocks.completeBlocks must be exactly 10 for the "
+            "registered exact sign-flip test."
         )
     samples = _paired_number(
         blocks["startingSamplesPerSidePerBlock"],
@@ -683,15 +747,114 @@ def validate_paired_policy(contract: dict[str, Any]) -> dict[str, Any]:
         raise InvalidEvidenceError(
             f"pairedPolicy.multipleComparison.procedure '{procedure}' is unknown."
         )
+    if policy["multipleComparison"]["scope"] != "all-required-targets":
+        raise InvalidEvidenceError(
+            "pairedPolicy.multipleComparison.scope must be "
+            "'all-required-targets'."
+        )
     rate = _paired_number(
-        policy["multipleComparison"]["falseDiscoveryRate"],
-        "pairedPolicy.multipleComparison.falseDiscoveryRate",
+        policy["multipleComparison"]["familyWiseErrorRate"],
+        "pairedPolicy.multipleComparison.familyWiseErrorRate",
         minimum=0,
     )
     if not 0 < rate < 1:
         raise InvalidEvidenceError(
-            "pairedPolicy.multipleComparison.falseDiscoveryRate must lie between "
+            "pairedPolicy.multipleComparison.familyWiseErrorRate must lie between "
             "0 and 1."
+        )
+
+    sensitivity = policy["sensitivity"]
+    if sensitivity["method"] not in PAIRED_SENSITIVITY_METHODS:
+        raise InvalidEvidenceError(
+            "pairedPolicy.sensitivity.method "
+            f"'{sensitivity['method']}' is unknown."
+        )
+    if sensitivity["familyCase"] not in PAIRED_SENSITIVITY_FAMILY_CASES:
+        raise InvalidEvidenceError(
+            "pairedPolicy.sensitivity.familyCase "
+            f"'{sensitivity['familyCase']}' is unknown."
+        )
+    minimum_power = _paired_number(
+        sensitivity["minimumPower"],
+        "pairedPolicy.sensitivity.minimumPower",
+        minimum=0,
+    )
+    if not 0.8 <= minimum_power < 1:
+        raise InvalidEvidenceError(
+            "pairedPolicy.sensitivity.minimumPower must be at least 0.8 and "
+            "less than 1."
+        )
+    simulation_confidence = _paired_number(
+        sensitivity["simulationConfidenceLevel"],
+        "pairedPolicy.sensitivity.simulationConfidenceLevel",
+        minimum=0,
+    )
+    if not 0.95 <= simulation_confidence < 1:
+        raise InvalidEvidenceError(
+            "pairedPolicy.sensitivity.simulationConfidenceLevel must be at "
+            "least 0.95 and less than 1."
+        )
+    simulation_trials = _paired_number(
+        sensitivity["simulationTrials"],
+        "pairedPolicy.sensitivity.simulationTrials",
+        minimum=200,
+    )
+    if simulation_trials != int(simulation_trials):
+        raise InvalidEvidenceError(
+            "pairedPolicy.sensitivity.simulationTrials must be a whole number."
+        )
+    simulation_seed = _paired_number(
+        sensitivity["simulationSeed"],
+        "pairedPolicy.sensitivity.simulationSeed",
+        minimum=0,
+    )
+    if simulation_seed != int(simulation_seed):
+        raise InvalidEvidenceError(
+            "pairedPolicy.sensitivity.simulationSeed must be a whole number."
+        )
+    log_ratio_deviation = _paired_number(
+        sensitivity["maximumLogRatioStandardDeviation"],
+        "pairedPolicy.sensitivity.maximumLogRatioStandardDeviation",
+        minimum=0,
+    )
+    if log_ratio_deviation <= 0:
+        raise InvalidEvidenceError(
+            "pairedPolicy.sensitivity.maximumLogRatioStandardDeviation must "
+            "be positive."
+        )
+    detectable_multiple = _paired_number(
+        sensitivity["minimumDetectableBudgetMultiple"],
+        "pairedPolicy.sensitivity.minimumDetectableBudgetMultiple",
+        minimum=1,
+    )
+    if detectable_multiple <= 1:
+        raise InvalidEvidenceError(
+            "pairedPolicy.sensitivity.minimumDetectableBudgetMultiple must "
+            "exceed 1."
+        )
+
+    characterization = sensitivity["characterization"]
+    if not isinstance(characterization, dict):
+        raise InvalidEvidenceError(
+            "pairedPolicy.sensitivity.characterization is required."
+        )
+    characterization_path = characterization.get("path")
+    if (
+        not isinstance(characterization_path, str)
+        or not characterization_path.startswith("benchmarks/characterization/")
+        or not characterization_path.endswith(".json")
+    ):
+        raise InvalidEvidenceError(
+            "pairedPolicy.sensitivity.characterization.path must name a "
+            "repository characterization JSON document."
+        )
+    characterization_digest = characterization.get("sha256")
+    if not isinstance(characterization_digest, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", characterization_digest
+    ):
+        raise InvalidEvidenceError(
+            "pairedPolicy.sensitivity.characterization.sha256 must be a "
+            "lowercase SHA-256 digest."
         )
 
     retry = policy["retry"]
@@ -867,8 +1030,8 @@ def validate_paired_policy(contract: dict[str, Any]) -> dict[str, Any]:
 
 def validate_contract(contract: dict[str, Any]) -> None:
     """Validate uniqueness, references, and required dimension coverage."""
-    if contract.get("schemaVersion") != 8:
-        raise PerformanceEvidenceError("Performance contract schemaVersion must be 8.")
+    if contract.get("schemaVersion") != 10:
+        raise PerformanceEvidenceError("Performance contract schemaVersion must be 10.")
 
     validate_contract_version(
         required_string(contract, "contractVersion", "contract")
@@ -959,8 +1122,17 @@ def validate_contract(contract: dict[str, Any]) -> None:
             raise PerformanceEvidenceError(
                 f"requiredTargets.{target_id} must be an object."
             )
-        for key in ("engineFamily", "serverVersion", "serverImage"):
+        for key in ("displayName", "engineFamily", "serverVersion", "serverImage"):
             required_string(target_contract, key, f"requiredTargets.{target_id}")
+        host_port = required_positive_integer(
+            target_contract,
+            "hostPort",
+            f"requiredTargets.{target_id}",
+        )
+        if host_port > 65_535:
+            raise PerformanceEvidenceError(
+                f"requiredTargets.{target_id}.hostPort must be a TCP port."
+            )
 
     required_profile_fields = (
         "warmupSamples",

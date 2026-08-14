@@ -40,7 +40,7 @@ RUNNER_CLASS = "github-ubuntu-latest-x64"
 def paired_evaluation(**overrides: Any) -> dict[str, Any]:
     """Return the verdict shape `evaluate-paired` writes."""
     evaluation = {
-        "schemaVersion": 2,
+        "schemaVersion": 5,
         "kind": "paired-performance-evaluation",
         "target": TARGET,
         "profile": PROFILE,
@@ -48,7 +48,7 @@ def paired_evaluation(**overrides: Any) -> dict[str, Any]:
         "commit": COMMIT,
         "sourceHash": SOURCE_HASH,
         "runnerClass": RUNNER_CLASS,
-        "qualification": "qualified",
+        "qualification": "pending-run-wide-adjustment",
         "success": True,
         "families": ["normalizedMedian"],
         "results": [],
@@ -56,6 +56,19 @@ def paired_evaluation(**overrides: Any) -> dict[str, Any]:
         "absoluteCeilings": [],
         "soakScenarios": [],
         "soakAppliesTo": "candidate",
+        "uncertainResults": 0,
+        "dispersionObservation": {
+            "schemaVersion": 1,
+            "kind": "paired-dispersion-observation",
+            "target": TARGET,
+            "runId": RUN_ID,
+            "commit": COMMIT,
+            "sourceHash": SOURCE_HASH,
+            "runnerClass": RUNNER_CLASS,
+            "contractDigest": "d" * 64,
+            "referenceCommit": "c" * 40,
+            "state": "stable",
+        },
     }
     evaluation.update(overrides)
 
@@ -77,7 +90,7 @@ class WorkflowProfileHandoffTests(unittest.TestCase):
     def setUp(self) -> None:
         """Read the shipped workflow and contract."""
         self.workflow = (
-            REPOSITORY_ROOT / ".github" / "workflows" / "benchmark-scorecard.yml"
+            REPOSITORY_ROOT / ".github" / "workflows" / "benchmark-target.yml"
         ).read_text(encoding="utf-8")
         self.contract_path = REPOSITORY_ROOT / "benchmarks" / "performance-contract.json"
         self.contract = json.loads(self.contract_path.read_text(encoding="utf-8"))
@@ -136,11 +149,21 @@ class WorkflowProfileHandoffTests(unittest.TestCase):
             artifact_root = Path(directory) / "benchmarks" / TARGET
             report = artifact_root / "reports" / RUN_ID
             report.mkdir(parents=True)
+            evaluation = paired_evaluation(profile=profile)
             (report / "paired-evaluation.json").write_text(
-                json.dumps(paired_evaluation(profile=profile)), encoding="utf-8"
+                json.dumps(evaluation), encoding="utf-8"
             )
-            for name in ("paired-evidence.json", "paired-soak.json"):
-                (report / name).write_text(json.dumps({}), encoding="utf-8")
+            for name in (
+                "paired-evidence.json",
+                "paired-soak.json",
+                "paired-dispersion-observation.json",
+            ):
+                payload = (
+                    evaluation["dispersionObservation"]
+                    if name == "paired-dispersion-observation.json"
+                    else {}
+                )
+                (report / name).write_text(json.dumps(payload), encoding="utf-8")
 
             receipt = attempts.record_attempt(
                 artifact_root=artifact_root,
@@ -167,11 +190,21 @@ class WorkflowProfileHandoffTests(unittest.TestCase):
             artifact_root = Path(directory) / "benchmarks" / TARGET
             report = artifact_root / "reports" / RUN_ID
             report.mkdir(parents=True)
+            evaluation = paired_evaluation(profile=measured)
             (report / "paired-evaluation.json").write_text(
-                json.dumps(paired_evaluation(profile=measured)), encoding="utf-8"
+                json.dumps(evaluation), encoding="utf-8"
             )
-            for name in ("paired-evidence.json", "paired-soak.json"):
-                (report / name).write_text(json.dumps({}), encoding="utf-8")
+            for name in (
+                "paired-evidence.json",
+                "paired-soak.json",
+                "paired-dispersion-observation.json",
+            ):
+                payload = (
+                    evaluation["dispersionObservation"]
+                    if name == "paired-dispersion-observation.json"
+                    else {}
+                )
+                (report / name).write_text(json.dumps(payload), encoding="utf-8")
 
             with self.assertRaises(PerformanceEvidenceError) as captured:
                 attempts.record_attempt(
@@ -218,6 +251,48 @@ class EvaluateCliExitCodeTests(unittest.TestCase):
                 text=True,
             ).returncode
 
+    def test_a_qualifying_document_exits_zero(self) -> None:
+        """Expose a qualified verdict as success to the workflow runner."""
+        self.assertEqual(0, self.run_evaluate(self.complete_document()))
+
+    def test_evaluation_persists_the_canonical_dispersion_observation(self) -> None:
+        """Emit one independently consumable drift time point per attempt."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evidence_path = root / "paired-evidence.json"
+            output = root / "paired-evaluation.json"
+            evidence_path.write_text(
+                json.dumps(self.complete_document()),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "eng.performance.cli",
+                    "evaluate-paired",
+                    "--contract",
+                    "benchmarks/performance-contract.json",
+                    "--evidence",
+                    str(evidence_path),
+                    "--output",
+                    str(output),
+                ],
+                cwd=REPOSITORY_ROOT,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            evaluation = json.loads(output.read_text(encoding="utf-8"))
+            observation = json.loads(
+                (root / "paired-dispersion-observation.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(evaluation["dispersionObservation"], observation)
+
     def test_a_contradictory_document_exits_seventy_eight(self) -> None:
         """Report invalid evidence as invalid, never as a regression."""
         contract = json.loads(
@@ -242,7 +317,13 @@ class EvaluateCliExitCodeTests(unittest.TestCase):
         )
         document = builder.evidence(
             [
-                {"workloadId": identifier, "blocks": uniform_blocks(12, 1.0)}
+                {
+                    "workloadId": identifier,
+                    "blocks": uniform_blocks(
+                        contract["pairedPolicy"]["blocks"]["completeBlocks"],
+                        1.0,
+                    ),
+                }
                 for identifier in registered
             ]
         )
@@ -271,7 +352,13 @@ class EvaluateCliExitCodeTests(unittest.TestCase):
         )
         document = builder.evidence(
             [
-                {"workloadId": workload["id"], "blocks": uniform_blocks(12, 1.0)}
+                {
+                    "workloadId": workload["id"],
+                    "blocks": uniform_blocks(
+                        contract["pairedPolicy"]["blocks"]["completeBlocks"],
+                        1.0,
+                    ),
+                }
                 for workload in contract["workloads"]
             ]
         )
@@ -339,7 +426,13 @@ class EvaluateCliExitCodeTests(unittest.TestCase):
         )
         document = builder.evidence(
             [
-                {"workloadId": workload["id"], "blocks": uniform_blocks(12, 1.0)}
+                {
+                    "workloadId": workload["id"],
+                    "blocks": uniform_blocks(
+                        contract["pairedPolicy"]["blocks"]["completeBlocks"],
+                        1.0,
+                    ),
+                }
                 for workload in contract["workloads"]
             ]
         )
@@ -601,7 +694,15 @@ class EvaluateCliExitCodeTests(unittest.TestCase):
             )
         )
         document = builder.evidence(
-            [{"workloadId": "steady", "blocks": uniform_blocks(12, 1.0)}]
+            [
+                {
+                    "workloadId": "steady",
+                    "blocks": uniform_blocks(
+                        builder.contract["pairedPolicy"]["blocks"]["completeBlocks"],
+                        1.0,
+                    ),
+                }
+            ]
         )
 
         self.assertEqual(78, self.run_evaluate(document))
@@ -623,9 +724,10 @@ class PairedAttemptHandoffTests(unittest.TestCase):
         self.directory.cleanup()
 
     def write_paired_output(self, **overrides: Any) -> None:
-        """Write the three files a paired run produces."""
+        """Write the four files a paired run produces."""
+        evaluation = paired_evaluation(**overrides)
         (self.report_directory / "paired-evaluation.json").write_text(
-            json.dumps(paired_evaluation(**overrides)), encoding="utf-8"
+            json.dumps(evaluation), encoding="utf-8"
         )
         (self.report_directory / "paired-evidence.json").write_text(
             json.dumps(
@@ -646,6 +748,10 @@ class PairedAttemptHandoffTests(unittest.TestCase):
         )
         (self.report_directory / "paired-soak.json").write_text(
             json.dumps({"schemaVersion": 2, "kind": "performance-soak"}),
+            encoding="utf-8",
+        )
+        (self.report_directory / "paired-dispersion-observation.json").write_text(
+            json.dumps(evaluation["dispersionObservation"]),
             encoding="utf-8",
         )
 
@@ -703,6 +809,7 @@ class PairedAttemptHandoffTests(unittest.TestCase):
             {
                 f"reports/{RUN_ID}/paired-evidence.json",
                 f"reports/{RUN_ID}/paired-soak.json",
+                f"reports/{RUN_ID}/paired-dispersion-observation.json",
             },
             bound,
         )
@@ -712,6 +819,19 @@ class PairedAttemptHandoffTests(unittest.TestCase):
         (self.report_directory / "paired-soak.json").unlink()
 
         with self.assertRaises(PerformanceEvidenceError):
+            self.record()
+
+    def test_a_divergent_dispersion_projection_is_refused(self) -> None:
+        """Bind drift telemetry to the endpoint that produced it."""
+        observation = self.report_directory / "paired-dispersion-observation.json"
+        payload = json.loads(observation.read_text(encoding="utf-8"))
+        payload["state"] = "drift"
+        observation.write_text(json.dumps(payload), encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            PerformanceEvidenceError,
+            "canonical projection",
+        ):
             self.record()
 
     def test_a_verdict_for_another_run_is_refused(self) -> None:
@@ -743,8 +863,12 @@ class PairedAttemptHandoffTests(unittest.TestCase):
         )
 
         self.assertEqual(1, selection["selectedAttempt"])
-        for name in ("paired-evaluation.json", "paired-evidence.json",
-                     "paired-soak.json"):
+        for name in (
+            "paired-evaluation.json",
+            "paired-evidence.json",
+            "paired-soak.json",
+            "paired-dispersion-observation.json",
+        ):
             with self.subTest(file=name):
                 self.assertTrue(
                     (destination / "reports" / RUN_ID / name).is_file(),

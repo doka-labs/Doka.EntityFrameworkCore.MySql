@@ -39,6 +39,7 @@ if __package__:
     from .paired import (
         assemble_evidence as assemble_paired_evidence,
         evaluate_paired_comparison,
+        evaluate_scorecard_qualification,
     )
     from .host import (
         HostCpuCounterSnapshot as HostCpuCounterSnapshot,
@@ -94,6 +95,7 @@ if __package__:
         verify_imported_selection,
         verify_selection,
     )
+    from .sensitivity import validate_registered_characterization
 else:
     # Direct script and file-based imports do not provide a package context.
     # Add only this module directory so the direct-execution imports below resolve
@@ -125,6 +127,7 @@ else:
     from performance.paired import (
         assemble_evidence as assemble_paired_evidence,
         evaluate_paired_comparison,
+        evaluate_scorecard_qualification,
     )
     from performance.host import (
         HostCpuCounterSnapshot as HostCpuCounterSnapshot,
@@ -180,6 +183,7 @@ else:
         verify_imported_selection,
         verify_selection,
     )
+    from performance.sensitivity import validate_registered_characterization
 
 def add_common_identity_arguments(parser: argparse.ArgumentParser) -> None:
     """Add current-run identity arguments shared by validation commands."""
@@ -295,6 +299,13 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_paired_parser.add_argument("--evidence", required=True)
     evaluate_paired_parser.add_argument("--output", required=True)
 
+    qualify_scorecard_parser = subparsers.add_parser("qualify-scorecard")
+    qualify_scorecard_parser.add_argument("--contract", required=True)
+    qualify_scorecard_parser.add_argument(
+        "--evaluation", action="append", required=True
+    )
+    qualify_scorecard_parser.add_argument("--output", required=True)
+
     resolve_parser = subparsers.add_parser("resolve-baseline-mode")
     resolve_parser.add_argument("--contract", required=True)
     resolve_parser.add_argument("--baseline", required=True)
@@ -400,6 +411,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "evaluate-paired":
             contract_path = Path(args.contract)
             contract = load_json(contract_path)
+            validate_registered_characterization(
+                contract,
+                contract_path.resolve().parent.parent,
+            )
             evidence = load_json(Path(args.evidence))
             # The digest of the file this evaluation actually read. Evidence
             # that names another contract was decided against other budgets,
@@ -407,22 +422,45 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = evaluate_paired_comparison(
                 evidence, contract, contract_digest=sha256(contract_path)
             )
-            write_json(Path(args.output), payload)
+            output_path = Path(args.output)
+            write_json(output_path, payload)
+            # One immutable observation per attempt turns the scheduled
+            # scorecard artifacts into a dispersion time series. Keeping this
+            # projection separate lets operations consume drift without
+            # treating the complete evaluation document as a telemetry API.
+            write_json(
+                output_path.with_name("paired-dispersion-observation.json"),
+                payload["dispersionObservation"],
+            )
             # The qualification state is the release verdict, so it leaves
             # through the exit code rather than only through the document. A
             # caller that ignored the document would otherwise treat a
             # regression as a successful measurement.
             qualification = payload["qualification"]
             print(f"Paired comparison {qualification}: {args.output}")
-            if qualification == "qualified":
+            if qualification == "pending-run-wide-adjustment":
                 return 0
             if qualification == "regression":
                 return 1
-            if qualification == "inconclusive":
+            if qualification == "measurement-inconclusive":
                 return MEASUREMENT_QUALITY_EXIT_CODE
-            if qualification == "recalibration-required":
-                return RECALIBRATION_REQUIRED_EXIT_CODE
             return INVALID_EVIDENCE_EXIT_CODE
+        if args.command == "qualify-scorecard":
+            contract_path = Path(args.contract)
+            contract = load_json(contract_path)
+            validate_registered_characterization(
+                contract,
+                contract_path.resolve().parent.parent,
+            )
+            payload = evaluate_scorecard_qualification(
+                [load_json(Path(path)) for path in args.evaluation],
+                contract,
+                contract_digest=sha256(contract_path),
+            )
+            write_json(Path(args.output), payload)
+            print(f"Paired scorecard {payload['qualification']}: {args.output}")
+
+            return 0 if payload["qualification"] == "qualified" else 1
         if args.command == "source-hash":
             print(repository_source_hash(Path(args.repo)))
             return 0

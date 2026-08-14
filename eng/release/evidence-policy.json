@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "policyVersion": "2026-08-10.1",
+  "policyVersion": "2026-08-14.1",
   "documentation": [
     "Every gate a release depends on produces evidence for the tagged commit.",
     "There is no reuse model: no relevant-input classifier, no evidence-age",

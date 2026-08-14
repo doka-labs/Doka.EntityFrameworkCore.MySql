@@ -48,9 +48,19 @@ MEASUREMENT_INPUT_PREFIXES = (
 )
 
 RELEASE_REUSE_INPUT_FILES = MEASUREMENT_INPUT_FILES | {
+    # The scorecard expands the matrix, the target workflow produces its
+    # artifacts, and the sensitivity module validates their statistical claim.
+    # Release reuse also binds the endpoint estimator and bounded attempt
+    # selector because current policy consumes the statistics they persisted.
+    # Smoke orchestration is intentionally absent because it has no release
+    # authority and cannot change an accepted scorecard's meaning.
     ".github/workflows/benchmark-scorecard.yml",
+    ".github/workflows/benchmark-target.yml",
     "eng/performance/check-benchmark-ratios.sh",
+    "eng/performance/attempts.py",
     "eng/performance/cli.py",
+    "eng/performance/paired.py",
+    "eng/performance/sensitivity.py",
 }
 
 
@@ -84,6 +94,5 @@ def invalidates_release_reuse(path: str) -> bool:
         return True
 
     return "/" not in path and (
-        path.startswith("Directory.Build.")
-        or path.endswith((".sln", ".slnx"))
+        path.startswith("Directory.Build.") or path.endswith((".sln", ".slnx"))
     )

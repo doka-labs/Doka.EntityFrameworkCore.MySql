@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import unittest
 from pathlib import Path
@@ -286,8 +287,8 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         )
         self.assertNotIn("github.event_name != 'push'", proposal)
         self.assertIn("- benchmark-scorecard", proposal)
-        self.assertIn("benchmark-artifacts-mysql84", proposal)
-        self.assertIn("benchmark-artifacts-mariadb118", proposal)
+        self.assertIn("pattern: benchmark-artifacts-*", proposal)
+        self.assertIn(".requiredTargets | keys[]", proposal)
         self.assertIn("python3 -m eng.performance.cli seed", proposal)
         self.assertNotIn("python3 -m eng.performance.cli promote", proposal)
         self.assertIn("validate-baseline", proposal)
@@ -362,7 +363,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertEqual(2, text.count("gh workflow run ci.yml"))
         for update_job in (sync, proposal):
             self.assertIn("gh workflow run ci.yml", update_job)
-            self.assertIn("--ref \"${BASELINE_BRANCH}\"", update_job)
+            self.assertIn('--ref "${BASELINE_BRANCH}"', update_job)
             self.assertIn("--field profile=baseline-proposal", update_job)
         self.assertEqual(
             2,
@@ -582,6 +583,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         """Keep orchestration edits from allocating service-container jobs."""
         control_plane = self.workflow("benchmark.yml")
         scorecard_workflow = self.workflow("benchmark-scorecard.yml")
+        target_workflow = self.workflow("benchmark-target.yml")
         scorecard_call = self.job(
             control_plane,
             "benchmark-scorecard",
@@ -591,8 +593,9 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("  workflow_call:\n", scorecard_workflow)
         self.assertNotIn("      baseline_mode:", scorecard_workflow)
         comparison_input = scorecard_workflow[
-            scorecard_workflow.index("      comparison_mode:"):
-            scorecard_workflow.index("\n\npermissions:")
+            scorecard_workflow.index(
+                "      comparison_mode:"
+            ) : scorecard_workflow.index("\n\npermissions:")
         ]
         self.assertIn("required: true", comparison_input)
         self.assertNotIn("default:", comparison_input)
@@ -608,48 +611,110 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertNotIn("runs-on:", scorecard_call)
         self.assertNotIn("services:", control_plane)
         self.assertNotIn("bash ./eng/benchmark.sh --test-only", control_plane)
-        self.assertIn("services:", scorecard_workflow)
+        self.assertIn(".requiredTargets | keys", scorecard_workflow)
+        self.assertIn("target: ${{ matrix.target }}", scorecard_workflow)
+        self.assertNotIn("services:", target_workflow)
         baseline_mode_binding = (
             "DOKA_BENCHMARK_BASELINE_MODE: "
             "${{ inputs.comparison_mode == 'historical' "
             "&& 'seed' || 'compare' }}"
         )
         self.assertEqual(
-            4,
-            scorecard_workflow.count(baseline_mode_binding),
+            2,
+            target_workflow.count(baseline_mode_binding),
         )
         self.assertEqual(
-            4,
-            scorecard_workflow.count(
+            2,
+            target_workflow.count(
                 '--comparison-mode "${COMPARISON_MODE}"',
             ),
         )
         self.assertIn(
-            "bash ./eng/benchmark.sh --test-only",
-            scorecard_workflow,
+            "bash ./eng/benchmark.sh --up-run-down",
+            target_workflow,
         )
-        self.assertEqual(4, scorecard_workflow.count("image:"))
+        self.assertNotIn("image:", target_workflow)
         # The retry decision is read from the attempt receipt. Comparing
         # against a state name here is what silently disabled the retry: the
         # vocabulary moved to `measurement-inconclusive` and the condition,
         # still matching on `inconclusive`, simply stopped firing.
-        self.assertEqual(2, scorecard_workflow.count("outputs.retry == 'true'"))
-        self.assertNotIn("outputs.status ==", scorecard_workflow)
-        self.assertEqual(2, scorecard_workflow.count("if: always()"))
-        self.assertEqual(6, scorecard_workflow.count("actions/upload-artifact@"))
-        self.assertIn("benchmark-artifacts-mysql84", scorecard_workflow)
-        self.assertIn("benchmark-artifacts-mariadb118", scorecard_workflow)
+        self.assertEqual(1, target_workflow.count("outputs.retry == 'true'"))
+        self.assertNotIn("outputs.status ==", target_workflow)
+        self.assertEqual(1, target_workflow.count("if: always()"))
+        # Each attempt publishes its short-lived raw evidence and one small,
+        # long-lived drift observation; selection publishes the chosen target.
+        self.assertEqual(5, target_workflow.count("actions/upload-artifact@"))
+        self.assertIn("benchmark-artifacts-${{ inputs.target }}", target_workflow)
+
+    def test_scheduled_smoke_derives_every_target_from_the_contract(self) -> None:
+        """Keep the short smoke path aligned with every supported LTS target."""
+        ci = self.workflow("ci.yml")
+        smoke = self.workflow("benchmark-smoke.yml")
+        contract = json.loads(
+            (self.repo / "benchmarks" / "performance-contract.json").read_text(
+                encoding="utf-8",
+            )
+        )
+
+        self.assertIn("uses: ./.github/workflows/benchmark-smoke.yml", ci)
+        self.assertIn("  workflow_call:\n", smoke)
+        self.assertIn(".requiredTargets | keys", smoke)
+        self.assertEqual(
+            1,
+            smoke.count(
+                "target: ${{ fromJSON(needs.resolve-targets.outputs.targets) }}",
+            ),
+        )
+        self.assertEqual(1, smoke.count("DOKA_BENCHMARK_PROFILE: smoke"))
+        self.assertEqual(
+            1,
+            smoke.count("DOKA_BENCHMARK_BASELINE_MODE: compare"),
+        )
+        self.assertEqual(
+            1,
+            smoke.count("DOKA_BENCHMARK_COMPARISON_MODE: historical"),
+        )
+        self.assertIn("bash ./eng/benchmark.sh --up-run-down", smoke)
+        self.assertNotIn("services:", smoke)
+        for target in contract["requiredTargets"]:
+            with self.subTest(target=target):
+                self.assertNotIn(target, smoke)
+
+    def test_direct_candidate_performance_is_explicitly_paired(self) -> None:
+        """Keep local release qualification on the same verdict as hosted CI."""
+        script = (self.repo / "eng" / "release" / "release-candidate.sh").read_text(
+            encoding="utf-8"
+        )
+        function_start = script.index("run_performance_engine() {")
+        function_end = script.index(
+            "\nrequired_performance_targets() {",
+            function_start,
+        )
+        function = script[function_start:function_end]
+
+        self.assertEqual(
+            1,
+            function.count("DOKA_BENCHMARK_BASELINE_MODE=compare"),
+        )
+        self.assertEqual(
+            1,
+            function.count("DOKA_BENCHMARK_COMPARISON_MODE=paired"),
+        )
+        self.assertIn(
+            '"${repo_root}/eng/performance/benchmark.sh" --up-run-down',
+            function,
+        )
 
     def test_all_main_pushes_reach_the_cheap_benchmark_resolver(self) -> None:
         """Classify every push with the local measurement-input policy."""
         text = self.workflow("benchmark.yml")
         push_paths = text[text.index("  push:") : text.index("  workflow_dispatch:")]
-        resolver = (
-            self.repo / "eng" / "performance" / "workflow_state.py"
-        ).read_text(encoding="utf-8")
-        inputs = (
-            self.repo / "eng" / "performance" / "inputs.py"
-        ).read_text(encoding="utf-8")
+        resolver = (self.repo / "eng" / "performance" / "workflow_state.py").read_text(
+            encoding="utf-8"
+        )
+        inputs = (self.repo / "eng" / "performance" / "inputs.py").read_text(
+            encoding="utf-8"
+        )
 
         self.assertNotIn("paths:", push_paths)
         self.assertIn("if is_performance_input(path)", resolver)
@@ -663,9 +728,9 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
 
     def test_proposal_state_cannot_override_event_relevance(self) -> None:
         """Keep stale proposal repair from starting unrelated measurements."""
-        resolver = (
-            self.repo / "eng" / "performance" / "workflow_state.py"
-        ).read_text(encoding="utf-8")
+        resolver = (self.repo / "eng" / "performance" / "workflow_state.py").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("return bool(changes), changes", resolver)
         self.assertIn("if not event_requires_fresh_evidence:", resolver)
@@ -780,10 +845,10 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "sync-baseline-proposal",
         )
 
-        self.assertIn('if ! git show \\', resolver)
+        self.assertIn("if ! git show \\", resolver)
         self.assertIn(': > "${proposed_baseline}"', resolver)
         self.assertLess(
-            resolver.index('if ! git show \\'),
+            resolver.index("if ! git show \\"),
             resolver.index("python3 -m eng.performance.workflow_state"),
         )
 
@@ -855,12 +920,17 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("python3 -m eng.release.trust verify", preflight)
         self.assertIn("--policy eng/release/evidence-policy.json", preflight)
         self.assertIn("Release tag trust root required", preflight)
-        for instruction in ("Sign the tag", "reachable from protected main",
-                            "repository-qualification"):
+        for instruction in (
+            "Sign the tag",
+            "reachable from protected main",
+            "repository-qualification",
+        ):
             with self.subTest(instruction=instruction):
                 self.assertIn(instruction, preflight)
 
-        self.assertIn("needs: preflight", self.job(text, "foundation", "engine-contracts"))
+        self.assertIn(
+            "needs: preflight", self.job(text, "foundation", "engine-contracts")
+        )
         self.assertLess(
             text.index("- name: Establish the release tag trust root"),
             text.index("- name: Run ${{ matrix.stage }} stage"),
@@ -875,7 +945,9 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         """
         text = self.workflow("release-candidate.yml")
 
-        self.assertEqual(1, text.count("uses: ./.github/workflows/benchmark-scorecard.yml"))
+        self.assertEqual(
+            1, text.count("uses: ./.github/workflows/benchmark-scorecard.yml")
+        )
         self.assertIn("comparison_mode: paired", text)
         for removed in ("performance-import:", "performance-scorecard:"):
             with self.subTest(job=removed):
@@ -1039,9 +1111,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
 
     def test_sdk_contract_has_a_reviewed_update_channel(self) -> None:
         """Keep the exact SDK pin visible to scheduled dependency review."""
-        text = (self.repo / ".github" / "dependabot.yml").read_text(
-            encoding="utf-8"
-        )
+        text = (self.repo / ".github" / "dependabot.yml").read_text(encoding="utf-8")
         section_start = text.index("- package-ecosystem: dotnet-sdk")
         section_end = text.index("- package-ecosystem: nuget", section_start)
         section = text[section_start:section_end]
@@ -1052,9 +1122,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
 
     def test_github_release_helper_cannot_create_tags_or_replace_assets(self) -> None:
         """Keep tag creation and destructive asset replacement out of scope."""
-        text = (self.repo / "eng" / "release" / "github.py").read_text(
-            encoding="utf-8"
-        )
+        text = (self.repo / "eng" / "release" / "github.py").read_text(encoding="utf-8")
 
         self.assertIn('"--verify-tag"', text)
         self.assertNotIn('"--clobber"', text)
@@ -1078,8 +1146,18 @@ class StageSetAgreementTests(unittest.TestCase):
         self.workflow = self.workflow_text("release-candidate.yml")
         self.script = (
             Path(__file__).resolve().parents[2]
-            / "eng" / "release" / "release-candidate.sh"
+            / "eng"
+            / "release"
+            / "release-candidate.sh"
         ).read_text(encoding="utf-8")
+        contract = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "benchmarks"
+                / "performance-contract.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.performance_targets = tuple(sorted(contract["requiredTargets"]))
 
     @staticmethod
     def workflow_text(name: str) -> str:
@@ -1116,7 +1194,9 @@ class StageSetAgreementTests(unittest.TestCase):
         )
         self.assertIsNotNone(block, "the orchestrator declares no expected stages")
 
-        return {line.strip() for line in block.group("body").splitlines() if line.strip()}
+        return {
+            line.strip() for line in block.group("body").splitlines() if line.strip()
+        }
 
     def test_finalization_requires_exactly_what_the_tag_produces(self) -> None:
         """Reject any drift between the two declarations."""
@@ -1129,9 +1209,14 @@ class StageSetAgreementTests(unittest.TestCase):
         release unfinishable; accepting one silently would let an old artifact
         stand in for this commit.
         """
-        for imported in ("quality", "repository-tests", "specification",
-                         "integration", "coverage", "performance-mysql84",
-                         "performance-mariadb118"):
+        for imported in (
+            "quality",
+            "repository-tests",
+            "specification",
+            "integration",
+            "coverage",
+            *(f"performance-{target}" for target in self.performance_targets),
+        ):
             with self.subTest(stage=imported):
                 self.assertNotIn(imported, self.required_stages())
 

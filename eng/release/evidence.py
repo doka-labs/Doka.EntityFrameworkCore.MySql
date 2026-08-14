@@ -54,7 +54,7 @@ PERFORMANCE_REUSE_EVIDENCE = Path("performance/reuse-evidence.json")
 PERFORMANCE_BASELINE_PATH = Path(
     "benchmarks/baselines/doka-benchmark-baseline.json"
 )
-PERFORMANCE_TARGETS = ("mariadb118", "mysql84")
+PERFORMANCE_CONTRACT_PATH = Path("benchmarks/performance-contract.json")
 # The reconciliation index is derived from the evidence policy rather than
 # restated here. A second list is free to describe a different release than the
 # one the qualification manifest selected, and the writer and this validator
@@ -179,13 +179,29 @@ def commit_is_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
     raise EvidenceError(f"Unable to validate performance evidence ancestry: {message}")
 
 
-def accepted_pair_identity(entries: list[dict[str, Any]]) -> dict[str, set[Any]]:
-    """Return the identity an accepted baseline pair has to agree on.
+def performance_targets(contract_path: Path) -> tuple[str, ...]:
+    """Return the canonical performance target set from its contract."""
+    try:
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exception:
+        raise EvidenceError(
+            f"Unable to read the performance contract: {contract_path}"
+        ) from exception
+
+    targets = contract.get("requiredTargets")
+    if not isinstance(targets, dict) or not targets:
+        raise EvidenceError("The performance contract names no required targets.")
+
+    return tuple(sorted(targets))
+
+
+def accepted_matrix_identity(entries: list[dict[str, Any]]) -> dict[str, set[Any]]:
+    """Return the identity an accepted baseline matrix has to agree on.
 
     The run identifier is deliberately not part of it. An accepted baseline is
-    measured by the benchmark matrix, which runs one job per engine and names
+    measured by the benchmark matrix, which runs one job per target and names
     that job in the identifier, so its entries can never share one. What this
-    gate needs is that both engines measured the same software, and the commit
+    gate needs is that all engines measured the same software, and the commit
     together with its source hash carries exactly that.
 
     Evidence the release candidate measures itself is a different case: there
@@ -199,7 +215,7 @@ def accepted_pair_identity(entries: list[dict[str, Any]]) -> dict[str, set[Any]]
     mismatched = [field for field, values in identities.items() if len(values) != 1]
     if mismatched:
         raise EvidenceError(
-            "The accepted hosted performance pair has inconsistent identity field(s): "
+            "The accepted hosted performance matrix has inconsistent identity field(s): "
             f"{', '.join(mismatched)}."
         )
 
@@ -207,7 +223,7 @@ def accepted_pair_identity(entries: list[dict[str, Any]]) -> dict[str, set[Any]]
 
 
 def validate_performance_baseline(args: argparse.Namespace) -> dict[str, Any]:
-    """Prove that the accepted hosted pair covers the current source state."""
+    """Prove that the accepted hosted matrix covers the current source state."""
     repo = Path(args.repo).resolve()
     contract_path = Path(args.contract).resolve()
     baseline_path = Path(args.baseline).resolve()
@@ -236,15 +252,16 @@ def validate_performance_baseline(args: argparse.Namespace) -> dict[str, Any]:
         and entry.get("profile") == args.profile
         and entry.get("runnerClass") == args.runner_class
     ]
+    required_targets = performance_targets(contract_path)
     observed_targets = {entry.get("target") for entry in entries}
-    if len(entries) != len(PERFORMANCE_TARGETS) or observed_targets != set(
-        PERFORMANCE_TARGETS
+    if len(entries) != len(required_targets) or observed_targets != set(
+        required_targets
     ):
         raise EvidenceError(
-            "The accepted hosted performance baseline is not a complete target pair."
+            "The accepted hosted performance baseline is not a complete target matrix."
         )
 
-    identities = accepted_pair_identity(entries)
+    identities = accepted_matrix_identity(entries)
 
     evidence_commit = next(iter(identities["commit"]))
     source_hash = next(iter(identities["sourceHash"]))
@@ -285,7 +302,7 @@ def validate_performance_baseline(args: argparse.Namespace) -> dict[str, Any]:
         "currentCommit": current_commit,
         "profile": args.profile,
         "runnerClass": args.runner_class,
-        "targets": list(PERFORMANCE_TARGETS),
+        "targets": list(required_targets),
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -603,20 +620,23 @@ def reuse_performance_evidence(
         if path.is_symlink():
             raise EvidenceError(f"Symbolic links are not allowed in reusable performance evidence: {path}")
 
+    required_targets = performance_targets(
+        repo / PERFORMANCE_CONTRACT_PATH
+    )
     evaluations = {
         target: load_performance_evaluation(source_root, target)
-        for target in PERFORMANCE_TARGETS
+        for target in required_targets
     }
     payloads = [payload for _, payload in evaluations.values()]
     measured_commits = {payload["commit"] for payload in payloads}
     measured_source_hashes = {payload["sourceHash"] for payload in payloads}
-    measured_run_ids = {payload["runId"] for payload in payloads}
-    if len(measured_commits) != 1 or len(measured_source_hashes) != 1 or len(measured_run_ids) != 1:
-        raise EvidenceError("Reusable performance targets do not share one source and run identity.")
+    if len(measured_commits) != 1 or len(measured_source_hashes) != 1:
+        raise EvidenceError(
+            "Reusable performance targets do not share one source identity."
+        )
 
     measured_commit = next(iter(measured_commits))
     measured_source_hash = next(iter(measured_source_hashes))
-    measured_run_id = next(iter(measured_run_ids))
     source_commit = run_command("git", "rev-parse", "HEAD", cwd=repo)
     if run_command("git", "status", "--porcelain", "--untracked-files=all", cwd=repo):
         raise EvidenceError("Performance reuse requires a clean Git worktree.")
@@ -638,17 +658,17 @@ def reuse_performance_evidence(
     target_receipts = [
         {
             "target": target,
+            "runId": evaluations[target][1]["runId"],
             "evaluationSha256": sha256(
                 destination_performance / target / "evidence" / "gate-performance-evaluation.json"
             ),
         }
-        for target in PERFORMANCE_TARGETS
+        for target in required_targets
     ]
     receipt = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "runId": run_id,
         "sourceCommit": source_commit,
-        "reusedRunId": measured_run_id,
         "reusedSourceCommit": measured_commit,
         "reusedSourceHash": measured_source_hash,
         "changedPaths": source_delta,
@@ -849,6 +869,8 @@ def validate_qualification_manifest(
 def validate_paired_performance_evidence(
     root: Path,
     source_commit: str,
+    required_targets: tuple[str, ...],
+    contract_path: Path,
 ) -> dict[str, Any]:
     """Inventory the paired comparison the tag performed.
 
@@ -872,7 +894,7 @@ def validate_paired_performance_evidence(
             raise EvidenceError(
                 f"Unable to read paired evaluation: {path}"
             ) from exception
-        if payload.get("qualification") != "qualified":
+        if payload.get("qualification") != "pending-run-wide-adjustment":
             raise EvidenceError(
                 f"Paired performance for {payload.get('target')} is "
                 f"{payload.get('qualification')!r}."
@@ -897,13 +919,54 @@ def validate_paired_performance_evidence(
     targets = sorted(entry["target"] for entry in engines)
     if len(set(targets)) != len(targets):
         raise EvidenceError("Paired performance reports a target twice.")
-    missing = sorted(set(PERFORMANCE_TARGETS) - set(targets))
-    if missing:
+    expected_targets = set(required_targets)
+    observed_targets = set(targets)
+    missing = sorted(expected_targets - observed_targets)
+    unexpected = sorted(observed_targets - expected_targets)
+    if missing or unexpected:
         raise EvidenceError(
-            f"Paired performance is missing engine(s): {', '.join(missing)}."
+            "Paired performance target mismatch. "
+            f"Missing={missing}; unexpected={unexpected}."
         )
 
-    return {"comparisonMode": "paired", "engines": engines}
+    qualification_path = root / "performance" / "paired-scorecard-qualification.json"
+    if qualification_path.is_symlink() or not qualification_path.is_file():
+        raise EvidenceError(
+            "Paired performance carries no regular scorecard qualification."
+    )
+    try:
+        qualification = json.loads(qualification_path.read_text(encoding="utf-8"))
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        performance_evidence.validate_registered_characterization(
+            contract,
+            contract_path.resolve().parent.parent,
+        )
+        expected = performance_evidence.evaluate_scorecard_qualification(
+            [json.loads(path.read_text(encoding="utf-8")) for path in evaluations],
+            contract,
+            contract_digest=sha256(contract_path),
+        )
+    except performance_evidence.PerformanceEvidenceError as error:
+        raise EvidenceError(
+            f"Paired scorecard qualification is invalid: {error}"
+        ) from error
+    if qualification != expected or qualification.get("qualification") != "qualified":
+        raise EvidenceError(
+            "Paired scorecard qualification does not reproduce as qualified."
+        )
+    target_states = {
+        entry["target"]: entry["state"] for entry in qualification["targets"]
+    }
+    for engine in engines:
+        engine["qualification"] = target_states[engine["target"]]
+
+    return {
+        "comparisonMode": "paired",
+        "qualification": qualification["qualification"],
+        "scorecardRelativePath": qualification_path.relative_to(root).as_posix(),
+        "scorecardSha256": sha256(qualification_path),
+        "engines": engines,
+    }
 
 
 def write_manifest(args: argparse.Namespace) -> None:
@@ -933,8 +996,14 @@ def write_manifest(args: argparse.Namespace) -> None:
     qualification = validate_qualification_manifest(
         root, source["commit"], args.release_version
     )
+    required_performance_targets = performance_targets(
+        repo / PERFORMANCE_CONTRACT_PATH
+    )
     performance_evidence = validate_paired_performance_evidence(
-        root, source["commit"]
+        root,
+        source["commit"],
+        required_performance_targets,
+        repo / PERFORMANCE_CONTRACT_PATH,
     )
     reconciliation = validate_reconciliation(root, args.run_id, source["commit"])
     dependencies = collect_dependencies(dependency_graph)

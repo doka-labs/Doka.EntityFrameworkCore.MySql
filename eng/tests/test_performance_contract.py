@@ -236,13 +236,14 @@ class PerformanceContractTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
             record["target"]: record for record in baseline["baselines"]
         }
 
-        # Engines differ in how many samples a workload needs, so a check that
-        # reads one baseline entry would leave the others free to drift.
-        self.assertEqual(
-            set(self.contract["requiredTargets"]),
-            set(recorded_targets),
-            "Every required target must contribute its own baseline populations.",
-        )
+        # A contract bump deliberately precedes the reviewed seed proposal.
+        # Once versions agree, however, a partial accepted matrix is invalid.
+        if baseline["contractVersion"] == self.contract["contractVersion"]:
+            self.assertEqual(
+                set(self.contract["requiredTargets"]),
+                set(recorded_targets),
+                "Every required target must contribute baseline populations.",
+            )
 
         for name, profile in self.contract["profiles"].items():
             if profile["measurementQualityPolicy"] != "enforce":
@@ -490,6 +491,8 @@ class PairedPolicyTests(unittest.TestCase):
             ("interval", "method", "jackknife"),
             ("interval", "sidedness", "left-sided"),
             ("multipleComparison", "procedure", "sidak"),
+            ("sensitivity", "method", "analytical-normal"),
+            ("sensitivity", "familyCase", "all-regressions"),
             ("retry", "combination", "pool-samples"),
         )
         for block, field, value in cases:
@@ -526,8 +529,13 @@ class PairedPolicyTests(unittest.TestCase):
             ("interval", "confidenceLevel", 1.0),
             ("interval", "confidenceLevel", 0.0),
             ("interval", "resampleCount", 100),
-            ("multipleComparison", "falseDiscoveryRate", 1.0),
-            ("blocks", "minimumCompleteBlocks", 1),
+            ("multipleComparison", "familyWiseErrorRate", 1.0),
+            ("blocks", "completeBlocks", 9),
+            ("blocks", "completeBlocks", 11),
+            ("sensitivity", "minimumPower", 0.79),
+            ("sensitivity", "simulationConfidenceLevel", 0.94),
+            ("sensitivity", "simulationTrials", 199),
+            ("sensitivity", "minimumDetectableBudgetMultiple", 1.0),
         )
         for block, field, value in cases:
             with self.subTest(block=block, field=field, value=value):
@@ -536,11 +544,20 @@ class PairedPolicyTests(unittest.TestCase):
                 with self.assertRaises(contract_module.InvalidEvidenceError):
                     contract_module.validate_paired_policy(broken)
 
-    def test_block_bounds_must_be_ordered(self) -> None:
-        """Reject a maximum block count below its own minimum."""
+    def test_complete_block_count_must_be_integral(self) -> None:
+        """Reject a fractional population no runner can execute."""
         broken = json.loads(json.dumps(self.contract))
-        broken["pairedPolicy"]["blocks"]["maximumCompleteBlocks"] = 4
-        broken["pairedPolicy"]["blocks"]["minimumCompleteBlocks"] = 8
+        broken["pairedPolicy"]["blocks"]["completeBlocks"] = 10.5
+
+        with self.assertRaises(contract_module.InvalidEvidenceError):
+            contract_module.validate_paired_policy(broken)
+
+    def test_sensitivity_dispersion_must_be_positive(self) -> None:
+        """Reject a planning model with no usable dispersion ceiling."""
+        broken = json.loads(json.dumps(self.contract))
+        broken["pairedPolicy"]["sensitivity"][
+            "maximumLogRatioStandardDeviation"
+        ] = 0
 
         with self.assertRaises(contract_module.InvalidEvidenceError):
             contract_module.validate_paired_policy(broken)
@@ -575,8 +592,8 @@ class DeclaredProcedureTests(unittest.TestCase):
         self.reject(["interval", "method"], "percentile-bootstrap")
 
     def test_an_unimplemented_comparison_procedure_is_refused(self) -> None:
-        """Only Benjamini-Hochberg controls the family here."""
-        self.reject(["multipleComparison", "procedure"], "holm-bonferroni")
+        """Only run-wide Holm controls the required target family here."""
+        self.reject(["multipleComparison", "procedure"], "benjamini-hochberg")
 
     def test_an_unimplemented_retry_combination_is_refused(self) -> None:
         """A retry replaces the prior attempt; nothing combines decisions."""
@@ -591,9 +608,7 @@ class DeclaredProcedureTests(unittest.TestCase):
         policy = self.contract["pairedPolicy"]
 
         self.assertEqual("bca-bootstrap", policy["interval"]["method"])
-        self.assertEqual(
-            "benjamini-hochberg", policy["multipleComparison"]["procedure"]
-        )
+        self.assertEqual("holm", policy["multipleComparison"]["procedure"])
         self.assertEqual("replace-attempt", policy["retry"]["combination"])
         self.assertEqual("complete-matrix", policy["primaryFamily"]["workloadScope"])
 

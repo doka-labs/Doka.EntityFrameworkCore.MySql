@@ -34,11 +34,34 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(6, len(policy["gates"]))
         self.assertIn("repository-qualification", policy["requiredProtectedChecks"])
 
+    def test_performance_gate_names_the_artifact_producing_workflow(self) -> None:
+        """Bind performance provenance to the workflow that uploads evidence."""
+        policy = qualification.load_policy()
+        performance_gate = next(
+            gate
+            for gate in policy["gates"]
+            if gate["id"] == "performance-qualification"
+        )
+        workflow_path = ".github/workflows/benchmark-scorecard.yml"
+        workflow = (Path(__file__).resolve().parents[2] / workflow_path).read_text(
+            encoding="utf-8"
+        )
+
+        self.assertEqual(workflow_path, performance_gate["producerWorkflow"])
+        self.assertIn("name: Upload paired scorecard qualification", workflow)
+        self.assertIn("name: benchmark-scorecard-qualification", workflow)
+
     def test_every_top_level_field_is_required(self) -> None:
         """Reject a policy missing any structural field."""
         policy = qualification.load_policy()
-        for field in ("schemaVersion", "policyVersion", "selectionRule", "gates",
-                      "trustedTagSigners", "requiredProtectedChecks"):
+        for field in (
+            "schemaVersion",
+            "policyVersion",
+            "selectionRule",
+            "gates",
+            "trustedTagSigners",
+            "requiredProtectedChecks",
+        ):
             with self.subTest(field=field):
                 broken = json.loads(json.dumps(policy))
                 del broken[field]
@@ -159,7 +182,8 @@ class SelectionTests(unittest.TestCase):
         self.policy = qualification.load_policy()
         self.digest = qualification.policy_digest(self.policy)
         self.gate = next(
-            gate for gate in self.policy["gates"]
+            gate
+            for gate in self.policy["gates"]
             if gate["id"] == "migration-deployment"
         )
 

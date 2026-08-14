@@ -314,46 +314,38 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download MySQL evidence
+      # The scorecard expands the target set from the contract. Downloading by
+      # pattern keeps proposal assembly on that same source of truth.
+      - name: Download required-target evidence
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: benchmark-artifacts-mysql84
-          path: artifacts/benchmarks/mysql84
-
-      - name: Download MariaDB evidence
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: benchmark-artifacts-mariadb118
-          path: artifacts/benchmarks/mariadb118
+          pattern: benchmark-artifacts-*
+          path: artifacts/benchmark-downloads
 
       - name: Build combined baseline candidate
         id: candidate
         env:
           BASELINE_VERSION: github-${{ github.run_id }}
         run: |
-          mapfile -t mysql_evidence < <(
-            find artifacts/benchmarks/mysql84 \
-              -type f \
-              -name performance-evaluation.json
-          )
-          mapfile -t mariadb_evidence < <(
-            find artifacts/benchmarks/mariadb118 \
-              -type f \
-              -name performance-evaluation.json
-          )
-
-          if [[ "${#mysql_evidence[@]}" -ne 1 || "${#mariadb_evidence[@]}" -ne 1 ]]; then
-            echo "Expected exactly one evaluation for each benchmark target." >&2
-            exit 1
-          fi
+          evidence_arguments=()
+          while IFS= read -r target; do
+            artifact_root="artifacts/benchmark-downloads/benchmark-artifacts-${target}"
+            mapfile -t target_evidence < <(
+              find "${artifact_root}" -type f -name performance-evaluation.json
+            )
+            if [[ "${#target_evidence[@]}" -ne 1 ]]; then
+              echo "Expected one evaluation for required target '${target}', found ${#target_evidence[@]}." >&2
+              exit 1
+            fi
+            evidence_arguments+=(--evidence "${target_evidence[0]}")
+          done < <(jq -er '.requiredTargets | keys[]' benchmarks/performance-contract.json)
 
           python3 -m eng.performance.cli seed \
             --contract benchmarks/performance-contract.json \
             --baseline artifacts/doka-benchmark-baseline.candidate.json \
             --version "${BASELINE_VERSION}" \
             --merge-existing benchmarks/baselines/doka-benchmark-baseline.json \
-            --evidence "${mysql_evidence[0]}" \
-            --evidence "${mariadb_evidence[0]}"
+            "${evidence_arguments[@]}"
 
           python3 -m eng.performance.cli validate-baseline \
             --contract benchmarks/performance-contract.json \
@@ -453,7 +445,7 @@ jobs:
               echo "perf(benchmarks): refresh hosted performance baseline"
               echo
               echo "- Keep strict hosted comparison aligned with the active contract."
-              echo "- Accept the validated MySQL and MariaDB scorecard evidence."
+              echo "- Accept the validated complete LTS scorecard evidence."
             } > "${commit_message}"
             git commit --file "${commit_message}"
           fi
@@ -477,7 +469,7 @@ jobs:
               "${GITHUB_REPOSITORY}" \
               "${GITHUB_RUN_ID}"
             echo
-            echo "The workflow validated the complete MySQL 8.4 and MariaDB 11.8 scorecard pair before opening this review."
+            echo "The workflow validated the complete contract-derived LTS scorecard matrix before opening this review."
             echo "The workflow never approves its own pull request."
             echo "A repository-scoped GitHub App schedules squash auto-merge without bypassing maintainer approval or protected checks."
             echo

@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 8,
-  "contractVersion": "2026-08-13",
+  "schemaVersion": 10,
+  "contractVersion": "2026-08-14",
   "evidenceMaximumAgeHours": 12,
   "hostPreconditions": {
     "admissionMetric": "interval-host-cpu-utilization",
@@ -11,14 +11,46 @@
   },
   "requiredTargets": {
     "mysql84": {
+      "displayName": "MySQL 8.4",
       "engineFamily": "MySQL",
       "serverVersion": "8.4.0",
+      "hostPort": 33068,
       "serverImage": "mysql:8.4.11@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb"
     },
+    "mysql97": {
+      "displayName": "MySQL 9.7",
+      "engineFamily": "MySQL",
+      "serverVersion": "9.7.0",
+      "hostPort": 33070,
+      "serverImage": "mysql:9.7.2@sha256:257388edf9c84dbc04c763625446d5f3fa6ed60d1b0873bc552c614ba0a7ab4e"
+    },
+    "mariadb1011": {
+      "displayName": "MariaDB 10.11",
+      "engineFamily": "MariaDB",
+      "serverVersion": "10.11.0",
+      "hostPort": 33066,
+      "serverImage": "mariadb:10.11.18@sha256:de61fed4a40d3842f3ee09944ba52792156cfd9adf489b2cc670fc6ded28df8d"
+    },
+    "mariadb114": {
+      "displayName": "MariaDB 11.4",
+      "engineFamily": "MariaDB",
+      "serverVersion": "11.4.0",
+      "hostPort": 33067,
+      "serverImage": "mariadb:11.4.12@sha256:a794d9eb009e20de605858a11f32f63b4075cbd197c650436f0e3b457e4caed7"
+    },
     "mariadb118": {
+      "displayName": "MariaDB 11.8",
       "engineFamily": "MariaDB",
       "serverVersion": "11.8.0",
+      "hostPort": 33069,
       "serverImage": "mariadb:11.8.8@sha256:efb4959ef2c835cd735dbc388eb9ad6aab0c78dd64febcd51bc17481111890c4"
+    },
+    "mariadb123": {
+      "displayName": "MariaDB 12.3",
+      "engineFamily": "MariaDB",
+      "serverVersion": "12.3.0",
+      "hostPort": 33071,
+      "serverImage": "mariadb:12.3.2@sha256:759869cb6f003234a95c6384cdee245b4bce7de26913fe607a8110362c0c007d"
     }
   },
   "profiles": {
@@ -678,16 +710,30 @@
     },
     "primaryFamily": {
       "workloadScope": "complete-matrix",
-      "metric": "normalizedMedian"
+      "metric": "normalizedMedian",
+      "role": "required",
+      "aggregation": "geometric-mean-across-workloads"
     },
     "secondaryFamilies": [
       {
-        "metric": "normalizedP95"
+        "metric": "normalizedP95",
+        "role": "observational",
+        "aggregation": "per-workload"
       },
       {
-        "metric": "normalizedP99"
+        "metric": "normalizedP99",
+        "role": "observational",
+        "aggregation": "per-workload"
       }
     ],
+    "targetRoles": {
+      "mysql84": "required",
+      "mysql97": "required",
+      "mariadb1011": "required",
+      "mariadb114": "required",
+      "mariadb118": "required",
+      "mariadb123": "required"
+    },
     "practicalBudgets": {
       "normalizedMedian": 1.15,
       "normalizedP95": 1.25,
@@ -701,16 +747,30 @@
       "resamplingSeed": 20260810
     },
     "blocks": {
-      "minimumCompleteBlocks": 8,
-      "maximumCompleteBlocks": 24,
+      "completeBlocks": 10,
       "startingSamplesPerSidePerBlock": 16,
       "maximumSampleCountRatio": 4.0,
       "maximumRelativeStandardError": 0.25,
       "profile": "paired-block"
     },
     "multipleComparison": {
-      "procedure": "benjamini-hochberg",
-      "falseDiscoveryRate": 0.05
+      "scope": "all-required-targets",
+      "procedure": "holm",
+      "familyWiseErrorRate": 0.05
+    },
+    "sensitivity": {
+      "method": "deterministic-lognormal-bca-exact-sign-flip",
+      "familyCase": "single-regression",
+      "minimumPower": 0.8,
+      "simulationConfidenceLevel": 0.95,
+      "simulationTrials": 200,
+      "simulationSeed": 20260813,
+      "maximumLogRatioStandardDeviation": 0.06048100249438095,
+      "minimumDetectableBudgetMultiple": 1.1,
+      "characterization": {
+        "path": "benchmarks/characterization/paired-dispersion-2026-08-13.json",
+        "sha256": "cffc2fdc4da51e0b8b100845bffeff7506e361837a5a7c803726996697fcf859"
+      }
     },
     "retry": {
       "eligibleAttemptStates": [

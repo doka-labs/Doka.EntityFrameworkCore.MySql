@@ -89,8 +89,8 @@ The dedicated `benchmark` workflow keeps the hosted performance baseline on
 the active evidence contract. Relevant changes on `main` and the monthly
 schedule start it automatically. A manual dispatch is available when an
 operator needs an immediate run. The workflow compares against an accepted
-baseline when possible. When the current runner pair is absent or stale, it
-validates both release engines and opens one baseline review pull request.
+baseline when possible. When the current runner matrix is absent or stale, it
+validates every required LTS target and opens one baseline review pull request.
 There is no artifact download, file replacement, or second benchmark dispatch.
 
 Review and merge that pull request through protected `main`. The automation

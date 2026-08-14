@@ -112,9 +112,8 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
         assemble = workflow[workflow.index("\n  assemble:") :]
         restore = assemble[: assemble.index("Assemble immutable release candidate")]
 
-        for target in ("mysql84", "mariadb118"):
-            with self.subTest(target=target):
-                self.assertIn(f"benchmark-artifacts-{target}", restore)
+        self.assertIn("pattern: benchmark-artifacts-*", restore)
+        self.assertIn(".requiredTargets | keys[]", restore)
 
     def test_the_required_stage_set_matches_the_dispatched_stages(self) -> None:
         """Keep the receipt requirement and the workflow matrix pinned together.
