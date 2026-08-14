@@ -104,48 +104,29 @@ the default from the environment rather than from a variable each workflow must
 set keeps a new caller from inheriting a gate that cannot run. The commit hook
 runs the offline shell subset; push and CI run the complete contract.
 
-Dependency review runs per pull request against the repository license policy.
-A preceding job restores the solution with the pinned SDK, converts the
-resulting `project.assets.json` files into a NuGet snapshot, and submits it for
-every pushed `main` revision and every trusted pull-request head after
-bootstrap. Both event paths use the same stable detector and correlator
-identity. Dependency Review therefore compares two graphs produced by the same
-restore contract instead of classifying packages that only one detector can
-see as newly introduced. The converter is repository-owned and
-dependency-free; it does not execute a moving detector binary after review.
+Dependency review runs per pull request against the repository license and
+vulnerability policy. GitHub Automatic Dependency Submission is the single
+resolved-graph producer for NuGet. It runs independently for repository pushes,
+including automation-created branches and default-branch commits, so the
+review workflow must not submit a second snapshot with a competing detector or
+correlator identity.
 
-The migration pull request is a bounded exception: its exact base workflow
-does not yet declare the canonical submission job, so submitting only the new
-head contract would create a hybrid comparison. The producer reads that base
-workflow at its exact SHA and selects `bootstrap`; it then leaves both sides on
-GitHub's pre-existing graph contract. Once the workflow reaches `main`, the
-structural job marker makes every later trusted pull request `canonical`
-without a manual input or permanent compatibility branch.
+GitHub documents the dependency-comparison warning header as the readiness
+signal when submission and review run independently. For trusted same-repository
+pull requests, a repository-owned preflight queries the exact base/head
+comparison and retries that header with exponential backoff for 180 seconds.
+It proceeds only when the header is absent. A persistent missing, propagating,
+or count-mismatched snapshot therefore fails closed before the official action
+can apply its soft retry timeout. The window is longer than the observed
+approximately 50-second NuGet autosubmission while remaining bounded by the
+ten-minute review job.
 
-Canonical review fails closed in three places. A failed trusted-head producer
-stops review. A repository-owned preflight then requires a successful GitHub
-Actions `dependency-submission` check run for the exact base SHA and rejects a
-missing or expired receipt with rebase guidance. Finally, it queries the
-base/head dependency comparison and accepts it only when the base64-encoded
-snapshot-warning header is absent. The preflight owns one shared 120-second
-retry window across both phases, rather than independently granting each phase
-the complete allowance. The third-party action's retry is disabled because
-that action continues after its retry expires. Main-push submissions are never
-cancelled because every pushed SHA can remain the base of an open pull request;
-superseded PR-head runs remain latest-wins.
-
-The producer is skipped for forks and Dependabot pull requests because GitHub
-deliberately gives those `pull_request` runs a read-only token by default; the
-workflow does not replace that boundary with `pull_request_target`. Dependency
-review still runs, but the repository does not claim a submitted transitive
-snapshot for code outside its trusted same-repository branch boundary.
-
-The dependency-review action's per-dependency OpenSSF lookup remains enabled
-for canonical, fork, and Dependabot reviews. It is disabled only for the
-structurally one-time bootstrap, whose hybrid package delta otherwise causes
-thousands of redundant remote lookups and can consume the complete job
-deadline. This bounded exception does not claim that the repository-level
-Scorecard replaces the dependency-level signal.
+Fork and Dependabot pull requests retain their read-only token boundary; the
+workflow does not replace it with `pull_request_target`. They still run the
+official dependency-review action with its documented snapshot-warning retry.
+The repository does not claim fail-closed transitive coverage where it cannot
+orchestrate the untrusted head's graph production. Per-dependency OpenSSF
+lookup remains enabled for every review path.
 
 Repository OpenSSF Scorecard runs on every pushed `main` revision and weekly,
 using only the action's stable `push` and `schedule` triggers. A newer revision
@@ -161,19 +142,14 @@ default configuration.
   request that introduces it instead of on the following scheduled run.
 - Good, because a fork contribution can no longer reach a persisted credential
   through a later step in the same job.
-- Good, because dependency review no longer reports an empty internal-PR diff
-  merely because automatic dependency submission covers only the default
-  branch.
-- Good, because trusted pull-request heads and their future `main` baseline use
-  one stable submission identity and cannot turn detector drift into package
-  additions.
-- Good, because a later `main` push cannot cancel the snapshot required by a
-  pull request that retains the earlier commit as its base.
-- Good, because canonical review cannot turn an expired snapshot-warning retry
+- Good, because one official producer owns each revision's resolved NuGet
+  graph; duplicate snapshots cannot turn detector count drift into a false
+  package delta.
+- Good, because GitHub's automatic producer also covers commits created by
+  repository automation without relying on a recursively suppressed `push`
+  workflow.
+- Good, because trusted review cannot turn an expired snapshot-warning retry
   into a successful but incomplete policy result.
-- Good, because bootstrap is derived from the exact base workflow and becomes
-  unreachable after the migration reaches `main`; no operator switch can leave
-  it enabled.
 - Good, because the workflow surface is enforced by actionlint and zizmor
   rather than by one hand-written parser covering a single defect class.
 - Good, because the NuGet cache removes a full package restore from most jobs
@@ -181,18 +157,11 @@ default configuration.
 - Good, because an unbounded job can no longer occupy a runner for six hours.
 - Bad, because pull-request feedback now takes longer than the three-job lane
   D-023 defined.
-- Bad, because each `main` push performs the same restore-backed submission as
-  a trusted pull-request head so future comparisons retain a symmetric graph.
-- Bad, because rapid `main` pushes queue their snapshot submissions instead of
-  discarding intermediate base revisions.
-- Bad, because the bootstrap pull request deliberately remains on the earlier
-  graph contract and omits per-dependency OpenSSF output; full graph symmetry
-  and that signal begin after its first `main` submission.
-- Bad, because a pull request based on a revision whose exact check receipt is
-  unavailable must rebase before canonical dependency review can proceed.
-- Bad, because fork and Dependabot pull requests have no exact head snapshot;
-  dependency review therefore cannot guarantee policy enforcement for
-  transitive dependencies that become visible only after restore.
+- Bad, because trusted dependency review depends on GitHub's automatic
+  submission service and fails closed when that external graph is unavailable
+  or remains incomplete after the bounded retry window.
+- Bad, because fork and Dependabot pull requests cannot receive the same
+  fail-closed head-readiness guarantee under their read-only token boundary.
 - Bad, because the required status checks in the branch ruleset must be updated
   by an administrator before the newly per-event lanes actually block a merge.
 - Bad, because two additional third-party actions enter the supply chain and
@@ -292,20 +261,14 @@ version control. They are documented in
   runner-minute premise no longer applied.
 - 2026-08-11: Expanded per-event specification conformance from three
   representative targets to every active MySQL and MariaDB LTS line.
-- 2026-08-13: Bound same-repository dependency review to a preceding snapshot
-  for the exact pull-request head while preserving the read-only fork boundary.
-- 2026-08-13: Extended the canonical snapshot to pushed `main` revisions and
-  replaced per-PR correlators with one stable submission identity so both sides
-  of a dependency comparison share the same graph contract.
-- 2026-08-13: Prevented later `main` pushes from cancelling snapshots for
-  commits that can remain the base revision of an open pull request.
+- 2026-08-13: Bound same-repository dependency review to complete exact
+  base/head graph evidence while preserving the read-only fork boundary.
 - 2026-08-13: Restricted Scorecard execution to its stable `push` and `schedule`
   triggers and made superseded default-branch scans latest-wins.
-- 2026-08-13: Made the automatic-to-canonical snapshot migration a structural,
-  one-time bootstrap and required exact-base check evidence plus a warning-free
-  comparison for every later trusted pull request.
-- 2026-08-13: Retained per-dependency OpenSSF review everywhere except that
-  bounded bootstrap instead of replacing it with repository Scorecard output.
+- 2026-08-14: Removed the duplicate repository-owned NuGet submission after an
+  automation-created `main` commit proved that the extra producer could not be
+  triggered symmetrically. Automatic Dependency Submission now owns both sides,
+  while the repository preflight requires a warning-free exact comparison.
 
 ### Implementation References
 
@@ -314,11 +277,8 @@ version control. They are documented in
 - `.github/workflows/scorecard.yml`
 - `eng/quality/lint-workflows.sh`
 - `eng/quality/check-vulnerability-audit.sh`
-- `eng/quality/dependency_snapshot.py`
 - `eng/quality/dependency_snapshot_readiness.py`
-- `eng/quality/restore-dependency-snapshot.sh`
 - `eng/performance/check-benchmark-ratios.sh`
-- `eng/tests/test_dependency_snapshot.py`
 - `eng/tests/test_dependency_snapshot_readiness.py`
 - `eng/tests/test_engineering_structure.py`
 - `docs/operations/repository-security-settings.md`
@@ -337,19 +297,11 @@ version control. They are documented in
   (primary source; retrieved 2026-08-13)
 - [Pinned Dependency Review comparison implementation](https://github.com/actions/dependency-review-action/blob/a1d282b36b6f3519aa1f3fc636f609c47dddb294/src/dependency-graph.ts)
   (primary source; retrieved 2026-08-13)
-- [List check runs for a Git reference](https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference)
-  (primary source; retrieved 2026-08-13)
-- [Retention of checks](https://docs.github.com/en/pull-requests/reference/status-checks#retention-of-checks)
-  (primary source; retrieved 2026-08-13)
-- [Get repository content](https://docs.github.com/en/rest/repos/contents#get-repository-content)
-  (primary source; retrieved 2026-08-13)
-- [Using the dependency submission API](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/use-dependency-submission-api)
-  (primary source; retrieved 2026-08-13)
 - [Configuring automatic dependency submission](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/submit-dependencies-automatically)
-  (primary source; retrieved 2026-08-13)
-- [REST API endpoints for dependency submission](https://docs.github.com/en/rest/dependency-graph/dependency-submission)
-  (primary source; retrieved 2026-08-13)
-- [GitHub Dependency Submission Toolkit](https://github.com/github/dependency-submission-toolkit)
-  (primary source; retrieved 2026-08-13)
+  (primary source; retrieved 2026-08-14)
+- [Automatic dependency submission](https://docs.github.com/en/code-security/reference/supply-chain-security/automatic-dependency-submission)
+  (primary source; retrieved 2026-08-14)
+- [`GITHUB_TOKEN` workflow-trigger behavior](https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs)
+  (primary source; retrieved 2026-08-14)
 - [Dependabot on GitHub Actions](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-on-actions)
   (primary source; retrieved 2026-08-13)

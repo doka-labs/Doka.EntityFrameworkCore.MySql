@@ -177,6 +177,24 @@ in the script, zizmor through `pip --require-hashes` against
 `eng/quality/zizmor-requirements.txt`. A copy already present on `PATH` is used
 as the contributor installed it and is not digest-checked.
 
+### Automatic dependency submission must remain enabled
+
+The pull-request dependency gate deliberately has no second graph producer.
+GitHub Automatic Dependency Submission must therefore remain enabled for
+NuGet. It resolves the graph for automation-created branches and `main`
+commits, while `dependency-review.yml` waits for GitHub's exact base/head
+comparison to become warning-free. Disabling autosubmission makes trusted pull
+requests fail closed after the bounded readiness window.
+
+UI: Settings -> Advanced Security -> Dependency graph -> Automatic dependency
+submission -> Enabled.
+
+Confirm that a recent branch revision and the current `main` revision each
+show a successful `submit-nuget` job under "Automatic Dependency Submission
+(NuGet)" in the Actions tab. The repository preflight does not bind itself to
+that presentation-level check name; its contract is the warning-free exact
+comparison returned by GitHub's dependency-review API.
+
 ### Required status checks must match the current lanes
 
 ADR D-026 adds a stable aggregator for the commit-exact release inputs. The
