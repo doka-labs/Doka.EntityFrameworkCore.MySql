@@ -46,14 +46,18 @@ claim:
 - live integration, migration deployment, and runnable-example matrices own
   isolated databases for all six targets;
 - the scheduled container matrix repeats the full configuration and failure
-  contract across all six exact images; and
+  contract across all six exact images;
+- the hosted performance matrix runs the complete workload contract against
+  every exact LTS target, with same-run reference and candidate measurements;
+  and
 - a release candidate requires the complete six-target integration and example
   matrices before package evidence can be assembled.
 
-The regular integration smoke and performance scorecard intentionally use
-MySQL 8.4 plus MariaDB 11.8 as representative engine-family lanes. They do not
-replace the six-target qualification surfaces above and do not narrow the
-advertised support matrix.
+The regular integration smoke uses MySQL 8.4 plus MariaDB 11.8 as fast
+engine-family representatives. The scheduled benchmark smoke instead derives
+all six exact LTS targets from the performance contract. It remains a short,
+non-qualifying path and does not replace the hosted scorecard or release
+qualification.
 
 Compose is the Dependabot-maintained source for the exact container names and
 SHA-256 manifest-list digests. `TestDatabaseImages.cs` mirrors those pins for

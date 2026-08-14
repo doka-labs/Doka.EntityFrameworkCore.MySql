@@ -5,7 +5,6 @@ internal sealed class BenchmarkDatabaseTarget
     private const string BenchmarkTargetVariable = "DOKA_BENCHMARK_TARGET";
     private const string BenchmarkPortVariable = "DOKA_BENCHMARK_DATABASE_PORT";
     private const string MySql84TargetId = "mysql84";
-    private const string MariaDb118TargetId = "mariadb118";
 
     private BenchmarkDatabaseTarget(
         string targetId,
@@ -67,43 +66,61 @@ internal sealed class BenchmarkDatabaseTarget
     private static BenchmarkDatabaseTarget ResolveFromEnvironment()
     {
         var configuredTarget = Environment.GetEnvironmentVariable(BenchmarkTargetVariable);
+        var configuredPort = Environment.GetEnvironmentVariable(BenchmarkPortVariable);
+        var contract = PerformanceContract.Load();
 
-        if (string.IsNullOrWhiteSpace(configuredTarget)
-            || string.Equals(configuredTarget, MySql84TargetId, StringComparison.OrdinalIgnoreCase))
+        return Resolve(configuredTarget, configuredPort, contract);
+    }
+
+    internal static BenchmarkDatabaseTarget Resolve(
+        string? configuredTarget,
+        string? configuredPort,
+        PerformanceContract contract
+    )
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+
+        var targetId = string.IsNullOrWhiteSpace(configuredTarget)
+            ? MySql84TargetId
+            : configuredTarget.ToLowerInvariant();
+
+        if (!contract.RequiredTargets.TryGetValue(targetId, out var target))
         {
-            return new BenchmarkDatabaseTarget(
-                MySql84TargetId,
-                "MySQL 8.4",
-                "MySQL",
-                new Version(8, 4, 0),
-                host: "127.0.0.1",
-                port: ResolvePort(33068),
-                isMariaDb: false);
+            throw new InvalidOperationException(
+                $"Unsupported benchmark target '{configuredTarget}'. "
+                + $"Set {BenchmarkTargetVariable} to one of: "
+                + $"{string.Join(", ", contract.RequiredTargets.Keys.Order(StringComparer.Ordinal))}.");
         }
 
-        if (string.Equals(configuredTarget, MariaDb118TargetId, StringComparison.OrdinalIgnoreCase))
+        if (!Version.TryParse(target.ServerVersion, out var serverVersion))
         {
-            return new BenchmarkDatabaseTarget(
-                MariaDb118TargetId,
-                "MariaDB 11.8",
-                "MariaDB",
-                new Version(11, 8, 0),
-                host: "127.0.0.1",
-                port: ResolvePort(33069),
-                isMariaDb: true);
+            throw new InvalidDataException(
+                $"Benchmark target '{targetId}' declares invalid server version " + $"'{target.ServerVersion}'.");
         }
 
-        throw new InvalidOperationException(
-            $"Unsupported benchmark target '{configuredTarget}'. "
-            + $"Set {BenchmarkTargetVariable} to '{MySql84TargetId}' or '{MariaDb118TargetId}'.");
+        var isMariaDb = target.EngineFamily switch
+        {
+            "MySQL" => false,
+            "MariaDB" => true,
+            _ => throw new InvalidDataException(
+                $"Benchmark target '{targetId}' declares unsupported engine family " + $"'{target.EngineFamily}'."),
+        };
+
+        return new BenchmarkDatabaseTarget(
+            targetId,
+            target.DisplayName,
+            target.EngineFamily,
+            serverVersion,
+            host: "127.0.0.1",
+            port: ResolvePort(configuredPort, target.HostPort),
+            isMariaDb: isMariaDb);
     }
 
     private static int ResolvePort(
+        string? configuredPort,
         int defaultPort
     )
     {
-        var configuredPort = Environment.GetEnvironmentVariable(BenchmarkPortVariable);
-
         if (string.IsNullOrWhiteSpace(configuredPort))
         {
             return defaultPort;

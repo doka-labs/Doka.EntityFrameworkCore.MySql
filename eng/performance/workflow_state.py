@@ -218,13 +218,13 @@ def inspect_proposal(
         if actual_targets != required_targets:
             raise WorkflowStateError(
                 "The proposed baseline does not contain the exact required "
-                "target pair.",
+                "target matrix.",
             )
 
         source_commits = {entry.get("commit") for entry in entries}
         if len(source_commits) != 1:
             raise WorkflowStateError(
-                "The proposed target pair does not share one source commit.",
+                "The proposed target matrix does not share one source commit.",
             )
 
         source_commit = next(iter(source_commits))

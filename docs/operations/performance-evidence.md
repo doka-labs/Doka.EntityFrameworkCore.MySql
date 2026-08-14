@@ -22,7 +22,7 @@ No single control substitutes for another.
 - the repository-pinned .NET SDK;
 - Docker with Compose support;
 - Python 3.10 or later;
-- the exact MySQL 8.4 and MariaDB 11.8 images declared in
+- the exact images for every active LTS target declared in
   `benchmarks/performance-contract.json`;
 - a representative power and thermal state for accepted local measurements.
 
@@ -60,9 +60,11 @@ different runs.
 | `stress` | Extended investigation | 512; 256 expensive, adaptively extended up to 64x | Required | Required |
 
 `paired-block` needs no baseline because a paired run carries its own
-reference, and it observes rather than enforces the per-block error budget:
-the run's precision comes from many blocks, not from one. A block that is so
-noisy its ratio would be meaningless is still rejected, per side, against
+reference. Each target measures exactly ten alternating A/B blocks registered
+before the run starts. The profile observes rather than enforces the per-block
+sample cap: inference uses the complete fixed block population and never adds
+blocks after seeing a statistical result. A block that is so noisy its ratio
+would be meaningless is still rejected, per side, against
 `pairedPolicy.blocks.maximumRelativeStandardError`.
 
 It measures the complete workload matrix -- the same fifty-five workloads the
@@ -118,9 +120,9 @@ relative standard error; stress accepts at most 15%. An enforcing workload that
 misses its error budget is extended in calibration-aligned blocks up to the
 contract-owned multiplier. The workload and matrix deadlines bound that
 extension, and they are the real ceiling: the multiplier only keeps a single
-workload from consuming the matrix budget. Its value is dimensioned against
-the accepted baseline of every required target, because engines differ in how
-many samples the same workload needs:
+workload from consuming the matrix budget. The current value retains headroom
+above the largest observation in the accepted two-target baseline that
+preceded the LTS-matrix expansion:
 
 | Target | `scorecard` | `stress` |
 |---|---:|---:|
@@ -137,9 +139,11 @@ observed demand rather than sitting just above it: 34x observed, 1.9x spread,
 A multiplier below that discards measurements whose precision is well inside
 the target, because a workload stopped at the cap has by definition missed the
 duration floor. A contract test asserts the cap against every required target's
-baseline so the two cannot drift apart again. When that test fails after a
-baseline update, the run-to-run spread has outgrown the headroom, and the
-multiplier is what moves.
+baseline once the baseline matches the current contract. The first six-target
+seed closes that evidence transition; release preflight remains closed until
+its reviewed baseline proposal is merged. When the current-contract test fails
+after a later baseline update, the run-to-run spread has outgrown the headroom,
+and the multiplier is what moves.
 The runner never weakens the error budget or deletes observations;
 evidence that remains unstable at the cap fails validation. Fast, idempotent
 operations use fixed contract-owned batches so timer resolution and loop
@@ -196,6 +200,14 @@ DOKA_BENCHMARK_PROFILE=scorecard \
 DOKA_BENCHMARK_RUNNER_CLASS=local-darwin-arm64 \
 ./eng/benchmark.sh --up-run-down
 ```
+
+The scheduled smoke is not a hand-maintained representative subset. Its
+internal reusable workflow reads every key from
+`performance-contract.json.requiredTargets`, fans those keys out through a
+GitHub matrix, and gives each job an isolated `--up-run-down` lifecycle. The
+smoke profile applies only absolute contracts and produces no release evidence;
+the complete target set exists to catch target-specific harness or image drift
+before scorecard or release qualification depends on that path.
 
 The wrapper:
 
@@ -338,8 +350,11 @@ three pairs so no rerun is needed to decide what to change: samples achieved
 against the derived cap, measured duration against the required minimum, and
 achieved relative standard error against the allowed ceiling.
 
-Under either policy a capped result is refused for baseline promotion. Seeding
-rejects it by workload id and names the recalibration levers.
+Under either policy a capped historical result is refused for baseline
+promotion. Seeding rejects it by workload id and names the recalibration
+levers. A paired block uses the `observe` policy: its cap state remains visible
+in the audit record, while the fixed ten-block comparison still reports the
+result it measured.
 
 ### Environmental noise or an unsuitable contract
 
@@ -368,9 +383,10 @@ version bump.
 ## Accept an engine image update
 
 Dependabot proposes engine images against the Compose stack, which is the one
-place it edits. The same pin also lives in two workflows, the performance
-contract, and a C# constant, so its pull request is incomplete by
-construction and the pin gate rejects it until the other copies follow:
+place it edits. The same pin also lives in the performance contract, the C#
+test image catalog, and applicable workflow inputs, so its pull request is
+incomplete by construction and the pin gate rejects it until every copy
+follows:
 
 ```bash
 gh pr checkout <number>
@@ -397,56 +413,56 @@ even when every copy agrees.
 
 Seeding is a review action, not a regression-recovery shortcut.
 
-Run both required targets in `seed` mode with the same profile and runner
+Run every contract target in `seed` mode with the same profile and runner
 class:
 
 ```bash
-DOKA_BENCHMARK_TARGET=mysql84 \
-DOKA_BENCHMARK_PROFILE=scorecard \
-DOKA_BENCHMARK_BASELINE_MODE=seed \
-DOKA_BENCHMARK_RUNNER_CLASS=local-darwin-arm64 \
-DOKA_BENCHMARK_RUN_ID=local-seed-mysql84 \
-./eng/benchmark.sh --test-only
-
-DOKA_BENCHMARK_TARGET=mariadb118 \
-DOKA_BENCHMARK_PROFILE=scorecard \
-DOKA_BENCHMARK_BASELINE_MODE=seed \
-DOKA_BENCHMARK_RUNNER_CLASS=local-darwin-arm64 \
-DOKA_BENCHMARK_RUN_ID=local-seed-mariadb118 \
-./eng/benchmark.sh --test-only
+while read -r target; do
+  DOKA_BENCHMARK_TARGET="${target}" \
+  DOKA_BENCHMARK_PROFILE=scorecard \
+  DOKA_BENCHMARK_BASELINE_MODE=seed \
+  DOKA_BENCHMARK_RUNNER_CLASS=local-darwin-arm64 \
+  DOKA_BENCHMARK_RUN_ID="local-seed-${target}" \
+  ./eng/benchmark.sh --up-run-down
+done < <(jq -r '.requiredTargets | keys[]' benchmarks/performance-contract.json)
 ```
 
-Create the candidate only after reviewing both evaluations:
+Create the candidate only after reviewing every evaluation:
 
 ```bash
+evidence=()
+while read -r target; do
+  evidence+=(
+    --evidence
+    "artifacts/benchmarks/${target}/reports/local-seed-${target}/evidence/performance-evaluation.json"
+  )
+done < <(jq -r '.requiredTargets | keys[]' benchmarks/performance-contract.json)
+
 python3 -m eng.performance.cli seed \
   --contract benchmarks/performance-contract.json \
   --baseline benchmarks/baselines/doka-benchmark-baseline.json \
   --version <reviewed-baseline-version> \
-  --evidence \
-    artifacts/benchmarks/mysql84/reports/local-seed-mysql84/evidence/performance-evaluation.json \
-  --evidence \
-    artifacts/benchmarks/mariadb118/reports/local-seed-mariadb118/evidence/performance-evaluation.json
+  "${evidence[@]}"
 ```
 
 Every evaluation handed to `seed` or `compare` must agree on profile, runner
 class, commit, and source hash: promotion accepts one measured state of one
 piece of software, not a set assembled from several. The run identifier is
 deliberately not part of that agreement. It names a single measurement job, so
-the two commands above give each target its own, and the hosted matrix does the
-same with one job per engine. The contract's `evidenceMaximumAgeHours` keeps
+the commands above give each target its own, and the hosted matrix does the
+same with one job per target. The contract's `evidenceMaximumAgeHours` keeps
 the evaluations close together in time.
 
 When adding a new runner class, retain existing accepted groups:
 
 ```bash
+# Reuse the complete evidence array constructed above.
 python3 -m eng.performance.cli seed \
   --contract benchmarks/performance-contract.json \
   --baseline artifacts/doka-benchmark-baseline.candidate.json \
   --version <reviewed-baseline-version> \
   --merge-existing benchmarks/baselines/doka-benchmark-baseline.json \
-  --evidence <mysql-evaluation.json> \
-  --evidence <mariadb-evaluation.json>
+  "${evidence[@]}"
 ```
 
 Validate the result before review:
@@ -464,8 +480,8 @@ existing baseline. It replaces only matching target/profile/runner tuples.
 
 ## Compare with the accepted baseline
 
-Run both targets with `DOKA_BENCHMARK_BASELINE_MODE=compare`, then enforce the
-cross-target boundary:
+Run every required target with `DOKA_BENCHMARK_BASELINE_MODE=compare`, then
+enforce the cross-target boundary:
 
 ```bash
 DOKA_BENCHMARK_PROFILE=scorecard \
@@ -475,7 +491,7 @@ bash eng/performance/check-benchmark-ratios.sh artifacts/benchmarks
 
 The gate exits:
 
-- `0` when both targets pass;
+- `0` when every required target passes;
 - `1` when current evidence or a budget fails;
 - `2` when a required target has no current-run evidence.
 
@@ -510,14 +526,21 @@ starting services or either expensive matrix job:
   services or benchmark runners;
 - the shared release-evidence classifier treats provider source, benchmark
   source and corpora, database images, build and SDK inputs, the evaluator,
-  the harness, and `.github/workflows/benchmark-scorecard.yml` as scorecard
-  inputs;
-- a `main` push that changes any scorecard input runs both the MySQL and
-  MariaDB performance qualifications;
+  the harness, the scorecard control plane, the target workflow that performs
+  and uploads each measurement, and the executable sensitivity assurance as
+  scorecard inputs;
+- the evaluator binding includes the paired endpoint estimator and bounded
+  attempt selector; changing either invalidates ancestor evidence before the
+  release can apply current family-level policy to stored target statistics;
+- the non-qualifying scheduled smoke workflow remains outside that reuse
+  classifier because changing its orchestration cannot change accepted
+  scorecard evidence;
+- a `main` push that changes any measured provider or harness input runs the
+  complete contract-derived LTS performance matrix;
 - changes confined to the parent workflow, resolver, documentation, tests, or
   accepted baseline output remain on the inexpensive resolver path;
-- an exact current-contract `github-ubuntu-latest-x64` pair selects `compare`;
-- a missing baseline, an older contract, or a missing runner pair selects
+- an exact current-contract `github-ubuntu-latest-x64` matrix selects `compare`;
+- a missing baseline, an older contract, or a missing runner matrix selects
   `seed`;
 - `compare` always selects the paired same-run comparison, while `seed`
   selects the historical scorecard that creates reviewable baseline evidence;
@@ -719,8 +742,8 @@ ceiling to admit a saturated run.
 
 Look for a changed algorithm, accidental client evaluation, unexpectedly
 materialized rows, disabled pooling, retry loops, or unbounded allocation.
-Changing the absolute contract requires fresh evidence from both engines and a
-decision review.
+Changing the absolute contract requires fresh evidence from every required
+target and a decision review.
 
 ### Historical budget failure
 
@@ -776,27 +799,80 @@ one provider.
 
 | Check | What it answers | Failure means |
 |---|---|---|
-| Latency families | Does the candidate exceed its practical budget on median, p95, or p99 | The interval sits above the registered budget |
+| Required latency endpoint | Does the complete workload matrix regress on normalized median for a supported target | The run-wide Holm decision rejects and the interval sits above the practical budget |
+| Observational latency endpoints | Where did normalized median, p95, or p99 move per workload | Reported for diagnosis; never a relative release gate |
 | Resource families | Does the candidate allocate or collect more than its reference | The median block ratio exceeds the registered budget |
 | Absolute ceilings | Is the candidate inside its family budgets at all | A pair that regressed together would otherwise qualify |
 | Soak | Does sustained use leak | A leak appears over thousands of iterations and never inside a block |
 
-The latency verdict separates statistical detectability from practical impact:
-a change the family procedure can detect is a regression only when the interval
-also lies outside the reviewed budget. Between the two, the run is
-`inconclusive`, which withholds qualification without asserting a regression.
+The required latency endpoint is the geometric mean, within each block, of the
+complete workload matrix's normalized-median ratios. Per-workload median, p95,
+and p99 intervals are observational secondary endpoints. A change is a required
+regression only when the run-wide Holm procedure rejects it and its interval is
+above the practical budget. Statistical overlap remains visible but neither
+asserts equivalence nor triggers a rerun. The ten-block population is fixed
+before measurement, so repeatedly sampling until significance cannot bias the
+decision.
 
-Multiple comparison is controlled across the workload matrix with the
-Benjamini-Hochberg procedure, so running one test per workload does not produce
-false alarms in proportion to the matrix size.
+The six required target endpoints form one family with a run-wide family-wise
+error rate of `0.05`. Holm's step-down procedure operates once after all six
+selected target artifacts exist; target jobs may only report
+`pending-run-wide-adjustment`. A locally small p-value cannot bypass that
+global decision. Resource ratios, absolute ceilings, and soak invariants remain
+hard local gates and do not enter the statistical family.
+
+Each target p-value comes from an exact one-sided sign-flip test over the ten
+counterbalanced block log ratios centered on the practical budget. The
+evaluator enumerates all 1,024 assignments, so Holm receives a calibrated
+randomization p-value without Monte Carlo error. BCa supplies the effect
+interval and remains separate from the hypothesis test.
+
+The block count is backed by a pre-registered sensitivity assurance, not by a
+round-number convention. The assurance runs the production BCa bootstrap and
+the first Holm threshold over 200 deterministic planning experiments. The
+maximum log-ratio standard deviation is `0.06048100249438095`: the one-sided
+99 percent NIST upper confidence bound over the noisiest of four digest-bound
+hosted characterization attempts, not their point estimate. At that bound the
+assurance requires at least 80 percent power, with a one-sided 95 percent
+Wilson lower bound, to detect one aggregate regression at `1.10` times its
+practical budget. It detects 180 of 200 experiments, with a lower bound of
+approximately `0.8596`, and a minimum detectable normalized-median ratio of
+`1.265`. A required target above the registered dispersion is
+`measurement-inconclusive`; the evaluation cannot claim sensitivity its blocks
+did not possess.
+
+`uncertainResults` remains an audit count, not a gate. Capping it would turn
+statistical overlap back into a result-dependent retry or failure condition,
+which is the optional-stopping path the fixed population removes. The power
+assurance defines what the run is designed to detect; overlap below that
+boundary is reported honestly as `observed-overlap`, while absolute
+ceilings continue to reject catastrophic latency regardless of ratio power.
+
+The characterization is planning-only and cannot qualify a release. Its source
+artifact identities and the characterization file digest are contract-bound.
+Replay tests run the production estimator against those hosted populations and
+must recover an injected relevant regression before a contract change can
+land.
+
+Every attempt also emits `paired-dispersion-observation.json`. Monthly automatic
+scorecards retain these small files for ninety days and report `drift` as a
+workflow warning; raw attempts remain at seven days. The immutable observation
+series records `stable` below the bound and produces the typed inconclusive
+state for a required target on `drift`. If two separate complete scorecard runs
+within thirty days each exhaust both attempts with drift on the same target,
+D-026 requires an ADR amendment before the next release. There is no automatic
+role downgrade and no additional maintainer-triggered workflow.
 
 ### Reruns and retries
 
 An attempt receipt classifies the run into one of six states and carries
-whether a retry is permitted. Only `measurement-inconclusive` and
-`environment-not-comparable` are retryable: a retry may not select away a
-verdict about the code. The workflow reads that field rather than comparing
-against a state name, so the retry policy has exactly one home.
+whether a retry is permitted. Only an interrupted measurement that reports
+`measurement-inconclusive`, or an incomparable historical environment that
+reports `environment-not-comparable`, is retryable. Statistical overlap and a
+paired sample-cap observation are fixed-population results, not attempt states.
+A retry may not select away a verdict about the code. The workflow reads the
+receipt field rather than comparing against a state name, so the retry policy
+has exactly one home.
 
 ### Evidence layout
 
@@ -810,6 +886,7 @@ commit in different ways cannot be mixed.
 ```text
 artifacts/benchmarks/<target>/reports/<run-id>/paired-evidence.json
 artifacts/benchmarks/<target>/reports/<run-id>/paired-evaluation.json
+artifacts/benchmarks/<target>/reports/<run-id>/paired-dispersion-observation.json
 artifacts/benchmarks/<target>/reports/<run-id>/paired-soak.json
 artifacts/benchmarks/<target>/reports/<run-id>/execution-order.json
 artifacts/benchmarks/<target>/reports/<run-id>/blocks/
@@ -840,23 +917,25 @@ value nothing compares against would describe nothing:
 |---|---|
 | `blocks.profile`, `blocks.startingSamplesPerSidePerBlock` | The contract refuses a policy whose starting population differs from the profile that measures it, or falls below its valid-sample floor |
 | `blocks.maximumSampleCountRatio` | Applied per block: the two sides may reach different populations, but not populations far enough apart to have measured different stretches of time |
-| `interval.method`, `multipleComparison.procedure`, `retry.combination`, `primaryFamily.workloadScope` | Each admits only the procedure the evaluator performs; a policy naming another is refused |
+| `primaryFamily`, `secondaryFamilies`, `targetRoles` | The required aggregate and every observational endpoint and target role are fixed before measurement; no live result can promote or demote itself |
+| `multipleComparison.*` | The scorecard finalizer applies one Holm procedure at the registered run-wide family-wise error rate over the exact required-target set |
 | `executionOrder.blockPatterns` | The runner takes each block's order from the list, records what it executed, and the evaluator refuses an order that deviates or never alternates the starting side |
 | `retry.eligibleAttemptStates`, `retry.maximumRetries` | The contract refuses a policy that disagrees with the states and bound the attempt recorder implements; the receipt carries the resulting decision, which the workflow condition reads |
 | `durations.closingReserveSeconds` | Withheld from every side watchdog and from the block forecast, so the closing work always has room |
 | `durations.finalizationReserveSeconds` | Withheld again from the sustained-use run, so assembling and evaluating the evidence keep their share of the closing reserve |
-| `blocks.profile` (termination) | The runner's own convergence verdict travels per side per block; a workload that stopped at its sample cap is withheld from its metric family entirely, so its unusable p-value cannot move the false-discovery threshold for the workloads that did converge |
+| `blocks.profile` (termination) | The runner's own termination verdict travels per side per block. A workload that stopped at its sample cap remains visible and participates in the pre-registered fixed-block comparison; the evaluator never chooses a replacement population after seeing its result |
 | The canonical workload contract | Every raw block report passes it before assembly: a foreign schema or kind, an impossible termination, a count that contradicts its samples, and any statistic that does not follow from the persisted samples are all invalid evidence |
 | The audit projection's shape | The candidate summary carries exactly seven fields -- the workload, its family, and the five metrics the ceilings decide on -- and one function produces it for the runner and the fixtures alike. Anything more is refused: passing the workload report through put a second, unchecked copy of every sample, calibration and pulse into the document beside the canonical one, so a reader could find numbers there that no decision used |
 | The calibration's origin | The divisor of each sample is not read from the evidence, it is rebuilt from the calibration pulses the run recorded and the pulse each sample was measured against, under the invariants the workload report is held to at measurement time: the train starts at the first pulse, advances one pulse at a time, uses every pulse it records, and reuses none beyond the registered interval. Without that, the arithmetic was provable and its origin was not -- a document could leave every raw latency untouched and rescale a real regression into a qualification by choosing a divisor |
 | One measured population per block | A block records three views of the same operations: the calibration-normalized samples the pairing decides on, the raw nanosecond samples the absolute ceilings decide on, and the calibration pulse that divides one into the other. They must be equal in size, agree with the recorded sample count, and satisfy the identity the workload report proves at measurement time -- each normalized sample is its own latency over its own pulse. Without that, a document could pair sixteen observations while holding one unrelated observation to the budget |
 | The absolute ceilings | Every input is the measurement the paired decision is formed from. The latencies are the recorded nanosecond samples of each block, not a per-block summary: the ratio decision uses calibration-normalized samples, which no budget in nanoseconds can be applied to, so the raw samples travel with the evidence and the ceilings read those. The workload family selects the budget, and the family comes from the contract, so a workload cannot re-declare itself into a more generous ceiling. The per-block summary remains in the document as an audit view and is checked against what those measurements produce |
 | The driver identity | A clean checkout records the Git tree identifier; a working tree with uncommitted benchmark changes records a full SHA-256 over the commit tree, the diff, and the contents of every untracked file. Both shapes are what the evaluator accepts, so a local run cannot discard the evidence it just produced |
-| The assembled-evidence contract | `evaluate-paired` is its own trust boundary and re-checks the finished document: a declared block count inside the registered range, every parallel record and the recorded order against it, candidate measurements covering every block and every registered workload, both environments complete and still comparable, provenance in digest form naming one candidate revision and the contract this evaluation actually loaded, a convergence claim against the duration floor, and a cap claim against the population the cap actually permits. Types are checked before values throughout, because reading a field first turns broken evidence into an ordinary failure -- and the attempt recorder reads that as a regression |
+| The assembled-evidence contract | `evaluate-paired` is its own trust boundary and re-checks the finished document: the exact registered block count, every parallel record and the recorded order against it, candidate measurements covering every block and every registered workload, both environments complete and still comparable, provenance in digest form naming one candidate revision and the contract this evaluation actually loaded, a convergence claim against the duration floor, and a cap claim against the population the cap actually permits. Types are checked before values throughout, because reading a field first turns broken evidence into an ordinary failure -- and the attempt recorder reads that as a regression |
 | `blocks.minimumValidSamples` (via `blocks.profile`) | Applied per side per block; a population below the profile floor is invalid evidence |
 | `durations.maximumPairedRunSeconds` | The paired run's own wall clock, and an upper bound on the block profile's ceiling |
 | `durations.maximumWorkloadSeconds` | An upper bound on the block profile's per-workload ceiling |
 | `blocks.maximumRelativeStandardError` | Applied per side per block during assembly |
+| `sensitivity.*` | The Engineering suite verifies the digest-bound hosted characterization, recomputes its NIST upper confidence bound, replays the production BCa and Holm decision, and requires the registered power for the required aggregate endpoint |
 
 ### Early warning on the default branch
 
@@ -866,7 +945,7 @@ warning: it never qualifies and never blocks a release. Because reference and
 candidate share one allocated runner, a new hosted CPU model cannot turn that
 comparison into a regression. Historical scorecards exist only when `seed`
 produces a reviewed replacement for a missing or incompatible accepted
-reference pair.
+reference matrix.
 
 ### Timeouts and interruption
 

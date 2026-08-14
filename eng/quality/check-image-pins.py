@@ -1,9 +1,10 @@
 """Keep every copy of a database image pin on the one Dependabot maintains.
 
-Every supported pin appears in the Compose stack and a C# constant. The two
-representative performance targets also appear in hosted workflows and the
-performance contract. Dependabot edits only the Compose stack, so an accepted
-update leaves its applicable copies behind until they are reconciled.
+Every supported pin appears in the Compose stack, the performance contract,
+and a C# constant. Hosted performance jobs derive their image selection from
+those sources instead of adding another copy. Dependabot edits only the Compose
+stack, so an accepted update leaves its applicable copies behind until they are
+reconciled.
 
 The Compose stack is the source: it is what the update lands in. Every other
 copy is held against it, and `--fix` rewrites them.
@@ -42,10 +43,10 @@ SERVICES = {
 }
 
 # The release line each target is allowed to sit on. Specification evidence is
-# calibrated to every entry; the representative target entries additionally
-# bind the performance contract and baseline. An image from another series
-# therefore tests a different contract. Changing a line here is the deliberate
-# act that such a support decision requires.
+# calibrated to every entry, and the target entries additionally bind the
+# performance contract. An image from another series therefore tests a
+# different contract. Changing a line here is the deliberate act that such a
+# support decision requires.
 SUPPORTED_LINES = {
     "mysql84": "mysql:8.4",
     "mysql97": "mysql:9.7",
@@ -71,9 +72,15 @@ CSHARP_CONSTANTS = {
 # references the engine. Adding or removing a job changes these numbers, and
 # that is meant to be a deliberate edit rather than something a check absorbs.
 MIRROR_TARGETS = {
-    ".github/workflows/ci.yml": {"mysql84": 3, "mariadb118": 1},
-    ".github/workflows/benchmark-scorecard.yml": {"mysql84": 2, "mariadb118": 2},
-    "benchmarks/performance-contract.json": {"mysql84": 1, "mariadb118": 1},
+    ".github/workflows/ci.yml": {"mysql84": 2},
+    "benchmarks/performance-contract.json": {
+        "mysql84": 1,
+        "mysql97": 1,
+        "mariadb1011": 1,
+        "mariadb114": 1,
+        "mariadb118": 1,
+        "mariadb123": 1,
+    },
     CSHARP_FILE: {
         "mysql84": 1,
         "mysql97": 1,
@@ -95,9 +102,7 @@ MIRROR_TARGETS = {
 # The delimiters are what actually terminates an image reference in the files
 # this reads: whitespace in YAML, and the quote or punctuation that closes a
 # JSON or C# string.
-ANY_REFERENCE = re.compile(
-    r"(?<![0-9A-Za-z.-])(?:mysql|mariadb):[0-9][^\s\"',;}\]]*"
-)
+ANY_REFERENCE = re.compile(r"(?<![0-9A-Za-z.-])(?:mysql|mariadb):[0-9][^\s\"',;}\]]*")
 
 # Judging is exact and is applied with fullmatch, so a digest that is too long,
 # too short, uppercase, or followed by anything at all fails here.
@@ -178,7 +183,10 @@ def references_in(root: Path, relative: str) -> list[str]:
     if not path.is_file():
         raise PinError(f"{relative} is missing.")
 
-    return [match.group(0) for match in ANY_REFERENCE.finditer(path.read_text(encoding="utf-8"))]
+    return [
+        match.group(0)
+        for match in ANY_REFERENCE.finditer(path.read_text(encoding="utf-8"))
+    ]
 
 
 def declared_csharp_constants(root: Path) -> dict[str, str]:

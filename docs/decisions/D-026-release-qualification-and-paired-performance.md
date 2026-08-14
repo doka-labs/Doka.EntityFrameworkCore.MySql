@@ -231,11 +231,13 @@ seconds for migration deployment, 101 seconds for runtime posture, about 105
 seconds per leg for the MySqlConnector matrix, and about 34 minutes per leg for
 the EF Core matrix.
 
-The weekly dual-engine benchmark smoke that D-025 introduced is retained
-unchanged. It is a short, non-qualifying measurement that validates the
-benchmark driver, selected workloads, and absolute smoke contracts. It costs nothing at
-the tag and surfaces a broken benchmark path long before a release depends on
-one. It produces no release evidence.
+The weekly benchmark smoke that D-025 introduced remains a short,
+non-qualifying measurement. Its matrix is now derived from
+`performance-contract.json.requiredTargets`, so it validates the benchmark
+driver, selected workloads, and absolute smoke contracts against every active
+LTS image without duplicating the support inventory. It costs nothing at the
+tag and surfaces a broken target-specific benchmark path long before a release
+depends on one. It produces no release evidence.
 
 Schedules remain, and their purpose is now only early warning. Both patch
 matrices resolve a floating dependency leg -- `10.0.*` for EF Core and `2.*`
@@ -361,7 +363,8 @@ both sides:
 
 - reference and candidate providers are built as separate immutable local
   package or assembly artifacts;
-- the accepted dual-engine baseline identifies one common reference commit;
+- the accepted six-target baseline matrix identifies one common reference
+  commit;
 - that reference commit must be an ancestor of the candidate commit;
 - the same candidate benchmark driver launches both provider artifacts in isolated
   child processes;
@@ -393,16 +396,21 @@ of these explicit values to that contract:
 
 - counterbalanced execution order, recorded as executed and validated against
   the registered patterns;
-- primary workload and metric family;
-- practical regression budget for every primary metric;
+- one pre-registered required endpoint and explicitly observational secondary
+  endpoints;
+- one required or observational role for every supported target;
+- practical regression budgets for the required and observational metrics;
 - interval sidedness, confidence level, and named nonparametric method;
 - deterministic resampling seed and resample count where applicable;
-- minimum and maximum complete block counts;
+- one exact complete block count, fixed before measurement;
 - per-block sample allocation and quality threshold;
-- family-wise multiple-comparison procedure;
+- one run-wide family-wise multiple-comparison procedure over every required
+  target;
+- a reproducible power model, minimum detectable effect, maximum log-ratio
+  dispersion, minimum power, simulation confidence, trial count, and seed;
 - the practical budget each metric family is decided against, which together
   with the interval and the family procedure is what fixes the qualification,
-  regression, and inconclusive boundaries;
+  regression, and observational boundaries;
 - retry eligibility, retry count, and combination rule;
 - maximum paired-run and per-workload durations.
 
@@ -415,11 +423,85 @@ Reference and candidate are measured in counterbalanced blocks. Both sides
 start from the same population and are held to the same precision floor.
 Extension is adaptive, so the two may finish with different counts; how far
 apart they may finish is registered as a maximum ratio, because populations far
-enough apart no longer measured the same stretch of time. Each block produces paired
+enough apart no longer measured the same stretch of time. Each target executes
+exactly ten blocks, alternating which side starts. Each block produces paired
 candidate-to-reference ratios for its declared metrics. Statistics are formed
 from paired ratios, never from a quotient of unrelated historical aggregates.
 Practical and statistical significance remain separate: a detectable change
-inside its practical budget is not a regression.
+inside its practical budget is not a regression. An interval that overlaps the
+budget remains visible as an observational result; it does not add blocks or
+authorize another attempt after the result is known.
+
+The endpoint roles are fixed before measurement. Each target has one required
+latency endpoint: within each block, take the geometric mean across the
+complete workload matrix's normalized-median candidate-to-reference ratios.
+Per-workload normalized median, p95, and p99 results remain observational.
+They retain diagnostic value and their hard absolute ceilings, but they cannot
+individually turn a release red or consume a path in the multiple-comparison
+family. This is the same primary-versus-secondary separation used when several
+endpoints are collected but only pre-specified primary endpoints support a
+confirmatory conclusion.
+
+The six required target endpoints form one run-wide family. A single Holm
+step-down procedure controls the family-wise probability of any false
+regression at `0.05`; no target or metric family receives a separate alpha.
+Holm requires no independence assumption, which is necessary because targets
+share provider code and workflow infrastructure. A target is a statistical
+regression only when its Holm-adjusted p-value rejects and its interval is
+above the practical budget. Resource regressions, absolute ceilings, and soak
+failures remain independent hard gates.
+
+The values Holm adjusts are exact one-sided randomization p-values, not
+bootstrap proportions. For each target, the evaluator centers the ten paired
+block log ratios on the practical budget and enumerates all 1,024 sign
+assignments. Counterbalancing makes sign reversal the registered boundary-null
+exchangeability model. The BCa bootstrap remains the estimator for the effect
+interval; it does not manufacture the p-value used for family-wise control.
+
+The dispersion bound is empirical and conservative, not a point estimate. The
+planning-only file
+`benchmarks/characterization/paired-dispersion-2026-08-13.json` binds four
+hosted attempts from workflow run `31671904108` by artifact ID, evidence hash,
+run ID, source commit, and contract digest. Those measurements cannot be reused
+as release qualification. Their largest aggregate log-ratio standard deviation
+is `0.025445185090747145`. The registered `0.06048100249438095` limit is its
+one-sided 99 percent upper confidence bound, computed with the NIST chi-square
+formula for a standard deviation and the registered lower-tail critical value
+`1.239` at seven degrees of freedom. The characterization file itself is bound
+to the contract by SHA-256, so changing either input invalidates the policy.
+
+The exact ten-block population is justified by an executable sensitivity
+assurance. It drives the production BCa estimator, exact sign-flip test, and
+the first Holm threshold
+for six required targets through 200 deterministic log-normal planning
+experiments. At the conservative dispersion bound, a regression at `1.10`
+times the practical budget is detected in 180 of 200 experiments. Its one-sided
+95 percent Wilson lower bound is approximately `0.8596`, above the registered
+80 percent minimum power. The detectable aggregate normalized-median ratio is
+therefore `1.265` against the `1.15` practical budget.
+
+Each paired attempt writes a digest-bound
+`paired-dispersion-observation.json` with target, run, source commit, runner
+class, source hash, contract digest, reference commit, realized dispersion,
+registered bound, and `stable` or `drift`. Monthly automatic scorecards retain
+these small observations for ninety days and report drift as a workflow
+warning. They therefore form an auditable time series without retaining the
+large raw samples or adding another manual workflow. A required target above
+the registered bound is
+`measurement-inconclusive`; it cannot claim power the measured population did
+not possess. The second independent attempt remains the only automatic retry.
+
+There is a governed exit from persistent fail-closed behavior. If the same
+required target exceeds the dispersion bound in both attempts of two separate
+complete scorecard workflow runs within thirty days, the next release requires
+an amendment to this ADR. The amendment must choose and verify one of three
+outcomes: remove a proven measurement defect and retain the contract; register
+a new planning-only characterization and block plan with recomputed power; or
+change that target to `observational` only after documenting why functional,
+resource, absolute-ceiling, and soak evidence still support the advertised
+target contract. No runtime result changes a role automatically, and a
+characterization change requires the reviewed contract path before another
+qualifying run.
 
 Absolute catastrophe ceilings, allocation budgets, garbage-collection
 evidence, soak invariants, raw sample retention, adjacent calibration, and
@@ -432,7 +514,7 @@ Attempt and final qualification states are separate domains.
 
 | Attempt state | Meaning |
 |---|---|
-| `passed` | A usable comparison remained within policy. |
+| `passed` | A usable target comparison is eligible for run-wide adjustment. |
 | `regression` | A usable comparison exceeded policy. |
 | `measurement-inconclusive` | Sampling did not reach required quality. |
 | `environment-not-comparable` | Historical comparator environments differ. |
@@ -441,9 +523,9 @@ Attempt and final qualification states are separate domains.
 
 | Qualification state | Derivation |
 |---|---|
-| `qualified` | Every primary comparison satisfies the registered qualification boundary. |
-| `regression` | At least one primary comparison satisfies the registered regression boundary. |
-| `inconclusive` | Evidence crosses a boundary or bounded retries produce no comparable pair. |
+| `qualified` | The run-wide Holm procedure rejects no required target and every hard gate passes. |
+| `regression` | At least one required target rejects run-wide above its practical budget, or a hard gate fails. |
+| `inconclusive` | Bounded retries produce no complete comparable measurement. |
 | `recalibration-required` | Reviewed replacement reference evidence is required. |
 | `invalid-evidence` | Evidence cannot be trusted. |
 
@@ -452,8 +534,9 @@ qualification level. That blocks a release without asserting a regression.
 
 ### Retention
 
-Working artifacts keep their workflow-specific retention; benchmark attempt
-artifacts keep seven days.
+Raw benchmark attempt artifacts keep seven days. Their small dispersion
+observations keep ninety days so the governed thirty-day drift trigger remains
+auditable.
 
 The release-candidate workflow copies every raw report, evaluation, receipt,
 and manifest it produced into one self-contained artifact retained for 90 days,
@@ -551,7 +634,7 @@ local diagnostics remain optional.
   rule, and the canonical manifest freezes the selected identities.
 - The tag workflow runs no repository test and no specification or integration
   suite, and one logical paired performance qualification comprising one
-  reference-candidate pair per engine.
+  reference-candidate pair per required LTS target.
 - The paired comparison executes the candidate-side soak scenarios the
   scorecard profile requires; removing the separate soak job does not remove
   soak coverage.
@@ -664,15 +747,17 @@ at about 74 minutes together: roughly 34 minutes per leg across two legs for
 the EF Core matrix, about 105 seconds per leg for the MySqlConnector matrix, 83
 seconds for migration deployment, and 101 seconds for runtime posture.
 
-The paired comparison has been measured once, locally and outside any release
-context: one block per side took 151 seconds each and a complete one-block run
-including the sustained-use measurement took 2,470 seconds projected across the
-eight registered blocks. That figure came from an Apple M2 Max with twelve
+The paired comparison was measured once, locally and outside any release
+context under the previous eight-block contract: one block per side took 151
+seconds each and the sustained-use measurement took 54 seconds, projecting to
+2,470 seconds in total. That figure came from an Apple M2 Max with twelve
 cores, against a container already serving other work, with the provider and
 driver builds warm from earlier runs. It establishes that the registered
 7,200-second budget is reachable; it establishes nothing about a hosted runner,
 which is slower, colder, and the only environment a release measures in. No
-release property is derived from it.
+hosted extrapolation is made from this measurement. The current contract fixes
+ten complete blocks; no release property is derived from
+the older projection.
 
 What bounds the cost instead is the watchdog hierarchy. Each side run stops at
 the smaller of its own hang deadline and what remains of the comparison's
@@ -745,6 +830,23 @@ withheld both attempts as `measurement-inconclusive`; changing retry or
 selection semantics would only have hidden valid evidence. Pilot sizing removes
 the contract defect that made a faster workload consume the count cap.
 
+Go's `benchstat` guidance separately recommends choosing the number of runs in
+advance, using at least ten and ideally twenty, interleaving old and new, and
+then keeping that population. The paired policy therefore fixes ten
+counterbalanced blocks per target before measurement. A confidence interval
+that overlaps the practical budget is retained as `observed-overlap`;
+the workflow does not add blocks or retry merely because the fixed population
+did not prove a regression. This avoids result-driven optional stopping while
+keeping confirmed regressions and hard safety ceilings fail closed.
+
+The target population is derived from
+`performance-contract.json.requiredTargets`. GitHub documents both matrix
+expansion and a matrix calling a reusable workflow; one contract-derived matrix
+therefore covers every active LTS line without six copied job definitions or a
+new maintainer-facing workflow. Oracle allows features to be added or removed
+at the first release of an LTS series, so a representative family pair is not
+evidence for the other supported LTS lines.
+
 The Rust compiler performance infrastructure demonstrates the alternative:
 own dedicated collectors and disable sources of machine variance. That model
 is valid but carries an operational boundary this project has not accepted.
@@ -764,8 +866,10 @@ manifest verification.
 - `.github/workflows/benchmark.yml`: retain the existing classifier and
   monthly schedule as early warning, and host reference recalibration. Its
   result never qualifies a release.
-- `.github/workflows/benchmark-scorecard.yml`: implement the paired reference
-  and candidate comparison within one job per engine.
+- `.github/workflows/benchmark-scorecard.yml`: derive the active target matrix
+  from the performance contract.
+- `.github/workflows/benchmark-target.yml`: implement one target's paired
+  reference and candidate comparison behind the internal reusable boundary.
 - `.github/workflows/release-candidate.yml`: trigger from `v*` tag pushes;
   require `verification.verified == true` and `verification.reason == valid`
   from the Git tag API, independently verify the local annotated tag against
@@ -787,9 +891,12 @@ manifest verification.
 - `eng/release/evidence-policy.json`: define the consumed gate catalog and the
   identities each gate must bind; define `trustedTagSigners` entries that bind
   one exact tagger identity to one accepted public key and fingerprint; and
-  version the run-and-attempt selection rule. A signer-policy change requires a
-  reviewed `main` change and a new tag. No relevant-input classifier, schedule,
-  or freshness limit is needed, because no evidence is reused.
+  version the run-and-attempt selection rule. Performance provenance names the
+  internal target workflow that uploads each qualified artifact, rather than
+  the scorecard workflow that only expands the matrix. A signer-policy change
+  requires a reviewed `main` change and a new tag. No relevant-input classifier,
+  schedule, or freshness limit is needed for tag-produced evidence, because no
+  such evidence is reused.
 - `eng/testing/`: retain the migration, runtime, and MySqlConnector commands as
   the sole gate implementations, and extract the current inline EF Core patch
   matrix command into one shared entry point. Scheduled CI and tag
@@ -852,6 +959,25 @@ manifest verification.
   and derived baseline behavior so contradictory mode pairs cannot be passed.
 - 2026-08-12: Separated paired sample duration from sample count by adding
   bounded pilot-based operation batching and verifiable schema-5 provenance.
+- 2026-08-13: Replaced result-dependent block ranges with ten pre-registered
+  counterbalanced blocks backed by an executable sensitivity assurance, made
+  statistical overlap visible without a statistical retry, and expanded
+  performance qualification to every active MySQL and MariaDB LTS target from
+  the canonical contract.
+- 2026-08-14: Derived the scheduled smoke matrix from every required
+  performance target and bound the direct release-candidate runner explicitly
+  to paired comparison evidence.
+- 2026-08-14: Bound scorecard reuse invalidation to the extracted target
+  workflow and sensitivity assurance, and corrected release provenance to the
+  workflow that uploads qualified performance artifacts.
+- 2026-08-14: Bound scorecard reuse invalidation to the paired endpoint
+  estimator and bounded attempt selector, with a structural contract that
+  covers every module imported by the supported performance CLI.
+- 2026-08-14: Replaced per-workload confirmatory latency tests with one
+  required aggregate endpoint per target, controlled the six-target family by
+  Holm, bound sensitivity to a 99 percent NIST dispersion upper bound over
+  immutable hosted characterization, and added automatic drift observations
+  plus an ADR-governed exit from persistent inconclusive evidence.
 
 ### Implementation References
 
@@ -859,13 +985,17 @@ manifest verification.
 - `docs/decisions/D-025-public-repository-verification-model.md`
 - `.github/workflows/ci.yml`
 - `.github/workflows/benchmark.yml`
+- `.github/workflows/benchmark-smoke.yml`
 - `.github/workflows/benchmark-scorecard.yml`
+- `.github/workflows/benchmark-target.yml`
 - `.github/workflows/release-candidate.yml`
 - `.github/workflows/nuget-publish.yml`
 - `benchmarks/performance-contract.json`
+- `benchmarks/characterization/paired-dispersion-2026-08-13.json`
 - `benchmarks/baselines/doka-benchmark-baseline.json`
 - `eng/performance/attempts.py`
 - `eng/performance/paired.py`
+- `eng/performance/sensitivity.py`
 - `eng/performance/environment.py`
 - `eng/release/gate_results.py`
 - `eng/release/qualification.py`
@@ -908,8 +1038,36 @@ manifest verification.
   (primary source; retrieved 2026-08-12)
 - [BenchmarkDotNet measurement stages][bdn-how-it-works]
   (primary source; retrieved 2026-08-12)
+- [BenchmarkDotNet job characteristics][bdn-jobs]
+  (primary source; retrieved 2026-08-13)
 - [Go benchmark runner source][go-benchmark-source]
   (primary source; retrieved 2026-08-12)
+- [Go benchstat guidance][go-benchstat]
+  (primary source; retrieved 2026-08-13)
+- [NIST sample sizes required][nist-sample-sizes]
+  (primary source; retrieved 2026-08-13)
+- [NIST proportion confidence intervals][nist-proportion-intervals]
+  (primary source; retrieved 2026-08-13)
+- [NIST one-sided confidence limits for a standard deviation][nist-sigma-limit]
+  (primary source; retrieved 2026-08-14)
+- [NIST chi-square critical values][nist-chi-square]
+  (primary source; retrieved 2026-08-14)
+- [NIST measurement-process characterization][nist-measurement-process]
+  (primary source; retrieved 2026-08-14)
+- [NIST standard-deviation control chart][nist-standard-deviation-chart]
+  (primary source; retrieved 2026-08-14)
+- [FDA multiple-endpoints guidance][fda-multiple-endpoints]
+  (primary source; retrieved 2026-08-14)
+- [SPEC HPC 2021 result-computation rules][spec-hpc-result-computation]
+  (primary source; retrieved 2026-08-14)
+- [SciPy exact paired permutation-test contract][scipy-permutation-test]
+  (primary source; retrieved 2026-08-14)
+- [GitHub matrix jobs][github-matrix]
+  (primary source; retrieved 2026-08-13)
+- [GitHub reusable workflows][github-reusable-workflows]
+  (primary source; retrieved 2026-08-13)
+- [MySQL release model][mysql-release-model]
+  (primary source; retrieved 2026-08-13)
 - [rustc-perf deployment documentation][rustc-perf-deployment]
   (primary source; retrieved 2026-08-10)
 - [rustc-perf collector documentation][rustc-perf-collector]
@@ -947,7 +1105,33 @@ manifest verification.
 [bdn-console-arguments]:
   https://benchmarkdotnet.org/articles/guides/console-args.html
 [bdn-how-it-works]: https://benchmarkdotnet.org/articles/guides/how-it-works.html
+[bdn-jobs]: https://benchmarkdotnet.org/articles/configs/jobs.html
 [go-benchmark-source]: https://go.dev/src/testing/benchmark.go
+[go-benchstat]: https://pkg.go.dev/golang.org/x/perf/cmd/benchstat
+[nist-sample-sizes]:
+  https://www.itl.nist.gov/div898/handbook/prc/section2/prc222.htm
+[nist-proportion-intervals]:
+  https://www.itl.nist.gov/div898/software/dataplot/refman1/auxillar/propconf.htm
+[nist-sigma-limit]:
+  https://www.itl.nist.gov/div898/handbook/prc/section2/prc231.htm
+[nist-chi-square]:
+  https://www.itl.nist.gov/div898/handbook/eda/section3/eda3674.htm
+[nist-measurement-process]:
+  https://www.itl.nist.gov/div898/handbook/mpc/section2/mpc2.htm
+[nist-standard-deviation-chart]:
+  https://www.itl.nist.gov/div898/handbook/mpc/section2/mpc22.htm
+[fda-multiple-endpoints]:
+  https://www.fda.gov/regulatory-information/search-fda-guidance-documents/multiple-endpoints-clinical-trials
+[spec-hpc-result-computation]:
+  https://www.spec.org/hpc2021/docs/runrules.html
+[scipy-permutation-test]:
+  https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.permutation_test.html
+[github-matrix]:
+  https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
+[github-reusable-workflows]:
+  https://docs.github.com/en/actions/sharing-automations/reusing-workflows
+[mysql-release-model]:
+  https://dev.mysql.com/doc/refman/9.7/en/mysql-releases.html
 [rustc-perf-deployment]:
   https://github.com/rust-lang/rustc-perf/blob/main/docs/deployment.md
 [rustc-perf-collector]:

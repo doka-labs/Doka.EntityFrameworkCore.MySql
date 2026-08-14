@@ -72,8 +72,8 @@
       "outputs": "BenchmarkDotNet results, normalized evidence, and policy reports below artifacts/.",
       "sideEffects": "Builds projects, writes artifacts, and can start and stop database containers.",
       "consumers": [
-        ".github/workflows/benchmark-scorecard.yml",
-        ".github/workflows/ci.yml",
+        ".github/workflows/benchmark-smoke.yml",
+        ".github/workflows/benchmark-target.yml",
         "CONTRIBUTING.md",
         "README.md",
         "docs/operations/performance-evidence.md"

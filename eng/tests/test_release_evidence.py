@@ -7,6 +7,7 @@ bytes because this layer verifies identity and inventory, not NuGet contents.
 
 from __future__ import annotations
 
+import ast
 import json
 import subprocess
 import sys
@@ -32,9 +33,18 @@ class ReleaseEvidenceTests(unittest.TestCase):
         "GITHUB_SHA": "",
     }
 
+    @property
+    def performance_targets(self) -> tuple[str, ...]:
+        """Return the fixture's canonical required performance targets."""
+        return release_evidence.performance_targets(
+            self.repo / "benchmarks" / "performance-contract.json"
+        )
+
     def setUp(self) -> None:
         """Create a tagged repository with an ignored evidence fixture."""
-        self._temporary_directory = tempfile.TemporaryDirectory(prefix="doka-release-evidence-")
+        self._temporary_directory = tempfile.TemporaryDirectory(
+            prefix="doka-release-evidence-"
+        )
         self.repo = Path(self._temporary_directory.name)
         self.root = self.repo / "evidence"
         self._git("init", "--initial-branch=main")
@@ -42,7 +52,12 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self._git("config", "user.email", "doka-test@example.invalid")
         self._git("config", "commit.gpgSign", "false")
         self._git("config", "tag.gpgSign", "false")
-        self._git("remote", "add", "origin", "https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql.git")
+        self._git(
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql.git",
+        )
         # Evidence remains ignored so negative tests can mutate it without
         # turning an artifact-integrity failure into a source-dirty failure.
         dotnet_sdk = release_evidence.run_command("dotnet", "--version", cwd=self.repo)
@@ -60,8 +75,32 @@ class ReleaseEvidenceTests(unittest.TestCase):
             + "\n",
             encoding="ascii",
         )
+        performance_contract = self.repo / "benchmarks" / "performance-contract.json"
+        performance_contract.parent.mkdir()
+        performance_contract.write_bytes(
+            (
+                Path(__file__).resolve().parents[2]
+                / "benchmarks"
+                / "performance-contract.json"
+            ).read_bytes()
+        )
+        characterization = (
+            self.repo
+            / "benchmarks"
+            / "characterization"
+            / "paired-dispersion-2026-08-13.json"
+        )
+        characterization.parent.mkdir()
+        characterization.write_bytes(
+            (
+                Path(__file__).resolve().parents[2]
+                / "benchmarks"
+                / "characterization"
+                / "paired-dispersion-2026-08-13.json"
+            ).read_bytes()
+        )
         (self.repo / "source.txt").write_text("reviewed source\n", encoding="ascii")
-        self._git("add", ".gitignore", "global.json", "source.txt")
+        self._git("add", ".gitignore", "global.json", "benchmarks", "source.txt")
         self._git("commit", "-m", "test: seed release source")
         self._git("tag", "v1.2.3")
         self._write_complete_evidence()
@@ -76,7 +115,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
         self._verify()
 
-        manifest = json.loads((self.root / release_evidence.MANIFEST_NAME).read_text(encoding="utf-8"))
+        manifest = json.loads(
+            (self.root / release_evidence.MANIFEST_NAME).read_text(encoding="utf-8")
+        )
         paths = [artifact["path"] for artifact in manifest["artifacts"]]
         self.assertEqual(sorted(paths), paths)
         self.assertTrue(all(not Path(path).is_absolute() for path in paths))
@@ -87,7 +128,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
             manifest["toolchain"]["approvedDotnetSdk"],
             manifest["toolchain"]["dotnetSdk"],
         )
-        self.assertEqual("2.5.0", manifest["toolchain"]["resolvedPackages"]["MySqlConnector"])
+        self.assertEqual(
+            "2.5.0", manifest["toolchain"]["resolvedPackages"]["MySqlConnector"]
+        )
 
         self.assertEqual(
             list(release_evidence.REQUIRED_ENGINE_TARGETS),
@@ -101,7 +144,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertEqual("full", manifest["runtimePosture"]["trimMode"])
         self.assertEqual("paired", manifest["performanceEvidence"]["comparisonMode"])
         self.assertEqual(
-            sorted(release_evidence.PERFORMANCE_TARGETS),
+            sorted(self.performance_targets),
             sorted(
                 engine["target"]
                 for engine in manifest["performanceEvidence"]["engines"]
@@ -118,14 +161,15 @@ class ReleaseEvidenceTests(unittest.TestCase):
         """Invalidate evidence when measured code or its harness changes."""
         included = (
             ".github/workflows/benchmark-scorecard.yml",
+            ".github/workflows/benchmark-target.yml",
             "src/Doka.EntityFrameworkCore.MySql/Storage/Mapping.cs",
             "benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/Program.cs",
             "docker/compose.yml",
             "eng/benchmark.sh",
-            "eng/performance/check-benchmark-ratios.sh",
             "eng/common/deadline.py",
             "eng/common/verify-dotnet.sh",
             "eng/performance/__init__.py",
+            "eng/performance/attempts.py",
             "eng/performance/benchmark.sh",
             "eng/performance/check-benchmark-ratios.sh",
             "eng/performance/cli.py",
@@ -133,18 +177,18 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "eng/performance/contract.py",
             "eng/performance/environment.py",
             "eng/performance/evaluation.py",
+            "eng/performance/paired.py",
             "eng/performance/reports.py",
+            "eng/performance/sensitivity.py",
             "eng/performance/statistics.py",
-            "eng/performance/cli.py",
-            "eng/common/deadline.py",
             "global.json",
         )
         excluded = (
+            ".github/workflows/benchmark-smoke.yml",
             ".github/workflows/benchmark.yml",
             "docs/operations/performance-evidence.md",
             "eng/performance/workflow_state.py",
             "eng/performance/inputs.py",
-            "eng/performance/workflow_state.py",
             "tests/Doka.EntityFrameworkCore.MySql.Tests/MySqlOptionsTests.cs",
         )
 
@@ -155,6 +199,34 @@ class ReleaseEvidenceTests(unittest.TestCase):
         for path in excluded:
             with self.subTest(path=path):
                 self.assertFalse(release_evidence.is_performance_input(path))
+
+    def test_release_reuse_inventory_covers_performance_cli_dependencies(
+        self,
+    ) -> None:
+        """Bind every supported performance CLI module to release reuse."""
+        repository_root = Path(__file__).resolve().parents[2]
+        cli_path = repository_root / "eng/performance/cli.py"
+        syntax_tree = ast.parse(cli_path.read_text(encoding="utf-8"))
+        dependency_paths = sorted(
+            {
+                f"eng/performance/{node.module}.py"
+                for node in ast.walk(syntax_tree)
+                if isinstance(node, ast.ImportFrom)
+                and node.level == 1
+                and node.module is not None
+            }
+        )
+
+        self.assertIn("eng/performance/attempts.py", dependency_paths)
+        self.assertIn("eng/performance/paired.py", dependency_paths)
+        self.assertEqual(
+            [],
+            [
+                path
+                for path in dependency_paths
+                if not release_evidence.is_performance_input(path)
+            ],
+        )
 
     def test_changed_paths_preserve_both_sides_of_a_rename(self) -> None:
         """Invalidate evidence when source moves outside a measured path."""
@@ -195,18 +267,16 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
         self.assertEqual(
             ["src/Provider.cs"],
-            [
-                path
-                for path in paths
-                if release_evidence.is_performance_input(path)
-            ],
+            [path for path in paths if release_evidence.is_performance_input(path)],
         )
 
     def test_generate_rejects_dirty_release_source(self) -> None:
         """Reject a tag whose checked-out source differs from the reviewed commit."""
         (self.repo / "source.txt").write_text("unreviewed source\n", encoding="ascii")
 
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "clean Git worktree"):
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "clean Git worktree"
+        ):
             self._generate()
 
     def test_sdk_contract_rejects_roll_forward(self) -> None:
@@ -216,7 +286,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
         payload["sdk"]["rollForward"] = "latestFeature"
         path.write_text(json.dumps(payload) + "\n", encoding="ascii")
 
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "disable .NET SDK roll-forward"):
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "disable .NET SDK roll-forward"
+        ):
             release_evidence.approved_dotnet_sdk(self.repo)
 
     def test_verify_rejects_artifact_tampering(self) -> None:
@@ -225,7 +297,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
         package = self.root / "packages" / "Doka.EntityFrameworkCore.MySql.1.2.3.nupkg"
         package.write_bytes(b"tampered package")
 
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "integrity check failed"):
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "integrity check failed"
+        ):
             self._verify()
 
     def test_fixture_verification_isolated_from_hosted_environment(self) -> None:
@@ -243,13 +317,17 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
     def test_generate_rejects_incomplete_engine_matrix(self) -> None:
         """Reject a release whose manifest would omit one advertised engine line."""
-        missing = self.root / "specification" / "mariadb114" / "test-database-evidence.json"
+        missing = (
+            self.root / "specification" / "mariadb114" / "test-database-evidence.json"
+        )
         missing.unlink()
 
         with self.assertRaises(release_evidence.EvidenceError):
             self._generate()
 
-    def test_generate_reconciles_identical_engine_evidence_from_two_lifecycles(self) -> None:
+    def test_generate_reconciles_identical_engine_evidence_from_two_lifecycles(
+        self,
+    ) -> None:
         """Retain every producer without treating its lifecycle as identity drift."""
         source = self.root / "specification" / "mysql84" / "test-database-evidence.json"
         evidence = json.loads(source.read_text(encoding="utf-8"))
@@ -290,9 +368,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         This is the case the removed historical scorecard test covered, moved
         to the evidence the tag now actually produces.
         """
-        evaluation = next(
-            (self.root / "performance").rglob("paired-evaluation.json")
-        )
+        evaluation = next((self.root / "performance").rglob("paired-evaluation.json"))
         payload = json.loads(evaluation.read_text(encoding="utf-8"))
         payload["qualification"] = "regression"
         evaluation.write_text(json.dumps(payload), encoding="utf-8")
@@ -306,7 +382,19 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
         shutil.rmtree(self.root / "performance" / "mysql84")
 
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "missing engine"):
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "target mismatch"):
+            self._generate()
+
+    def test_generate_rejects_an_unexpected_performance_target(self) -> None:
+        """Refuse evidence outside the contract-derived LTS matrix."""
+        source = next((self.root / "performance").rglob("paired-evaluation.json"))
+        payload = json.loads(source.read_text(encoding="utf-8"))
+        payload["target"] = "mysql80"
+        destination = self.root / "performance" / "mysql80" / source.name
+        destination.parent.mkdir()
+        destination.write_text(json.dumps(payload), encoding="utf-8")
+
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "target mismatch"):
             self._generate()
 
     def test_generate_rejects_a_qualification_manifest_for_another_commit(self) -> None:
@@ -320,14 +408,18 @@ class ReleaseEvidenceTests(unittest.TestCase):
         manifest["commit"] = "9" * 40
         path.write_text(json.dumps(manifest), encoding="utf-8")
 
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "not the release source"):
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "not the release source"
+        ):
             self._generate()
 
     def test_generate_rejects_a_missing_qualification_manifest(self) -> None:
         """Refuse a candidate on which gate selection never happened."""
         (self.root / "release-qualification-manifest.json").unlink()
 
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "qualification manifest"):
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "qualification manifest"
+        ):
             self._generate()
 
     def test_generate_rejects_mutable_engine_image(self) -> None:
@@ -337,7 +429,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
         evidence["targets"][0]["image"] = "mysql:8.4"
         path.write_text(json.dumps(evidence), encoding="utf-8")
 
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "not digest-pinned"):
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "not digest-pinned"
+        ):
             self._generate()
 
     def test_generate_rejects_incomplete_runtime_posture(self) -> None:
@@ -347,7 +441,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
         evidence["trimmedExecution"] = "not-run"
         path.write_text(json.dumps(evidence), encoding="utf-8")
 
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "full-trim execution"):
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "full-trim execution"
+        ):
             self._generate()
 
     def test_generate_rejects_runtime_evidence_from_another_run(self) -> None:
@@ -362,13 +458,17 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
     def test_reuse_performance_accepts_an_unrelated_source_delta(self) -> None:
         """Retain expensive scorecards when only release evidence code changed."""
-        measured_commit = release_evidence.run_command("git", "rev-parse", "HEAD", cwd=self.repo)
+        measured_commit = release_evidence.run_command(
+            "git", "rev-parse", "HEAD", cwd=self.repo
+        )
         prior_root = self.root / "prior"
         self._write_performance_evidence(prior_root, "prior-run", measured_commit)
 
         release_directory = self.repo / "eng" / "release"
         release_directory.mkdir(parents=True)
-        (release_directory / "evidence.py").write_text("# validation change\n", encoding="ascii")
+        (release_directory / "evidence.py").write_text(
+            "# validation change\n", encoding="ascii"
+        )
         self._git("add", "eng/release/evidence.py")
         self._git("commit", "-m", "test: change release validation")
 
@@ -386,24 +486,80 @@ class ReleaseEvidenceTests(unittest.TestCase):
         # matters, is that reuse recorded exactly which paths moved and that
         # none of them were performance inputs.
         receipt = json.loads(
-            (candidate_root / release_evidence.PERFORMANCE_REUSE_EVIDENCE).read_text(encoding="utf-8")
+            (candidate_root / release_evidence.PERFORMANCE_REUSE_EVIDENCE).read_text(
+                encoding="utf-8"
+            )
         )
+        self.assertEqual(2, receipt["schemaVersion"])
         self.assertEqual(["eng/release/evidence.py"], receipt["changedPaths"])
         self.assertEqual([], receipt["performanceInputChanges"])
+        self.assertEqual(
+            self.performance_targets,
+            tuple(item["target"] for item in receipt["targets"]),
+        )
+        self.assertEqual(
+            len(self.performance_targets),
+            len({item["runId"] for item in receipt["targets"]}),
+        )
+
+    def test_reuse_performance_rejects_evaluator_and_attempt_source_deltas(
+        self,
+    ) -> None:
+        """Never reuse endpoint statistics after their meaning can change."""
+        for relative_path in (
+            "eng/performance/paired.py",
+            "eng/performance/attempts.py",
+        ):
+            with self.subTest(path=relative_path):
+                measured_commit = release_evidence.run_command(
+                    "git",
+                    "rev-parse",
+                    "HEAD",
+                    cwd=self.repo,
+                )
+                prior_root = self.root / f"prior-{Path(relative_path).stem}"
+                self._write_performance_evidence(
+                    prior_root,
+                    "prior-run",
+                    measured_commit,
+                )
+
+                source_path = self.repo / relative_path
+                source_path.parent.mkdir(parents=True, exist_ok=True)
+                source_path.write_text("# performance policy change\n", encoding="ascii")
+                self._git("add", relative_path)
+                self._git("commit", "-m", f"test: change {source_path.stem}")
+
+                with self.assertRaisesRegex(
+                    release_evidence.EvidenceError,
+                    "performance input changes",
+                ):
+                    release_evidence.reuse_performance_evidence(
+                        self.repo,
+                        prior_root,
+                        self.root / f"candidate-{source_path.stem}",
+                        "current-run",
+                    )
 
     def test_reuse_performance_rejects_a_provider_source_delta(self) -> None:
         """Never bind an earlier measurement to changed provider behavior."""
-        measured_commit = release_evidence.run_command("git", "rev-parse", "HEAD", cwd=self.repo)
+        measured_commit = release_evidence.run_command(
+            "git", "rev-parse", "HEAD", cwd=self.repo
+        )
         prior_root = self.root / "prior"
         self._write_performance_evidence(prior_root, "prior-run", measured_commit)
 
         source_directory = self.repo / "src"
         source_directory.mkdir()
-        (source_directory / "Provider.cs").write_text("internal sealed class Provider { }\n", encoding="ascii")
+        (source_directory / "Provider.cs").write_text(
+            "internal sealed class Provider { }\n", encoding="ascii"
+        )
         self._git("add", "src/Provider.cs")
         self._git("commit", "-m", "test: change provider source")
 
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "performance input changes"):
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "performance input changes"
+        ):
             release_evidence.reuse_performance_evidence(
                 self.repo,
                 prior_root,
@@ -426,7 +582,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
         package = self.root / "packages" / "Doka.EntityFrameworkCore.MySql.1.2.2.nupkg"
         package.write_bytes(b"stale package")
 
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "package inventory mismatch"):
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "package inventory mismatch"
+        ):
             self._generate()
 
     def test_generate_rejects_unexpected_engine_evidence(self) -> None:
@@ -451,14 +609,18 @@ class ReleaseEvidenceTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "Unexpected engine evidence"):
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "Unexpected engine evidence"
+        ):
             self._generate()
 
     def test_generate_rejects_ambiguous_semantic_release_tags(self) -> None:
         """Reject a commit that has more than one possible release identity."""
         self._git("tag", "v1.2.4")
 
-        with self.assertRaisesRegex(release_evidence.EvidenceError, "exactly semantic version tag"):
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "exactly semantic version tag"
+        ):
             self._generate()
 
     def test_verify_cli_accepts_one_root_argument(self) -> None:
@@ -508,9 +670,15 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "Doka.EntityFrameworkCore.MySql",
             "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
         ):
-            (packages / f"{package_id}.1.2.3.nupkg").write_bytes(f"{package_id} package".encode("ascii"))
-            (packages / f"{package_id}.1.2.3.snupkg").write_bytes(f"{package_id} symbols".encode("ascii"))
-        (sbom / "manifest.spdx.json").write_text('{"spdxVersion":"SPDX-2.3"}\n', encoding="ascii")
+            (packages / f"{package_id}.1.2.3.nupkg").write_bytes(
+                f"{package_id} package".encode("ascii")
+            )
+            (packages / f"{package_id}.1.2.3.snupkg").write_bytes(
+                f"{package_id} symbols".encode("ascii")
+            )
+        (sbom / "manifest.spdx.json").write_text(
+            '{"spdxVersion":"SPDX-2.3"}\n', encoding="ascii"
+        )
         (sbom_components / "project.assets.json").write_text("{}\n", encoding="ascii")
 
         dependencies = {
@@ -551,9 +719,21 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 "mariadb:10.11",
                 f"mariadb:10.11.18@sha256:{'0' * 64}",
             ),
-            "mariadb114": ("MariaDb", "mariadb:11.4", f"mariadb:11.4.12@sha256:{'1' * 64}"),
-            "mariadb118": ("MariaDb", "mariadb:11.8", f"mariadb:11.8.8@sha256:{'2' * 64}"),
-            "mariadb123": ("MariaDb", "mariadb:12.3", f"mariadb:12.3.2@sha256:{'3' * 64}"),
+            "mariadb114": (
+                "MariaDb",
+                "mariadb:11.4",
+                f"mariadb:11.4.12@sha256:{'1' * 64}",
+            ),
+            "mariadb118": (
+                "MariaDb",
+                "mariadb:11.8",
+                f"mariadb:11.8.8@sha256:{'2' * 64}",
+            ),
+            "mariadb123": (
+                "MariaDb",
+                "mariadb:12.3",
+                f"mariadb:12.3.2@sha256:{'3' * 64}",
+            ),
         }
         integration_targets = []
         for target_id, (engine, version, image) in identities.items():
@@ -577,7 +757,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
             )
             integration_targets.append(target)
 
-        source_commit = release_evidence.run_command("git", "rev-parse", "HEAD", cwd=self.repo)
+        source_commit = release_evidence.run_command(
+            "git", "rev-parse", "HEAD", cwd=self.repo
+        )
         self._write_qualification_manifest(source_commit)
         self._write_paired_performance(source_commit)
         runtime_directory = self.root / "runtime"
@@ -678,27 +860,55 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
 
     def _write_paired_performance(self, source_commit: str) -> None:
-        """Write one qualified paired evaluation per required engine."""
-        for target in release_evidence.PERFORMANCE_TARGETS:
+        """Write eligible target evaluations and their run-wide verdict."""
+        contract_path = self.repo / "benchmarks" / "performance-contract.json"
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        contract_digest = release_evidence.sha256(contract_path)
+        evaluations = []
+        for target in self.performance_targets:
             directory = self.root / "performance" / target / "reports" / "run-1"
             directory.mkdir(parents=True)
+            evaluation = {
+                "schemaVersion": 5,
+                "kind": "paired-performance-evaluation",
+                "target": target,
+                "profile": "paired-block",
+                "runId": f"run-1-{target}",
+                "commit": source_commit,
+                "sourceHash": "f" * 64,
+                "runnerClass": "test-runner",
+                "contractDigest": contract_digest,
+                "referenceCommit": "b" * 40,
+                "qualification": "pending-run-wide-adjustment",
+                "success": True,
+                "primaryEndpoint": {
+                    "metric": "normalizedMedian",
+                    "role": "required",
+                    "aggregation": "geometric-mean-across-workloads",
+                    "state": "pending-run-wide-adjustment",
+                    "pValue": 0.5,
+                    "lowerBound": 1.0,
+                    "upperBound": 1.0,
+                    "budget": 1.15,
+                    "runWideRejected": None,
+                },
+            }
             (directory / "paired-evaluation.json").write_text(
-                json.dumps(
-                    {
-                        "schemaVersion": 2,
-                        "kind": "paired-performance-evaluation",
-                        "target": target,
-                        "profile": "paired-block",
-                        "runId": f"run-1-{target}",
-                        "commit": source_commit,
-                        "sourceHash": "f" * 64,
-                        "runnerClass": "test-runner",
-                        "qualification": "qualified",
-                        "success": True,
-                    }
-                ),
+                json.dumps(evaluation),
                 encoding="utf-8",
             )
+            evaluations.append(evaluation)
+
+        evaluator = release_evidence.performance_evidence
+        qualification = evaluator.evaluate_scorecard_qualification(
+            evaluations,
+            contract,
+            contract_digest=contract_digest,
+        )
+        (self.root / "performance" / "paired-scorecard-qualification.json").write_text(
+            json.dumps(qualification),
+            encoding="utf-8",
+        )
 
     def _write_performance_evidence(
         self,
@@ -708,7 +918,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
     ) -> None:
         """Write minimal internally hashed scorecards for both release targets."""
         source_hash = release_evidence.clean_performance_source_hash(source_commit)
-        for target in release_evidence.PERFORMANCE_TARGETS:
+        for target in self.performance_targets:
             target_root = root / "performance" / target
             evidence_directory = target_root / "evidence"
             results_directory = target_root / "results"
@@ -716,19 +926,22 @@ class ReleaseEvidenceTests(unittest.TestCase):
             results_directory.mkdir()
 
             evidence_files = {
-                "benchmarkDotNet": evidence_directory / "gate-benchmarkdotnet-evidence.json",
+                "benchmarkDotNet": evidence_directory
+                / "gate-benchmarkdotnet-evidence.json",
                 "hostPreflight": evidence_directory / "host-preflight.json",
                 "soak": evidence_directory / "soak-evidence.json",
                 "workloads": evidence_directory / "workload-evidence.json",
             }
             for artifact_id, path in evidence_files.items():
-                path.write_text(json.dumps({"kind": artifact_id}) + "\n", encoding="utf-8")
+                path.write_text(
+                    json.dumps({"kind": artifact_id}) + "\n", encoding="utf-8"
+                )
 
             raw_report = results_directory / "Benchmark-report-full.json"
             raw_report.write_text('{"benchmarks":[]}\n', encoding="ascii")
             evaluation = {
                 "schemaVersion": 3,
-                "runId": run_id,
+                "runId": f"{run_id}-{target}",
                 "target": target,
                 "profile": "scorecard",
                 "mode": "compare",
@@ -751,11 +964,11 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-    def test_accepted_pair_identity_allows_one_run_per_measurement_job(self) -> None:
-        """Accept a baseline pair whose engines were measured in separate jobs.
+    def test_accepted_matrix_identity_allows_one_run_per_measurement_job(self) -> None:
+        """Accept a baseline matrix whose targets ran in separate jobs.
 
-        The benchmark matrix runs one job per engine and names that job in the
-        run identifier, so the accepted pair can never share one. Requiring it
+        The benchmark matrix runs one job per target and names that job in the
+        run identifier, so the accepted matrix cannot share one. Requiring it
         blocked every release candidate at the readiness gate, after the same
         assumption had already been removed from baseline promotion.
         """
@@ -774,13 +987,13 @@ class ReleaseEvidenceTests(unittest.TestCase):
             },
         ]
 
-        identity = release_evidence.accepted_pair_identity(entries)
+        identity = release_evidence.accepted_matrix_identity(entries)
 
         self.assertEqual({"a" * 40}, identity["commit"])
         self.assertEqual({"b" * 64}, identity["sourceHash"])
 
-    def test_accepted_pair_identity_rejects_a_divergent_source(self) -> None:
-        """Reject a pair whose engines did not measure the same software."""
+    def test_accepted_matrix_identity_rejects_a_divergent_source(self) -> None:
+        """Reject a matrix whose engines did not measure the same software."""
         entries = [
             {"target": "mysql84", "commit": "a" * 40, "sourceHash": "b" * 64},
             {"target": "mariadb118", "commit": "c" * 40, "sourceHash": "b" * 64},
@@ -790,7 +1003,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
             release_evidence.EvidenceError,
             "inconsistent identity field\\(s\\): commit",
         ):
-            release_evidence.accepted_pair_identity(entries)
+            release_evidence.accepted_matrix_identity(entries)
 
     def test_accepted_baseline_in_the_repository_passes_the_identity_gate(self) -> None:
         """Keep the checked-in baseline acceptable to the release readiness gate.
@@ -808,7 +1021,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
             ).read_text(encoding="utf-8")
         )
 
-        identity = release_evidence.accepted_pair_identity(baseline["baselines"])
+        identity = release_evidence.accepted_matrix_identity(baseline["baselines"])
 
         self.assertEqual(1, len(identity["commit"]))
         self.assertEqual(1, len(identity["sourceHash"]))

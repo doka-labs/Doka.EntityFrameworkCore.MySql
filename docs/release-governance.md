@@ -58,8 +58,11 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - migration deployment lifecycle: `./eng/test-migration-deployment.sh`
   - runtime smoke: `./eng/test-runtime-posture.sh --test-only`
   - benchmark smoke:
-    - `DOKA_BENCHMARK_TARGET=mysql84 ./eng/benchmark.sh --test-only`
-    - `DOKA_BENCHMARK_TARGET=mariadb118 ./eng/benchmark.sh --test-only`
+    - targets: every key in `performance-contract.json.requiredTargets`
+    - execution: one isolated, target-owned Compose lifecycle per matrix job
+    - comparison: explicit single-revision `historical` orchestration with the
+      non-baselined `smoke` profile; this checks absolute contracts and creates
+      no release evidence
 - Scheduled container matrix:
   - workflow: `.github/workflows/container-matrix.yml`
   - cadence: weekly and on demand
@@ -74,14 +77,12 @@ The release-hardening evidence model is intentionally explicit and repeatable:
 - Dedicated benchmark scorecard:
   - workflow: `.github/workflows/benchmark.yml`
   - cadence: monthly, on demand, and after relevant performance-input changes
-  - local paths:
+  - targets: every key in `performance-contract.json.requiredTargets`; the
+    workflow derives its matrix from that contract instead of duplicating it
+  - local path for one selected target:
 
     ```bash
-    DOKA_BENCHMARK_TARGET=mysql84 \
-    DOKA_BENCHMARK_PROFILE=scorecard \
-    ./eng/benchmark.sh --up-run-down
-
-    DOKA_BENCHMARK_TARGET=mariadb118 \
+    DOKA_BENCHMARK_TARGET=<target> \
     DOKA_BENCHMARK_PROFILE=scorecard \
     ./eng/benchmark.sh --up-run-down
     ```
@@ -110,14 +111,16 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     MySqlConnector patch matrices, and paired performance all execute against
     the tagged commit; packing and SBOM generation produce the payload they
     qualify
-  - paired performance: each supported release engine alternates the reference
-    and candidate providers on one allocated runner. Statistical intervals,
-    multiple-comparison control, absolute ceilings, allocation and collection
-    limits, and sustained-use invariants are decided from retained raw evidence;
-    no historical baseline or processor match qualifies a tag
+  - paired performance: each supported LTS target alternates the reference and
+    candidate providers for ten pre-registered blocks on one allocated runner.
+    Statistical intervals, multiple-comparison control, absolute ceilings,
+    allocation and collection limits, and sustained-use invariants are decided
+    from retained raw evidence; no historical baseline or processor match
+    qualifies a tag
   - retry boundary: only `measurement-inconclusive` and
-    `environment-not-comparable` authorize one fresh attempt. Functional,
-    budget, contract, and infrastructure failures remain conclusive
+    `environment-not-comparable` authorize one fresh attempt. Statistical
+    overlap is a reported fixed-population result, not a retry trigger.
+    Functional, budget, and contract failures remain conclusive
   - stage contract: assembly requires exactly six tag-produced stage receipts
     -- migration deployment, runtime posture, both patch matrices, package, and
     SBOM -- plus the selected paired artifacts and imported branch result

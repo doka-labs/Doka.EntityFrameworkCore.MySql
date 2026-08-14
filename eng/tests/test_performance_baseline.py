@@ -189,8 +189,8 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
                 baseline,
             )
 
-    def test_seed_requires_both_engine_targets(self) -> None:
-        """Reject a baseline seed that could hide one representative engine family."""
+    def test_seed_requires_every_engine_target(self) -> None:
+        """Reject a baseline seed that omits any supported engine line."""
         with tempfile.TemporaryDirectory(prefix="doka-performance-seed-") as directory:
             root = Path(directory)
             evidence_path = root / "mysql84.json"
@@ -218,8 +218,8 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
     def test_seed_accepts_one_run_identifier_per_measurement_job(self) -> None:
         """Accept matrix evidence whose targets were measured in separate jobs.
 
-        The hosted matrix runs one job per engine and names each job in the run
-        identifier, so the two evaluations can never carry the same one. Binding
+        The hosted matrix runs one job per target and names each job in the run
+        identifier, so its evaluations cannot carry the same one. Binding
         promotion to that field made the gate unsatisfiable on the only path
         that produces release evidence.
         """
@@ -245,8 +245,8 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
             # value is provenance, not an identity the targets have to share.
             self.assertEqual(
                 {
-                    "github-1000-mysql84-attempt-1",
-                    "github-1000-mariadb118-attempt-1",
+                    f"github-1000-{target}-attempt-1"
+                    for target in self.contract["requiredTargets"]
                 },
                 {entry["runId"] for entry in baseline["baselines"]},
             )
@@ -315,7 +315,10 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
                 )()
             )
 
-            self.assertEqual(4, len(merged["baselines"]))
+            self.assertEqual(
+                2 * len(self.contract["requiredTargets"]),
+                len(merged["baselines"]),
+            )
             self.assertEqual(
                 {"local-runner", "github-runner"},
                 {entry["runnerClass"] for entry in merged["baselines"]},
@@ -358,7 +361,10 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
                 )()
             )
 
-            self.assertEqual(2, len(merged["baselines"]))
+            self.assertEqual(
+                len(self.contract["requiredTargets"]),
+                len(merged["baselines"]),
+            )
             self.assertEqual(
                 {"github-runner"},
                 {entry["runnerClass"] for entry in merged["baselines"]},
@@ -441,7 +447,7 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
             )
 
             revised_paths = []
-            for target in ("mysql84", "mariadb118"):
+            for target in revised_contract["requiredTargets"]:
                 evaluation = self._evaluation(target)
                 evaluation["contractVersion"] = revised_contract["contractVersion"]
                 evaluation["runnerClass"] = "github-runner"
@@ -494,7 +500,10 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
             )
 
             self.assertTrue(validation["success"])
-            self.assertEqual(2, validation["targetCount"])
+            self.assertEqual(
+                len(revised_contract["requiredTargets"]),
+                validation["targetCount"],
+            )
             self.assertTrue(comparison["changed"])
             self.assertEqual(
                 "contract-version-changed",
@@ -546,7 +555,7 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
                 resolved["baselineDisposition"],
             )
 
-    def test_auto_baseline_mode_seeds_when_runner_pair_is_missing(self) -> None:
+    def test_auto_baseline_mode_seeds_when_runner_matrix_is_missing(self) -> None:
         """Seed a complete candidate for a runner not represented by the baseline."""
         with tempfile.TemporaryDirectory(prefix="doka-performance-resolve-") as directory:
             root = Path(directory)
@@ -560,10 +569,10 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
             )
 
             self.assertEqual("seed", resolved["mode"])
-            self.assertEqual("runner-pair-missing", resolved["baselineDisposition"])
+            self.assertEqual("runner-matrix-missing", resolved["baselineDisposition"])
 
-    def test_auto_baseline_mode_compares_an_accepted_runner_pair(self) -> None:
-        """Compare only when the current contract has the complete runner pair."""
+    def test_auto_baseline_mode_compares_an_accepted_runner_matrix(self) -> None:
+        """Compare only when the current contract has the complete runner matrix."""
         with tempfile.TemporaryDirectory(prefix="doka-performance-resolve-") as directory:
             root = Path(directory)
             paths = self._write_seed_evaluations(root, "github-runner")
@@ -577,11 +586,11 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
 
             self.assertEqual("compare", resolved["mode"])
             self.assertEqual(
-                "accepted-runner-pair",
+                "accepted-runner-matrix",
                 resolved["baselineDisposition"],
             )
 
-    def test_explicit_compare_rejects_a_missing_runner_pair(self) -> None:
+    def test_explicit_compare_rejects_a_missing_runner_matrix(self) -> None:
         """Fail a strict comparison before allocating the benchmark matrix."""
         with tempfile.TemporaryDirectory(prefix="doka-performance-resolve-") as directory:
             root = Path(directory)
@@ -590,7 +599,7 @@ class PerformanceBaselineTests(PerformanceEvidenceFixtureMixin, unittest.TestCas
 
             with self.assertRaisesRegex(
                 performance_evidence.PerformanceEvidenceError,
-                "requires a current accepted baseline pair",
+                "requires a current accepted baseline matrix",
             ):
                 self._resolve_baseline_mode(
                     baseline_path,

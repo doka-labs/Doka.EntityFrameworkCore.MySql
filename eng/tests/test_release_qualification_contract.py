@@ -23,11 +23,16 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+from eng.performance import paired
+from eng.performance.contract import sha256
 from eng.release import gate_results, qualification
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 POLICY_PATH = REPOSITORY_ROOT / "eng" / "release" / "evidence-policy.json"
+PERFORMANCE_CONTRACT_PATH = (
+    REPOSITORY_ROOT / "benchmarks" / "performance-contract.json"
+)
 
 REPOSITORY = "kdominic89/Doka.EntityFrameworkCore.MySql"
 RELEASE_TAG = "v10.0.0-contract"
@@ -127,20 +132,40 @@ class QualificationChain:
         self,
         target: str,
         *,
-        qualification_state: str = "qualified",
+        qualification_state: str = "pending-run-wide-adjustment",
         candidate_commit: str | None = None,
     ) -> None:
         """Write one engine's paired evaluation and the evidence behind it."""
         directory = self.benchmarks / target / "reports" / f"github-{WORKFLOW_RUN_ID}"
         directory.mkdir(parents=True, exist_ok=True)
+        contract_digest = sha256(PERFORMANCE_CONTRACT_PATH)
+        evaluation = {
+            "schemaVersion": 5,
+            "kind": "paired-performance-evaluation",
+            "target": target,
+            "profile": "paired-block",
+            "runId": f"github-{WORKFLOW_RUN_ID}-{target}",
+            "commit": self.commit,
+            "sourceHash": "4" * 64,
+            "runnerClass": "test-runner",
+            "contractDigest": contract_digest,
+            "referenceCommit": "1" * 40,
+            "qualification": qualification_state,
+            "success": qualification_state == "pending-run-wide-adjustment",
+            "primaryEndpoint": {
+                "metric": "normalizedMedian",
+                "role": "required",
+                "aggregation": "geometric-mean-across-workloads",
+                "state": "pending-run-wide-adjustment",
+                "pValue": 0.5,
+                "lowerBound": 1.0,
+                "upperBound": 1.0,
+                "budget": 1.15,
+                "runWideRejected": None,
+            },
+        }
         (directory / "paired-evaluation.json").write_text(
-            json.dumps(
-                {
-                    "schemaVersion": 2,
-                    "kind": "paired-performance-evaluation",
-                    "qualification": qualification_state,
-                }
-            ),
+            json.dumps(evaluation),
             encoding="utf-8",
         )
         (directory / "paired-evidence.json").write_text(
@@ -152,11 +177,33 @@ class QualificationChain:
                     "candidateCommit": candidate_commit or self.commit,
                     "referenceCommit": "1" * 40,
                     "benchmarkDriverSourceHash": "2" * 40,
-                    "contractDigest": "3" * 64,
+                    "contractDigest": contract_digest,
                 }
             ),
             encoding="utf-8",
         )
+
+        contract = json.loads(PERFORMANCE_CONTRACT_PATH.read_text(encoding="utf-8"))
+        paths = sorted(self.benchmarks.rglob("paired-evaluation.json"))
+        evaluations = [
+            json.loads(path.read_text(encoding="utf-8")) for path in paths
+        ]
+        if (
+            len(evaluations) == len(contract["requiredTargets"])
+            and all(
+                item["qualification"] == "pending-run-wide-adjustment"
+                for item in evaluations
+            )
+        ):
+            scorecard = paired.evaluate_scorecard_qualification(
+                evaluations,
+                contract,
+                contract_digest=contract_digest,
+            )
+            (self.benchmarks / "paired-scorecard-qualification.json").write_text(
+                json.dumps(scorecard),
+                encoding="utf-8",
+            )
 
     def write_packages(self) -> None:
         """Write the payload the manifest inventory binds."""
@@ -169,7 +216,8 @@ class QualificationChain:
         for stage in STAGE_DIRECTORIES:
             self.write_stage(stage)
         self.write_selection()
-        for target in ("mysql84", "mariadb118"):
+        contract = json.loads(PERFORMANCE_CONTRACT_PATH.read_text(encoding="utf-8"))
+        for target in contract["requiredTargets"]:
             self.write_performance(target, **performance)
         self.write_packages()
 
@@ -246,6 +294,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
                 "--checkpoint-directory", str(self.chain.checkpoints),
                 "--evidence-root", str(self.chain.evidence_root),
                 "--performance-root", str(self.chain.benchmarks),
+                "--performance-contract", str(PERFORMANCE_CONTRACT_PATH),
                 "--assembling-attempt", str(RUN_ATTEMPT),
                 "--policy", str(POLICY_PATH),
                 "--output", str(output),
@@ -353,6 +402,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
                     "--checkpoint-directory", str(self.chain.checkpoints),
                     "--evidence-root", str(self.chain.evidence_root),
                     "--performance-root", str(self.chain.benchmarks),
+                    "--performance-contract", str(PERFORMANCE_CONTRACT_PATH),
                     "--assembling-attempt", str(RUN_ATTEMPT),
                     "--policy", str(POLICY_PATH),
                     "--output", str(Path(self.directory.name) / "out.json"),
@@ -524,6 +574,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
                 "--checkpoint-directory", str(self.chain.checkpoints),
                 "--evidence-root", str(self.chain.evidence_root),
                 "--performance-root", str(self.chain.benchmarks),
+                "--performance-contract", str(PERFORMANCE_CONTRACT_PATH),
                 "--assembling-attempt", str(RUN_ATTEMPT),
                 "--policy", str(POLICY_PATH),
                 "--output", str(Path(self.directory.name) / "out.json"),

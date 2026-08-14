@@ -238,6 +238,21 @@ def _median(values: Sequence[float]) -> float:
     return percentile(sorted(values), 0.50)
 
 
+def log_ratio_standard_deviation(ratios: Sequence[float]) -> float:
+    """Return sample dispersion on the multiplicative comparison scale."""
+    if len(ratios) < 2:
+        raise InvalidEvidenceError(
+            "Log-ratio dispersion requires at least two complete blocks."
+        )
+    logarithms = [math.log(value) for value in ratios]
+    mean = sum(logarithms) / len(logarithms)
+    variance = sum((value - mean) ** 2 for value in logarithms) / (
+        len(logarithms) - 1
+    )
+
+    return math.sqrt(variance)
+
+
 def _normal_quantile(probability: float) -> float:
     """Return the standard-normal quantile for a probability.
 
@@ -356,92 +371,202 @@ def bca_interval(
     return bounds[0], bounds[1]
 
 
-def regression_probability(
-    replicates: Sequence[float],
+def exact_sign_flip_p_value(
+    ratios: Sequence[float],
     budget: float,
 ) -> float:
-    """Return the one-sided bootstrap p-value for exceeding the budget.
+    """Return an exact one-sided p-value for paired log-ratio differences.
 
-    Small values mean the resampled distribution rarely falls inside the
-    budget, which is evidence that the candidate genuinely exceeds it.
+    Under the boundary null, each counterbalanced block's centered log ratio
+    is exchangeable with its sign reversed. Enumerating all sign assignments
+    forms the exact randomization distribution; the ten-block contract keeps
+    that at 1,024 assignments and removes Monte Carlo error from the value Holm
+    consumes.
     """
-    inside = sum(1 for value in replicates if value <= budget)
+    if not ratios or budget <= 0 or any(ratio <= 0 for ratio in ratios):
+        raise InvalidEvidenceError(
+            "An exact sign-flip test requires positive ratios and budget."
+        )
+    if len(ratios) != 10:
+        raise InvalidEvidenceError(
+            "The exact sign-flip test requires the registered ten blocks."
+        )
 
-    return (inside + 1) / (len(replicates) + 1)
+    centered = [math.log(ratio / budget) for ratio in ratios]
+    observed = sum(centered)
+    tolerance = max(1e-14, abs(observed) * 1e-14)
+    assignments = 1 << len(centered)
+    extreme = 0
+    for mask in range(assignments):
+        randomized = sum(
+            value if mask & (1 << index) else -value
+            for index, value in enumerate(centered)
+        )
+        if randomized >= observed - tolerance:
+            extreme += 1
+
+    return extreme / assignments
 
 
-def benjamini_hochberg(
-    probabilities: Sequence[float],
-    rate: float,
+def holm_rejections(
+    p_values: Sequence[float],
+    family_wise_error_rate: float,
 ) -> list[bool]:
-    """Return per-test rejection under false-discovery-rate control.
+    """Return step-down rejections with run-wide family-wise error control.
 
-    The family is every test of one metric across the workload matrix. Without
-    control, running one test per workload would produce expected false alarms
-    in direct proportion to the matrix size.
+    A release turns red when any required target rejects. The relevant error is
+    therefore the probability of at least one false rejection, not the expected
+    proportion of false discoveries inside several separately adjusted groups.
+    Holm's procedure controls that run-wide error without assuming independent
+    targets or a particular correlation structure.
     """
-    if not probabilities:
+    if not p_values:
         return []
 
-    indexed = sorted(enumerate(probabilities), key=lambda item: item[1])
-    total = len(probabilities)
-    largest_rejected = -1
-    for position, (_, probability) in enumerate(indexed, start=1):
-        if probability <= rate * position / total:
-            largest_rejected = position
+    indexed = sorted(enumerate(p_values), key=lambda item: item[1])
+    total = len(p_values)
     rejected = [False] * total
-    for position, (original, _) in enumerate(indexed, start=1):
-        if position <= largest_rejected:
-            rejected[original] = True
+    for position, (original, p_value) in enumerate(indexed):
+        threshold = family_wise_error_rate / (total - position)
+        if p_value > threshold and not close_enough(p_value, threshold):
+            break
+        rejected[original] = True
 
     return rejected
 
 
-def evaluate_family(
+def prepare_endpoint(
+    ratios: Sequence[float],
+    *,
+    identity: str,
+    metric: str,
+    budget: float,
+    policy: dict[str, Any],
+) -> dict[str, Any]:
+    """Return the reproducible interval and p-value for one endpoint."""
+    interval_policy = policy["interval"]
+    seed = int(interval_policy["resamplingSeed"]) + _stable_offset(
+        identity, metric
+    )
+    replicates = bootstrap_replicates(
+        ratios,
+        resamples=int(interval_policy["resampleCount"]),
+        seed=seed,
+    )
+    low, high = bca_interval(
+        ratios,
+        replicates,
+        confidence=float(interval_policy["confidenceLevel"]),
+        sidedness=interval_policy["sidedness"],
+    )
+
+    return {
+        "metric": metric,
+        "blocks": len(ratios),
+        "observedRatio": _median(ratios),
+        "lowerBound": low,
+        "upperBound": high,
+        "budget": budget,
+        "logRatioStandardDeviation": log_ratio_standard_deviation(ratios),
+        "pValue": exact_sign_flip_p_value(ratios, budget),
+    }
+
+
+def _geometric_mean(values: Sequence[float]) -> float:
+    """Return the geometric mean used for normalized workload ratios."""
+    if not values or any(value <= 0 for value in values):
+        raise InvalidEvidenceError(
+            "A normalized workload aggregate requires positive ratios."
+        )
+
+    return math.exp(sum(math.log(value) for value in values) / len(values))
+
+
+def evaluate_primary_endpoint(
     tests: Sequence[dict[str, Any]],
     *,
     metric: str,
     budget: float,
     policy: dict[str, Any],
     minimum_samples: int = 2,
-    capped: frozenset[str] = frozenset(),
-) -> list[dict[str, Any]]:
-    """Evaluate one metric family across the workload matrix.
+) -> dict[str, Any]:
+    """Evaluate the one required target-level latency endpoint.
 
-    A test is a `regression` only when the family-level procedure rejects its
-    null hypothesis. It is `qualified` only when the interval also stays inside
-    the practical budget. Anything between the two is `inconclusive`, which
-    withholds a verdict rather than inventing one.
+    Each block contributes the geometric mean of every named workload's
+    normalized median ratio. This keeps the complete workload matrix in the
+    required score while avoiding hundreds of independent paths to a false red
+    verdict. The cross-target Holm decision is deliberately deferred until all
+    target evaluations are available in the scorecard job.
     """
-    interval_policy = policy["interval"]
-    confidence = float(interval_policy["confidenceLevel"])
-    resamples = int(interval_policy["resampleCount"])
-    base_seed = int(interval_policy["resamplingSeed"])
-    sidedness = interval_policy["sidedness"]
-
-    # A workload that stopped at its sample cap is withheld from the family
-    # entirely, not merely reported alongside it. Its p-value comes from a
-    # population that never settled, and leaving it in would move the
-    # false-discovery threshold for every workload that did converge -- so an
-    # unusable measurement would silently change the verdict on usable ones.
-    withheld = [
-        {
-            "workloadId": test["workloadId"],
-            "metric": metric,
-            "blocks": len(test["blocks"]),
-            "budget": budget,
-            "state": "inconclusive",
-            "reason": "sample-cap-reached",
-        }
-        for test in tests
-        if test["workloadId"] in capped
+    workload_ratios: list[list[float]] = []
+    for test in tests:
+        workload_ratios.append(
+            paired_ratios(
+                test["blocks"],
+                metric,
+                quality_floor=float(
+                    policy["blocks"]["maximumRelativeStandardError"]
+                ),
+                maximum_count_ratio=float(
+                    policy["blocks"]["maximumSampleCountRatio"]
+                ),
+                minimum_samples=minimum_samples,
+            )
+        )
+    block_counts = {len(ratios) for ratios in workload_ratios}
+    if len(block_counts) != 1:
+        raise InvalidEvidenceError(
+            "Primary endpoint workloads contributed different block counts."
+        )
+    block_count = next(iter(block_counts))
+    aggregate_ratios = [
+        _geometric_mean([ratios[block] for ratios in workload_ratios])
+        for block in range(block_count)
     ]
+    endpoint = prepare_endpoint(
+        aggregate_ratios,
+        identity="target-workload-geometric-mean",
+        metric=metric,
+        budget=budget,
+        policy=policy,
+    )
+    endpoint.update(
+        {
+            "role": "required",
+            "aggregation": "geometric-mean-across-workloads",
+            "workloadCount": len(workload_ratios),
+            "aggregateBlockRatios": aggregate_ratios,
+            "runWideRejected": None,
+        }
+    )
+    maximum_deviation = float(
+        policy["sensitivity"]["maximumLogRatioStandardDeviation"]
+    )
+    if (
+        endpoint["logRatioStandardDeviation"] > maximum_deviation
+        and not close_enough(
+            endpoint["logRatioStandardDeviation"], maximum_deviation
+        )
+    ):
+        endpoint["state"] = "insufficient-sensitivity"
+    else:
+        endpoint["state"] = "pending-run-wide-adjustment"
 
-    prepared = []
+    return endpoint
+
+
+def evaluate_observational_family(
+    tests: Sequence[dict[str, Any]],
+    *,
+    metric: str,
+    budget: float,
+    policy: dict[str, Any],
+    minimum_samples: int = 2,
+) -> list[dict[str, Any]]:
+    """Describe one per-workload family without making a release claim."""
+    results: list[dict[str, Any]] = []
     for test in tests:
         workload = test["workloadId"]
-        if workload in capped:
-            continue
         ratios = paired_ratios(
             test["blocks"],
             metric,
@@ -449,56 +574,35 @@ def evaluate_family(
             maximum_count_ratio=float(policy["blocks"]["maximumSampleCountRatio"]),
             minimum_samples=minimum_samples,
         )
-        # Deriving the per-test seed from the policy seed and a stable workload
-        # key keeps each interval reproducible and independent of the order in
-        # which workloads happen to be evaluated. The key is digested rather
-        # than hashed: Python randomizes `hash()` of a string per process, so a
-        # seed built from it would differ between two evaluations of the same
-        # evidence and the interval would not be reviewable.
-        seed = base_seed + _stable_offset(workload, metric)
-        replicates = bootstrap_replicates(ratios, resamples=resamples, seed=seed)
-        low, high = bca_interval(
-            ratios, replicates, confidence=confidence, sidedness=sidedness
+        item = prepare_endpoint(
+            ratios,
+            identity=workload,
+            metric=metric,
+            budget=budget,
+            policy=policy,
         )
-        prepared.append(
+        item.update(
             {
                 "workloadId": workload,
-                "metric": metric,
-                "blocks": len(ratios),
-                "observedRatio": _median(ratios),
-                "lowerBound": low,
-                "upperBound": high,
-                "budget": budget,
-                "probability": regression_probability(replicates, budget),
+                "role": "observational",
+                "aggregation": "per-workload",
             }
         )
-
-    rejected = benjamini_hochberg(
-        [item["probability"] for item in prepared],
-        float(policy["multipleComparison"]["falseDiscoveryRate"]),
-    )
-    for item, is_rejected in zip(prepared, rejected):
-        item["familyRejected"] = is_rejected
-        # A bound that lands on the budget must decide as compliance, not as
-        # doubt. Comparing raw floats would let a representation error of one
-        # part in 10^16 turn a compliant candidate inconclusive, which is a
-        # property of binary arithmetic rather than of the provider.
-        above_budget = (
-            item["lowerBound"] > budget
-            and not close_enough(item["lowerBound"], budget)
+        above_budget = item["lowerBound"] > budget and not close_enough(
+            item["lowerBound"], budget
         )
-        within_budget = (
-            item["upperBound"] <= budget
-            or close_enough(item["upperBound"], budget)
+        within_budget = item["upperBound"] <= budget or close_enough(
+            item["upperBound"], budget
         )
-        if is_rejected and above_budget:
-            item["state"] = "regression"
-        elif not is_rejected and within_budget:
-            item["state"] = "qualified"
+        if above_budget:
+            item["state"] = "observed-above-budget"
+        elif within_budget:
+            item["state"] = "observed-within-budget"
         else:
-            item["state"] = "inconclusive"
+            item["state"] = "observed-overlap"
+        results.append(item)
 
-    return prepared + withheld
+    return results
 
 
 def paired_resource_ratios(
@@ -758,7 +862,7 @@ def evaluate_absolute_ceilings(
 def validate_execution_order(
     recorded: dict[str, Any] | None,
     policy: dict[str, Any],
-    minimum_blocks: int,
+    expected_blocks: int,
 ) -> list[str]:
     """Require the executed order to be the registered one.
 
@@ -775,10 +879,10 @@ def validate_execution_order(
     executed = recorded.get("executedBlockPatterns")
     if not isinstance(executed, list) or not executed:
         raise InvalidEvidenceError("The recorded execution order is empty.")
-    if len(executed) < minimum_blocks:
+    if len(executed) != expected_blocks:
         raise InvalidEvidenceError(
             f"The run executed {len(executed)} blocks; the policy registers at "
-            f"least {minimum_blocks}."
+            f"exactly {expected_blocks}."
         )
 
     registered = list(policy["executionOrder"]["blockPatterns"])
@@ -1238,12 +1342,11 @@ def validate_paired_evidence(
             f"Paired evidence declares blockCount {block_count!r}, which is "
             "not a count."
         )
-    minimum = int(policy["blocks"]["minimumCompleteBlocks"])
-    maximum = int(policy["blocks"]["maximumCompleteBlocks"])
-    if not minimum <= block_count <= maximum:
+    registered = int(policy["blocks"]["completeBlocks"])
+    if block_count != registered:
         raise InvalidEvidenceError(
             f"Paired evidence declares {block_count} blocks; the policy "
-            f"registers between {minimum} and {maximum}."
+            f"registers exactly {registered}."
         )
 
     for test in tests:
@@ -1545,16 +1648,15 @@ def evaluate_paired_comparison(
 ) -> dict[str, Any]:
     """Evaluate a complete paired run and derive its qualification state.
 
-    The result is one state for the whole comparison. A single regression
-    decides the run; otherwise a single inconclusive test withholds
-    qualification, because a release must not be qualified by tests that did
-    not reach a verdict.
+    The result is one state for the whole comparison. A confirmed regression,
+    absolute-budget failure, resource regression, or soak failure rejects the
+    candidate. Statistical overlap is retained as uncertainty rather than
+    triggering a fresh sample chosen after observing the result.
     """
     policy = validate_paired_policy(contract)
     validate_evidence_envelope(evidence, policy)
     blocks_policy = policy["blocks"]
-    minimum_blocks = int(blocks_policy["minimumCompleteBlocks"])
-    maximum_blocks = int(blocks_policy["maximumCompleteBlocks"])
+    complete_blocks = int(blocks_policy["completeBlocks"])
     # The profile the blocks measured under owns what counts as a valid
     # population; the evaluator applies the same floor rather than one of its
     # own, so a run cannot be judged against a bar the runner never used.
@@ -1570,14 +1672,15 @@ def evaluate_paired_comparison(
         blocks = test.get("blocks")
         if not isinstance(blocks, list):
             raise InvalidEvidenceError(f"tests[{index}].blocks is required.")
-        if not minimum_blocks <= len(blocks) <= maximum_blocks:
+        if len(blocks) != complete_blocks:
             raise InvalidEvidenceError(
                 f"tests[{index}] contributed {len(blocks)} complete blocks; the "
-                f"policy registers between {minimum_blocks} and {maximum_blocks}."
+                f"policy registers exactly {complete_blocks}."
             )
 
-    # The runner's convergence verdict is established before any statistic, so
-    # a workload that never settled cannot reach the family procedure at all.
+    # Per-block termination remains part of the audit record. Reaching the
+    # registered sample cap is a normal fixed-population stop, not permission to
+    # choose another population after observing the statistical result.
     definitions = validate_paired_evidence(
         evidence, contract, policy, contract_digest=contract_digest
     )
@@ -1593,19 +1696,29 @@ def evaluate_paired_comparison(
         == SAMPLE_CAP_REACHED
     )
 
-    families = [policy["primaryFamily"]["metric"]]
+    primary_metric = policy["primaryFamily"]["metric"]
+    families = [primary_metric]
     families += [family["metric"] for family in policy["secondaryFamilies"]]
+
+    primary_endpoint = evaluate_primary_endpoint(
+        tests,
+        metric=primary_metric,
+        budget=float(policy["practicalBudgets"][primary_metric]),
+        policy=policy,
+        minimum_samples=minimum_samples,
+    )
+    target_role = policy["targetRoles"][evidence["target"]]
+    primary_endpoint["targetRole"] = target_role
 
     results: list[dict[str, Any]] = []
     for metric in families:
         results.extend(
-            evaluate_family(
+            evaluate_observational_family(
                 tests,
                 metric=metric,
                 budget=float(policy["practicalBudgets"][metric]),
                 policy=policy,
                 minimum_samples=minimum_samples,
-                capped=capped,
             )
         )
 
@@ -1630,7 +1743,7 @@ def evaluate_paired_comparison(
     # The run has to have followed the plan the policy registers. An order
     # recorded but never compared would document a deviation instead of
     # refusing it.
-    validate_execution_order(evidence.get("executionOrder"), policy, minimum_blocks)
+    validate_execution_order(evidence.get("executionOrder"), policy, complete_blocks)
 
     soak_scenarios = validate_soak_report(
         soak_report,
@@ -1640,17 +1753,21 @@ def evaluate_paired_comparison(
         profile=blocks_policy["profile"],
     )
 
-    states = {item["state"] for item in results}
-    states |= {item["state"] for item in resource_results}
-    if "regression" in states or not all(check["passed"] for check in ceilings):
+    resource_states = {item["state"] for item in resource_results}
+    if "regression" in resource_states or not all(
+        check["passed"] for check in ceilings
+    ):
         qualification = "regression"
-    elif "inconclusive" in states:
-        qualification = "inconclusive"
+    elif (
+        target_role == "required"
+        and primary_endpoint["state"] == "insufficient-sensitivity"
+    ):
+        qualification = "measurement-inconclusive"
     else:
-        qualification = "qualified"
+        qualification = "pending-run-wide-adjustment"
 
     return {
-        "schemaVersion": 2,
+        "schemaVersion": 5,
         "kind": "paired-performance-evaluation",
         # The identity travels from the evidence onto the verdict so a receipt
         # can prove it owns this evaluation. Without it the attempt recorder
@@ -1661,15 +1778,187 @@ def evaluate_paired_comparison(
         "commit": evidence["commit"],
         "sourceHash": evidence["sourceHash"],
         "runnerClass": evidence["runnerClass"],
+        "contractDigest": evidence["contractDigest"],
+        "referenceCommit": evidence["referenceCommit"],
         "qualification": qualification,
-        "success": qualification == "qualified",
+        "success": qualification == "pending-run-wide-adjustment",
         "families": families,
+        "primaryEndpoint": primary_endpoint,
+        "dispersionObservation": {
+            "schemaVersion": 1,
+            "kind": "paired-dispersion-observation",
+            "target": evidence["target"],
+            "runId": evidence["runId"],
+            "commit": evidence["commit"],
+            "sourceHash": evidence["sourceHash"],
+            "runnerClass": evidence["runnerClass"],
+            "contractDigest": evidence["contractDigest"],
+            "referenceCommit": evidence["referenceCommit"],
+            "metric": primary_metric,
+            "aggregation": policy["primaryFamily"]["aggregation"],
+            "realizedLogRatioStandardDeviation": primary_endpoint[
+                "logRatioStandardDeviation"
+            ],
+            "registeredUpperBound": policy["sensitivity"][
+                "maximumLogRatioStandardDeviation"
+            ],
+            "state": (
+                "drift"
+                if primary_endpoint["state"] == "insufficient-sensitivity"
+                else "stable"
+            ),
+        },
         "results": results,
         "cappedWorkloads": sorted(capped),
+        "uncertainResults": sum(
+            item["state"] == "observed-overlap" for item in results
+        ),
+        "sensitivity": {
+            "method": policy["sensitivity"]["method"],
+            "familyCase": policy["sensitivity"]["familyCase"],
+            "minimumPower": policy["sensitivity"]["minimumPower"],
+            "maximumLogRatioStandardDeviation": policy["sensitivity"][
+                "maximumLogRatioStandardDeviation"
+            ],
+            "characterization": policy["sensitivity"]["characterization"],
+            "minimumDetectableRatios": {
+                primary_metric: float(policy["practicalBudgets"][primary_metric])
+                * float(
+                    policy["sensitivity"]["minimumDetectableBudgetMultiple"]
+                )
+            },
+        },
         "resourceResults": resource_results,
         "absoluteCeilings": ceilings,
         "soakScenarios": soak_scenarios,
         "soakAppliesTo": soak_policy["appliesTo"],
+    }
+
+
+def evaluate_scorecard_qualification(
+    evaluations: Sequence[dict[str, Any]],
+    contract: dict[str, Any],
+    *,
+    contract_digest: str,
+) -> dict[str, Any]:
+    """Apply one run-wide decision to all selected target evaluations.
+
+    Target jobs can validate measurement quality and hard local gates, but no
+    target can adjust its p-value without seeing the other required
+    targets. This finalizer is therefore the only place that may convert a
+    primary latency endpoint into a statistical regression verdict.
+    """
+    policy = validate_paired_policy(contract)
+    expected_targets = set(contract["requiredTargets"])
+    by_target: dict[str, dict[str, Any]] = {}
+    for evaluation in evaluations:
+        if evaluation.get("schemaVersion") != 5:
+            raise InvalidEvidenceError(
+                "Scorecard target evaluation has an unsupported schema version."
+            )
+        if evaluation.get("kind") != "paired-performance-evaluation":
+            raise InvalidEvidenceError(
+                "Scorecard input is not a paired performance evaluation."
+            )
+        target = evaluation.get("target")
+        if target in by_target:
+            raise InvalidEvidenceError(
+                f"Scorecard carries target '{target}' more than once."
+            )
+        by_target[target] = evaluation
+
+    observed_targets = set(by_target)
+    if observed_targets != expected_targets:
+        missing = sorted(expected_targets - observed_targets)
+        unexpected = sorted(observed_targets - expected_targets)
+        raise InvalidEvidenceError(
+            "Scorecard target set is incomplete: "
+            f"missing={missing}, unexpected={unexpected}."
+        )
+
+    identity_fields = (
+        "commit",
+        "sourceHash",
+        "runnerClass",
+        "contractDigest",
+        "referenceCommit",
+    )
+    identities: dict[str, Any] = {}
+    for field in identity_fields:
+        values = {evaluation.get(field) for evaluation in evaluations}
+        if len(values) != 1:
+            raise InvalidEvidenceError(
+                f"Scorecard target evaluations disagree on {field}."
+            )
+        identities[field] = next(iter(values))
+    if identities["contractDigest"] != contract_digest:
+        raise InvalidEvidenceError(
+            "Scorecard target evaluations were produced under another contract."
+        )
+
+    required: list[tuple[str, dict[str, Any]]] = []
+    endpoint_results: list[dict[str, Any]] = []
+    for target in sorted(by_target):
+        evaluation = by_target[target]
+        if evaluation.get("qualification") != "pending-run-wide-adjustment":
+            raise InvalidEvidenceError(
+                f"Target '{target}' is not eligible for run-wide adjustment."
+            )
+        endpoint = evaluation.get("primaryEndpoint")
+        if not isinstance(endpoint, dict):
+            raise InvalidEvidenceError(
+                f"Target '{target}' carries no primary endpoint."
+            )
+        role = policy["targetRoles"][target]
+        result = dict(endpoint)
+        result["target"] = target
+        result["targetRole"] = role
+        if role == "required":
+            if endpoint.get("state") != "pending-run-wide-adjustment":
+                raise MeasurementQualityError(
+                    f"Required target '{target}' has insufficient sensitivity."
+                )
+            required.append((target, result))
+        else:
+            result["runWideRejected"] = None
+            result["state"] = "observational"
+        endpoint_results.append(result)
+
+    rejected = holm_rejections(
+        [float(result["pValue"]) for _, result in required],
+        float(policy["multipleComparison"]["familyWiseErrorRate"]),
+    )
+    for (_, result), is_rejected in zip(required, rejected):
+        result["runWideRejected"] = is_rejected
+        budget = float(result["budget"])
+        above_budget = float(result["lowerBound"]) > budget and not close_enough(
+            float(result["lowerBound"]), budget
+        )
+        result["state"] = (
+            "regression" if is_rejected and above_budget else "qualified"
+        )
+
+    qualification = (
+        "regression"
+        if any(result["state"] == "regression" for _, result in required)
+        else "qualified"
+    )
+
+    return {
+        "schemaVersion": 1,
+        "kind": "paired-performance-scorecard-qualification",
+        "qualification": qualification,
+        "success": qualification == "qualified",
+        **identities,
+        "multipleComparison": {
+            "scope": policy["multipleComparison"]["scope"],
+            "procedure": policy["multipleComparison"]["procedure"],
+            "familyWiseErrorRate": policy["multipleComparison"][
+                "familyWiseErrorRate"
+            ],
+            "requiredTargetCount": len(required),
+        },
+        "targets": endpoint_results,
     }
 
 

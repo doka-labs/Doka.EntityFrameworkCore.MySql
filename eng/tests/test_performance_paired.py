@@ -32,6 +32,7 @@ from eng.performance.contract import (
     InvalidEvidenceError,
     MeasurementQualityError,
     sha256,
+    validate_paired_policy,
 )
 
 
@@ -51,11 +52,15 @@ MINIMUM_VALID_SAMPLES = json.loads(
     )
 )["profiles"]["paired-block"]["minimumValidSamples"]
 
-_PAIRED_PROFILE = json.loads(
+_PERFORMANCE_CONTRACT = json.loads(
     (REPOSITORY_ROOT / "benchmarks" / "performance-contract.json").read_text(
         encoding="utf-8"
     )
-)["profiles"]["paired-block"]
+)
+_PAIRED_PROFILE = _PERFORMANCE_CONTRACT["profiles"]["paired-block"]
+COMPLETE_BLOCKS = _PERFORMANCE_CONTRACT["pairedPolicy"]["blocks"][
+    "completeBlocks"
+]
 CAP_SAMPLES = (
     _PAIRED_PROFILE["measurementSamples"]
     * _PAIRED_PROFILE["maximumMeasurementSampleMultiplier"]
@@ -267,13 +272,29 @@ class BootstrapDeterminismTests(unittest.TestCase):
 
 
 class MultipleComparisonTests(unittest.TestCase):
-    """Prove the family procedure controls the false-discovery rate."""
+    """Prove the procedure controls the run-wide family-wise error rate."""
+
+    def test_exact_sign_flip_uses_the_complete_null_distribution(self) -> None:
+        """Produce calibrated p-values without randomized resampling error."""
+        self.assertEqual(
+            1.0,
+            paired.exact_sign_flip_p_value([1.15] * 10, 1.15),
+        )
+        self.assertEqual(
+            1 / 1024,
+            paired.exact_sign_flip_p_value([1.30] * 10, 1.15),
+        )
+
+    def test_exact_sign_flip_requires_the_registered_population(self) -> None:
+        """Keep the multiplicity input bound to the ten-block contract."""
+        with self.assertRaises(InvalidEvidenceError):
+            paired.exact_sign_flip_p_value([1.30] * 9, 1.15)
 
     def test_one_strong_signal_among_many_null_tests_is_rejected(self) -> None:
         """Detect a real effect without rejecting its quiet neighbors."""
-        probabilities = [0.0001] + [0.60] * 54
+        probabilities = [0.0001] + [0.60] * 5
 
-        rejected = paired.benjamini_hochberg(probabilities, 0.05)
+        rejected = paired.holm_rejections(probabilities, 0.05)
 
         self.assertTrue(rejected[0])
         self.assertEqual(1, sum(rejected))
@@ -284,15 +305,153 @@ class MultipleComparisonTests(unittest.TestCase):
         Without family control, running one test per workload across the matrix
         would be expected to produce false alarms in proportion to its size.
         """
-        probabilities = [0.20 + index * 0.01 for index in range(55)]
+        probabilities = [0.20 + index * 0.01 for index in range(6)]
 
         self.assertEqual([], [item for item in
-                              paired.benjamini_hochberg(probabilities, 0.05)
+                              paired.holm_rejections(probabilities, 0.05)
                               if item])
 
     def test_an_empty_family_rejects_nothing(self) -> None:
         """Keep the procedure total."""
-        self.assertEqual([], paired.benjamini_hochberg([], 0.05))
+        self.assertEqual([], paired.holm_rejections([], 0.05))
+
+
+class ScorecardQualificationTests(unittest.TestCase):
+    """Prove one run-wide verdict is formed across every required target."""
+
+    def setUp(self) -> None:
+        """Load the shipped target family and its immutable characterization."""
+        self.contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+        self.contract_digest = sha256(CONTRACT_PATH)
+        characterization_path = REPOSITORY_ROOT / self.contract["pairedPolicy"][
+            "sensitivity"
+        ]["characterization"]["path"]
+        self.characterization = json.loads(
+            characterization_path.read_text(encoding="utf-8")
+        )
+
+    def evaluation(
+        self,
+        target: str,
+        *,
+        endpoint: dict[str, object],
+        qualification: str = "pending-run-wide-adjustment",
+    ) -> dict[str, object]:
+        """Return one target verdict with the common scorecard identity."""
+        return {
+            "schemaVersion": 5,
+            "kind": "paired-performance-evaluation",
+            "target": target,
+            "commit": PAIRED_COMMIT,
+            "sourceHash": PAIRED_SOURCE_HASH,
+            "runnerClass": PAIRED_RUNNER_CLASS,
+            "contractDigest": self.contract_digest,
+            "referenceCommit": PAIRED_REFERENCE_COMMIT,
+            "qualification": qualification,
+            "primaryEndpoint": endpoint,
+        }
+
+    def endpoint(self, ratios: Sequence[float]) -> dict[str, object]:
+        """Evaluate ratios with the production endpoint estimator."""
+        policy = validate_paired_policy(self.contract)
+        complete_blocks = int(policy["blocks"]["completeBlocks"])
+        population = [
+            float(ratios[index % len(ratios)])
+            for index in range(complete_blocks)
+        ]
+        endpoint = paired.prepare_endpoint(
+            population,
+            identity="target-workload-geometric-mean",
+            metric=policy["primaryFamily"]["metric"],
+            budget=float(
+                policy["practicalBudgets"][policy["primaryFamily"]["metric"]]
+            ),
+            policy=policy,
+        )
+        endpoint.update(
+            {
+                "role": "required",
+                "aggregation": "geometric-mean-across-workloads",
+                "state": "pending-run-wide-adjustment",
+                "runWideRejected": None,
+            }
+        )
+
+        return endpoint
+
+    def characterized_evaluations(
+        self,
+        *,
+        regression_multiple: float | None = None,
+    ) -> list[dict[str, object]]:
+        """Replay hosted populations, optionally injecting one real effect."""
+        sources = self.characterization["sources"]
+        evaluations = []
+        for index, target in enumerate(self.contract["requiredTargets"]):
+            ratios = list(
+                sources[index % len(sources)]["aggregateBlockRatios"]
+            )
+            if index == 0 and regression_multiple is not None:
+                ratios = [value * regression_multiple for value in ratios]
+            evaluations.append(
+                self.evaluation(target, endpoint=self.endpoint(ratios))
+            )
+
+        return evaluations
+
+    def test_characterized_hosted_populations_qualify_run_wide(self) -> None:
+        """Replay the planning artifacts without inventing a false regression."""
+        result = paired.evaluate_scorecard_qualification(
+            self.characterized_evaluations(),
+            self.contract,
+            contract_digest=self.contract_digest,
+        )
+
+        self.assertEqual("qualified", result["qualification"])
+        self.assertEqual(6, result["multipleComparison"]["requiredTargetCount"])
+        self.assertFalse(any(item["runWideRejected"] for item in result["targets"]))
+
+    def test_a_relevant_injected_regression_is_recovered_run_wide(self) -> None:
+        """Recover a 30 percent aggregate regression in the hosted populations."""
+        result = paired.evaluate_scorecard_qualification(
+            self.characterized_evaluations(regression_multiple=1.30),
+            self.contract,
+            contract_digest=self.contract_digest,
+        )
+
+        self.assertEqual("regression", result["qualification"])
+        self.assertEqual(1, sum(
+            item["state"] == "regression" for item in result["targets"]
+        ))
+
+    def test_a_locally_small_probability_does_not_bypass_run_wide_holm(self) -> None:
+        """Require the first Holm boundary rather than a per-target alpha."""
+        evaluations = self.characterized_evaluations()
+        endpoint = evaluations[0]["primaryEndpoint"]
+        endpoint["pValue"] = 0.01
+        endpoint["lowerBound"] = float(endpoint["budget"]) * 1.1
+        target = evaluations[0]["target"]
+
+        result = paired.evaluate_scorecard_qualification(
+            evaluations,
+            self.contract,
+            contract_digest=self.contract_digest,
+        )
+
+        self.assertEqual("qualified", result["qualification"])
+        adjusted = next(
+            item for item in result["targets"] if item["target"] == target
+        )
+        self.assertFalse(adjusted["runWideRejected"])
+
+    def test_an_incomplete_target_family_is_invalid_evidence(self) -> None:
+        """Never turn a partial LTS matrix into a run-wide qualification."""
+        with self.assertRaises(InvalidEvidenceError):
+            paired.evaluate_scorecard_qualification(
+                self.characterized_evaluations()[:-1],
+                self.contract,
+                contract_digest=self.contract_digest,
+            )
 
 
 def contract_for(workload_ids: Sequence[str]) -> dict[str, object]:
@@ -394,7 +553,7 @@ class PairedEvidenceBuilder(PerformanceEvidenceFixtureMixin):
             definition["id"]: definition
             for definition in self.contract["workloads"]
         }
-        blocks = len(prepared[0]["blocks"]) if prepared else 12
+        blocks = len(prepared[0]["blocks"]) if prepared else COMPLETE_BLOCKS
 
         return [
             {
@@ -564,7 +723,7 @@ class PairedEvidenceBuilder(PerformanceEvidenceFixtureMixin):
             "candidateWorkloads": self.candidate_workloads(prepared),
             "executionOrder": (
                 self.execution_order(
-                    len(prepared[0]["blocks"]) if prepared else 12
+                    len(prepared[0]["blocks"]) if prepared else COMPLETE_BLOCKS
                 )
                 if order is ...
                 else order
@@ -595,10 +754,29 @@ class BoundaryDecisionTests(unittest.TestCase):
     def test_an_unchanged_candidate_qualifies(self) -> None:
         """Qualify a candidate that measures like its reference."""
         result = self.evaluate(
-            [{"workloadId": "query.materialize", "blocks": uniform_blocks(12, 1.0)}]
+            [{"workloadId": "query.materialize", "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.0)}]
         )
 
-        self.assertEqual("qualified", result["qualification"])
+        self.assertEqual("pending-run-wide-adjustment", result["qualification"])
+        self.assertEqual(
+            self.contract["pairedPolicy"]["sensitivity"]["minimumPower"],
+            result["sensitivity"]["minimumPower"],
+        )
+
+    def test_excessive_log_ratio_dispersion_is_a_measurement_condition(self) -> None:
+        """Refuse a population that cannot support its registered power claim."""
+        ratios = (0.5, 2.0) * (COMPLETE_BLOCKS // 2)
+        blocks = [
+            block([100.0] * 16, [100.0 * ratio] * 16)
+            for ratio in ratios
+        ]
+
+        result = self.evaluate([{"workloadId": "unstable", "blocks": blocks}])
+
+        self.assertEqual("measurement-inconclusive", result["qualification"])
+        self.assertEqual(
+            "insufficient-sensitivity", result["primaryEndpoint"]["state"]
+        )
 
     def test_a_candidate_far_outside_its_budget_is_a_regression(self) -> None:
         """Report a regression when the interval sits above the budget.
@@ -607,48 +785,56 @@ class BoundaryDecisionTests(unittest.TestCase):
         1.60x with consistent blocks leaves no reading under which it complies.
         """
         result = self.evaluate(
-            [{"workloadId": "json.compare", "blocks": uniform_blocks(12, 1.60)}]
+            [{"workloadId": "json.compare", "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.60)}]
         )
 
-        self.assertEqual("regression", result["qualification"])
+        self.assertEqual("pending-run-wide-adjustment", result["qualification"])
         primary = [item for item in result["results"]
                    if item["metric"] == "normalizedMedian"][0]
-        self.assertEqual("regression", primary["state"])
+        self.assertEqual("observed-above-budget", primary["state"])
         self.assertGreater(primary["lowerBound"], primary["budget"])
 
-    def test_a_candidate_straddling_its_budget_is_inconclusive(self) -> None:
-        """Withhold a verdict when the interval crosses the budget.
-
-        This is the case the decision exists for: the evidence neither clears
-        the candidate nor convicts it, so the release is blocked without
-        asserting a regression.
-        """
+    def test_a_candidate_straddling_its_budget_reports_uncertainty(self) -> None:
+        """Report overlap without choosing a fresh population after seeing it."""
         result = self.evaluate(
             [{
                 "workloadId": "write.savechanges",
-                "blocks": uniform_blocks(12, 1.15, spread=0.06),
+                "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.15, spread=0.005),
             }]
         )
 
-        self.assertEqual("inconclusive", result["qualification"])
+        primary = [
+            item
+            for item in result["results"]
+            if item["metric"] == "normalizedMedian"
+        ][0]
+        self.assertEqual("pending-run-wide-adjustment", result["qualification"])
+        self.assertEqual("observed-overlap", primary["state"])
+        self.assertGreater(result["uncertainResults"], 0)
 
-    def test_one_regression_decides_a_run_of_many_workloads(self) -> None:
-        """Let a single convicted workload decide the whole comparison."""
+    def test_one_workload_signal_remains_observational(self) -> None:
+        """Keep one relative workload signal from becoming a false run verdict."""
         tests = [
-            {"workloadId": f"quiet.{index}", "blocks": uniform_blocks(12, 1.0)}
+            {"workloadId": f"quiet.{index}", "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.0)}
             for index in range(8)
         ]
         tests.append(
-            {"workloadId": "loud", "blocks": uniform_blocks(12, 1.90)}
+            {"workloadId": "loud", "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.90)}
         )
 
         result = self.evaluate(tests)
 
-        self.assertEqual("regression", result["qualification"])
+        self.assertEqual("pending-run-wide-adjustment", result["qualification"])
+        loud = next(
+            item for item in result["results"]
+            if item["workloadId"] == "loud"
+            and item["metric"] == "normalizedMedian"
+        )
+        self.assertEqual("observed-above-budget", loud["state"])
 
     def test_evaluation_is_reproducible(self) -> None:
         """Produce the same verdict and the same bounds on a second run."""
-        tests = [{"workloadId": "stable", "blocks": uniform_blocks(12, 1.08)}]
+        tests = [{"workloadId": "stable", "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.08)}]
 
         first = self.evaluate(tests)
         second = self.evaluate(tests)
@@ -666,14 +852,14 @@ class BoundaryDecisionTests(unittest.TestCase):
         result = self.evaluate(
             [{
                 "workloadId": "on.the.line",
-                "blocks": uniform_blocks(12, 1.05, spread=0.04),
+                "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.05, spread=0.04),
             }]
         )
 
         primary = [item for item in result["results"]
                    if item["metric"] == "normalizedMedian"][0]
-        self.assertGreater(primary["upperBound"], primary["budget"])
-        self.assertEqual("qualified", primary["state"])
+        self.assertGreaterEqual(primary["upperBound"], primary["budget"])
+        self.assertEqual("observed-within-budget", primary["state"])
 
     def test_a_significant_result_inside_its_budget_is_not_a_regression(self) -> None:
         """Keep statistical detectability separate from practical impact.
@@ -685,15 +871,14 @@ class BoundaryDecisionTests(unittest.TestCase):
         result = self.evaluate(
             [{
                 "workloadId": "detectable.but.small",
-                "blocks": uniform_blocks(12, 1.25, spread=0.03),
+                "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.18, spread=0.01),
             }]
         )
 
         primary = [item for item in result["results"]
                    if item["metric"] == "normalizedMedian"][0]
-        self.assertTrue(primary["familyRejected"])
-        self.assertLess(primary["lowerBound"], primary["budget"])
-        self.assertEqual("inconclusive", primary["state"])
+        self.assertLessEqual(primary["lowerBound"], primary["budget"])
+        self.assertEqual("observed-overlap", primary["state"])
 
 
 class EvidenceShapeTests(unittest.TestCase):
@@ -874,7 +1059,7 @@ class EvidenceAssemblyTests(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for block in range(1, 13):
+            for block in range(1, COMPLETE_BLOCKS + 1):
                 self.write_block(root, block, "reference")
                 self.write_block(root, block, "candidate")
 
@@ -894,7 +1079,7 @@ class EvidenceAssemblyTests(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for block in range(1, 13):
+            for block in range(1, COMPLETE_BLOCKS + 1):
                 self.write_block(root, block, "reference")
                 self.write_block(root, block, "candidate")
 
@@ -905,7 +1090,10 @@ class EvidenceAssemblyTests(unittest.TestCase):
         )
         built = builder.evidence(
             [
-                {"workloadId": workload["id"], "blocks": uniform_blocks(12, 1.0)}
+                {
+                    "workloadId": workload["id"],
+                    "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.0),
+                }
                 for workload in self.contract["workloads"]
             ]
         )
@@ -934,7 +1122,7 @@ class EvidenceAssemblyTests(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for block in range(1, 13):
+            for block in range(1, COMPLETE_BLOCKS + 1):
                 self.write_block(root, block, "reference")
                 self.write_block(root, block, "candidate")
 
@@ -945,12 +1133,16 @@ class EvidenceAssemblyTests(unittest.TestCase):
             for workload in self.report["workloads"]
         }
         for test in evidence["tests"]:
-            self.assertEqual(12, len(test["latencies"]))
+            self.assertEqual(COMPLETE_BLOCKS, len(test["latencies"]))
             for measured in test["latencies"]:
                 for side in ("reference", "candidate"):
                     self.assertEqual(expected[test["workloadId"]], measured[side])
 
-    def assemble(self, root: Path, blocks: int = 12) -> dict[str, object]:
+    def assemble(
+        self,
+        root: Path,
+        blocks: int = COMPLETE_BLOCKS,
+    ) -> dict[str, object]:
         """Assemble with fixed identities."""
         return paired.assemble_evidence(
             root,
@@ -1120,7 +1312,7 @@ class EvidenceAssemblyTests(unittest.TestCase):
     def test_assembled_evidence_evaluates(self) -> None:
         """Round-trip assembly into the evaluator that consumes it."""
         contract = self.contract
-        minimum = contract["pairedPolicy"]["blocks"]["minimumCompleteBlocks"]
+        minimum = contract["pairedPolicy"]["blocks"]["completeBlocks"]
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for block in range(1, minimum + 1):
@@ -1132,7 +1324,7 @@ class EvidenceAssemblyTests(unittest.TestCase):
                 evidence, contract, contract_digest=PAIRED_CONTRACT_DIGEST
             )
 
-            self.assertEqual("qualified", result["qualification"])
+            self.assertEqual("pending-run-wide-adjustment", result["qualification"])
             self.assertTrue(result["absoluteCeilings"])
             self.assertTrue(result["resourceResults"])
             self.assertTrue(result["soakScenarios"])
@@ -1164,7 +1356,10 @@ class AbsoluteCeilingTests(unittest.TestCase):
         """
         families = sorted(self.contract["familyBudgets"])
         tests = [
-            {"workloadId": f"absolute.{family}", "blocks": uniform_blocks(12, 1.0)}
+            {
+                "workloadId": f"absolute.{family}",
+                "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.0),
+            }
             for family in families
         ]
 
@@ -1182,7 +1377,7 @@ class AbsoluteCeilingTests(unittest.TestCase):
         """Establish the baseline the breach cases are measured against."""
         result = self.evaluate()
 
-        self.assertEqual("qualified", result["qualification"])
+        self.assertEqual("pending-run-wide-adjustment", result["qualification"])
         self.assertTrue(all(check["passed"] for check in result["absoluteCeilings"]))
 
     def test_an_allocation_ceiling_breach_is_a_regression(self) -> None:
@@ -1248,7 +1443,12 @@ class AbsoluteCeilingTests(unittest.TestCase):
     def test_missing_candidate_measurements_are_invalid_evidence(self) -> None:
         """Refuse to qualify when there is nothing to hold to the ceiling."""
         evidence = self.builder.evidence(
-            [{"workloadId": "steady", "blocks": uniform_blocks(12, 1.0)}]
+            [
+                {
+                    "workloadId": "steady",
+                    "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.0),
+                }
+            ]
         )
         evidence["candidateWorkloads"] = []
 
@@ -1279,7 +1479,10 @@ class CandidateCeilingBindingTests(unittest.TestCase):
     def document(self) -> dict[str, object]:
         """Return evidence whose workloads carry their registered family."""
         tests = [
-            {"workloadId": f"absolute.{family}", "blocks": uniform_blocks(12, 1.0)}
+            {
+                "workloadId": f"absolute.{family}",
+                "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.0),
+            }
             for family in self.families
         ]
 
@@ -1529,15 +1732,15 @@ class ResourceFamilyTests(unittest.TestCase):
 
     def test_unchanged_resources_qualify(self) -> None:
         """Accept a candidate that allocates and collects like its reference."""
-        result = self.evaluate(resource_blocks(12))
+        result = self.evaluate(resource_blocks(COMPLETE_BLOCKS))
 
-        self.assertEqual("qualified", result["qualification"])
+        self.assertEqual("pending-run-wide-adjustment", result["qualification"])
 
     def test_allocation_above_its_budget_is_a_regression(self) -> None:
         """Reject an allocation increase the latency families cannot see."""
         factor = self.budget("allocatedBytesPerOperation") * 2
 
-        result = self.evaluate(resource_blocks(12, allocation=factor))
+        result = self.evaluate(resource_blocks(COMPLETE_BLOCKS, allocation=factor))
 
         self.assertEqual("regression", result["qualification"])
         observed = [
@@ -1551,13 +1754,13 @@ class ResourceFamilyTests(unittest.TestCase):
         """Reject a collection increase the latency families cannot see."""
         factor = self.budget("gen2CollectionsPer1000") * 2
 
-        result = self.evaluate(resource_blocks(12, collections=factor))
+        result = self.evaluate(resource_blocks(COMPLETE_BLOCKS, collections=factor))
 
         self.assertEqual("regression", result["qualification"])
 
     def test_allocating_where_the_reference_allocated_nothing_is_a_regression(self) -> None:
         """Decide the zero-reference case instead of dividing by it."""
-        resources = resource_blocks(12)
+        resources = resource_blocks(COMPLETE_BLOCKS)
         for block in resources:
             block["reference"]["allocatedBytesPerOperation"] = 0.0
             block["candidate"]["allocatedBytesPerOperation"] = 64.0
@@ -1568,19 +1771,24 @@ class ResourceFamilyTests(unittest.TestCase):
 
     def test_two_sides_that_both_allocated_nothing_qualify(self) -> None:
         """Treat an unchanged zero as unchanged, not as an undefined ratio."""
-        resources = resource_blocks(12)
+        resources = resource_blocks(COMPLETE_BLOCKS)
         for block in resources:
             for side in ("reference", "candidate"):
                 block[side]["allocatedBytesPerOperation"] = 0.0
 
         result = self.evaluate(resources)
 
-        self.assertEqual("qualified", result["qualification"])
+        self.assertEqual("pending-run-wide-adjustment", result["qualification"])
 
     def test_a_run_without_resource_measurements_is_invalid_evidence(self) -> None:
         """Reject evidence that dropped the resource side of the comparison."""
         evidence = self.builder.evidence(
-            [{"workloadId": "steady", "blocks": uniform_blocks(12, 1.0)}]
+            [
+                {
+                    "workloadId": "steady",
+                    "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.0),
+                }
+            ]
         )
         evidence["tests"][0].pop("resources")
 
@@ -1609,7 +1817,12 @@ class ExecutionOrderTests(unittest.TestCase):
 
     def evaluate(self, order: dict[str, object] | None) -> dict[str, object]:
         """Evaluate an unchanged candidate under the given recorded order."""
-        tests = [{"workloadId": "steady", "blocks": uniform_blocks(12, 1.0)}]
+        tests = [
+            {
+                "workloadId": "steady",
+                "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.0),
+            }
+        ]
 
         return paired.evaluate_paired_comparison(
             self.builder.evidence(tests, order=order), self.contract,
@@ -1618,7 +1831,9 @@ class ExecutionOrderTests(unittest.TestCase):
 
     def test_an_alternating_run_is_accepted(self) -> None:
         """Establish the baseline the rejections are measured against."""
-        self.assertEqual("qualified", self.evaluate(...)["qualification"])
+        self.assertEqual(
+            "pending-run-wide-adjustment", self.evaluate(...)["qualification"]
+        )
 
     def test_a_run_without_a_recorded_order_is_invalid_evidence(self) -> None:
         """Refuse a run that never recorded what it executed."""
@@ -1632,7 +1847,7 @@ class ExecutionOrderTests(unittest.TestCase):
         while the contract registered `A-B-B-A`, and the artifact claimed the
         latter.
         """
-        order = self.builder.execution_order(12)
+        order = self.builder.execution_order(COMPLETE_BLOCKS)
         order["executedBlockPatterns"][3] = "A-B-B-A"
 
         with self.assertRaises(InvalidEvidenceError):
@@ -1640,17 +1855,17 @@ class ExecutionOrderTests(unittest.TestCase):
 
     def test_a_fixed_starting_side_is_invalid_evidence(self) -> None:
         """Refuse a run in which one provider always measured first."""
-        order = self.builder.execution_order(12)
+        order = self.builder.execution_order(COMPLETE_BLOCKS)
         order["executedBlockPatterns"] = [
             self.policy["executionOrder"]["blockPatterns"][0]
-        ] * 12
+        ] * COMPLETE_BLOCKS
 
         with self.assertRaises(InvalidEvidenceError):
             self.evaluate(order)
 
     def test_a_run_under_another_profile_is_invalid_evidence(self) -> None:
         """Refuse measurements taken under a profile the policy did not name."""
-        order = self.builder.execution_order(12)
+        order = self.builder.execution_order(COMPLETE_BLOCKS)
         order["blockProfile"] = "scorecard"
 
         with self.assertRaises(InvalidEvidenceError):
@@ -1698,7 +1913,12 @@ class SustainedUseTests(unittest.TestCase):
         so silently skipping the report would qualify exactly the defect the
         report exists to find.
         """
-        tests = [{"workloadId": "steady", "blocks": uniform_blocks(12, 1.0)}]
+        tests = [
+            {
+                "workloadId": "steady",
+                "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.0),
+            }
+        ]
 
         with self.assertRaises(InvalidEvidenceError):
             paired.evaluate_paired_comparison(
@@ -1708,7 +1928,12 @@ class SustainedUseTests(unittest.TestCase):
 
     def test_a_soak_report_from_another_run_is_rejected(self) -> None:
         """Bind the report to the run it is presented as evidence for."""
-        tests = [{"workloadId": "steady", "blocks": uniform_blocks(12, 1.0)}]
+        tests = [
+            {
+                "workloadId": "steady",
+                "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.0),
+            }
+        ]
         foreign = self.builder.soak()
         foreign["runId"] = "some-other-run"
 
@@ -1734,7 +1959,12 @@ class EvidenceEnvelopeTests(unittest.TestCase):
         """Load the shipped contract and a complete evidence document."""
         self.contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
         self.builder = PairedEvidenceBuilder(self.contract)
-        self.tests = [{"workloadId": "steady", "blocks": uniform_blocks(12, 1.0)}]
+        self.tests = [
+            {
+                "workloadId": "steady",
+                "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.0),
+            }
+        ]
 
     def evidence(self, **overrides: object) -> dict[str, object]:
         """Return complete evidence with the given envelope overrides."""
@@ -1753,7 +1983,7 @@ class EvidenceEnvelopeTests(unittest.TestCase):
                 self.evidence(), self.contract, contract_digest=PAIRED_CONTRACT_DIGEST
             )
 
-        self.assertEqual("qualified", result["qualification"])
+        self.assertEqual("pending-run-wide-adjustment", result["qualification"])
 
     def test_a_foreign_schema_version_is_refused(self) -> None:
         """Reject a document written against a different evidence shape."""
@@ -1800,12 +2030,7 @@ class EvidenceEnvelopeTests(unittest.TestCase):
 
 
 class TerminationSemanticsTests(unittest.TestCase):
-    """Prove the runner's own convergence verdict decides the run.
-
-    The evidence carried `terminationReason` and nothing read it, so a block
-    that exhausted its sample cap on both sides still reached a clean
-    qualification.
-    """
+    """Prove sample-cap metadata remains valid and visible evidence."""
 
     WORKLOADS = ("steady",)
 
@@ -1813,7 +2038,12 @@ class TerminationSemanticsTests(unittest.TestCase):
         """Load the shipped contract."""
         self.contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
         self.builder = PairedEvidenceBuilder(self.contract)
-        self.tests = [{"workloadId": "steady", "blocks": uniform_blocks(12, 1.0)}]
+        self.tests = [
+            {
+                "workloadId": "steady",
+                "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.0),
+            }
+        ]
 
     def evaluate(self, **kwargs) -> dict[str, object]:
         """Evaluate an otherwise unchanged run."""
@@ -1826,21 +2056,21 @@ class TerminationSemanticsTests(unittest.TestCase):
         """Establish the baseline."""
         result = self.evaluate()
 
-        self.assertEqual("qualified", result["qualification"])
+        self.assertEqual("pending-run-wide-adjustment", result["qualification"])
         self.assertEqual([], result["cappedWorkloads"])
 
-    def test_a_capped_run_is_inconclusive(self) -> None:
-        """Refuse to qualify a population that never settled.
-
-        The interval can still look clean: it is computed from the very
-        samples that failed to converge.
-        """
+    def test_a_capped_run_reports_the_cap_without_forcing_a_retry(self) -> None:
+        """Stop at the registered cap and retain the fixed-sample verdict."""
         result = paired.evaluate_paired_comparison(
             self.builder.evidence(
                 [
                     {
                         "workloadId": "steady",
-                        "blocks": uniform_blocks(12, 1.0, samples=CAP_SAMPLES),
+                        "blocks": uniform_blocks(
+                            COMPLETE_BLOCKS,
+                            1.0,
+                            samples=CAP_SAMPLES,
+                        ),
                     }
                 ],
                 termination="sample_cap_reached",
@@ -1849,7 +2079,7 @@ class TerminationSemanticsTests(unittest.TestCase):
             contract_digest=PAIRED_CONTRACT_DIGEST,
         )
 
-        self.assertEqual("inconclusive", result["qualification"])
+        self.assertEqual("pending-run-wide-adjustment", result["qualification"])
         self.assertEqual(["steady"], result["cappedWorkloads"])
 
     def test_missing_termination_records_are_invalid_evidence(self) -> None:
@@ -1930,7 +2160,9 @@ class AssembledEvidenceContractTests(unittest.TestCase):
                 "workloadId": identifier,
                 "blocks": [
                     {side: list(samples) for side, samples in measured.items()}
-                    for measured in (blocks or uniform_blocks(12, 1.0))
+                    for measured in (
+                        blocks or uniform_blocks(COMPLETE_BLOCKS, 1.0)
+                    )
                 ],
             }
             for identifier in workload_ids
@@ -2005,16 +2237,45 @@ class AssembledEvidenceContractTests(unittest.TestCase):
     def test_a_block_count_outside_the_policy_is_invalid_evidence(self) -> None:
         """Refuse a declared count the policy does not permit."""
         policy = self.contract["pairedPolicy"]["blocks"]
-        for declared in (
-            policy["minimumCompleteBlocks"] - 1,
-            policy["maximumCompleteBlocks"] + 1,
-        ):
+        for declared in (policy["completeBlocks"] - 1, policy["completeBlocks"] + 1):
             with self.subTest(blockCount=declared):
                 document = self.evidence(self.registered)
                 document["blockCount"] = declared
 
                 with self.assertRaises(InvalidEvidenceError):
                     self.evaluate(document)
+
+    def test_a_consistent_nine_block_run_is_invalid_evidence(self) -> None:
+        """Refuse a self-consistent run shorter than the fixed population.
+
+        Every parallel array and the declared count agree on nine blocks. The
+        policy still requires ten, so redundant structural guards may not turn
+        an early stop into qualifying evidence.
+        """
+        registered = self.contract["pairedPolicy"]["blocks"]["completeBlocks"]
+        document = self.evidence(
+            self.registered,
+            blocks=uniform_blocks(registered - 1, 1.0),
+        )
+        self.assertEqual(registered - 1, document["blockCount"])
+
+        policy = validate_paired_policy(self.contract)
+        with self.assertRaises(InvalidEvidenceError):
+            paired.validate_paired_evidence(
+                document,
+                self.contract,
+                policy,
+                contract_digest=sha256(CONTRACT_PATH),
+            )
+        with self.assertRaises(InvalidEvidenceError):
+            paired.validate_execution_order(
+                document["executionOrder"],
+                policy,
+                registered,
+            )
+
+        with self.assertRaises(InvalidEvidenceError):
+            self.evaluate(document)
 
     def test_partial_candidate_measurements_are_invalid_evidence(self) -> None:
         """Refuse candidate blocks that cover part of the run.
@@ -2372,12 +2633,16 @@ class AssembledEvidenceContractTests(unittest.TestCase):
     def test_free_calibration_cannot_move_the_verdict(self) -> None:
         """Hold one measurement to one verdict.
 
-        A ratio of 1.30 is a regression. Rescaling the candidate's divisor by
-        the same factor turns every normalized sample back into its reference's
-        -- so with the raw latencies untouched, the release outcome moved.
+        A ratio of 1.30 is an above-budget signal pending the run-wide decision.
+        Rescaling the candidate's divisor by the same factor turns every
+        normalized sample back into its reference's -- so with the raw
+        latencies untouched, the scorecard input moved.
         """
         regressed = [
-            {"workloadId": identifier, "blocks": uniform_blocks(12, 1.30)}
+            {
+                "workloadId": identifier,
+                "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.30),
+            }
             for identifier in self.registered
         ]
         builder = PairedEvidenceBuilder(
@@ -2385,7 +2650,10 @@ class AssembledEvidenceContractTests(unittest.TestCase):
         )
         document = builder.evidence(regressed)
         document["contractDigest"] = sha256(CONTRACT_PATH)
-        self.assertEqual("regression", self.evaluate(document)["qualification"])
+        self.assertEqual(
+            "pending-run-wide-adjustment",
+            self.evaluate(document)["qualification"],
+        )
 
         for test in document["tests"]:
             for index, measured in enumerate(test["latencies"]):
@@ -2482,7 +2750,12 @@ class AssembledEvidenceContractTests(unittest.TestCase):
             ]["calibrationIntervalSamples"]
         )
         document = self.evidence(
-            self.registered, blocks=uniform_blocks(12, 1.0, samples=interval + 1)
+            self.registered,
+            blocks=uniform_blocks(
+                COMPLETE_BLOCKS,
+                1.0,
+                samples=interval + 1,
+            ),
         )
         test = document["tests"][0]
         count = len(test["blocks"][0]["candidate"])
@@ -2516,7 +2789,10 @@ class AssembledEvidenceContractTests(unittest.TestCase):
                         sample / divisor for sample in measured[side]
                     ]
 
-        self.assertEqual("qualified", self.evaluate(document)["qualification"])
+        self.assertEqual(
+            "pending-run-wide-adjustment",
+            self.evaluate(document)["qualification"],
+        )
 
     def test_the_recorded_order_must_cover_every_block(self) -> None:
         """Refuse an execution order that does not describe the run."""
@@ -2528,13 +2804,7 @@ class AssembledEvidenceContractTests(unittest.TestCase):
 
 
 class MixedTerminationDecisionTests(unittest.TestCase):
-    """Prove a capped workload cannot decide, and cannot mask a decision.
-
-    Adding `inconclusive` to the state set was not enough: `regression` still
-    outranked it, so the statistic computed from the very population that never
-    settled still convicted the provider. Withholding the capped workload has
-    to close that without hiding a real regression somewhere else.
-    """
+    """Prove the fixed population decides even when a sample cap was reached."""
 
     WORKLOADS = ("capped", "converged", "quiet",)
 
@@ -2558,35 +2828,46 @@ class MixedTerminationDecisionTests(unittest.TestCase):
                 document, self.builder.contract, contract_digest=PAIRED_CONTRACT_DIGEST
             )
 
-    def test_a_capped_workload_alone_is_only_inconclusive(self) -> None:
-        """Refuse to convict on a population that never converged."""
+    def test_a_capped_workload_remains_observational(self) -> None:
+        """Keep a fixed-sample signal visible without local multiplicity."""
         result = self.evaluate(
             [
                 {
                     "workloadId": "capped",
-                    "blocks": uniform_blocks(12, 1.6, samples=CAP_SAMPLES),
+                    "blocks": uniform_blocks(
+                        COMPLETE_BLOCKS,
+                        1.6,
+                        samples=CAP_SAMPLES,
+                    ),
                 }
             ],
             capped={"capped"},
         )
 
-        self.assertEqual("inconclusive", result["qualification"])
+        self.assertEqual("pending-run-wide-adjustment", result["qualification"])
         self.assertEqual(["capped"], result["cappedWorkloads"])
 
-    def test_a_converged_regression_still_decides(self) -> None:
-        """Keep a real regression enforceable beside an unusable measurement."""
+    def test_a_converged_signal_remains_visible_beside_a_cap(self) -> None:
+        """Retain both workload observations beside sample-cap metadata."""
         result = self.evaluate(
             [
                 {
                     "workloadId": "capped",
-                    "blocks": uniform_blocks(12, 1.6, samples=CAP_SAMPLES),
+                    "blocks": uniform_blocks(
+                        COMPLETE_BLOCKS,
+                        1.6,
+                        samples=CAP_SAMPLES,
+                    ),
                 },
-                {"workloadId": "converged", "blocks": uniform_blocks(12, 1.9)},
+                {
+                    "workloadId": "converged",
+                    "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.9),
+                },
             ],
             capped={"capped"},
         )
 
-        self.assertEqual("regression", result["qualification"])
+        self.assertEqual("pending-run-wide-adjustment", result["qualification"])
         self.assertEqual(["capped"], result["cappedWorkloads"])
 
         states = {
@@ -2594,23 +2875,25 @@ class MixedTerminationDecisionTests(unittest.TestCase):
             for item in result["results"]
             if item["metric"] == "normalizedMedian"
         }
-        self.assertEqual("inconclusive", states["capped"])
-        self.assertEqual("regression", states["converged"])
+        self.assertEqual("observed-above-budget", states["capped"])
+        self.assertEqual("observed-above-budget", states["converged"])
 
-    def test_a_capped_workload_is_withheld_from_the_family(self) -> None:
-        """Keep an unusable p-value out of the false-discovery threshold.
-
-        Leaving it in the family would move the rejection bar for every
-        workload that did converge, so an unusable measurement would silently
-        change the verdict on usable ones.
-        """
+    def test_a_capped_workload_remains_in_the_registered_family(self) -> None:
+        """Prevent a cap from changing the pre-registered family population."""
         result = self.evaluate(
             [
                 {
                     "workloadId": "capped",
-                    "blocks": uniform_blocks(12, 1.6, samples=CAP_SAMPLES),
+                    "blocks": uniform_blocks(
+                        COMPLETE_BLOCKS,
+                        1.6,
+                        samples=CAP_SAMPLES,
+                    ),
                 },
-                {"workloadId": "quiet", "blocks": uniform_blocks(12, 1.0)},
+                {
+                    "workloadId": "quiet",
+                    "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.0),
+                },
             ],
             capped={"capped"},
         )
@@ -2620,8 +2903,7 @@ class MixedTerminationDecisionTests(unittest.TestCase):
         ]
         self.assertTrue(capped_entries)
         for entry in capped_entries:
-            self.assertEqual("inconclusive", entry["state"])
-            self.assertEqual("sample-cap-reached", entry["reason"])
+            self.assertEqual("observed-above-budget", entry["state"])
             self.assertNotIn("familyRejected", entry)
 
 
@@ -2860,7 +3142,7 @@ class WatchdogHierarchyTests(unittest.TestCase):
         keeps a future change from quietly reintroducing the projection that
         would force a block or coverage reduction.
         """
-        blocks = self.contract["pairedPolicy"]["blocks"]["minimumCompleteBlocks"]
+        blocks = self.contract["pairedPolicy"]["blocks"]["completeBlocks"]
         side = self.contract["profiles"]["paired-block"]["maximumTotalDurationSeconds"]
         run = self.contract["pairedPolicy"]["durations"]["maximumPairedRunSeconds"]
 
@@ -2874,7 +3156,7 @@ class WatchdogHierarchyTests(unittest.TestCase):
         to fail its own way first, or there is no evidence to retry from.
         """
         workflow = (
-            REPOSITORY_ROOT / ".github" / "workflows" / "benchmark-scorecard.yml"
+            REPOSITORY_ROOT / ".github" / "workflows" / "benchmark-target.yml"
         ).read_text(encoding="utf-8")
         # Only the jobs that measure are bounded by this budget. The selection
         # jobs download and decide; their much shorter timeout says nothing
@@ -2894,7 +3176,7 @@ class WatchdogHierarchyTests(unittest.TestCase):
                 else len(workflow)
             ]
         ]
-        self.assertTrue(measuring, "no measuring job found in the scorecard")
+        self.assertTrue(measuring, "no measuring job found in the target workflow")
         job_minutes = {
             int(value)
             for block in measuring

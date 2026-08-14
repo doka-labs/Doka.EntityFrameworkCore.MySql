@@ -140,18 +140,32 @@ number, a missing matrix cell, excessive normalized relative standard error,
 or unstable calibration. A pulse reused for several nearby workload samples is
 counted once when calibration error is calculated.
 
-Fast, idempotent work uses a fixed, checked-in operations-per-sample value. The
-runner times the complete batch and normalizes latency, allocation, and
-collection counts per operation. This keeps timer resolution and loop overhead
-from dominating sub-microsecond paths while preserving deterministic workload
+The paired release gate also binds its fixed block count to an executable
+power assurance. The assurance drives the production BCa bootstrap and one
+run-wide Holm decision over the required target endpoints, with a
+pre-registered detectable effect, a characterization-backed upper confidence
+bound for log-ratio dispersion, a simulation seed, a trial count, and
+confidence-bounded minimum power. Per-workload latency endpoints are
+observational; resource, absolute-ceiling, and soak gates remain hard. A live
+required endpoint whose cross-block dispersion exceeds the registered bound is
+a retryable measurement condition, not a qualified result with an unsupported
+sensitivity claim. Each attempt persists the realized dispersion so monthly
+automatic scorecards expose drift over time.
+
+Historical profiles use a fixed, checked-in operations-per-sample value. The
+paired profile instead derives its operation batch from a recorded pilot so
+the duration floor cannot consume the independent sample-count cap. The runner
+times the complete batch and normalizes latency, allocation, and collection
+counts per operation. This keeps timer resolution and loop overhead from
+dominating sub-microsecond paths while preserving deterministic workload
 identity. Tail statistics for these paths describe the distribution of
 per-operation-normalized batch samples, not individual OS scheduling pauses.
 Scorecard evidence starts with 256 samples for ordinary cells and 128 for
 expensive cells, with at most 25% relative standard error. Stress starts with
 512 and 256 respectively, with at most 15% relative standard error. If a
 population misses that statistical budget, the runner retains every
-observation and extends measurement in calibration-aligned blocks, up to four
-times the initial population. Existing workload and matrix deadlines bound the
+observation and extends measurement in calibration-aligned blocks, up to the
+contract-owned multiplier. Existing workload and matrix deadlines bound the
 extension. A population that remains unstable at the cap still fails. Every
 release profile therefore retains at least 100 individual observations for
 p99 without forcing stable large database writes to repeat at the same
@@ -213,7 +227,7 @@ from the server; target labels cannot substitute for observed engine identity.
 
 Absolute budgets are broad, runner-tolerant failure ceilings. They detect
 runaway complexity, accidental client work, unbounded allocation, and resource
-catastrophes. They are calibrated above the worst dual-engine local scorecard,
+catastrophes. They are calibrated above the worst required-target scorecard,
 with larger latency headroom than memory headroom because runner timing varies
 more than managed allocation.
 
@@ -248,10 +262,10 @@ below 0.01 under the expected p99 exceedance probability of 0.01. This keeps
 the tail gate sensitive to sustained regressions without treating the ordinary
 one-percent tail as a deterministic failure.
 
-The accepted baseline contains one complete MySQL 8.4 and MariaDB 11.8 pair
-for each runner class. Replacing a pair requires successful seed evaluations
-for both targets. Existing complete runner groups are retained. Duplicate or
-partial target/profile/runner tuples are rejected.
+The accepted baseline contains one complete contract-derived LTS target matrix
+for each runner class. Replacing a matrix requires successful seed evaluations
+for every required target. Existing complete runner groups are retained.
+Duplicate or partial target/profile/runner tuples are rejected.
 
 ### Sustained resource gates
 
@@ -273,25 +287,27 @@ contract, and recomputes every verdict.
 ### Automation and baseline acceptance
 
 The benchmark workflow resolves baseline compatibility and event relevance
-before starting services or either scorecard matrix job. Monthly and manual
+before starting services or any scorecard matrix job. Monthly and manual
 runs always request fresh evidence. A `main` push requests fresh evidence when
 the shared release-evidence classifier detects a provider, benchmark, corpus,
 database-image, build, SDK, harness, evaluator, or reusable scorecard-workflow
-input. Both hosted engine scorecards then compare against the accepted
-baseline. The parent workflow, resolver, documentation, tests, and accepted
+input. The contract-derived six-target scorecard then compares against the
+candidate in paired mode, or produces historical evidence in reviewed seed
+mode. The parent workflow, resolver, documentation, tests, and accepted
 baseline output remain on the inexpensive control-plane path. Provider source
 changes never normalize their own regression threshold.
 
 Each engine execution emits a typed attempt receipt. Success selects the first
-attempt. Only an inconclusive measurement-quality result can start one retry,
-and that retry runs in a new hosted job with a fresh database service. A hard
-functional, budget, contract, or infrastructure failure stops immediately and
-cannot be masked by another attempt. Two inconclusive attempts fail closed as
-measurement-quality evidence.
+attempt. Only an interrupted measurement, or a historical environment that is
+not comparable, can start one retry, and that retry runs in a new hosted job
+with a fresh database service. A hard functional, budget, contract, or
+infrastructure failure stops immediately and cannot be masked by another
+attempt. Statistical overlap and a paired sample-cap observation are results,
+not retry states. Two retryable attempts fail closed as inconclusive evidence.
 
 The resolver compares only when the accepted baseline contains a complete
-current-contract pair for the hosted runner. A missing baseline, older
-contract, or absent runner pair selects `seed`. Malformed or partial
+current-contract matrix for the hosted runner. A missing baseline, older
+contract, or absent runner matrix selects `seed`. Malformed or partial
 current-contract evidence fails before the matrix. In seed mode, the resolver
 validates the stable open proposal before deciding whether to allocate the
 matrix. Current proposal evidence is reused. If only unrelated `main` changes
@@ -303,8 +319,8 @@ branch that changes any path other than the canonical baseline fails in the
 resolver before the matrix starts; automation never overwrites or normalizes
 that unexpected branch state.
 
-Both seed jobs must pass before automation combines and validates the complete
-MySQL and MariaDB pair. The workflow writes that candidate to a stable
+Every seed job must pass before automation combines and validates the complete
+LTS target matrix. The workflow writes that candidate to a stable
 automation branch and opens or updates one pull request. It enables squash
 auto-merge through a private, repository-scoped GitHub App but never approves
 its proposal. Only the proposal-update jobs receive `GITHUB_TOKEN` contents
@@ -363,7 +379,7 @@ from drifting apart. Workflow concurrency queues later pushes instead of
 cancelling a scorecard that already started; an unrelated queued push then
 reduces to the inexpensive no-op or synchronization path.
 
-Every release-candidate run remains strict: no matching accepted runner pair
+Every release-candidate run remains strict: no matching accepted runner matrix
 is a hard failure during the inexpensive preflight. Seed mode still enforces
 the complete workload, absolute budgets, statistics, allocation, GC, soak,
 environment identity, and host admission; it omits only the unavailable
@@ -376,7 +392,7 @@ The release-candidate workflow calls the reusable scorecard once for the exact
 release commit. Its import stages verify each selected attempt against the
 engine target, commit, selection receipt, and evaluation digest before copying
 the complete raw evidence into the release evidence directory. The release
-candidate verifies the imported dual-engine selections and does not repeat the
+candidate verifies the imported target-matrix selections and does not repeat the
 measurement or classify the same reports under a second run identity.
 
 Smoke, scorecard, and stress runs have hard total deadlines of 10 minutes,
@@ -407,8 +423,8 @@ receipts at every major stage instead of one global deadline.
 - Good, because absolute, historical, and sustained-resource regressions are
   separately diagnosable.
 - Bad, because a new runner class or evidence contract requires review and
-  acceptance of one dual-engine seed candidate before strict comparisons and
-  release qualification can pass.
+  acceptance of one complete LTS-matrix seed candidate before strict
+  comparisons and release qualification can pass.
 - Bad, because the full scorecard and soak corpus is intentionally unsuitable
   for every pull request.
 
@@ -564,10 +580,10 @@ A baseline update requires:
 - 2026-08-07: Isolated the measured scorecard in a reusable workflow. The
   parent benchmark workflow and its event resolver are now an explicitly cheap
   control plane, so orchestration-only changes cannot allocate the hosted
-  MySQL and MariaDB benchmark matrix.
+  contract-derived LTS benchmark matrix.
 - 2026-08-07: Unified hosted-push and release-candidate performance relevance.
   Provider, benchmark, database-image, build, SDK, harness, evaluator, and
-  reusable scorecard changes now run both hosted engine scorecards on `main`.
+  reusable scorecard changes now run every hosted LTS scorecard on `main`.
   Proposal health cannot independently allocate that work after an unrelated
   push.
 - 2026-08-08: Added typed scorecard attempt receipts and one fresh-runner retry
@@ -575,6 +591,11 @@ A baseline update requires:
   terminal. The release-candidate workflow now imports target-, commit-, and
   digest-bound evidence from the single reusable scorecard instead of running
   or evaluating the performance matrix twice.
+- 2026-08-13: Expanded accepted baselines, automated scorecards, and release
+  qualification from two representative engines to the complete active LTS
+  target matrix derived from the performance contract. Registered a fixed
+  ten-block paired population with executable power assurance and removed
+  result-driven statistical retries.
 
 ### Implementation References
 
@@ -583,6 +604,7 @@ A baseline update requires:
 - `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks`
 - `eng/benchmark.sh`
 - `eng/performance/workflow_state.py`
+- `eng/performance/sensitivity.py`
 - `eng/performance/cli.py`
 - `eng/performance/check-benchmark-ratios.sh`
 - `eng/tests/test_performance_contract.py`
@@ -593,7 +615,9 @@ A baseline update requires:
 - `eng/tests/test_benchmark_ratio_gate.py`
 - `eng/tests/test_benchmark_workflow_state.py`
 - `.github/workflows/benchmark.yml`
+- `.github/workflows/benchmark-smoke.yml`
 - `.github/workflows/benchmark-scorecard.yml`
+- `.github/workflows/benchmark-target.yml`
 - `.github/workflows/release-candidate.yml`
 - `eng/release-candidate.sh`
 

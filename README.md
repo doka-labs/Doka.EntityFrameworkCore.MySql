@@ -395,13 +395,14 @@ bash ./eng/check-publication-readiness.sh # verifies provider completeness
 
 ## Performance and Memory Evidence
 
-The hosted performance workflow executes 55 named provider workloads across
-MySQL 8.4 and MariaDB 11.8. Normal comparisons alternate a reference provider
-and the candidate provider on one allocated runner. Reviewed baseline seeding
-uses the historical scorecard only when no compatible reference pair exists.
-The matrix covers sync and async execution, compiled queries, retry, diagnostic
-listeners, context and connection pooling, concurrency, data sizes, batch
-sizes, JSON, spatial materialization, migrations, and HiLo allocation.
+The hosted performance workflow executes 55 named provider workloads against
+every active MySQL and MariaDB LTS target in the support contract. Normal
+comparisons alternate a reference provider and the candidate provider for ten
+pre-registered blocks on one allocated runner. Reviewed baseline seeding uses
+the historical scorecard only when no compatible six-target runner matrix
+exists. The workloads cover sync and async execution, compiled queries, retry,
+diagnostic listeners, context and connection pooling, concurrency, data sizes,
+batch sizes, JSON, spatial materialization, migrations, and HiLo allocation.
 
 Scorecard evidence includes raw and workload-local calibration samples,
 median, p95, p99, standard error, managed allocation, GC counts, retained
@@ -412,11 +413,13 @@ seed-only matching-runner historical budgets, allocation limits, and six
 sustained resource invariants must all pass.
 
 Release qualification does not compare measurements from different machines.
-For each engine, it alternates a reference provider and the candidate provider
-on one allocated runner, applies the registered paired statistical policy and
-absolute ceilings, and retains the raw measurements with the candidate. The
-same paired comparison provides early warning on performance-relevant `main`
-changes and the monthly refresh. It neither qualifies nor blocks a release.
+For each target, it applies the registered paired statistical policy, absolute
+ceilings, and sustained resource gates, then retains the raw measurements with
+the candidate. Statistical overlap is reported as no detected regression; it
+does not trigger result-driven resampling. Confirmed regressions, absolute or
+resource budget violations, and invalid evidence fail closed. The same paired
+comparison provides early warning on performance-relevant `main` changes and
+the monthly refresh; only tag-bound evidence qualifies a release.
 
 Run a fast structural check:
 

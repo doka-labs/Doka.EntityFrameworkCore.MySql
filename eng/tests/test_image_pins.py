@@ -1,7 +1,7 @@
 """Contract tests for the database image pins and the gate that holds them.
 
-Dependabot only edits the Compose stack, while the same pin also lives in two
-workflows, the performance contract, and a C# constant. Without a gate, an
+Dependabot only edits the Compose stack, while the same pin also lives in the
+performance contract and a C# constant. Without a gate, an
 accepted image update leaves those behind and a candidate measures one engine
 version while claiming another.
 
@@ -30,9 +30,8 @@ GATE = REPOSITORY_ROOT / "eng" / "quality" / "check-image-pins.py"
 COMPOSE = "docker/compose.yml"
 CSHARP = "tests/Doka.EntityFrameworkCore.MySql.TestUtilities/TestDatabaseImages.cs"
 CI = ".github/workflows/ci.yml"
-SCORECARD = ".github/workflows/benchmark-scorecard.yml"
 CONTRACT = "benchmarks/performance-contract.json"
-MIRRORS = (CI, SCORECARD, CONTRACT, CSHARP)
+MIRRORS = (CI, CONTRACT, CSHARP)
 
 TARGETS = (
     "mysql84",
@@ -181,22 +180,22 @@ class ImagePinDriftTests(unittest.TestCase):
     def test_a_removed_occurrence_is_rejected(self) -> None:
         """Reject one occurrence going missing while its siblings remain."""
         self.edit(CI, compose_pin("mysql84"), "postgres:17", 1)
-        self.assertRejected("expected 3")
+        self.assertRejected("expected 2")
 
     def test_an_added_occurrence_is_rejected(self) -> None:
         """Reject an occurrence the contract does not account for."""
         lines = (self.root / CI).read_text(encoding="utf-8").splitlines(keepends=True)
         for index, line in enumerate(lines):
-            if compose_pin("mariadb118") in line:
+            if compose_pin("mysql84") in line:
                 lines.insert(index + 1, line)
                 break
         (self.root / CI).write_text("".join(lines), encoding="utf-8")
 
-        self.assertRejected("expected 1")
+        self.assertRejected("expected 2")
 
     def test_an_unpinned_engine_reference_is_rejected(self) -> None:
         """Reject an engine image the Compose stack does not declare."""
-        self.edit(CI, compose_pin("mariadb118"), "mariadb:11.9.0@sha256:" + "b" * 64, 1)
+        self.edit(CI, compose_pin("mysql84"), "mariadb:11.9.0@sha256:" + "b" * 64, 1)
         self.assertRejected("does not pin")
 
     def test_a_missing_csharp_constant_is_rejected(self) -> None:

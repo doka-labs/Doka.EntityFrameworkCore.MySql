@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "kind": "paired-dispersion-characterization",
+  "decisionUse": "planning-only-not-qualification",
+  "sourceWorkflowRunId": 31671904108,
+  "sourceCommit": "2bcdff188b2d218b6f19bc4f026a22f236808596",
+  "referenceCommit": "a53e5c370483198ed1aae7de706ba8af76fa8e33",
+  "contractDigest": "3866912eef0b993d3077993e0971be4cfde7152f23c0577214e1cebe455d375d",
+  "runnerClass": "github-ubuntu-latest-x64",
+  "endpoint": {
+    "metric": "normalizedMedian",
+    "aggregation": "geometric-mean-across-workloads"
+  },
+  "confidenceBound": {
+    "method": "nist-one-sided-chi-square-upper-standard-deviation",
+    "confidenceLevel": 0.99,
+    "degreesOfFreedom": 7,
+    "lowerTailCriticalValue": 1.239,
+    "observedMaximumLogRatioStandardDeviation": 0.025445185090747145,
+    "upperLogRatioStandardDeviation": 0.06048100249438095
+  },
+  "sources": [
+    {
+      "target": "mariadb118",
+      "attempt": 1,
+      "runId": "github-31671904108-mariadb118-attempt-1",
+      "artifactId": 9171263077,
+      "pairedEvidenceSha256": "3646317a23eabc80505a2c5fd8c75bb97c85693190c23844ac02dc3dd9c7f746",
+      "logRatioStandardDeviation": 0.012661335586467266,
+      "aggregateBlockRatios": [
+        1.0010050722830286,
+        0.9949785106792136,
+        1.008008469899742,
+        1.0105964783282257,
+        0.9918808826062037,
+        1.0167321229693584,
+        0.9763938642637776,
+        1.0030221846311538
+      ]
+    },
+    {
+      "target": "mariadb118",
+      "attempt": 2,
+      "runId": "github-31671904108-mariadb118-attempt-2",
+      "artifactId": 9172796834,
+      "pairedEvidenceSha256": "c5388c382553708a83dd1086acf763f118aeec563793753618236673b8da3582",
+      "logRatioStandardDeviation": 0.025445185090747145,
+      "aggregateBlockRatios": [
+        0.9690371879938219,
+        1.0310133781449768,
+        0.9985629952816295,
+        0.9536830635188686,
+        1.000490890305917,
+        1.0023112664125746,
+        1.0191030398217287,
+        1.007117209516928
+      ]
+    },
+    {
+      "target": "mysql84",
+      "attempt": 1,
+      "runId": "github-31671904108-mysql84-attempt-1",
+      "artifactId": 9171749780,
+      "pairedEvidenceSha256": "4d4b3df4ad4df2b1c771f8bcfa4da06d41c07111667385d57a0015fcc2790618",
+      "logRatioStandardDeviation": 0.011993621682059103,
+      "aggregateBlockRatios": [
+        0.984994658040563,
+        0.9959689644927759,
+        0.9974379192591079,
+        0.9775836746028251,
+        0.9783185541938795,
+        1.00414874686978,
+        0.9743271197699495,
+        1.0016784965192245
+      ]
+    },
+    {
+      "target": "mysql84",
+      "attempt": 2,
+      "runId": "github-31671904108-mysql84-attempt-2",
+      "artifactId": 9173753818,
+      "pairedEvidenceSha256": "6db1d86d8187d196c3881bdd690b8dc8c238edc94b5fbb0756f840f16822524d",
+      "logRatioStandardDeviation": 0.010257638006897557,
+      "aggregateBlockRatios": [
+        1.006517877513768,
+        0.9877032709266329,
+        1.002182483509653,
+        1.0185587334254387,
+        1.0101072295062763,
+        1.014267881839232,
+        0.993822554675634,
+        1.0082606986468747
+      ]
+    }
+  ]
+}

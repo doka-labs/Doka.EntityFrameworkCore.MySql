@@ -55,9 +55,10 @@ QUALIFICATION_STATES = (
     "invalid-evidence",
 )
 
-# Only an infrastructure or sampling condition may be retried. A regression is
-# a verdict about the code and a retry could only select it away; invalid
-# evidence cannot be repaired by measuring again under the same defect.
+# Only an infrastructure or interrupted-measurement condition may be retried.
+# Statistical overlap is a reported fixed-sample outcome, never an attempt
+# state. A regression is a verdict about the code and a retry could only select
+# it away; invalid evidence cannot be repaired under the same defect.
 RETRYABLE_STATES = frozenset(
     {"measurement-inconclusive", "environment-not-comparable"}
 )
@@ -148,12 +149,16 @@ EVALUATION_CONTRACTS: dict[str, dict[str, Any]] = {
     },
     "paired": {
         "relativePath": ("paired-evaluation.json",),
-        "schemaVersion": 2,
+        "schemaVersion": 5,
         "kind": "paired-performance-evaluation",
         # The verdict alone is not the evidence. Binding the measurements and
         # the sustained-use report by digest keeps a receipt from outliving the
         # files it was derived from.
-        "companions": ("paired-evidence.json", "paired-soak.json"),
+        "companions": (
+            "paired-evidence.json",
+            "paired-soak.json",
+            "paired-dispersion-observation.json",
+        ),
     },
 }
 
@@ -216,12 +221,20 @@ def _companion_bindings(
     evaluation_path: Path,
     artifact_root: Path,
     comparison_mode: str,
+    evaluation: dict[str, Any],
 ) -> list[dict[str, str]]:
     """Bind the files a verdict was derived from, by relative path and digest."""
     contract = EVALUATION_CONTRACTS[validate_comparison_mode(comparison_mode)]
     bindings: list[dict[str, str]] = []
     for name in contract["companions"]:
         companion = evaluation_path.with_name(name)
+        if name == "paired-dispersion-observation.json":
+            observation = load_json(companion)
+            if observation != evaluation.get("dispersionObservation"):
+                raise PerformanceEvidenceError(
+                    "Paired dispersion observation is not the evaluation's "
+                    "canonical projection."
+                )
         bindings.append(
             {
                 "relativePath": _relative_regular_file(
@@ -281,7 +294,7 @@ def record_attempt(
     companions: list[dict[str, str]] = []
     if status == "passed":
         evaluation_path = evaluation_path_for(report_directory, comparison_mode)
-        _validate_evaluation_identity(
+        evaluation = _validate_evaluation_identity(
             evaluation_path,
             target=target,
             profile=profile,
@@ -298,7 +311,7 @@ def record_attempt(
         )
         evaluation_sha256 = sha256(evaluation_path)
         companions = _companion_bindings(
-            evaluation_path, artifact_root, comparison_mode
+            evaluation_path, artifact_root, comparison_mode, evaluation
         )
 
     payload: dict[str, Any] = {

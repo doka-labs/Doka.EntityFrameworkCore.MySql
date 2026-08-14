@@ -183,6 +183,14 @@ class PerformanceEvidenceFixtureMixin:
                 }
             )
 
+        target_contract = self.contract["requiredTargets"][target]
+        image_version = target_contract["serverImage"].split(":", 1)[1].split("@", 1)[0]
+        server_version = (
+            f"{image_version}-MariaDB"
+            if target_contract["engineFamily"] == "MariaDB"
+            else image_version
+        )
+
         return {
             "schemaVersion": 5,
             "kind": "performance-workloads",
@@ -209,13 +217,9 @@ class PerformanceEvidenceFixtureMixin:
                 "hostAdmissionMetric": performance_evidence.HOST_ADMISSION_METRIC,
                 "admittedHostCpuUtilization": 0.2,
                 "maximumHostCpuUtilization": maximum_cpu_utilization,
-                "engineFamily": self.contract["requiredTargets"][target]["engineFamily"],
-                "serverVersion": (
-                    "11.8.8-MariaDB"
-                    if target == "mariadb118"
-                    else "8.4.10"
-                ),
-                "serverImage": self.contract["requiredTargets"][target]["serverImage"],
+                "engineFamily": target_contract["engineFamily"],
+                "serverVersion": server_version,
+                "serverImage": target_contract["serverImage"],
             },
             "workloads": workloads,
         }
@@ -618,12 +622,12 @@ class PerformanceEvidenceFixtureMixin:
 
         Each target carries its own run identifier because that is what the
         hosted matrix produces: one measurement job per engine, and the run
-        identifier names the job. A fixture that gave both targets the same
+        identifier names the job. A fixture that gave all targets the same
         identifier would describe a single-process local run and hide every
         defect specific to the matrix path.
         """
         paths = []
-        for target in ("mysql84", "mariadb118"):
+        for target in self.contract["requiredTargets"]:
             evaluation = self._evaluation(target)
             evaluation["runnerClass"] = runner_class
             evaluation["runId"] = f"github-1000-{target}-attempt-1"

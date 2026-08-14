@@ -22,28 +22,31 @@ class BenchmarkGateTests(unittest.TestCase):
         (_repo_root / "benchmarks" / "performance-contract.json").read_text(encoding="utf-8")
     )
 
-    def test_accepts_complete_current_run_for_both_targets(self) -> None:
-        """Accept both target-scoped workload matrices and same-run BDN controls."""
+    def test_accepts_complete_current_run_for_every_target(self) -> None:
+        """Accept every target-scoped workload matrix and same-run BDN controls."""
         with tempfile.TemporaryDirectory(prefix="doka-performance-gate-") as directory:
             root = Path(directory)
-            self._write_target(root, "mysql84")
-            self._write_target(root, "mariadb118")
+            for target in self._contract["requiredTargets"]:
+                self._write_target(root, target)
 
             result = self._run_gate(root)
 
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertIn("2 pass, 0 fail, 0 target(s) without current-run evidence", result.stdout)
+            self.assertIn("6 pass, 0 fail, 0 target(s) without current-run evidence", result.stdout)
 
     def test_missing_target_evidence_is_rejected_by_default(self) -> None:
         """Reject a run where one engine could otherwise conceal the missing family."""
         with tempfile.TemporaryDirectory(prefix="doka-performance-gate-") as directory:
             root = Path(directory)
-            self._write_target(root, "mysql84")
+            missing_target = "mariadb123"
+            for target in self._contract["requiredTargets"]:
+                if target != missing_target:
+                    self._write_target(root, target)
 
             result = self._run_gate(root)
 
             self.assertEqual(2, result.returncode)
-            self.assertIn("SKIP [mariadb118]", result.stderr)
+            self.assertIn(f"SKIP [{missing_target}]", result.stderr)
             self.assertIn("Missing current-run target evidence", result.stderr)
 
     def test_absent_evidence_cannot_report_success(self) -> None:
@@ -66,14 +69,20 @@ class BenchmarkGateTests(unittest.TestCase):
             result = self._run_gate(root, allow_missing=True)
 
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertIn("1 pass, 0 fail, 1 target(s)", result.stdout)
+            self.assertIn("1 pass, 0 fail, 5 target(s)", result.stdout)
 
     def test_rejects_same_run_benchmarkdotnet_regression(self) -> None:
         """Reject one control regression even with complete workload evidence."""
         with tempfile.TemporaryDirectory(prefix="doka-performance-gate-") as directory:
             root = Path(directory)
-            self._write_target(root, "mysql84")
-            report_path = self._write_target(root, "mariadb118")
+            failing_target = "mariadb118"
+            report_path = None
+            for target in self._contract["requiredTargets"]:
+                written = self._write_target(root, target)
+                if target == failing_target:
+                    report_path = written
+
+            self.assertIsNotNone(report_path)
             payload = json.loads(report_path.read_text(encoding="utf-8"))
             payload["Benchmarks"][1]["Statistics"]["Mean"] = 75
             report_path.write_text(json.dumps(payload), encoding="utf-8")
@@ -82,7 +91,7 @@ class BenchmarkGateTests(unittest.TestCase):
 
             self.assertEqual(1, result.returncode)
             self.assertIn("identifier-quoting-throughput", result.stderr)
-            self.assertIn("FAIL [mariadb118]", result.stderr)
+            self.assertIn(f"FAIL [{failing_target}]", result.stderr)
 
     def _write_target(
         self,

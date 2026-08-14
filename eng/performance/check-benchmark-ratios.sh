@@ -18,10 +18,10 @@ profile="${DOKA_BENCHMARK_PROFILE:-scorecard}"
 contract="${repo_root}/benchmarks/performance-contract.json"
 baseline="${DOKA_BENCHMARK_BASELINE_PATH:-${repo_root}/benchmarks/baselines/doka-benchmark-baseline.json}"
 evidence_module="eng.performance.cli"
-required_targets=(
-    "mysql84"
-    "mariadb118"
-)
+required_targets=()
+while IFS= read -r target; do
+    required_targets+=("${target}")
+done < <(jq -er '.requiredTargets | keys[]' "${contract}")
 passes=0
 failures=0
 skips=0

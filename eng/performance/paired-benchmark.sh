@@ -79,25 +79,24 @@ while IFS= read -r block_pattern; do
 done < <(
     jq -er '.pairedPolicy.executionOrder.blockPatterns[]' "${performance_contract}"
 )
-minimum_blocks="$(jq -er '.pairedPolicy.blocks.minimumCompleteBlocks' "${performance_contract}")"
-maximum_blocks="$(jq -er '.pairedPolicy.blocks.maximumCompleteBlocks' "${performance_contract}")"
-block_count="${DOKA_PAIRED_BLOCKS:-${minimum_blocks}}"
+registered_blocks="$(jq -er '.pairedPolicy.blocks.completeBlocks' "${performance_contract}")"
+block_count="${DOKA_PAIRED_BLOCKS:-${registered_blocks}}"
 
 if [[ ! "${block_count}" =~ ^[0-9]+$ ]] || (( block_count < 1 )); then
     echo "Block count '${block_count}' is not a positive number." >&2
     exit 1
 fi
-if (( block_count > maximum_blocks )); then
-    echo "Block count '${block_count}' is above the registered maximum" \
-        "${maximum_blocks}." >&2
+if (( block_count > registered_blocks )); then
+    echo "Block count '${block_count}' is above the registered fixed count" \
+        "${registered_blocks}." >&2
     exit 1
 fi
-if (( block_count < minimum_blocks )); then
+if (( block_count < registered_blocks )); then
     # Deliberately permitted so the orchestration can be exercised without
-    # paying for a full comparison. The evaluation still refuses to qualify
-    # anything below the registered minimum, so a short run can prove the
-    # plumbing and can never produce a release verdict.
-    echo "Measuring ${block_count} of the ${minimum_blocks} blocks the policy" \
+    # paying for a full comparison. The evaluation still requires the exact
+    # registered count, so a short run can prove the plumbing and can never
+    # produce a release verdict.
+    echo "Measuring ${block_count} of the ${registered_blocks} blocks the policy" \
         "registers. This run cannot qualify a release." >&2
 fi
 

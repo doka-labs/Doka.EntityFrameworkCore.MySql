@@ -198,25 +198,39 @@ public sealed class AdrRepositoryValidatorTests
                 "BenchmarkDatabaseTarget.cs"));
         Assert.Contains("DOKA_BENCHMARK_DATABASE_PORT", benchmarkTarget, StringComparison.Ordinal);
 
-        var mysqlPerformanceIndex = normalizedReleaseCandidateScript.IndexOf(
-            "run_named_stage \"performance-mysql84\" run_performance_mysql84",
+        var runAllStagesIndex = normalizedReleaseCandidateScript.IndexOf(
+            "run_all_stages() {",
             StringComparison.Ordinal);
-        var mariadbPerformanceIndex = normalizedReleaseCandidateScript.IndexOf(
-            "run_named_stage \"performance-mariadb118\" run_performance_mariadb118",
+
+        var performanceLoopIndex = normalizedReleaseCandidateScript.IndexOf(
+            "run_named_performance_stage \"${target}\"",
+            runAllStagesIndex,
             StringComparison.Ordinal);
+
+        var requiredTargetsIndex = normalizedReleaseCandidateScript.IndexOf(
+            "done < <(required_performance_targets)",
+            performanceLoopIndex,
+            StringComparison.Ordinal);
+
         var repositoryQualityIndex = normalizedReleaseCandidateScript.IndexOf(
             "run_named_stage \"quality\" run_repository_quality_gate",
+            requiredTargetsIndex,
             StringComparison.Ordinal);
+
         var repositoryTestIndex = normalizedReleaseCandidateScript.IndexOf(
             "run_named_stage \"repository-tests\" run_repository_test_gate",
+            repositoryQualityIndex,
             StringComparison.Ordinal);
+
         Assert.True(
-            mysqlPerformanceIndex >= 0
-            && mariadbPerformanceIndex > mysqlPerformanceIndex
-            && repositoryQualityIndex > mariadbPerformanceIndex
+            runAllStagesIndex >= 0
+            && performanceLoopIndex > runAllStagesIndex
+            && requiredTargetsIndex > performanceLoopIndex
+            && repositoryQualityIndex > requiredTargetsIndex
             && repositoryTestIndex > repositoryQualityIndex,
-            "Both release performance engines must run before build and database-heavy verification "
+            "Every required release performance target must run before build and database-heavy verification "
             + "can contaminate its host snapshot.");
+        Assert.Contains(".requiredTargets | keys[]", releaseCandidateScript, StringComparison.Ordinal);
         Assert.Contains("DOKA_BENCHMARK_PORT=0", releaseCandidateScript, StringComparison.Ordinal);
 
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));

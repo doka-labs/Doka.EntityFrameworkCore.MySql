@@ -76,9 +76,9 @@ conformance across every active LTS target, and the merged coverage gate. These
 lanes detect regressions caused by the change under review.
 
 The scheduled lane retains migration deployment, the EF Core floor and latest
-matrix, the MySqlConnector matrix, runtime posture, and both benchmark smoke
-targets. These detect upstream drift or environment drift, which repository
-events do not cause and cannot predict.
+matrix, the MySqlConnector matrix, runtime posture, and every benchmark smoke
+target in the performance contract. These detect upstream drift or environment
+drift, which repository events do not cause and cannot predict.
 
 The `baseline-proposal` dispatch profile continues to skip both lanes beyond
 the three required checks. That profile exists for an automated pull request
