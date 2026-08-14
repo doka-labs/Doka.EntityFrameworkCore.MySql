@@ -189,7 +189,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
     def test_dependency_review_waits_for_complete_automatic_snapshots(
         self,
     ) -> None:
-        """Use GitHub's single graph producer and fail closed on warnings."""
+        """Separate exact producer completion from graph propagation."""
         text = self.workflow("dependency-review.yml")
         review = self.job(text, "dependency-review")
         triggers = text[text.index("on:\n") : text.index("\npermissions:")]
@@ -202,8 +202,9 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("cancel-in-progress: true", text)
         self.assertNotIn("dependency-submission:", text)
         self.assertIn("contents: read", review)
+        self.assertIn("checks: read", review)
         self.assertNotIn("contents: write", review)
-        self.assertNotIn("checks: read", review)
+        self.assertIn("timeout-minutes: 30", review)
         self.assertIn(
             "uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
             review,
@@ -214,14 +215,20 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "          && github.event.pull_request.user.login "
             "!= 'dependabot[bot]'"
         )
-        self.assertEqual(1, review.count(trusted_condition))
+        self.assertEqual(2, review.count(trusted_condition))
         self.assertIn(
             "python3 -m eng.quality.dependency_snapshot_readiness verify",
             review,
         )
         self.assertIn('--base-revision "${DOKA_BASE_REVISION}"', review)
         self.assertIn('--head-revision "${DOKA_HEAD_REVISION}"', review)
-        self.assertIn("--wait-seconds 180", review)
+        self.assertEqual(1, review.count("--producer-wait-seconds 300"))
+        self.assertEqual(1, review.count("--propagation-wait-seconds 900"))
+        self.assertNotIn("--wait-seconds", review)
+        self.assertIn(".automaticSubmission.base.checkId", review)
+        self.assertIn(".automaticSubmission.head.checkId", review)
+        self.assertIn(".observedWaitSeconds.producer", review)
+        self.assertIn(".observedWaitSeconds.propagation", review)
         self.assertEqual(1, review.count("show-openssf-scorecard:"))
         self.assertIn("show-openssf-scorecard: true", review)
         self.assertNotIn("show-openssf-scorecard: false", review)
