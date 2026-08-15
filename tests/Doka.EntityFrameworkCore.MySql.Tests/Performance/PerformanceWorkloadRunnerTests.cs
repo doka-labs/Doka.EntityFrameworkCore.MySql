@@ -8,25 +8,24 @@ public sealed class PerformanceWorkloadRunnerTests
     [Fact]
     public async Task Adaptive_batch_reports_latency_and_allocations_per_operation()
     {
-        var fixedResult = await MeasureAsync(adaptiveOperationsPerSample: false);
-        var adaptiveResult = await MeasureAsync(adaptiveOperationsPerSample: true);
+        var fixedMeasurement = DeterministicMeasurementSource.CreateFixed();
+        var adaptiveMeasurement = DeterministicMeasurementSource.CreateAdaptive();
+        var fixedResult = await MeasureAsync(adaptiveOperationsPerSample: false, fixedMeasurement);
+        var adaptiveResult = await MeasureAsync(adaptiveOperationsPerSample: true, adaptiveMeasurement);
 
         Assert.Equal(1, fixedResult.OperationsPerSample);
         Assert.Equal(8, adaptiveResult.OperationsPerSample);
-
-        Assert.InRange(
-            adaptiveResult.MedianNanoseconds / fixedResult.MedianNanoseconds,
-            0.5,
-            2.0);
-        Assert.InRange(
-            (double)adaptiveResult.AllocatedBytesPerOperation
-            / fixedResult.AllocatedBytesPerOperation,
-            0.5,
-            2.0);
+        Assert.Equal(10_000_000, fixedResult.MedianNanoseconds);
+        Assert.Equal(100, fixedResult.AllocatedBytesPerOperation);
+        Assert.Equal(fixedResult.MedianNanoseconds, adaptiveResult.MedianNanoseconds);
+        Assert.Equal(fixedResult.AllocatedBytesPerOperation, adaptiveResult.AllocatedBytesPerOperation);
+        fixedMeasurement.AssertConsumed();
+        adaptiveMeasurement.AssertConsumed();
     }
 
     private static Task<PerformanceWorkloadResult> MeasureAsync(
-        bool adaptiveOperationsPerSample
+        bool adaptiveOperationsPerSample,
+        IPerformanceMeasurementSource measurementSource
     ) => PerformanceWorkloadRunner.MeasureAsync(
         new PerformanceWorkload(
             "adaptive-normalization",
@@ -51,19 +50,63 @@ public sealed class PerformanceWorkloadRunnerTests
         calibrationIntervalSamples: 32,
         maximumCalibrationRelativeStandardError: 1,
         measurementQualityPolicy: "observe",
-        CancellationToken.None);
+        CancellationToken.None,
+        measurementSource);
 
     private static ValueTask<long> ExecuteAsync(
         CancellationToken cancellationToken
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var buffer = GC.AllocateUninitializedArray<byte>(4096);
+        return ValueTask.FromResult(1L);
+    }
 
-        Thread.SpinWait(20_000);
-        GC.KeepAlive(buffer);
+    private sealed class DeterministicMeasurementSource : IPerformanceMeasurementSource
+    {
+        private readonly Queue<long> _timestamps;
+        private readonly Queue<long> _allocatedBytes;
 
-        return ValueTask.FromResult((long)buffer.Length);
+        private DeterministicMeasurementSource(
+            IEnumerable<long> timestamps,
+            IEnumerable<long> allocatedBytes
+        )
+        {
+            _timestamps = new Queue<long>(timestamps);
+            _allocatedBytes = new Queue<long>(allocatedBytes);
+        }
+
+        public long TimestampFrequency => 1000;
+
+        public static DeterministicMeasurementSource CreateFixed() => new(
+            SampleBoundaries(sampleCount: 32, elapsedTicks: 10),
+            SampleBoundaries(sampleCount: 32, elapsedTicks: 100));
+
+        public static DeterministicMeasurementSource CreateAdaptive() => new(
+            SampleBoundaries(sampleCount: 3, elapsedTicks: 10)
+                .Concat(SampleBoundaries(sampleCount: 32, elapsedTicks: 80)),
+            SampleBoundaries(sampleCount: 32, elapsedTicks: 800));
+
+        public long GetTimestamp() => _timestamps.Dequeue();
+
+        public long GetTotalAllocatedBytes() => _allocatedBytes.Dequeue();
+
+        public void AssertConsumed()
+        {
+            Assert.Empty(_timestamps);
+            Assert.Empty(_allocatedBytes);
+        }
+
+        private static IEnumerable<long> SampleBoundaries(
+            int sampleCount,
+            long elapsedTicks
+        )
+        {
+            for (var sample = 0; sample < sampleCount; sample++)
+            {
+                yield return 0;
+                yield return elapsedTicks;
+            }
+        }
     }
 }
 
