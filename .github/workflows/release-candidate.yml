@@ -198,7 +198,6 @@ jobs:
             deadline_seconds: 2400
 
     env:
-      DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
       DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: ${{ matrix.deadline_seconds }}
       DOKA_RELEASE_CANDIDATE_RESUME: 1
       DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/${{ matrix.stage }}
@@ -236,18 +235,6 @@ jobs:
           path: artifacts
           if-no-files-found: warn
           retention-days: 7
-
-  # The one measurement the tag performs. It is safe here precisely because it
-  # is paired: reference and candidate run in the same allocated job, so no
-  # processor mismatch and no historical comparator can fail it for an
-  # infrastructure reason. What remains is a transient measurement condition,
-  # which reruns on the same tag, or a genuine regression, which needs a source
-  # change and therefore a new tag in any design.
-  performance-qualification:
-    needs: preflight
-    uses: ./.github/workflows/benchmark-scorecard.yml
-    with:
-      comparison_mode: paired
 
   sbom:
     needs: foundation
@@ -302,7 +289,6 @@ jobs:
     needs:
       - foundation
       - engine-contracts
-      - performance-qualification
       - sbom
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -312,7 +298,6 @@ jobs:
       contents: read
 
     env:
-      DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-latest-x64
       DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: 900
       DOKA_RELEASE_CANDIDATE_RESUME: 1
       DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/assemble
@@ -346,36 +331,6 @@ jobs:
             --stage mysqlconnector-patch-matrix \
             --stage package \
             --stage sbom
-
-      # The paired comparison is the one measurement the tag performs. The
-      # scorecard derives its complete target set from the contract, so assembly
-      # restores the same artifact family instead of enumerating engine lines.
-      - name: Restore required-target performance evidence
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: benchmark-artifacts-*
-          path: artifacts/benchmark-downloads
-
-      - name: Restore run-wide performance qualification
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: benchmark-scorecard-qualification
-          path: artifacts/benchmark-downloads/benchmark-scorecard-qualification
-
-      - name: Normalize required-target performance evidence
-        run: |
-          mkdir -p artifacts/benchmarks
-          while IFS= read -r target; do
-            source="artifacts/benchmark-downloads/benchmark-artifacts-${target}"
-            if [[ ! -d "${source}" ]]; then
-              echo "Missing performance artifact for required target '${target}'." >&2
-              exit 1
-            fi
-            mv "${source}" "artifacts/benchmarks/${target}"
-          done < <(jq -er '.requiredTargets | keys[]' benchmarks/performance-contract.json)
-          mv \
-            artifacts/benchmark-downloads/benchmark-scorecard-qualification/paired-scorecard-qualification.json \
-            artifacts/benchmarks/paired-scorecard-qualification.json
 
       - name: Assemble immutable release candidate
         env:

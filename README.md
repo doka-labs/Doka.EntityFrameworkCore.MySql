@@ -362,8 +362,8 @@ The provider ships with:
 - `tests/Doka.EntityFrameworkCore.MySql.TestUtilities`
   Shared test helpers and log sinks.
 - `benchmarks/`
-  `BenchmarkDotNet` harness for reviewed historical scorecards and paired
-  release qualification.
+  `BenchmarkDotNet` harness for independent performance characterization,
+  regression investigation, and reviewed historical scorecards.
 - [`examples/`](examples/README.md)
   Seventeen runnable public-API samples. Fourteen participate in the supported
   live engine matrix; ten also enforce explicit scenario invariants. The
@@ -412,14 +412,13 @@ match within one run. Raw absolute limits, paired practical budgets or
 seed-only matching-runner historical budgets, allocation limits, and six
 sustained resource invariants must all pass.
 
-Release qualification does not compare measurements from different machines.
-For each target, it applies the registered paired statistical policy, absolute
-ceilings, and sustained resource gates, then retains the raw measurements with
-the candidate. Statistical overlap is reported as no detected regression; it
-does not trigger result-driven resampling. Confirmed regressions, absolute or
-resource budget violations, and invalid evidence fail closed. The same paired
-comparison provides early warning on performance-relevant `main` changes and
-the monthly refresh; only tag-bound evidence qualifies a release.
+Performance evidence is independent engineering feedback. It is not consumed
+by the release-candidate or NuGet-publication workflows, and a failed,
+inconclusive, missing, or stale benchmark cannot block a release. Paired
+comparisons still apply the registered statistical policy, absolute ceilings,
+and sustained resource gates to identify changes that require investigation.
+Statistical overlap is reported as no detected regression and does not trigger
+result-driven resampling.
 
 Run a fast structural check:
 

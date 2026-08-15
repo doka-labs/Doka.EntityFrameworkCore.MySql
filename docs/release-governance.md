@@ -91,6 +91,8 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/benchmarks/<target>/benchmark-summary.md`
     - `artifacts/benchmarks/<target>/benchmark-evidence.json`
     - `artifacts/benchmarks/<target>/reports/<run-id>/...`
+  - authority: independent engineering evidence only; benchmark outcomes and
+    artifacts are not release gates and are absent from candidate manifests
 - Hosted release candidate:
   - workflow: `.github/workflows/release-candidate.yml`
   - cadence: automatic on a `v*` tag push; manual dispatch is diagnostic and
@@ -107,23 +109,16 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     commit-exact quality, repository-test, specification, integration-smoke,
     and coverage gates; the tag imports that one API-bound result instead of
     rerunning those implementations
-  - tag-produced gates: migration deployment, runtime posture, the EF Core and
-    MySqlConnector patch matrices, and paired performance all execute against
-    the tagged commit; packing and SBOM generation produce the payload they
-    qualify
-  - paired performance: each supported LTS target alternates the reference and
-    candidate providers for ten pre-registered blocks on one allocated runner.
-    Statistical intervals, multiple-comparison control, absolute ceilings,
-    allocation and collection limits, and sustained-use invariants are decided
-    from retained raw evidence; no historical baseline or processor match
-    qualifies a tag
-  - retry boundary: only `measurement-inconclusive` and
-    `environment-not-comparable` authorize one fresh attempt. Statistical
-    overlap is a reported fixed-population result, not a retry trigger.
-    Functional, budget, and contract failures remain conclusive
+  - tag-produced gates: migration deployment, runtime posture, and the EF Core
+    and MySqlConnector patch matrices execute against the tagged commit;
+    packing and SBOM generation produce the payload they qualify
+  - performance boundary: the candidate does not invoke benchmark workflows,
+    restore benchmark artifacts, read the performance contract or baseline, or
+    record performance evidence. Benchmark outcomes cannot qualify or block a
+    release
   - stage contract: assembly requires exactly six tag-produced stage receipts
     -- migration deployment, runtime posture, both patch matrices, package, and
-    SBOM -- plus the selected paired artifacts and imported branch result
+    SBOM -- plus the imported branch result
   - stable identity and controlled resume: the candidate root is keyed to
     `github.run_id`; a rerun may select only checksum-verified artifacts from
     that same run and no later than the assembling attempt
@@ -167,7 +162,6 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/release-candidate/<run-id>/runtime/...`
     - `artifacts/release-candidate/<run-id>/efcore-patch-matrix/...`
     - `artifacts/release-candidate/<run-id>/mysqlconnector-patch-matrix/...`
-    - `artifacts/release-candidate/<run-id>/performance/...`
     - `artifacts/release-candidate-checkpoints/<run-id>/...`
 - Manual NuGet publication and public readback:
   - workflow: `.github/workflows/nuget-publish.yml`

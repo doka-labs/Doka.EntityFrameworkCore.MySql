@@ -16,6 +16,21 @@ doka-profile-version: "1.0"
 
 # D-019 -- Gate performance and resource behavior at the publication boundary
 
+## 2026-08-15 Amendment: Retain evidence, retire release authority
+
+D-026 now excludes performance from release qualification. The benchmark
+architecture in this decision remains implemented for independent
+characterization, early warning, regression investigation, and reviewed
+baseline maintenance. The release-candidate and NuGet-publication workflows do
+not invoke it, consume its artifacts, or depend on its verdicts.
+
+This is a structural separation: there is no warning suppression, bypass, or
+optional release gate. A failed, inconclusive, missing, or stale benchmark
+cannot block a release because no performance result is part of the release
+policy, stage set, reconciliation, or manifest. The original
+publication-boundary rationale below is historical wherever it conflicts with
+this amendment.
+
 ## Context and Problem Statement
 
 The provider had useful BenchmarkDotNet controls, but they did not constitute
@@ -120,7 +135,7 @@ and cannot qualify a release.
 ### Measurement and evidence integrity
 
 BenchmarkDotNet remains the isolated microbenchmark layer for same-run
-controls. The release gate selects only the methods named by the checked-in
+controls. The scorecard selects only the methods named by the checked-in
 control contract; the complete benchmark suite remains available for manual
 investigation. It uses the full JSON exporter, the memory diagnoser, Release
 builds, and stop-on-first-error behavior. The host process also returns
@@ -140,7 +155,7 @@ number, a missing matrix cell, excessive normalized relative standard error,
 or unstable calibration. A pulse reused for several nearby workload samples is
 counted once when calibration error is calculated.
 
-The paired release gate also binds its fixed block count to an executable
+The paired scorecard also binds its fixed block count to an executable
 power assurance. The assurance drives the production BCa bootstrap and one
 run-wide Holm decision over the required target endpoints, with a
 pre-registered detectable effect, a characterization-backed upper confidence
@@ -167,8 +182,8 @@ population misses that statistical budget, the runner retains every
 observation and extends measurement in calibration-aligned blocks, up to the
 contract-owned multiplier. Existing workload and matrix deadlines bound the
 extension. A population that remains unstable at the cap still fails. Every
-release profile therefore retains at least 100 individual observations for
-p99 without forcing stable large database writes to repeat at the same
+full evidence profile therefore retains at least 100 individual observations
+for p99 without forcing stable large database writes to repeat at the same
 population as cheap in-process work.
 
 Managed allocation uses the precise process allocation counter around the
@@ -374,26 +389,19 @@ can bind only this maintenance transition without adding an operator handoff.
 
 Every `main` push reaches the resolver so required-check coverage cannot be
 skipped by a path filter. The resolver delegates its common input policy to the
-release-evidence classifier, preventing `main` and release-candidate relevance
-from drifting apart. Workflow concurrency queues later pushes instead of
-cancelling a scorecard that already started; an unrelated queued push then
+performance-input classifier. Workflow concurrency queues later pushes instead
+of cancelling a scorecard that already started; an unrelated queued push then
 reduces to the inexpensive no-op or synchronization path.
 
-Every release-candidate run remains strict: no matching accepted runner matrix
-is a hard failure during the inexpensive preflight. Seed mode still enforces
-the complete workload, absolute budgets, statistics, allocation, GC, soak,
-environment identity, and host admission; it omits only the unavailable
-historical comparison. Contract changes do not merge older-contract runner
-groups into the new candidate. Merging the accepted baseline does not rerun
-the scorecard because the baseline file is deliberately excluded from the
-relevant-input classifier.
+Seed mode enforces the complete workload, absolute budgets, statistics,
+allocation, GC, soak, environment identity, and host admission; it omits only
+the unavailable historical comparison. Contract changes do not merge
+older-contract runner groups into the new candidate. Merging the accepted
+baseline does not rerun the scorecard because the baseline file is deliberately
+excluded from the relevant-input classifier.
 
-The release-candidate workflow calls the reusable scorecard once for the exact
-release commit. Its import stages verify each selected attempt against the
-engine target, commit, selection receipt, and evaluation digest before copying
-the complete raw evidence into the release evidence directory. The release
-candidate verifies the imported target-matrix selections and does not repeat the
-measurement or classify the same reports under a second run identity.
+The release-candidate workflow is intentionally absent from this automation.
+It neither calls the reusable scorecard nor imports its selected attempts.
 
 Smoke, scorecard, and stress runs have hard total deadlines of 10 minutes,
 30 minutes, and two hours. The deadline helper owns a new process group,
@@ -423,8 +431,8 @@ receipts at every major stage instead of one global deadline.
 - Good, because absolute, historical, and sustained-resource regressions are
   separately diagnosable.
 - Bad, because a new runner class or evidence contract requires review and
-  acceptance of one complete LTS-matrix seed candidate before strict
-  comparisons and release qualification can pass.
+  acceptance of one complete LTS-matrix seed candidate before strict benchmark
+  comparisons can pass.
 - Bad, because the full scorecard and soak corpus is intentionally unsuitable
   for every pull request.
 
@@ -472,8 +480,8 @@ python3 -m unittest \
   compare mode.
 - Run the strict cross-target gate and confirm two passes with no skipped
   target.
-- Run the release-candidate path without the development-only benchmark
-  bypass.
+- Confirm the release-candidate workflow, policy, stage contract, and manifest
+  contain no benchmark dependency or performance result.
 
 ## Pros and Cons of the Options
 
@@ -596,6 +604,9 @@ A baseline update requires:
   target matrix derived from the performance contract. Registered a fixed
   ten-block paired population with executable power assurance and removed
   result-driven statistical retries.
+- 2026-08-15: Retained the complete benchmark evidence architecture as an
+  independent engineering system and removed all release-candidate and
+  publication authority under the D-026 amendment.
 
 ### Implementation References
 
@@ -618,8 +629,6 @@ A baseline update requires:
 - `.github/workflows/benchmark-smoke.yml`
 - `.github/workflows/benchmark-scorecard.yml`
 - `.github/workflows/benchmark-target.yml`
-- `.github/workflows/release-candidate.yml`
-- `eng/release-candidate.sh`
 
 ### Sources
 

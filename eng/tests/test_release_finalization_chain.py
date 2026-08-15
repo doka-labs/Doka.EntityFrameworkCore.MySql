@@ -1,11 +1,10 @@
 """Hold the finalizer's evidence demands against what the tag run produces.
 
-The finalizer demanded evidence the release workflow had stopped producing: an
-audit tree from a stage that no longer runs, two matrices proven on the branch,
-and a historical performance layout the paired comparison replaced. Every part
-passed its own test. Nothing compared the demands against the artifact set the
-workflow actually assembles, so the mismatch stayed invisible until a release
-candidate reached it -- which is after every expensive gate has run.
+The finalizer once demanded evidence the release workflow had stopped
+producing. Every part passed its own test. Nothing compared the demands against
+the artifact set the workflow actually assembles, so the mismatch stayed
+invisible until a release candidate reached it -- which is after every
+expensive gate has run.
 
 Running the finalizer itself is out of reach here: it needs a clean worktree
 and a compiled Release assembly for publication readiness, neither of which
@@ -27,8 +26,6 @@ ORCHESTRATOR = REPOSITORY_ROOT / "eng" / "release" / "release-candidate.sh"
 WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "release-candidate.yml"
 
 # Which stage produces the evidence behind each orchestrator path variable.
-# `benchmark` is the paired comparison, restored into the assemble job from the
-# scorecard rather than from a release stage.
 PRODUCERS = {
     "packages_dir": "package",
     "sbom_dir": "sbom",
@@ -36,7 +33,6 @@ PRODUCERS = {
     "runtime_dir": "runtime",
     "efcore_matrix_dir": "efcore-patch-matrix",
     "mysqlconnector_matrix_dir": "mysqlconnector-patch-matrix",
-    "performance_dir": "benchmark",
     "qualification_manifest_file": "finalize",
 }
 
@@ -96,7 +92,7 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
         restored = restored_stages()
         for variable in sorted(required_variables()):
             stage = PRODUCERS.get(variable)
-            if stage in (None, "benchmark", "finalize"):
+            if stage in (None, "finalize"):
                 continue
             with self.subTest(variable=variable, stage=stage):
                 self.assertIn(
@@ -105,15 +101,6 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
                     f"{variable} comes from stage '{stage}', which the assemble "
                     "job does not restore",
                 )
-
-    def test_the_paired_evidence_is_restored_before_finalizing(self) -> None:
-        """Prove the one non-stage input reaches the job that consumes it."""
-        workflow = WORKFLOW.read_text(encoding="utf-8")
-        assemble = workflow[workflow.index("\n  assemble:") :]
-        restore = assemble[: assemble.index("Assemble immutable release candidate")]
-
-        self.assertIn("pattern: benchmark-artifacts-*", restore)
-        self.assertIn(".requiredTargets | keys[]", restore)
 
     def test_the_required_stage_set_matches_the_dispatched_stages(self) -> None:
         """Keep the receipt requirement and the workflow matrix pinned together.
@@ -147,6 +134,7 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
             "coverage_input_dir",
             "specification_dir",
             "integration_dir",
+            "performance_dir",
         ):
             with self.subTest(directory=retired):
                 self.assertNotIn(f'"${{{retired}}}"', body)

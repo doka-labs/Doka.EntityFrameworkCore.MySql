@@ -21,9 +21,6 @@ from pathlib import Path
 from typing import Any, Sequence
 
 if __package__:
-    from ..performance.contract import PerformanceEvidenceError
-    from ..performance.paired import evaluate_scorecard_qualification
-    from ..performance.sensitivity import validate_registered_characterization
     from .qualification import QualificationError, load_policy, policy_digest
     from .trust import (
         TrustRootError,
@@ -31,19 +28,11 @@ if __package__:
         run_git,
     )
 else:  # pragma: no cover - direct execution path
-    from eng.performance.contract import PerformanceEvidenceError
-    from eng.performance.paired import evaluate_scorecard_qualification
-    from eng.performance.sensitivity import validate_registered_characterization
     from qualification import QualificationError, load_policy, policy_digest
     from trust import TrustRootError, fetch_qualification_receipt, run_git
 
 
 GATE_RESULT_KIND = "gate-evidence-result"
-
-
-def digest_file(path: Path) -> str:
-    """Return the canonical digest of one file."""
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def digest_files(paths: Sequence[Path]) -> str:
@@ -202,129 +191,6 @@ def protected_check_result(
     }
 
 
-def performance_result(
-    *,
-    gate: dict[str, Any],
-    evaluations: Sequence[Path],
-    contract_path: Path,
-    root: Path,
-    repository: str,
-    commit: str,
-    tree: str,
-    workflow_run_id: int,
-    run_attempt: int,
-) -> dict[str, Any]:
-    """Describe the paired performance gate from the evaluations it produced.
-
-    Every engine must have reached the run-wide finalizer. Accepting target
-    verdicts without replaying their global adjustment would recreate the
-    independent-family false-alarm problem at release assembly.
-    """
-    if not evaluations:
-        raise QualificationError("No paired performance evaluations were produced.")
-
-    contract = json.loads(contract_path.read_text(encoding="utf-8"))
-    try:
-        validate_registered_characterization(
-            contract,
-            contract_path.resolve().parent.parent,
-        )
-    except PerformanceEvidenceError as error:
-        raise QualificationError(
-            f"Paired sensitivity characterization is invalid: {error}"
-        ) from error
-
-    drivers: set[str] = set()
-    contracts: set[str] = set()
-    references: set[str] = set()
-    for path in evaluations:
-        evidence_path = path.with_name("paired-evidence.json")
-        if not evidence_path.is_file():
-            raise QualificationError(
-                f"{path.name} has no companion paired-evidence.json."
-            )
-        evaluation = json.loads(path.read_text(encoding="utf-8"))
-        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-        if evaluation.get("qualification") != "pending-run-wide-adjustment":
-            raise QualificationError(
-                f"{path.name} reports "
-                f"{evaluation.get('qualification')!r} rather than pending "
-                "run-wide adjustment."
-            )
-        if evidence.get("candidateCommit") != commit:
-            raise QualificationError(
-                f"{evidence_path.name} describes candidate commit "
-                f"{evidence.get('candidateCommit')}, not the tagged {commit}."
-            )
-        drivers.add(evidence.get("benchmarkDriverSourceHash"))
-        contracts.add(evidence.get("contractDigest"))
-        references.add(evidence.get("referenceCommit"))
-
-    for name, values in (
-        ("benchmark driver", drivers),
-        ("contract digest", contracts),
-        ("reference commit", references),
-    ):
-        if len(values) != 1:
-            raise QualificationError(
-                f"Paired evaluations disagree on the {name}: {sorted(map(str, values))}."
-            )
-
-    qualification_path = root / "paired-scorecard-qualification.json"
-    if not qualification_path.is_file() or qualification_path.is_symlink():
-        raise QualificationError(
-            "Paired performance carries no regular scorecard qualification."
-        )
-    qualification = json.loads(qualification_path.read_text(encoding="utf-8"))
-    try:
-        expected_qualification = evaluate_scorecard_qualification(
-            [json.loads(path.read_text(encoding="utf-8")) for path in evaluations],
-            contract,
-            contract_digest=digest_file(contract_path),
-        )
-    except PerformanceEvidenceError as error:
-        raise QualificationError(
-            f"Paired scorecard qualification is invalid: {error}"
-        ) from error
-    if qualification != expected_qualification:
-        raise QualificationError(
-            "Paired scorecard qualification does not reproduce from its target "
-            "evaluations."
-        )
-    if qualification.get("qualification") != "qualified":
-        raise QualificationError(
-            "Paired scorecard did not qualify the complete required target set."
-        )
-
-    # The identity spans every retained file, not only the verdicts. Digesting
-    # the evaluations alone would leave the measurements, the sustained-use
-    # report, the block reports, and the recorded environment unbound -- and a
-    # release claim nobody can re-derive is not evidence.
-    retained = sorted(path for path in root.rglob("*") if path.is_file())
-    if not retained:
-        raise QualificationError(f"No retained performance evidence below {root}.")
-
-    return {
-        "schemaVersion": 1,
-        "kind": GATE_RESULT_KIND,
-        "gate": gate["id"],
-        "repository": repository,
-        "commit": commit,
-        "treeId": tree,
-        "sourceHash": digest_files(retained),
-        "benchmarkDriverSourceHash": drivers.pop(),
-        "contractDigest": contracts.pop(),
-        "referenceCommit": references.pop(),
-        "workflowPath": gate["producerWorkflow"],
-        "workflowRunId": workflow_run_id,
-        "runAttempt": run_attempt,
-        "conclusion": "success",
-        "artifactDigest": digest_files(retained),
-        "retainedFileCount": len(retained),
-        "policyDigest": None,
-    }
-
-
 STAGE_BY_GATE = {
     "migration-deployment": "migration-deployment",
     "runtime-posture": "runtime",
@@ -366,24 +232,6 @@ def derive(arguments: argparse.Namespace) -> list[dict[str, Any]]:
                     repository=arguments.repository,
                     commit=commit,
                     tree=tree,
-                )
-            )
-            continue
-
-        if identifier == "performance-qualification":
-            results.append(
-                performance_result(
-                    gate=gate,
-                    evaluations=sorted(
-                        Path(arguments.performance_root).rglob("paired-evaluation.json")
-                    ),
-                    contract_path=Path(arguments.performance_contract),
-                    root=Path(arguments.performance_root),
-                    repository=arguments.repository,
-                    commit=commit,
-                    tree=tree,
-                    workflow_run_id=selection["workflowRunId"],
-                    run_attempt=arguments.assembling_attempt,
                 )
             )
             continue
@@ -445,8 +293,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     derive_parser.add_argument("--selection", required=True)
     derive_parser.add_argument("--checkpoint-directory", required=True)
     derive_parser.add_argument("--evidence-root", required=True)
-    derive_parser.add_argument("--performance-root", required=True)
-    derive_parser.add_argument("--performance-contract", required=True)
     derive_parser.add_argument("--assembling-attempt", required=True, type=int)
     derive_parser.add_argument("--policy", type=Path)
     derive_parser.add_argument("--output", required=True, type=Path)

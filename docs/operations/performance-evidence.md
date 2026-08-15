@@ -1,7 +1,12 @@
 # Performance and memory evidence
 
-This runbook describes the reproducible performance gate defined by
+This runbook describes the reproducible performance-evidence system defined by
 [D-019](../decisions/D-019-performance-gate-architecture.md).
+
+This system is independent of release qualification. The release-candidate and
+NuGet-publication workflows do not invoke it or consume its artifacts. A
+failed, inconclusive, missing, or stale benchmark is engineering feedback and
+cannot block a release.
 
 Every enforced path has six independent controls:
 
@@ -46,9 +51,8 @@ matches baselines by target, profile, and runner class. It additionally
 requires an exact match for runtime, OS, architecture, concrete processor
 model, processor count, and server image. BenchmarkDotNet must report that same
 processor and process architecture. A matching runner label alone is not
-sufficient. Release qualification instead requires environment equality
-inside each reference-and-candidate pair and never compares processors from
-different runs.
+sufficient. Paired scorecards require environment equality inside each
+reference-and-candidate pair and never compare processors from different runs.
 
 ## Profiles
 
@@ -140,10 +144,10 @@ A multiplier below that discards measurements whose precision is well inside
 the target, because a workload stopped at the cap has by definition missed the
 duration floor. A contract test asserts the cap against every required target's
 baseline once the baseline matches the current contract. The first six-target
-seed closes that evidence transition; release preflight remains closed until
-its reviewed baseline proposal is merged. When the current-contract test fails
-after a later baseline update, the run-to-run spread has outgrown the headroom,
-and the multiplier is what moves.
+seed closes that scorecard-evidence transition. It is not a release
+precondition. When the current-contract test fails after a later baseline
+update, the run-to-run spread has outgrown the headroom, and the multiplier is
+what moves.
 The runner never weakens the error budget or deletes observations;
 evidence that remains unstable at the cap fails validation. Fast, idempotent
 operations use fixed contract-owned batches so timer resolution and loop
@@ -205,9 +209,9 @@ The scheduled smoke is not a hand-maintained representative subset. Its
 internal reusable workflow reads every key from
 `performance-contract.json.requiredTargets`, fans those keys out through a
 GitHub matrix, and gives each job an isolated `--up-run-down` lifecycle. The
-smoke profile applies only absolute contracts and produces no release evidence;
-the complete target set exists to catch target-specific harness or image drift
-before scorecard or release qualification depends on that path.
+smoke profile applies only absolute contracts and produces no accepted
+scorecard evidence. The complete target set exists to catch target-specific
+harness or image drift before a full scorecard depends on that path.
 
 The wrapper:
 
@@ -524,14 +528,14 @@ starting services or either expensive matrix job:
   `eng/performance/workflow_state.py` form the inexpensive control plane;
 - control-plane-only changes run the resolver but do not allocate database
   services or benchmark runners;
-- the shared release-evidence classifier treats provider source, benchmark
+- the shared performance-input classifier treats provider source, benchmark
   source and corpora, database images, build and SDK inputs, the evaluator,
   the harness, the scorecard control plane, the target workflow that performs
   and uploads each measurement, and the executable sensitivity assurance as
   scorecard inputs;
 - the evaluator binding includes the paired endpoint estimator and bounded
-  attempt selector; changing either invalidates ancestor evidence before the
-  release can apply current family-level policy to stored target statistics;
+  attempt selector; changing either invalidates ancestor scorecard evidence
+  before current family-level policy is applied to stored target statistics;
 - the non-qualifying scheduled smoke workflow remains outside that reuse
   classifier because changing its orchestration cannot change accepted
   scorecard evidence;
@@ -575,11 +579,11 @@ turn a functional, budget, contract, or infrastructure failure into a pass.
 
 The selector verifies the identity and digests of every attempt before it
 copies the selected report tree into the stable engine artifact. Normal
-`benchmark` comparisons and release qualification invoke the reusable workflow
-in `paired` mode, which measures a reference and the candidate on the allocated
-runner. Seed runs alone produce historical artifacts, and those artifacts may
-only enter the reviewed baseline proposal. Release qualification neither
-imports nor reclassifies a historical baseline.
+`benchmark` comparisons invoke the reusable workflow in `paired` mode, which
+measures a reference and the candidate on the allocated runner. Seed runs alone
+produce historical artifacts, and those artifacts may only enter the reviewed
+baseline proposal. Release qualification invokes neither mode and imports no
+benchmark artifact.
 
 The routing is the CPU-independence mechanism: every automatic comparison is
 paired before a measurement job starts. The typed exit code `76` remains a
@@ -683,8 +687,8 @@ tokens never cross job boundaries.
 
 The hosted workflow uses paired `compare` mode when the accepted reference pair
 is present. A missing or stale pair enters the reviewed historical seed path,
-but that state is not a release precondition. Release qualification is decided
-exclusively by the paired same-run evidence described below.
+but that state is not a release precondition. Both paths produce independent
+engineering evidence and have no release authority.
 
 This design follows GitHub's documented `GITHUB_TOKEN` event behavior,
 GitHub App attribution contract, approval-gated workflow-run contract, and
@@ -776,11 +780,11 @@ then add a regression test for the resource owner. Do not mask the result with
 a larger limit unless a reviewed contract change establishes a new bounded
 requirement.
 
-## Release-candidate use
+## Paired scorecard use
 
-The release tag measures performance itself, once, as a paired comparison. It
-does not import an accepted baseline and does not compare against a run from
-another machine.
+The standalone benchmark workflow uses paired comparisons for automatic
+engineering feedback. Release tags do not invoke this path, import an accepted
+baseline, or consume its artifacts.
 
 ### What a paired run measures
 
@@ -800,7 +804,7 @@ one provider.
 | Check | What it answers | Failure means |
 |---|---|---|
 | Required latency endpoint | Does the complete workload matrix regress on normalized median for a supported target | The run-wide Holm decision rejects and the interval sits above the practical budget |
-| Observational latency endpoints | Where did normalized median, p95, or p99 move per workload | Reported for diagnosis; never a relative release gate |
+| Observational latency endpoints | Where did normalized median, p95, or p99 move per workload | Reported for diagnosis; never a required benchmark endpoint |
 | Resource families | Does the candidate allocate or collect more than its reference | The median block ratio exceeds the registered budget |
 | Absolute ceilings | Is the candidate inside its family budgets at all | A pair that regressed together would otherwise qualify |
 | Soak | Does sustained use leak | A leak appears over thousands of iterations and never inside a block |
@@ -860,8 +864,9 @@ workflow warning; raw attempts remain at seven days. The immutable observation
 series records `stable` below the bound and produces the typed inconclusive
 state for a required target on `drift`. If two separate complete scorecard runs
 within thirty days each exhaust both attempts with drift on the same target,
-D-026 requires an ADR amendment before the next release. There is no automatic
-role downgrade and no additional maintainer-triggered workflow.
+D-026 requires an ADR amendment before the benchmark contract or target role is
+changed. There is no automatic role downgrade and no additional
+maintainer-triggered workflow.
 
 ### Reruns and retries
 
@@ -902,11 +907,9 @@ Build inputs -- the reference worktree, the local package feed, and the two
 published drivers -- stay under `artifacts/paired/<target>/<run-id>/` so no
 consumer has to skip past them.
 
-The release candidate copies this tree into
-`artifacts/release-candidate/<run-id>/performance/<target>/` and binds every
-file in it by digest. Benchmark artifacts expire in days; the candidate is
-retained for ninety, and a performance claim nobody can re-derive after its
-inputs expire is not evidence.
+The standalone benchmark artifact binds every selected file by digest and is
+retained according to the benchmark workflow's artifact policy. No file from
+this tree is copied into a release candidate.
 
 ### What the contract controls
 
@@ -952,18 +955,9 @@ reference matrix.
 Each hosted job has its own bounded workflow timeout. The performance runner
 additionally enforces the selected profile deadline and the named workload
 timeout floor from `timeoutPolicies`, using the stricter of the two. This
-bounds expensive workloads without imposing one global deadline on unrelated
-release stages.
-
-Every finished stage writes a source-bound receipt outside the portable
-candidate directory. Continue a safely interrupted run with the same
-`DOKA_RELEASE_CANDIDATE_RUN_ID` and `DOKA_RELEASE_CANDIDATE_RESUME=1`. A stage
-is skipped only after every artifact digest in its receipt is recomputed
-successfully. Partial output from an unfinished stage is archived before that
-stage restarts.
-
-`DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS=1` is a development-loop bypass. Any
-evidence produced with that bypass is not release eligible.
+bounds expensive workloads without imposing one global deadline on other
+workflow jobs. Release qualification has no benchmark bypass because it never
+runs a benchmark.
 
 [github-actions-policy]:
   https://docs.github.com/en/organizations/managing-organization-settings/disabling-or-limiting-github-actions-for-your-organization

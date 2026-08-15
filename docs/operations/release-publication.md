@@ -108,12 +108,12 @@ scorecard. Invalid or stale evidence is remeasured on the same stable proposal
 branch. Unexpected files on that branch fail before the matrix and require
 explicit review instead of being overwritten by automation.
 
-The release-candidate workflow no longer consumes that baseline. It measures
-performance itself, once, as a paired comparison: a reference and the candidate
-provider revision are measured alternately on one allocated runner, so the
-machine cancels out of every ratio instead of having to be matched. The
-benchmark workflow above remains early warning on the default branch and never
-qualifies or blocks a release. See
+The release-candidate workflow does not invoke the benchmark workflow, restore
+benchmark artifacts, read the performance contract or baseline, or record a
+performance gate. The benchmark workflow is independent engineering feedback:
+a failed, inconclusive, missing, or stale benchmark never qualifies or blocks a
+release. Investigate benchmark results on their own branch and schedule rather
+than spending another release tag to recover them. See
 [Performance Evidence Operations](performance-evidence.md) for the reference
 acceptance procedure.
 
@@ -183,8 +183,9 @@ never move, replace, or reuse it after it reaches the remote repository.
 3. Wait for the complete workflow DAG to succeed. A failed candidate has no
    publication authority. The DAG assembles exactly six required stage
    receipts -- migration deployment, runtime posture, both patch matrices,
-   package, and SBOM -- alongside one paired performance qualification, and
-   grants OIDC and attestation permissions only to the final attestation job.
+   package, and SBOM -- and grants OIDC and attestation permissions only to the
+   final attestation job. No benchmark job or artifact participates in this
+   qualification boundary.
 4. If one job fails transiently, use GitHub's `Re-run failed jobs` or rerun that
    specific job from the existing workflow run. The stable candidate identity
    remains the numeric workflow run ID; the new run attempt may reuse only

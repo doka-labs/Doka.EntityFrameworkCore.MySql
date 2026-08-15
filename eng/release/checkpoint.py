@@ -21,7 +21,6 @@ from typing import Any
 
 SCHEMA_VERSION = 2
 KIND = "release-stage-checkpoint"
-PERFORMANCE_STAGE_PREFIX = "performance-"
 
 
 class CheckpointError(RuntimeError):
@@ -205,8 +204,6 @@ def write_checkpoint(
     runner_identity: str,
     started_utc: str,
     artifacts: list[Path],
-    engine: str | None = None,
-    contract_sha256: str | None = None,
 ) -> Path:
     """Write one completed stage receipt by atomic same-directory rename."""
     run_id = validate_identity_text(run_id, "runId")
@@ -218,15 +215,6 @@ def write_checkpoint(
     completed = datetime.now(timezone.utc)
     if started > completed:
         raise CheckpointError("Release-stage startedUtc is after completedUtc.")
-
-    if engine is not None:
-        engine = validate_identity_text(engine, "engine")
-    if contract_sha256 is not None:
-        contract_sha256 = validate_digest(contract_sha256, "contractSha256")
-    if (engine is None) != (contract_sha256 is None):
-        raise CheckpointError(
-            "Release-stage engine and contractSha256 must be recorded together."
-        )
 
     receipt: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
@@ -243,10 +231,6 @@ def write_checkpoint(
         "durationSeconds": round((completed - started).total_seconds(), 3),
         "artifacts": inventory_artifacts(root, artifacts),
     }
-    if engine is not None and contract_sha256 is not None:
-        receipt["engine"] = engine
-        receipt["contractSha256"] = contract_sha256
-
     checkpoint_directory.mkdir(parents=True, exist_ok=True)
     destination = checkpoint_path(checkpoint_directory, stage)
     descriptor, temporary_name = tempfile.mkstemp(
@@ -344,23 +328,12 @@ def verify_checkpoint(
     source_ref: str,
     release_tag: str,
     maximum_run_attempt: int,
-    engine: str | None = None,
-    contract_sha256: str | None = None,
 ) -> Path:
     """Verify receipt identity and recompute every retained artifact digest."""
     validate_identity_text(run_id, "runId")
     validate_identity_text(source_ref, "sourceRef")
     validate_identity_text(release_tag, "releaseTag")
     validate_run_attempt(maximum_run_attempt, "maximumRunAttempt")
-    if engine is not None:
-        validate_identity_text(engine, "engine")
-    if contract_sha256 is not None:
-        validate_digest(contract_sha256, "contractSha256")
-    if (engine is None) != (contract_sha256 is None):
-        raise CheckpointError(
-            "Release-stage engine and contractSha256 must be verified together."
-        )
-
     path = checkpoint_path(checkpoint_directory, stage)
     payload = read_checkpoint(path)
     expected_identity = {
@@ -415,15 +388,6 @@ def verify_checkpoint(
             f"Release-stage checkpoint '{path}' has invalid durationSeconds."
         )
 
-    if payload.get("engine") != engine:
-        raise CheckpointError(
-            f"Release-stage checkpoint '{path}' has invalid engine."
-        )
-    if payload.get("contractSha256") != contract_sha256:
-        raise CheckpointError(
-            f"Release-stage checkpoint '{path}' has invalid contractSha256."
-        )
-
     verify_artifacts(path, root, payload)
     return path
 
@@ -438,7 +402,6 @@ def verify_checkpoint_set(
     release_tag: str,
     maximum_run_attempt: int,
     expected_stages: list[str],
-    performance_contract_sha256: str,
 ) -> list[Path]:
     """Verify one exact, exhaustive set of release-stage receipts."""
     if not expected_stages or len(set(expected_stages)) != len(expected_stages):
@@ -468,12 +431,6 @@ def verify_checkpoint_set(
 
     verified: list[Path] = []
     for stage in sorted(expected):
-        engine = (
-            stage.removeprefix(PERFORMANCE_STAGE_PREFIX)
-            if stage.startswith(PERFORMANCE_STAGE_PREFIX)
-            else None
-        )
-        contract = performance_contract_sha256 if engine is not None else None
         verified.append(
             verify_checkpoint(
                 repository=repository,
@@ -484,8 +441,6 @@ def verify_checkpoint_set(
                 source_ref=source_ref,
                 release_tag=release_tag,
                 maximum_run_attempt=maximum_run_attempt,
-                engine=engine,
-                contract_sha256=contract,
             )
         )
 
@@ -513,16 +468,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     write_parser.add_argument("--run-attempt", required=True, type=int)
     write_parser.add_argument("--runner-identity", required=True)
     write_parser.add_argument("--started-utc", required=True)
-    write_parser.add_argument("--engine")
-    write_parser.add_argument("--contract-sha256")
     write_parser.add_argument("--artifact", action="append", required=True, type=Path)
 
     verify_parser = subparsers.add_parser("verify")
     add_identity_arguments(verify_parser)
     verify_parser.add_argument("--stage", required=True)
     verify_parser.add_argument("--maximum-run-attempt", required=True, type=int)
-    verify_parser.add_argument("--engine")
-    verify_parser.add_argument("--contract-sha256")
 
     verify_set_parser = subparsers.add_parser("verify-set")
     add_identity_arguments(verify_set_parser)
@@ -536,11 +487,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="append",
         required=True,
     )
-    verify_set_parser.add_argument(
-        "--performance-contract-sha256",
-        required=True,
-    )
-
     return parser.parse_args(argv)
 
 
@@ -561,8 +507,6 @@ def main(argv: list[str] | None = None) -> int:
                 run_attempt=args.run_attempt,
                 runner_identity=args.runner_identity,
                 started_utc=args.started_utc,
-                engine=args.engine,
-                contract_sha256=args.contract_sha256,
                 artifacts=args.artifact,
             )
         elif args.command == "verify":
@@ -575,8 +519,6 @@ def main(argv: list[str] | None = None) -> int:
                 source_ref=args.source_ref,
                 release_tag=args.release_tag,
                 maximum_run_attempt=args.maximum_run_attempt,
-                engine=args.engine,
-                contract_sha256=args.contract_sha256,
             )
         else:
             result = verify_checkpoint_set(
@@ -588,7 +530,6 @@ def main(argv: list[str] | None = None) -> int:
                 release_tag=args.release_tag,
                 maximum_run_attempt=args.maximum_run_attempt,
                 expected_stages=args.expected_stage,
-                performance_contract_sha256=args.performance_contract_sha256,
             )
     except (CheckpointError, OSError, subprocess.SubprocessError) as error:
         print(error, file=sys.stderr)

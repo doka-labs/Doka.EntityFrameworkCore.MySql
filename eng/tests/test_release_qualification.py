@@ -31,25 +31,21 @@ class PolicyTests(unittest.TestCase):
         """Keep the checked-in policy inside its own shape."""
         policy = qualification.load_policy()
 
-        self.assertEqual(6, len(policy["gates"]))
+        self.assertEqual(5, len(policy["gates"]))
         self.assertIn("repository-qualification", policy["requiredProtectedChecks"])
 
-    def test_performance_gate_names_the_artifact_producing_workflow(self) -> None:
-        """Bind performance provenance to the workflow that uploads evidence."""
+    def test_performance_results_have_no_release_authority(self) -> None:
+        """Keep advisory benchmark evidence outside release qualification."""
         policy = qualification.load_policy()
-        performance_gate = next(
-            gate
-            for gate in policy["gates"]
-            if gate["id"] == "performance-qualification"
-        )
-        workflow_path = ".github/workflows/benchmark-scorecard.yml"
-        workflow = (Path(__file__).resolve().parents[2] / workflow_path).read_text(
-            encoding="utf-8"
-        )
 
-        self.assertEqual(workflow_path, performance_gate["producerWorkflow"])
-        self.assertIn("name: Upload paired scorecard qualification", workflow)
-        self.assertIn("name: benchmark-scorecard-qualification", workflow)
+        self.assertNotIn(
+            "performance-qualification",
+            {gate["id"] for gate in policy["gates"]},
+        )
+        self.assertIn(
+            "Performance evidence is produced independently",
+            " ".join(policy["documentation"]),
+        )
 
     def test_every_top_level_field_is_required(self) -> None:
         """Reject a policy missing any structural field."""

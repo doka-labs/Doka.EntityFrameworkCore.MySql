@@ -114,10 +114,10 @@ class ProfileWorkloadCoverageTests(unittest.TestCase):
         self.assertEqual(registered, applied)
 
     def test_the_paired_profile_matches_the_scorecard_matrix(self) -> None:
-        """Keep the paired comparison on the same matrix the release measures.
+        """Keep paired and historical scorecards on the same workload matrix.
 
-        A paired run on a narrower matrix would qualify a provider against
-        coverage the release never had.
+        A paired run on a narrower matrix would report a comparison against
+        coverage the historical scorecard never measured.
         """
         self.assertEqual(
             sorted(list_workloads("scorecard")), sorted(list_workloads("paired-block"))

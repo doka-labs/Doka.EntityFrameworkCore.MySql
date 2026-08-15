@@ -43,17 +43,13 @@ runtime_dir="${release_candidate_dir}/runtime"
 efcore_matrix_dir="${release_candidate_dir}/efcore-patch-matrix"
 mysqlconnector_matrix_dir="${release_candidate_dir}/mysqlconnector-patch-matrix"
 runtime_publish_dir="${repo_root}/artifacts/runtime-smoke/${release_candidate_run_id}/trimmed"
-performance_dir="${release_candidate_dir}/performance"
 reconciliation_file="${release_candidate_dir}/release-candidate-reconciliation.json"
 qualification_manifest_file="${release_candidate_dir}/release-qualification-manifest.json"
 gate_results_file="${release_candidate_dir}/release-gate-results.json"
-benchmark_artifacts_root="${repo_root}/artifacts/benchmarks"
-performance_contract="${repo_root}/benchmarks/performance-contract.json"
 release_repository="${DOKA_RELEASE_REPOSITORY:-${GITHUB_REPOSITORY:-}}"
 stage_checkpoint_dir="${repo_root}/artifacts/release-candidate-checkpoints/${release_candidate_run_id}"
 require_release_tag="${DOKA_RELEASE_REQUIRE_TAG:-1}"
 release_version_override="${DOKA_RELEASE_VERSION:-}"
-performance_reuse_source="${DOKA_RELEASE_CANDIDATE_REUSE_PERFORMANCE_FROM:-}"
 resume_mode="${DOKA_RELEASE_CANDIDATE_RESUME:-0}"
 maximum_release_duration_seconds="${DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS:-7200}"
 chain_probe="${DOKA_RELEASE_CHAIN_PROBE:-0}"
@@ -81,15 +77,6 @@ case "${selected_stage}" in
         | migration-deployment | runtime | efcore-patch-matrix \
         | mysqlconnector-patch-matrix | coverage | package | sbom \
         | finalize)
-        ;;
-    performance-*)
-        performance_target="${selected_stage#performance-}"
-        if ! jq -e --arg target "${performance_target}" \
-                '.requiredTargets[$target] != null' \
-                "${performance_contract}" >/dev/null; then
-            echo "Unknown release-candidate stage '${selected_stage}'." >&2
-            exit 1
-        fi
         ;;
     *)
         echo "Unknown release-candidate stage '${selected_stage}'." >&2
@@ -217,12 +204,6 @@ require_command() {
     fi
 }
 
-performance_contract_sha256() {
-    python3 -c \
-        'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' \
-        "${repo_root}/benchmarks/performance-contract.json"
-}
-
 stage_is_complete() {
     local stage="$1"
     local checkpoint="${stage_checkpoint_dir}/${stage}.json"
@@ -242,13 +223,6 @@ stage_is_complete() {
         --maximum-run-attempt "${release_run_attempt}"
         --stage "${stage}"
     )
-    if [[ "${stage}" == performance-* ]]; then
-        command+=(
-            --engine "${stage#performance-}"
-            --contract-sha256 "$(performance_contract_sha256)"
-        )
-    fi
-
     if ! "${command[@]}"; then
         echo "Release-stage checkpoint '${stage}' is invalid; refusing an unsafe resume." >&2
         exit 1
@@ -276,13 +250,6 @@ write_stage_checkpoint() {
         --stage "${stage}"
     )
     local artifact
-
-    if [[ "${stage}" == performance-* ]]; then
-        command+=(
-            --engine "${stage#performance-}"
-            --contract-sha256 "$(performance_contract_sha256)"
-        )
-    fi
 
     for artifact in "$@"; do
         command+=(--artifact "${artifact}")
@@ -320,7 +287,6 @@ verify_required_stage_set() {
         --source-ref "${release_source_ref}"
         --release-tag "${release_tag}"
         --maximum-run-attempt "${release_run_attempt}"
-        --performance-contract-sha256 "$(performance_contract_sha256)"
     )
     local stage
 
@@ -660,7 +626,7 @@ write_changelog() {
         echo "## Repo-local release-hardening note"
         echo
         echo "This changelog records specification, integration, live-example,"
-        echo "migration deployment, runtime, coverage, package, audit, benchmark,"
+        echo "migration deployment, runtime, coverage, package, audit,"
         echo "and SBOM evidence."
         echo "The evidence manifest binds these files to their exact source and dependency identities."
     } > "${changelog_file}"
@@ -682,7 +648,6 @@ write_summary() {
         echo "- runtimeDirectory: runtime"
         echo "- efcoreMatrixDirectory: efcore-patch-matrix"
         echo "- mysqlconnectorMatrixDirectory: mysqlconnector-patch-matrix"
-        echo "- performanceDirectory: performance"
         echo "- qualificationManifestFile: release-qualification-manifest.json"
         echo "- reconciliationFile: release-candidate-reconciliation.json"
         echo "- changelogFile: release-candidate-changelog.md"
@@ -788,162 +753,6 @@ with open(output_path, "w", encoding="utf-8") as stream:
 RECONCILE
 }
 
-run_performance_engine() {
-    local engine="$1"
-    local skip="${DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS:-0}"
-    local qualified_artifact_root="${DOKA_RELEASE_CANDIDATE_PERFORMANCE_ARTIFACT_ROOT:-}"
-    local compose_run_id
-
-    if [[ "${skip}" == "1" ]]; then
-        echo "A release performance stage cannot be completed while benchmarks are skipped." >&2
-        exit 1
-    fi
-
-    if [[ -n "${qualified_artifact_root}" ]]; then
-        local selection="${qualified_artifact_root}/performance-attempt-selection.json"
-
-        if [[ ! -f "${selection}" ]]; then
-            echo "Qualified ${engine} performance selection is missing: ${selection}" >&2
-            exit 1
-        fi
-
-        # The reusable scorecard already evaluated this exact artifact. Import
-        # its digest-bound evidence instead of measuring or classifying it a
-        # second time under the release-candidate run identifier.
-        mkdir -p "${performance_dir}"
-        python3 -m eng.performance.cli import-attempt-selection \
-            --artifact-root "${qualified_artifact_root}" \
-            --selection "${selection}" \
-            --destination "${performance_dir}/${engine}" \
-            --expected-target "${engine}" \
-            --expected-commit "$(git rev-parse HEAD)"
-        return
-    fi
-
-    compose_run_id="$(
-        printf '%s' "${release_candidate_run_id}" \
-            | tr '[:upper:]' '[:lower:]' \
-            | tr '.' '-'
-    )"
-
-    echo "Running benchmark scorecard and soak evidence against ${engine}..."
-    DOKA_BENCHMARK_PROFILE=scorecard \
-        DOKA_BENCHMARK_BASELINE_MODE=compare \
-        DOKA_BENCHMARK_COMPARISON_MODE=paired \
-        DOKA_BENCHMARK_TARGET="${engine}" \
-        DOKA_BENCHMARK_RUN_ID="${release_candidate_run_id}" \
-        DOKA_BENCHMARK_RESUME="${resume_mode}" \
-        DOKA_BENCHMARK_COMPOSE_PROJECT_NAME="doka-benchmark-${compose_run_id}-${engine}" \
-        DOKA_BENCHMARK_PORT=0 \
-        "${repo_root}/eng/performance/benchmark.sh" --up-run-down
-
-    mkdir -p "${performance_dir}"
-    cp -R \
-        "${repo_root}/artifacts/benchmarks/${engine}/reports/${release_candidate_run_id}" \
-        "${performance_dir}/${engine}"
-}
-
-required_performance_targets() {
-    jq -er '.requiredTargets | keys[]' "${performance_contract}"
-}
-
-reuse_performance_evidence() {
-    if [[ "${DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS:-0}" == "1" ]]; then
-        echo "Performance evidence reuse and benchmark skipping cannot be combined." >&2
-        exit 1
-    fi
-
-    local target
-    while IFS= read -r target; do
-        if [[ -f "${stage_checkpoint_dir}/performance-${target}.json" ]]; then
-            echo "Performance reuse cannot overwrite the existing ${target} receipt." >&2
-            exit 1
-        fi
-    done < <(required_performance_targets)
-
-    archive_incomplete_stage "performance-reuse" "${performance_dir}"
-    local started_utc
-    started_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-
-    # Reuse is not a trust-based copy. The evidence helper verifies every
-    # required scorecard, its artifact hashes, the original clean source hash,
-    # Git ancestry, and the complete changed-path set. Any provider, benchmark,
-    # dependency, build, or container input change fails closed.
-    python3 -m eng.release.evidence reuse-performance \
-        --repo "${repo_root}" \
-        --source-root "${performance_reuse_source}" \
-        --root "${release_candidate_dir}" \
-        --run-id "${release_candidate_run_id}"
-
-    while IFS= read -r target; do
-        write_stage_checkpoint \
-            "performance-${target}" \
-            "${started_utc}" \
-            "${performance_dir}/${target}"
-    done < <(required_performance_targets)
-}
-
-run_paired_performance_gate() {
-    # The tag's performance evidence is the paired comparison this run
-    # produced. Re-deriving a verdict here from the same numbers would be a
-    # second implementation of the decision; the evaluation already carries it,
-    # so this insists that one exists per required target, that it qualified,
-    # and that every file it rests on is copied into the candidate.
-    #
-    # The copy is what makes the candidate self-contained. Benchmark artifacts
-    # expire in days; the candidate is retained for ninety, and a performance
-    # claim nobody can re-derive after the inputs expire is not evidence.
-    local engine source_dir evaluation qualification
-    local engines=()
-
-    while IFS= read -r engine; do
-        engines+=("${engine}")
-    done < <(
-        python3 -c '
-import json, sys
-contract = json.load(open(sys.argv[1], encoding="utf-8"))
-for target in contract["requiredTargets"]:
-    print(target)
-' "${repo_root}/benchmarks/performance-contract.json"
-    )
-
-    if [[ "${#engines[@]}" -eq 0 ]]; then
-        echo "The performance contract names no required engines." >&2
-        return 1
-    fi
-
-    for engine in "${engines[@]}"; do
-        source_dir="${benchmark_artifacts_root}/${engine}"
-        if [[ ! -d "${source_dir}" ]]; then
-            echo "No performance evidence for ${engine} below ${source_dir}." >&2
-            return 1
-        fi
-
-        mkdir -p "${performance_dir}/${engine}"
-        cp -R "${source_dir}/." "${performance_dir}/${engine}/"
-
-        evaluation="$(
-            find "${performance_dir}/${engine}" \
-                -type f -name paired-evaluation.json \
-                | sort \
-                | tail -n 1
-        )"
-        if [[ -z "${evaluation}" ]]; then
-            echo "No paired performance evaluation for ${engine}." >&2
-            return 1
-        fi
-        qualification="$(
-            python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["qualification"])' \
-                "${evaluation}"
-        )"
-        if [[ "${qualification}" != "qualified" ]]; then
-            echo "Paired performance for ${engine} is ${qualification}." >&2
-            return 1
-        fi
-        echo "Paired performance for ${engine}: qualified and retained."
-    done
-}
-
 assemble_qualification_manifest() {
     # Selection happens exactly once, here, and the manifest it produces is
     # what every later step reads. Deriving the gate results first means no
@@ -960,8 +769,6 @@ assemble_qualification_manifest() {
         --selection "${stage_checkpoint_dir}/assemble-input-artifacts.json" \
         --checkpoint-directory "${stage_checkpoint_dir}" \
         --evidence-root "${release_candidate_dir}" \
-        --performance-root "${performance_dir}" \
-        --performance-contract "${repo_root}/benchmarks/performance-contract.json" \
         --assembling-attempt "${release_run_attempt}" \
         --policy "${repo_root}/eng/release/evidence-policy.json" \
         --output "${gate_results_file}"
@@ -1007,7 +814,6 @@ run_finalization_stage() {
     # Finalization consumes only verified stage receipts. It never infers
     # completion from a directory that merely happens to contain files.
     verify_required_stage_set
-    run_paired_performance_gate
     resolve_release_version
     write_changelog "${release_version}"
 
@@ -1057,52 +863,7 @@ run_named_stage() {
     write_stage_checkpoint "${stage}" "${started_utc}" "$@"
 }
 
-run_named_performance_stage() {
-    local target="$1"
-    local stage="performance-${target}"
-    local output="${performance_dir}/${target}"
-
-    if stage_is_complete "${stage}"; then
-        return 0
-    fi
-
-    archive_incomplete_stage "${stage}" "${output}"
-    local started_utc
-    started_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-    run_performance_engine "${target}"
-    write_stage_checkpoint "${stage}" "${started_utc}" "${output}"
-}
-
 run_all_stages() {
-    # The monolithic local path shares one host across every stage. Capture
-    # performance evidence before build and database gates can warm caches or
-    # introduce competing load. Hosted qualification additionally isolates
-    # each performance engine in its own matrix job.
-    if [[ -n "${performance_reuse_source}" ]]; then
-        local complete_count=0
-        local target_count=0
-        local target
-        while IFS= read -r target; do
-            target_count=$((target_count + 1))
-            if stage_is_complete "performance-${target}"; then
-                complete_count=$((complete_count + 1))
-            fi
-        done < <(required_performance_targets)
-
-        if (( complete_count != 0 && complete_count != target_count )); then
-            echo "Reused performance evidence must have checkpoints for every required target or none." >&2
-            exit 1
-        fi
-        if (( complete_count == 0 )); then
-            reuse_performance_evidence
-        fi
-    else
-        local target
-        while IFS= read -r target; do
-            run_named_performance_stage "${target}"
-        done < <(required_performance_targets)
-    fi
-
     run_named_stage "quality" run_repository_quality_gate "${audit_dir}"
     run_named_stage \
         "repository-tests" \
@@ -1256,9 +1017,6 @@ case "${selected_stage}" in
         ;;
     sbom)
         run_named_stage "sbom" run_sbom_stage "${sbom_dir}"
-        ;;
-    performance-*)
-        run_named_performance_stage "${selected_stage#performance-}"
         ;;
     finalize)
         run_named_stage \

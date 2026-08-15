@@ -687,30 +687,21 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             with self.subTest(target=target):
                 self.assertNotIn(target, smoke)
 
-    def test_direct_candidate_performance_is_explicitly_paired(self) -> None:
-        """Keep local release qualification on the same verdict as hosted CI."""
+    def test_direct_candidate_excludes_performance_qualification(self) -> None:
+        """Keep local release qualification independent from benchmarks."""
         script = (self.repo / "eng" / "release" / "release-candidate.sh").read_text(
             encoding="utf-8"
         )
-        function_start = script.index("run_performance_engine() {")
-        function_end = script.index(
-            "\nrequired_performance_targets() {",
-            function_start,
-        )
-        function = script[function_start:function_end]
 
-        self.assertEqual(
-            1,
-            function.count("DOKA_BENCHMARK_BASELINE_MODE=compare"),
-        )
-        self.assertEqual(
-            1,
-            function.count("DOKA_BENCHMARK_COMPARISON_MODE=paired"),
-        )
-        self.assertIn(
-            '"${repo_root}/eng/performance/benchmark.sh" --up-run-down',
-            function,
-        )
+        for excluded in (
+            "run_performance_engine",
+            "required_performance_targets",
+            "DOKA_BENCHMARK",
+            "eng/performance/benchmark.sh",
+            "performance-",
+        ):
+            with self.subTest(excluded=excluded):
+                self.assertNotIn(excluded, script)
 
     def test_all_main_pushes_reach_the_cheap_benchmark_resolver(self) -> None:
         """Classify every push with the local measurement-input policy."""
@@ -914,10 +905,8 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
     def test_candidate_rejects_an_untrusted_tag_before_the_matrix(self) -> None:
         """Fail cheaply, and explain, when the tag cannot be trusted.
 
-        This replaces the accepted-baseline preflight. Under a paired
-        comparison no accepted baseline is a release precondition, but the
-        reason that preflight existed is unchanged and now weighs more: the
-        cheapest check must decide first, and its failure must tell the
+        Performance is not a release precondition. The cheapest remaining
+        release check must still decide first, and its failure must tell the
         operator how to leave the state rather than only that they are in it.
         """
         text = self.workflow("release-candidate.yml")
@@ -943,24 +932,48 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             text.index("- name: Run ${{ matrix.stage }} stage"),
         )
 
-    def test_the_candidate_measures_performance_exactly_once(self) -> None:
-        """Reuse one measurement instead of measuring or classifying twice.
-
-        The intent is unchanged from the import model it replaces and is
-        sharper here: the tag performs one paired comparison, and no second
-        job re-classifies the same reports under another run identity.
-        """
+    def test_the_candidate_never_measures_or_imports_performance(self) -> None:
+        """Keep benchmark outcomes from qualifying or blocking a release."""
         text = self.workflow("release-candidate.yml")
 
-        self.assertEqual(
-            1, text.count("uses: ./.github/workflows/benchmark-scorecard.yml")
+        for excluded in (
+            "benchmark-scorecard.yml",
+            "comparison_mode:",
+            "performance-import:",
+            "performance-scorecard:",
+            "performance-qualification:",
+            "benchmark-artifacts-",
+            "--stage performance-",
+        ):
+            with self.subTest(excluded=excluded):
+                self.assertNotIn(excluded, text)
+
+    def test_the_complete_release_boundary_has_no_benchmark_dependency(self) -> None:
+        """Prevent coupling from moving behind the candidate workflow."""
+        release_paths = (
+            self.workflows / "release-candidate.yml",
+            self.workflows / "nuget-publish.yml",
+            self.repo / "eng" / "release" / "release-candidate.sh",
+            self.repo / "eng" / "release" / "checkpoint.py",
+            self.repo / "eng" / "release" / "evidence.py",
+            self.repo / "eng" / "release" / "gate_results.py",
         )
-        self.assertIn("comparison_mode: paired", text)
-        for removed in ("performance-import:", "performance-scorecard:"):
-            with self.subTest(job=removed):
-                self.assertNotIn(f"\n  {removed}", text)
-        self.assertNotIn("--stage performance-mysql84", text)
-        self.assertNotIn("--stage performance-mariadb118", text)
+        excluded_tokens = (
+            "DOKA_BENCHMARK",
+            "DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS",
+            "eng.performance",
+            "performance-qualification",
+            "performanceEvidence",
+            "benchmark-artifacts-",
+            "run_paired_performance_gate",
+            "required_performance_targets",
+        )
+
+        for path in release_paths:
+            text = path.read_text(encoding="utf-8")
+            for token in excluded_tokens:
+                with self.subTest(path=path.relative_to(self.repo), token=token):
+                    self.assertNotIn(token, text)
 
     def test_candidate_assembles_the_exact_required_stage_set(self) -> None:
         """Bind finalization to every independent qualification receipt."""
@@ -1157,14 +1170,6 @@ class StageSetAgreementTests(unittest.TestCase):
             / "release"
             / "release-candidate.sh"
         ).read_text(encoding="utf-8")
-        contract = json.loads(
-            (
-                Path(__file__).resolve().parents[2]
-                / "benchmarks"
-                / "performance-contract.json"
-            ).read_text(encoding="utf-8")
-        )
-        self.performance_targets = tuple(sorted(contract["requiredTargets"]))
 
     @staticmethod
     def workflow_text(name: str) -> str:
@@ -1222,10 +1227,12 @@ class StageSetAgreementTests(unittest.TestCase):
             "specification",
             "integration",
             "coverage",
-            *(f"performance-{target}" for target in self.performance_targets),
         ):
             with self.subTest(stage=imported):
                 self.assertNotIn(imported, self.required_stages())
+        self.assertFalse(
+            any(stage.startswith("performance-") for stage in self.required_stages())
+        )
 
 
 if __name__ == "__main__":

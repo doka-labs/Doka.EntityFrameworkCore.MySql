@@ -55,7 +55,6 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
         self.source_ref = "refs/tags/v10.0.0-rc.1"
         self.release_tag = "v10.0.0-rc.1"
         self.run_attempt = 2
-        self.contract_sha256 = "a" * 64
 
     def tearDown(self) -> None:
         """Remove the isolated repository."""
@@ -65,8 +64,6 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
         self,
         stage: str,
         artifact: Path,
-        *,
-        engine: str | None = None,
     ) -> Path:
         """Write one receipt through the production identity contract."""
         started = datetime.now(timezone.utc) - timedelta(seconds=1)
@@ -81,8 +78,6 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
             run_attempt=self.run_attempt,
             runner_identity="GitHub Actions 7",
             started_utc=started.isoformat().replace("+00:00", "Z"),
-            engine=engine,
-            contract_sha256=self.contract_sha256 if engine is not None else None,
             artifacts=[artifact],
         )
 
@@ -93,8 +88,6 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
         source_ref: str | None = None,
         release_tag: str | None = None,
         maximum_run_attempt: int | None = None,
-        engine: str | None = None,
-        contract_sha256: str | None = None,
     ) -> Path:
         """Verify one receipt while allowing one identity field to vary."""
         return release_stage_checkpoint.verify_checkpoint(
@@ -106,8 +99,6 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
             source_ref=source_ref or self.source_ref,
             release_tag=release_tag or self.release_tag,
             maximum_run_attempt=maximum_run_attempt or self.run_attempt,
-            engine=engine,
-            contract_sha256=contract_sha256,
         )
 
     def create_artifact(self, name: str = "evidence.json") -> Path:
@@ -190,41 +181,10 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
         ):
             self.verify("quality", maximum_run_attempt=1)
 
-    def test_wrong_engine_or_contract_rejects_performance_resume(self) -> None:
-        """Bind performance evidence to both engine and immutable contract."""
-        self.write(
-            "performance-mysql84",
-            self.create_artifact("performance/mysql84/report.json"),
-            engine="mysql84",
-        )
-
-        with self.assertRaisesRegex(
-            release_stage_checkpoint.CheckpointError,
-            "invalid engine",
-        ):
-            self.verify(
-                "performance-mysql84",
-                engine="mariadb118",
-                contract_sha256=self.contract_sha256,
-            )
-        with self.assertRaisesRegex(
-            release_stage_checkpoint.CheckpointError,
-            "invalid contractSha256",
-        ):
-            self.verify(
-                "performance-mysql84",
-                engine="mysql84",
-                contract_sha256="b" * 64,
-            )
-
     def test_exact_set_accepts_only_complete_expected_receipts(self) -> None:
         """Accept the canonical set after every receipt verifies independently."""
         self.write("quality", self.create_artifact("quality/report.json"))
-        self.write(
-            "performance-mysql84",
-            self.create_artifact("performance/mysql84/report.json"),
-            engine="mysql84",
-        )
+        self.write("package", self.create_artifact("packages/provider.nupkg"))
 
         verified = release_stage_checkpoint.verify_checkpoint_set(
             repository=self.repository,
@@ -234,8 +194,7 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
             source_ref=self.source_ref,
             release_tag=self.release_tag,
             maximum_run_attempt=self.run_attempt,
-            expected_stages=["quality", "performance-mysql84"],
-            performance_contract_sha256=self.contract_sha256,
+            expected_stages=["quality", "package"],
         )
 
         self.assertEqual(2, len(verified))
@@ -257,7 +216,6 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
                 release_tag=self.release_tag,
                 maximum_run_attempt=self.run_attempt,
                 expected_stages=["quality", "package"],
-                performance_contract_sha256=self.contract_sha256,
             )
 
         self.write("legacy", self.create_artifact("legacy/report.json"))
@@ -274,7 +232,6 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
                 release_tag=self.release_tag,
                 maximum_run_attempt=self.run_attempt,
                 expected_stages=["quality"],
-                performance_contract_sha256=self.contract_sha256,
             )
 
     def test_symlink_artifact_rejects_checkpoint_creation(self) -> None:

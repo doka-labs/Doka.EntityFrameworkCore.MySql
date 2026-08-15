@@ -219,9 +219,10 @@ names the missing precondition; it must be resolved before a version is spent.
 
 The signed tag push starts hosted qualification automatically. That workflow
 produces the package and SBOM, reruns only the tag-owned migration, runtime, and
-dependency patch gates, and performs one paired reference-versus-candidate
-performance comparison per release engine. A manual dispatch is diagnostic
-only and cannot qualify an untagged source.
+dependency patch gates, and imports the commit-exact repository qualification.
+Benchmarks remain an independent engineering signal and are neither invoked nor
+consumed by release qualification. A manual dispatch is diagnostic only and
+cannot qualify an untagged source.
 
 Continue with the canonical
 [release procedure](docs/operations/release-publication.md#qualification-and-publication-procedure).
