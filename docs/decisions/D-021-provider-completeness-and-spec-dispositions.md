@@ -51,6 +51,16 @@ without falsifying engine reality.
 
 The specification suite has a zero provider-gap budget.
 
+Live specification execution requires a target in the test-host environment.
+The functional-test project supplies the version-controlled local default
+`mariadb118` through `LocalMariaDb118.runsettings`; explicit environment targets
+from CI and operators bypass that file. The database fixture still refuses to
+start without a resolved target, and an external endpoint must declare a
+server-version token from the selected target's engine and major/minor line.
+The per-event CI matrix runs `Category=Spec|Category=Live` in a separate process
+for every supported target. A local IDE run therefore cannot be mistaken for
+complete matrix evidence.
+
 Every applicable inherited relational behavior must execute on every supported target. A test
 may be skipped only when it belongs to one of these three classifications:
 
@@ -324,6 +334,8 @@ specification corpus; D-021 governs how exceptions are classified and enforced.
 - 2026-08-11: Added all active LTS targets, centralized disposition target
   expansion in the ledger, recorded target-specific probes, and retained zero
   provider debt.
+- 2026-08-15: Required explicit targets for live local execution and bound
+  standalone live functional tests to the six-target per-event CI matrix.
 
 ### Implementation References
 

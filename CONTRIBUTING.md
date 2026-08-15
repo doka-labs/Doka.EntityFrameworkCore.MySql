@@ -94,18 +94,67 @@ DOKA_INTEGRATION_TARGETS=mysql84,mariadb118 ./eng/test-integration.sh
 
 Use `./eng/test-integration.sh --up-test-down` only when an explicit Compose stack is useful for debugging. That mode exposes the documented host ports and removes the stack plus its volumes after the run. External targets remain available through the `DOKA_<TARGET>_CONNECTION_STRING` variables. MySQL 8.0 is not part of the supported release matrix; its retained legacy tests require both an explicit `mysql80` selection and an external connection string.
 
-Specification tests use the same lifecycle:
+Specification and standalone live functional tests execute exactly one target
+per test-host process. The functional-test project references the versioned
+`LocalMariaDb118.runsettings`, so Rider and a direct unconfigured `dotnet test`
+use the visible repository default `mariadb118` on every workstation. An
+explicit `DOKA_SPEC_TEST_TARGET` overrides that local default:
 
 ```bash
 DOKA_SPEC_TEST_TARGET=mysql84 dotnet test \
   tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
-  --filter "Category=Spec"
+  --filter "Category=Spec|Category=Live"
 ```
 
 Accepted specification targets are `mysql84`, `mysql97`, `mariadb1011`,
 `mariadb114`, `mariadb118`, and `mariadb123`. Set
 `DOKA_SPEC_TEST_CONNECTION_STRING` together with
 `DOKA_SPEC_TEST_SERVER_VERSION` only when validating an external database.
+The per-event CI matrix runs `Category=Spec|Category=Live` in six independent
+processes, one for every accepted target.
+
+For the complete local matrix, use the repository runner. It builds once,
+starts a separate test host and test-owned container for every target in the
+versioned specification contract, and validates each target's TRX result:
+
+```bash
+./eng/test-spec-matrix.sh
+```
+
+No per-workstation Rider configuration is required for the container-owned
+MariaDB 11.8 default. For repeated IDE stress runs, avoid starting and stopping
+Testcontainers on every iteration: start the selected Compose service once and
+configure Rider to use that external endpoint. For MariaDB 11.8, for example:
+
+```bash
+docker compose -f docker/compose.yml up -d --wait mariadb118
+```
+
+Set the endpoint and version in Rider for that service. The checked-in run
+settings already supply the matching `mariadb118` target; list it explicitly only
+when a saved configuration should be self-contained:
+
+```text
+DOKA_SPEC_TEST_TARGET=mariadb118
+DOKA_SPEC_TEST_CONNECTION_STRING=Server=127.0.0.1;Port=33069;Database=doka_provider;User ID=root;Password=root_password;Allow User Variables=true
+DOKA_SPEC_TEST_SERVER_VERSION=mariadb:11.8.8
+```
+
+Stop the service with `docker compose -f docker/compose.yml stop mariadb118`
+after the stress run. Testcontainers Resource Reaper remains enabled for
+ordinary test-owned containers, as its official guidance recommends. The
+experimental Testcontainers reuse mode is not part of the repository test
+contract because it disables Resource Reaper cleanup.
+
+Rider documents both project-stored run configurations and per-configuration
+environment variables. JetBrains documents `.runsettings` plus the project
+`RunSettingsFilePath` as the supported project-specific test-runner mechanism:
+
+- <https://www.jetbrains.com/help/rider/Run_Debug_Configuration.html>
+- <https://youtrack.jetbrains.com/projects/MPS/articles/SUPPORT-A-2390/How-to-configure-Test-Runner-Environment-Variables-for-Unit-Test-projct-in-JetBrains-Rider>
+- <https://learn.microsoft.com/visualstudio/test/configure-unit-tests-by-using-a-dot-runsettings-file>
+- <https://dotnet.testcontainers.org/api/resource_reaper/>
+- <https://dotnet.testcontainers.org/api/resource_reuse/>
 
 The specification contract is stricter than a passing aggregate test count:
 

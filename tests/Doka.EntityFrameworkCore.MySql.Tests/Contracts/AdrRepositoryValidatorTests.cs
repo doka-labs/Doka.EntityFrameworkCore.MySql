@@ -3,6 +3,32 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 public sealed class AdrRepositoryValidatorTests
 {
     [Fact]
+    public void Functional_tests_define_a_portable_local_database_target()
+    {
+        var projectDirectory = Path.Combine(
+            FindRepositoryRoot(),
+            "tests",
+            "Doka.EntityFrameworkCore.MySql.FunctionalTests");
+
+        var project = File.ReadAllText(
+            Path.Combine(projectDirectory, "Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj"));
+
+        var runSettings = File.ReadAllText(Path.Combine(projectDirectory, "LocalMariaDb118.runsettings"));
+
+        Assert.Contains(
+            "<RunSettingsFilePath Condition=\"'$(DOKA_SPEC_TEST_TARGET)' == ''\">"
+            + "$(MSBuildProjectDirectory)/LocalMariaDb118.runsettings</RunSettingsFilePath>",
+            project,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "<DOKA_SPEC_TEST_TARGET>mariadb118</DOKA_SPEC_TEST_TARGET>",
+            runSettings,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("CONNECTION_STRING", runSettings, StringComparison.Ordinal);
+        Assert.DoesNotContain("PASSWORD", runSettings, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Repository_decision_corpus_passes()
     {
         var report = AdrRepositoryValidator.Validate(FindRepositoryRoot());
@@ -508,6 +534,12 @@ public sealed class AdrRepositoryValidatorTests
             StringComparison.Ordinal);
         AssertPerEventJob(workflow, "spec-test-suite");
         AssertPerEventJob(workflow, "coverage-gate");
+        Assert.Contains("--filter \"Category=Spec|Category=Live\"", workflow, StringComparison.Ordinal);
+        Assert.Equal(
+            1,
+            workflow.Split("--filter \"Category=Spec|Category=Live\"", StringSplitOptions.None)
+                .Length
+            - 1);
 
         Assert.Contains(
             $"  migration-deployment:\n    {exhaustiveCondition}",

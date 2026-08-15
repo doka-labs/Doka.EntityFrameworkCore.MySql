@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <EnvironmentVariables>
+      <DOKA_SPEC_TEST_TARGET>mariadb118</DOKA_SPEC_TEST_TARGET>
+    </EnvironmentVariables>
+  </RunConfiguration>
+</RunSettings>

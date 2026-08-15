@@ -21,15 +21,21 @@ internal static class SpecTestTarget
     public const string FrameworkLimitationProbeEnvironmentVariableName = "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS";
 
     /// <summary>
-    /// Gets the target used by local IDE and command-line runs when none is configured.
+    /// Gets the stable target used by discovery when none is configured.
     /// </summary>
     public const string DefaultTarget = "mysql84";
 
     /// <summary>
-    /// Resolves the configured target or the local default when the variable is absent.
+    /// Resolves the target used by target-dependent discovery.
     /// </summary>
     /// <returns>The target identifier shared by discovery and database execution.</returns>
     public static string Resolve() => Resolve(Environment.GetEnvironmentVariable(EnvironmentVariableName));
+
+    /// <summary>
+    /// Resolves the explicitly selected target for a live specification run.
+    /// </summary>
+    public static string ResolveForExecution() => ResolveForExecution(
+        Environment.GetEnvironmentVariable(EnvironmentVariableName));
 
     /// <summary>
     /// Determines whether engine-limitation skips are disabled for a re-evaluation probe.
@@ -43,13 +49,22 @@ internal static class SpecTestTarget
         IsEnabled(FrameworkLimitationProbeEnvironmentVariableName);
 
     /// <summary>
-    /// Resolves an explicit target value or the local default when it is absent.
+    /// Resolves an explicit discovery target or the stable default when it is absent.
     /// </summary>
     /// <param name="configuredTarget">Configured target value, or <see langword="null"/>.</param>
     /// <returns>The configured target or <see cref="DefaultTarget"/>.</returns>
     internal static string Resolve(
         string? configuredTarget
     ) => configuredTarget ?? DefaultTarget;
+
+    internal static string ResolveForExecution(
+        string? configuredTarget
+    ) => string.IsNullOrWhiteSpace(configuredTarget)
+        ? throw new InvalidOperationException(
+            $"Live FunctionalTests execute exactly one database target per process. Set "
+            + $"{EnvironmentVariableName} to mysql84, mysql97, mariadb1011, mariadb114, "
+            + "mariadb118, or mariadb123. CI executes the complete six-target matrix.")
+        : configuredTarget;
 
     private static bool IsEnabled(
         string environmentVariableName

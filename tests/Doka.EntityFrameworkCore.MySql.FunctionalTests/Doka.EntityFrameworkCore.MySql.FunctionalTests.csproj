@@ -4,6 +4,7 @@
     <RootNamespace>Doka.EntityFrameworkCore.MySql.FunctionalTests</RootNamespace>
     <IsTestProject>true</IsTestProject>
     <PreserveCompilationContext>true</PreserveCompilationContext>
+    <RunSettingsFilePath Condition="'$(DOKA_SPEC_TEST_TARGET)' == ''">$(MSBuildProjectDirectory)/LocalMariaDb118.runsettings</RunSettingsFilePath>
   </PropertyGroup>
 
   <ItemGroup>

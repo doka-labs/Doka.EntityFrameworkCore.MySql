@@ -53,12 +53,50 @@ public class SpecDispositionContractTests
     ];
 
     /// <summary>
-    /// Verifies that IDE discovery and fixture execution share the same local target.
+    /// Keeps discovery stable while refusing an implicit live execution target.
     /// </summary>
     [Fact]
     public void Missing_specification_target_defaults_to_mysql84()
     {
         Assert.Equal("mysql84", SpecTestTarget.Resolve(configuredTarget: null));
+        _ = Assert.Throws<InvalidOperationException>(() => SpecTestTarget.ResolveForExecution(configuredTarget: null));
+        _ = Assert.Throws<InvalidOperationException>(() => FunctionalDatabaseFixture.CreateRequest(
+            configuredTarget: null,
+            externalConnectionString: "Server=external",
+            externalServerVersion: "mysql:8.4.11"));
+
+        (string Target, string ServerVersion)[] supportedEndpoints =
+        [
+            ("mysql84", "mysql:8.4.11"),
+            ("mysql97", "mysql:9.7.2"),
+            ("mariadb1011", "mariadb:10.11.18"),
+            ("mariadb114", "mariadb:11.4.12"),
+            ("mariadb118", "mariadb:11.8.8"),
+            ("mariadb123", "mariadb:12.3.2"),
+        ];
+
+        foreach (var (target, serverVersion) in supportedEndpoints)
+        {
+            var request = FunctionalDatabaseFixture.CreateRequest(target, "Server=external", serverVersion);
+
+            Assert.Equal(target, request.TargetId);
+            Assert.Equal(serverVersion, request.ServerVersionToken);
+            Assert.Null(request.Image);
+        }
+
+        string[] mismatchedVersions =
+        [
+            "mariadb:11.4.12",
+            "mysql:9.7.2",
+        ];
+
+        foreach (var mismatchedVersion in mismatchedVersions)
+        {
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                FunctionalDatabaseFixture.CreateRequest("mysql84", "Server=external", mismatchedVersion));
+
+            Assert.Contains("does not match target 'mysql84'", exception.Message, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
