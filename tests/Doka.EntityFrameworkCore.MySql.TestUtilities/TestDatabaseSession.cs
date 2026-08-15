@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotNet.Testcontainers.Containers;
 
 namespace Doka.EntityFrameworkCore.MySql.TestUtilities;
 
@@ -98,9 +99,33 @@ public sealed class TestDatabaseSession : IAsyncDisposable
                         + $"'{request.ConnectionStringEnvironmentVariable}'.");
                 }
 
-                var container = await TestDatabaseContainer
-                    .StartAsync(request, startupCancellation.Token)
-                    .ConfigureAwait(false);
+                TestDatabaseContainer container;
+
+                try
+                {
+                    container = await TestDatabaseContainer
+                        .StartAsync(request, startupCancellation.Token)
+                        .ConfigureAwait(false);
+                }
+                catch (ResourceReaperException exception)
+                {
+                    throw new InvalidOperationException(
+                        $"Test database infrastructure failed before any test body ran for target "
+                        + $"'{request.TargetId}': the Testcontainers Resource Reaper did not initialize. "
+                        + "Let a cancelled IDE run finish cleanup before retrying. For repeated local runs, "
+                        + "use a persistent Compose "
+                        + $"endpoint through {request.ConnectionStringEnvironmentVariable} instead of "
+                        + "provisioning a new container for every run.",
+                        exception);
+                }
+                catch (OperationCanceledException exception) when (startupCancellation.IsCancellationRequested)
+                {
+                    throw new TimeoutException(
+                        $"Test database infrastructure did not initialize target '{request.TargetId}' "
+                        + $"within {s_startupTimeout}. No test body ran.",
+                        exception);
+                }
+
                 containers.Add(container);
 
                 endpoints.Add(

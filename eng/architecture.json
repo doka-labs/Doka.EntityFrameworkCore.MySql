@@ -221,6 +221,20 @@
       ]
     },
     {
+      "path": "eng/test-spec-matrix.sh",
+      "target": "eng/testing/test-spec-matrix.sh",
+      "classification": "operator-command",
+      "owner": "testing",
+      "cost": "high",
+      "purpose": "Run specification and live functional tests against every supported database target.",
+      "inputs": "The versioned specification target contract and test-owned database configuration.",
+      "outputs": "Per-target TRX results and database lifecycle evidence below artifacts/spec-tests/.",
+      "sideEffects": "Builds the functional test project, starts and removes database containers, and writes test artifacts.",
+      "consumers": [
+        "CONTRIBUTING.md"
+      ]
+    },
+    {
       "path": "eng/test.sh",
       "target": "eng/testing/test.sh",
       "classification": "operator-command",

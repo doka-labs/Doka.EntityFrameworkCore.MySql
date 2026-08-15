@@ -280,9 +280,12 @@ internal static class PerformanceWorkloadRunner
         int calibrationIntervalSamples,
         double maximumCalibrationRelativeStandardError,
         string measurementQualityPolicy,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        IPerformanceMeasurementSource? measurementSource = null
     )
     {
+        measurementSource ??= RuntimePerformanceMeasurementSource.Instance;
+
         if (minimumSampleCount <= 0)
         {
             throw new InvalidDataException($"Workload '{workload.Id}' has a non-positive sample count.");
@@ -354,13 +357,14 @@ internal static class PerformanceWorkloadRunner
             // size steady-state samples from JIT and cold-start work instead.
             var targetSampleTicks = PerformanceSampling.ResolveTargetSampleTicks(
                 minimumMeasurementDurationMilliseconds,
-                Stopwatch.Frequency,
+                measurementSource.TimestampFrequency,
                 operationBatchingDurationHeadroomPercent,
                 minimumSampleCount);
             pilotSamplesElapsedTicks = await MeasurePilotSamplesAsync(
                     workload,
                     definition.OperationsPerSample,
                     operationBatchingPilotSamples,
+                    measurementSource,
                     cancellationToken)
                 .ConfigureAwait(false);
             operationsPerSample = PerformanceSampling.ResolveOperationsPerSample(
@@ -378,7 +382,8 @@ internal static class PerformanceWorkloadRunner
         var calibrationPulseIndices = new List<int>(minimumSampleCount);
         var normalizedSamples = new List<double>(minimumSampleCount);
         var minimumMeasurementTicks =
-            checked((long)Math.Ceiling(minimumMeasurementDurationMilliseconds * Stopwatch.Frequency / 1000d));
+            checked((long)Math.Ceiling(
+                minimumMeasurementDurationMilliseconds * measurementSource.TimestampFrequency / 1000d));
 
         var maximumSampleCount = checked(minimumSampleCount * maximumMeasurementSampleMultiplier);
         var requiredSampleCount = minimumSampleCount;
@@ -416,11 +421,11 @@ internal static class PerformanceWorkloadRunner
                 await PrepareAsync(workload, cancellationToken)
                     .ConfigureAwait(false);
 
-                var allocatedBefore = GC.GetTotalAllocatedBytes(precise: true);
+                var allocatedBefore = measurementSource.GetTotalAllocatedBytes();
                 var gen0Before = GC.CollectionCount(0);
                 var gen1Before = GC.CollectionCount(1);
                 var gen2Before = GC.CollectionCount(2);
-                var started = Stopwatch.GetTimestamp();
+                var started = measurementSource.GetTimestamp();
                 long sampleChecksum = 0;
                 long elapsed;
 
@@ -434,8 +439,8 @@ internal static class PerformanceWorkloadRunner
                                 .ConfigureAwait(false));
                     }
 
-                    elapsed = Stopwatch.GetTimestamp() - started;
-                    allocatedBytes += GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore;
+                    elapsed = measurementSource.GetTimestamp() - started;
+                    allocatedBytes += measurementSource.GetTotalAllocatedBytes() - allocatedBefore;
                     gen0Collections += GC.CollectionCount(0) - gen0Before;
                     gen1Collections += GC.CollectionCount(1) - gen1Before;
                     gen2Collections += GC.CollectionCount(2) - gen2Before;
@@ -448,7 +453,9 @@ internal static class PerformanceWorkloadRunner
 
                 checksum = unchecked(checksum + sampleChecksum);
                 measuredTicks = checked(measuredTicks + elapsed);
-                var nanoseconds = elapsed * (1_000_000_000d / Stopwatch.Frequency) / operationsPerSample;
+                var nanoseconds = elapsed
+                    * (1_000_000_000d / measurementSource.TimestampFrequency)
+                    / operationsPerSample;
 
                 if (!double.IsFinite(nanoseconds)
                     || nanoseconds <= 0)
@@ -582,6 +589,7 @@ internal static class PerformanceWorkloadRunner
         PerformanceWorkload workload,
         int operationsPerSample,
         int pilotSampleCount,
+        IPerformanceMeasurementSource measurementSource,
         CancellationToken cancellationToken
     )
     {
@@ -594,7 +602,7 @@ internal static class PerformanceWorkloadRunner
 
             try
             {
-                var started = Stopwatch.GetTimestamp();
+                var started = measurementSource.GetTimestamp();
 
                 for (var operation = 0; operation < operationsPerSample; operation++)
                 {
@@ -603,7 +611,7 @@ internal static class PerformanceWorkloadRunner
                         .ConfigureAwait(false);
                 }
 
-                var elapsed = Stopwatch.GetTimestamp() - started;
+                var elapsed = measurementSource.GetTimestamp() - started;
 
                 if (elapsed <= 0)
                 {
