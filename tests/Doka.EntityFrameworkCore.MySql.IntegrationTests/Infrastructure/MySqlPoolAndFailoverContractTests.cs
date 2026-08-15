@@ -93,6 +93,8 @@ public sealed class MySqlPoolAndFailoverContractTests
 
         await AssertPoolSaturationAndRecoveryAsync(connectionString, serverVersion)
             .ConfigureAwait(false);
+        await AssertPoolWaitCanBeCancelledAsync(connectionString)
+            .ConfigureAwait(false);
         await AssertSessionResetAsync(connectionString)
             .ConfigureAwait(false);
         await AssertBrokenConnectionIsEvictedAsync(connectionString)
@@ -132,15 +134,6 @@ public sealed class MySqlPoolAndFailoverContractTests
                     .ConfigureAwait(false);
             }
 
-            await using (var cancelledConnection = new MySqlConnection(connectionString))
-            {
-                using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
-
-                _ = await Assert
-                    .ThrowsAnyAsync<OperationCanceledException>(() => cancelledConnection.OpenAsync(cancellation.Token))
-                    .ConfigureAwait(false);
-            }
-
             var releasedServerThread = firstConnection.ServerThread;
             await firstConnection
                 .CloseAsync()
@@ -168,6 +161,49 @@ public sealed class MySqlPoolAndFailoverContractTests
         {
             await MySqlConnection
                 .ClearPoolAsync(firstConnection, CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private static async Task AssertPoolWaitCanBeCancelledAsync(
+        string baseConnectionString
+    )
+    {
+        // Keep the connection timeout well outside the cancellation path. A
+        // timer race between both outcomes made scheduler load decide which
+        // exception the contract observed.
+        var connectionString = CreateIsolatedPoolConnectionString(
+            baseConnectionString,
+            maximumPoolSize: 1,
+            connectionTimeout: 30);
+        await using var blockingConnection = new MySqlConnection(connectionString);
+        await MySqlConnection
+            .ClearPoolAsync(blockingConnection, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        try
+        {
+            await blockingConnection
+                .OpenAsync()
+                .ConfigureAwait(false);
+
+            await using var cancelledConnection = new MySqlConnection(connectionString);
+            using var cancellation = new CancellationTokenSource();
+            var pendingOpen = cancelledConnection.OpenAsync(cancellation.Token);
+
+            Assert.False(pendingOpen.IsCompleted);
+            await cancellation
+                .CancelAsync()
+                .ConfigureAwait(false);
+
+            _ = await Assert
+                .ThrowsAnyAsync<OperationCanceledException>(() => pendingOpen)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            await MySqlConnection
+                .ClearPoolAsync(blockingConnection, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
