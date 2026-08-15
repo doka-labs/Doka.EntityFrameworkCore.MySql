@@ -113,13 +113,39 @@ correlator identity.
 
 GitHub documents the dependency-comparison warning header as the readiness
 signal when submission and review run independently. For trusted same-repository
-pull requests, a repository-owned preflight queries the exact base/head
-comparison and retries that header with exponential backoff for 180 seconds.
-It proceeds only when the header is absent. A persistent missing, propagating,
-or count-mismatched snapshot therefore fails closed before the official action
-can apply its soft retry timeout. The window is longer than the observed
-approximately 50-second NuGet autosubmission while remaining bounded by the
-ten-minute review job.
+pull requests, a repository-owned preflight first requires successful
+`submit-nuget` check runs for both exact revisions. Each check must bind the
+requested SHA to the `github-actions` App; a missing, active, or failed producer
+is a distinct fail-closed state. Base and head share a five-minute producer
+window because the base should already have been submitted on its `main` push,
+while the head producer starts with the branch push. Separate per-side windows
+would silently double the registered job budget.
+
+Only after both producer receipts succeed does the preflight start a fresh
+15-minute graph-propagation window. It queries the exact base/head comparison
+and retries the warning header with exponential backoff until the header is
+absent. Producer polling is capped at ten seconds because check completion can
+change promptly; graph-propagation polling is capped at 30 seconds because that
+phase operates on a minutes scale. The shared producer window therefore makes
+at most 37 Check Runs requests, and the propagation window makes at most 35
+comparison requests. The normal ready path still makes three requests. This
+bounded 72-request ceiling preserves margin within GitHub's documented
+1,000-request hourly repository limit for `GITHUB_TOKEN`. A persistent missing,
+propagating, or count-mismatched snapshot fails closed before the official
+action can apply its soft retry timeout. The readiness receipt records both
+check IDs and the measured producer and propagation durations so later runs can
+recalibrate the registered budgets from evidence instead of silently extending
+them.
+
+The two budgets are based on the 2026-08-14 failure and recovery: automatic
+submission completed in 54 seconds, the comparison was still incomplete 2
+minutes later, and it was complete within 13 minutes after producer success. A
+30-minute job timeout contains the five-minute producer window, the 15-minute
+propagation window, the pinned action's three-minute defensive retry, up to one
+minute for in-flight API calls at both deadlines, and runner overhead. GitHub
+publishes retry guidance but no propagation SLA; exhausting either registered
+window therefore remains an explicit external-evidence failure rather than a
+policy bypass.
 
 Fork and Dependabot pull requests retain their read-only token boundary; the
 workflow does not replace it with `pull_request_target`. They still run the
@@ -150,6 +176,8 @@ default configuration.
   workflow.
 - Good, because trusted review cannot turn an expired snapshot-warning retry
   into a successful but incomplete policy result.
+- Good, because producer execution cannot consume the graph-propagation budget,
+  and every accepted comparison cites successful checks for both exact SHAs.
 - Good, because the workflow surface is enforced by actionlint and zizmor
   rather than by one hand-written parser covering a single defect class.
 - Good, because the NuGet cache removes a full package restore from most jobs
@@ -160,6 +188,12 @@ default configuration.
 - Bad, because trusted dependency review depends on GitHub's automatic
   submission service and fails closed when that external graph is unavailable
   or remains incomplete after the bounded retry window.
+- Bad, because an unavailable automatic producer or graph can occupy the
+  dependency-review runner for up to the registered 30-minute job timeout.
+- Bad, because GitHub does not publish the `submit-nuget` check identity as a
+  stable API contract; a vendor rename fails closed until the new identity is
+  verified on an exact revision and registered in code, tests, and operations
+  guidance.
 - Bad, because fork and Dependabot pull requests cannot receive the same
   fail-closed head-readiness guarantee under their read-only token boundary.
 - Bad, because the required status checks in the branch ruleset must be updated
@@ -269,6 +303,9 @@ version control. They are documented in
   automation-created `main` commit proved that the extra producer could not be
   triggered symmetrically. Automatic Dependency Submission now owns both sides,
   while the repository preflight requires a warning-free exact comparison.
+- 2026-08-14: Split automatic-submission completion from graph propagation after
+  a successful head producer still needed more than the original shared
+  180-second window to become visible to dependency review.
 
 ### Implementation References
 
@@ -292,11 +329,15 @@ version control. They are documented in
 - [OpenSSF Scorecard action v2.4.4](https://github.com/ossf/scorecard-action/blob/v2.4.4/README.md)
   (primary source; retrieved 2026-08-13)
 - [Dependency review](https://docs.github.com/en/code-security/concepts/supply-chain-security/dependency-review)
-  (primary source; retrieved 2026-08-13)
+  (primary source; retrieved 2026-08-15)
 - [Dependency Review Action v5.0.0](https://github.com/actions/dependency-review-action/tree/a1d282b36b6f3519aa1f3fc636f609c47dddb294)
-  (primary source; retrieved 2026-08-13)
+  (primary source; retrieved 2026-08-15)
 - [Pinned Dependency Review comparison implementation](https://github.com/actions/dependency-review-action/blob/a1d282b36b6f3519aa1f3fc636f609c47dddb294/src/dependency-graph.ts)
-  (primary source; retrieved 2026-08-13)
+  (primary source; retrieved 2026-08-15)
+- [Check Runs API](https://docs.github.com/en/rest/checks/runs)
+  (primary source; retrieved 2026-08-15)
+- [REST API rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)
+  (primary source; retrieved 2026-08-15)
 - [Configuring automatic dependency submission](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/submit-dependencies-automatically)
   (primary source; retrieved 2026-08-14)
 - [Automatic dependency submission](https://docs.github.com/en/code-security/reference/supply-chain-security/automatic-dependency-submission)

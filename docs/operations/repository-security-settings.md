@@ -236,18 +236,39 @@ as the contributor installed it and is not digest-checked.
 The pull-request dependency gate deliberately has no second graph producer.
 GitHub Automatic Dependency Submission must therefore remain enabled for
 NuGet. It resolves the graph for automation-created branches and `main`
-commits, while `dependency-review.yml` waits for GitHub's exact base/head
-comparison to become warning-free. Disabling autosubmission makes trusted pull
-requests fail closed after the bounded readiness window.
+commits. For trusted pull requests, `dependency-review.yml` first requires
+successful `submit-nuget` checks from the `github-actions` App for both exact
+SHAs. It then grants the dependency graph a separate 15-minute propagation
+window in which the exact comparison must become warning-free. Disabling
+autosubmission makes trusted pull requests fail closed in the producer phase.
+Producer retries cap at ten seconds; propagation retries cap at 30 seconds.
+That keeps the worst-case preflight at 72 REST requests while retaining prompt
+producer detection. A normal ready run makes only the base check, head check,
+and exact comparison requests.
 
 UI: Settings -> Advanced Security -> Dependency graph -> Automatic dependency
 submission -> Enabled.
 
 Confirm that a recent branch revision and the current `main` revision each
 show a successful `submit-nuget` job under "Automatic Dependency Submission
-(NuGet)" in the Actions tab. The repository preflight does not bind itself to
-that presentation-level check name; its contract is the warning-free exact
-comparison returned by GitHub's dependency-review API.
+(NuGet)" in the Actions tab. The repository preflight binds the underlying
+check name, exact SHA, and App slug rather than the presentation-level workflow
+title. Its second phase then requires the warning-free exact comparison returned
+by GitHub's dependency-review API.
+
+GitHub does not document `submit-nuget` as a stable check name. If the producer
+phase reports that the exact check is missing while Automatic Dependency
+Submission is visibly green, inspect the exact revision through the Check Runs
+API. Change the registered name only after confirming its SHA, App slug, and
+successful dependency submission; update D-025 and the workflow contract tests
+in the same pull request.
+
+The successful job summary reports the base and head producer check IDs plus
+the observed duration of each wait phase. If the producer phase fails, inspect
+the exact SHA's Automatic Dependency Submission run. If the propagation phase
+fails, a later re-run may confirm eventual recovery, but it does not by itself
+justify changing the registered budget. Recalibration requires multiple
+observed summaries and an update to D-025 in the same pull request.
 
 ### Required status checks must match the current lanes
 
@@ -399,6 +420,9 @@ Unless noted otherwise, sources were retrieved on 2026-08-10.
 - GitHub, [Dependency review][github-dependency-review], including the
   snapshot-warning header and exponential-backoff guidance (retrieved
   2026-08-14).
+- GitHub, [REST API rate limits][github-rest-rate-limits], including the
+  `GITHUB_TOKEN` limit of 1,000 requests per hour per repository (retrieved
+  2026-08-15).
 
 [github-actions-settings]:
   https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository
@@ -420,3 +444,5 @@ Unless noted otherwise, sources were retrieved on 2026-08-10.
   https://docs.github.com/en/code-security/reference/supply-chain-security/automatic-dependency-submission
 [github-dependency-review]:
   https://docs.github.com/en/code-security/concepts/supply-chain-security/dependency-review
+[github-rest-rate-limits]:
+  https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
