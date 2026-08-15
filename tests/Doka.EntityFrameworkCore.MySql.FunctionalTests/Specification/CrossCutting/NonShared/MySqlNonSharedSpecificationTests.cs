@@ -30,6 +30,39 @@ public sealed class OwnedEntityQueryMySqlTest : OwnedEntityQueryRelationalTestBa
     protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
     /// <summary>
+    /// Verifies an owned collection projection with deterministic relational ordering.
+    /// </summary>
+    public override async Task Projecting_correlated_collection_property_for_owned_entity(
+        bool async
+    )
+    {
+        var contextFactory = await InitializeAsync<Context18582>(seed: context => context.SeedAsync());
+
+        using var context = contextFactory.CreateContext();
+
+        // The upstream assertion is positional, while SQL without ORDER BY has
+        // no row-order contract. Preserve the asserted seed order explicitly.
+        var query = context
+            .Warehouses.Select(warehouse => new Context18582.WarehouseModel
+            {
+                WarehouseCode = warehouse.WarehouseCode,
+                DestinationCountryCodes = warehouse
+                    .DestinationCountries.OrderBy(country => country.Id)
+                    .Select(country => country.CountryCode)
+                    .ToArray(),
+            })
+            .AsNoTracking();
+
+        Assert.Contains("ORDER BY `w`.`Id`, `w0`.`Id`", query.ToQueryString(), StringComparison.Ordinal);
+
+        var result = async ? await query.ToListAsync() : query.ToList();
+
+        var warehouseModel = Assert.Single(result);
+        Assert.Equal("W001", warehouseModel.WarehouseCode);
+        Assert.Equal(["US", "CA"], warehouseModel.DestinationCountryCodes);
+    }
+
+    /// <summary>
     /// Verifies null comparison for an owned navigation in a correlated
     /// collection while making the upstream assertion order deterministic.
     /// </summary>
