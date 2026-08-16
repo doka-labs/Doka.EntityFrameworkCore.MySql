@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 KIND = "release-stage-checkpoint"
 
 
@@ -199,7 +199,7 @@ def write_checkpoint(
     run_id: str,
     stage: str,
     source_ref: str,
-    release_tag: str,
+    expected_release_tag: str,
     run_attempt: int,
     runner_identity: str,
     started_utc: str,
@@ -208,7 +208,10 @@ def write_checkpoint(
     """Write one completed stage receipt by atomic same-directory rename."""
     run_id = validate_identity_text(run_id, "runId")
     source_ref = validate_identity_text(source_ref, "sourceRef")
-    release_tag = validate_identity_text(release_tag, "releaseTag")
+    expected_release_tag = validate_identity_text(
+        expected_release_tag,
+        "expectedReleaseTag",
+    )
     runner_identity = validate_identity_text(runner_identity, "runnerIdentity")
     run_attempt = validate_run_attempt(run_attempt)
     started = parse_utc(started_utc, "startedUtc")
@@ -223,7 +226,7 @@ def write_checkpoint(
         "stage": stage,
         "sourceCommit": source_commit(repository),
         "sourceRef": source_ref,
-        "releaseTag": release_tag,
+        "expectedReleaseTag": expected_release_tag,
         "runAttempt": run_attempt,
         "runnerIdentity": runner_identity,
         "startedUtc": format_utc(started),
@@ -326,13 +329,13 @@ def verify_checkpoint(
     run_id: str,
     stage: str,
     source_ref: str,
-    release_tag: str,
+    expected_release_tag: str,
     maximum_run_attempt: int,
 ) -> Path:
     """Verify receipt identity and recompute every retained artifact digest."""
     validate_identity_text(run_id, "runId")
     validate_identity_text(source_ref, "sourceRef")
-    validate_identity_text(release_tag, "releaseTag")
+    validate_identity_text(expected_release_tag, "expectedReleaseTag")
     validate_run_attempt(maximum_run_attempt, "maximumRunAttempt")
     path = checkpoint_path(checkpoint_directory, stage)
     payload = read_checkpoint(path)
@@ -343,7 +346,7 @@ def verify_checkpoint(
         "stage": stage,
         "sourceCommit": source_commit(repository),
         "sourceRef": source_ref,
-        "releaseTag": release_tag,
+        "expectedReleaseTag": expected_release_tag,
     }
     for key, expected in expected_identity.items():
         if payload.get(key) != expected:
@@ -399,7 +402,7 @@ def verify_checkpoint_set(
     checkpoint_directory: Path,
     run_id: str,
     source_ref: str,
-    release_tag: str,
+    expected_release_tag: str,
     maximum_run_attempt: int,
     expected_stages: list[str],
 ) -> list[Path]:
@@ -439,7 +442,7 @@ def verify_checkpoint_set(
                 run_id=run_id,
                 stage=stage,
                 source_ref=source_ref,
-                release_tag=release_tag,
+                expected_release_tag=expected_release_tag,
                 maximum_run_attempt=maximum_run_attempt,
             )
         )
@@ -454,7 +457,7 @@ def add_identity_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--checkpoint-directory", required=True, type=Path)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--source-ref", required=True)
-    parser.add_argument("--release-tag", required=True)
+    parser.add_argument("--expected-release-tag", required=True)
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -503,7 +506,7 @@ def main(argv: list[str] | None = None) -> int:
                 run_id=args.run_id,
                 stage=args.stage,
                 source_ref=args.source_ref,
-                release_tag=args.release_tag,
+                expected_release_tag=args.expected_release_tag,
                 run_attempt=args.run_attempt,
                 runner_identity=args.runner_identity,
                 started_utc=args.started_utc,
@@ -517,7 +520,7 @@ def main(argv: list[str] | None = None) -> int:
                 run_id=args.run_id,
                 stage=args.stage,
                 source_ref=args.source_ref,
-                release_tag=args.release_tag,
+                expected_release_tag=args.expected_release_tag,
                 maximum_run_attempt=args.maximum_run_attempt,
             )
         else:
@@ -527,7 +530,7 @@ def main(argv: list[str] | None = None) -> int:
                 checkpoint_directory=args.checkpoint_directory,
                 run_id=args.run_id,
                 source_ref=args.source_ref,
-                release_tag=args.release_tag,
+                expected_release_tag=args.expected_release_tag,
                 maximum_run_attempt=args.maximum_run_attempt,
                 expected_stages=args.expected_stage,
             )

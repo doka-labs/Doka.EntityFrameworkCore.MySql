@@ -1,4 +1,4 @@
-"""Hold the finalizer's evidence demands against what the tag run produces.
+"""Hold the finalizer's evidence demands against what qualification produces.
 
 The finalizer once demanded evidence the release workflow had stopped
 producing. Every part passed its own test. Nothing compared the demands against
@@ -102,7 +102,7 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
                     "job does not restore",
                 )
 
-    def test_the_required_stage_set_matches_the_dispatched_stages(self) -> None:
+    def test_the_required_stage_set_matches_the_candidate_stages(self) -> None:
         """Keep the receipt requirement and the workflow matrix pinned together.
 
         A stage the workflow runs but the receipt check omits ships unverified;
@@ -116,9 +116,10 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
         )
 
         workflow = WORKFLOW.read_text(encoding="utf-8")
-        dispatched = set(re.findall(r"^\s+- stage: (\S+)$", workflow, re.M))
+        matrix_stages = set(re.findall(r"^\s+- stage: (\S+)$", workflow, re.M))
+        candidate_stages = matrix_stages | {"package", "sbom"}
 
-        self.assertEqual(dispatched | {"sbom"}, expected)
+        self.assertEqual(candidate_stages, expected)
 
     def test_the_finalizer_requires_no_retired_evidence(self) -> None:
         """Name the directories this run stopped producing.

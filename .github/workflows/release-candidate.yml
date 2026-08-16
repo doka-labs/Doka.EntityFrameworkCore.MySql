@@ -1,47 +1,37 @@
 name: release-candidate
 
 on:
-  # A signed tag is the release identity, so the tag push is what starts
-  # qualification. Manual dispatch remains available for diagnosis; it can
-  # never qualify a release because the trust root below requires the tag.
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: Candidate package version, for example 10.0.0-rc.1
+        required: true
+        type: string
 
 permissions:
   contents: read
 
-# A tag may have only one active qualification run. A second manual dispatch
-# waits instead of cancelling a run whose receipts may later be published.
 concurrency:
-  group: release-candidate-${{ github.ref }}
+  group: release-candidate-${{ inputs.version }}
   cancel-in-progress: false
 
 env:
-  # The run ID intentionally excludes github.run_attempt. GitHub preserves the
-  # source ref and commit across reruns, so successful stage artifacts from an
-  # earlier attempt remain valid inputs to a rerun of only the failed jobs.
   DOKA_RELEASE_CANDIDATE_RUN_ID: github-${{ github.run_id }}
-  DOKA_RELEASE_EXPECTED_REF: ${{ github.ref }}
-  DOKA_RELEASE_REQUIRE_TAG: 1
+  DOKA_RELEASE_EXPECTED_REF: refs/heads/main
   DOKA_RELEASE_RUN_ATTEMPT: ${{ github.run_attempt }}
+  DOKA_RELEASE_VERSION: ${{ inputs.version }}
 
 jobs:
   preflight:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    # The trust root resolves the qualification check down to the workflow run
-    # behind it, which is an Actions resource. An explicit permissions block
-    # does not inherit anything, so a job that omits this is refused by the API
-    # at the first request rather than at review.
     permissions:
       actions: read
       contents: read
 
     steps:
-      - name: Checkout tagged source
+      - name: Checkout candidate source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -52,56 +42,28 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Verify immutable source identity
+      - name: Verify current untagged main source
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
-            echo "Release-candidate qualification must be dispatched from a tag." >&2
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "Release candidates must be dispatched from main." >&2
+            exit 1
+          fi
+          if [[ ! "${RELEASE_VERSION}" =~ ^[0-9]+[.][0-9]+[.][0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release version '${RELEASE_VERSION}' is invalid." >&2
             exit 1
           fi
 
-          release_tag="${GITHUB_REF#refs/tags/}"
-          if [[ ! "${release_tag}" =~ ^v[0-9]+[.][0-9]+[.][0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Release tag '${release_tag}' is not a supported semantic version tag." >&2
-            exit 1
-          fi
-
-          if [[ "$(git cat-file -t "refs/tags/${release_tag}")" != "tag" ]]; then
-            echo "Release tag '${release_tag}' must be annotated." >&2
-            exit 1
-          fi
-
-          if [[ "$(git rev-list -n 1 "refs/tags/${release_tag}")" != "${GITHUB_SHA}" ]]; then
-            echo "Release tag '${release_tag}' does not resolve to the checked-out commit." >&2
-            exit 1
-          fi
-
-      # Fail before any expensive stage if the runner, shell contract, or
-      # receipt implementation differs from the reviewed repository state.
-      # The trust root runs before any tooling or evidence work. Its checks are
-      # seconds long and each answers a question the previous shape left open:
-      # who signed the tag, whether its commit ever reached protected main, and
-      # whether the branch evidence came from the branch rather than from a
-      # pull request against it.
-      - name: Establish the release tag trust root
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          release_tag="${GITHUB_REF#refs/tags/}"
           git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main
-          if ! python3 -m eng.release.trust verify \
-              --repo . \
-              --tag "${release_tag}" \
-              --commit "${GITHUB_SHA}" \
-              --repository "${GITHUB_REPOSITORY}" \
-              --policy eng/release/evidence-policy.json \
-              --output artifacts/release-tag-trust-root.json; then
-            message="Sign the tag with a key registered in "
-            message+="eng/release/evidence-policy.json, create it on a commit "
-            message+="reachable from protected main, and wait for the "
-            message+="repository-qualification check to conclude on that "
-            message+="branch push before tagging again."
-            echo "::error title=Release tag trust root required::${message}" >&2
+          if [[ "$(git rev-parse refs/remotes/origin/main)" != "${GITHUB_SHA}" ]]; then
+            echo "The dispatched commit is no longer current main." >&2
+            exit 1
+          fi
+          if git tag --points-at "${GITHUB_SHA}" \
+              | grep -Eq '^v[0-9]+[.][0-9]+[.][0-9]+([-.][0-9A-Za-z.-]+)?$'; then
+            echo "Candidate qualification must complete before a semantic tag exists." >&2
             exit 1
           fi
 
@@ -110,6 +72,7 @@ jobs:
           bash ./eng/common/verify-dotnet.sh
           bash -n ./eng/release-candidate.sh
           bash -n ./eng/release/restore-release-stage-artifacts.sh
+          bash -n ./eng/testing/test-nuget-readback.sh
           python3 -m unittest \
             eng.tests.test_materialize_sbom_assets \
             eng.tests.test_release_artifact_resolver \
@@ -119,25 +82,15 @@ jobs:
   foundation:
     needs: preflight
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ matrix.timeout_minutes }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Quality gates and repository tests are commit-exact on the
-          # default branch and are imported rather than repeated. Packing
-          # stays here because it produces the release payload.
-          - stage: package
-            timeout_minutes: 25
-            deadline_seconds: 1200
+    timeout-minutes: 35
 
     env:
-      DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: ${{ matrix.deadline_seconds }}
+      DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: 1800
       DOKA_RELEASE_CANDIDATE_RESUME: 1
-      DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/${{ matrix.stage }}
+      DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/package
 
     steps:
-      - name: Checkout tagged source
+      - name: Checkout candidate source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -148,24 +101,24 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Run ${{ matrix.stage }} stage
-        run: bash ./eng/release-candidate.sh --stage "${{ matrix.stage }}"
+      - name: Pack and qualify exact local package bytes
+        run: bash ./eng/release-candidate.sh --stage package
 
-      - name: Upload verified ${{ matrix.stage }} state
+      - name: Upload verified package state
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-stage-${{ matrix.stage }}-attempt-${{ github.run_attempt }}
+          name: release-stage-package-attempt-${{ github.run_attempt }}
           path: |
             artifacts/release-candidate/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
             artifacts/release-candidate-checkpoints/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
           if-no-files-found: error
           retention-days: 7
 
-      - name: Retain incomplete ${{ matrix.stage }} diagnostics
+      - name: Retain incomplete package diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-diagnostics-${{ matrix.stage }}-${{ github.run_attempt }}
+          name: release-diagnostics-package-${{ github.run_attempt }}
           path: artifacts
           if-no-files-found: warn
           retention-days: 7
@@ -179,11 +132,6 @@ jobs:
       max-parallel: 3
       matrix:
         include:
-          # The specification and integration suites are commit-exact on
-          # the default branch and are imported. The gates below are not:
-          # both patch matrices resolve a floating dependency leg, and
-          # migration and runtime posture compile the tagged provider
-          # source, so week-old evidence would not describe this commit.
           - stage: migration-deployment
             timeout_minutes: 60
             deadline_seconds: 3300
@@ -203,7 +151,7 @@ jobs:
       DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/${{ matrix.stage }}
 
     steps:
-      - name: Checkout tagged source
+      - name: Checkout candidate source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -251,7 +199,7 @@ jobs:
       DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/sbom
 
     steps:
-      - name: Checkout tagged source
+      - name: Checkout candidate source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -291,19 +239,23 @@ jobs:
       - engine-contracts
       - sbom
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     permissions:
       actions: read
       contents: read
 
+    outputs:
+      candidate_artifact_name: ${{ steps.names.outputs.candidate_artifact_name }}
+      checkpoint_artifact_name: ${{ steps.names.outputs.checkpoint_artifact_name }}
+
     env:
-      DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: 900
+      DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: 1200
       DOKA_RELEASE_CANDIDATE_RESUME: 1
       DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/assemble
 
     steps:
-      - name: Checkout tagged source
+      - name: Checkout candidate source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -314,9 +266,6 @@ jobs:
         with:
           global-json-file: global.json
 
-      # Every required stage is restored by exact workflow-run identity. The
-      # helper permits a shared file only when all contributing archives carry
-      # identical bytes, then the receipt verifier checks the complete set.
       - name: Restore complete verified stage set
         env:
           GH_TOKEN: ${{ github.token }}
@@ -338,30 +287,70 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: bash ./eng/release-candidate.sh --stage finalize
 
-      # Assembly verifies the manifest it wrote. This verifies it again from
-      # the artifact tree, against the identities this job knows independently,
-      # so a manifest that only agrees with itself does not leave the job.
-      - name: Verify the canonical qualification manifest
+      - name: Verify canonical qualification manifest
         run: |
+          candidate_root="artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
           python3 -m eng.release.qualification verify \
-            --manifest "artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}/release-qualification-manifest.json" \
+            --manifest "${candidate_root}/release-qualification-manifest.json" \
+            --root "${candidate_root}/packages" \
             --expected-repository "${GITHUB_REPOSITORY}" \
             --expected-commit "${GITHUB_SHA}" \
             --expected-tree-id "$(git rev-parse 'HEAD^{tree}')" \
-            --expected-tag "${GITHUB_REF#refs/tags/}"
+            --expected-release-tag "v${DOKA_RELEASE_VERSION}"
+
+      - name: Derive symbol probes and candidate receipt
+        id: candidate
+        run: |
+          candidate_root="artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          publication_evidence="artifacts/release-publication"
+          mkdir -p "${publication_evidence}"
+
+          dotnet run \
+            --project eng/tools/Doka.EntityFrameworkCore.MySql.NuGetSymbolReadback \
+            --configuration Release \
+            -- \
+            --candidate-root "${candidate_root}" \
+            --version "${DOKA_RELEASE_VERSION}" \
+            --output "${publication_evidence}/symbol-readback-manifest.json"
+
+          python3 -m eng.release.nuget prepare \
+            --repo "${GITHUB_WORKSPACE}" \
+            --root "${candidate_root}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --output "${publication_evidence}/candidate-receipt.json" \
+            --github-output "${GITHUB_OUTPUT}"
+
+      - name: Require a completely unused public version
+        run: |
+          candidate_root="artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          publication_evidence="artifacts/release-publication"
+          python3 -m eng.release.nuget preflight \
+            --receipt "${publication_evidence}/candidate-receipt.json" \
+            --candidate-root "${candidate_root}" \
+            --symbol-manifest "${publication_evidence}/symbol-readback-manifest.json" \
+            --output "${publication_evidence}/candidate-publication-preflight.json" \
+            --require-absent
+
+      - name: Name immutable candidate artifacts
+        id: names
+        run: |
+          echo "candidate_artifact_name=release-candidate-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
+          echo "checkpoint_artifact_name=release-checkpoints-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload immutable release candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-candidate-artifacts-attempt-${{ github.run_attempt }}
-          path: artifacts/release-candidate
+          name: ${{ steps.names.outputs.candidate_artifact_name }}
+          path: |
+            artifacts/release-candidate
+            artifacts/release-publication
           if-no-files-found: error
           retention-days: 90
 
       - name: Upload exhaustive stage receipts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-candidate-stage-receipts-attempt-${{ github.run_attempt }}
+          name: ${{ steps.names.outputs.checkpoint_artifact_name }}
           path: artifacts/release-candidate-checkpoints
           if-no-files-found: error
           retention-days: 90
@@ -382,13 +371,13 @@ jobs:
       - name: Download immutable release candidate
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: release-candidate-artifacts-attempt-${{ github.run_attempt }}
-          path: artifacts/release-candidate
+          name: ${{ needs.assemble.outputs.candidate_artifact_name }}
+          path: artifacts
 
       - name: Download exhaustive stage receipts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: release-candidate-stage-receipts-attempt-${{ github.run_attempt }}
+          name: ${{ needs.assemble.outputs.checkpoint_artifact_name }}
           path: artifacts/release-candidate-checkpoints
 
       - name: Attest packages, evidence, and stage receipts
@@ -399,12 +388,225 @@ jobs:
             artifacts/release-candidate/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}/packages/*.snupkg
             artifacts/release-candidate/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}/release-candidate-evidence.json
             artifacts/release-candidate/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}/release-candidate-evidence.sha256
+            artifacts/release-publication/candidate-receipt.json
+            artifacts/release-publication/candidate-publication-preflight.json
+            artifacts/release-publication/symbol-readback-manifest.json
             artifacts/release-candidate-checkpoints/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}/*.json
 
-      - name: Verify hosted evidence attestation
+  publish:
+    needs:
+      - assemble
+      - attest
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment:
+      name: nuget
+
+    permissions:
+      actions: read
+      attestations: read
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout qualified source and fetch current main and release tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Download immutable same-run candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.assemble.outputs.candidate_artifact_name }}
+          path: artifacts
+
+      - name: Revalidate source, evidence, and attestations
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh attestation verify \
-            "artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}/release-candidate-evidence.json" \
-            --repo "${GITHUB_REPOSITORY}"
+          bash ./eng/common/verify-dotnet.sh
+          git fetch --quiet origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            +refs/tags/*:refs/tags/*
+          if [[ "${GITHUB_REF}" != "refs/heads/main" \
+              || "$(git rev-parse HEAD)" != "${GITHUB_SHA}" ]] \
+              || ! git merge-base --is-ancestor \
+                "${GITHUB_SHA}" refs/remotes/origin/main; then
+            echo "Publication requires the qualified commit to remain on current main history." >&2
+            exit 1
+          fi
+
+          candidate_root="artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          python3 -m eng.release.evidence verify --root "${candidate_root}"
+          for artifact in \
+            "${candidate_root}/release-candidate-evidence.json" \
+            "${candidate_root}/release-candidate-evidence.sha256" \
+            "${candidate_root}/packages/"*.nupkg \
+            "${candidate_root}/packages/"*.snupkg \
+            artifacts/release-publication/candidate-receipt.json \
+            artifacts/release-publication/candidate-publication-preflight.json \
+            artifacts/release-publication/symbol-readback-manifest.json; do
+            gh attestation verify "${artifact}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release-candidate.yml" \
+              --signer-digest "${GITHUB_SHA}" \
+              --source-ref "refs/heads/main" \
+              --source-digest "${GITHUB_SHA}" \
+              --deny-self-hosted-runners
+          done
+
+      - name: Establish signed tag trust root and publication binding
+        id: binding
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_tag="v${DOKA_RELEASE_VERSION}"
+          candidate_root="artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          publication_evidence="artifacts/release-publication"
+
+          python3 -m eng.release.trust verify \
+            --repo . \
+            --tag "${release_tag}" \
+            --commit "${GITHUB_SHA}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --policy eng/release/evidence-policy.json \
+            --qualification-manifest \
+              "${candidate_root}/release-qualification-manifest.json" \
+            --output "${publication_evidence}/release-tag-trust-root.json"
+
+          python3 -m eng.release.nuget bind \
+            --repo . \
+            --root "${candidate_root}" \
+            --candidate-receipt "${publication_evidence}/candidate-receipt.json" \
+            --tag-trust-receipt "${publication_evidence}/release-tag-trust-root.json" \
+            --release-tag "${release_tag}" \
+            --output "${publication_evidence}/release-publication-receipt.json" \
+            --github-output "${GITHUB_OUTPUT}"
+
+      - name: Stage and verify GitHub release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          candidate_root="artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          publication_evidence="artifacts/release-publication"
+          python3 -m eng.release.github prepare \
+            --repository "${GITHUB_REPOSITORY}" \
+            --candidate-root "${candidate_root}" \
+            --publication-evidence "${publication_evidence}" \
+            --changelog CHANGELOG.md \
+            --output "${publication_evidence}/github-release-staged-plan.json"
+          python3 -m eng.release.github stage \
+            --repo . \
+            --plan "${publication_evidence}/github-release-staged-plan.json" \
+            --output "${publication_evidence}/github-release-draft.json"
+
+      - name: Check NuGet.org immediately before publication
+        id: preflight
+        run: |
+          candidate_root="artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          publication_evidence="artifacts/release-publication"
+          python3 -m eng.release.nuget preflight \
+            --receipt "${publication_evidence}/release-publication-receipt.json" \
+            --candidate-root "${candidate_root}" \
+            --symbol-manifest "${publication_evidence}/symbol-readback-manifest.json" \
+            --output "${publication_evidence}/publication-preflight.json" \
+            --github-output "${GITHUB_OUTPUT}"
+
+      - name: Request short-lived NuGet.org key
+        if: steps.preflight.outputs.publication_required == 'true'
+        id: nuget-login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Publish provider package
+        if: steps.preflight.outputs.provider_published != 'true'
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          PACKAGE: ${{ steps.preflight.outputs.provider_package }}
+        run: |
+          dotnet nuget push "${PACKAGE}" \
+            --source https://api.nuget.org/v3/index.json --no-symbols --timeout 300
+
+      - name: Publish provider symbols
+        if: steps.preflight.outputs.provider_symbols_published != 'true'
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          PACKAGE: ${{ steps.preflight.outputs.provider_symbols }}
+        run: |
+          dotnet nuget push "${PACKAGE}" \
+            --source https://api.nuget.org/v3/index.json --skip-duplicate --timeout 300
+
+      - name: Publish spatial package
+        if: steps.preflight.outputs.spatial_published != 'true'
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          PACKAGE: ${{ steps.preflight.outputs.spatial_package }}
+        run: |
+          dotnet nuget push "${PACKAGE}" \
+            --source https://api.nuget.org/v3/index.json --no-symbols --timeout 300
+
+      - name: Publish spatial symbols
+        if: steps.preflight.outputs.spatial_symbols_published != 'true'
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          PACKAGE: ${{ steps.preflight.outputs.spatial_symbols }}
+        run: |
+          dotnet nuget push "${PACKAGE}" \
+            --source https://api.nuget.org/v3/index.json --skip-duplicate --timeout 300
+
+      - name: Publish and read back immutable GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          publication_evidence="artifacts/release-publication"
+          python3 -m eng.release.github publish \
+            --repo . \
+            --plan "${publication_evidence}/github-release-staged-plan.json" \
+            --output "${publication_evidence}/github-release-readback.json"
+
+      - name: Verify public package and symbol payloads
+        run: |
+          candidate_root="artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          publication_evidence="artifacts/release-publication"
+          python3 -m eng.release.nuget readback \
+            --receipt "${publication_evidence}/release-publication-receipt.json" \
+            --candidate-root "${candidate_root}" \
+            --symbol-manifest "${publication_evidence}/symbol-readback-manifest.json" \
+            --output-dir "${publication_evidence}/packages" \
+            --output "${publication_evidence}/nuget-publication-readback.json" \
+            --timeout-seconds 3600
+
+      - name: Verify public NuGet repository signatures
+        run: |
+          publication_evidence="artifacts/release-publication"
+          dotnet nuget verify "${publication_evidence}/packages/"*.nupkg \
+            --all --verbosity normal \
+            > "${publication_evidence}/nuget-signature-verification.txt" 2>&1
+          cat "${publication_evidence}/nuget-signature-verification.txt"
+
+      - name: Bind publication completion evidence
+        run: |
+          candidate_root="artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          publication_evidence="artifacts/release-publication"
+          python3 -m eng.release.github complete \
+            --repository "${GITHUB_REPOSITORY}" \
+            --candidate-root "${candidate_root}" \
+            --publication-evidence "${publication_evidence}" \
+            --changelog CHANGELOG.md \
+            --output "${publication_evidence}/release-publication-completion.json"
+
+      - name: Upload publication completion evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-publication-${{ inputs.version }}-attempt-${{ github.run_attempt }}
+          path: artifacts/release-publication
+          if-no-files-found: error
+          retention-days: 90

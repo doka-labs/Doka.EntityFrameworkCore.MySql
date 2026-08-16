@@ -75,7 +75,6 @@ class OrchestratorStageTests(unittest.TestCase):
                         # own process-group deadline. This keeps the contract
                         # cheap even if the early probe exit is moved or lost.
                         "DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS": "5",
-                        "DOKA_RELEASE_REQUIRE_TAG": "0",
                         "DOKA_RELEASE_VERSION": "0.0.0-chain-probe",
                         "DOKA_RELEASE_CHAIN_PROBE": "1",
                     },

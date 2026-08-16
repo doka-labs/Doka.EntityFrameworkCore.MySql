@@ -14,6 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+from eng.release import github as github_release
 from eng.release import nuget as nuget_publication
 
 
@@ -340,43 +341,8 @@ class NuGetPublicationTests(unittest.TestCase):
         ):
             nuget_publication.validated_symbol_entries(manifest, self._VERSION)
 
-    def test_candidate_run_must_be_successful_and_tag_bound(self) -> None:
-        """Bind the selected run to the exact repository, tag, and source SHA."""
-        run = {
-            "id": 123,
-            "run_attempt": 1,
-            "event": "workflow_dispatch",
-            "status": "completed",
-            "conclusion": "success",
-            "path": (
-                f"{nuget_publication.CANDIDATE_WORKFLOW_PATH}@v{self._VERSION}"
-            ),
-            "head_sha": self._COMMIT,
-            "head_branch": f"v{self._VERSION}",
-            "repository": {"full_name": self._REPOSITORY},
-        }
-
-        self.assertEqual(
-            ("123", "1"),
-            nuget_publication.validate_run_metadata(
-                run,
-                self._REPOSITORY,
-                f"v{self._VERSION}",
-                self._COMMIT,
-            ),
-        )
-
-        run["conclusion"] = "failure"
-        with self.assertRaisesRegex(nuget_publication.PublicationError, "not completed successfully"):
-            nuget_publication.validate_run_metadata(
-                run,
-                self._REPOSITORY,
-                f"v{self._VERSION}",
-                self._COMMIT,
-            )
-
-    def test_validate_candidate_binds_current_main_tag_run_and_manifest(self) -> None:
-        """Accept a candidate only when every local and hosted identity agrees."""
+    def test_prepare_and_bind_preserve_identity_after_main_advances(self) -> None:
+        """Bind the exact candidate while allowing later protected-main merges."""
         repository_root = self.root / "trusted-repository"
         repository_root.mkdir()
         self._git(repository_root, "init", "--initial-branch=main")
@@ -395,8 +361,13 @@ class NuGetPublicationTests(unittest.TestCase):
         self._git(repository_root, "add", "source.txt")
         self._git(repository_root, "commit", "-m", "test: seed trusted source")
         source_commit = self._git(repository_root, "rev-parse", "HEAD")
+        self._git(
+            repository_root,
+            "update-ref",
+            "refs/remotes/origin/main",
+            source_commit,
+        )
         release_tag = f"v{self._VERSION}"
-        self._git(repository_root, "tag", release_tag)
 
         candidate_root = self.root / "github-123"
         candidate_packages = candidate_root / "packages"
@@ -416,10 +387,11 @@ class NuGetPublicationTests(unittest.TestCase):
         manifest = {
             "releaseCandidateRunId": "github-123",
             "releaseVersion": self._VERSION,
+            "expectedReleaseTag": release_tag,
             "source": {
                 "commit": source_commit,
-                "ref": f"refs/tags/{release_tag}",
-                "tag": release_tag,
+                "ref": "refs/heads/main",
+                "tag": None,
                 "repository": f"https://github.com/{self._REPOSITORY}.git",
             },
             "workflow": {
@@ -429,7 +401,7 @@ class NuGetPublicationTests(unittest.TestCase):
                 "workflow": nuget_publication.CANDIDATE_WORKFLOW,
                 "workflowRef": (
                     f"{self._REPOSITORY}/{nuget_publication.CANDIDATE_WORKFLOW_PATH}"
-                    f"@refs/tags/{release_tag}"
+                    "@refs/heads/main"
                 ),
                 "repository": self._REPOSITORY,
             },
@@ -444,33 +416,12 @@ class NuGetPublicationTests(unittest.TestCase):
             json.dumps(manifest),
             encoding="utf-8",
         )
-        run_metadata = self.root / "candidate-run.json"
-        run_metadata.write_text(
-            json.dumps(
-                {
-                    "id": 123,
-                    "run_attempt": 1,
-                    "event": "workflow_dispatch",
-                    "status": "completed",
-                    "conclusion": "success",
-                    "path": f"{nuget_publication.CANDIDATE_WORKFLOW_PATH}@{release_tag}",
-                    "head_sha": source_commit,
-                    "head_branch": release_tag,
-                    "repository": {"full_name": self._REPOSITORY},
-                }
-            ),
-            encoding="utf-8",
-        )
-        output = self.root / "validated-candidate.json"
+        output = candidate_root / "candidate-receipt.json"
         github_output = self.root / "github-output.txt"
         arguments = SimpleNamespace(
             repo=repository_root,
             root=candidate_root,
-            run_metadata=run_metadata,
-            release_tag=release_tag,
             repository=self._REPOSITORY,
-            trusted_ref="refs/heads/main",
-            trusted_commit=source_commit,
             output=output,
             github_output=github_output,
         )
@@ -485,14 +436,116 @@ class NuGetPublicationTests(unittest.TestCase):
                 },
             ),
         ):
-            nuget_publication.validate_candidate(arguments)
+            nuget_publication.prepare_candidate(arguments)
 
-        receipt = json.loads(output.read_text(encoding="utf-8"))
-        self.assertEqual(source_commit, receipt["sourceCommit"])
-        self.assertEqual(release_tag, receipt["releaseTag"])
+        candidate_receipt = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(source_commit, candidate_receipt["sourceCommit"])
+        self.assertEqual(release_tag, candidate_receipt["expectedReleaseTag"])
+        self.assertNotIn("releaseTag", candidate_receipt)
         self.assertIn("provider_package=", github_output.read_text(encoding="utf-8"))
 
-        arguments.trusted_commit = "2" * 40
+        self._git(repository_root, "tag", "-a", "-m", "release", release_tag)
+        tree_id = self._git(repository_root, "rev-parse", "HEAD^{tree}")
+        qualification_receipt = {
+            "name": "repository-qualification",
+            "id": 5001,
+            "checkSuiteId": 7001,
+            "conclusion": "success",
+            "workflowPath": ".github/workflows/ci.yml",
+            "workflowRunId": 9001,
+            "runAttempt": 1,
+            "event": "push",
+            "headBranch": "main",
+            "commit": source_commit,
+            "workflowConclusion": "success",
+        }
+        qualification_manifest, policy = self._qualification_manifest(
+            qualification_receipt,
+            commit=source_commit,
+            tree_id=tree_id,
+            release_tag=release_tag,
+        )
+        qualification_path = candidate_root / "release-qualification-manifest.json"
+        qualification_path.write_text(
+            json.dumps(qualification_manifest),
+            encoding="utf-8",
+        )
+        (repository_root / "later.txt").write_text(
+            "unrelated later main change\n",
+            encoding="ascii",
+        )
+        self._git(repository_root, "add", "later.txt")
+        self._git(repository_root, "commit", "-m", "test: advance protected main")
+        later_commit = self._git(repository_root, "rev-parse", "HEAD")
+        self._git(
+            repository_root,
+            "update-ref",
+            "refs/remotes/origin/main",
+            "HEAD",
+        )
+        self._git(repository_root, "checkout", "--detach", source_commit)
+        trust_receipt = self.root / "release-tag-trust-root.json"
+        trust_receipt.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 2,
+                    "kind": "release-tag-trust-root",
+                    "repository": self._REPOSITORY,
+                    "tag": release_tag,
+                    "commit": source_commit,
+                    "policyDigest": policy["policyDigest"],
+                    "qualification": qualification_receipt,
+                }
+            ),
+            encoding="utf-8",
+        )
+        publication_receipt = candidate_root / "release-publication-receipt.json"
+        bind_arguments = SimpleNamespace(
+            repo=repository_root,
+            root=candidate_root,
+            candidate_receipt=output,
+            tag_trust_receipt=trust_receipt,
+            release_tag=release_tag,
+            output=publication_receipt,
+            github_output=None,
+        )
+        with (
+            mock.patch.object(nuget_publication.release_evidence, "verify_manifest"),
+            mock.patch.dict(
+                os.environ,
+                {
+                    "GITHUB_REF": "refs/heads/main",
+                    "GITHUB_SHA": source_commit,
+                },
+            ),
+        ):
+            nuget_publication.bind_candidate(bind_arguments)
+
+        bound_receipt = json.loads(publication_receipt.read_text(encoding="utf-8"))
+        self.assertEqual(nuget_publication.PUBLICATION_RECEIPT_KIND, bound_receipt["kind"])
+        self.assertEqual(release_tag, bound_receipt["releaseTag"])
+        self.assertEqual(
+            nuget_publication.sha256_file(output),
+            bound_receipt["candidateReceiptSha256"],
+        )
+        self.assertEqual(
+            nuget_publication.sha256_file(qualification_path),
+            bound_receipt["qualificationManifestSha256"],
+        )
+
+        unrelated_commit = self._git(
+            repository_root,
+            "commit-tree",
+            f"{source_commit}^{{tree}}",
+            "-m",
+            "unrelated main",
+        )
+        self._git(
+            repository_root,
+            "update-ref",
+            "refs/remotes/origin/main",
+            unrelated_commit,
+        )
         with (
             mock.patch.object(nuget_publication.release_evidence, "verify_manifest"),
             mock.patch.dict(
@@ -504,10 +557,29 @@ class NuGetPublicationTests(unittest.TestCase):
             ),
             self.assertRaisesRegex(
                 nuget_publication.PublicationError,
-                "not the current trusted main commit",
+                "no longer on current remote main history",
             ),
         ):
-            nuget_publication.validate_candidate(arguments)
+            nuget_publication.bind_candidate(bind_arguments)
+        self._git(
+            repository_root,
+            "update-ref",
+            "refs/remotes/origin/main",
+            later_commit,
+        )
+
+        qualification_path.write_text("{}\n", encoding="utf-8")
+        with (
+            mock.patch.object(nuget_publication.release_evidence, "verify_manifest"),
+            self.assertRaisesRegex(
+                nuget_publication.PublicationError,
+                "does not bind the qualification manifest",
+            ),
+        ):
+            nuget_publication.validate_portable_receipt(
+                bound_receipt,
+                candidate_root,
+            )
 
     def test_restore_receipt_requires_exact_packages_source_and_isolated_cache(self) -> None:
         """Reject a consumer proof that could have resolved repository-local bytes."""
@@ -577,6 +649,70 @@ class NuGetPublicationTests(unittest.TestCase):
             },
         }
 
+    def _qualification_manifest(
+        self,
+        receipt: dict[str, object],
+        *,
+        commit: str,
+        tree_id: str,
+        release_tag: str,
+    ) -> tuple[dict[str, object], dict[str, object]]:
+        """Return complete frozen qualification for the publication fixture."""
+        policy = nuget_publication.release_qualification.load_policy()
+        policy_digest = nuget_publication.release_qualification.policy_digest(policy)
+        entries: list[dict[str, object]] = []
+        for index, gate in enumerate(policy["gates"], start=1):
+            entry: dict[str, object] = {
+                "gate": gate["id"],
+                "kind": gate["kind"],
+            }
+            values: dict[str, object] = {
+                "commit": commit,
+                "treeId": tree_id,
+                "workflowPath": gate["producerWorkflow"],
+                "workflowRunId": (
+                    receipt["workflowRunId"]
+                    if gate["kind"] == "protected-check"
+                    else 1000 + index
+                ),
+                "runAttempt": 1,
+                "event": receipt["event"],
+                "conclusion": "success",
+                "apiResourceId": receipt["id"],
+                "responseDigest": hashlib.sha256(
+                    json.dumps(
+                        receipt,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                ).hexdigest(),
+                "sourceHash": "c" * 64,
+                "dependencySnapshotDigest": "d" * 64,
+                "artifactId": 2000 + index,
+                "artifactDigest": "e" * 64,
+            }
+            for field in gate["boundIdentities"]:
+                entry[field] = values[field]
+            entries.append(entry)
+
+        manifest = {
+            "schemaVersion": 2,
+            "kind": "release-qualification-manifest",
+            "policyVersion": policy["policyVersion"],
+            "policyDigest": policy_digest,
+            "selectionRuleVersion": policy["selectionRule"]["version"],
+            "repository": self._REPOSITORY,
+            "commit": commit,
+            "treeId": tree_id,
+            "expectedReleaseTag": release_tag,
+            "releaseVersion": release_tag.removeprefix("v"),
+            "assemblingRunAttempt": 1,
+            "requiredProtectedChecks": policy["requiredProtectedChecks"],
+            "gates": entries,
+        }
+
+        return manifest, {"policyDigest": policy_digest}
+
     def _symbol_manifest(self) -> tuple[dict[str, object], dict[str, bytes]]:
         """Return two exact public symbol probes and their candidate payloads."""
         payloads = {
@@ -603,7 +739,7 @@ class NuGetPublicationTests(unittest.TestCase):
                 }
             )
         return {
-            "schemaVersion": nuget_publication.SCHEMA_VERSION,
+            "schemaVersion": nuget_publication.SYMBOL_MANIFEST_SCHEMA_VERSION,
             "releaseVersion": self._VERSION,
             "symbols": symbols,
         }, payloads
@@ -727,43 +863,48 @@ class NuGetPublicationTests(unittest.TestCase):
 
 
 class QualificationManifestGateTests(unittest.TestCase):
-    """Prove publication checks what the release was qualified on.
-
-    Identity validation proves the candidate is the one requested. It does not
-    prove which evidence qualified it, so a candidate assembled under a
-    different evidence policy, or describing a different tag, would otherwise
-    publish on the strength of matching digests alone.
-    """
+    """Prove one workflow owns candidate qualification and publication."""
 
     WORKFLOW = (
         Path(__file__).resolve().parents[2]
-        / ".github" / "workflows" / "nuget-publish.yml"
+        / ".github" / "workflows" / "release-candidate.yml"
     )
 
     def setUp(self) -> None:
         """Read the publication workflow once per case."""
         self.text = self.WORKFLOW.read_text(encoding="utf-8")
 
-    def test_the_manifest_is_verified_before_publication(self) -> None:
-        """Require the manifest check to precede any publishing step."""
-        self.assertIn("- name: Verify the canonical qualification manifest", self.text)
+    def test_the_manifest_is_verified_before_tag_binding(self) -> None:
+        """Require canonical qualification before any irreversible operation."""
         self.assertIn("python3 -m eng.release.qualification verify", self.text)
         self.assertLess(
             self.text.index("eng.release.qualification verify"),
-            self.text.index("Derive exact public symbol probes"),
+            self.text.index("python3 -m eng.release.nuget bind"),
         )
 
-    def test_the_manifest_is_bound_to_this_commit_and_tag(self) -> None:
-        """Reject a manifest that verifies but describes another release."""
-        for argument in ("--expected-commit", "--expected-tag",
-                         "--policy eng/release/evidence-policy.json"):
+    def test_the_manifest_and_tag_are_bound_to_this_candidate(self) -> None:
+        """Reject evidence that describes another commit or expected tag."""
+        for argument in (
+            "--expected-commit",
+            "--expected-release-tag",
+            "--policy eng/release/evidence-policy.json",
+            "--qualification-manifest",
+        ):
             with self.subTest(argument=argument):
                 self.assertIn(argument, self.text)
 
-    def test_a_missing_manifest_explains_the_remedy(self) -> None:
-        """Tell the operator how to leave the state, not only that they are in it."""
-        self.assertIn("Qualification manifest required", self.text)
-        self.assertIn("Re-run the release-candidate workflow", self.text)
+    def test_the_qualification_manifest_is_an_immutable_release_asset(self) -> None:
+        """Retain the frozen protected-check selection with the release."""
+        self.assertIn(
+            "release-qualification-manifest.json",
+            github_release.RELEASE_CANDIDATE_EVIDENCE_FILES,
+        )
+
+    def test_no_cross_run_publication_workflow_remains(self) -> None:
+        """Keep candidate bytes and publication inside one approved workflow run."""
+        self.assertFalse((self.WORKFLOW.parent / "nuget-publish.yml").exists())
+        self.assertNotIn("candidate_run_id", self.text)
+        self.assertNotIn("gh run download", self.text)
 
 
 if __name__ == "__main__":

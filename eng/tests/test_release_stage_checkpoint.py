@@ -52,8 +52,8 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
             check=True,
         )
         self.run_id = "github-123"
-        self.source_ref = "refs/tags/v10.0.0-rc.1"
-        self.release_tag = "v10.0.0-rc.1"
+        self.source_ref = "refs/heads/main"
+        self.expected_release_tag = "v10.0.0-rc.1"
         self.run_attempt = 2
 
     def tearDown(self) -> None:
@@ -74,7 +74,7 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
             run_id=self.run_id,
             stage=stage,
             source_ref=self.source_ref,
-            release_tag=self.release_tag,
+            expected_release_tag=self.expected_release_tag,
             run_attempt=self.run_attempt,
             runner_identity="GitHub Actions 7",
             started_utc=started.isoformat().replace("+00:00", "Z"),
@@ -86,7 +86,7 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
         stage: str,
         *,
         source_ref: str | None = None,
-        release_tag: str | None = None,
+        expected_release_tag: str | None = None,
         maximum_run_attempt: int | None = None,
     ) -> Path:
         """Verify one receipt while allowing one identity field to vary."""
@@ -97,7 +97,9 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
             run_id=self.run_id,
             stage=stage,
             source_ref=source_ref or self.source_ref,
-            release_tag=release_tag or self.release_tag,
+            expected_release_tag=(
+                expected_release_tag or self.expected_release_tag
+            ),
             maximum_run_attempt=maximum_run_attempt or self.run_attempt,
         )
 
@@ -117,7 +119,10 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
 
         self.assertEqual(path, verified)
         self.assertEqual(self.source_ref, payload["sourceRef"])
-        self.assertEqual(self.release_tag, payload["releaseTag"])
+        self.assertEqual(
+            self.expected_release_tag,
+            payload["expectedReleaseTag"],
+        )
         self.assertEqual(self.run_attempt, payload["runAttempt"])
         self.assertEqual("GitHub Actions 7", payload["runnerIdentity"])
         self.assertGreaterEqual(payload["durationSeconds"], 0)
@@ -159,7 +164,7 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
             release_stage_checkpoint.CheckpointError,
             "invalid sourceRef",
         ):
-            self.verify("quality", source_ref="refs/tags/v10.0.0-rc.2")
+            self.verify("quality", source_ref="refs/heads/release")
 
     def test_different_release_tag_rejects_resume(self) -> None:
         """Reject a receipt whose release-semantic identity changed."""
@@ -167,9 +172,12 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             release_stage_checkpoint.CheckpointError,
-            "invalid releaseTag",
+            "invalid expectedReleaseTag",
         ):
-            self.verify("quality", release_tag="v10.0.0-rc.2")
+            self.verify(
+                "quality",
+                expected_release_tag="v10.0.0-rc.2",
+            )
 
     def test_newer_run_attempt_rejects_restored_receipt(self) -> None:
         """Never consume evidence written by a logically later attempt."""
@@ -192,7 +200,7 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
             checkpoint_directory=self.checkpoints,
             run_id=self.run_id,
             source_ref=self.source_ref,
-            release_tag=self.release_tag,
+            expected_release_tag=self.expected_release_tag,
             maximum_run_attempt=self.run_attempt,
             expected_stages=["quality", "package"],
         )
@@ -213,7 +221,7 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
                 checkpoint_directory=self.checkpoints,
                 run_id=self.run_id,
                 source_ref=self.source_ref,
-                release_tag=self.release_tag,
+                expected_release_tag=self.expected_release_tag,
                 maximum_run_attempt=self.run_attempt,
                 expected_stages=["quality", "package"],
             )
@@ -235,7 +243,7 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
                         checkpoint_directory=self.checkpoints,
                         run_id=self.run_id,
                         source_ref=self.source_ref,
-                        release_tag=self.release_tag,
+                        expected_release_tag=self.expected_release_tag,
                         maximum_run_attempt=self.run_attempt,
                         expected_stages=["quality"],
                     )

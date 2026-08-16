@@ -1,6 +1,6 @@
 """Regression tests for the immutable release-candidate evidence boundary.
 
-The suite creates an isolated tagged Git repository and exercises both valid
+The suite creates an isolated untagged Git repository and exercises both valid
 generation and fail-closed rejection paths. Fixtures use synthetic artifact
 bytes because this layer verifies identity and inventory, not NuGet contents.
 """
@@ -33,7 +33,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
     }
 
     def setUp(self) -> None:
-        """Create a tagged repository with an ignored evidence fixture."""
+        """Create an untagged repository with an ignored evidence fixture."""
         self._temporary_directory = tempfile.TemporaryDirectory(
             prefix="doka-release-evidence-"
         )
@@ -70,7 +70,6 @@ class ReleaseEvidenceTests(unittest.TestCase):
         (self.repo / "source.txt").write_text("reviewed source\n", encoding="ascii")
         self._git("add", ".gitignore", "global.json", "source.txt")
         self._git("commit", "-m", "test: seed release source")
-        self._git("tag", "v1.2.3")
         self._write_complete_evidence()
 
     def tearDown(self) -> None:
@@ -98,7 +97,8 @@ class ReleaseEvidenceTests(unittest.TestCase):
             if artifact["path"] == selection_path
         )
         self.assertEqual("verification-evidence", selection["role"])
-        self.assertEqual("refs/tags/v1.2.3", manifest["source"]["ref"])
+        self.assertEqual("refs/heads/main", manifest["source"]["ref"])
+        self.assertIsNone(manifest["source"]["tag"])
         self.assertEqual("clean", manifest["source"]["treeState"])
         self.assertEqual(
             manifest["toolchain"]["approvedDotnetSdk"],
@@ -114,7 +114,10 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
         # Gate selection lives in the qualification manifest; this document
         # binds itself to it so the two cannot describe different releases.
-        self.assertEqual("v1.2.3", manifest["qualification"]["releaseTag"])
+        self.assertEqual(
+            "v1.2.3",
+            manifest["qualification"]["expectedReleaseTag"],
+        )
         self.assertTrue(manifest["qualification"]["gates"])
         self.assertTrue(manifest["runtimePosture"]["publishTrimmed"])
         self.assertEqual("full", manifest["runtimePosture"]["trimMode"])
@@ -127,7 +130,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
 
     def test_generate_rejects_dirty_release_source(self) -> None:
-        """Reject a tag whose checked-out source differs from the reviewed commit."""
+        """Reject a candidate whose source differs from the reviewed commit."""
         (self.repo / "source.txt").write_text("unreviewed source\n", encoding="ascii")
 
         with self.assertRaisesRegex(
@@ -339,12 +342,12 @@ class ReleaseEvidenceTests(unittest.TestCase):
         ):
             self._generate()
 
-    def test_generate_rejects_ambiguous_semantic_release_tags(self) -> None:
-        """Reject a commit that has more than one possible release identity."""
+    def test_generate_rejects_a_premature_semantic_release_tag(self) -> None:
+        """Reject a candidate commit whose release identity already exists."""
         self._git("tag", "v1.2.4")
 
         with self.assertRaisesRegex(
-            release_evidence.EvidenceError, "exactly semantic version tag"
+            release_evidence.EvidenceError, "must be untagged"
         ):
             self._generate()
 
@@ -359,15 +362,15 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertEqual(self.root, parsed.root)
 
     def _generate(self) -> None:
-        """Generate tagged release evidence under an explicit local identity."""
+        """Generate untagged release evidence under an explicit local identity."""
         arguments = SimpleNamespace(
             repo=self.repo,
             root=self.root,
             run_id="test-run",
             release_version="1.2.3",
+            expected_release_tag="v1.2.3",
             dependency_graph=self.root / "resolved-packages.json",
-            expected_ref="refs/tags/v1.2.3",
-            require_tag=True,
+            expected_ref="refs/heads/main",
         )
         with mock.patch.dict(
             "os.environ",
@@ -574,7 +577,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
                     "repository": "doka-labs/Doka.EntityFrameworkCore.MySql",
                     "commit": source_commit,
                     "treeId": "e" * 40,
-                    "releaseTag": "v1.2.3",
+                    "expectedReleaseTag": "v1.2.3",
                     "releaseVersion": "1.2.3",
                     "assemblingRunAttempt": 1,
                     "requiredProtectedChecks": policy["requiredProtectedChecks"],

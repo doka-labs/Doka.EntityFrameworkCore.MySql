@@ -61,9 +61,30 @@ gh api "repos/${repo}/actions/permissions/selected-actions"
 gh api "repos/${repo}/rulesets" --jq '.[] | {id, name, target, enforcement}'
 gh api "repos/${repo}/environments" --jq '.environments[] | {name, protection_rules}'
 gh api "repos/${repo}/code-scanning/default-setup"
+gh api \
+  -H "Accept: application/vnd.github+json" \
+  -H "X-GitHub-Api-Version: 2026-03-10" \
+  "repos/${repo}/immutable-releases"
 ```
 
 ## Required
+
+### Release immutability must be enabled before the first publication
+
+Repository Settings -> General -> Releases must have **Enable release
+immutability** selected. GitHub applies the control only to releases published
+after it is enabled. Once published, an immutable release locks its tag and
+assets; the release workflow therefore creates a draft, attaches and reads back
+the complete stable asset set, and only then publishes it.
+
+The verification request above returns `200` with `"enabled": true` when the
+repository-level control is active and `404` when it is not. It requires
+repository Administration read permission, which is deliberately unavailable
+to `GITHUB_TOKEN`; verification is an administrator setup responsibility rather
+than a workflow check that could never receive the required permission.
+
+Primary source: [Preventing changes to your releases](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/establish-provenance-and-integrity/prevent-release-changes)
+and [REST API endpoints for repositories](https://docs.github.com/en/rest/repos/repos?apiVersion=2026-03-10#check-if-immutable-releases-are-enabled-for-a-repository).
 
 ### Actions must be able to create the reviewed baseline proposal
 
@@ -150,7 +171,7 @@ adding another operator handoff.
 ### The nuget environment must require a human reviewer
 
 The `nuget` environment must carry both its `main`-only branch policy and a
-required reviewer. The publish job in `nuget-publish.yml` requests the
+required reviewer. The publish job in `release-candidate.yml` requests the
 short-lived NuGet trusted-publishing token and pushes packages to nuget.org.
 Package publication is irreversible: a version, once pushed, cannot be
 replaced.

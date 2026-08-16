@@ -70,13 +70,13 @@ class QualificationChain:
         (self.checkpoints / f"{stage}.json").write_text(
             json.dumps(
                 {
-                    "schemaVersion": 1,
+                    "schemaVersion": 3,
                     "kind": "release-stage-checkpoint",
                     "runId": f"github-{WORKFLOW_RUN_ID}",
                     "stage": stage,
                     "sourceCommit": self.commit,
-                    "sourceRef": f"refs/tags/{RELEASE_TAG}",
-                    "releaseTag": RELEASE_TAG,
+                    "sourceRef": "refs/heads/main",
+                    "expectedReleaseTag": RELEASE_TAG,
                     "runAttempt": RUN_ATTEMPT,
                 }
             ),
@@ -231,7 +231,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
                 "--commit", self.commit,
                 "--tree-id", self.tree,
                 "--repository", REPOSITORY,
-                "--release-tag", RELEASE_TAG,
+                "--expected-release-tag", RELEASE_TAG,
                 "--release-version", RELEASE_VERSION,
                 "--assembling-attempt", str(RUN_ATTEMPT),
                 "--root", str(self.chain.packages),
@@ -252,7 +252,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
             "--expected-repository", REPOSITORY,
             "--expected-commit", self.commit,
             "--expected-tree-id", self.tree,
-            "--expected-tag", RELEASE_TAG,
+            "--expected-release-tag", RELEASE_TAG,
         ]
         if root is not None:
             arguments += ["--root", str(root)]
@@ -405,7 +405,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
         self.derive()
         manifest = self.assemble()
         document = json.loads(manifest.read_text(encoding="utf-8"))
-        document["releaseTag"] = "v9.9.9"
+        document["expectedReleaseTag"] = "v9.9.9"
         manifest.write_text(json.dumps(document), encoding="utf-8")
 
         self.assertEqual(1, self.verify(manifest))
@@ -426,13 +426,13 @@ class ReleaseQualificationChainTests(unittest.TestCase):
         self.assertEqual(1, self.verify(manifest))
 
     def test_a_gate_pinned_under_the_wrong_kind_fails_verification(self) -> None:
-        """Reject a tag-produced gate presented as an imported protected check."""
+        """Reject a candidate-produced gate presented as a protected check."""
         self.chain.complete()
         self.derive()
         manifest = self.assemble()
         document = json.loads(manifest.read_text(encoding="utf-8"))
         for entry in document["gates"]:
-            if entry["kind"] == "tag-produced":
+            if entry["kind"] == "candidate-produced":
                 entry["kind"] = "protected-check"
                 break
         manifest.write_text(json.dumps(document), encoding="utf-8")
@@ -440,7 +440,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
         self.assertEqual(1, self.verify(manifest))
 
     def test_a_gate_pinning_another_commit_fails_verification(self) -> None:
-        """Reject a manifest whose gates do not all describe the tagged commit."""
+        """Reject a manifest whose gates do not all describe the candidate commit."""
         self.chain.complete()
         self.derive()
         manifest = self.assemble()

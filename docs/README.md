@@ -30,8 +30,8 @@ and operational procedures.
 - [Operations Runbook](operations-runbook.md) routes incidents, migrations,
   resilience, publication, and performance work to their owned procedures.
 - [Release Publication](operations/release-publication.md) defines the ordered
-  path from a green `main` commit through signed tagging, paired qualification,
-  protected NuGet publication, and public readback.
+  path from a green `main` commit through untagged qualification, signed
+  tagging, protected NuGet publication, and public readback.
 - [Performance Evidence](operations/performance-evidence.md) defines benchmark,
   soak, baseline, and regression-budget evidence.
 - [Repository Security Settings](operations/repository-security-settings.md)

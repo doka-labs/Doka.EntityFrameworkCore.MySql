@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Establish the trust root a release tag must satisfy before any work runs.
+"""Establish the trust root a release tag must satisfy before publication.
 
 A tag is the immutable identity a published package is attributed to. Treating
 it as trustworthy because it exists and is annotated leaves three questions
@@ -7,19 +7,28 @@ unanswered: who created it, whether the commit it names ever passed through the
 protected branch, and whether the branch evidence for that commit came from the
 branch at all rather than from a pull request against it.
 
-Every check here is cheap and runs before any expensive job is allocated, so an
-unverifiable tag costs seconds rather than a full qualification run.
+The signed tag intentionally does not exist until reversible candidate
+qualification has completed. The write-capable publication job repeats these
+checks before it stages a release draft or requests a NuGet credential. The
+``pre-tag`` command covers only the branch and signer prerequisites that can be
+verified before hosted qualification begins.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Sequence
+
+if __package__:
+    from . import qualification as release_qualification
+else:  # pragma: no cover - direct execution path
+    import qualification as release_qualification
 
 
 class TrustRootError(RuntimeError):
@@ -42,6 +51,7 @@ GPG_FINGERPRINT = re.compile(
 )
 
 ACCEPTED_API_REASONS = frozenset({"valid"})
+GITHUB_API_VERSION = "2026-03-10"
 
 
 def run_git(repo: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -258,6 +268,7 @@ def verify_trust_root(
     api_verification: dict[str, Any],
     policy: dict[str, Any],
     qualification_receipt: dict[str, Any],
+    repository: str = "",
     protected_ref: str = "refs/remotes/origin/main",
     allowed_signers: Path | None = None,
 ) -> dict[str, Any]:
@@ -302,11 +313,14 @@ def verify_trust_root(
         expected_workflow=gate.get("producerWorkflow"),
     )
 
+    canonical_policy = json.dumps(policy, sort_keys=True, separators=(",", ":"))
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "kind": "release-tag-trust-root",
+        "repository": repository,
         "tag": tag,
         "commit": commit,
+        "policyDigest": hashlib.sha256(canonical_policy.encode("utf-8")).hexdigest(),
         "protectedRef": protected_ref,
         "apiVerification": {
             "verified": api_verification.get("verified"),
@@ -320,7 +334,15 @@ def verify_trust_root(
 def _gh_json(*arguments: str) -> dict[str, Any]:
     """Query the authenticated GitHub API and return one JSON object."""
     result = subprocess.run(
-        ("gh", "api", *arguments),
+        (
+            "gh",
+            "api",
+            "-H",
+            "Accept: application/vnd.github+json",
+            "-H",
+            f"X-GitHub-Api-Version: {GITHUB_API_VERSION}",
+            *arguments,
+        ),
         capture_output=True,
         text=True,
         check=False,
@@ -462,6 +484,173 @@ def fetch_qualification_receipt(
     return qualification_receipt(check_run, workflow_run)
 
 
+def _frozen_protected_gate(
+    manifest: dict[str, Any],
+    policy: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the one protected check this trust-root schema records.
+
+    The receipt schema intentionally carries one `qualification` object. A
+    future policy that requires more protected checks must therefore revise
+    the schema instead of silently authenticating only the first one.
+    """
+    identifiers = policy.get("requiredProtectedChecks")
+    if not isinstance(identifiers, list) or len(identifiers) != 1:
+        raise TrustRootError(
+            "The tag trust root requires exactly one protected check; revise "
+            "its receipt schema before changing that policy cardinality."
+        )
+    identifier = identifiers[0]
+    policy_gates = policy.get("gates")
+    manifest_entries = manifest.get("gates")
+    if not isinstance(policy_gates, list) or not isinstance(manifest_entries, list):
+        raise TrustRootError("Qualification policy or manifest has no gate list.")
+    gates = [gate for gate in policy_gates if gate.get("id") == identifier]
+    entries = [entry for entry in manifest_entries if entry.get("gate") == identifier]
+    if len(gates) != 1 or gates[0].get("kind") != "protected-check" or len(entries) != 1:
+        raise TrustRootError(
+            f"Qualification manifest does not pin protected check {identifier!r} exactly once."
+        )
+
+    return gates[0], entries[0]
+
+
+def verify_frozen_qualification_receipt(
+    receipt: dict[str, Any],
+    *,
+    manifest: dict[str, Any],
+    policy: dict[str, Any],
+    repository: str,
+    commit: str,
+    tree_id: str,
+    expected_release_tag: str,
+) -> dict[str, Any]:
+    """Bind an API receipt to the exact check selected during qualification."""
+    try:
+        release_qualification.verify_manifest(
+            manifest,
+            policy=policy,
+            repository=repository,
+            commit=commit,
+            tree_id=tree_id,
+            expected_release_tag=expected_release_tag,
+        )
+    except release_qualification.QualificationError as error:
+        raise TrustRootError(f"Qualification manifest is invalid: {error}") from error
+
+    gate, entry = _frozen_protected_gate(manifest, policy)
+    expected = {
+        "apiResourceId": receipt.get("id"),
+        "workflowPath": receipt.get("workflowPath"),
+        "workflowRunId": receipt.get("workflowRunId"),
+        "runAttempt": receipt.get("runAttempt"),
+        "event": receipt.get("event"),
+        "conclusion": receipt.get("conclusion"),
+        "commit": receipt.get("commit"),
+        "treeId": tree_id,
+    }
+    differing = sorted(
+        field for field, value in expected.items() if entry.get(field) != value
+    )
+    canonical = json.dumps(receipt, sort_keys=True, separators=(",", ":"))
+    observed_digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    if entry.get("responseDigest") != observed_digest:
+        differing.append("responseDigest")
+    if differing:
+        raise TrustRootError(
+            "Repository qualification differs from the frozen manifest: "
+            f"{', '.join(sorted(set(differing)))}."
+        )
+    if receipt.get("name") != gate.get("checkName", gate["id"]):
+        raise TrustRootError(
+            f"Frozen qualification check is {receipt.get('name')!r}, not "
+            f"{gate.get('checkName', gate['id'])!r}."
+        )
+
+    verify_branch_evidence_origin(
+        receipt,
+        commit=commit,
+        expected_branch=str(gate.get("requiredRef", "refs/heads/main")).rsplit("/", 1)[-1],
+        expected_workflow=gate.get("producerWorkflow"),
+    )
+
+    return entry
+
+
+def fetch_frozen_qualification_receipt(
+    repository: str,
+    *,
+    manifest: dict[str, Any],
+    policy: dict[str, Any],
+    commit: str,
+    tree_id: str,
+    expected_release_tag: str,
+) -> dict[str, Any]:
+    """Read back the exact check run and attempt frozen by qualification.
+
+    A workflow rerun retains its run ID and increments its attempt. Reading the
+    unqualified run endpoint would therefore let a later rerun replace the
+    evidence selected by the candidate. The attempt endpoint preserves the
+    original selection.
+    """
+    try:
+        release_qualification.verify_manifest(
+            manifest,
+            policy=policy,
+            repository=repository,
+            commit=commit,
+            tree_id=tree_id,
+            expected_release_tag=expected_release_tag,
+        )
+    except release_qualification.QualificationError as error:
+        raise TrustRootError(f"Qualification manifest is invalid: {error}") from error
+
+    _, entry = _frozen_protected_gate(manifest, policy)
+    check_id = entry.get("apiResourceId")
+    workflow_run_id = entry.get("workflowRunId")
+    run_attempt = entry.get("runAttempt")
+    for field, value in (
+        ("apiResourceId", check_id),
+        ("workflowRunId", workflow_run_id),
+        ("runAttempt", run_attempt),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise TrustRootError(
+                f"Frozen repository qualification carries no usable {field}."
+            )
+
+    check_run = _gh_json(f"/repos/{repository}/check-runs/{check_id}")
+    workflow_run = _gh_json(
+        f"/repos/{repository}/actions/runs/{workflow_run_id}/attempts/{run_attempt}"
+    )
+    if check_run.get("id") != check_id or workflow_run.get("id") != workflow_run_id:
+        raise TrustRootError("GitHub returned a different frozen qualification identity.")
+    details_url = str(check_run.get("details_url", ""))
+    expected_details = f"/actions/runs/{workflow_run_id}/job/{check_id}"
+    if expected_details not in details_url:
+        raise TrustRootError(
+            "Frozen check run does not link to the selected workflow run."
+        )
+    check_suite_id = (check_run.get("check_suite") or {}).get("id")
+    if check_suite_id is None or workflow_run.get("check_suite_id") != check_suite_id:
+        raise TrustRootError(
+            "Frozen check run and workflow attempt do not belong to the same check suite."
+        )
+
+    receipt = qualification_receipt(check_run, workflow_run)
+    verify_frozen_qualification_receipt(
+        receipt,
+        manifest=manifest,
+        policy=policy,
+        repository=repository,
+        commit=commit,
+        tree_id=tree_id,
+        expected_release_tag=expected_release_tag,
+    )
+
+    return receipt
+
+
 def local_signing_fingerprint(repo: Path) -> str:
     """Return the fingerprint and algorithm of the key that would sign.
 
@@ -543,11 +732,11 @@ def pre_tag_report(
     commit: str,
     policy: dict[str, Any],
 ) -> list[tuple[str, str, str]]:
-    """Answer the remote half of "would a tag on this commit qualify".
+    """Answer whether a commit has the branch and signer prerequisites.
 
     This shares the trust root's implementation rather than restating it. A
-    second, weaker copy of the same decision is how a pre-tag check ends up
-    reporting that a tag would qualify when the tag would in fact be rejected.
+    second, weaker copy of the same decision is how a preparation check ends up
+    accepting a commit whose later tag would in fact be rejected.
     """
     lines: list[tuple[str, str, str]] = []
 
@@ -603,10 +792,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     verify.add_argument("--commit", required=True)
     verify.add_argument("--repository", required=True)
     verify.add_argument("--policy", required=True, type=Path)
+    verify.add_argument("--qualification-manifest", required=True, type=Path)
     verify.add_argument("--output", required=True, type=Path)
     verify.add_argument("--protected-ref", default="refs/remotes/origin/main")
-    verify.add_argument("--check-name", default="repository-qualification")
-
     pre_tag = subparsers.add_parser("pre-tag")
     pre_tag.add_argument("--repo", required=True, type=Path)
     pre_tag.add_argument("--commit", required=True)
@@ -635,6 +823,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         policy = json.loads(arguments.policy.read_text(encoding="utf-8"))
+        manifest = json.loads(
+            arguments.qualification_manifest.read_text(encoding="utf-8")
+        )
+        if not isinstance(manifest, dict):
+            raise TrustRootError("Qualification manifest must contain a JSON object.")
+        tree = run_git(arguments.repo, "rev-parse", f"{arguments.commit}^{{tree}}")
+        if tree.returncode != 0 or not tree.stdout.strip():
+            raise TrustRootError("Candidate tree identity cannot be resolved.")
         evidence = verify_trust_root(
             repo=arguments.repo,
             tag=arguments.tag,
@@ -643,12 +839,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 arguments.repository, arguments.tag
             ),
             policy=policy,
-            qualification_receipt=fetch_qualification_receipt(
-                arguments.repository, arguments.commit, arguments.check_name
+            qualification_receipt=fetch_frozen_qualification_receipt(
+                arguments.repository,
+                manifest=manifest,
+                policy=policy,
+                commit=arguments.commit,
+                tree_id=tree.stdout.strip(),
+                expected_release_tag=arguments.tag,
             ),
+            repository=arguments.repository,
             protected_ref=arguments.protected_ref,
         )
-    except TrustRootError as error:
+    except (OSError, json.JSONDecodeError, TrustRootError) as error:
         print(f"Release tag trust root failed: {error}", file=sys.stderr)
         return 1
 

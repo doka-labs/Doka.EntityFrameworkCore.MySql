@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Finalize one verified NuGet publication as an immutable GitHub release.
+"""Stage and finalize one candidate as an immutable GitHub release.
 
-The NuGet publication workflow remains the release authority. This module runs
-only after its public package, symbol, restore, and runtime readback succeeded.
-It builds a deterministic release plan, resumes matching drafts without
-overwriting assets, publishes the draft, and reads every public asset back
-before accepting the repository's release immutability boundary.
+The complete release asset set is staged before NuGet publication. After both
+primary package pushes succeed, the same immutable plan publishes immediately.
+Availability and repository-signature evidence is then validated and retained
+as workflow completion evidence rather than added to the immutable release.
 """
 
 from __future__ import annotations
@@ -26,24 +25,31 @@ from . import evidence as release_evidence
 from . import nuget as nuget_publication
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SHA1 = re.compile(r"[0-9a-f]{40}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
-PUBLICATION_EVIDENCE_FILES = (
-    "validated-candidate.json",
-    "publication-preflight.json",
+STAGED_EVIDENCE_FILES = (
+    "candidate-receipt.json",
+    "release-publication-receipt.json",
+    "release-tag-trust-root.json",
+    "candidate-publication-preflight.json",
     "symbol-readback-manifest.json",
+)
+PUBLICATION_EVIDENCE_FILES = (
+    "publication-preflight.json",
     "nuget-publication-readback.json",
     "nuget-signature-verification.txt",
-    "consumer-runtime-readback.json",
 )
 RELEASE_CANDIDATE_EVIDENCE_FILES = (
     release_evidence.MANIFEST_NAME,
     release_evidence.CHECKSUM_NAME,
+    "release-qualification-manifest.json",
     "release-candidate-summary.md",
     "release-candidate-reconciliation.json",
     "resolved-packages.json",
+    "local-package-consumer/local-package-consumer.json",
+    "local-package-consumer/local-package-runtime.json",
 )
 PACKAGE_IDENTITIES = (
     ("provider", nuget_publication.PROVIDER_PACKAGE_ID),
@@ -227,6 +233,7 @@ def require_release_identity(
     if (
         evidence.get("schemaVersion") != nuget_publication.SCHEMA_VERSION
         or evidence.get("releaseTag") != receipt["releaseTag"]
+        or evidence.get("expectedReleaseTag") != receipt["expectedReleaseTag"]
         or evidence.get("releaseVersion") != receipt["releaseVersion"]
         or evidence.get("sourceCommit") != receipt["sourceCommit"]
     ):
@@ -447,22 +454,18 @@ def validate_publication_evidence(
     publication_evidence: Path,
     receipt: dict[str, Any],
 ) -> list[Path]:
-    """Prove that NuGet package, symbol, restore, and runtime readback passed."""
+    """Prove that NuGet package, symbol, and signature readback passed."""
     paths = {
         name: publication_evidence / name for name in PUBLICATION_EVIDENCE_FILES
     }
     preflight = read_json(paths["publication-preflight.json"], "publication preflight")
     symbol_manifest = read_json(
-        paths["symbol-readback-manifest.json"],
+        publication_evidence / "symbol-readback-manifest.json",
         "symbol readback manifest",
     )
     readback = read_json(
         paths["nuget-publication-readback.json"],
         "NuGet publication readback",
-    )
-    consumer = read_json(
-        paths["consumer-runtime-readback.json"],
-        "consumer runtime readback",
     )
     signature_evidence = paths["nuget-signature-verification.txt"]
     if (
@@ -500,24 +503,98 @@ def validate_publication_evidence(
         symbol_entries,
         require_matching=True,
     )
-    require_release_identity(consumer, "consumer runtime readback", receipt, "verifiedUtc")
-
-    expected_packages = sorted(
-        f"{package_id}/{receipt['releaseVersion']}".casefold()
-        for _, package_id in PACKAGE_IDENTITIES
-    )
-    if (
-        consumer.get("packageSource") != nuget_publication.NUGET_SOURCE
-        or consumer.get("packages") != expected_packages
-        or consumer.get("runtimeSmoke") != "pass"
-        or consumer.get("engineImage") != receipt["mysql84Image"]
-        or not isinstance(consumer.get("dotnetSdk"), str)
-        or not consumer["dotnetSdk"]
-    ):
-        raise GitHubReleaseError("Consumer runtime readback is invalid.")
-
     validate_public_readback_files(publication_evidence, readback, receipt)
     return [paths[name] for name in PUBLICATION_EVIDENCE_FILES]
+
+
+def validate_staged_evidence(
+    publication_evidence: Path,
+    candidate_root: Path,
+    receipt: dict[str, Any],
+) -> list[Path]:
+    """Validate the pre-publish evidence that authorizes draft staging."""
+    paths = {name: publication_evidence / name for name in STAGED_EVIDENCE_FILES}
+    candidate_path = paths["candidate-receipt.json"]
+    candidate = read_json(candidate_path, "candidate receipt")
+    try:
+        nuget_publication.validate_candidate_receipt(candidate, candidate_root)
+    except nuget_publication.PublicationError as exception:
+        raise GitHubReleaseError(f"Candidate receipt is invalid: {exception}") from exception
+    if sha256_file(candidate_path) != receipt["candidateReceiptSha256"]:
+        raise GitHubReleaseError("Publication receipt does not bind the candidate receipt.")
+
+    trust_path = paths["release-tag-trust-root.json"]
+    trust = read_json(trust_path, "release tag trust-root receipt")
+    if (
+        sha256_file(trust_path) != receipt["tagTrustRootSha256"]
+        or trust.get("schemaVersion") != 2
+        or trust.get("kind") != "release-tag-trust-root"
+        or trust.get("repository") != receipt["repository"]
+        or trust.get("tag") != receipt["releaseTag"]
+        or trust.get("commit") != receipt["sourceCommit"]
+    ):
+        raise GitHubReleaseError("Release tag trust-root evidence is invalid.")
+
+    symbol_manifest = read_json(
+        paths["symbol-readback-manifest.json"],
+        "symbol readback manifest",
+    )
+    try:
+        entries = nuget_publication.validated_symbol_entries(
+            symbol_manifest,
+            str(receipt["releaseVersion"]),
+        )
+    except nuget_publication.PublicationError as exception:
+        raise GitHubReleaseError(f"Symbol readback manifest is invalid: {exception}") from exception
+    symbols = {entry["packageId"]: entry for entry in entries}
+
+    preflight = read_json(
+        paths["candidate-publication-preflight.json"],
+        "candidate publication preflight",
+    )
+    if (
+        preflight.get("schemaVersion") != nuget_publication.SCHEMA_VERSION
+        or preflight.get("expectedReleaseTag") != receipt["expectedReleaseTag"]
+        or "releaseTag" in preflight
+        or preflight.get("releaseVersion") != receipt["releaseVersion"]
+        or preflight.get("sourceCommit") != receipt["sourceCommit"]
+    ):
+        raise GitHubReleaseError("Candidate publication preflight identity is invalid.")
+    validate_observation_set(
+        preflight,
+        receipt,
+        symbols,
+        require_matching=False,
+    )
+    if any(
+        state.get("status") != "absent"
+        for state in (
+            *preflight["packages"].values(),
+            *preflight["symbols"].values(),
+        )
+    ):
+        raise GitHubReleaseError("Candidate version was not fully absent before tagging.")
+
+    runtime = read_json(
+        candidate_root / "local-package-consumer/local-package-runtime.json",
+        "local package runtime qualification",
+    )
+    if (
+        runtime.get("schemaVersion") != 1
+        or runtime.get("kind") != "local-package-runtime-qualification"
+        or runtime.get("releaseTag") != receipt["expectedReleaseTag"]
+        or runtime.get("releaseVersion") != receipt["releaseVersion"]
+        or runtime.get("sourceCommit") != receipt["sourceCommit"]
+        or runtime.get("engineImage") != receipt["mysql84Image"]
+        or runtime.get("consumerBoundary") != "isolated-local-package"
+        or runtime.get("projectReferences") != 0
+        or runtime.get("runtimeSmoke") != "pass"
+    ):
+        raise GitHubReleaseError("Local package runtime qualification is invalid.")
+
+    for path in paths.values():
+        sha256_file(path)
+    return list(paths.values())
 
 
 def build_release_plan(
@@ -526,7 +603,7 @@ def build_release_plan(
     publication_evidence: Path,
     changelog: Path,
 ) -> dict[str, Any]:
-    """Build a deterministic release plan from already-verified evidence."""
+    """Build the deterministic pre-publication release plan."""
     if not REPOSITORY.fullmatch(repository):
         raise GitHubReleaseError(f"GitHub repository identity is invalid: {repository}")
 
@@ -542,8 +619,8 @@ def build_release_plan(
         ) from exception
 
     receipt = read_json(
-        publication_evidence / "validated-candidate.json",
-        "validated candidate receipt",
+        publication_evidence / "release-publication-receipt.json",
+        "release publication receipt",
     )
     package_map = validate_candidate_receipt(receipt, repository, candidate_root)
     manifest = read_json(
@@ -559,7 +636,9 @@ def build_release_plan(
     if (
         manifest.get("releaseCandidateRunId") != candidate_run_id
         or manifest.get("releaseVersion") != version
-        or source.get("tag") != tag
+        or manifest.get("expectedReleaseTag") != tag
+        or source.get("ref") != "refs/heads/main"
+        or source.get("tag") is not None
         or source.get("commit") != source_commit
         or nuget_publication.normalize_repository(str(source.get("repository", "")))
         != repository.lower()
@@ -626,11 +705,15 @@ def build_release_plan(
             )
         )
 
-    publication_paths = validate_publication_evidence(
+    staged_paths = validate_staged_evidence(
         publication_evidence,
+        candidate_root,
         receipt,
     )
-    assets = [asset_record(path) for path in candidate_paths + publication_paths]
+    assets = [
+        asset_record(path)
+        for path in candidate_paths + staged_paths
+    ]
     asset_names = [asset["name"] for asset in assets]
     if len(asset_names) != len(set(asset_names)):
         raise GitHubReleaseError("GitHub release asset names must be unique.")
@@ -639,6 +722,7 @@ def build_release_plan(
     prerelease = "-" in version
     return {
         "schemaVersion": SCHEMA_VERSION,
+        "phase": "staged",
         "repository": repository,
         "releaseTag": tag,
         "releaseVersion": version,
@@ -660,6 +744,7 @@ def validate_plan(plan: dict[str, Any]) -> None:
     notes = str(plan.get("notes", ""))
     if (
         plan.get("schemaVersion") != SCHEMA_VERSION
+        or plan.get("phase") != "staged"
         or not REPOSITORY.fullmatch(str(plan.get("repository", "")))
         or tag != f"v{version}"
         or not release_evidence.SEMANTIC_VERSION_TAG.fullmatch(tag)
@@ -941,7 +1026,7 @@ def verify_release_assets(
     plan: dict[str, Any],
     client: ReleaseClient,
 ) -> list[Path]:
-    """Read back present assets and return the exact missing local paths."""
+    """Read back planned assets and return the exact missing local paths."""
     planned_assets = {asset["name"]: asset for asset in plan["assets"]}
     remote_assets = release.get("assets")
     if not isinstance(remote_assets, list):
@@ -956,8 +1041,8 @@ def verify_release_assets(
             raise GitHubReleaseError(f"GitHub release contains an unexpected asset: {name}")
         remote_names.add(name)
 
-        planned = planned_assets[name]
         asset_id = asset.get("id")
+        planned = planned_assets[name]
         if (
             asset.get("state") != "uploaded"
             or asset.get("size") != planned["sizeBytes"]
@@ -1038,6 +1123,8 @@ def finalize_release(
     state cannot become release evidence.
     """
     validate_plan(plan)
+    if plan["phase"] != "staged":
+        raise GitHubReleaseError("Only the verified staged plan may be published.")
     repository = str(plan["repository"])
     tag = str(plan["releaseTag"])
     client.verify_tag(repository, tag, str(plan["sourceCommit"]))
@@ -1103,8 +1190,194 @@ def finalize_release(
     )
 
 
+def stage_release(
+    plan: dict[str, Any],
+    client: ReleaseClient,
+) -> dict[str, Any]:
+    """Create or reconcile a complete draft without publishing it."""
+    validate_plan(plan)
+    if plan["phase"] != "staged":
+        raise GitHubReleaseError("Only a staged release plan may create a draft.")
+
+    repository = str(plan["repository"])
+    tag = str(plan["releaseTag"])
+    client.verify_tag(repository, tag, str(plan["sourceCommit"]))
+    release = client.get_release(repository, tag)
+    if release is None:
+        client.create_draft(plan)
+        release = client.get_release(repository, tag)
+        if release is None:
+            raise GitHubReleaseError("GitHub did not return the created release draft.")
+
+    verify_release_metadata(release, plan)
+    missing = verify_release_assets(release, plan, client)
+    if release["draft"] is False:
+        if missing:
+            raise GitHubReleaseError(
+                "Published GitHub release is missing staged identity assets."
+            )
+        if release.get("immutable") is not True:
+            raise GitHubReleaseError("Published GitHub release is not immutable.")
+        release_id = release.get("id")
+        if (
+            isinstance(release_id, bool)
+            or not isinstance(release_id, int)
+            or client.is_latest(repository, release_id) != plan["latest"]
+        ):
+            raise GitHubReleaseError("Published GitHub release latest status conflicts.")
+        client.verify_tag(repository, tag, str(plan["sourceCommit"]))
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "status": "release-already-published",
+            "repository": repository,
+            "releaseTag": tag,
+            "releaseVersion": plan["releaseVersion"],
+            "sourceCommit": plan["sourceCommit"],
+            "assetCount": len(plan["assets"]),
+        }
+
+    client.upload_assets(repository, tag, missing)
+    release = client.get_release(repository, tag)
+    if release is None:
+        raise GitHubReleaseError("GitHub release draft disappeared after asset upload.")
+    verify_release_metadata(release, plan)
+    if verify_release_assets(release, plan, client):
+        raise GitHubReleaseError("GitHub release draft is incomplete after asset upload.")
+    client.verify_tag(repository, tag, str(plan["sourceCommit"]))
+
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "status": "draft-staged-and-verified",
+        "repository": repository,
+        "releaseTag": tag,
+        "releaseVersion": plan["releaseVersion"],
+        "sourceCommit": plan["sourceCommit"],
+        "assetCount": len(plan["assets"]),
+    }
+
+
+def validate_release_receipt(
+    receipt: dict[str, Any],
+    plan: dict[str, Any],
+) -> None:
+    """Bind the immutable GitHub readback receipt to the staged plan."""
+    expected_url = (
+        f"https://github.com/{plan['repository']}/releases/tag/"
+        f"{plan['releaseTag']}"
+    )
+    release_id = receipt.get("releaseId")
+    if (
+        receipt.get("schemaVersion") != SCHEMA_VERSION
+        or receipt.get("status") != "published-and-verified"
+        or isinstance(release_id, bool)
+        or not isinstance(release_id, int)
+        or release_id <= 0
+        or receipt.get("repository") != plan["repository"]
+        or receipt.get("releaseTag") != plan["releaseTag"]
+        or receipt.get("releaseVersion") != plan["releaseVersion"]
+        or receipt.get("sourceCommit") != plan["sourceCommit"]
+        or receipt.get("releaseUrl") != expected_url
+        or receipt.get("immutable") is not True
+        or receipt.get("prerelease") != plan["prerelease"]
+        or receipt.get("latest") != plan["latest"]
+        or receipt.get("notesSha256") != plan["notesSha256"]
+    ):
+        raise GitHubReleaseError("GitHub release readback identity is invalid.")
+    require_timestamp(receipt.get("publishedAt"), "GitHub release readback")
+
+    raw_assets = receipt.get("assets")
+    if not isinstance(raw_assets, list):
+        raise GitHubReleaseError("GitHub release readback asset inventory is invalid.")
+    actual: dict[str, tuple[int, str]] = {}
+    for asset in raw_assets:
+        if not isinstance(asset, dict):
+            raise GitHubReleaseError(
+                "GitHub release readback asset inventory is invalid."
+            )
+        name = str(asset.get("name", ""))
+        if name in actual:
+            raise GitHubReleaseError(
+                f"GitHub release readback repeats asset: {name}"
+            )
+        size = asset.get("sizeBytes")
+        digest = str(asset.get("sha256", ""))
+        asset_id = asset.get("assetId")
+        if (
+            isinstance(size, bool)
+            or not isinstance(size, int)
+            or size < 0
+            or not SHA256.fullmatch(digest)
+            or isinstance(asset_id, bool)
+            or not isinstance(asset_id, int)
+            or asset_id <= 0
+        ):
+            raise GitHubReleaseError(
+                f"GitHub release readback asset is invalid: {name}"
+            )
+        actual[name] = (size, digest)
+
+    expected = {
+        str(asset["name"]): (int(asset["sizeBytes"]), str(asset["sha256"]))
+        for asset in plan["assets"]
+    }
+    if actual != expected:
+        raise GitHubReleaseError(
+            "GitHub release readback asset inventory conflicts with the plan."
+        )
+
+
+def build_completion_receipt(
+    repository: str,
+    candidate_root: Path,
+    publication_evidence: Path,
+    changelog: Path,
+) -> dict[str, Any]:
+    """Validate and bind all post-publication completion evidence."""
+    plan = build_release_plan(
+        repository,
+        candidate_root,
+        publication_evidence,
+        changelog,
+    )
+    release_receipt_path = publication_evidence / "github-release-readback.json"
+    release_receipt = read_json(
+        release_receipt_path,
+        "GitHub release readback",
+    )
+    validate_release_receipt(release_receipt, plan)
+
+    publication_receipt = read_json(
+        publication_evidence / "release-publication-receipt.json",
+        "release publication receipt",
+    )
+    completion_paths = [
+        release_receipt_path,
+        *validate_publication_evidence(
+            publication_evidence,
+            publication_receipt,
+        ),
+    ]
+    readback = read_json(
+        publication_evidence / "nuget-publication-readback.json",
+        "NuGet publication readback",
+    )
+    completed_utc = readback.get("verifiedUtc")
+    require_timestamp(completed_utc, "NuGet publication readback")
+    return {
+        "schemaVersion": 1,
+        "kind": "release-publication-completion",
+        "status": "published-and-verified",
+        "repository": repository,
+        "releaseTag": plan["releaseTag"],
+        "releaseVersion": plan["releaseVersion"],
+        "sourceCommit": plan["sourceCommit"],
+        "completedUtc": completed_utc,
+        "evidence": [asset_record(path) for path in completion_paths],
+    }
+
+
 def prepare_command(args: argparse.Namespace) -> None:
-    """Create and persist a deterministic plan without mutating GitHub."""
+    """Create and persist the deterministic plan without mutating GitHub."""
     plan = build_release_plan(
         args.repository,
         args.candidate_root,
@@ -1123,8 +1396,28 @@ def publish_command(args: argparse.Namespace) -> None:
     write_json(args.output.resolve(), receipt)
 
 
+def stage_command(args: argparse.Namespace) -> None:
+    """Stage one planned draft and persist its verified receipt."""
+    plan = read_json(args.plan.resolve(), "GitHub release plan")
+    validate_plan(plan)
+    verify_local_tag(args.repo.resolve(), plan)
+    receipt = stage_release(plan, GitHubCliClient())
+    write_json(args.output.resolve(), receipt)
+
+
+def complete_command(args: argparse.Namespace) -> None:
+    """Persist one validated post-publication completion receipt."""
+    receipt = build_completion_receipt(
+        args.repository,
+        args.candidate_root.resolve(),
+        args.publication_evidence.resolve(),
+        args.changelog.resolve(),
+    )
+    write_json(args.output.resolve(), receipt)
+
+
 def build_parser() -> argparse.ArgumentParser:
-    """Build the two-stage command-line contract used by GitHub Actions."""
+    """Build the staged-release and completion command-line contract."""
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -1136,11 +1429,25 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--output", type=Path, required=True)
     prepare.set_defaults(handler=prepare_command)
 
+    stage = subparsers.add_parser("stage")
+    stage.add_argument("--repo", type=Path, required=True)
+    stage.add_argument("--plan", type=Path, required=True)
+    stage.add_argument("--output", type=Path, required=True)
+    stage.set_defaults(handler=stage_command)
+
     publish = subparsers.add_parser("publish")
     publish.add_argument("--repo", type=Path, required=True)
     publish.add_argument("--plan", type=Path, required=True)
     publish.add_argument("--output", type=Path, required=True)
     publish.set_defaults(handler=publish_command)
+
+    complete = subparsers.add_parser("complete")
+    complete.add_argument("--repository", required=True)
+    complete.add_argument("--candidate-root", type=Path, required=True)
+    complete.add_argument("--publication-evidence", type=Path, required=True)
+    complete.add_argument("--changelog", type=Path, required=True)
+    complete.add_argument("--output", type=Path, required=True)
+    complete.set_defaults(handler=complete_command)
 
     return parser
 

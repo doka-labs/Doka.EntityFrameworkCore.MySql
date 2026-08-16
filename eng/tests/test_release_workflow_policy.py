@@ -103,18 +103,18 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
 
     def test_nuget_signature_verification_cannot_be_masked_by_a_pipeline(self) -> None:
         """Retain verifier output only after its direct exit status succeeds."""
-        workflow = self.workflow("nuget-publish.yml")
+        workflow = self.workflow("release-candidate.yml")
         verification_start = workflow.index(
             "      - name: Verify public NuGet repository signatures\n"
         )
         verification_end = workflow.index(
-            "      - name: Verify fresh consumer restore and runtime\n",
+            "      - name: Bind publication completion evidence\n",
             verification_start,
         )
         verification = workflow[verification_start:verification_end]
 
-        self.assertIn("dotnet nuget verify \\", verification)
-        self.assertIn("--all \\", verification)
+        self.assertIn("dotnet nuget verify ", verification)
+        self.assertIn("--all", verification)
         self.assertIn("nuget-signature-verification.txt", verification)
         self.assertNotIn("| tee", verification)
 
@@ -573,7 +573,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "gh api",
         }
 
-        for name in ("release-candidate.yml", "nuget-publish.yml"):
+        for name in ("release-candidate.yml",):
             workflow = self.workflow(name)
             for job, body in self.jobs(workflow).items():
                 if not any(marker in body for marker in reaching):
@@ -902,34 +902,31 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             text.index("- name: Run ${{ matrix.stage }} stage"),
         )
 
-    def test_candidate_rejects_an_untrusted_tag_before_the_matrix(self) -> None:
-        """Fail cheaply, and explain, when the tag cannot be trusted.
-
-        Performance is not a release precondition. The cheapest remaining
-        release check must still decide first, and its failure must tell the
-        operator how to leave the state rather than only that they are in it.
-        """
+    def test_candidate_requires_current_untagged_main_before_the_matrix(self) -> None:
+        """Qualify reviewed bytes before creating their irreversible identity."""
         text = self.workflow("release-candidate.yml")
         preflight = self.job(text, "preflight", "foundation")
 
-        self.assertIn("- name: Establish the release tag trust root", preflight)
-        self.assertIn("python3 -m eng.release.trust verify", preflight)
-        self.assertIn("--policy eng/release/evidence-policy.json", preflight)
-        self.assertIn("Release tag trust root required", preflight)
-        for instruction in (
-            "Sign the tag",
-            "reachable from protected main",
-            "repository-qualification",
-        ):
-            with self.subTest(instruction=instruction):
-                self.assertIn(instruction, preflight)
-
+        self.assertIn("- name: Verify current untagged main source", preflight)
+        self.assertIn('"${GITHUB_REF}" != "refs/heads/main"', preflight)
+        self.assertIn('refs/remotes/origin/main)" != "${GITHUB_SHA}"', preflight)
+        self.assertIn("git tag --points-at", preflight)
         self.assertIn(
             "needs: preflight", self.job(text, "foundation", "engine-contracts")
         )
         self.assertLess(
-            text.index("- name: Establish the release tag trust root"),
+            text.index("- name: Verify current untagged main source"),
             text.index("- name: Run ${{ matrix.stage }} stage"),
+        )
+
+        publish = self.job(text, "publish")
+        self.assertIn("- name: Establish signed tag trust root", publish)
+        self.assertIn("python3 -m eng.release.trust verify", publish)
+        self.assertIn("--policy eng/release/evidence-policy.json", publish)
+        self.assertIn("git merge-base --is-ancestor", publish)
+        self.assertNotIn(
+            'refs/remotes/origin/main)" != "${GITHUB_SHA}"',
+            publish,
         )
 
     def test_the_candidate_never_measures_or_imports_performance(self) -> None:
@@ -952,7 +949,6 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         """Prevent coupling from moving behind the candidate workflow."""
         release_paths = (
             self.workflows / "release-candidate.yml",
-            self.workflows / "nuget-publish.yml",
             self.repo / "eng" / "release" / "release-candidate.sh",
             self.repo / "eng" / "release" / "checkpoint.py",
             self.repo / "eng" / "release" / "evidence.py",
@@ -982,7 +978,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         release_script = (
             self.repo / "eng" / "release" / "release-candidate.sh"
         ).read_text(encoding="utf-8")
-        # The set is exactly what the tagged commit produced for itself.
+        # The set is exactly what the untagged candidate produced for itself.
         # Branch-verified gates are imported and must not reappear here; a
         # stage restored twice, or one silently dropped, is the defect that
         # made the release coverage gate merge two of five inputs.
@@ -1041,62 +1037,54 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
 
     def test_release_artifacts_are_immutable_and_attempt_qualified(self) -> None:
         """Prevent a rerun from overwriting evidence created by another attempt."""
-        for workflow_name in ("release-candidate.yml", "nuget-publish.yml"):
-            text = self.workflow(workflow_name)
-
-            with self.subTest(workflow=workflow_name):
-                self.assertNotIn("overwrite: true", text)
-
         candidate = self.workflow("release-candidate.yml")
-        publication = self.workflow("nuget-publish.yml")
+        self.assertNotIn("overwrite: true", candidate)
+
         self.assertIn("release-stage-${{ matrix.stage }}-attempt-", candidate)
-        self.assertIn("release-candidate-artifacts-attempt-", candidate)
-        self.assertIn("nuget-validation-evidence-attempt-", publication)
-        self.assertIn("nuget-publish-evidence-attempt-", publication)
-        self.assertIn("nuget-readback-evidence-attempt-", publication)
+        self.assertIn("release-candidate-${GITHUB_RUN_ID}-attempt-", candidate)
+        self.assertIn("release-checkpoints-${GITHUB_RUN_ID}-attempt-", candidate)
+        self.assertIn(
+            "release-publication-${{ inputs.version }}-attempt-${{ github.run_attempt }}",
+            candidate,
+        )
 
-    def test_candidate_attestation_alone_receives_oidc_write(self) -> None:
-        """Confine candidate OIDC authority to post-assembly attestation."""
+    def test_oidc_is_confined_to_attestation_and_protected_publication(self) -> None:
+        """Grant OIDC only to attestation and the protected NuGet exchange."""
         text = self.workflow("release-candidate.yml")
-        attest = self.job(text, "attest")
+        attest = self.job(text, "attest", "publish")
+        publish = self.job(text, "publish")
 
-        self.assertEqual(1, text.count("id-token: write"))
+        self.assertEqual(2, text.count("id-token: write"))
         self.assertIn("id-token: write", attest)
         self.assertIn("attestations: write", attest)
         self.assertIn("artifact-metadata: write", attest)
+        self.assertIn("id-token: write", publish)
+        self.assertIn("environment:\n      name: nuget", publish)
 
     def test_publication_verifies_sdk_before_requesting_credentials(self) -> None:
         """Keep exact SDK enforcement ahead of the NuGet OIDC exchange."""
-        text = self.workflow("nuget-publish.yml")
+        text = self.workflow("release-candidate.yml")
 
         self.assertLess(
-            text.index("- name: Verify approved .NET SDK"),
+            text.index("bash ./eng/common/verify-dotnet.sh"),
             text.index("- name: Request short-lived NuGet.org key"),
         )
 
-    def test_publication_oidc_is_confined_to_the_publish_job(self) -> None:
-        """Keep the protected environment and OIDC grant out of validation."""
-        text = self.workflow("nuget-publish.yml")
-        validate = self.job(text, "validate-candidate", "publish")
-        publish = self.job(text, "publish", "readback")
-        readback = self.job(text, "readback", "finalize-github-release")
-        finalize = self.job(text, "finalize-github-release")
+    def test_publication_oidc_and_environment_are_confined_to_publish(self) -> None:
+        """Keep the protected environment and NuGet OIDC out of qualification."""
+        text = self.workflow("release-candidate.yml")
+        qualification = text[: text.index("  publish:\n")]
+        publish = self.job(text, "publish")
 
-        self.assertEqual(1, text.count("id-token: write"))
         self.assertEqual(1, text.count("environment:\n"))
-        self.assertNotIn("id-token: write", validate)
-        self.assertNotIn("environment:\n", validate)
+        self.assertNotIn("environment:\n", qualification)
         self.assertIn("environment:\n      name: nuget", publish)
         self.assertIn("id-token: write", publish)
-        self.assertNotIn("id-token: write", readback)
-        self.assertNotIn("environment:\n", readback)
-        self.assertNotIn("id-token: write", finalize)
-        self.assertNotIn("environment:\n", finalize)
 
     def test_authoritative_preflight_immediately_precedes_nuget_oidc(self) -> None:
         """Request the one-hour key only after retry-safe remote-state checks."""
-        text = self.workflow("nuget-publish.yml")
-        publish = self.job(text, "publish", "readback")
+        text = self.workflow("release-candidate.yml")
+        publish = self.job(text, "publish")
 
         preflight = publish.index(
             "- name: Check NuGet.org immediately before publication"
@@ -1110,51 +1098,66 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             publish,
         )
 
-    def test_github_release_finalization_follows_public_nuget_readback(self) -> None:
-        """Confine repository write authority to the post-readback job."""
-        text = self.workflow("nuget-publish.yml")
-        readback = self.job(text, "readback", "finalize-github-release")
-        finalize = self.job(text, "finalize-github-release")
+    def test_short_lived_nuget_key_is_not_exposed_as_a_process_argument(self) -> None:
+        """Use the SDK's CI environment contract instead of command arguments."""
+        text = self.workflow("release-candidate.yml")
+        publish = self.job(text, "publish")
+
+        key_binding = (
+            "NUGET_API_KEY: "
+            "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"
+        )
+        self.assertEqual(4, publish.count(key_binding))
+        self.assertNotIn("--api-key", publish)
+        self.assertNotIn("--symbol-api-key", publish)
+
+    def test_github_release_finalization_precedes_availability_readback(self) -> None:
+        """Minimize split identity before running post-push completion probes."""
+        text = self.workflow("release-candidate.yml")
+        publish = self.job(text, "publish")
 
         self.assertEqual(1, text.count("contents: write"))
-        self.assertIn("- readback", finalize)
-        self.assertIn("actions: read", finalize)
-        self.assertIn("contents: write", finalize)
-        self.assertNotIn("id-token: write", finalize)
-        self.assertNotIn("attestations: read", finalize)
-        self.assertLess(
-            readback.index("bash eng/testing/test-nuget-readback.sh"),
-            len(readback),
-        )
+        stage = publish.index("- name: Stage and verify GitHub release draft")
+        first_push = publish.index("- name: Publish provider package")
+        readback = publish.index("python3 -m eng.release.nuget readback")
+        finalize = publish.index("- name: Publish and read back immutable GitHub release")
+        self.assertLess(stage, first_push)
+        self.assertLess(first_push, finalize)
+        self.assertLess(finalize, readback)
 
     def test_public_readback_cryptographically_verifies_repository_signatures(self) -> None:
         """Do not treat an unverified signature ZIP entry as provenance."""
-        text = self.workflow("nuget-publish.yml")
-        readback = self.job(text, "readback", "finalize-github-release")
+        text = self.workflow("release-candidate.yml")
+        publish = self.job(text, "publish")
 
-        payload_readback = readback.index("python3 -m eng.release.nuget readback")
-        signature_verification = readback.index("dotnet nuget verify")
-        runtime_readback = readback.index("bash eng/testing/test-nuget-readback.sh")
+        payload_readback = publish.index("python3 -m eng.release.nuget readback")
+        signature_verification = publish.index("dotnet nuget verify")
+        finalization = publish.index("python3 -m eng.release.github publish")
 
+        completion = publish.index("python3 -m eng.release.github complete")
+        self.assertLess(finalization, payload_readback)
         self.assertLess(payload_readback, signature_verification)
-        self.assertLess(signature_verification, runtime_readback)
-        self.assertEqual(1, readback.count("--all"))
-        self.assertIn("nuget-signature-verification.txt", readback)
+        self.assertLess(signature_verification, completion)
+        self.assertEqual(1, publish.count("--all"))
+        self.assertIn("nuget-signature-verification.txt", publish)
 
     def test_github_release_finalization_preserves_verified_evidence(self) -> None:
         """Require the final job to consume and retain both evidence domains."""
-        text = self.workflow("nuget-publish.yml")
-        finalize = self.job(text, "finalize-github-release")
+        text = self.workflow("release-candidate.yml")
+        publish = self.job(text, "publish")
 
+        self.assertIn("python3 -m eng.release.github prepare", publish)
+        self.assertIn("python3 -m eng.release.github stage", publish)
+        self.assertIn("python3 -m eng.release.github publish", publish)
+        self.assertIn("python3 -m eng.release.github complete", publish)
+        self.assertIn("github-release-staged-plan.json", publish)
+        self.assertNotIn("github-release-final-plan.json", publish)
+        self.assertIn("github-release-readback.json", publish)
+        self.assertIn("release-publication-completion.json", publish)
         self.assertIn(
-            "needs.readback.outputs.readback_evidence_artifact_name",
-            finalize,
+            "release-publication-${{ inputs.version }}-attempt-",
+            publish,
         )
-        self.assertIn("python3 -m eng.release.github prepare", finalize)
-        self.assertIn("python3 -m eng.release.github publish", finalize)
-        self.assertIn("github-release-plan.json", finalize)
-        self.assertIn("github-release-readback.json", finalize)
-        self.assertIn("github-release-evidence-${{ inputs.release_tag }}", finalize)
 
     def test_sdk_contract_has_a_reviewed_update_channel(self) -> None:
         """Keep the exact SDK pin visible to scheduled dependency review."""
@@ -1206,7 +1209,7 @@ class StageSetAgreementTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
     def workflow_stages(self) -> set[str]:
-        """Return the stages the tag workflow actually runs.
+        """Return the stages the candidate workflow actually runs.
 
         Reading the matrix alone would miss a stage invoked by its own job,
         which is how `sbom` runs. The question is which stages execute, not

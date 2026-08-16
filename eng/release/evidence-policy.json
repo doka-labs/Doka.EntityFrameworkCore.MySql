@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "policyVersion": "2026-08-15.1",
+  "policyVersion": "2026-08-16.1",
   "documentation": [
-    "Every gate a release depends on produces evidence for the tagged commit.",
+    "Every gate a release depends on produces evidence for the candidate commit.",
     "There is no reuse model: no relevant-input classifier, no evidence-age",
     "limit, and no ancestry path for importing gate evidence from an earlier",
     "commit. Performance evidence is produced independently for engineering",
@@ -28,7 +28,7 @@
         "direction": "greatest"
       }
     ],
-    "tagProducedAttemptNotNewerThanAssembling": true,
+    "candidateProducedAttemptNotNewerThanAssembling": true,
     "frozenAtManifestAssembly": true
   },
   "gates": [
@@ -53,7 +53,7 @@
     },
     {
       "id": "migration-deployment",
-      "kind": "tag-produced",
+      "kind": "candidate-produced",
       "producerWorkflow": ".github/workflows/release-candidate.yml",
       "implementation": "eng/testing/test-migration-deployment.sh",
       "boundIdentities": [
@@ -70,7 +70,7 @@
     },
     {
       "id": "runtime-posture",
-      "kind": "tag-produced",
+      "kind": "candidate-produced",
       "producerWorkflow": ".github/workflows/release-candidate.yml",
       "implementation": "eng/testing/test-runtime-posture.sh",
       "boundIdentities": [
@@ -87,7 +87,7 @@
     },
     {
       "id": "efcore-patch-matrix",
-      "kind": "tag-produced",
+      "kind": "candidate-produced",
       "producerWorkflow": ".github/workflows/release-candidate.yml",
       "implementation": "eng/testing/test-efcore-matrix.sh",
       "boundIdentities": [
@@ -105,7 +105,7 @@
     },
     {
       "id": "mysqlconnector-patch-matrix",
-      "kind": "tag-produced",
+      "kind": "candidate-produced",
       "producerWorkflow": ".github/workflows/release-candidate.yml",
       "implementation": "eng/testing/test-mysqlconnector-matrix.sh",
       "boundIdentities": [

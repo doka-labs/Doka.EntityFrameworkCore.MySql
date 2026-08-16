@@ -288,9 +288,7 @@ class ReleaseRunbookAgreementTests(unittest.TestCase):
     """Prove the runbook describes the release path the workflows implement.
 
     An operator follows the runbook, not the YAML. When the two drift, the
-    procedure silently teaches a sequence that no longer exists -- which is how
-    a manual dispatch survived in writing after the tag began starting the
-    candidate by itself.
+    procedure silently teaches a sequence that no longer exists.
     """
 
     ROOT = Path(__file__).resolve().parents[2]
@@ -303,9 +301,18 @@ class ReleaseRunbookAgreementTests(unittest.TestCase):
         self.candidate = (
             self.ROOT / ".github" / "workflows" / "release-candidate.yml"
         ).read_text(encoding="utf-8")
+        self.pre_tag = (
+            self.ROOT / "eng" / "release" / "pre-tag-check.sh"
+        ).read_text(encoding="utf-8")
+        self.decision = (
+            self.ROOT
+            / "docs"
+            / "decisions"
+            / "D-026-release-qualification-and-paired-performance.md"
+        ).read_text(encoding="utf-8")
 
     def test_the_runbook_names_the_required_aggregator(self) -> None:
-        """Point the operator at the check the tag actually imports."""
+        """Point the operator at the check candidate assembly imports."""
         self.assertIn("repository-qualification", self.runbook)
 
     def test_the_runbook_names_the_pre_tag_check(self) -> None:
@@ -313,13 +320,33 @@ class ReleaseRunbookAgreementTests(unittest.TestCase):
         self.assertIn("./eng/pre-tag-check.sh", self.runbook)
         self.assertTrue((self.ROOT / "eng" / "pre-tag-check.sh").is_file())
 
-    def test_the_runbook_describes_an_automatic_tag_trigger(self) -> None:
-        """Match the documented start of qualification to the workflow."""
-        self.assertIn(
-            "starts the `release-candidate` workflow automatically", self.runbook
+    def test_the_pre_tag_check_does_not_claim_to_start_the_candidate(self) -> None:
+        """Keep the helper aligned with qualification-before-tag ordering."""
+        self.assertIn("ready for untagged hosted qualification", self.pre_tag)
+        self.assertNotIn("Creating it starts the candidate", self.pre_tag)
+
+    def test_the_runbook_requires_repository_release_immutability(self) -> None:
+        """Keep a load-bearing GitHub setting in the operator preflight."""
+        self.assertRegex(self.runbook, r"Enable release\s+immutability")
+        self.assertIn("repos/${repo}/immutable-releases", self.runbook)
+
+    def test_the_runbook_describes_untagged_manual_qualification(self) -> None:
+        """Keep the reversible candidate phase ahead of tag creation."""
+        self.assertIn("Start one untagged candidate run", self.runbook)
+        self.assertIn("workflow_dispatch:", self.candidate)
+        self.assertNotIn("push:", self.candidate)
+        self.assertLess(
+            self.runbook.index("Start one untagged candidate run"),
+            self.runbook.index("Create the signed immutable identity"),
         )
-        self.assertIn("push:", self.candidate)
-        self.assertIn('- "v*"', self.candidate)
+
+    def test_publication_revalidates_the_frozen_check_attempt(self) -> None:
+        """Keep rerun selection outside the immutable publication boundary."""
+        for document in (self.runbook, self.decision):
+            with self.subTest(document=document[:40]):
+                self.assertIn("exact check-run", document)
+                self.assertIn("attempt", document)
+        self.assertIn("--qualification-manifest", self.candidate)
 
     def test_the_runbook_states_the_receipt_count_the_workflow_produces(self) -> None:
         """Reject a documented stage count the workflow cannot satisfy."""

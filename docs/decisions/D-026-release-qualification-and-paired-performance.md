@@ -16,6 +16,76 @@ doka-profile-version: "1.0"
 
 # D-026 -- Qualify releases from bound evidence and paired performance runs
 
+## 2026-08-16 Amendment: Qualify before creating the release identity
+
+Release qualification and publication now run as two phases of one manually
+dispatched `release-candidate.yml` execution from exact current `main`. The
+operator supplies only the package version. The source must remain untagged
+through package generation, local-package runtime verification, canonical
+evidence assembly, and artifact attestation. The protected `publish` job waits
+at the `nuget` environment while those reversible results are reviewed.
+
+Only after qualification succeeds does the operator create and push one signed,
+annotated `v<version>` tag on the exact candidate SHA. The tag push has no
+workflow trigger. The waiting job independently verifies the annotated tag,
+registered signer, protected-main qualification, version, source commit,
+candidate receipt, local package bytes, and same-run attestations before it can
+request a short-lived NuGet credential.
+
+This order replaces the former tag-first candidate and separate publication
+handoff. Wherever the historical body refers to tag-triggered qualification,
+tag-produced gates, a candidate run-ID input, tagged-source attestations, or a
+separate publication workflow, this amendment is authoritative. The
+corresponding gate kind is `candidate-produced`, and candidate attestations
+bind `refs/heads/main`.
+
+The irreversible boundary is explicit:
+
+1. All correctness checks that can block publication, including isolated basic
+   and spatial runtime execution against the exact local `.nupkg` bytes, run
+   before either the tag or a NuGet package exists.
+2. After the tag is bound, a matching GitHub release draft and its staged
+   identity assets are created and independently read back before NuGet push.
+3. Provider, provider symbols, spatial extension, and spatial symbols publish
+   in dependency order. Existing primary packages are accepted only when their
+   canonical payload matches the candidate; conflicting same-version content
+   fails closed.
+4. After all four NuGet submissions succeed, the fully staged draft immediately
+   becomes an immutable GitHub release. Public package, symbol, and
+   repository-signature readback then completes the retained workflow evidence
+   without becoming part of the immutable asset set.
+
+NuGet.org does not provide permanent deletion; unlisted exact versions remain
+downloadable. Two package pushes also cannot be atomic. The workflow therefore
+cannot promise rollback after the first push. It instead provides
+same-identity, conflict-safe recovery for a partial package pair, delayed
+symbol availability, a matching draft, and an already matching immutable GitHub
+release. Retry-varying completion observations remain workflow artifacts so
+they cannot conflict with immutable release assets. The workflow never clobbers
+a primary package or release asset.
+
+This amendment also removes the operator-selected run-ID handoff. Artifacts,
+qualification, attestation, tag binding, publication, and final readback all
+belong to one GitHub workflow run. A rerun after tag creation must target failed
+jobs in that same run; rerunning the complete workflow is rejected because the
+qualification phase intentionally requires untagged source.
+
+Primary-source basis:
+
+- [NuGet Trusted Publishing][nuget-trusted-publishing]
+  binds a GitHub workflow and optional environment to short-lived credentials.
+- [NuGet package deletion policy][nuget-package-deletion]
+  documents unlisting rather than permanent deletion and exact-version access.
+- [GitHub deployment environments][github-deployment-environments]
+  provide branch restrictions and required reviewers before a job can access
+  environment credentials.
+- [GitHub artifact attestations][github-attestations]
+  bind provenance to the candidate bytes and workflow identity.
+- [GitHub immutable releases][github-immutable-releases]
+  recommend preparing a draft and its assets before publication locks them.
+
+Retrieved 2026-08-16.
+
 ## 2026-08-15 Amendment: Performance has no release authority
 
 Performance evidence is removed from the release boundary. The standalone
@@ -46,7 +116,7 @@ The correction is structural rather than a warning suppression:
   `performanceEvidence` member changes its public evidence shape.
 
 Release qualification now consists of the imported commit-exact
-`repository-qualification` result and four tag-produced gates: migration
+`repository-qualification` result and four candidate-produced gates: migration
 deployment, runtime posture, the EF Core patch matrix, and the MySqlConnector
 patch matrix. Package and SBOM integrity remain bound into the candidate, and
 their separate payload stages bring the exact stage-receipt set to six.
@@ -133,30 +203,29 @@ architecture, JIT, and operating system apply to that environment and nothing
 else. Calibration cannot prove that different microarchitectures, cache
 hierarchies, and memory systems shift every provider workload proportionally.
 
-### A second manual qualification workflow would create another failure mode
+### Separate qualification and publication workflows create another handoff
 
-Moving all release stages into a manually dispatched pre-tag workflow would
-avoid spending a version, but it would add an operator-selected commit, run,
-version, and artifact handoff. That does not add integrity. It creates another
-state that can drift or be selected incorrectly, repeats work that automation
-can classify, and requires another full run after transient failures.
-
-The release path therefore needs one automatic evidence model, one tag-bound
-packaging path, and one protected publication approval. It must not require a
-separate release-qualification dispatch, a run-ID handoff between qualification
-and candidate assembly, or a mandatory hosted rehearsal.
+Qualification must run before the tag, but publication still needs the exact
+candidate bytes after tag creation and environment approval. Splitting those
+phases into workflows would add an operator-selected run and artifact handoff.
+The release path therefore uses one manually dispatched workflow with two
+phases: reversible candidate qualification and protected publication. It does
+not require a second dispatch or a supplied candidate run ID.
 
 ## Decision Drivers
 
-- A normal release must require no manually dispatched qualification workflow.
+- A normal release requires only the single candidate dispatch; it must not
+  require a second qualification or publication dispatch.
 - Verification must not be reduced; every existing gate must retain release
   authority from one implementation.
 - Scheduled verification must run often enough to detect external drift that
   arrives without a repository commit.
-- Every gate a release depends on must produce evidence for the tagged commit.
+- Every gate a release depends on must produce evidence for the candidate
+  commit later identified by the tag.
 - The tag must bind package version, package bytes, SBOM, manifest, and
   provenance to one immutable release identity.
-- A transient hosted failure must be recoverable by rerunning the same tag.
+- A transient hosted failure before tag creation must be recoverable without a
+  tag; after tag creation, recovery must preserve the same candidate identity.
 - Performance comparisons must be valid by construction rather than by hoping
   that a hosted runner repeats a historical processor.
 - Infrastructure conditions must not be reported as provider regressions.
@@ -181,7 +250,7 @@ Chosen option: "Qualify from bound evidence without performance release
 authority", because release qualification must remain deterministic while
 benchmarks have repeatedly produced infrastructure and orchestration failures
 unrelated to a broad provider regression. Releases use automatic bound
-repository evidence and tag-produced package, SBOM, migration, runtime, and
+repository evidence and candidate-produced package, SBOM, migration, runtime, and
 dependency-patch evidence. Performance remains independent engineering
 evidence. The original paired-release outcome below is historical context for
 the design that this ADR's 2026-08-15 amendment retired.
@@ -201,28 +270,27 @@ measurement is early warning, not a release gate. A manual dispatch may remain
 available for diagnosis, but it is never required by the normal release
 procedure.
 
-**Release-candidate assembly** starts from a signed `v*` tag. The tag push
-must start the existing `release-candidate` workflow automatically. That
-workflow validates the tag, resolves the required evidence without
-operator-supplied run identifiers, packs the tagged source, generates the SBOM,
-assembles a canonical manifest, and attests the package and manifest. It runs
-no repository tests and no specification or integration suites.
+**Release-candidate assembly** starts through `workflow_dispatch` on exact,
+untagged current `main`. The operator supplies only the package version. The
+workflow resolves protected-branch evidence without a run-ID handoff, runs the
+four candidate-produced gates, packs once, generates the SBOM, executes the
+isolated local-package consumer, assembles the canonical manifest, and attests
+the candidate. Benchmark evidence cannot affect assembly.
 
-It runs every tag-produced gate a release depends on: migration deployment,
-runtime posture, both patch matrices, package integrity, and SBOM integrity.
-All are commit-exact by construction. Benchmark and soak evidence remain in the
-standalone performance workflow and cannot affect candidate assembly.
-
-**Publication** remains a separate manual workflow protected by the `nuget`
-environment. Its approval is the only manual hosted release gate because it is
-the operation that changes external package state.
+**Tag binding and publication** are the second phase of the same workflow run.
+After qualification is green, the operator creates one signed annotated tag on
+the candidate SHA. The waiting job is protected by the `nuget` environment. It
+revalidates the tag and the exact protected-check run and attempt frozen in the
+qualification manifest before staging the GitHub release or requesting the
+short-lived NuGet credential.
 
 The ordinary operator path is therefore:
 
 1. Merge a reviewed change and wait for automatic evidence.
-2. Create and push one signed tag on the intended green `main` commit.
-3. Review the successful release-candidate artifact.
-4. Approve the protected NuGet publication.
+2. Dispatch `release-candidate` from exact current `main` with the version.
+3. Review the successful qualification jobs and attestations.
+4. Create and push the signed annotated tag on the candidate SHA.
+5. Approve the waiting protected NuGet publication job.
 
 Steps 1 to 3 copy nothing between them: the version comes from the tag and the
 evidence is resolved by commit. Step 4 is deliberately different. The candidate
@@ -241,16 +309,17 @@ every dependency because GitHub permits skipped required checks and skips jobs
 whose dependencies fail unless their condition explicitly overrides that
 behavior.
 
-The tag preflight queries and records the protected check set for the release
-commit. It accepts only checks from the expected application or workflow and
-requires the versioned minimum set. A larger protected set remains compatible;
-a set reduced below the minimum is rejected.
+Candidate assembly resolves and records the protected check required by the
+versioned evidence policy. Publication later reads back that exact check-run ID
+and attempt-specific workflow-run resource, verifies the response digest, and
+refuses to reselect a newer rerun.
 
-### Expensive gates run at the tag
+### Expensive gates run before the tag
 
-Every gate that a release depends on runs against the tagged commit. There is
-no evidence-reuse model: no relevant-input classifier, no evidence-age limit,
-and no ancestry or source-equivalence path for importing gate evidence from an
+Every gate that a release depends on runs against the untagged candidate
+commit. There is no evidence-reuse model: no relevant-input classifier, no
+evidence-age limit, and no ancestry or source-equivalence path for importing
+gate evidence from an
 earlier commit. The independent ancestry checks that bind the tag to protected
 `main` and the performance reference to the candidate remain mandatory.
 
@@ -302,19 +371,20 @@ but it is no longer a producer of release evidence.
 All release evidence is commit-exact. Repository qualification is produced for
 the release commit on `main`; migration deployment, runtime posture, both patch
 matrices, package integrity, and SBOM integrity are produced for it in the
-release-candidate workflow. Evidence is selected for the exact tagged commit
+release-candidate workflow. Evidence is selected for the exact candidate commit
 under the versioned identity policy, rather than through source-equivalence or
 freshness rules.
 
 The policy first filters eligible results. Every result must match the exact
 commit, repository, gate, expected producer, workflow identity where
 applicable, policy digest, and successful conclusion. Repository qualification
-must additionally originate from a `push` on protected `main`. Tag-produced
-gates must belong to the current release-candidate workflow run.
+must additionally originate from a `push` on protected `main`.
+Candidate-produced gates must belong to the current release-candidate workflow
+run.
 
 The selector then chooses exactly one result per gate. For repository
 qualification it selects the greatest eligible numeric workflow run identifier
-and then the greatest successful run attempt. For a tag-produced gate, the run
+and then the greatest successful run attempt. For a candidate-produced gate, the run
 identifier is already fixed and it selects the greatest successful attempt not
 newer than the assembling attempt. Zero eligible results, duplicate artifact
 identities at the selected run-and-attempt key, an unknown producer, or an
@@ -325,6 +395,12 @@ pins every run identifier, attempt, producer, workflow digest, artifact
 identifier, and file digest; later verification never reselects evidence. The
 workflow never prompts for a run identifier, never treats a skipped job as
 evidence, and never accepts gate evidence from an ancestor commit.
+
+Before publication, the trust-root verifier reads the protected check by the
+manifest's exact check-run ID and the attempt-specific workflow-run endpoint.
+It recomputes the canonical API-receipt digest and compares every frozen
+identity. A later rerun of the same workflow run therefore cannot replace the
+qualification used by the candidate or change the immutable release assets.
 
 ### Evidence manifests and integrity
 
@@ -349,10 +425,11 @@ Gate manifests and protected-check receipts record:
 - retry and attempt selection receipts;
 - generation and expiry times.
 
-The tag workflow creates one canonical
+Candidate assembly creates one canonical
 `release-qualification-manifest.json`. It records the deterministic selection
-of every required gate, the protected-check snapshot, package identities, SBOM
-identity, and the complete file inventory.
+of every required gate, the protected-check snapshot, and the qualified package
+file inventory. The release-candidate evidence manifest separately records the
+complete retained artifact inventory.
 
 GitHub's artifact download digest check is not the release gate because a
 digest mismatch is surfaced as a warning. The repository verifier recomputes
@@ -365,21 +442,22 @@ The canonical release-candidate artifact copies every selected raw report,
 evaluation, and receipt needed for offline verification. It remains
 self-contained after its working artifacts expire.
 
-### Tag-bound packaging and recovery
+### Candidate-bound packaging and recovery
 
-Packing occurs exactly once in the release-candidate workflow from the tagged
-source. Package version is derived from the tag. Package bytes, SBOM,
-qualification manifest, source commit, workflow revision, and attestation are
-bound together before publication authority is granted.
+Packing occurs exactly once from untagged current `main`; the dispatch input
+defines the package version and expected future tag. Package bytes, SBOM,
+qualification manifest, source commit, workflow revision, and attestations are
+bound before the tag or any NuGet package exists.
 
-A transient restore, pack, SBOM, evidence-assembly, upload, or attestation
-failure is recovered by rerunning failed jobs in the same workflow run. A full
-rerun for the same immutable tag is also valid. Every attempt revalidates the
-tag and evidence and must reproduce the same package identities.
+Before tag creation, a transient qualification failure is recovered by
+rerunning failed jobs in the same workflow run. After tag creation, only the
+failed `publish` job may be rerun because complete workflow reruns intentionally
+reject tagged source. Every publication attempt revalidates the same candidate,
+tag, frozen protected-check attempt, and remote state.
 
-A new tag is required only when source, dependencies, package content,
-workflow logic, evidence policy, or performance contract changes. A failed
-hosted run by itself never consumes a new version.
+A new version and tag are required only when source, dependencies, package
+content, workflow logic, or evidence policy changes. A failed hosted
+qualification run by itself consumes no tag or version.
 
 ### Performance comparison
 
@@ -598,9 +676,10 @@ auditable.
 The release-candidate workflow copies every raw report, evaluation, receipt,
 and manifest it produced into one self-contained artifact retained for 90 days,
 so the release remains independently verifiable after the working artifacts
-expire. No evidence-age limit applies at tag time: repository qualification may
-have completed before the tag was created, but every selected result is bound
-to the exact tagged source commit rather than to an ancestor commit.
+expire. No evidence-age limit applies at publication time: repository
+qualification may have completed before the tag was created, but every
+selected result is bound to the exact candidate commit rather than to an
+ancestor commit.
 
 ### Amendments to earlier decisions
 
@@ -635,16 +714,15 @@ local diagnostics remain optional.
 #### Positive
 
 - Good, because the normal release has no additional pre-tag dispatch and no
-  qualification-to-candidate run-ID handoff. The publication step keeps its
-  candidate selector deliberately.
+  qualification-to-candidate run-ID handoff.
 - Good, because each validation gate has one producing implementation.
-- Good, because every gate a release depends on is proven against the tagged
-  commit, so no release carries evidence from an ancestor.
+- Good, because every gate a release depends on is proven against the exact
+  candidate commit, so no release carries evidence from an ancestor.
 - Good, because the performance comparison becomes valid within one runner.
 - Good, because infrastructure conditions have typed outcomes and cannot be
   reported as provider regressions.
-- Good, because package, version, SBOM, manifest, and provenance bind directly
-  to the signed tag.
+- Good, because package, version, SBOM, manifest, provenance, and the frozen
+  protected-check attempt bind to the same signed tag and candidate commit.
 - Good, because artifact integrity is verified fail closed rather than through
   a warning-only digest check.
 
@@ -653,8 +731,7 @@ local diagnostics remain optional.
 - Bad, because a paired run measures the reference and candidate provider
   revisions and roughly doubles the measurement window. That addition is an
   estimate, not a measurement: the paired comparison does not exist yet.
-- Bad, because a regression that the early-warning benchmark does not catch
-  first surfaces at the tag, where fixing it costs a version number.
+- Bad, because performance remains advisory and cannot block a release.
 - Bad, because an old reference may become incompatible with the candidate
   benchmark driver and require reviewed recalibration.
 - Bad, because repository ruleset state remains external to version control and
@@ -670,15 +747,15 @@ local diagnostics remain optional.
 ### Confirmation
 
 - No normal release step dispatches a `release-qualification` workflow.
-- No new manual or pre-tag trigger is introduced. The candidate gains exactly
-  one new automatic trigger: a `v*` tag push.
+- The only candidate trigger is `workflow_dispatch` from exact current
+  untagged `main`; pushing the later `v*` tag starts no workflow.
 - An unsigned tag, a signature from a signer outside the allowed set, a tag
   whose commit is not reachable from protected `main`, or a repository
   qualification that exists only for a pull request and not for a `main` push
-  each fail the tag preflight.
+  each fail publication tag binding.
 - Both patch matrices keep their weekly schedule as early warning only.
-- Migration deployment, runtime posture, and both patch matrices run in the tag
-  workflow and are commit-exact; no classifier, evidence-reuse ancestry proof,
+- Migration deployment, runtime posture, and both patch matrices run before tag
+  creation and are commit-exact; no classifier, evidence-reuse ancestry proof,
   or maximum evidence age exists anywhere in the release path.
 - Weekly and monthly early-warning runs surface external drift at their
   declared cadence without acquiring release authority.
@@ -686,22 +763,24 @@ local diagnostics remain optional.
   allocating a measurement.
 - The early-warning benchmark result never qualifies or blocks a release.
 - Repository qualification is commit-exact and required by the `main` ruleset.
-- The tag workflow resolves evidence without a supplied run identifier.
+- Candidate assembly resolves evidence without a supplied run identifier.
 - Multiple eligible runs or attempts resolve through the versioned ordering
   rule, and the canonical manifest freezes the selected identities.
-- The tag workflow runs no repository test, specification suite, integration
-  suite, or benchmark.
+- The release workflow imports protected repository qualification and runs no
+  benchmark.
 - Candidate assembly reads no performance contract, baseline, scorecard,
   selection receipt, or benchmark artifact.
 - Package version, package hashes, SBOM, manifest, tag, and commit agree.
-- Missing, additional, or digest-mismatched files fail the tag preflight.
+- Missing, additional, or digest-mismatched files fail candidate verification.
 - A different workflow run attempt cannot silently replace selected evidence.
 - The canonical candidate remains independently verifiable after working
   artifacts expire.
-- A transient hosted failure can rerun the same tag without a new version.
+- A pre-tag hosted failure can rerun failed qualification jobs without a tag;
+  a post-tag failure reruns only the same run's failed `publish` job.
 - Historical processor mismatch cannot block a release because performance is
   outside the release boundary.
-- Only the protected NuGet publication changes external package state.
+- Only the protected publication job changes external package and release
+  state.
 
 ## Pros and Cons of the Options
 
@@ -931,22 +1010,15 @@ manifest verification.
   from the performance contract.
 - `.github/workflows/benchmark-target.yml`: implement one target's paired
   reference and candidate comparison behind the internal reusable boundary.
-- `.github/workflows/release-candidate.yml`: trigger from `v*` tag pushes;
-  require `verification.verified == true` and `verification.reason == valid`
-  from the Git tag API, independently verify the local annotated tag against
-  the versioned trusted-signers policy, and require the observed tagger identity
-  and public-key fingerprint to match one policy entry; require the tagged
-  commit to be reachable from protected `main`, and require repository
-  qualification to originate from a `push` on `main` rather than from a pull
-  request for the same commit; verify repository evidence for the tagged
-  commit, run migration deployment, runtime posture, and both patch matrices,
-  then pack, generate the SBOM, assemble the candidate, and attest it. Missing,
-  expired, revoked, mismatched, or otherwise unverifiable signer material fails
-  before any
-  expensive job starts.
-- `.github/workflows/nuget-publish.yml`: keep the protected manual approval and
-  its typed confirmation; align its candidate resolution with the canonical
-  manifest.
+- `.github/workflows/release-candidate.yml`: dispatch from untagged current
+  `main`; import commit-exact repository qualification; run migration
+  deployment, runtime posture, and both patch matrices; pack, generate the
+  SBOM, execute the exact local-package consumer, assemble the candidate, and
+  attest it. In the protected publication phase, verify the later annotated
+  tag through GitHub and local Git, require its registered signer and exact
+  candidate commit, read back the protected check and attempt frozen in the
+  qualification manifest, stage the GitHub draft, publish both NuGet package
+  pairs, publish the immutable release, and retain post-publication readback.
 - `benchmarks/performance-contract.json`: add the complete paired statistical
   policy without implementation defaults.
 - `eng/release/evidence-policy.json`: define the consumed gate catalog and the
@@ -955,11 +1027,11 @@ manifest verification.
   version the run-and-attempt selection rule. Performance evidence is excluded
   from this catalog and has no candidate provenance entry. A signer-policy
   change requires a reviewed `main` change and a new tag. No relevant-input
-  classifier, schedule, or freshness limit is needed for tag-produced evidence,
-  because no such evidence is reused.
+  classifier, schedule, or freshness limit is needed for candidate-produced
+  evidence, because no such evidence is reused.
 - `eng/testing/`: retain the migration, runtime, and MySqlConnector commands as
   the sole gate implementations, and extract the current inline EF Core patch
-  matrix command into one shared entry point. Scheduled CI and tag
+  matrix command into one shared entry point. Scheduled CI and candidate
   qualification call those same implementations and differ only in scheduling
   and evidence authority.
 - `eng/performance/attempts.py`: implement the attempt-state domain and bounded
@@ -1058,7 +1130,6 @@ manifest verification.
 - `.github/workflows/benchmark-scorecard.yml`
 - `.github/workflows/benchmark-target.yml`
 - `.github/workflows/release-candidate.yml`
-- `.github/workflows/nuget-publish.yml`
 - `benchmarks/performance-contract.json`
 - `benchmarks/characterization/paired-dispersion-2026-08-13.json`
 - `benchmarks/baselines/doka-benchmark-baseline.json`
@@ -1099,8 +1170,16 @@ manifest verification.
   (primary source; retrieved 2026-08-10)
 - [GitHub artifact attestations][github-attestations]
   (primary source; retrieved 2026-08-10)
+- [GitHub deployment environments][github-deployment-environments]
+  (primary source; retrieved 2026-08-16)
+- [GitHub immutable releases][github-immutable-releases]
+  (primary source; retrieved 2026-08-16)
 - [GitHub required status checks][github-required-checks]
   (primary source; retrieved 2026-08-10)
+- [NuGet Trusted Publishing][nuget-trusted-publishing]
+  (primary source; retrieved 2026-08-16)
+- [NuGet package deletion policy][nuget-package-deletion]
+  (primary source; retrieved 2026-08-16)
 - [BenchmarkDotNet good practices][bdn-good-practices]
   (primary source; retrieved 2026-08-10)
 - [BenchmarkDotNet baselines][bdn-baselines]
@@ -1176,8 +1255,16 @@ manifest verification.
   https://docs.github.com/en/actions/tutorials/store-and-share-data
 [github-attestations]:
   https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations
+[github-deployment-environments]:
+  https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments
+[github-immutable-releases]:
+  https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases
 [github-required-checks]:
   https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks
+[nuget-trusted-publishing]:
+  https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing
+[nuget-package-deletion]:
+  https://learn.microsoft.com/en-us/nuget/nuget-org/policies/deleting-packages
 [bdn-good-practices]:
   https://benchmarkdotnet.org/articles/guides/good-practices.html
 [bdn-baselines]: https://benchmarkdotnet.org/articles/features/baselines.html
