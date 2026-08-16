@@ -56,9 +56,11 @@ version with a leading `v`. Select an unused version before starting.
 ### 1. Establish a release-ready main commit
 
 Complete the dated `CHANGELOG.md` section, public API files, package metadata,
-and release notes. Merge through protected `main`, wait for
-`repository-qualification` and required code scanning to pass, then update the
-local checkout:
+and release notes. Prerelease candidates keep new declarations in
+`PublicAPI.Unshipped.txt`; the first stable release moves them to
+`PublicAPI.Shipped.txt` in this reviewed preparation commit before candidate
+dispatch. Merge through protected `main`, wait for `repository-qualification`
+and required code scanning to pass, then update the local checkout:
 
 ```bash
 git fetch origin main --tags

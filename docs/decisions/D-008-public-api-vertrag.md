@@ -52,9 +52,9 @@ Chosen option: "PublicApiAnalyzers baselines", because compiler-enforced baselin
 Adopt `Microsoft.CodeAnalysis.PublicApiAnalyzers` (3.3.4) project-wide.
 Each source project gains two text files:
 
-- `PublicAPI.Shipped.txt` -- the immutable record of the public API as
-  of the most recent release. Initially empty for v1.0; the file is
-  populated by merging `PublicAPI.Unshipped.txt` at release time.
+- `PublicAPI.Shipped.txt` -- the immutable record of the stable public API.
+  It remains empty through the 10.0.0 prereleases and is populated by merging
+  `PublicAPI.Unshipped.txt` before the first stable release.
 - `PublicAPI.Unshipped.txt` -- the working set of public-API additions
   since the last release. Pre-release contributions add their
   declarations here.
@@ -67,10 +67,11 @@ Build-level enforcement:
 - `RS0017` (shipped API removed) becomes an error.
 - `RS0036` (annotation drift) becomes a warning.
 
-The release process gains one step: at tag time, the contents of
-`PublicAPI.Unshipped.txt` move to `PublicAPI.Shipped.txt` and the
-unshipped file is reset to empty. The move is mechanical and
-review-visible.
+The stable-release process gains one step: the reviewed release-preparation
+commit moves `PublicAPI.Unshipped.txt` to `PublicAPI.Shipped.txt` and resets the
+unshipped file to empty before hosted qualification. Prerelease tags leave the
+working surface unshipped. The move is mechanical and review-visible; the
+signed stable tag points to the already qualified commit.
 
 ### Consequences
 
@@ -206,6 +207,9 @@ The `EnableRetryOnFailure(int, TimeSpan?)` signature matches Pomelo by coinciden
 
 - 2026-05-16: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-08-16: Clarified that prerelease surfaces remain unshipped and that the
+  stable baseline moves in the reviewed release-preparation commit before
+  qualification rather than in a tag commit.
 
 ### Implementation References
 

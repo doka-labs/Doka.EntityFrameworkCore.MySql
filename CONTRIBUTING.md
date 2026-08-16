@@ -293,7 +293,10 @@ Workflow for changes that add or remove public API:
 1. Make the source change. The build will fail with `RS0016` (declared API not in shipped or unshipped) or `RS0017` (shipped API removed from source).
 2. Apply the analyzer code-fix in your IDE or run `dotnet format analyzers <csproj> --diagnostics RS0016 --severity info` from the repository root to populate `PublicAPI.Unshipped.txt` automatically.
 3. Removals require an explicit `*REMOVED*` line in `PublicAPI.Unshipped.txt` plus removal of the symbol from `PublicAPI.Shipped.txt`. The diff makes the SemVer-breaking nature of the change visible in PR review.
-4. At release time, the contents of `Unshipped.txt` move to `Shipped.txt` (and the unshipped file is reset to `#nullable enable`) as part of the tag commit.
+4. Prerelease tags leave additions in `Unshipped.txt`. Before the first stable
+   release, move the contents of `Unshipped.txt` to `Shipped.txt` and reset the
+   unshipped file to `#nullable enable` in the reviewed release-preparation
+   commit. The signed tag then points to that already qualified commit.
 
 `RS0026` ("Do not add multiple overloads with optional parameters") fires on the `UseMySql`, `UseHiLo`, and `IsInvisible` extension overloads because each carries an optional default (`mySqlOptionsAction = null`, `name = null`, `invisible = true`). The optional pattern is the EF Core community standard and part of the documented public surface. The suppression is scoped per-method via `[SuppressMessage("ApiDesign", "RS0026:Do not add multiple overloads with optional parameters", Justification = "...")]` on each affected declaration; the project-wide `TreatWarningsAsErrors=true` still applies so any **new** overload that introduces the same pattern fails the build until the author adds the explicit `SuppressMessage` attribute. The added optional parameter is still a SemVer break and demands reviewer attention.
 
