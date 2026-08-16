@@ -7,16 +7,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-Seven release candidates failed before this change, and none of them failed on
-the provider. The tag re-ran gates the default branch had already proven,
-through separate and less exercised plumbing, and its performance gate compared
-one measurement against a baseline recorded on another machine -- on a runner
-fleet that promises no particular processor.
-
-The tag now runs only the gates whose evidence the tagged commit must produce
-for itself, and measures performance as a paired comparison: a reference and
-the candidate provider revision alternately on one allocated runner, so the
-machine cancels out of every ratio instead of having to be matched.
+Release qualification no longer spends an immutable version before the
+candidate is known to be valid. One hosted run qualifies exact untagged `main`
+package bytes, waits for the signed tag and protected approval, then publishes
+and reads back the same bound candidate. Performance remains independent
+engineering evidence and has no release authority.
 
 ### Added
 
@@ -45,34 +40,29 @@ machine cancels out of every ratio instead of having to be matched.
   admitted line. MariaDB 12.3 additionally executes its native CTE
   data-modification grammar while 10.11 / 11.4 / 11.8 retain the documented
   engine limitation.
-- Establish a trust root before any expensive job is allocated. The tag
-  signature is checked against the remote verdict and, independently, against
-  the signers this repository registers; the tagged commit must be reachable
-  from protected `main`; and the branch evidence must come from a push on that
-  branch rather than from a pull request against it.
 - Freeze the evidence a release is qualified on in one canonical manifest.
   Every gate is derived into a result that states which commit and tree it
   describes, which workflow produced it, under which run and attempt, and which
   artifact carries the bytes. Selection happens once; later steps re-check the
   frozen identities but never reselect.
+- Read back the exact protected check-run and workflow-run attempt selected by
+  that manifest before publication. Its canonical response digest and manifest
+  SHA-256 are immutable release evidence, so a later CI rerun cannot replace
+  the qualification attached to a release.
 - Verify the published payload against the manifest at publication. Every file
   digest is recomputed from the packages about to be published, and a missing,
   added, or altered file fails closed.
-- Carry the paired measurements into the release candidate itself. The
-  evaluations, the block reports, the recorded environment, and the
-  sustained-use report are copied into the ninety-day artifact and bound by
-  digest, so a performance claim stays re-derivable after the short-lived
-  benchmark artifacts expire.
-- Answer whether a tag would qualify before one is created. `eng/pre-tag-check.sh`
-  allocates no runner, writes no file, and creates no tag.
+- Verify branch and signer prerequisites before untagged hosted qualification.
+  `eng/pre-tag-check.sh` allocates no runner, writes no file, and creates no
+  tag.
 
 ### Changed
 
-- Measure release performance as a paired same-run comparison. Latency families
-  decide against a registered practical budget, resource families against a
-  paired allocation and collection budget, and the candidate stays bound to the
-  absolute family ceilings so a pair that regressed together cannot qualify.
-  Sustained-use evidence is measured on the candidate as part of the same run.
+- Qualify untagged exact-current `main` package bytes before creating a release
+  tag. The same workflow run binds the later signed tag, stages a GitHub draft,
+  obtains a protected short-lived NuGet credential, resumes partial package
+  publication safely, finalizes the complete immutable GitHub release, and then
+  records public byte, symbol, and repository-signature verification.
 - Retry a benchmark attempt only for a measurement or environment condition.
   The decision travels with the attempt receipt, so a retry can never select
   away a verdict about the code.
@@ -86,9 +76,8 @@ machine cancels out of every ratio instead of having to be matched.
   error budget is met, so coverage and block count are kept without paying a
   fixed population twice per block.
 - Reconcile the public README, contributor guide, release governance,
-  performance runbook, security settings, and threat model with automatic
-  tag-triggered qualification, paired release evidence, and the read-only
-  pre-tag lookup.
+  performance runbook, security settings, and threat model with pre-tag hosted
+  qualification, same-run publication, and the read-only pre-tag lookup.
 
 ### Fixed
 

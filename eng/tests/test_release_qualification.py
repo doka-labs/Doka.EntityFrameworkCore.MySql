@@ -320,7 +320,7 @@ class ManifestTests(unittest.TestCase):
             commit=COMMIT,
             tree_id=TREE,
             repository=REPOSITORY,
-            release_tag="v10.0.0-rc.8",
+            expected_release_tag="v10.0.0-rc.8",
             release_version="10.0.0-rc.8",
             assembling_attempt=1,
             policy=self.policy,
@@ -382,7 +382,9 @@ class ManifestTests(unittest.TestCase):
     def test_a_manifest_with_an_undeclared_gate_is_rejected(self) -> None:
         """Reject a manifest that pins something the policy never declared."""
         manifest = self.assemble()
-        manifest["gates"].append({"gate": "invented", "kind": "tag-produced"})
+        manifest["gates"].append(
+            {"gate": "invented", "kind": "candidate-produced"}
+        )
 
         with self.assertRaises(qualification.QualificationError):
             qualification.verify_manifest(manifest, policy=self.policy)

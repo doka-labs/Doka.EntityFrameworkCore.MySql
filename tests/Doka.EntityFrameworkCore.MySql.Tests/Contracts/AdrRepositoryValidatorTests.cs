@@ -347,16 +347,16 @@ public sealed class AdrRepositoryValidatorTests
     }
 
     /// <summary>
-    /// Keeps publication separate from candidate qualification and proves the
-    /// manual OIDC path fails closed around immutable evidence and public
-    /// package and symbol readback.
+    /// Keeps reversible qualification ahead of tag creation and proves the
+    /// protected same-run publication path fails closed around immutable
+    /// evidence and public package and symbol readback.
     /// </summary>
     [Fact]
     public void Nuget_publication_requires_a_tag_bound_candidate_and_fresh_consumer_readback()
     {
         var repositoryRoot = FindRepositoryRoot();
         var workflow = File.ReadAllText(
-            Path.Combine(repositoryRoot, ".github", "workflows", "nuget-publish.yml"));
+            Path.Combine(repositoryRoot, ".github", "workflows", "release-candidate.yml"));
         var normalizedWorkflow = NormalizeShellLayout(workflow);
         var publication = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "nuget.py"));
@@ -371,25 +371,33 @@ public sealed class AdrRepositoryValidatorTests
             Path.Combine(repositoryRoot, "eng", "testing", "test-nuget-readback.sh"));
 
         Assert.Contains("  workflow_dispatch:", workflow, StringComparison.Ordinal);
-        Assert.Contains("candidate_run_id:", workflow, StringComparison.Ordinal);
-        Assert.Contains("release_tag:", workflow, StringComparison.Ordinal);
-        Assert.Contains("confirmation:", workflow, StringComparison.Ordinal);
+        Assert.Contains("      version:", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("candidate_run_id:", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("release_tag:", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("confirmation:", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("  push:", workflow, StringComparison.Ordinal);
         Assert.Contains("environment:\n      name: nuget", workflow, StringComparison.Ordinal);
         Assert.Contains("id-token: write", workflow, StringComparison.Ordinal);
         Assert.Contains(
             "uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841",
             workflow,
             StringComparison.Ordinal);
-        Assert.Contains("--trusted-ref \"refs/heads/main\"", workflow, StringComparison.Ordinal);
-        Assert.Contains("--trusted-commit \"${DOKA_TRUSTED_MAIN_COMMIT}\"", workflow, StringComparison.Ordinal);
+        Assert.Contains("Verify current untagged main source", workflow, StringComparison.Ordinal);
+        Assert.Contains(
+            "Publication requires the qualified commit to remain on current main history",
+            workflow,
+            StringComparison.Ordinal);
+        Assert.Contains("git merge-base --is-ancestor", workflow, StringComparison.Ordinal);
+        Assert.Contains("python3 -m eng.release.nuget bind", workflow, StringComparison.Ordinal);
+        Assert.Contains("python3 -m eng.release.github stage", workflow, StringComparison.Ordinal);
         Assert.Contains("gh attestation verify", workflow, StringComparison.Ordinal);
         Assert.Contains(
             "--signer-workflow \"${GITHUB_REPOSITORY}/.github/workflows/release-candidate.yml\"",
             normalizedWorkflow,
             StringComparison.Ordinal);
-        Assert.Contains("--signer-digest \"${DOKA_SOURCE_COMMIT}\"", workflow, StringComparison.Ordinal);
-        Assert.Contains("--source-ref \"refs/tags/${DOKA_RELEASE_TAG}\"", workflow, StringComparison.Ordinal);
-        Assert.Contains("--source-digest \"${DOKA_SOURCE_COMMIT}\"", workflow, StringComparison.Ordinal);
+        Assert.Contains("--signer-digest \"${GITHUB_SHA}\"", workflow, StringComparison.Ordinal);
+        Assert.Contains("--source-ref \"refs/heads/main\"", workflow, StringComparison.Ordinal);
+        Assert.Contains("--source-digest \"${GITHUB_SHA}\"", workflow, StringComparison.Ordinal);
         Assert.Contains("--deny-self-hosted-runners", workflow, StringComparison.Ordinal);
         Assert.Contains("python3 -m eng.release.nuget preflight", workflow, StringComparison.Ordinal);
         Assert.Contains("python3 -m eng.release.nuget readback", workflow, StringComparison.Ordinal);
@@ -397,7 +405,12 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("--timeout-seconds 3600", workflow, StringComparison.Ordinal);
         Assert.Contains("test-nuget-readback.sh", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("secrets.NUGET_API_KEY", workflow, StringComparison.Ordinal);
-        Assert.Contains("--api-key \"${NUGET_API_KEY}\"", workflow, StringComparison.Ordinal);
+        Assert.Contains(
+            "NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}",
+            workflow,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("--api-key", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("--symbol-api-key", workflow, StringComparison.Ordinal);
 
         var providerPackageStep = workflow.IndexOf("- name: Publish provider package", StringComparison.Ordinal);
         var providerSymbolsStep = workflow.IndexOf("- name: Publish provider symbols", StringComparison.Ordinal);
@@ -422,7 +435,7 @@ public sealed class AdrRepositoryValidatorTests
             workflow.Split("--skip-duplicate", StringSplitOptions.None).Length - 1);
 
         Assert.Contains(
-            "Candidate source is not the current trusted main commit",
+            "The qualified candidate is no longer on current remote main history",
             publication,
             StringComparison.Ordinal);
         Assert.Contains("conflicting bytes", publication, StringComparison.Ordinal);
@@ -437,7 +450,7 @@ public sealed class AdrRepositoryValidatorTests
             symbolReadback,
             StringComparison.Ordinal);
         Assert.Contains(
-            "--source \"https://api.nuget.org/v3/index.json\"",
+            "restore_sources=(--source \"${package_source}\")",
             readback,
             StringComparison.Ordinal);
         Assert.Contains("--no-cache", readback, StringComparison.Ordinal);

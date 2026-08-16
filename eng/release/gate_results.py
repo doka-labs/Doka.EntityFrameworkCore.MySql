@@ -106,7 +106,7 @@ def selected_artifact(selection: dict[str, Any], stage: str) -> dict[str, Any]:
     return matches[0]
 
 
-def tag_produced_result(
+def candidate_produced_result(
     *,
     gate: dict[str, Any],
     checkpoint: dict[str, Any],
@@ -118,11 +118,11 @@ def tag_produced_result(
     digest: str,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Describe one gate the tag itself produced evidence for."""
+    """Describe one gate the candidate run produced evidence for."""
     if checkpoint.get("sourceCommit") != commit:
         raise QualificationError(
             f"Stage receipt for '{gate['id']}' describes commit "
-            f"{checkpoint.get('sourceCommit')}, not the tagged {commit}."
+            f"{checkpoint.get('sourceCommit')}, not the candidate {commit}."
         )
 
     result = {
@@ -163,7 +163,7 @@ def protected_check_result(
     if receipt.get("commit") != commit:
         raise QualificationError(
             f"Protected check for '{gate['id']}' describes commit "
-            f"{receipt.get('commit')}, not the tagged {commit}."
+            f"{receipt.get('commit')}, not the candidate {commit}."
         )
     if receipt.get("conclusion") != "success":
         raise QualificationError(
@@ -263,7 +263,7 @@ def derive(arguments: argparse.Namespace) -> list[dict[str, Any]]:
             extra["dependencySnapshotCount"] = len(snapshots)
 
         results.append(
-            tag_produced_result(
+            candidate_produced_result(
                 gate=gate,
                 checkpoint=checkpoint,
                 artifact=artifact,
@@ -283,7 +283,7 @@ def derive(arguments: argparse.Namespace) -> list[dict[str, Any]]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Derive gate results for the tagged commit."""
+    """Derive gate results for the candidate commit."""
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     derive_parser = subparsers.add_parser("derive")

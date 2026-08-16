@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Select and freeze the evidence that qualifies one release tag.
 
-Every gate a release depends on produces evidence for the tagged commit, so
+Every gate a release depends on produces evidence for the candidate commit, so
 selection is a question about identity rather than about policy: which single
 result, among the runs and rerun attempts that exist for this commit, does the
 canonical manifest pin.
@@ -54,7 +54,7 @@ def load_policy(path: Path | None = None) -> dict[str, Any]:
                 raise QualificationError(
                     f"Evidence policy gate is missing '{field}'."
                 )
-        if gate["kind"] not in ("protected-check", "tag-produced"):
+        if gate["kind"] not in ("protected-check", "candidate-produced"):
             raise QualificationError(
                 f"Evidence policy gate '{gate['id']}' has unknown kind "
                 f"'{gate['kind']}'."
@@ -109,7 +109,7 @@ def protected_check_receipt(
     if response["head_sha"] != commit:
         raise QualificationError(
             f"Protected-check '{gate['id']}' describes commit "
-            f"{response['head_sha']}, not the tagged {commit}."
+            f"{response['head_sha']}, not the candidate {commit}."
         )
     if response["conclusion"] != "success":
         raise QualificationError(
@@ -193,7 +193,7 @@ def select_result(
 ) -> dict[str, Any]:
     """Select exactly one result per gate under the versioned ordering rule.
 
-    A tag-produced gate belongs to the run that is assembling the candidate, so
+    A candidate-produced gate belongs to the run that is assembling the candidate, so
     its attempt may not be newer than the assembling attempt. Without that
     bound, a later rerun of one gate job could be pinned by a manifest that was
     already assembled, and the manifest would describe evidence that did not
@@ -202,7 +202,7 @@ def select_result(
     eligible = eligible_results(
         results, gate=gate, commit=commit, repository=repository, digest=digest
     )
-    if gate["kind"] == "tag-produced" and assembling_attempt is not None:
+    if gate["kind"] == "candidate-produced" and assembling_attempt is not None:
         eligible = [
             result
             for result in eligible
@@ -272,7 +272,7 @@ def assemble_manifest(
     commit: str,
     tree_id: str,
     repository: str,
-    release_tag: str,
+    expected_release_tag: str,
     release_version: str,
     assembling_attempt: int,
     policy: dict[str, Any] | None = None,
@@ -283,6 +283,11 @@ def assemble_manifest(
     identities and digests but never reselects, so a rerun that lands after
     assembly cannot silently change what the release was qualified on.
     """
+    if expected_release_tag != f"v{release_version}":
+        raise QualificationError(
+            "Expected release tag does not match the candidate version."
+        )
+
     resolved = policy or load_policy()
     digest = policy_digest(resolved)
 
@@ -307,7 +312,7 @@ def assemble_manifest(
         selections.append(entry)
 
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "kind": MANIFEST_KIND,
         "policyVersion": resolved["policyVersion"],
         "policyDigest": digest,
@@ -315,7 +320,7 @@ def assemble_manifest(
         "repository": repository,
         "commit": commit,
         "treeId": tree_id,
-        "releaseTag": release_tag,
+        "expectedReleaseTag": expected_release_tag,
         "releaseVersion": release_version,
         "assemblingRunAttempt": assembling_attempt,
         "requiredProtectedChecks": list(resolved["requiredProtectedChecks"]),
@@ -330,7 +335,7 @@ def verify_manifest(
     repository: str | None = None,
     commit: str | None = None,
     tree_id: str | None = None,
-    release_tag: str | None = None,
+    expected_release_tag: str | None = None,
 ) -> None:
     """Re-check a manifest without reselecting any evidence.
 
@@ -356,11 +361,14 @@ def verify_manifest(
             "Manifest was assembled under a different selection rule version."
         )
 
+    if manifest.get("schemaVersion") != 2:
+        raise QualificationError("Manifest schema version is not supported.")
+
     for field, expected_value in (
         ("repository", repository),
         ("commit", commit),
         ("treeId", tree_id),
-        ("releaseTag", release_tag),
+        ("expectedReleaseTag", expected_release_tag),
     ):
         if not manifest.get(field):
             raise QualificationError(f"Manifest carries no {field}.")
@@ -368,6 +376,11 @@ def verify_manifest(
             raise QualificationError(
                 f"Manifest {field} is {manifest[field]!r}, not {expected_value!r}."
             )
+
+    if manifest.get("expectedReleaseTag") != f"v{manifest.get('releaseVersion', '')}":
+        raise QualificationError(
+            "Manifest expected release tag does not match its candidate version."
+        )
 
     entries = manifest.get("gates")
     if not isinstance(entries, list) or not entries:
@@ -493,7 +506,7 @@ def _assemble(arguments: argparse.Namespace) -> dict[str, Any]:
         commit=arguments.commit,
         tree_id=arguments.tree_id,
         repository=arguments.repository,
-        release_tag=arguments.release_tag,
+        expected_release_tag=arguments.expected_release_tag,
         release_version=arguments.release_version,
         assembling_attempt=arguments.assembling_attempt,
         policy=load_policy(arguments.policy),
@@ -517,7 +530,7 @@ def _assemble(arguments: argparse.Namespace) -> dict[str, Any]:
         repository=arguments.repository,
         commit=arguments.commit,
         tree_id=arguments.tree_id,
-        release_tag=arguments.release_tag,
+        expected_release_tag=arguments.expected_release_tag,
     )
 
     return manifest
@@ -533,7 +546,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     assemble.add_argument("--commit", required=True)
     assemble.add_argument("--tree-id", required=True)
     assemble.add_argument("--repository", required=True)
-    assemble.add_argument("--release-tag", required=True)
+    assemble.add_argument("--expected-release-tag", required=True)
     assemble.add_argument("--release-version", required=True)
     assemble.add_argument("--assembling-attempt", required=True, type=int)
     assemble.add_argument("--root", type=Path)
@@ -548,7 +561,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     verify.add_argument("--expected-repository")
     verify.add_argument("--expected-commit")
     verify.add_argument("--expected-tree-id")
-    verify.add_argument("--expected-tag")
+    verify.add_argument("--expected-release-tag")
     arguments = parser.parse_args(argv)
 
     try:
@@ -574,7 +587,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             repository=arguments.expected_repository,
             commit=arguments.expected_commit,
             tree_id=arguments.expected_tree_id,
-            release_tag=arguments.expected_tag,
+            expected_release_tag=arguments.expected_release_tag,
         )
         if arguments.root is not None:
             inventory = manifest.get("fileInventory")

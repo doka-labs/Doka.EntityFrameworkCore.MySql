@@ -214,20 +214,23 @@ protected `main`):
 The lookup allocates no runner, writes no file, and creates no tag. It requires
 a clean worktree, verifies that the commit is reachable from protected `main`,
 checks the configured signing material, and resolves the successful
-commit-exact `repository-qualification` run that the tag will import. A failure
-names the missing precondition; it must be resolved before a version is spent.
+commit-exact `repository-qualification` run that the candidate will import. A
+failure names the missing precondition; it must be resolved before allocating
+a hosted candidate run.
 
-The signed tag push starts hosted qualification automatically. That workflow
-produces the package and SBOM, reruns only the tag-owned migration, runtime, and
-dependency patch gates, and imports the commit-exact repository qualification.
+Manually dispatch `release-candidate` from exact current `main` before creating
+the release tag. The workflow produces the package and SBOM, runs the
+candidate-owned migration, runtime, and dependency patch gates, executes an
+isolated local-package consumer, and imports commit-exact repository
+qualification. After those reversible jobs and attestations are green, push the
+signed tag on that exact SHA and approve the waiting `nuget` environment job.
 Benchmarks remain an independent engineering signal and are neither invoked nor
-consumed by release qualification. A manual dispatch is diagnostic only and
-cannot qualify an untagged source.
+consumed by release qualification.
 
 Continue with the canonical
 [release procedure](docs/operations/release-publication.md#qualification-and-publication-procedure).
-It defines signed tagging, hosted candidate review, explicit NuGet publication
-authorization, and public package and GitHub release readback. Never use
+It defines untagged hosted qualification, signed tagging, explicit NuGet
+publication authorization, and public package and GitHub release readback. Never use
 `git push --tags` for a release.
 
 ## Code Style

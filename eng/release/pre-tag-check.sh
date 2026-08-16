@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 
-# Answer, without allocating anything, whether a tag on the current commit
-# would qualify.
+# Answer, without allocating anything, whether the current commit is ready to
+# enter untagged hosted qualification and later receive the release tag.
 #
-# Under D-026 the tag runs only work that must be decided for the tagged commit
-# itself; everything else is verified on the default branch and imported. That
-# makes the question a lookup rather than a run: does this commit carry the
-# branch evidence a tag would import, and is the tag itself signable by a
-# registered signer. Both are answerable in seconds.
+# Under D-026 the hosted candidate runs before the semantic tag exists. This
+# lookup proves the source already carries the protected-branch evidence the
+# candidate imports and that the operator's configured key is registered for
+# the tag that may be created only after qualification succeeds.
 #
 # This replaces the local rehearsal. Rehearsing the whole candidate was an
 # attempt to buy certainty before spending a version number, but it could never
@@ -24,8 +23,9 @@ usage() {
     cat >&2 <<'USAGE'
 Usage: eng/pre-tag-check.sh [--commit <sha>]
 
-Reports whether a release tag on the given commit, or on HEAD, would qualify.
-Allocates no runner, changes no file, and creates no tag.
+Reports whether the given commit, or HEAD, is ready to start hosted candidate
+qualification and later receive its signed tag. Allocates no runner, changes no
+file, and creates no tag.
 USAGE
 }
 
@@ -58,11 +58,11 @@ report() {
     return 0
 }
 
-echo "Pre-tag check for ${commit}"
+echo "Release preparation check for ${commit}"
 echo
 
-# A tag can name any commit. Reachability is what ties it back to the branch
-# whose protection produced the evidence a tag imports.
+# A tag can name any commit. Reachability is what ties the candidate back to the
+# branch whose protection produced the evidence qualification imports.
 if git -C "${repo_root}" merge-base --is-ancestor "${commit}" "${protected_ref}" 2>/dev/null; then
     report OK "reachable from protected branch" "${protected_ref}"
 else
@@ -96,7 +96,7 @@ fi
 
 # The remote half of the question shares the release trust root's
 # implementation. A second, weaker copy here is how this check ended up
-# reporting that a tag would qualify while the tag itself would be rejected:
+# accepting preparation while the later tag itself would be rejected:
 # it looked at the first check run with a matching name and never at the
 # event, the branch, the workflow, or the attempt behind it.
 if ! command -v gh >/dev/null 2>&1; then
@@ -148,8 +148,9 @@ fi
 
 echo
 if (( failures > 0 )); then
-    echo "A tag on ${commit} would not qualify: ${failures} check(s) failed." >&2
+    echo "Commit ${commit} is not ready for release qualification: ${failures} check(s) failed." >&2
     exit 1
 fi
 
-echo "A tag on ${commit} would qualify. Creating it starts the candidate."
+echo "Commit ${commit} is ready for untagged hosted qualification."
+echo "Create the signed tag only after the candidate and attestations are green."

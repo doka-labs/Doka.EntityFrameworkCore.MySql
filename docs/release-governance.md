@@ -1,9 +1,9 @@
 # Release Governance
 
 `Doka.EntityFrameworkCore.MySql` treats release hardening as a reproducible
-engineering contract. Commit-exact CI and the tag-triggered qualification
-workflow create the evidence. Hosted assembly freezes the selected identities
-and payload digests before GitHub attests the candidate.
+engineering contract. Commit-exact CI and one manually dispatched, untagged
+qualification workflow create the evidence. Hosted assembly freezes the
+selected identities and payload digests before GitHub attests the candidate.
 
 This document freezes the reviewable governance baseline for:
 
@@ -13,7 +13,7 @@ This document freezes the reviewable governance baseline for:
 - PR review obligations tied to the planning contract
 
 The canonical operator sequence from a reviewed, green `main` commit through
-signed tagging, hosted qualification, NuGet readback, and immutable GitHub
+hosted qualification, signed tagging, NuGet publication, and immutable GitHub
 publication is maintained in the
 [release publication runbook](operations/release-publication.md#qualification-and-publication-procedure).
 This document defines the underlying evidence and policy contracts; it does not
@@ -93,62 +93,57 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/benchmarks/<target>/reports/<run-id>/...`
   - authority: independent engineering evidence only; benchmark outcomes and
     artifacts are not release gates and are absent from candidate manifests
-- Hosted release candidate:
+- Hosted candidate and protected publication:
   - workflow: `.github/workflows/release-candidate.yml`
-  - cadence: automatic on a `v*` tag push; manual dispatch is diagnostic and
-    cannot qualify an untagged source
-  - pre-tag lookup: `./eng/pre-tag-check.sh` verifies, without allocating a
-    runner or mutating state, that the exact clean commit is reachable from
-    protected `main`, signable by a registered key, and already carries a
-    successful `repository-qualification` run from a `main` push
-  - trust root: the workflow independently verifies the annotated tag through
-    GitHub and the checked-in allowed-signers policy, binds it to the checked-out
-    commit and protected `main`, and resolves the branch qualification before
-    any expensive job starts
-  - imported branch gate: `repository-qualification` aggregates the
-    commit-exact quality, repository-test, specification, integration-smoke,
-    and coverage gates; the tag imports that one API-bound result instead of
-    rerunning those implementations
-  - tag-produced gates: migration deployment, runtime posture, and the EF Core
-    and MySqlConnector patch matrices execute against the tagged commit;
-    packing and SBOM generation produce the payload they qualify
-  - performance boundary: the candidate does not invoke benchmark workflows,
-    restore benchmark artifacts, read the performance contract or baseline, or
-    record performance evidence. Benchmark outcomes cannot qualify or block a
-    release
-  - stage contract: assembly requires exactly six tag-produced stage receipts
-    -- migration deployment, runtime posture, both patch matrices, package, and
-    SBOM -- plus the imported branch result
-  - stable identity and controlled resume: the candidate root is keyed to
-    `github.run_id`; a rerun may select only checksum-verified artifacts from
-    that same run and no later than the assembling attempt
-  - package-consumer boundary: the package stage restores the exact candidate
-    `.nupkg` bytes into an empty cache and builds the public runtime consumer
-    outside the repository without a project reference. Its conformance suite
-    exercises both handler and provider registration orders, exact and unknown
-    operation dispatch, provider baseline rendering, command boundaries,
-    context expiry, and duplicate handler-ID and operation-type failures before
-    binding both restored package hashes
-  - dependency closure: both shipped projects carry reviewed
-    `packages.lock.json` files, and the package stage restores them in locked
-    mode before candidate bytes exist. These locks bind the release build's
-    direct and transitive graph; they do not narrow the dependency ranges
-    advertised by the library packages to downstream consumers. The shared
-    repository qualification gate performs the same locked restore before its
-    ordinary solution restore, so a stale lock fails on the originating pull
-    request rather than on a later release tag
-  - artifact restoration: resolver jobs bind artifact ID, name, attempt, and
-    digest before traversal- and symlink-safe extraction; missing, expired,
-    ambiguous, future-attempt, mismatched, or conflicting artifacts fail closed
-  - reconciliation: `eng/release/evidence-policy.json` defines the consumed
-    gate catalog and selection order. Assembly selects each gate once, writes
-    the canonical qualification manifest, and later steps verify that frozen
-    choice without reselecting
-  - least privilege: the workflow defaults to `contents: read`; only artifact
-    resolvers receive `actions: read`, and only the final attestation job
-    receives `id-token: write`, `attestations: write`, and artifact-metadata
-    write permission
-  - retained evidence:
+  - trigger: one manual dispatch from exact current `main`, with the package
+    version as its only input; tag pushes do not start another run
+  - pre-tag lookup: `./eng/pre-tag-check.sh` verifies the clean commit,
+    protected-main reachability, signing material, and successful
+    `repository-qualification` without allocating a runner or creating a tag
+  - imported branch gate: `repository-qualification` aggregates quality,
+    repository tests, specification, integration smoke, and coverage for the
+    candidate commit
+  - candidate-produced gates: migration deployment, runtime posture, both
+    patch matrices, package, and SBOM produce exactly six stage receipts while
+    the source is still untagged
+  - local consumer boundary: before publication, an isolated project restores
+    the exact local provider and spatial packages into an empty cache, binds
+    their SHA-256 digests, compiles generated models, and executes basic and
+    spatial runtime contracts against the pinned MySQL 8.4 image
+  - performance boundary: candidate and publication code cannot invoke or read
+    benchmark workflows, contracts, baselines, artifacts, or verdicts
+  - candidate identity: `github.run_id` owns all stage artifacts; reruns may
+    select only checksum-verified state from the same run and no future attempt
+  - attestation boundary: the `attest` job alone receives attestation and
+    artifact-metadata write permissions, and binds the untagged
+    `refs/heads/main` source plus candidate bytes
+  - manual identity transition: after reversible qualification succeeds, the
+    operator pushes one signed annotated `v<version>` tag on the candidate SHA
+  - publication boundary: the waiting `publish` job alone enters the protected
+    `nuget` environment and receives NuGet OIDC plus repository-write authority
+  - same-run binding: publication revalidates the exact qualified checkout and
+    its continued reachability from current `main`, the signed tag, frozen
+    branch qualification, candidate receipt, package bytes, and same-run
+    attestations; no workflow run ID or artifact handoff is operator-selected
+  - GitHub release staging: a matching draft and all pre-publication identity
+    assets are uploaded and read back before the first NuGet push
+  - safe retry: existing primary packages are accepted only when canonical
+    content matches after excluding NuGet.org's repository-owned
+    `.signature.p7s`; provider, provider symbols, spatial, and spatial symbols
+    publish in dependency order; primary packages never use `--skip-duplicate`
+  - immutable identity: after all four NuGet submissions return successfully,
+    the already complete draft is published and independently read back before
+    availability probes begin
+  - public completion: bounded package and symbol readback, canonical byte
+    comparison, and cryptographic repository-signature verification are
+    retained as retry-varying workflow evidence, never release assets
+  - immutable recovery: matching drafts, partial NuGet publication, and
+    matching immutable releases resume without replacement;
+    unexpected metadata, assets, bytes, tags, or classification fail closed
+  - environment: `nuget`, restricted to `main` and maintainer approval
+  - credential: `NuGet/login` exchanges GitHub OIDC for a short-lived key only
+    after the authoritative preflight; no persistent NuGet API key is stored
+  - retained candidate evidence:
     - `artifacts/release-candidate/<run-id>/release-qualification-manifest.json`
     - `artifacts/release-candidate/<run-id>/release-gate-results.json`
     - `artifacts/release-candidate/<run-id>/release-candidate-summary.md`
@@ -158,94 +153,26 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/release-candidate/<run-id>/packages/...`
     - `artifacts/release-candidate/<run-id>/local-package-consumer/...`
     - `artifacts/release-candidate/<run-id>/sbom/...`
-    - `artifacts/release-candidate/<run-id>/migration-deployment/...`
-    - `artifacts/release-candidate/<run-id>/runtime/...`
-    - `artifacts/release-candidate/<run-id>/efcore-patch-matrix/...`
-    - `artifacts/release-candidate/<run-id>/mysqlconnector-patch-matrix/...`
-    - `artifacts/release-candidate/<run-id>/artifact-selections/...` for the
-      resolved archive identities consumed by SBOM generation and assembly
-    - `artifacts/release-candidate-checkpoints/<run-id>/...` for exactly the
-      six stage receipts and no selection metadata
-- Manual NuGet publication and public readback:
-  - workflow: `.github/workflows/nuget-publish.yml`
-  - cadence: manually dispatched from trusted `main` after one successful
-    release-candidate run for the exact current commit and release tag
-  - explicit inputs: candidate workflow run ID, semantic release tag, and the
-    literal confirmation `publish <release-tag>`
-  - validation boundary: `validate-candidate` downloads one exact
-    attempt-qualified candidate artifact, verifies its workflow, repository,
-    tag, commit, manifest, packages, attestations, and current public NuGet
-    state, then emits immutable validation evidence
-  - publication boundary: only `publish` enters the `nuget` environment and
-    receives `id-token: write`; it repeats the authoritative remote-state
-    preflight immediately before OIDC exchange and package push
-  - readback boundary: `readback` has no environment, OIDC, or repository-write
-    permission; it proves package, symbol, restore, and runtime behavior from
-    the public endpoints and emits the complete publication receipt set
-  - finalization boundary: `finalize-github-release` receives only
-    `contents: write`, consumes the exact successful readback artifact, and
-    cannot publish a release before every public readback contract passes
-  - environment: `nuget`, restricted to the `main` branch
-  - credential: a NuGet.org short-lived API key exchanged from GitHub OIDC
-    immediately before the first push; no persistent NuGet API key is stored
-  - signing model: candidate packages are unsigned before ingestion. GitHub
-    provenance and Trusted Publishing bind their build and publisher identity;
-    NuGet.org adds the repository signature, whose presence and cryptographic
-    validity are required during public readback. Author signing would require
-    a separately approved certificate-custody and rotation contract and is not
-    silently simulated with a long-lived PFX secret
-  - candidate binding: completed successful `release-candidate.yml` run,
-    immutable artifact readback, canonical manifest verification, exact
-    current `main` commit, exactly one matching semantic tag, matching hosted
-    workflow identity, and GitHub artifact-attestation verification constrained
-    to the candidate workflow, tagged source ref, source and signer digests,
-    and a GitHub-hosted runner
-  - package binding: exact IDs and versions inside each nuspec, source commit
-    and repository metadata, exact-version spatial dependency, and both symbol
-    packages
-  - safe retry: an absent package may be published; an existing package may be
-    resumed only when its canonical ZIP payload matches the candidate after
-    excluding NuGet.org's repository-owned `.signature.p7s` entry; conflicting
-    same-version content fails before login
-  - publication order: provider, provider symbols, spatial extension, spatial
-    symbols; primary packages never use `--skip-duplicate`, while symbol-only
-    uploads accept the endpoint's documented HTTP 409 pending state
-  - public readback: bounded NuGet V3 and symbol-server polling, canonical
-    package comparison, cryptographic verification of every downloaded NuGet
-    repository signature, Portable PDB retrieval using the candidate DLL's
-    SSQP key and SHA-256 checksum, empty-cache restore from NuGet.org only, and
-    execution of the basic and spatial compiled-model runtime contract against
-    the candidate's pinned MySQL 8.4 image
-  - retained evidence:
-    - `validated-candidate.json`
+    - `artifacts/release-candidate/<run-id>/artifact-selections/...`
+  - protected-check binding: publication reads the exact check-run ID and
+    workflow-run attempt frozen in `release-qualification-manifest.json`, then
+    recomputes its canonical response digest instead of selecting current CI
+    state
+  - retained publication evidence:
+    - `candidate-receipt.json`
+    - `release-publication-receipt.json`
+    - `release-tag-trust-root.json`
+    - `candidate-publication-preflight.json`
     - `publication-preflight.json`
     - `symbol-readback-manifest.json`
     - `nuget-publication-readback.json`
     - `nuget-signature-verification.txt`
-    - `consumer-runtime-readback.json`
-    - downloaded public package and Portable PDB payloads
-  - retained hosted artifacts:
-    - `nuget-validation-evidence-attempt-<attempt>`
-    - `nuget-publish-evidence-attempt-<attempt>`
-    - `nuget-readback-evidence-attempt-<attempt>`
-    - `github-release-evidence-<release-tag>-attempt-<attempt>`
-  - GitHub release finalization: a separate dependent job receives the
-    workflow's only `contents: write` permission after every NuGet public
-    readback passes; it has no OIDC or attestation permission
-  - tag authority: local and remote annotated tags must both resolve to the
-    exact published source commit; the finalizer cannot create, move, or
-    replace tags
-  - release assembly: exact `CHANGELOG.md` notes and checksum-bound packages,
-    symbols, SBOMs, candidate evidence, and publication evidence are staged in
-    a draft, independently downloaded and hashed, then published
-  - retry policy: matching partial drafts resume with missing assets only;
-    matching immutable releases are idempotent; unexpected metadata, assets,
-    payloads, or release classification fail without clobbering remote state
-  - classification: prerelease versions are GitHub prereleases and are not
-    `latest`; stable versions must be non-prerelease and `latest`
-  - retained GitHub release evidence:
-    - `github-release-plan.json`
+    - `github-release-staged-plan.json`
     - `github-release-readback.json`
+    - `release-publication-completion.json`
+    - downloaded public package and Portable PDB payloads
+  - retained hosted artifact:
+    `release-publication-<version>-attempt-<attempt>`
 - Migration deployment:
   - workflow: `.github/workflows/ci.yml`
   - local path: `./eng/test-migration-deployment.sh`

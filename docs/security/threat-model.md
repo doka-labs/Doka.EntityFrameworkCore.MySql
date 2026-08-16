@@ -89,20 +89,22 @@ GitHub Actions. Pull-request contributors can modify scripts and project files
 executed by CI. Untrusted validation workflows therefore require read-only
 repository permissions, immutable third-party action references, and no access
 to release credentials. Release-write permissions belong only to separately
-controlled publication workflows. NuGet publication runs manually from trusted
-`main`, obtains only a short-lived OIDC credential, and accepts a candidate run
-only when its repository, workflow, successful attempt, source commit, semantic
-tag, manifest, package metadata, and hosted attestations agree. Attestation
-verification pins the signer workflow, signer and source commit, tagged source
-ref, and GitHub-hosted runner class rather than trusting repository ownership
-alone. Public readback independently derives the Portable PDB lookup key and
+controlled publication jobs. Candidate qualification is manually dispatched
+from trusted, untagged `main`; the same workflow waits at the protected `nuget`
+environment until a signed tag is pushed on the qualified SHA. Publication
+obtains only a short-lived OIDC credential and proceeds only when repository,
+workflow run, source commit, semantic tag, manifest, package metadata, local
+runtime proof, and hosted attestations agree. Attestation verification pins the
+signer workflow, signer and source commit, `refs/heads/main`, and GitHub-hosted
+runner class rather than trusting repository ownership alone. Public readback
+independently derives the Portable PDB lookup key and
 SHA-256 checksum from each candidate assembly; it does not trust upload success
 or primary-package visibility as proof that NuGet.org indexed matching symbols.
-Repository write authority is isolated in a final job that starts only after
-all NuGet readback succeeds. That job independently verifies the local and
-remote annotated tag, stages exact notes and sealed assets in a draft, reads
-every asset back by digest, and requires GitHub release immutability after
-publication. It has no authority to create tags or replace conflicting assets.
+The protected publication job stages exact notes and sealed identity assets in
+a GitHub draft before the first NuGet push. It publishes that complete draft
+immediately after all NuGet submissions succeed, then retains retry-varying
+completion evidence outside the immutable release asset set. It cannot create
+tags or replace conflicting assets.
 
 ## Security Invariants and Controls
 
@@ -171,18 +173,21 @@ publication. It has no authority to create tags or replace conflicting assets.
 - Workflow permissions follow least privilege.
 - Builds, packages, SBOMs, checksums, and release evidence are reproducible and
   cross-checked before publication.
-- Candidate qualification starts automatically from a signed release-tag push;
-  the separately authorized NuGet publication remains manual. Publication
-  rejects stale, side-branch, failed, cross-repository, or conflicting
-  same-version artifacts before requesting an OIDC credential.
-- Public-package readback compares canonical payload content, downloads the
-  exact checksum-bound Portable PDBs from NuGet.org's symbol server, restores
-  both exact package versions into an empty cache, and executes the provider
-  and spatial runtime contract against the pinned MySQL 8.4 image.
-- GitHub release finalization receives repository write permission only after
-  that public readback. It requires the exact annotated tag and source commit,
-  rejects conflicting drafts or assets, and accepts a retry only after complete
-  metadata, digest, immutability, prerelease, and latest-release readback.
+- Candidate qualification is dispatched manually from exact current, untagged
+  `main`. After reversible qualification succeeds, the operator pushes one
+  signed tag and approves the waiting protected publication job. Tag pushes do
+  not start a second workflow. Publication rejects stale, side-branch, failed,
+  cross-repository, or conflicting same-version artifacts before requesting an
+  OIDC credential.
+- Before publication, an isolated empty-cache consumer restores the exact local
+  package bytes and executes provider and spatial runtime contracts against the
+  pinned MySQL 8.4 image. Public readback then compares canonical payload and
+  exact checksum-bound Portable PDB bytes and verifies repository signatures.
+- GitHub release staging precedes NuGet publication. Immediate finalization
+  after all NuGet submissions requires the exact annotated tag and source
+  commit, rejects conflicting drafts or assets, and accepts a retry only after
+  complete metadata, digest, immutability, prerelease, and latest-release
+  readback. Later availability observations cannot modify the release.
 - Test, benchmark, and generated evidence never substitute for the shipped
   source revision they claim to validate.
 - Bundled database services publish repository-known test credentials on IPv4
@@ -204,8 +209,9 @@ The security test and review inventory includes:
   schema changes.
 - A mutable dependency, action, image, or artifact replacing repository or
   package evidence.
-- A replayed candidate run ID, moved tag, stale `main` commit, or partial NuGet
-  publication acquiring authority for different package bytes.
+- A substituted candidate artifact, moved tag, candidate removed from `main`
+  history, or partial NuGet publication acquiring authority for different
+  package bytes.
 - A moved or lightweight release tag, substituted draft asset, or conflicting
   pre-existing release acquiring authority from an otherwise valid NuGet
   publication.

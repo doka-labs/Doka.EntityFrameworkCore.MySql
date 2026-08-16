@@ -217,7 +217,34 @@ class GitHubReleaseTests(unittest.TestCase):
                     b'{"status":"pass"}\n',
                     "evidence",
                 ),
+                "release-qualification-manifest.json": (
+                    b'{"kind":"release-qualification-manifest"}\n',
+                    "evidence",
+                ),
                 "resolved-packages.json": (b'{"packages":[]}\n', "evidence"),
+                "local-package-consumer/local-package-consumer.json": (
+                    b'{"runtimeSmoke":"pass"}\n',
+                    "evidence",
+                ),
+                "local-package-consumer/local-package-runtime.json": (
+                    (
+                        json.dumps(
+                            {
+                                "schemaVersion": 1,
+                                "kind": "local-package-runtime-qualification",
+                                "releaseTag": self._TAG,
+                                "releaseVersion": self._VERSION,
+                                "sourceCommit": self._COMMIT,
+                                "engineImage": "mysql:8.4.6",
+                                "consumerBoundary": "isolated-local-package",
+                                "projectReferences": 0,
+                                "runtimeSmoke": "pass",
+                            }
+                        )
+                        + "\n"
+                    ).encode("ascii"),
+                    "evidence",
+                ),
                 "sbom/provider.cdx.json": (b'{"bomFormat":"CycloneDX"}\n', "sbom"),
             }
         )
@@ -240,10 +267,11 @@ class GitHubReleaseTests(unittest.TestCase):
             "schemaVersion": release_evidence.SCHEMA_VERSION,
             "releaseCandidateRunId": self.candidate.name,
             "releaseVersion": self._VERSION,
+            "expectedReleaseTag": self._TAG,
             "source": {
                 "repository": self._REPOSITORY,
-                "ref": f"refs/tags/{self._TAG}",
-                "tag": self._TAG,
+                "ref": "refs/heads/main",
+                "tag": None,
                 "commit": self._COMMIT,
             },
             "workflow": {
@@ -254,7 +282,7 @@ class GitHubReleaseTests(unittest.TestCase):
                 "workflowRef": (
                     f"{self._REPOSITORY}/"
                     f"{nuget_publication.CANDIDATE_WORKFLOW_PATH}"
-                    f"@refs/tags/{self._TAG}"
+                    "@refs/heads/main"
                 ),
                 "repository": self._REPOSITORY,
             },
@@ -288,18 +316,54 @@ class GitHubReleaseTests(unittest.TestCase):
                 "symbolsSha256": nuget_publication.sha256_file(paths["symbols"]),
             }
 
-        receipt: dict[str, object] = {
-            "schemaVersion": nuget_publication.PUBLICATION_RECEIPT_SCHEMA_VERSION,
+        candidate_receipt: dict[str, object] = {
+            "schemaVersion": nuget_publication.CANDIDATE_RECEIPT_SCHEMA_VERSION,
+            "kind": nuget_publication.CANDIDATE_RECEIPT_KIND,
             "candidateRunId": "12345",
             "candidateRunAttempt": "1",
             "repository": self._REPOSITORY,
-            "releaseTag": self._TAG,
+            "expectedReleaseTag": self._TAG,
             "releaseVersion": self._VERSION,
             "sourceCommit": self._COMMIT,
+            "sourceRef": "refs/heads/main",
             "releaseCandidateRunId": self.candidate.name,
-            "trustedRef": "refs/heads/main",
             "mysql84Image": "mysql:8.4.6",
             "packages": receipt_packages,
+        }
+        candidate_receipt_path = self.publication / "candidate-receipt.json"
+        candidate_receipt_path.write_text(
+            json.dumps(candidate_receipt) + "\n",
+            encoding="utf-8",
+        )
+        trust_receipt: dict[str, object] = {
+            "schemaVersion": 2,
+            "kind": "release-tag-trust-root",
+            "repository": self._REPOSITORY,
+            "tag": self._TAG,
+            "commit": self._COMMIT,
+            "policyDigest": "d" * 64,
+            "qualification": {"commit": self._COMMIT},
+        }
+        trust_receipt_path = self.publication / "release-tag-trust-root.json"
+        trust_receipt_path.write_text(
+            json.dumps(trust_receipt) + "\n",
+            encoding="utf-8",
+        )
+        qualification_path = self.candidate / "release-qualification-manifest.json"
+        receipt: dict[str, object] = {
+            **candidate_receipt,
+            "schemaVersion": nuget_publication.PUBLICATION_RECEIPT_SCHEMA_VERSION,
+            "kind": nuget_publication.PUBLICATION_RECEIPT_KIND,
+            "releaseTag": self._TAG,
+            "candidateReceiptSha256": nuget_publication.sha256_file(
+                candidate_receipt_path
+            ),
+            "tagTrustRootSha256": nuget_publication.sha256_file(
+                trust_receipt_path
+            ),
+            "qualificationManifestSha256": nuget_publication.sha256_file(
+                qualification_path
+            ),
         }
 
         symbols: list[dict[str, str]] = []
@@ -390,18 +454,28 @@ class GitHubReleaseTests(unittest.TestCase):
             }
 
         evidence: dict[str, dict[str, object]] = {
-            "validated-candidate.json": receipt,
+            "release-publication-receipt.json": receipt,
+            "candidate-publication-preflight.json": {
+                "schemaVersion": nuget_publication.SCHEMA_VERSION,
+                "checkedUtc": "2026-08-04T09:50:00+00:00",
+                "expectedReleaseTag": self._TAG,
+                "releaseVersion": self._VERSION,
+                "sourceCommit": self._COMMIT,
+                "packages": preflight_packages,
+                "symbols": preflight_symbols,
+            },
             "publication-preflight.json": {
                 "schemaVersion": nuget_publication.SCHEMA_VERSION,
                 "checkedUtc": "2026-08-04T10:00:00+00:00",
                 "releaseTag": self._TAG,
+                "expectedReleaseTag": self._TAG,
                 "releaseVersion": self._VERSION,
                 "sourceCommit": self._COMMIT,
                 "packages": preflight_packages,
                 "symbols": preflight_symbols,
             },
             "symbol-readback-manifest.json": {
-                "schemaVersion": nuget_publication.SCHEMA_VERSION,
+                "schemaVersion": nuget_publication.SYMBOL_MANIFEST_SCHEMA_VERSION,
                 "releaseVersion": self._VERSION,
                 "symbols": symbols,
             },
@@ -409,26 +483,11 @@ class GitHubReleaseTests(unittest.TestCase):
                 "schemaVersion": nuget_publication.SCHEMA_VERSION,
                 "verifiedUtc": "2026-08-04T10:10:00+00:00",
                 "releaseTag": self._TAG,
+                "expectedReleaseTag": self._TAG,
                 "releaseVersion": self._VERSION,
                 "sourceCommit": self._COMMIT,
                 "packages": readback_packages,
                 "symbols": readback_symbols,
-            },
-            "consumer-runtime-readback.json": {
-                "schemaVersion": nuget_publication.SCHEMA_VERSION,
-                "verifiedUtc": "2026-08-04T10:20:00+00:00",
-                "releaseTag": self._TAG,
-                "releaseVersion": self._VERSION,
-                "sourceCommit": self._COMMIT,
-                "packageSource": nuget_publication.NUGET_SOURCE,
-                "packageCache": "/consumer/.nuget/packages",
-                "packages": sorted(
-                    f"{package_id}/{self._VERSION}".casefold()
-                    for _, package_id in github_release.PACKAGE_IDENTITIES
-                ),
-                "dotnetSdk": "10.0.302",
-                "engineImage": receipt["mysql84Image"],
-                "runtimeSmoke": "pass",
             },
         }
         for name, value in evidence.items():
@@ -457,6 +516,43 @@ class GitHubReleaseTests(unittest.TestCase):
             self.publication,
             self.changelog,
         )
+        self.staged_plan = self.plan
+        (self.publication / "github-release-readback.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": github_release.SCHEMA_VERSION,
+                    "status": "published-and-verified",
+                    "repository": self._REPOSITORY,
+                    "releaseId": 1,
+                    "releaseTag": self._TAG,
+                    "releaseVersion": self._VERSION,
+                    "sourceCommit": self._COMMIT,
+                    "releaseUrl": (
+                        f"https://github.com/{self._REPOSITORY}/releases/tag/"
+                        f"{self._TAG}"
+                    ),
+                    "publishedAt": "2026-08-04T10:05:00+00:00",
+                    "immutable": True,
+                    "prerelease": True,
+                    "latest": False,
+                    "notesSha256": self.plan["notesSha256"],
+                    "assets": [
+                        {
+                            "name": asset["name"],
+                            "assetId": index,
+                            "sizeBytes": asset["sizeBytes"],
+                            "sha256": asset["sha256"],
+                        }
+                        for index, asset in enumerate(
+                            self.plan["assets"],
+                            start=1,
+                        )
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
     def tearDown(self) -> None:
         """Remove the isolated candidate fixture."""
@@ -472,10 +568,7 @@ class GitHubReleaseTests(unittest.TestCase):
         self.assertFalse(self.plan["latest"])
         self.assertIn(release_evidence.MANIFEST_NAME, names)
         self.assertIn("provider.cdx.json", names)
-        self.assertEqual(
-            set(github_release.PUBLICATION_EVIDENCE_FILES),
-            set(github_release.PUBLICATION_EVIDENCE_FILES) & names,
-        )
+        self.assertFalse(set(github_release.PUBLICATION_EVIDENCE_FILES) & names)
 
     def test_plan_rejects_candidate_tampering_after_manifest_generation(self) -> None:
         """Refuse candidate bytes that no longer match immutable evidence."""
@@ -493,16 +586,30 @@ class GitHubReleaseTests(unittest.TestCase):
                 self.changelog,
             )
 
-    def test_plan_rejects_failed_consumer_runtime_evidence(self) -> None:
-        """Require a successful public-package runtime smoke receipt."""
-        path = self.publication / "consumer-runtime-readback.json"
+    def test_plan_rejects_failed_local_package_runtime_evidence(self) -> None:
+        """Require local package runtime correctness before publication."""
+        relative = "local-package-consumer/local-package-runtime.json"
+        path = self.candidate / relative
         receipt = json.loads(path.read_text(encoding="utf-8"))
         receipt["runtimeSmoke"] = "fail"
         path.write_text(json.dumps(receipt) + "\n", encoding="utf-8")
+        manifest_path = self.candidate / release_evidence.MANIFEST_NAME
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        artifact = next(
+            entry for entry in manifest["artifacts"] if entry["path"] == relative
+        )
+        artifact["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        artifact["sizeBytes"] = path.stat().st_size
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        checksum = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        (self.candidate / release_evidence.CHECKSUM_NAME).write_text(
+            f"{checksum}  {release_evidence.MANIFEST_NAME}\n",
+            encoding="ascii",
+        )
 
         with self.assertRaisesRegex(
             github_release.GitHubReleaseError,
-            "Consumer runtime readback is invalid",
+            "Local package runtime qualification is invalid",
         ):
             github_release.build_release_plan(
                 self._REPOSITORY,
@@ -512,7 +619,7 @@ class GitHubReleaseTests(unittest.TestCase):
             )
 
     def test_plan_rejects_tampered_retained_public_package(self) -> None:
-        """Bind release finalization to the persisted NuGet readback bytes."""
+        """Bind completion evidence to the persisted NuGet readback bytes."""
         package = next((self.publication / "packages").glob("*.nupkg"))
         package.write_bytes(b"tampered public package\n")
 
@@ -520,7 +627,7 @@ class GitHubReleaseTests(unittest.TestCase):
             github_release.GitHubReleaseError,
             "Retained public package bytes are invalid",
         ):
-            github_release.build_release_plan(
+            github_release.build_completion_receipt(
                 self._REPOSITORY,
                 self.candidate,
                 self.publication,
@@ -528,7 +635,7 @@ class GitHubReleaseTests(unittest.TestCase):
             )
 
     def test_plan_rejects_unsigned_retained_public_package(self) -> None:
-        """Require repository signing at the final immutable boundary."""
+        """Require repository signing at the completion boundary."""
         role = "provider"
         package = self.publication / "packages" / nuget_publication.package_file_name(
             nuget_publication.PROVIDER_PACKAGE_ID,
@@ -551,7 +658,7 @@ class GitHubReleaseTests(unittest.TestCase):
             github_release.GitHubReleaseError,
             "has no repository signature",
         ):
-            github_release.build_release_plan(
+            github_release.build_completion_receipt(
                 self._REPOSITORY,
                 self.candidate,
                 self.publication,
@@ -569,7 +676,7 @@ class GitHubReleaseTests(unittest.TestCase):
             github_release.GitHubReleaseError,
             "Published package evidence is invalid",
         ):
-            github_release.build_release_plan(
+            github_release.build_completion_receipt(
                 self._REPOSITORY,
                 self.candidate,
                 self.publication,
@@ -577,7 +684,7 @@ class GitHubReleaseTests(unittest.TestCase):
             )
 
     def test_plan_rejects_empty_signature_verification_evidence(self) -> None:
-        """Bind the successful cryptographic verifier output into the release."""
+        """Bind the successful cryptographic verifier output into completion."""
         (self.publication / "nuget-signature-verification.txt").write_text(
             "",
             encoding="utf-8",
@@ -587,12 +694,53 @@ class GitHubReleaseTests(unittest.TestCase):
             github_release.GitHubReleaseError,
             "signature verification evidence is missing or empty",
         ):
-            github_release.build_release_plan(
+            github_release.build_completion_receipt(
                 self._REPOSITORY,
                 self.candidate,
                 self.publication,
                 self.changelog,
             )
+
+    def test_completion_receipt_binds_post_publication_evidence(self) -> None:
+        """Retain completion evidence without mutating the immutable release."""
+        receipt = github_release.build_completion_receipt(
+            self._REPOSITORY,
+            self.candidate,
+            self.publication,
+            self.changelog,
+        )
+
+        self.assertEqual("published-and-verified", receipt["status"])
+        self.assertEqual(self._TAG, receipt["releaseTag"])
+        self.assertEqual(
+            {
+                "github-release-readback.json",
+                *github_release.PUBLICATION_EVIDENCE_FILES,
+            },
+            {entry["name"] for entry in receipt["evidence"]},
+        )
+
+    def test_retry_varying_completion_evidence_cannot_change_release_assets(self) -> None:
+        """Keep availability observations outside the immutable asset plan."""
+        preflight_path = self.publication / "publication-preflight.json"
+        preflight = json.loads(preflight_path.read_text(encoding="utf-8"))
+        preflight["checkedUtc"] = "2026-08-04T11:00:00+00:00"
+        preflight_path.write_text(json.dumps(preflight) + "\n", encoding="utf-8")
+
+        retry_plan = github_release.build_release_plan(
+            self._REPOSITORY,
+            self.candidate,
+            self.publication,
+            self.changelog,
+        )
+
+        self.assertEqual(self.plan, retry_plan)
+        github_release.build_completion_receipt(
+            self._REPOSITORY,
+            self.candidate,
+            self.publication,
+            self.changelog,
+        )
 
     def test_absent_release_is_created_uploaded_published_and_verified(self) -> None:
         """Complete the clean path only after every asset reads back exactly."""
@@ -611,6 +759,79 @@ class GitHubReleaseTests(unittest.TestCase):
             [(self._REPOSITORY, self._TAG, self._COMMIT)] * 3,
             client.verified_tags,
         )
+
+    def test_stage_creates_a_verified_draft_without_publishing(self) -> None:
+        """Create the public release identity before the first NuGet push."""
+        client = FakeReleaseClient()
+
+        receipt = github_release.stage_release(self.staged_plan, client)
+
+        self.assertEqual("draft-staged-and-verified", receipt["status"])
+        self.assertEqual(1, client.create_calls)
+        self.assertEqual(0, client.publish_calls)
+        self.assertTrue(client.release["draft"])
+
+    def test_stage_rejects_completion_evidence_as_a_release_asset(self) -> None:
+        """Keep retry-varying observations outside the immutable release."""
+        client = FakeReleaseClient()
+        client.create_draft(self.staged_plan)
+        name = github_release.PUBLICATION_EVIDENCE_FILES[0]
+        client.add_asset({"name": name}, f"prior {name}\n".encode("ascii"))
+
+        with self.assertRaisesRegex(
+            github_release.GitHubReleaseError,
+            "unexpected asset",
+        ):
+            github_release.stage_release(self.staged_plan, client)
+
+    def test_stage_recovers_after_the_release_was_already_published(self) -> None:
+        """Let a rerun reach complete readback after a prior finalization."""
+        client = FakeReleaseClient()
+        client.create_draft(self.plan)
+        client.upload_assets(
+            self._REPOSITORY,
+            self._TAG,
+            [Path(asset["path"]) for asset in self.plan["assets"]],
+        )
+        client.publish_release(self.plan)
+        client.upload_calls.clear()
+        client.publish_calls = 0
+
+        receipt = github_release.stage_release(self.staged_plan, client)
+
+        self.assertEqual("release-already-published", receipt["status"])
+        self.assertEqual([], client.upload_calls)
+        self.assertEqual(0, client.publish_calls)
+
+    def test_stage_rejects_published_release_with_wrong_latest_status(self) -> None:
+        """Apply stable/prerelease classification during retry reconciliation."""
+        client = FakeReleaseClient()
+        client.create_draft(self.plan)
+        client.upload_assets(
+            self._REPOSITORY,
+            self._TAG,
+            [Path(asset["path"]) for asset in self.plan["assets"]],
+        )
+        client.publish_release(self.plan)
+        client.latest = True
+
+        with self.assertRaisesRegex(
+            github_release.GitHubReleaseError,
+            "latest status conflicts",
+        ):
+            github_release.stage_release(self.staged_plan, client)
+
+    def test_stage_rejects_an_unknown_asset_from_an_existing_draft(self) -> None:
+        """Do not hide unrelated remote state behind retry reconciliation."""
+        client = FakeReleaseClient()
+        client.create_draft(self.staged_plan)
+        client.add_asset({"name": "unexpected.txt"}, b"unexpected\n")
+
+        with self.assertRaisesRegex(
+            github_release.GitHubReleaseError,
+            "unexpected asset",
+        ):
+            github_release.stage_release(self.staged_plan, client)
 
     def test_matching_partial_draft_resumes_only_missing_assets(self) -> None:
         """Resume a matching draft without recreating or replacing an asset."""

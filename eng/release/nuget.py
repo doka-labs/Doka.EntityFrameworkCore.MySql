@@ -2,11 +2,11 @@
 """Validate, publish-preflight, and read back NuGet release artifacts.
 
 The release-candidate workflow proves that a package is eligible for release.
-This module forms the separate publication boundary: it binds a manually
-selected successful candidate run to the current trusted main commit and its
-exact semantic version tag before any credential is requested. It also makes
-publication retries safe by distinguishing an absent package from matching or
-conflicting content already present on NuGet.org.
+This module enforces its same-run publication boundary: it binds the qualified
+candidate bytes to the current trusted main commit and exact semantic version
+tag before any credential is requested. It also makes publication retries safe
+by distinguishing an absent package from matching or conflicting content
+already present on NuGet.org.
 """
 
 from __future__ import annotations
@@ -29,10 +29,16 @@ from typing import Any, Callable
 from xml.etree import ElementTree
 
 from . import evidence as release_evidence
+from . import qualification as release_qualification
+from . import trust as release_trust
 
 
 SCHEMA_VERSION = 2
-PUBLICATION_RECEIPT_SCHEMA_VERSION = 2
+SYMBOL_MANIFEST_SCHEMA_VERSION = 1
+CANDIDATE_RECEIPT_SCHEMA_VERSION = 1
+PUBLICATION_RECEIPT_SCHEMA_VERSION = 4
+CANDIDATE_RECEIPT_KIND = "release-candidate-receipt"
+PUBLICATION_RECEIPT_KIND = "release-publication-receipt"
 PROVIDER_PACKAGE_ID = "Doka.EntityFrameworkCore.MySql"
 SPATIAL_PACKAGE_ID = "Doka.EntityFrameworkCore.MySql.NetTopologySuite"
 CANDIDATE_WORKFLOW = "release-candidate"
@@ -324,7 +330,7 @@ def validate_package_metadata(
     repository: str,
     source_commit: str,
 ) -> dict[str, dict[str, str]]:
-    """Bind package-internal metadata to the manifest and tagged source."""
+    """Bind package-internal metadata to the qualified source commit."""
     candidate_root = require_candidate_root(root)
     resolved = package_paths(candidate_root, version)
     result: dict[str, dict[str, str]] = {}
@@ -386,46 +392,47 @@ def validate_package_metadata(
     return result
 
 
-def validate_portable_receipt(
+def validate_candidate_receipt(
     receipt: dict[str, Any],
     candidate_root: Path,
 ) -> dict[str, dict[str, Path]]:
-    """Revalidate a portable candidate receipt at a new trust boundary."""
+    """Revalidate an untagged candidate receipt at a new trust boundary."""
     root = require_candidate_root(candidate_root)
     run_id = str(receipt.get("candidateRunId", ""))
     run_attempt = str(receipt.get("candidateRunAttempt", ""))
     candidate_id = f"github-{run_id}"
     version = str(receipt.get("releaseVersion", ""))
-    release_tag = str(receipt.get("releaseTag", ""))
+    expected_release_tag = str(receipt.get("expectedReleaseTag", ""))
     repository = str(receipt.get("repository", ""))
     source_commit = str(receipt.get("sourceCommit", ""))
     if (
-        receipt.get("schemaVersion") != PUBLICATION_RECEIPT_SCHEMA_VERSION
+        receipt.get("schemaVersion") != CANDIDATE_RECEIPT_SCHEMA_VERSION
+        or receipt.get("kind") != CANDIDATE_RECEIPT_KIND
         or not RUN_ID.fullmatch(run_id)
         or not RUN_ID.fullmatch(run_attempt)
         or receipt.get("releaseCandidateRunId") != candidate_id
         or root.name != candidate_id
-        or receipt.get("trustedRef") != "refs/heads/main"
-        or release_tag != f"v{version}"
-        or not release_evidence.SEMANTIC_VERSION_TAG.fullmatch(release_tag)
+        or receipt.get("sourceRef") != "refs/heads/main"
+        or expected_release_tag != f"v{version}"
+        or not release_evidence.SEMANTIC_VERSION_TAG.fullmatch(expected_release_tag)
         or normalize_repository(repository) != repository.lower()
         or not SHA1.fullmatch(source_commit)
         or not isinstance(receipt.get("mysql84Image"), str)
         or not receipt["mysql84Image"]
     ):
-        raise PublicationError("Publication receipt candidate identity is invalid.")
+        raise PublicationError("Candidate receipt identity is invalid.")
 
     packages = receipt.get("packages")
     expected_roles = {"provider": PROVIDER_PACKAGE_ID, "spatial": SPATIAL_PACKAGE_ID}
     if not isinstance(packages, dict) or set(packages) != set(expected_roles):
-        raise PublicationError("Publication receipt package inventory is invalid.")
+        raise PublicationError("Candidate receipt package inventory is invalid.")
 
     resolved: dict[str, dict[str, Path]] = {}
     for role, package_id in expected_roles.items():
         package = packages.get(role)
         expected_keys = {"id", "package", "symbols", "contentDigest", "symbolsSha256"}
         if not isinstance(package, dict) or set(package) != expected_keys:
-            raise PublicationError(f"Publication receipt package entry is invalid: {role}")
+            raise PublicationError(f"Candidate receipt package entry is invalid: {role}")
 
         expected_primary = f"packages/{package_file_name(package_id, version, 'nupkg')}"
         expected_symbols = f"packages/{package_file_name(package_id, version, 'snupkg')}"
@@ -436,7 +443,7 @@ def validate_portable_receipt(
             or not SHA256.fullmatch(str(package.get("contentDigest", "")))
             or not SHA256.fullmatch(str(package.get("symbolsSha256", "")))
         ):
-            raise PublicationError(f"Publication receipt package identity is invalid: {role}")
+            raise PublicationError(f"Candidate receipt package identity is invalid: {role}")
 
         primary = resolve_candidate_path(root, package["package"], f"{role} package")
         symbols = resolve_candidate_path(root, package["symbols"], f"{role} symbols")
@@ -454,15 +461,14 @@ def validate_portable_receipt(
     manifest = read_json(root / release_evidence.MANIFEST_NAME, "release manifest")
     source = manifest.get("source") or {}
     workflow = manifest.get("workflow") or {}
-    expected_workflow_ref = (
-        f"{repository}/{CANDIDATE_WORKFLOW_PATH}@refs/tags/{release_tag}"
-    )
+    expected_workflow_ref = f"{repository}/{CANDIDATE_WORKFLOW_PATH}@refs/heads/main"
     if (
         manifest.get("releaseCandidateRunId") != candidate_id
         or manifest.get("releaseVersion") != version
+        or manifest.get("expectedReleaseTag") != expected_release_tag
         or source.get("commit") != source_commit
-        or source.get("ref") != f"refs/tags/{release_tag}"
-        or source.get("tag") != release_tag
+        or source.get("ref") != "refs/heads/main"
+        or source.get("tag") is not None
         or normalize_repository(str(source.get("repository", ""))) != repository.lower()
         or workflow.get("provider") != "github-actions"
         or str(workflow.get("runId", "")) != run_id
@@ -471,117 +477,114 @@ def validate_portable_receipt(
         or workflow.get("workflowRef") != expected_workflow_ref
         or str(workflow.get("repository", "")).lower() != repository.lower()
     ):
-        raise PublicationError("Publication receipt disagrees with its release manifest.")
+        raise PublicationError("Candidate receipt disagrees with its release manifest.")
 
     return resolved
 
 
-def validate_run_metadata(
-    run: dict[str, Any],
-    repository: str,
-    release_tag: str,
-    source_commit: str,
-) -> tuple[str, str]:
-    """Require one completed release-candidate run for the selected tag."""
-    run_id = str(run.get("id", ""))
-    run_attempt = str(run.get("run_attempt", ""))
-    run_repository = run.get("repository") or {}
-    if not RUN_ID.fullmatch(run_id) or not RUN_ID.fullmatch(run_attempt):
-        raise PublicationError("Candidate run ID or attempt is invalid.")
-    if run.get("event") != "workflow_dispatch":
-        raise PublicationError("Candidate run was not manually dispatched.")
-    if run.get("status") != "completed" or run.get("conclusion") != "success":
-        raise PublicationError("Candidate run is not completed successfully.")
-    if run.get("path") != f"{CANDIDATE_WORKFLOW_PATH}@{release_tag}":
-        raise PublicationError("Candidate run did not execute release-candidate.yml.")
-    if run.get("head_sha") != source_commit or run.get("head_branch") != release_tag:
-        raise PublicationError("Candidate run source does not match the selected release tag.")
-    if str(run_repository.get("full_name", "")).lower() != repository.lower():
-        raise PublicationError("Candidate run belongs to a different repository.")
-    return run_id, run_attempt
+def validate_portable_receipt(
+    receipt: dict[str, Any],
+    candidate_root: Path,
+) -> dict[str, dict[str, Path]]:
+    """Revalidate a tag-bound publication receipt and its candidate bytes."""
+    if (
+        receipt.get("schemaVersion") != PUBLICATION_RECEIPT_SCHEMA_VERSION
+        or receipt.get("kind") != PUBLICATION_RECEIPT_KIND
+        or receipt.get("releaseTag") != receipt.get("expectedReleaseTag")
+        or not SHA256.fullmatch(str(receipt.get("candidateReceiptSha256", "")))
+        or not SHA256.fullmatch(str(receipt.get("tagTrustRootSha256", "")))
+        or not SHA256.fullmatch(
+            str(receipt.get("qualificationManifestSha256", ""))
+        )
+    ):
+        raise PublicationError("Publication receipt identity is invalid.")
+
+    qualification_path = candidate_root / "release-qualification-manifest.json"
+    if (
+        not qualification_path.is_file()
+        or sha256_file(qualification_path)
+        != receipt["qualificationManifestSha256"]
+    ):
+        raise PublicationError(
+            "Publication receipt does not bind the qualification manifest."
+        )
+
+    candidate = dict(receipt)
+    candidate["schemaVersion"] = CANDIDATE_RECEIPT_SCHEMA_VERSION
+    candidate["kind"] = CANDIDATE_RECEIPT_KIND
+    for field in (
+        "releaseTag",
+        "candidateReceiptSha256",
+        "tagTrustRootSha256",
+        "qualificationManifestSha256",
+    ):
+        candidate.pop(field, None)
+    return validate_candidate_receipt(candidate, candidate_root)
 
 
-def validate_candidate(args: argparse.Namespace) -> None:
-    """Validate one downloaded candidate and emit a publication receipt."""
+def prepare_candidate(args: argparse.Namespace) -> None:
+    """Bind one same-run candidate artifact to its untagged main source."""
     repo = args.repo.resolve()
     root = require_candidate_root(args.root)
     repository = args.repository
-    release_tag = args.release_tag
-    trusted_ref = args.trusted_ref
-    trusted_commit = args.trusted_commit
-
-    if not release_evidence.SEMANTIC_VERSION_TAG.fullmatch(release_tag):
-        raise PublicationError(f"Release tag is not semantic: {release_tag}")
-    if not SHA1.fullmatch(trusted_commit):
-        raise PublicationError("The current trusted main commit is invalid.")
-    if os.environ.get("GITHUB_REF") and os.environ["GITHUB_REF"] != trusted_ref:
+    if os.environ.get("GITHUB_REF") and os.environ["GITHUB_REF"] != "refs/heads/main":
         raise PublicationError(
-            f"Publication workflow must run from {trusted_ref}, found {os.environ['GITHUB_REF']}."
+            "Candidate preparation must run from refs/heads/main, found "
+            f"{os.environ['GITHUB_REF']}."
         )
 
     try:
-        # The candidate manifest was authored under the tag workflow, whereas
-        # publication runs from main. Repository and hosted-workflow binding is
-        # therefore checked explicitly below instead of reusing the caller ref.
         release_evidence.verify_manifest(root, None)
     except release_evidence.EvidenceError as exception:
         raise PublicationError(str(exception)) from exception
 
     manifest = read_json(root / release_evidence.MANIFEST_NAME, "release manifest")
-    run = read_json(args.run_metadata.resolve(), "candidate run metadata")
     source = manifest.get("source") or {}
     workflow = manifest.get("workflow") or {}
     version = str(manifest.get("releaseVersion", ""))
+    expected_release_tag = str(manifest.get("expectedReleaseTag", ""))
     source_commit = str(source.get("commit", ""))
 
     if not SHA1.fullmatch(source_commit):
         raise PublicationError("Candidate manifest source commit is invalid.")
-    if source.get("tag") != release_tag or source.get("ref") != f"refs/tags/{release_tag}":
-        raise PublicationError("Candidate manifest tag and source ref disagree.")
-    if release_tag != f"v{version}":
-        raise PublicationError("Candidate package version does not match its release tag.")
+    if source.get("tag") is not None or source.get("ref") != "refs/heads/main":
+        raise PublicationError("Candidate manifest must describe untagged main.")
+    if expected_release_tag != f"v{version}":
+        raise PublicationError("Candidate package version does not match its expected tag.")
     if normalize_repository(str(source.get("repository", ""))) != repository.lower():
         raise PublicationError("Candidate source remote belongs to a different repository.")
 
     current_commit = run_git(repo, "rev-parse", "HEAD")
-    if current_commit != source_commit or current_commit != trusted_commit:
-        raise PublicationError("Candidate source is not the current trusted main commit.")
+    if current_commit != source_commit:
+        raise PublicationError("Candidate source is not the checked-out main commit.")
     if os.environ.get("GITHUB_SHA") and os.environ["GITHUB_SHA"] != current_commit:
         raise PublicationError("Hosted publication SHA does not match the trusted checkout.")
     if run_git(repo, "status", "--porcelain", "--untracked-files=all"):
-        raise PublicationError("Publication validation requires a clean trusted checkout.")
-    if run_git(repo, "rev-parse", f"refs/tags/{release_tag}^{{commit}}") != current_commit:
-        raise PublicationError("Release tag does not identify the trusted main commit.")
+        raise PublicationError("Candidate preparation requires a clean checkout.")
     semantic_tags = sorted(
         tag
         for tag in run_git(repo, "tag", "--points-at", current_commit).splitlines()
         if release_evidence.SEMANTIC_VERSION_TAG.fullmatch(tag)
     )
-    # More than one release tag at the same commit makes a manually selected
-    # run ambiguous even when all package metadata happens to match.
-    if semantic_tags != [release_tag]:
+    if semantic_tags:
         raise PublicationError(
-            f"Trusted source requires exactly semantic tag {release_tag}; found {semantic_tags}."
+            f"Candidate preparation requires an untagged commit; found {semantic_tags}."
         )
 
-    run_id, run_attempt = validate_run_metadata(
-        run,
-        repository,
-        release_tag,
-        source_commit,
-    )
-    expected_workflow_ref = (
-        f"{repository}/{CANDIDATE_WORKFLOW_PATH}@refs/tags/{release_tag}"
-    )
+    run_id = str(workflow.get("runId", ""))
+    run_attempt = str(workflow.get("runAttempt", ""))
+    expected_workflow_ref = f"{repository}/{CANDIDATE_WORKFLOW_PATH}@refs/heads/main"
     if (
-        workflow.get("provider") != "github-actions"
+        not RUN_ID.fullmatch(run_id)
+        or not RUN_ID.fullmatch(run_attempt)
+        or workflow.get("provider") != "github-actions"
         or str(workflow.get("runId", "")) != run_id
         or str(workflow.get("runAttempt", "")) != run_attempt
         or workflow.get("workflow") != CANDIDATE_WORKFLOW
         or workflow.get("workflowRef") != expected_workflow_ref
         or str(workflow.get("repository", "")).lower() != repository.lower()
     ):
-        raise PublicationError("Candidate manifest workflow identity does not match the hosted run.")
+        raise PublicationError("Candidate manifest workflow identity is invalid.")
 
     # GitHub retains the run ID across job reruns. The attempt remains a
     # separately verified manifest field so a rerun can repair one failed stage
@@ -599,19 +602,21 @@ def validate_candidate(args: argparse.Namespace) -> None:
         raise PublicationError("Candidate manifest does not contain the MySQL 8.4 image identity.")
 
     receipt = {
-        "schemaVersion": PUBLICATION_RECEIPT_SCHEMA_VERSION,
+        "schemaVersion": CANDIDATE_RECEIPT_SCHEMA_VERSION,
+        "kind": CANDIDATE_RECEIPT_KIND,
         "candidateRunId": run_id,
         "candidateRunAttempt": run_attempt,
         "releaseCandidateRunId": expected_candidate_id,
-        "releaseTag": release_tag,
+        "expectedReleaseTag": expected_release_tag,
         "releaseVersion": version,
         "repository": repository,
         "sourceCommit": source_commit,
-        "trustedRef": trusted_ref,
+        "sourceRef": "refs/heads/main",
         "mysql84Image": mysql84["image"],
         "packages": packages,
     }
     write_json(args.output.resolve(), receipt)
+    validate_candidate_receipt(receipt, root)
     resolved_packages = package_paths(root, version)
     append_github_outputs(
         args.github_output.resolve() if args.github_output else None,
@@ -623,6 +628,108 @@ def validate_candidate(args: argparse.Namespace) -> None:
             "provider_symbols": str(resolved_packages["provider"]["symbols"]),
             "spatial_package": str(resolved_packages["spatial"]["package"]),
             "spatial_symbols": str(resolved_packages["spatial"]["symbols"]),
+        },
+    )
+
+
+def bind_candidate(args: argparse.Namespace) -> None:
+    """Bind a qualified candidate to its signed tag and trust-root receipt."""
+    repo = args.repo.resolve()
+    root = require_candidate_root(args.root)
+    candidate_path = args.candidate_receipt.resolve()
+    candidate = read_json(candidate_path, "candidate receipt")
+    validate_candidate_receipt(candidate, root)
+
+    tag = args.release_tag
+    source_commit = str(candidate["sourceCommit"])
+    if tag != candidate["expectedReleaseTag"]:
+        raise PublicationError("Release tag does not match the qualified candidate version.")
+    if os.environ.get("GITHUB_REF") and os.environ["GITHUB_REF"] != "refs/heads/main":
+        raise PublicationError("Publication binding must execute from refs/heads/main.")
+    if run_git(repo, "rev-parse", "HEAD") != source_commit:
+        raise PublicationError("Publication checkout does not match the candidate commit.")
+    try:
+        run_git(
+            repo,
+            "merge-base",
+            "--is-ancestor",
+            source_commit,
+            "refs/remotes/origin/main",
+        )
+    except PublicationError as error:
+        raise PublicationError(
+            "The qualified candidate is no longer on current remote main history."
+        ) from error
+    if run_git(repo, "status", "--porcelain", "--untracked-files=all"):
+        raise PublicationError("Publication binding requires a clean checkout.")
+    if run_git(repo, "cat-file", "-t", f"refs/tags/{tag}") != "tag":
+        raise PublicationError("Release tag must be annotated.")
+    if run_git(repo, "rev-parse", f"refs/tags/{tag}^{{commit}}") != source_commit:
+        raise PublicationError("Release tag does not identify the candidate commit.")
+    semantic_tags = sorted(
+        value
+        for value in run_git(repo, "tag", "--points-at", source_commit).splitlines()
+        if release_evidence.SEMANTIC_VERSION_TAG.fullmatch(value)
+    )
+    if semantic_tags != [tag]:
+        raise PublicationError(
+            f"Candidate commit requires exactly semantic tag {tag}; found {semantic_tags}."
+        )
+
+    trust_path = args.tag_trust_receipt.resolve()
+    trust = read_json(trust_path, "release tag trust-root receipt")
+    qualification_path = root / "release-qualification-manifest.json"
+    qualification = read_json(qualification_path, "release qualification manifest")
+    policy = release_qualification.load_policy()
+    tree_id = run_git(repo, "rev-parse", f"{source_commit}^{{tree}}")
+    if (
+        trust.get("schemaVersion") != 2
+        or trust.get("kind") != "release-tag-trust-root"
+        or trust.get("repository") != candidate["repository"]
+        or trust.get("tag") != tag
+        or trust.get("commit") != source_commit
+        or not SHA256.fullmatch(str(trust.get("policyDigest", "")))
+        or (trust.get("qualification") or {}).get("commit") != source_commit
+    ):
+        raise PublicationError("Release tag trust-root receipt is invalid.")
+    if trust.get("policyDigest") != qualification.get("policyDigest"):
+        raise PublicationError(
+            "Tag trust root and qualification manifest use different policies."
+        )
+    try:
+        release_trust.verify_frozen_qualification_receipt(
+            trust["qualification"],
+            manifest=qualification,
+            policy=policy,
+            repository=str(candidate["repository"]),
+            commit=source_commit,
+            tree_id=tree_id,
+            expected_release_tag=tag,
+        )
+    except (KeyError, release_trust.TrustRootError) as error:
+        raise PublicationError(
+            f"Release tag trust root is not bound to qualification: {error}"
+        ) from error
+
+    receipt = dict(candidate)
+    receipt.update(
+        {
+            "schemaVersion": PUBLICATION_RECEIPT_SCHEMA_VERSION,
+            "kind": PUBLICATION_RECEIPT_KIND,
+            "releaseTag": tag,
+            "candidateReceiptSha256": sha256_file(candidate_path),
+            "tagTrustRootSha256": sha256_file(trust_path),
+            "qualificationManifestSha256": sha256_file(qualification_path),
+        }
+    )
+    write_json(args.output.resolve(), receipt)
+    validate_portable_receipt(receipt, root)
+    append_github_outputs(
+        args.github_output.resolve() if args.github_output else None,
+        {
+            "release_version": str(receipt["releaseVersion"]),
+            "source_commit": source_commit,
+            "mysql84_image": str(receipt["mysql84Image"]),
         },
     )
 
@@ -664,7 +771,10 @@ def validated_symbol_entries(
     version: str,
 ) -> list[dict[str, str]]:
     """Validate symbol probes produced from the candidate assembly metadata."""
-    if manifest.get("schemaVersion") != SCHEMA_VERSION or manifest.get("releaseVersion") != version:
+    if (
+        manifest.get("schemaVersion") != SYMBOL_MANIFEST_SCHEMA_VERSION
+        or manifest.get("releaseVersion") != version
+    ):
         raise PublicationError("Symbol readback manifest identity is invalid.")
 
     raw_entries = manifest.get("symbols")
@@ -846,7 +956,10 @@ def remote_states(
 def preflight(args: argparse.Namespace) -> None:
     """Record remote state before requesting the short-lived publish key."""
     receipt = read_json(args.receipt.resolve(), "validated candidate receipt")
-    package_map = validate_portable_receipt(receipt, args.candidate_root)
+    if receipt.get("kind") == CANDIDATE_RECEIPT_KIND:
+        package_map = validate_candidate_receipt(receipt, args.candidate_root)
+    else:
+        package_map = validate_portable_receipt(receipt, args.candidate_root)
     symbol_manifest = read_json(args.symbol_manifest.resolve(), "symbol readback manifest")
     symbol_entries = validated_symbol_entries(
         symbol_manifest,
@@ -864,15 +977,34 @@ def preflight(args: argparse.Namespace) -> None:
                 f"Public symbols exist without their required primary package: {package_id}."
             )
 
+    if args.require_absent:
+        existing = [
+            name
+            for name, state in (
+                ("provider package", states["provider"]),
+                ("spatial package", states["spatial"]),
+                ("provider symbols", symbols[PROVIDER_PACKAGE_ID]),
+                ("spatial symbols", symbols[SPATIAL_PACKAGE_ID]),
+            )
+            if state["status"] != "absent"
+        ]
+        if existing:
+            raise PublicationError(
+                "Candidate version is not fully available for publication: "
+                + ", ".join(existing)
+            )
+
     output = {
         "schemaVersion": SCHEMA_VERSION,
         "checkedUtc": datetime.now(UTC).isoformat(),
-        "releaseTag": receipt["releaseTag"],
+        "expectedReleaseTag": receipt["expectedReleaseTag"],
         "releaseVersion": receipt["releaseVersion"],
         "sourceCommit": receipt["sourceCommit"],
         "packages": states,
         "symbols": symbols,
     }
+    if "releaseTag" in receipt:
+        output["releaseTag"] = receipt["releaseTag"]
     write_json(args.output.resolve(), output)
     publication_required = any(
         state["status"] == "absent" for state in (*states.values(), *symbols.values())
@@ -1037,16 +1169,21 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    validate = subparsers.add_parser("validate", help="Validate a downloaded candidate run.")
-    validate.add_argument("--repo", type=Path, required=True)
-    validate.add_argument("--root", type=Path, required=True)
-    validate.add_argument("--run-metadata", type=Path, required=True)
-    validate.add_argument("--release-tag", required=True)
-    validate.add_argument("--repository", required=True)
-    validate.add_argument("--trusted-ref", default="refs/heads/main")
-    validate.add_argument("--trusted-commit", required=True)
-    validate.add_argument("--output", type=Path, required=True)
-    validate.add_argument("--github-output", type=Path)
+    prepare = subparsers.add_parser("prepare", help="Validate an untagged same-run candidate.")
+    prepare.add_argument("--repo", type=Path, required=True)
+    prepare.add_argument("--root", type=Path, required=True)
+    prepare.add_argument("--repository", required=True)
+    prepare.add_argument("--output", type=Path, required=True)
+    prepare.add_argument("--github-output", type=Path)
+
+    bind = subparsers.add_parser("bind", help="Bind a candidate to its verified release tag.")
+    bind.add_argument("--repo", type=Path, required=True)
+    bind.add_argument("--root", type=Path, required=True)
+    bind.add_argument("--candidate-receipt", type=Path, required=True)
+    bind.add_argument("--tag-trust-receipt", type=Path, required=True)
+    bind.add_argument("--release-tag", required=True)
+    bind.add_argument("--output", type=Path, required=True)
+    bind.add_argument("--github-output", type=Path)
 
     preflight_parser = subparsers.add_parser(
         "preflight", help="Classify existing NuGet.org package versions."
@@ -1057,6 +1194,7 @@ def parse_arguments() -> argparse.Namespace:
     preflight_parser.add_argument("--output", type=Path, required=True)
     preflight_parser.add_argument("--github-output", type=Path)
     preflight_parser.add_argument("--timeout-seconds", type=float, default=30)
+    preflight_parser.add_argument("--require-absent", action="store_true")
 
     readback_parser = subparsers.add_parser(
         "readback", help="Wait for and verify published package payloads."
@@ -1089,8 +1227,10 @@ def main() -> int:
     """Run one publication operation with concise operator diagnostics."""
     args = parse_arguments()
     try:
-        if args.command == "validate":
-            validate_candidate(args)
+        if args.command == "prepare":
+            prepare_candidate(args)
+        elif args.command == "bind":
+            bind_candidate(args)
         elif args.command == "preflight":
             preflight(args)
         elif args.command == "readback":

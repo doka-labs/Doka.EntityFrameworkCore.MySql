@@ -390,7 +390,7 @@ dotnet build Doka.EntityFrameworkCore.MySql.slnx
 ./eng/test-integration.sh   # requires Docker; owns and cleans up its databases
 ./eng/test-examples.sh      # explicit live example matrix; owns its containers
 bash ./eng/check-publication-readiness.sh # verifies provider completeness
-./eng/pre-tag-check.sh                    # verifies a green main commit is tag-ready
+./eng/pre-tag-check.sh                    # verifies candidate branch and signer prerequisites
 ```
 
 ## Performance and Memory Evidence
@@ -413,7 +413,7 @@ seed-only matching-runner historical budgets, allocation limits, and six
 sustained resource invariants must all pass.
 
 Performance evidence is independent engineering feedback. It is not consumed
-by the release-candidate or NuGet-publication workflows, and a failed,
+by the release-candidate qualification or publication jobs, and a failed,
 inconclusive, missing, or stale benchmark cannot block a release. Paired
 comparisons still apply the registered statistical policy, absolute ceilings,
 and sustained resource gates to identify changes that require investigation.

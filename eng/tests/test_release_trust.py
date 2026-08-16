@@ -7,17 +7,20 @@ cover: who signed it, whether its commit ever reached the protected branch, and
 whether the branch evidence came from the branch rather than from a pull
 request against it.
 
-Every check must fail before expensive work is allocated, so an unverifiable
-tag costs seconds instead of a full qualification run.
+The local preparation command checks the branch and signer prerequisites before
+hosted qualification. The write-capable job repeats the complete tag trust root
+after qualification and before any publication mutation.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from eng.release import trust
 
@@ -252,6 +255,73 @@ def qualification(**overrides: object) -> dict[str, object]:
     return receipt
 
 
+def qualification_manifest(
+    receipt: dict[str, object],
+    *,
+    repository: str = "doka-labs/Doka.EntityFrameworkCore.MySql",
+    commit: str = COMMIT,
+    tree_id: str = "b" * 40,
+    release_tag: str = "v10.0.0-rc.1",
+) -> tuple[dict[str, object], dict[str, object]]:
+    """Return a complete manifest whose protected entry binds ``receipt``."""
+    policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+    digest = trust.release_qualification.policy_digest(policy)
+    entries: list[dict[str, object]] = []
+    for index, gate in enumerate(policy["gates"], start=1):
+        entry: dict[str, object] = {"gate": gate["id"], "kind": gate["kind"]}
+        for field in gate["boundIdentities"]:
+            values: dict[str, object] = {
+                "commit": commit,
+                "treeId": tree_id,
+                "workflowPath": gate["producerWorkflow"],
+                "workflowRunId": (
+                    receipt["workflowRunId"]
+                    if gate["kind"] == "protected-check"
+                    else 1000 + index
+                ),
+                "runAttempt": (
+                    receipt["runAttempt"]
+                    if gate["kind"] == "protected-check"
+                    else 1
+                ),
+                "event": receipt.get("event", "push"),
+                "conclusion": receipt.get("conclusion", "success"),
+                "apiResourceId": receipt.get("id", 5001),
+                "responseDigest": hashlib.sha256(
+                    json.dumps(
+                        receipt,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                ).hexdigest(),
+                "sourceHash": "c" * 64,
+                "dependencySnapshotDigest": "d" * 64,
+                "artifactId": 2000 + index,
+                "artifactDigest": "e" * 64,
+            }
+            entry[field] = values[field]
+        entries.append(entry)
+
+    return (
+        {
+            "schemaVersion": 2,
+            "kind": "release-qualification-manifest",
+            "policyVersion": policy["policyVersion"],
+            "policyDigest": digest,
+            "selectionRuleVersion": policy["selectionRule"]["version"],
+            "repository": repository,
+            "commit": commit,
+            "treeId": tree_id,
+            "expectedReleaseTag": release_tag,
+            "releaseVersion": release_tag.removeprefix("v"),
+            "assemblingRunAttempt": 1,
+            "requiredProtectedChecks": policy["requiredProtectedChecks"],
+            "gates": entries,
+        },
+        policy,
+    )
+
+
 class BranchEvidenceOriginTests(unittest.TestCase):
     """Prove branch evidence must come from the branch.
 
@@ -427,6 +497,145 @@ class QualificationResolutionTests(unittest.TestCase):
                 commit=COMMIT,
                 expected_branch="main",
                 expected_workflow=".github/workflows/ci.yml",
+            )
+
+
+class FrozenQualificationTests(unittest.TestCase):
+    """Prove publication revalidates the check attempt selected by the candidate."""
+
+    def setUp(self) -> None:
+        """Build one exact protected-check selection and its complete manifest."""
+        self.repository = "doka-labs/Doka.EntityFrameworkCore.MySql"
+        self.tree = "b" * 40
+        self.tag = "v10.0.0-rc.1"
+        self.receipt = qualification()
+        self.manifest, self.policy = qualification_manifest(
+            self.receipt,
+            repository=self.repository,
+            tree_id=self.tree,
+            release_tag=self.tag,
+        )
+
+    def verify(self, receipt: dict[str, object] | None = None) -> None:
+        """Verify one receipt against the frozen selection."""
+        trust.verify_frozen_qualification_receipt(
+            receipt or self.receipt,
+            manifest=self.manifest,
+            policy=self.policy,
+            repository=self.repository,
+            commit=COMMIT,
+            tree_id=self.tree,
+            expected_release_tag=self.tag,
+        )
+
+    def test_the_frozen_receipt_is_accepted(self) -> None:
+        """Accept the exact check, run, attempt, origin, and response digest."""
+        self.verify()
+
+    def test_a_different_attempt_or_response_is_rejected(self) -> None:
+        """Prevent a later rerun from replacing evidence after assembly."""
+        for field, value in (("runAttempt", 2), ("workflowRunId", 9002)):
+            with self.subTest(field=field):
+                changed = dict(self.receipt)
+                changed[field] = value
+                with self.assertRaisesRegex(
+                    trust.TrustRootError,
+                    "frozen manifest",
+                ):
+                    self.verify(changed)
+
+        changed = dict(self.receipt)
+        changed["workflowConclusion"] = "failure"
+        with self.assertRaisesRegex(trust.TrustRootError, "responseDigest"):
+            self.verify(changed)
+
+    def test_a_manifest_from_another_policy_is_rejected(self) -> None:
+        """Keep the frozen gate selection under the policy that assembled it."""
+        self.manifest["policyDigest"] = "0" * 64
+
+        with self.assertRaisesRegex(trust.TrustRootError, "different evidence policy"):
+            self.verify()
+
+    def test_the_exact_attempt_endpoint_is_used(self) -> None:
+        """Read an earlier rerun attempt without consulting current API ordering."""
+        check_run = {
+            "name": "repository-qualification",
+            "id": 5001,
+            "conclusion": "success",
+            "check_suite": {"id": 7001},
+            "details_url": (
+                f"https://github.com/{self.repository}/actions/runs/9001/job/5001"
+            ),
+        }
+        workflow_run = {
+            "id": 9001,
+            "run_attempt": 1,
+            "event": "push",
+            "head_branch": "main",
+            "head_sha": COMMIT,
+            "path": ".github/workflows/ci.yml",
+            "conclusion": "success",
+            "check_suite_id": 7001,
+        }
+        requested: list[str] = []
+
+        def api(path: str) -> dict[str, object]:
+            requested.append(path)
+            return check_run if "/check-runs/" in path else workflow_run
+
+        with mock.patch.object(trust, "_gh_json", side_effect=api):
+            observed = trust.fetch_frozen_qualification_receipt(
+                self.repository,
+                manifest=self.manifest,
+                policy=self.policy,
+                commit=COMMIT,
+                tree_id=self.tree,
+                expected_release_tag=self.tag,
+            )
+
+        self.assertEqual(self.receipt, observed)
+        self.assertEqual(
+            [
+                f"/repos/{self.repository}/check-runs/5001",
+                f"/repos/{self.repository}/actions/runs/9001/attempts/1",
+            ],
+            requested,
+        )
+
+    def test_an_unrelated_workflow_attempt_is_rejected(self) -> None:
+        """Reject IDs that exist independently but do not share a check suite."""
+        payloads = [
+            {
+                "name": "repository-qualification",
+                "id": 5001,
+                "conclusion": "success",
+                "check_suite": {"id": 7001},
+                "details_url": (
+                    f"https://github.com/{self.repository}/actions/runs/9001/job/5001"
+                ),
+            },
+            {
+                "id": 9001,
+                "run_attempt": 1,
+                "event": "push",
+                "head_branch": "main",
+                "head_sha": COMMIT,
+                "path": ".github/workflows/ci.yml",
+                "conclusion": "success",
+                "check_suite_id": 7002,
+            },
+        ]
+        with (
+            mock.patch.object(trust, "_gh_json", side_effect=payloads),
+            self.assertRaisesRegex(trust.TrustRootError, "same check suite"),
+        ):
+            trust.fetch_frozen_qualification_receipt(
+                self.repository,
+                manifest=self.manifest,
+                policy=self.policy,
+                commit=COMMIT,
+                tree_id=self.tree,
+                expected_release_tag=self.tag,
             )
 
 

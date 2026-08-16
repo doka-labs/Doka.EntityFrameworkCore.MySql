@@ -470,10 +470,10 @@ class GateImplementationOwnershipTests(unittest.TestCase):
     """Prove every release-path gate has exactly one shared implementation.
 
     D-026 runs migration deployment, runtime posture, and both patch matrices
-    against the tagged commit while their scheduled counterparts keep running
+    against the candidate commit while their scheduled counterparts keep running
     on the default branch. Two callers of one gate are only safe while both
     reach the same script. A gate whose command lives inline in a workflow
-    cannot be shared, so the tag would get a second copy -- the defect class
+    cannot be shared, so the candidate would get a second copy -- the defect class
     that made the release coverage gate unsatisfiable while the branch gate
     passed on the same commit.
     """
@@ -661,7 +661,7 @@ class RequiredAggregatorTests(unittest.TestCase):
 
 
 class ReleaseCandidateShapeTests(unittest.TestCase):
-    """Prove the tag workflow runs only what a tag must decide for itself.
+    """Prove qualification and publication preserve their trust boundaries.
 
     Repeating a gate that already ran on the default branch is what produced a
     release coverage gate that merged two of five inputs while the branch gate
@@ -676,19 +676,30 @@ class ReleaseCandidateShapeTests(unittest.TestCase):
         self.text = (WORKFLOW_ROOT / self.WORKFLOW).read_text(encoding="utf-8")
         self.stages = re.findall(r"^\s+- stage: ([a-z-]+)$", self.text, re.M)
 
-    def test_a_signed_tag_push_starts_the_workflow(self) -> None:
-        """Require the tag push trigger the release procedure depends on."""
-        self.assertRegex(self.text, r"on:\n(?:.*\n)*?  push:\n    tags:\n      - \"v\*\"")
+    def test_only_an_explicit_dispatch_starts_candidate_qualification(self) -> None:
+        """Keep semantic tags from starting a second qualification run."""
+        trigger = self.text[: self.text.index("\npermissions:")]
 
-    def test_the_trust_root_runs_before_any_expensive_step(self) -> None:
-        """Reject a workflow that spends runner time before verifying the tag."""
+        self.assertIn("  workflow_dispatch:", trigger)
+        self.assertNotIn("  push:", trigger)
+
+    def test_qualification_precedes_tag_trust_and_external_mutation(self) -> None:
+        """Keep every fallible correctness gate before irreversible publication."""
+        untagged_preflight = self.text.index("Verify current untagged main source")
+        first_stage = self.text.index("release-candidate.sh --stage")
         trust = self.text.index("eng.release.trust")
-        for later in ("release-candidate.sh --stage",):
-            with self.subTest(step=later):
-                self.assertLess(trust, self.text.index(later))
+        stage_draft = self.text.index("eng.release.github stage")
+        request_key = self.text.index("Request short-lived NuGet.org key")
+        first_push = self.text.index("dotnet nuget push")
 
-    def test_imported_gates_are_not_repeated_at_the_tag(self) -> None:
-        """Keep commit-exact branch gates out of the tag workflow.
+        self.assertLess(untagged_preflight, first_stage)
+        self.assertLess(first_stage, trust)
+        self.assertLess(trust, stage_draft)
+        self.assertLess(stage_draft, request_key)
+        self.assertLess(request_key, first_push)
+
+    def test_imported_gates_are_not_repeated_in_candidate_stages(self) -> None:
+        """Keep imported branch gates out of candidate-produced stages.
 
         Each of these has one implementation that already runs on the default
         branch. A second execution here is a second implementation in waiting.
@@ -698,12 +709,20 @@ class ReleaseCandidateShapeTests(unittest.TestCase):
             with self.subTest(stage=imported):
                 self.assertNotIn(imported, self.stages)
 
-    def test_every_tag_produced_gate_is_present(self) -> None:
-        """Require the gates whose evidence only the tagged commit can produce."""
+    def test_every_candidate_produced_gate_is_present(self) -> None:
+        """Require every stage that contributes to the sealed candidate."""
+        produced_stages = set(self.stages)
+        produced_stages.update(
+            re.findall(
+                r"release-candidate[.]sh --stage ([a-z-]+)",
+                self.text,
+            )
+        )
         for produced in ("package", "migration-deployment", "runtime",
-                         "efcore-patch-matrix", "mysqlconnector-patch-matrix"):
+                         "efcore-patch-matrix", "mysqlconnector-patch-matrix",
+                         "sbom"):
             with self.subTest(stage=produced):
-                self.assertIn(produced, self.stages)
+                self.assertIn(produced, produced_stages)
 
     def test_performance_has_no_release_authority(self) -> None:
         """Ensure benchmark execution and evidence cannot block a tag."""

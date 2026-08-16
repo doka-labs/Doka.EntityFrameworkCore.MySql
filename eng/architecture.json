@@ -115,7 +115,7 @@
       "classification": "operator-command",
       "owner": "release",
       "cost": "low",
-      "purpose": "Report whether a release tag on the current commit would qualify.",
+      "purpose": "Report whether the current commit is ready for untagged hosted qualification and later signed tagging.",
       "inputs": "An optional commit selection; otherwise HEAD.",
       "outputs": "One line per qualification precondition, and a non-zero exit when any fails.",
       "sideEffects": "None. Allocates no runner, writes no file, and creates no tag.",

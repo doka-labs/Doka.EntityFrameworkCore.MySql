@@ -49,14 +49,13 @@ gate_results_file="${release_candidate_dir}/release-gate-results.json"
 release_repository="${DOKA_RELEASE_REPOSITORY:-${GITHUB_REPOSITORY:-}}"
 stage_checkpoint_dir="${repo_root}/artifacts/release-candidate-checkpoints/${release_candidate_run_id}"
 artifact_selection_dir="${release_candidate_dir}/artifact-selections"
-require_release_tag="${DOKA_RELEASE_REQUIRE_TAG:-1}"
 release_version_override="${DOKA_RELEASE_VERSION:-}"
 resume_mode="${DOKA_RELEASE_CANDIDATE_RESUME:-0}"
 maximum_release_duration_seconds="${DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS:-7200}"
 chain_probe="${DOKA_RELEASE_CHAIN_PROBE:-0}"
 selected_stage="all"
 release_source_ref=""
-release_tag=""
+expected_release_tag=""
 release_version=""
 spatial_release_version=""
 
@@ -110,6 +109,13 @@ if [[ ! "${release_run_attempt}" =~ ^[1-9][0-9]*$ ]]; then
     exit 1
 fi
 
+if [[ -z "${release_version_override}" \
+    || ! "${release_version_override}" =~ ^[0-9]+[.][0-9]+[.][0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+    echo "DOKA_RELEASE_VERSION must be an explicit semantic candidate version." >&2
+    exit 1
+fi
+expected_release_tag="v${release_version_override}"
+
 if [[ -z "${release_runner_identity}" \
     || ! "${release_runner_identity}" =~ ^[0-9A-Za-z._:/-]+$ ]]; then
     echo "DOKA_RELEASE_RUNNER_IDENTITY must be a non-empty ASCII identity." >&2
@@ -146,28 +152,15 @@ validate_release_source() {
         release_source_ref="detached/$(git rev-parse HEAD)"
     fi
 
-    if [[ "${require_release_tag}" != "1" ]]; then
-        release_tag="not-required"
-        return 0
-    fi
-
     local version_tags
     version_tags="$(git tag --points-at HEAD | grep -E '^v[0-9]+[.][0-9]+[.][0-9]+([-.][0-9A-Za-z.-]+)?$' || true)"
-    if [[ "$(printf '%s\n' "${version_tags}" | sed '/^$/d' | wc -l | tr -d ' ')" != "1" ]]; then
-        echo "A release candidate must run from exactly one semantic version tag at HEAD." >&2
+    if [[ -n "$(printf '%s\n' "${version_tags}" | sed '/^$/d')" ]]; then
+        echo "A release candidate must qualify before any semantic version tag exists at HEAD." >&2
         exit 1
     fi
 
-    release_tag="$(printf '%s\n' "${version_tags}" | sed '/^$/d')"
-    if [[ -z "${release_version_override}" ]]; then
-        release_version_override="${release_tag#v}"
-    elif [[ "${release_tag}" != "v${release_version_override}" ]]; then
-        echo "Release tag ${release_tag} does not match package version ${release_version_override}." >&2
-        exit 1
-    fi
-
-    if [[ "${release_source_ref}" != "refs/tags/${release_tag}" ]]; then
-        echo "Expected release ref ${release_source_ref} does not match refs/tags/${release_tag}." >&2
+    if [[ "${release_source_ref}" != "refs/heads/main" ]]; then
+        echo "Release candidates must run from refs/heads/main, found ${release_source_ref}." >&2
         exit 1
     fi
 }
@@ -220,7 +213,7 @@ stage_is_complete() {
         --checkpoint-directory "${stage_checkpoint_dir}"
         --run-id "${release_candidate_run_id}"
         --source-ref "${release_source_ref}"
-        --release-tag "${release_tag}"
+        --expected-release-tag "${expected_release_tag}"
         --maximum-run-attempt "${release_run_attempt}"
         --stage "${stage}"
     )
@@ -244,7 +237,7 @@ write_stage_checkpoint() {
         --checkpoint-directory "${stage_checkpoint_dir}"
         --run-id "${release_candidate_run_id}"
         --source-ref "${release_source_ref}"
-        --release-tag "${release_tag}"
+        --expected-release-tag "${expected_release_tag}"
         --run-attempt "${release_run_attempt}"
         --runner-identity "${release_runner_identity}"
         --started-utc "${started_utc}"
@@ -286,7 +279,7 @@ verify_required_stage_set() {
         --checkpoint-directory "${stage_checkpoint_dir}"
         --run-id "${release_candidate_run_id}"
         --source-ref "${release_source_ref}"
-        --release-tag "${release_tag}"
+        --expected-release-tag "${expected_release_tag}"
         --maximum-run-attempt "${release_run_attempt}"
     )
     local stage
@@ -409,6 +402,19 @@ run_pack() {
         "${local_release_version}" \
         "${packages_dir}" \
         "${local_package_consumer_dir}"
+
+    local mysql84_image
+    mysql84_image="$(
+        docker compose -f "${repo_root}/docker/compose.yml" config --format json \
+            | jq -er '.services.mysql84.image'
+    )"
+    bash "${repo_root}/eng/testing/test-nuget-readback.sh" \
+        "${local_release_version}" \
+        "${expected_release_tag}" \
+        "$(git rev-parse HEAD)" \
+        "${mysql84_image}" \
+        "${local_package_consumer_dir}" \
+        "${packages_dir}"
 
     # Persist the graph NuGet actually resolved. The manifest rejects missing
     # or ambiguous versions for the provider's contract dependencies.
@@ -779,7 +785,7 @@ assemble_qualification_manifest() {
         --commit "$(git rev-parse HEAD)" \
         --tree-id "$(git rev-parse 'HEAD^{tree}')" \
         --repository "${release_repository}" \
-        --release-tag "${release_tag}" \
+        --expected-release-tag "${expected_release_tag}" \
         --release-version "${release_version}" \
         --assembling-attempt "${release_run_attempt}" \
         --root "${packages_dir}" \
@@ -917,16 +923,13 @@ write_evidence() {
         --root "${release_candidate_dir}"
         --run-id "${release_candidate_run_id}"
         --release-version "${release_version}"
+        --expected-release-tag "${expected_release_tag}"
         --dependency-graph "${dependency_graph_file}"
     )
 
     if [[ -n "${DOKA_RELEASE_EXPECTED_REF:-}" ]]; then
         arguments+=(--expected-ref "${DOKA_RELEASE_EXPECTED_REF}")
     fi
-    if [[ "${require_release_tag}" == "1" ]]; then
-        arguments+=(--require-tag)
-    fi
-
     # Generation performs its own readback, and the separate invocation proves
     # the persisted CLI contract that publication automation will use.
     python3 -m eng.release.evidence "${arguments[@]}"

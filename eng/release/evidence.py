@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Generate and verify the portable release-candidate evidence manifest.
 
-Generation binds release artifacts to the clean, tagged source checkout, the
-resolved dependency graph, and digest-pinned database images. Verification is
-an independent readback: it rejects changes to the manifest, its inventory, or
-any retained artifact before the evidence can be published.
+Generation binds release artifacts to the clean, untagged candidate checkout,
+the expected release tag, the resolved dependency graph, and digest-pinned
+database images. Verification is an independent readback: it rejects changes
+to the manifest, its inventory, or any retained artifact before the evidence
+can authorize publication.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 MANIFEST_NAME = "release-candidate-evidence.json"
 CHECKSUM_NAME = "release-candidate-evidence.sha256"
 REQUIRED_ENGINE_TARGETS = (
@@ -395,13 +396,8 @@ def validate_release_packages(artifacts: list[dict[str, Any]], release_version: 
         raise EvidenceError(f"Release package inventory mismatch. Missing={missing}; unexpected={unexpected}")
 
 
-def git_source(repo: Path, release_version: str, expected_ref: str, require_tag: bool) -> dict[str, Any]:
-    """Validate and return the immutable Git identity for the release source.
-
-    Hosted workflow variables are checked against the checkout rather than
-    trusted as declarations. Tagged releases require one unambiguous semantic
-    version tag whose ref and package version agree.
-    """
+def git_source(repo: Path, expected_ref: str) -> dict[str, Any]:
+    """Validate and return the untagged candidate source identity."""
     commit = run_command("git", "rev-parse", "HEAD", cwd=repo)
     dirty = run_command("git", "status", "--porcelain", "--untracked-files=all", cwd=repo)
     if dirty:
@@ -412,33 +408,30 @@ def git_source(repo: Path, release_version: str, expected_ref: str, require_tag:
         raise EvidenceError(f"GITHUB_SHA {github_sha} does not match checked-out commit {commit}.")
 
     exact_tags = run_command("git", "tag", "--points-at", commit, cwd=repo).splitlines()
-    version_tag = f"v{release_version}"
     version_tags = sorted(tag for tag in exact_tags if SEMANTIC_VERSION_TAG.fullmatch(tag))
-    tag = version_tag if version_tag in version_tags else ""
-    if require_tag and version_tags != [version_tag]:
-        rendered = ", ".join(version_tags) or "none"
+    if version_tags:
+        rendered = ", ".join(version_tags)
         raise EvidenceError(
-            f"Release source requires exactly semantic version tag {version_tag}; found: {rendered}."
+            "Release candidate source must be untagged during qualification; "
+            f"found: {rendered}."
         )
 
     actual_ref = os.environ.get("GITHUB_REF", "")
     if not actual_ref:
-        actual_ref = (
-            f"refs/tags/{tag}"
-            if require_tag and tag
-            else run_command("git", "symbolic-ref", "-q", "HEAD", cwd=repo)
-        )
+        actual_ref = run_command("git", "symbolic-ref", "-q", "HEAD", cwd=repo)
     if expected_ref and actual_ref != expected_ref:
         raise EvidenceError(f"Expected release ref {expected_ref}, found {actual_ref}.")
-    if require_tag and actual_ref != f"refs/tags/{tag}":
-        raise EvidenceError(f"Release evidence must run from refs/tags/{tag}, found {actual_ref}.")
+    if actual_ref != "refs/heads/main":
+        raise EvidenceError(
+            f"Release candidate evidence must run from refs/heads/main, found {actual_ref}."
+        )
 
     remote = run_command("git", "config", "--get", "remote.origin.url", cwd=repo)
     return {
         "repository": remote,
         "commit": commit,
         "ref": actual_ref,
-        "tag": tag or None,
+        "tag": None,
         "treeState": "clean",
     }
 
@@ -530,7 +523,7 @@ def validate_qualification_manifest(
         "policyDigest": manifest["policyDigest"],
         "selectionRuleVersion": manifest["selectionRuleVersion"],
         "treeId": manifest["treeId"],
-        "releaseTag": manifest["releaseTag"],
+        "expectedReleaseTag": manifest["expectedReleaseTag"],
         "gates": sorted(entry["gate"] for entry in gates),
     }
 
@@ -549,7 +542,11 @@ def write_manifest(args: argparse.Namespace) -> None:
     if not dependency_graph.is_relative_to(root):
         raise EvidenceError("The dependency graph must live inside the evidence root.")
 
-    source = git_source(repo, args.release_version, args.expected_ref, args.require_tag)
+    if args.expected_release_tag != f"v{args.release_version}":
+        raise EvidenceError(
+            "Expected release tag does not match the candidate version."
+        )
+    source = git_source(repo, args.expected_ref)
     artifacts = collect_artifacts(root)
     validate_release_packages(artifacts, args.release_version)
     engines = collect_engines(root)
@@ -589,6 +586,7 @@ def write_manifest(args: argparse.Namespace) -> None:
         "generatedUtc": datetime.now(UTC).isoformat(),
         "releaseCandidateRunId": args.run_id,
         "releaseVersion": args.release_version,
+        "expectedReleaseTag": args.expected_release_tag,
         "source": source,
         "workflow": workflow_identity(args.run_id),
         "toolchain": {
@@ -628,6 +626,13 @@ def verify_manifest(root: Path, repo: Path | None) -> None:
 
     if manifest.get("schemaVersion") != SCHEMA_VERSION:
         raise EvidenceError(f"Unsupported release evidence schema: {manifest.get('schemaVersion')}")
+    if manifest.get("expectedReleaseTag") != f"v{manifest.get('releaseVersion', '')}":
+        raise EvidenceError(
+            "Release evidence expected tag does not match its candidate version."
+        )
+    source = manifest.get("source") or {}
+    if source.get("ref") != "refs/heads/main" or source.get("tag") is not None:
+        raise EvidenceError("Release candidate evidence source identity is not untagged main.")
     if checksum_parts != [sha256(manifest_path), MANIFEST_NAME]:
         raise EvidenceError("The detached release evidence checksum does not match the manifest.")
 
@@ -676,10 +681,14 @@ def verify_manifest(root: Path, repo: Path | None) -> None:
             raise EvidenceError("The manifest source commit does not match the current checkout.")
         if run_command("git", "status", "--porcelain", "--untracked-files=all", cwd=repo):
             raise EvidenceError("Manifest verification requires a clean Git worktree.")
-        source_tag = source.get("tag")
         current_tags = run_command("git", "tag", "--points-at", current_commit, cwd=repo).splitlines()
-        if source_tag and source_tag not in current_tags:
-            raise EvidenceError("The manifest release tag no longer identifies the current commit.")
+        semantic_tags = [
+            tag for tag in current_tags if SEMANTIC_VERSION_TAG.fullmatch(tag)
+        ]
+        if semantic_tags:
+            raise EvidenceError(
+                "Candidate verification requires the source commit to remain untagged."
+            )
         github_ref = os.environ.get("GITHUB_REF", "")
         if github_ref and source.get("ref") != github_ref:
             raise EvidenceError("The manifest source ref does not match the hosted workflow ref.")
@@ -695,9 +704,9 @@ def parse_arguments() -> argparse.Namespace:
     generate.add_argument("--root", type=Path, required=True)
     generate.add_argument("--run-id", required=True)
     generate.add_argument("--release-version", required=True)
+    generate.add_argument("--expected-release-tag", required=True)
     generate.add_argument("--dependency-graph", type=Path, required=True)
     generate.add_argument("--expected-ref", default="")
-    generate.add_argument("--require-tag", action="store_true")
 
     verify = subparsers.add_parser("verify", help="Verify existing release evidence.")
     verify.add_argument("--root", type=Path, required=True)
