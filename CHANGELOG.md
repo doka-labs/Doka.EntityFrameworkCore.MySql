@@ -7,11 +7,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.0.0-rc.8] - 2026-08-16
+
 Release qualification no longer spends an immutable version before the
 candidate is known to be valid. One hosted run qualifies exact untagged `main`
 package bytes, waits for the signed tag and protected approval, then publishes
 and reads back the same bound candidate. Performance remains independent
 engineering evidence and has no release authority.
+
+Install the release candidate explicitly because NuGet excludes prerelease
+packages from normal stable-version resolution:
+
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.8
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.8
+```
 
 ### Added
 
@@ -518,7 +528,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.7...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.8...HEAD
+[10.0.0-rc.8]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.8
 [10.0.0-rc.7]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.7
 [10.0.0-rc.6]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.6
 [10.0.0-rc.5]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.5
