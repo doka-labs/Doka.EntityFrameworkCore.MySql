@@ -16,6 +16,49 @@ doka-profile-version: "1.0"
 
 # D-026 -- Qualify releases from bound evidence and paired performance runs
 
+## 2026-08-15 Amendment: Performance has no release authority
+
+Performance evidence is removed from the release boundary. The standalone
+benchmark workflows remain available for characterization, early warning, and
+reviewed baseline maintenance, but no benchmark outcome or artifact qualifies
+or blocks a release.
+
+The six-target `main` run `31903353665` demonstrated that the performance
+system was not a reliable release predicate even when its measurements showed
+no broad provider regression. Four targets failed because a paired
+schema-version result was handed to a historical-schema verifier. One target
+rejected a noisy reference population as invalid evidence, and one rejected a
+quantized GC-count ratio. The previously successful historical seed path had
+not exercised this paired end-to-end chain. Review also found and removed a
+latent release import that still expected the historical result shape.
+
+The correction is structural rather than a warning suppression:
+
+- `.github/workflows/release-candidate.yml` contains no benchmark job or
+  reusable benchmark invocation;
+- `eng/release/release-candidate.sh` contains no benchmark stage, mode, bypass,
+  baseline preflight, or performance-artifact import;
+- `eng/release/evidence-policy.json` grants no performance gate release
+  authority;
+- stage receipts, gate derivation, reconciliation, and the immutable candidate
+  manifest contain no performance result; and
+- the candidate manifest advances to schema version 2 because the removed
+  `performanceEvidence` member changes its public evidence shape.
+
+Release qualification now consists of the imported commit-exact
+`repository-qualification` result and four tag-produced gates: migration
+deployment, runtime posture, the EF Core patch matrix, and the MySqlConnector
+patch matrix. Package and SBOM integrity remain bound into the candidate, and
+their separate payload stages bring the exact stage-receipt set to six.
+
+This amendment does not convert benchmark failure into success and does not add
+`continue-on-error`. The release workflow cannot observe a benchmark result at
+all. Performance may regain release authority only through a new reviewed ADR
+after multiple complete six-target runs prove the production handoff,
+selection, endpoint roles, and failure classification end to end. Until then,
+the remainder of this ADR's paired-release design is retained as historical
+rationale and is superseded wherever it conflicts with this amendment.
+
 ## Context and Problem Statement
 
 The release-candidate workflow runs eleven stages against a tag. Seven repeat
@@ -123,6 +166,7 @@ and candidate assembly, or a mandatory hosted rehearsal.
 
 ## Considered Options
 
+- Qualify from bound evidence without performance release authority
 - Qualify from automatic bound evidence and compare performance in paired runs
 - Add a manually dispatched pre-tag qualification workflow
 - Repair duplicated release stages as defects surface
@@ -133,10 +177,14 @@ and candidate assembly, or a mandatory hosted rehearsal.
 
 ## Decision Outcome
 
-Chosen option: "Qualify from automatic bound evidence and compare performance
-in paired runs", because it removes duplicate verification, preserves every
-gate, gives expensive work a policy-driven cadence, and makes the performance
-comparison valid within one allocated runner.
+Chosen option: "Qualify from bound evidence without performance release
+authority", because release qualification must remain deterministic while
+benchmarks have repeatedly produced infrastructure and orchestration failures
+unrelated to a broad provider regression. Releases use automatic bound
+repository evidence and tag-produced package, SBOM, migration, runtime, and
+dependency-patch evidence. Performance remains independent engineering
+evidence. The original paired-release outcome below is historical context for
+the design that this ADR's 2026-08-15 amendment retired.
 
 ### Operational topology
 
@@ -160,19 +208,10 @@ operator-supplied run identifiers, packs the tagged source, generates the SBOM,
 assembles a canonical manifest, and attests the package and manifest. It runs
 no repository tests and no specification or integration suites.
 
-It does run every gate a release depends on: migration deployment, runtime
-posture, both patch matrices, and one paired performance comparison. All of
-them are commit-exact by construction. The scorecard profile requires soak
-evidence, so the paired comparison executes the candidate-side soak scenarios
-as part of that measurement; what is removed is a separate soak job, not soak
-coverage.
-
-The paired comparison is safe at the tag precisely because it is paired: both
-sides execute in one allocated job, so no processor mismatch and no historical
-comparator can fail it for an infrastructure reason. Its remaining failure
-modes are a transient measurement condition, recoverable by rerunning the same
-tag, and a genuine regression, which requires a source change and therefore a
-new tag in any design.
+It runs every tag-produced gate a release depends on: migration deployment,
+runtime posture, both patch matrices, package integrity, and SBOM integrity.
+All are commit-exact by construction. Benchmark and soak evidence remain in the
+standalone performance workflow and cannot affect candidate assembly.
 
 **Publication** remains a separate manual workflow protected by the `nuget`
 environment. Its approval is the only manual hosted release gate because it is
@@ -261,10 +300,11 @@ but it is no longer a producer of release evidence.
 ### Evidence selection
 
 All release evidence is commit-exact. Repository qualification is produced for
-the release commit on `main`; the expensive gates and the paired performance
-comparison are produced for it in the release-candidate workflow. Evidence is
-selected for the exact tagged commit under the versioned identity policy,
-rather than through source-equivalence or freshness rules.
+the release commit on `main`; migration deployment, runtime posture, both patch
+matrices, package integrity, and SBOM integrity are produced for it in the
+release-candidate workflow. Evidence is selected for the exact tagged commit
+under the versioned identity policy, rather than through source-equivalence or
+freshness rules.
 
 The policy first filters eligible results. Every result must match the exact
 commit, repository, gate, expected producer, workflow identity where
@@ -423,8 +463,11 @@ Reference and candidate are measured in counterbalanced blocks. Both sides
 start from the same population and are held to the same precision floor.
 Extension is adaptive, so the two may finish with different counts; how far
 apart they may finish is registered as a maximum ratio, because populations far
-enough apart no longer measured the same stretch of time. Each target executes
-exactly ten blocks, alternating which side starts. Each block produces paired
+enough apart no longer measured the same stretch of time. Exceeding that ratio
+is a measurement-quality outcome eligible for the one bounded independent
+retry, not `invalid-evidence`: the report is structurally valid but cannot
+support a provider verdict. Each target executes exactly ten blocks,
+alternating which side starts. Each block produces paired
 candidate-to-reference ratios for its declared metrics. Statistics are formed
 from paired ratios, never from a quotient of unrelated historical aggregates.
 Practical and statistical significance remain separate: a detectable change
@@ -505,8 +548,22 @@ qualifying run.
 
 Absolute catastrophe ceilings, allocation budgets, garbage-collection
 evidence, soak invariants, raw sample retention, adjacent calibration, and
-source binding remain mandatory under D-019. No historical latency threshold
-is widened or removed.
+source binding remain mandatory under D-019. Allocated bytes retain their
+qualifying paired ratio. Gen2 collections retain a diagnostic paired ratio and
+a hard candidate-side absolute ceiling, but their sparse relative ratio is
+observational: .NET exposes an integer process-wide collection counter, and
+BenchmarkDotNet reports the resulting projection per 1,000 operations. One
+additional collection can therefore multiply a small ratio without proving a
+provider regression. No historical latency threshold is widened or removed.
+
+[Hosted run 31903353665][benchmark-stability-run] supplied the acceptance
+cases for these boundaries. MariaDB 11.8 produced a structurally valid 80:16
+population split and must enter the retry path. MySQL 8.4 produced a 1.5 Gen2
+ratio from one-versus-two collection increments while every absolute ceiling
+and the required latency endpoint passed. The same run also proved that
+`comparisonMode` must survive attempt recording and selection instead of
+falling back to the historical schema-3 layout. Paired verdict schema 6 now
+binds that identity together with the explicit resource-role vocabulary.
 
 ### Attempt and qualification states
 
@@ -632,27 +689,31 @@ local diagnostics remain optional.
 - The tag workflow resolves evidence without a supplied run identifier.
 - Multiple eligible runs or attempts resolve through the versioned ordering
   rule, and the canonical manifest freezes the selected identities.
-- The tag workflow runs no repository test and no specification or integration
-  suite, and one logical paired performance qualification comprising one
-  reference-candidate pair per required LTS target.
-- The paired comparison executes the candidate-side soak scenarios the
-  scorecard profile requires; removing the separate soak job does not remove
-  soak coverage.
+- The tag workflow runs no repository test, specification suite, integration
+  suite, or benchmark.
+- Candidate assembly reads no performance contract, baseline, scorecard,
+  selection receipt, or benchmark artifact.
 - Package version, package hashes, SBOM, manifest, tag, and commit agree.
 - Missing, additional, or digest-mismatched files fail the tag preflight.
 - A different workflow run attempt cannot silently replace selected evidence.
 - The canonical candidate remains independently verifiable after working
   artifacts expire.
 - A transient hosted failure can rerun the same tag without a new version.
-- Historical processor mismatch is not classified as a provider regression.
-- Reference and candidate share benchmark driver, contract, runtime, engine image, and
-  database preparation in a paired job.
-- An incompatible reference yields `recalibration-required`.
-- Paired mode remains disabled until every statistical policy field exists and
-  deterministic synthetic-population tests cover every decision boundary.
+- Historical processor mismatch cannot block a release because performance is
+  outside the release boundary.
 - Only the protected NuGet publication changes external package state.
 
 ## Pros and Cons of the Options
+
+### Qualify from bound evidence without performance release authority
+
+- Good, because release qualification remains bound to deterministic,
+  commit-exact correctness, compatibility, package, SBOM, and provenance
+  evidence.
+- Good, because benchmark failures remain visible without spending release
+  versions or blocking publication for infrastructure and measurement defects.
+- Bad, because a performance regression can no longer reject a release until a
+  future ADR proves a reliable release-authority design.
 
 ### Qualify from automatic bound evidence and compare performance in paired runs
 
@@ -719,7 +780,7 @@ local diagnostics remain optional.
 | MySqlConnector patch matrix | -- | weekly early warning | run | verify |
 | Benchmark smoke, dual engine | -- | weekly early warning | -- | -- |
 | Performance early warning | classified `main` push | monthly | -- | -- |
-| Performance qualification | -- | -- | measure paired | verify |
+| Performance qualification | -- | independent engineering evidence | -- | -- |
 | Package and version identity | -- | -- | produce | verify |
 | SBOM | -- | -- | produce | verify |
 | Canonical evidence manifest | -- | -- | produce | verify |
@@ -878,10 +939,10 @@ manifest verification.
   commit to be reachable from protected `main`, and require repository
   qualification to originate from a `push` on `main` rather than from a pull
   request for the same commit; verify repository evidence for the tagged
-  commit, run migration deployment, runtime posture, both patch matrices, and
-  the paired performance comparison against that commit, then pack, generate
-  the SBOM, assemble the candidate, and attest it. Missing, expired, revoked,
-  mismatched, or otherwise unverifiable signer material fails before any
+  commit, run migration deployment, runtime posture, and both patch matrices,
+  then pack, generate the SBOM, assemble the candidate, and attest it. Missing,
+  expired, revoked, mismatched, or otherwise unverifiable signer material fails
+  before any
   expensive job starts.
 - `.github/workflows/nuget-publish.yml`: keep the protected manual approval and
   its typed confirmation; align its candidate resolution with the canonical
@@ -891,12 +952,11 @@ manifest verification.
 - `eng/release/evidence-policy.json`: define the consumed gate catalog and the
   identities each gate must bind; define `trustedTagSigners` entries that bind
   one exact tagger identity to one accepted public key and fingerprint; and
-  version the run-and-attempt selection rule. Performance provenance names the
-  internal target workflow that uploads each qualified artifact, rather than
-  the scorecard workflow that only expands the matrix. A signer-policy change
-  requires a reviewed `main` change and a new tag. No relevant-input classifier,
-  schedule, or freshness limit is needed for tag-produced evidence, because no
-  such evidence is reused.
+  version the run-and-attempt selection rule. Performance evidence is excluded
+  from this catalog and has no candidate provenance entry. A signer-policy
+  change requires a reviewed `main` change and a new tag. No relevant-input
+  classifier, schedule, or freshness limit is needed for tag-produced evidence,
+  because no such evidence is reused.
 - `eng/testing/`: retain the migration, runtime, and MySqlConnector commands as
   the sole gate implementations, and extract the current inline EF Core patch
   matrix command into one shared entry point. Scheduled CI and tag
@@ -978,6 +1038,15 @@ manifest verification.
   Holm, bound sensitivity to a 99 percent NIST dispersion upper bound over
   immutable hosted characterization, and added automatic drift observations
   plus an ADR-governed exit from persistent inconclusive evidence.
+- 2026-08-15: Removed performance from release qualification after the complete
+  six-target paired workflow demonstrated multiple orchestration and
+  classification failures unrelated to a broad provider regression. Retained
+  benchmark workflows as independent engineering evidence.
+- 2026-08-16: Preserved the comparison mode through attempt recording and
+  selection, classified excessive paired population divergence as retryable
+  measurement quality, and made sparse Gen2 ratios observational while
+  retaining their absolute candidate ceiling. Paired verdict schema 6 records
+  the resource role and its corresponding state vocabulary.
 
 ### Implementation References
 
@@ -1006,6 +1075,8 @@ manifest verification.
 
 ### Sources
 
+- [Six-target paired benchmark run 31903353665][failed-six-target-run]
+  (primary source; retrieved 2026-08-15)
 - [Release-candidate run 31334669273][candidate-run]
   (primary source; retrieved 2026-08-10)
 - [Main benchmark resolver run 31332817720][benchmark-run]
@@ -1040,6 +1111,12 @@ manifest verification.
   (primary source; retrieved 2026-08-12)
 - [BenchmarkDotNet job characteristics][bdn-jobs]
   (primary source; retrieved 2026-08-13)
+- [BenchmarkDotNet memory-diagnoser metrics][bdn-diagnosers]
+  (primary source; retrieved 2026-08-16)
+- [.NET `GC.CollectionCount`][dotnet-gc-collection-count]
+  (primary source; retrieved 2026-08-16)
+- [Benchmark stability run 31903353665][benchmark-stability-run]
+  (primary source; retrieved 2026-08-16)
 - [Go benchmark runner source][go-benchmark-source]
   (primary source; retrieved 2026-08-12)
 - [Go benchstat guidance][go-benchstat]
@@ -1080,6 +1157,8 @@ manifest verification.
 
 [candidate-run]:
   https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31334669273
+[failed-six-target-run]:
+  https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31903353665
 [benchmark-run]:
   https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31332817720
 [capped-benchmark-run]:
@@ -1106,6 +1185,11 @@ manifest verification.
   https://benchmarkdotnet.org/articles/guides/console-args.html
 [bdn-how-it-works]: https://benchmarkdotnet.org/articles/guides/how-it-works.html
 [bdn-jobs]: https://benchmarkdotnet.org/articles/configs/jobs.html
+[bdn-diagnosers]: https://benchmarkdotnet.org/articles/configs/diagnosers.html
+[dotnet-gc-collection-count]:
+  https://learn.microsoft.com/en-us/dotnet/api/system.gc.collectioncount?view=net-10.0
+[benchmark-stability-run]:
+  https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31903353665
 [go-benchmark-source]: https://go.dev/src/testing/benchmark.go
 [go-benchstat]: https://pkg.go.dev/golang.org/x/perf/cmd/benchstat
 [nist-sample-sizes]:

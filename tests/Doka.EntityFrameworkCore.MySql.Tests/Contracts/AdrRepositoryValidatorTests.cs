@@ -79,32 +79,24 @@ public sealed class AdrRepositoryValidatorTests
                 "python3 -m eng.release.sbom",
                 StringSplitOptions.None).Length - 1);
         Assert.DoesNotContain("-bc \"${repo_root}\"", normalizedReleaseCandidateScript, StringComparison.Ordinal);
-        Assert.Contains(
-            "DOKA_BENCHMARK_RUN_ID=\"${release_candidate_run_id}\"",
-            releaseCandidateScript,
-            StringComparison.Ordinal);
-        // The historical gate re-evaluated imported scorecards under the
-        // release run identity. D-026 replaced it: the tag measures once, as a
-        // paired comparison, and the verdict travels in the evaluation the run
-        // produced. What has to hold now is that the release consumes that
-        // verdict rather than re-deriving one, and that every required engine
-        // is covered.
-        Assert.DoesNotContain(
-            "DOKA_BENCHMARK_GATE_RUN_ID",
-            releaseCandidateScript,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "run_paired_performance_gate",
-            normalizedReleaseCandidateScript,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "paired-evaluation.json",
-            releaseCandidateScript,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "contract[\"requiredTargets\"]",
-            releaseCandidateScript,
-            StringComparison.Ordinal);
+        // Benchmark evidence is intentionally independent of the release
+        // boundary. Keep the candidate script unable to invoke, import, or
+        // bypass performance qualification.
+        foreach (var retiredReleaseCoupling in new[]
+                 {
+                     "DOKA_BENCHMARK_RUN_ID",
+                     "DOKA_BENCHMARK_GATE_RUN_ID",
+                     "run_paired_performance_gate",
+                     "paired-evaluation.json",
+                     "required_performance_targets",
+                     "DOKA_RELEASE_CANDIDATE_SKIP_BENCHMARKS",
+                 })
+        {
+            Assert.DoesNotContain(
+                retiredReleaseCoupling,
+                releaseCandidateScript,
+                StringComparison.Ordinal);
+        }
         Assert.Contains(
             "assemble_qualification_manifest",
             normalizedReleaseCandidateScript,
@@ -223,41 +215,6 @@ public sealed class AdrRepositoryValidatorTests
                 "Doka.EntityFrameworkCore.MySql.Benchmarks",
                 "BenchmarkDatabaseTarget.cs"));
         Assert.Contains("DOKA_BENCHMARK_DATABASE_PORT", benchmarkTarget, StringComparison.Ordinal);
-
-        var runAllStagesIndex = normalizedReleaseCandidateScript.IndexOf(
-            "run_all_stages() {",
-            StringComparison.Ordinal);
-
-        var performanceLoopIndex = normalizedReleaseCandidateScript.IndexOf(
-            "run_named_performance_stage \"${target}\"",
-            runAllStagesIndex,
-            StringComparison.Ordinal);
-
-        var requiredTargetsIndex = normalizedReleaseCandidateScript.IndexOf(
-            "done < <(required_performance_targets)",
-            performanceLoopIndex,
-            StringComparison.Ordinal);
-
-        var repositoryQualityIndex = normalizedReleaseCandidateScript.IndexOf(
-            "run_named_stage \"quality\" run_repository_quality_gate",
-            requiredTargetsIndex,
-            StringComparison.Ordinal);
-
-        var repositoryTestIndex = normalizedReleaseCandidateScript.IndexOf(
-            "run_named_stage \"repository-tests\" run_repository_test_gate",
-            repositoryQualityIndex,
-            StringComparison.Ordinal);
-
-        Assert.True(
-            runAllStagesIndex >= 0
-            && performanceLoopIndex > runAllStagesIndex
-            && requiredTargetsIndex > performanceLoopIndex
-            && repositoryQualityIndex > requiredTargetsIndex
-            && repositoryTestIndex > repositoryQualityIndex,
-            "Every required release performance target must run before build and database-heavy verification "
-            + "can contaminate its host snapshot.");
-        Assert.Contains(".requiredTargets | keys[]", releaseCandidateScript, StringComparison.Ordinal);
-        Assert.Contains("DOKA_BENCHMARK_PORT=0", releaseCandidateScript, StringComparison.Ordinal);
 
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
         Assert.Contains(

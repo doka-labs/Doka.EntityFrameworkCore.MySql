@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "policyVersion": "2026-08-14.1",
+  "policyVersion": "2026-08-15.1",
   "documentation": [
     "Every gate a release depends on produces evidence for the tagged commit.",
     "There is no reuse model: no relevant-input classifier, no evidence-age",
     "limit, and no ancestry path for importing gate evidence from an earlier",
-    "commit. The ancestry checks that bind the tag to protected main and the",
-    "performance reference to the candidate are separate and remain mandatory."
+    "commit. Performance evidence is produced independently for engineering",
+    "feedback and has no release-qualification authority."
   ],
   "selectionRule": {
     "version": 1,
@@ -118,25 +118,6 @@
         "runAttempt",
         "conclusion",
         "artifactId",
-        "artifactDigest"
-      ]
-    },
-    {
-      "id": "performance-qualification",
-      "kind": "tag-produced",
-      "producerWorkflow": ".github/workflows/benchmark-scorecard.yml",
-      "implementation": "eng/performance/paired.py",
-      "boundIdentities": [
-        "commit",
-        "treeId",
-        "sourceHash",
-        "benchmarkDriverSourceHash",
-        "contractDigest",
-        "referenceCommit",
-        "workflowPath",
-        "workflowRunId",
-        "runAttempt",
-        "conclusion",
         "artifactDigest"
       ]
     }

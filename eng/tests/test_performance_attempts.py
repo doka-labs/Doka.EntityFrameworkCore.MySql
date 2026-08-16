@@ -5,9 +5,12 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from argparse import Namespace
+from inspect import Parameter, signature
 from pathlib import Path
+from unittest.mock import patch
 
-from eng.performance import attempts
+from eng.performance import attempts, evaluation
 from eng.performance.contract import (
     ENVIRONMENT_NOT_COMPARABLE_EXIT_CODE,
     INVALID_EVIDENCE_EXIT_CODE,
@@ -25,6 +28,121 @@ class PerformanceAttemptTests(unittest.TestCase):
 
     _commit = "1" * 40
     _source_hash = "2" * 64
+
+    def test_comparison_mode_has_no_implicit_default(self) -> None:
+        """Keep every attempt boundary from silently selecting historical mode."""
+        functions = (
+            attempts.evaluation_path_for,
+            attempts._validate_evaluation_identity,
+            attempts._companion_bindings,
+            attempts.record_attempt,
+        )
+
+        for function in functions:
+            with self.subTest(function=function.__name__):
+                parameter = signature(function).parameters["comparison_mode"]
+                self.assertIs(Parameter.empty, parameter.default)
+
+    def test_historical_writer_and_attempt_reader_share_document_identity(self) -> None:
+        """Carry the real historical writer output through attempt recording."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            artifact_root = Path(temporary_directory) / "attempt-1"
+            report_directory = artifact_root / "report"
+            evidence_directory = report_directory / "evidence"
+            evidence_directory.mkdir(parents=True)
+            contract_path = artifact_root / "contract.json"
+            host_path = artifact_root / "host.json"
+            workload_path = artifact_root / "workloads.json"
+            bdn_path = artifact_root / "bdn.json"
+            write_json(
+                contract_path,
+                {
+                    "contractVersion": "2026-08-16",
+                    "evidenceMaximumAgeHours": 24,
+                    "profiles": {
+                        "scorecard": {
+                            "baselineRequired": True,
+                            "soakRequired": False,
+                        }
+                    },
+                },
+            )
+            write_json(host_path, {})
+            write_json(
+                workload_path,
+                {
+                    "environment": {},
+                    "commit": self._commit,
+                    "sourceHash": self._source_hash,
+                    "runnerClass": "github-ubuntu-24.04",
+                },
+            )
+            write_json(
+                bdn_path,
+                {
+                    "success": True,
+                    "hostEnvironment": {},
+                    "rawReports": [],
+                    "controls": [],
+                },
+            )
+            arguments = Namespace(
+                contract=str(contract_path),
+                host=str(host_path),
+                workloads=str(workload_path),
+                soak=None,
+                bdn=str(bdn_path),
+                baseline=str(artifact_root / "unused-baseline.json"),
+                run_id="historical-run",
+                target="mysql84",
+                profile="scorecard",
+                mode="seed",
+            )
+            with (
+                patch.object(evaluation, "validate_contract"),
+                patch.object(
+                    evaluation,
+                    "validate_host_preflight",
+                    return_value={},
+                ),
+                patch.object(
+                    evaluation,
+                    "validate_workload_report",
+                    return_value=[],
+                ),
+                patch.object(evaluation, "validate_host_workload_binding"),
+                patch.object(
+                    evaluation,
+                    "validate_absolute_budgets",
+                    return_value=[],
+                ),
+                patch.object(evaluation, "require_identity"),
+                patch.object(evaluation, "validate_bdn_workload_environment"),
+            ):
+                document = evaluation.evaluate(arguments)
+
+            self.assertEqual(3, document["schemaVersion"])
+            self.assertEqual("performance-evaluation", document["kind"])
+            write_json(
+                evidence_directory / "performance-evaluation.json",
+                document,
+            )
+            receipt = attempts.record_attempt(
+                artifact_root=artifact_root,
+                report_directory=report_directory,
+                output=artifact_root / "performance-attempt.json",
+                target="mysql84",
+                profile="scorecard",
+                attempt=1,
+                run_id="historical-run",
+                commit=self._commit,
+                source_hash=self._source_hash,
+                runner_class="github-ubuntu-24.04",
+                exit_code=0,
+                comparison_mode="historical",
+            )
+
+            self.assertEqual("passed", receipt["status"])
 
     def _write_evaluation(
         self,
@@ -83,6 +201,7 @@ class PerformanceAttemptTests(unittest.TestCase):
             source_hash=self._source_hash,
             runner_class="github-ubuntu-24.04",
             exit_code=exit_code,
+            comparison_mode="historical",
         )
         return receipt
 
@@ -191,6 +310,7 @@ class PerformanceAttemptTests(unittest.TestCase):
             selection, _ = self._select([receipt], destination)
 
             self.assertEqual(1, selection["selectedAttempt"])
+            self.assertEqual("historical", selection["comparisonMode"])
             selected_evaluation = destination / selection["evaluationRelativePath"]
             self.assertTrue(selected_evaluation.is_file())
 
@@ -331,45 +451,6 @@ class PerformanceAttemptTests(unittest.TestCase):
 
             self.assertEqual(sha256(evaluation), payload["evaluationSha256"])
 
-    def test_verified_selection_imports_complete_report(self) -> None:
-        """Import the selected report without rerunning or reevaluating it."""
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            root = Path(temporary_directory)
-            receipt = self._record(root / "attempt-1", attempt=1, exit_code=0)
-            selected_root = root / "selected"
-            selection, selection_path = self._select([receipt], selected_root)
-            imported_root = root / "imported"
-
-            import_receipt = attempts.import_selection(
-                artifact_root=selected_root,
-                selection_path=selection_path,
-                destination=imported_root,
-                expected_target="mysql84",
-                expected_commit=self._commit,
-            )
-            verified = attempts.verify_imported_selection(
-                destination=imported_root,
-                expected_target="mysql84",
-                expected_commit=self._commit,
-            )
-
-            self.assertEqual(selection["selectedRunId"], verified["selectedRunId"])
-            self.assertEqual(import_receipt, verified)
-            self.assertTrue(
-                (
-                    imported_root
-                    / "evidence"
-                    / "performance-evaluation.json"
-                ).is_file()
-            )
-            self.assertTrue(
-                (
-                    imported_root
-                    / "qualified-artifact"
-                    / "performance-attempt-selection.json"
-                ).is_file()
-            )
-
     def test_selection_verification_rejects_tampered_evaluation(self) -> None:
         """Detect mutation after selection and before downstream consumption."""
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -385,57 +466,6 @@ class PerformanceAttemptTests(unittest.TestCase):
                     artifact_root=selected_root,
                     selection_path=selection_path,
                 )
-
-    def test_import_verification_rejects_tampered_evaluation(self) -> None:
-        """Detect mutation after a qualified report enters the RC stage."""
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            root = Path(temporary_directory)
-            receipt = self._record(root / "attempt-1", attempt=1, exit_code=0)
-            selected_root = root / "selected"
-            _, selection_path = self._select([receipt], selected_root)
-            imported_root = root / "imported"
-            attempts.import_selection(
-                artifact_root=selected_root,
-                selection_path=selection_path,
-                destination=imported_root,
-            )
-            evaluation = (
-                imported_root / "evidence" / "performance-evaluation.json"
-            )
-            evaluation.write_text("{}\n", encoding="utf-8")
-
-            with self.assertRaisesRegex(
-                PerformanceEvidenceError,
-                "digest does not match",
-            ):
-                attempts.verify_imported_selection(destination=imported_root)
-
-    def test_import_rejects_another_target_or_commit(self) -> None:
-        """Bind qualified evidence to the exact RC engine and source commit."""
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            root = Path(temporary_directory)
-            receipt = self._record(root / "attempt-1", attempt=1, exit_code=0)
-            selected_root = root / "selected"
-            _, selection_path = self._select([receipt], selected_root)
-
-            with self.assertRaises(PerformanceEvidenceError):
-                attempts.import_selection(
-                    artifact_root=selected_root,
-                    selection_path=selection_path,
-                    destination=root / "wrong-target",
-                    expected_target="mariadb118",
-                    expected_commit=self._commit,
-                )
-
-            with self.assertRaises(PerformanceEvidenceError):
-                attempts.import_selection(
-                    artifact_root=selected_root,
-                    selection_path=selection_path,
-                    destination=root / "wrong-commit",
-                    expected_target="mysql84",
-                    expected_commit="f" * 40,
-                )
-
 
 if __name__ == "__main__":
     unittest.main()

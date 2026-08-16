@@ -9,6 +9,7 @@ from typing import Any, Sequence
 
 if __package__:
     from .contract import (
+        PERFORMANCE_BASELINE_SCHEMA_VERSION,
         LATENCY_CONFIRMATION_RUNS,
         LATENCY_METRICS,
         P99_CONFIRMATION_RUNS,
@@ -42,6 +43,7 @@ if __package__:
     )
 else:
     from contract import (
+        PERFORMANCE_BASELINE_SCHEMA_VERSION,
         LATENCY_CONFIRMATION_RUNS,
         LATENCY_METRICS,
         P99_CONFIRMATION_RUNS,
@@ -84,8 +86,8 @@ def load_matching_baseline(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Load the unique accepted baseline for target, profile, and runner class."""
     baseline = load_json(baseline_path)
-    if baseline.get("schemaVersion") != 3:
-        raise PerformanceEvidenceError("Baseline schemaVersion must be 3.")
+    if baseline.get("schemaVersion") != PERFORMANCE_BASELINE_SCHEMA_VERSION:
+        raise PerformanceEvidenceError("Baseline schemaVersion is unsupported.")
     if baseline.get("baselineState") != "accepted":
         raise PerformanceEvidenceError("Baseline state must be accepted.")
     if baseline.get("contractVersion") != contract["contractVersion"]:

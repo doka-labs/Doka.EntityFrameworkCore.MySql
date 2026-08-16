@@ -234,14 +234,8 @@ class ArtifactHandoffTests(unittest.TestCase):
             "the matrix does not run.",
         )
 
-    def test_release_candidate_consumes_the_scorecard_artifacts(self) -> None:
-        """Pin the handoff that carries qualified performance evidence.
-
-        The tag no longer imports a historical comparison; it runs the paired
-        one through the same reusable scorecard. What must still line up is
-        that the scorecard publishes per-target evidence and the candidate
-        depends on the job that produces it.
-        """
+    def test_release_candidate_does_not_consume_scorecard_artifacts(self) -> None:
+        """Keep benchmark evidence independent from release qualification."""
         candidate = workflow_text("release-candidate.yml")
         scorecard = workflow_text("benchmark-scorecard.yml")
         target_workflow = workflow_text("benchmark-target.yml")
@@ -266,10 +260,14 @@ class ArtifactHandoffTests(unittest.TestCase):
             target_workflow.count("title=Benchmark dispersion drift"),
         )
 
-        self.assertIn("performance-qualification:", candidate)
-        self.assertIn("- performance-qualification", candidate)
-        self.assertIn("name: benchmark-scorecard-qualification", candidate)
-        self.assertIn("paired-scorecard-qualification.json", candidate)
+        for excluded in (
+            "performance-qualification",
+            "benchmark-scorecard.yml",
+            "benchmark-scorecard-qualification",
+            "paired-scorecard-qualification.json",
+        ):
+            with self.subTest(excluded=excluded):
+                self.assertNotIn(excluded, candidate)
 
 
 class CompatibilityMatrixTests(unittest.TestCase):
@@ -452,9 +450,8 @@ class BaselineRolloverTests(unittest.TestCase):
         self.assertIn("gh pr create", benchmark)
         self.assertNotIn("git push origin HEAD:refs/heads/main", benchmark)
 
-        # The chain ends on the default branch. The candidate no longer
-        # consumes it: under a paired comparison the tag measures for
-        # itself, so an accepted baseline is not a release precondition.
+        # The chain ends on the default branch. The candidate does not consume
+        # it, so an accepted baseline is not a release precondition.
         self.assertNotIn(
             "python3 -m eng.release.evidence validate-performance-baseline",
             candidate,
@@ -686,7 +683,7 @@ class ReleaseCandidateShapeTests(unittest.TestCase):
     def test_the_trust_root_runs_before_any_expensive_step(self) -> None:
         """Reject a workflow that spends runner time before verifying the tag."""
         trust = self.text.index("eng.release.trust")
-        for later in ("release-candidate.sh --stage", "benchmark-scorecard.yml"):
+        for later in ("release-candidate.sh --stage",):
             with self.subTest(step=later):
                 self.assertLess(trust, self.text.index(later))
 
@@ -708,14 +705,25 @@ class ReleaseCandidateShapeTests(unittest.TestCase):
             with self.subTest(stage=produced):
                 self.assertIn(produced, self.stages)
 
-    def test_performance_is_qualified_in_paired_mode(self) -> None:
-        """Require the one measurement the tag performs to be the paired one."""
-        self.assertIn("comparison_mode: paired", self.text)
-        self.assertNotIn("baseline_mode:", self.text)
+    def test_performance_has_no_release_authority(self) -> None:
+        """Ensure benchmark execution and evidence cannot block a tag."""
+        for excluded in (
+            "comparison_mode:",
+            "baseline_mode:",
+            "benchmark-scorecard.yml",
+            "performance-qualification",
+            "benchmark-artifacts-",
+        ):
+            with self.subTest(excluded=excluded):
+                self.assertNotIn(excluded, self.text)
 
     def test_no_historical_baseline_gate_remains(self) -> None:
         """Reject a leftover import of the historical comparison result."""
-        for removed in ("performance-import", "performance-scorecard"):
+        for removed in (
+            "performance-import",
+            "performance-scorecard",
+            "performance-qualification",
+        ):
             with self.subTest(job=removed):
                 self.assertNotRegex(self.text, rf"^  {removed}:$")
 

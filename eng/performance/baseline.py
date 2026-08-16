@@ -9,6 +9,9 @@ from typing import Any, Sequence
 if __package__:
     from .confirmation import validate_historical_budgets
     from .contract import (
+        HISTORICAL_EVALUATION_KIND,
+        HISTORICAL_EVALUATION_SCHEMA_VERSION,
+        PERFORMANCE_BASELINE_SCHEMA_VERSION,
         SOAK_SCENARIO_IDS,
         PerformanceEvidenceError,
         SAMPLE_CAP_REACHED,
@@ -36,6 +39,9 @@ if __package__:
 else:
     from confirmation import validate_historical_budgets
     from contract import (
+        HISTORICAL_EVALUATION_KIND,
+        HISTORICAL_EVALUATION_SCHEMA_VERSION,
+        PERFORMANCE_BASELINE_SCHEMA_VERSION,
         SOAK_SCENARIO_IDS,
         PerformanceEvidenceError,
         SAMPLE_CAP_REACHED,
@@ -100,7 +106,10 @@ def validate_seed_evaluation(
     maximum_age_hours: float | None = None,
 ) -> None:
     """Reject a seed record that is incomplete or cannot reproduce its verdicts."""
-    if evaluation.get("schemaVersion") != 3 or evaluation.get("kind") != "performance-evaluation":
+    if (
+        evaluation.get("schemaVersion") != HISTORICAL_EVALUATION_SCHEMA_VERSION
+        or evaluation.get("kind") != HISTORICAL_EVALUATION_KIND
+    ):
         raise PerformanceEvidenceError("Seed input is not a performance evaluation.")
     if evaluation.get("success") is not True or evaluation.get("mode") != "seed":
         raise PerformanceEvidenceError("Seed input must be a successful seed-mode evaluation.")
@@ -676,11 +685,11 @@ def promote_baseline(
     if merge_existing:
         assert existing is not None
         if (
-            existing.get("schemaVersion") != 3
+            existing.get("schemaVersion") != PERFORMANCE_BASELINE_SCHEMA_VERSION
             or existing.get("baselineState") != "accepted"
         ):
             raise PerformanceEvidenceError(
-                "The existing baseline must use schemaVersion 3 and state accepted."
+                "The existing baseline has an unsupported schema version or state."
             )
         existing_contract_version = required_string(
             existing,
@@ -719,7 +728,7 @@ def promote_baseline(
     combined_entries = retained_entries + baseline_entries
 
     return {
-        "schemaVersion": 3,
+        "schemaVersion": PERFORMANCE_BASELINE_SCHEMA_VERSION,
         "baselineVersion": args.version,
         "baselineState": "accepted",
         "contractVersion": contract["contractVersion"],
@@ -806,11 +815,11 @@ def compare_baseline_files(args: argparse.Namespace) -> dict[str, Any]:
     current = load_json(current_path)
     if (
         not isinstance(current, dict)
-        or current.get("schemaVersion") != 3
+        or current.get("schemaVersion") != PERFORMANCE_BASELINE_SCHEMA_VERSION
         or current.get("baselineState") != "accepted"
     ):
         raise PerformanceEvidenceError(
-            "The current baseline must use schemaVersion 3 and state accepted."
+            "The current baseline has an unsupported schema version or state."
         )
 
     current_contract_version = required_string(
@@ -861,8 +870,13 @@ def validate_baseline_file(args: argparse.Namespace) -> dict[str, Any]:
     contract = load_json(Path(args.contract))
     validate_contract(contract)
     baseline = load_json(Path(args.baseline))
-    if baseline.get("schemaVersion") != 3 or baseline.get("baselineState") != "accepted":
-        raise PerformanceEvidenceError("Baseline must use schemaVersion 3 and state accepted.")
+    if (
+        baseline.get("schemaVersion") != PERFORMANCE_BASELINE_SCHEMA_VERSION
+        or baseline.get("baselineState") != "accepted"
+    ):
+        raise PerformanceEvidenceError(
+            "Baseline has an unsupported schema version or state."
+        )
     if baseline.get("contractVersion") != contract["contractVersion"]:
         raise PerformanceEvidenceError("Baseline contractVersion does not match.")
 
@@ -891,8 +905,8 @@ def validate_baseline_file(args: argparse.Namespace) -> dict[str, Any]:
         validate_seed_evaluation(
             {
                 **entry,
-                "schemaVersion": 3,
-                "kind": "performance-evaluation",
+                "schemaVersion": HISTORICAL_EVALUATION_SCHEMA_VERSION,
+                "kind": HISTORICAL_EVALUATION_KIND,
                 "contractVersion": contract["contractVersion"],
                 "mode": "seed",
                 "success": True,
@@ -958,11 +972,11 @@ def resolve_baseline_mode(args: argparse.Namespace) -> dict[str, Any]:
     else:
         baseline = load_json(baseline_path)
         if (
-            baseline.get("schemaVersion") != 3
+            baseline.get("schemaVersion") != PERFORMANCE_BASELINE_SCHEMA_VERSION
             or baseline.get("baselineState") != "accepted"
         ):
             raise PerformanceEvidenceError(
-                "Baseline must use schemaVersion 3 and state accepted."
+                "Baseline has an unsupported schema version or state."
             )
         baseline_contract_version = required_string(
             baseline,

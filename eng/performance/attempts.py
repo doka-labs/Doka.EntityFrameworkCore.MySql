@@ -12,6 +12,10 @@ from .contract import (
     ENVIRONMENT_NOT_COMPARABLE_EXIT_CODE,
     INVALID_EVIDENCE_EXIT_CODE,
     MEASUREMENT_QUALITY_EXIT_CODE,
+    HISTORICAL_EVALUATION_KIND,
+    HISTORICAL_EVALUATION_SCHEMA_VERSION,
+    PAIRED_EVALUATION_KIND,
+    PAIRED_EVALUATION_SCHEMA_VERSION,
     RECALIBRATION_REQUIRED_EXIT_CODE,
     EnvironmentNotComparableError,
     InvalidEvidenceError,
@@ -27,10 +31,9 @@ from .contract import (
     write_json,
 )
 
-ATTEMPT_SCHEMA_VERSION = 2
+ATTEMPT_SCHEMA_VERSION = 3
 ATTEMPT_KIND = "performance-attempt-receipt"
 SELECTION_KIND = "performance-attempt-selection"
-IMPORT_KIND = "performance-attempt-import"
 MAXIMUM_ATTEMPTS = 2
 
 # Attempt states describe one measurement run. Qualification states describe
@@ -143,14 +146,14 @@ COMPARISON_MODES = ("historical", "paired")
 EVALUATION_CONTRACTS: dict[str, dict[str, Any]] = {
     "historical": {
         "relativePath": ("evidence", "performance-evaluation.json"),
-        "schemaVersion": 3,
-        "kind": "performance-evaluation",
+        "schemaVersion": HISTORICAL_EVALUATION_SCHEMA_VERSION,
+        "kind": HISTORICAL_EVALUATION_KIND,
         "companions": (),
     },
     "paired": {
         "relativePath": ("paired-evaluation.json",),
-        "schemaVersion": 5,
-        "kind": "paired-performance-evaluation",
+        "schemaVersion": PAIRED_EVALUATION_SCHEMA_VERSION,
+        "kind": PAIRED_EVALUATION_KIND,
         # The verdict alone is not the evidence. Binding the measurements and
         # the sustained-use report by digest keeps a receipt from outliving the
         # files it was derived from.
@@ -190,7 +193,7 @@ def _validate_evaluation_identity(
     commit: str,
     source_hash: str,
     runner_class: str,
-    comparison_mode: str = "historical",
+    comparison_mode: str,
 ) -> dict[str, Any]:
     """Prove that a passed attempt owns its claimed evaluation."""
     contract = EVALUATION_CONTRACTS[validate_comparison_mode(comparison_mode)]
@@ -260,7 +263,7 @@ def record_attempt(
     source_hash: str,
     runner_class: str,
     exit_code: int,
-    comparison_mode: str = "historical",
+    comparison_mode: str,
 ) -> dict[str, Any]:
     """Persist one immutable classification receipt for a benchmark attempt."""
     validate_comparison_mode(comparison_mode)
@@ -563,7 +566,7 @@ def select_attempt(
         commit=selected["commit"],
         source_hash=selected["sourceHash"],
         runner_class=selected["runnerClass"],
-        comparison_mode=selected.get("comparisonMode", "historical"),
+        comparison_mode=selected["comparisonMode"],
     )
     if sha256(evaluation_path) != selected.get("evaluationSha256"):
         raise PerformanceEvidenceError(
@@ -618,6 +621,7 @@ def select_attempt(
         "commit": selected["commit"],
         "sourceHash": selected["sourceHash"],
         "runnerClass": selected["runnerClass"],
+        "comparisonMode": selected["comparisonMode"],
         "selectedAttempt": selected["attempt"],
         "selectedRunId": selected["runId"],
         "evaluationRelativePath": evaluation_relative_path,
@@ -670,6 +674,9 @@ def verify_selection(
             selection,
             "runnerClass",
             "attempt selection",
+        ),
+        "comparisonMode": validate_comparison_mode(
+            required_string(selection, "comparisonMode", "attempt selection")
         ),
     }
     selected_attempt = required_positive_integer(
@@ -781,6 +788,7 @@ def verify_selection(
         commit=identity["commit"],
         source_hash=identity["sourceHash"],
         runner_class=identity["runnerClass"],
+        comparison_mode=identity["comparisonMode"],
     )
     if sha256(evaluation_path) != evaluation_sha256:
         raise PerformanceEvidenceError(
@@ -788,201 +796,3 @@ def verify_selection(
         )
 
     return selection
-
-
-def import_selection(
-    *,
-    artifact_root: Path,
-    selection_path: Path,
-    destination: Path,
-    expected_target: str | None = None,
-    expected_commit: str | None = None,
-) -> dict[str, Any]:
-    """Import qualified scorecard evidence into a release-candidate stage."""
-    artifact_root = artifact_root.resolve()
-    selection = verify_selection(
-        artifact_root=artifact_root,
-        selection_path=selection_path,
-    )
-    if expected_target is not None and selection["target"] != expected_target:
-        raise PerformanceEvidenceError(
-            "Qualified performance target does not match the release stage."
-        )
-    if expected_commit is not None and selection["commit"] != expected_commit:
-        raise PerformanceEvidenceError(
-            "Qualified performance commit does not match the release candidate."
-        )
-    destination = destination.resolve()
-    if destination.exists():
-        raise PerformanceEvidenceError(
-            f"Performance import destination '{destination}' already exists."
-        )
-
-    destination.mkdir(parents=True)
-    qualified_artifact = destination / "qualified-artifact"
-    _copy_artifact_tree(artifact_root, qualified_artifact)
-
-    source_evaluation = _bound_receipt_file(
-        artifact_root,
-        selection["evaluationRelativePath"],
-        "Selected performance evaluation",
-    )
-    source_report = _validate_artifact_directory(
-        source_evaluation.parent.parent,
-        "Selected performance report",
-    )
-    shutil.copytree(source_report, destination, dirs_exist_ok=True)
-
-    selection_relative_path = _relative_regular_file(
-        selection_path,
-        artifact_root,
-        "Performance attempt selection",
-    )
-    imported_evaluation = destination / "evidence" / "performance-evaluation.json"
-    receipt = {
-        "schemaVersion": ATTEMPT_SCHEMA_VERSION,
-        "kind": IMPORT_KIND,
-        "generatedUtc": datetime.now(timezone.utc).isoformat().replace(
-            "+00:00",
-            "Z",
-        ),
-        "target": selection["target"],
-        "profile": selection["profile"],
-        "commit": selection["commit"],
-        "sourceHash": selection["sourceHash"],
-        "runnerClass": selection["runnerClass"],
-        "selectedAttempt": selection["selectedAttempt"],
-        "selectedRunId": selection["selectedRunId"],
-        "selectionRelativePath": (
-            f"qualified-artifact/{selection_relative_path}"
-        ),
-        "selectionSha256": sha256(selection_path),
-        "evaluationRelativePath": "evidence/performance-evaluation.json",
-        "qualifiedEvaluationRelativePath": (
-            "qualified-artifact/"
-            f"{selection['evaluationRelativePath']}"
-        ),
-        "evaluationSha256": sha256(imported_evaluation),
-    }
-    write_json(destination / "import-receipt.json", receipt)
-    return receipt
-
-
-def verify_imported_selection(
-    *,
-    destination: Path,
-    expected_target: str | None = None,
-    expected_commit: str | None = None,
-) -> dict[str, Any]:
-    """Verify the complete qualified-evidence chain after RC import."""
-    destination = _validate_artifact_directory(
-        destination,
-        "Imported performance evidence",
-    )
-    receipt_path = destination / "import-receipt.json"
-    receipt = load_json(receipt_path)
-    if receipt.get("schemaVersion") != ATTEMPT_SCHEMA_VERSION:
-        raise PerformanceEvidenceError(
-            "Performance import receipt has an unsupported schema version."
-        )
-    if receipt.get("kind") != IMPORT_KIND:
-        raise PerformanceEvidenceError(
-            "Performance import receipt has an unsupported kind."
-        )
-
-    identity = {
-        "target": required_string(receipt, "target", "performance import"),
-        "profile": required_string(receipt, "profile", "performance import"),
-        "commit": required_commit(receipt, "commit", "performance import"),
-        "sourceHash": required_sha256(
-            receipt,
-            "sourceHash",
-            "performance import",
-        ),
-        "runnerClass": required_string(
-            receipt,
-            "runnerClass",
-            "performance import",
-        ),
-    }
-    if expected_target is not None and identity["target"] != expected_target:
-        raise PerformanceEvidenceError(
-            "Imported performance target does not match the release stage."
-        )
-    if expected_commit is not None and identity["commit"] != expected_commit:
-        raise PerformanceEvidenceError(
-            "Imported performance commit does not match the release candidate."
-        )
-    selected_attempt = required_positive_integer(
-        receipt,
-        "selectedAttempt",
-        "performance import",
-    )
-    selected_run_id = required_string(
-        receipt,
-        "selectedRunId",
-        "performance import",
-    )
-    expected_evaluation_sha256 = required_sha256(
-        receipt,
-        "evaluationSha256",
-        "performance import",
-    )
-
-    selection_path = _bound_receipt_file(
-        destination,
-        receipt.get("selectionRelativePath"),
-        "Imported performance attempt selection",
-    )
-    if sha256(selection_path) != required_sha256(
-        receipt,
-        "selectionSha256",
-        "performance import",
-    ):
-        raise PerformanceEvidenceError(
-            "Imported performance attempt selection digest does not match."
-        )
-    qualified_artifact = destination / "qualified-artifact"
-    selection = verify_selection(
-        artifact_root=qualified_artifact,
-        selection_path=selection_path,
-    )
-    for key, expected_value in identity.items():
-        if selection[key] != expected_value:
-            raise PerformanceEvidenceError(
-                f"Imported performance identity mismatch for '{key}'."
-            )
-    if (
-        selection["selectedAttempt"] != selected_attempt
-        or selection["selectedRunId"] != selected_run_id
-    ):
-        raise PerformanceEvidenceError(
-            "Imported performance selection does not match its receipt."
-        )
-
-    evaluation_path = _bound_receipt_file(
-        destination,
-        receipt.get("evaluationRelativePath"),
-        "Imported performance evaluation",
-    )
-    qualified_evaluation_path = _bound_receipt_file(
-        destination,
-        receipt.get("qualifiedEvaluationRelativePath"),
-        "Qualified performance evaluation",
-    )
-    for path in (evaluation_path, qualified_evaluation_path):
-        if sha256(path) != expected_evaluation_sha256:
-            raise PerformanceEvidenceError(
-                "Imported performance evaluation digest does not match."
-            )
-    _validate_evaluation_identity(
-        evaluation_path,
-        target=identity["target"],
-        profile=identity["profile"],
-        run_id=selected_run_id,
-        commit=identity["commit"],
-        source_hash=identity["sourceHash"],
-        runner_class=identity["runnerClass"],
-    )
-
-    return receipt

@@ -175,16 +175,19 @@ class PairingCancelsTheMachineTests(unittest.TestCase):
 
         self.assertEqual([1.0, 1.0], ratios)
 
-    def test_divergence_beyond_the_registered_ratio_is_invalid_evidence(self) -> None:
-        """Refuse populations that cannot have measured the same stretch of time.
+    def test_divergence_beyond_the_registered_ratio_is_inconclusive(self) -> None:
+        """Retry populations that did not measure comparable stretches of time.
 
         A side that took several times longer no longer interleaves with the
-        other, and the shared machine the pairing rests on is then shared in
-        name only.
+        other. The document is structurally valid, but the measurement cannot
+        support a provider verdict and therefore belongs to the bounded retry
+        path rather than the non-retryable invalid-evidence path.
         """
-        blocks = [block([100.0] * 10, [100.0] * 41)]
+        # Hosted run 31903353665 produced this exact 80:16 split after one
+        # reference side needed another precision extension.
+        blocks = [block([100.0] * 80, [100.0] * 16)]
 
-        with self.assertRaises(InvalidEvidenceError):
+        with self.assertRaises(MeasurementQualityError):
             paired.paired_ratios(blocks, "normalizedMedian", maximum_count_ratio=4.0)
 
     def test_a_side_without_samples_is_invalid_evidence(self) -> None:
@@ -339,7 +342,7 @@ class ScorecardQualificationTests(unittest.TestCase):
     ) -> dict[str, object]:
         """Return one target verdict with the common scorecard identity."""
         return {
-            "schemaVersion": 5,
+            "schemaVersion": 6,
             "kind": "paired-performance-evaluation",
             "target": target,
             "commit": PAIRED_COMMIT,
@@ -449,6 +452,18 @@ class ScorecardQualificationTests(unittest.TestCase):
         with self.assertRaises(InvalidEvidenceError):
             paired.evaluate_scorecard_qualification(
                 self.characterized_evaluations()[:-1],
+                self.contract,
+                contract_digest=self.contract_digest,
+            )
+
+    def test_the_previous_target_evaluation_schema_is_invalid_evidence(self) -> None:
+        """Require the resource-role vocabulary introduced by schema 6."""
+        evaluations = self.characterized_evaluations()
+        evaluations[0]["schemaVersion"] = 5
+
+        with self.assertRaises(InvalidEvidenceError):
+            paired.evaluate_scorecard_qualification(
+                evaluations,
                 self.contract,
                 contract_digest=self.contract_digest,
             )
@@ -757,6 +772,8 @@ class BoundaryDecisionTests(unittest.TestCase):
             [{"workloadId": "query.materialize", "blocks": uniform_blocks(COMPLETE_BLOCKS, 1.0)}]
         )
 
+        self.assertEqual(6, result["schemaVersion"])
+        self.assertEqual("paired-performance-evaluation", result["kind"])
         self.assertEqual("pending-run-wide-adjustment", result["qualification"])
         self.assertEqual(
             self.contract["pairedPolicy"]["sensitivity"]["minimumPower"],
@@ -1748,15 +1765,35 @@ class ResourceFamilyTests(unittest.TestCase):
             for item in result["resourceResults"]
             if item["metric"] == "allocatedBytesPerOperation"
         ][0]
+        self.assertEqual("required", observed["role"])
         self.assertEqual("regression", observed["state"])
 
-    def test_collections_above_their_budget_are_a_regression(self) -> None:
-        """Reject a collection increase the latency families cannot see."""
-        factor = self.budget("gen2CollectionsPer1000") * 2
+    def test_sparse_collections_above_their_ratio_budget_are_observational(self) -> None:
+        """Do not turn one additional Gen2 event into a provider regression."""
+        # Hosted run 31903353665 observed one collection on four reference
+        # blocks and two on the corresponding candidate blocks. The median
+        # ratio was 1.5 even though every candidate absolute ceiling passed.
+        result = self.evaluate(resource_blocks(COMPLETE_BLOCKS, collections=1.5))
 
-        result = self.evaluate(resource_blocks(COMPLETE_BLOCKS, collections=factor))
+        self.assertEqual("pending-run-wide-adjustment", result["qualification"])
+        observed = [
+            item
+            for item in result["resourceResults"]
+            if item["metric"] == "gen2CollectionsPer1000"
+        ][0]
+        self.assertEqual("observational", observed["role"])
+        self.assertEqual(1.5, observed["observedRatio"])
+        self.assertEqual(
+            self.budget("gen2CollectionsPer1000"), observed["budget"]
+        )
+        self.assertEqual("observed-above-budget", observed["state"])
 
-        self.assertEqual("regression", result["qualification"])
+    def test_resource_policy_cannot_drop_either_safety_signal(self) -> None:
+        """Keep allocation qualification and collection observation complete."""
+        self.builder.contract["pairedPolicy"]["resourceFamilies"].pop()
+
+        with self.assertRaisesRegex(InvalidEvidenceError, "complete resource metric set"):
+            self.evaluate(resource_blocks(COMPLETE_BLOCKS))
 
     def test_allocating_where_the_reference_allocated_nothing_is_a_regression(self) -> None:
         """Decide the zero-reference case instead of dividing by it."""

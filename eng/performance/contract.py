@@ -59,6 +59,14 @@ MEASUREMENT_QUALITY_EXIT_CODE = 75
 ENVIRONMENT_NOT_COMPARABLE_EXIT_CODE = 76
 RECALIBRATION_REQUIRED_EXIT_CODE = 77
 INVALID_EVIDENCE_EXIT_CODE = 78
+# These document types evolve independently even though two currently share a
+# numeric version. Keeping their identities distinct prevents a change to one
+# writer from silently changing an unrelated reader contract.
+HISTORICAL_EVALUATION_SCHEMA_VERSION = 3
+HISTORICAL_EVALUATION_KIND = "performance-evaluation"
+PERFORMANCE_BASELINE_SCHEMA_VERSION = 3
+PAIRED_EVALUATION_SCHEMA_VERSION = 6
+PAIRED_EVALUATION_KIND = "paired-performance-evaluation"
 # Why sampling stopped. The runner never exceeds the configured sample cap, so
 # a capped run is a typed observation whose usability the quality policy
 # decides. Mirrors the constants in PerformanceWorkloadRunner.
@@ -492,12 +500,15 @@ _PAIRED_POLICY_SHAPE: dict[str, tuple[str, ...]] = {
     "soak": ("required", "appliesTo", "source"),
 }
 
-# Resource metrics are scalars per side per block rather than sample series, so
-# they are guarded by a ratio against the paired reference instead of by an
-# interval. A bootstrap over a deterministic quantity would describe the
-# resampling, not the provider.
-PAIRED_RESOURCE_METRICS = frozenset(
-    {"allocatedBytesPerOperation", "gen2CollectionsPer1000"}
+# Allocated bytes are stable enough to qualify a fixed code path against its
+# paired reference. Gen2 collections are integer process events projected per
+# 1,000 operations; one additional event can double a sparse observation, so
+# their relative budget is diagnostic while the candidate's absolute ceiling
+# remains the hard safety gate.
+PAIRED_REQUIRED_RESOURCE_METRICS = frozenset({"allocatedBytesPerOperation"})
+PAIRED_OBSERVATIONAL_RESOURCE_METRICS = frozenset({"gen2CollectionsPer1000"})
+PAIRED_RESOURCE_METRICS = (
+    PAIRED_REQUIRED_RESOURCE_METRICS | PAIRED_OBSERVATIONAL_RESOURCE_METRICS
 )
 
 
@@ -1010,6 +1021,13 @@ def validate_paired_policy(contract: dict[str, Any]) -> dict[str, Any]:
             family["budget"],
             f"pairedPolicy.resourceFamilies[{index}].budget",
             minimum=1,
+        )
+    if seen_resources != PAIRED_RESOURCE_METRICS:
+        missing = sorted(PAIRED_RESOURCE_METRICS - seen_resources)
+        unexpected = sorted(seen_resources - PAIRED_RESOURCE_METRICS)
+        raise InvalidEvidenceError(
+            "pairedPolicy.resourceFamilies must register the complete resource "
+            f"metric set; missing={missing}, unexpected={unexpected}."
         )
 
     soak = policy["soak"]

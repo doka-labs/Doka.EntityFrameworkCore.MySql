@@ -213,7 +213,7 @@ class ReferencedScriptTests(unittest.TestCase):
 class ComparisonModeRoutingTests(unittest.TestCase):
     """Prove a mode threaded through a workflow reaches something that reads it.
 
-    `comparison_mode: paired` travelled from the release workflow into an
+    `comparison_mode: paired` once travelled from a workflow into an
     environment variable that no script consumed. Every layer looked correct in
     isolation, and the paired comparison simply never ran.
     """
