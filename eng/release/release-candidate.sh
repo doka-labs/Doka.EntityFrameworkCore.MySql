@@ -48,6 +48,7 @@ qualification_manifest_file="${release_candidate_dir}/release-qualification-mani
 gate_results_file="${release_candidate_dir}/release-gate-results.json"
 release_repository="${DOKA_RELEASE_REPOSITORY:-${GITHUB_REPOSITORY:-}}"
 stage_checkpoint_dir="${repo_root}/artifacts/release-candidate-checkpoints/${release_candidate_run_id}"
+artifact_selection_dir="${release_candidate_dir}/artifact-selections"
 require_release_tag="${DOKA_RELEASE_REQUIRE_TAG:-1}"
 release_version_override="${DOKA_RELEASE_VERSION:-}"
 resume_mode="${DOKA_RELEASE_CANDIDATE_RESUME:-0}"
@@ -766,7 +767,7 @@ assemble_qualification_manifest() {
         --repo "${repo_root}" \
         --repository "${release_repository}" \
         --commit "$(git rev-parse HEAD)" \
-        --selection "${stage_checkpoint_dir}/assemble-input-artifacts.json" \
+        --selection "${artifact_selection_dir}/assemble-input-artifacts.json" \
         --checkpoint-directory "${stage_checkpoint_dir}" \
         --evidence-root "${release_candidate_dir}" \
         --assembling-attempt "${release_run_attempt}" \

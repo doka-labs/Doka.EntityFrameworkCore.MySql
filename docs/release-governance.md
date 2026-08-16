@@ -162,7 +162,10 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/release-candidate/<run-id>/runtime/...`
     - `artifacts/release-candidate/<run-id>/efcore-patch-matrix/...`
     - `artifacts/release-candidate/<run-id>/mysqlconnector-patch-matrix/...`
-    - `artifacts/release-candidate-checkpoints/<run-id>/...`
+    - `artifacts/release-candidate/<run-id>/artifact-selections/...` for the
+      resolved archive identities consumed by SBOM generation and assembly
+    - `artifacts/release-candidate-checkpoints/<run-id>/...` for exactly the
+      six stage receipts and no selection metadata
 - Manual NuGet publication and public readback:
   - workflow: `.github/workflows/nuget-publish.yml`
   - cadence: manually dispatched from trusted `main` after one successful

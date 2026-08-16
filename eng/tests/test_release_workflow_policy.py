@@ -979,6 +979,9 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         """Bind finalization to every independent qualification receipt."""
         text = self.workflow("release-candidate.yml")
         assemble = self.job(text, "assemble", "attest")
+        release_script = (
+            self.repo / "eng" / "release" / "release-candidate.sh"
+        ).read_text(encoding="utf-8")
         # The set is exactly what the tagged commit produced for itself.
         # Branch-verified gates are imported and must not reappear here; a
         # stage restored twice, or one silently dropped, is the defect that
@@ -1010,6 +1013,30 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn(
             "bash ./eng/release-candidate.sh --stage finalize",
             assemble,
+        )
+        selection_root = (
+            "artifacts/release-candidate/"
+            "${DOKA_RELEASE_CANDIDATE_RUN_ID}/artifact-selections/"
+        )
+        self.assertEqual(2, text.count(selection_root))
+        self.assertEqual(1, text.count(f'{selection_root}sbom-input-artifacts.json'))
+        self.assertEqual(
+            1,
+            text.count(f'{selection_root}assemble-input-artifacts.json'),
+        )
+        self.assertNotIn(
+            "release-candidate-checkpoints/"
+            "${DOKA_RELEASE_CANDIDATE_RUN_ID}/assemble-input-artifacts.json",
+            text,
+        )
+        self.assertNotIn(
+            "release-candidate-checkpoints/"
+            "${DOKA_RELEASE_CANDIDATE_RUN_ID}/sbom-input-artifacts.json",
+            text,
+        )
+        self.assertIn(
+            '--selection "${artifact_selection_dir}/assemble-input-artifacts.json"',
+            release_script,
         )
 
     def test_release_artifacts_are_immutable_and_attempt_qualified(self) -> None:

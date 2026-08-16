@@ -81,6 +81,10 @@ workloads. A fixed larger population would spend the same wall clock on a
 workload that converged in a quarter of it, and a paired run pays that cost
 twice per block.
 The achieved population travels in each workload report.
+If the two populations exceed the registered ratio, the evidence is complete
+but does not describe comparable measurement windows. The evaluator reports
+`measurement-inconclusive`, allowing the one independent retry, rather than
+misclassifying runner noise as non-retryable malformed evidence.
 
 After warmup, `paired-block` measures one configured operation batch and uses
 that pilot to distribute 120 percent of the two-second duration floor over the
@@ -576,6 +580,9 @@ selected immediately. A measurement-quality result, reported with exit code
 service. Any other non-zero exit is a hard failure and is never retried. A
 second measurement-quality result also fails the scorecard; retrying cannot
 turn a functional, budget, contract, or infrastructure failure into a pass.
+Measurement quality includes a block whose two sides exceeded the registered
+population ratio: both reports remain valid, but the pair did not cover
+comparable stretches of time.
 
 The selector verifies the identity and digests of every attempt before it
 copies the selected report tree into the stable engine artifact. Normal
@@ -637,6 +644,14 @@ The proposal and linked evidence expose the following review inputs:
   stability, allocation, retained-byte diagnostics, and collection counts;
 - absolute and soak verdicts;
 - raw report SHA-256 hashes.
+
+Allocated bytes use a qualifying paired ratio because byte counts for a fixed
+code path are stable enough to support that claim. Gen2 collections use an
+observational paired ratio because they originate from an integer process
+counter and are sparse at workload scale; one additional event can double the
+per-1,000 projection. The candidate-side absolute Gen2 ceiling remains a hard
+regression gate, so a material collection-pressure failure cannot be hidden by
+the observational ratio.
 
 Branch updates made with `GITHUB_TOKEN` do not recursively start the normal
 push or pull-request workflows. After creating or synchronizing the proposal,
@@ -886,7 +901,10 @@ collects. The recorder is told which comparison produced the verdict and holds
 it to that contract: a paired attempt binds `paired-evaluation.json` together
 with the measurements and the sustained-use report behind it, and selection
 re-checks every one of those digests. Two attempts that measured the same
-commit in different ways cannot be mixed.
+commit in different ways cannot be mixed. The selected comparison mode is part
+of the attempt receipt and selection identity, so the remaining trust boundary
+validates the paired schema and path rather than falling back to the historical
+layout.
 
 ```text
 artifacts/benchmarks/<target>/reports/<run-id>/paired-evidence.json
@@ -919,7 +937,8 @@ value nothing compares against would describe nothing:
 | Registered value | What reads it |
 |---|---|
 | `blocks.profile`, `blocks.startingSamplesPerSidePerBlock` | The contract refuses a policy whose starting population differs from the profile that measures it, or falls below its valid-sample floor |
-| `blocks.maximumSampleCountRatio` | Applied per block: the two sides may reach different populations, but not populations far enough apart to have measured different stretches of time |
+| `blocks.maximumSampleCountRatio` | Applied per block: the two sides may reach different populations, but a ratio above the bound becomes retryable `measurement-inconclusive` rather than malformed evidence or a provider verdict |
+| `resourceFamilies` | Allocated bytes use a qualifying paired budget. The sparse Gen2 ratio is observational, while the independently registered candidate-side absolute ceiling remains qualifying |
 | `primaryFamily`, `secondaryFamilies`, `targetRoles` | The required aggregate and every observational endpoint and target role are fixed before measurement; no live result can promote or demote itself |
 | `multipleComparison.*` | The scorecard finalizer applies one Holm procedure at the registered run-wide family-wise error rate over the exact required-target set |
 | `executionOrder.blockPatterns` | The runner takes each block's order from the list, records what it executed, and the evaluator refuses an order that deviates or never alternates the starting side |

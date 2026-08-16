@@ -192,7 +192,10 @@ never move, replace, or reuse it after it reaches the remote repository.
    checksum-verified stage artifacts from that same run ID and source commit.
    Do not start a new workflow dispatch merely to recover one failed stage.
 5. Inspect the workflow summary, the exact stage-selection receipts, and
-   retained evidence. Record the numeric run ID from the successful run URL:
+   retained evidence. Selection receipts live under
+   `artifacts/release-candidate/<run-id>/artifact-selections/`; the sibling
+   checkpoint directory contains only the exact six stage receipts. Record the
+   numeric run ID from the successful run URL:
 
    ```text
    https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/<candidate-run-id>

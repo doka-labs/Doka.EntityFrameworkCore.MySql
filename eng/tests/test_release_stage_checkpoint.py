@@ -218,21 +218,28 @@ class ReleaseStageCheckpointTests(unittest.TestCase):
                 expected_stages=["quality", "package"],
             )
 
-        self.write("legacy", self.create_artifact("legacy/report.json"))
-        with self.assertRaisesRegex(
-            release_stage_checkpoint.CheckpointError,
-            "is unexpected: legacy",
+        for selection_name in (
+            "assemble-input-artifacts",
+            "sbom-input-artifacts",
         ):
-            release_stage_checkpoint.verify_checkpoint_set(
-                repository=self.repository,
-                root=self.root,
-                checkpoint_directory=self.checkpoints,
-                run_id=self.run_id,
-                source_ref=self.source_ref,
-                release_tag=self.release_tag,
-                maximum_run_attempt=self.run_attempt,
-                expected_stages=["quality"],
-            )
+            with self.subTest(selection=selection_name):
+                selection_path = self.checkpoints / f"{selection_name}.json"
+                selection_path.write_text("{}\n", encoding="utf-8")
+                with self.assertRaisesRegex(
+                    release_stage_checkpoint.CheckpointError,
+                    f"is unexpected: {selection_name}",
+                ):
+                    release_stage_checkpoint.verify_checkpoint_set(
+                        repository=self.repository,
+                        root=self.root,
+                        checkpoint_directory=self.checkpoints,
+                        run_id=self.run_id,
+                        source_ref=self.source_ref,
+                        release_tag=self.release_tag,
+                        maximum_run_attempt=self.run_attempt,
+                        expected_stages=["quality"],
+                    )
+                selection_path.unlink()
 
     def test_symlink_artifact_rejects_checkpoint_creation(self) -> None:
         """Do not bind a receipt to a path whose identity can redirect later."""

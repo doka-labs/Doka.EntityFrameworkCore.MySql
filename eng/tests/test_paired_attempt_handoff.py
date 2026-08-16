@@ -40,7 +40,7 @@ RUNNER_CLASS = "github-ubuntu-latest-x64"
 def paired_evaluation(**overrides: Any) -> dict[str, Any]:
     """Return the verdict shape `evaluate-paired` writes."""
     evaluation = {
-        "schemaVersion": 5,
+        "schemaVersion": 6,
         "kind": "paired-performance-evaluation",
         "target": TARGET,
         "profile": PROFILE,
@@ -863,6 +863,7 @@ class PairedAttemptHandoffTests(unittest.TestCase):
         )
 
         self.assertEqual(1, selection["selectedAttempt"])
+        self.assertEqual("paired", selection["comparisonMode"])
         for name in (
             "paired-evaluation.json",
             "paired-evidence.json",
@@ -874,6 +875,24 @@ class PairedAttemptHandoffTests(unittest.TestCase):
                     (destination / "reports" / RUN_ID / name).is_file(),
                     f"{name} did not reach the selected artifact",
                 )
+
+    def test_paired_selection_verifies_under_its_own_contract(self) -> None:
+        """Carry the paired identity through the remaining trust boundary."""
+        self.record()
+        destination = Path(self.directory.name) / "selected"
+        selection = attempts.select_attempt(
+            receipt_paths=[self.artifact_root / "performance-attempt.json"],
+            destination=destination,
+        )
+        selection_path = destination / "performance-attempt-selection.json"
+        attempts.write_json(selection_path, selection)
+
+        verified = attempts.verify_selection(
+            artifact_root=destination,
+            selection_path=selection_path,
+        )
+
+        self.assertEqual("paired", verified["comparisonMode"])
 
     def test_selection_refuses_replaced_measurements(self) -> None:
         """Refuse a selection whose bound evidence changed after recording."""

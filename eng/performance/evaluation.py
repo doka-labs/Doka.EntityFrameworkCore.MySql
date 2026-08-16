@@ -12,6 +12,8 @@ if __package__:
         validate_historical_budgets,
     )
     from .contract import (
+        HISTORICAL_EVALUATION_KIND,
+        HISTORICAL_EVALUATION_SCHEMA_VERSION,
         PerformanceEvidenceError,
         finite_number,
         load_json,
@@ -38,6 +40,8 @@ else:
         validate_historical_budgets,
     )
     from contract import (
+        HISTORICAL_EVALUATION_KIND,
+        HISTORICAL_EVALUATION_SCHEMA_VERSION,
         PerformanceEvidenceError,
         finite_number,
         load_json,
@@ -274,8 +278,8 @@ def evaluate(
         artifact_hashes["soak"] = sha256(soak_path)
 
     return {
-        "schemaVersion": 3,
-        "kind": "performance-evaluation",
+        "schemaVersion": HISTORICAL_EVALUATION_SCHEMA_VERSION,
+        "kind": HISTORICAL_EVALUATION_KIND,
         "contractVersion": contract["contractVersion"],
         "runId": args.run_id,
         "target": args.target,

@@ -89,10 +89,8 @@ if __package__:
         resolve_baseline_mode,
     )
     from .attempts import (
-        import_selection,
         record_attempt,
         select_attempt,
-        verify_imported_selection,
         verify_selection,
     )
     from .sensitivity import validate_registered_characterization
@@ -177,10 +175,8 @@ else:
         resolve_baseline_mode,
     )
     from performance.attempts import (
-        import_selection,
         record_attempt,
         select_attempt,
-        verify_imported_selection,
         verify_selection,
     )
     from performance.sensitivity import validate_registered_characterization
@@ -291,7 +287,7 @@ def build_parser() -> argparse.ArgumentParser:
     attempt_profile_parser.add_argument(
         "--comparison-mode",
         choices=("historical", "paired"),
-        default="historical",
+        required=True,
     )
 
     evaluate_paired_parser = subparsers.add_parser("evaluate-paired")
@@ -339,7 +335,7 @@ def build_parser() -> argparse.ArgumentParser:
     attempt_parser.add_argument(
         "--comparison-mode",
         choices=("historical", "paired"),
-        default="historical",
+        required=True,
     )
     attempt_parser.add_argument("--output", required=True)
 
@@ -353,20 +349,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     selection_verification_parser.add_argument("--artifact-root", required=True)
     selection_verification_parser.add_argument("--selection", required=True)
-
-    import_parser = subparsers.add_parser("import-attempt-selection")
-    import_parser.add_argument("--artifact-root", required=True)
-    import_parser.add_argument("--selection", required=True)
-    import_parser.add_argument("--destination", required=True)
-    import_parser.add_argument("--expected-target", required=True)
-    import_parser.add_argument("--expected-commit", required=True)
-
-    import_verification_parser = subparsers.add_parser(
-        "verify-imported-attempt",
-    )
-    import_verification_parser.add_argument("--destination", required=True)
-    import_verification_parser.add_argument("--expected-target", required=True)
-    import_verification_parser.add_argument("--expected-commit", required=True)
 
     return parser
 
@@ -527,35 +509,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(
                 f"Verified performance attempt {payload['selectedAttempt']}: "
                 f"{args.selection}"
-            )
-            return 0
-        if args.command == "import-attempt-selection":
-            payload = import_selection(
-                artifact_root=Path(args.artifact_root),
-                selection_path=Path(args.selection),
-                destination=Path(args.destination),
-                expected_target=args.expected_target,
-                expected_commit=args.expected_commit,
-            )
-            verify_imported_selection(
-                destination=Path(args.destination),
-                expected_target=args.expected_target,
-                expected_commit=args.expected_commit,
-            )
-            print(
-                f"Imported performance attempt {payload['selectedAttempt']}: "
-                f"{args.destination}"
-            )
-            return 0
-        if args.command == "verify-imported-attempt":
-            payload = verify_imported_selection(
-                destination=Path(args.destination),
-                expected_target=args.expected_target,
-                expected_commit=args.expected_commit,
-            )
-            print(
-                f"Verified imported performance attempt "
-                f"{payload['selectedAttempt']}: {args.destination}"
             )
             return 0
         if args.command == "validate-bdn":

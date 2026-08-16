@@ -55,8 +55,14 @@ class QualificationChain:
         self.tree = tree
         self.evidence_root = root / "release-candidate"
         self.checkpoints = root / "checkpoints"
+        self.selections = self.evidence_root / "artifact-selections"
         self.packages = self.evidence_root / "packages"
-        for directory in (self.evidence_root, self.checkpoints, self.packages):
+        for directory in (
+            self.evidence_root,
+            self.checkpoints,
+            self.selections,
+            self.packages,
+        ):
             directory.mkdir(parents=True, exist_ok=True)
 
     def write_stage(self, stage: str) -> None:
@@ -96,7 +102,7 @@ class QualificationChain:
 
     def write_selection(self) -> Path:
         """Write the resolved artifact identities for every stage."""
-        path = self.checkpoints / "assemble-input-artifacts.json"
+        path = self.selections / "assemble-input-artifacts.json"
         path.write_text(
             json.dumps(
                 {
@@ -202,7 +208,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
                 "--repo", str(self.repo),
                 "--repository", REPOSITORY,
                 "--commit", self.commit,
-                "--selection", str(self.chain.checkpoints / "assemble-input-artifacts.json"),
+                "--selection", str(self.chain.selections / "assemble-input-artifacts.json"),
                 "--checkpoint-directory", str(self.chain.checkpoints),
                 "--evidence-root", str(self.chain.evidence_root),
                 "--assembling-attempt", str(RUN_ATTEMPT),
@@ -308,7 +314,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
                     "--repository", REPOSITORY,
                     "--commit", self.commit,
                     "--selection",
-                    str(self.chain.checkpoints / "assemble-input-artifacts.json"),
+                    str(self.chain.selections / "assemble-input-artifacts.json"),
                     "--checkpoint-directory", str(self.chain.checkpoints),
                     "--evidence-root", str(self.chain.evidence_root),
                     "--assembling-attempt", str(RUN_ATTEMPT),
@@ -464,7 +470,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
                 "--repository", REPOSITORY,
                 "--commit", self.commit,
                 "--selection",
-                str(self.chain.checkpoints / "assemble-input-artifacts.json"),
+                str(self.chain.selections / "assemble-input-artifacts.json"),
                 "--checkpoint-directory", str(self.chain.checkpoints),
                 "--evidence-root", str(self.chain.evidence_root),
                 "--assembling-attempt", str(RUN_ATTEMPT),

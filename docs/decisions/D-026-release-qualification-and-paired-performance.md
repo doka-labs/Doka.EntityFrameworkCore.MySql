@@ -29,8 +29,8 @@ no broad provider regression. Four targets failed because a paired
 schema-version result was handed to a historical-schema verifier. One target
 rejected a noisy reference population as invalid evidence, and one rejected a
 quantized GC-count ratio. The previously successful historical seed path had
-not exercised this paired end-to-end chain. Review also found a latent release
-import that still expected the historical result shape.
+not exercised this paired end-to-end chain. Review also found and removed a
+latent release import that still expected the historical result shape.
 
 The correction is structural rather than a warning suppression:
 
@@ -463,8 +463,11 @@ Reference and candidate are measured in counterbalanced blocks. Both sides
 start from the same population and are held to the same precision floor.
 Extension is adaptive, so the two may finish with different counts; how far
 apart they may finish is registered as a maximum ratio, because populations far
-enough apart no longer measured the same stretch of time. Each target executes
-exactly ten blocks, alternating which side starts. Each block produces paired
+enough apart no longer measured the same stretch of time. Exceeding that ratio
+is a measurement-quality outcome eligible for the one bounded independent
+retry, not `invalid-evidence`: the report is structurally valid but cannot
+support a provider verdict. Each target executes exactly ten blocks,
+alternating which side starts. Each block produces paired
 candidate-to-reference ratios for its declared metrics. Statistics are formed
 from paired ratios, never from a quotient of unrelated historical aggregates.
 Practical and statistical significance remain separate: a detectable change
@@ -545,8 +548,22 @@ qualifying run.
 
 Absolute catastrophe ceilings, allocation budgets, garbage-collection
 evidence, soak invariants, raw sample retention, adjacent calibration, and
-source binding remain mandatory under D-019. No historical latency threshold
-is widened or removed.
+source binding remain mandatory under D-019. Allocated bytes retain their
+qualifying paired ratio. Gen2 collections retain a diagnostic paired ratio and
+a hard candidate-side absolute ceiling, but their sparse relative ratio is
+observational: .NET exposes an integer process-wide collection counter, and
+BenchmarkDotNet reports the resulting projection per 1,000 operations. One
+additional collection can therefore multiply a small ratio without proving a
+provider regression. No historical latency threshold is widened or removed.
+
+[Hosted run 31903353665][benchmark-stability-run] supplied the acceptance
+cases for these boundaries. MariaDB 11.8 produced a structurally valid 80:16
+population split and must enter the retry path. MySQL 8.4 produced a 1.5 Gen2
+ratio from one-versus-two collection increments while every absolute ceiling
+and the required latency endpoint passed. The same run also proved that
+`comparisonMode` must survive attempt recording and selection instead of
+falling back to the historical schema-3 layout. Paired verdict schema 6 now
+binds that identity together with the explicit resource-role vocabulary.
 
 ### Attempt and qualification states
 
@@ -1025,6 +1042,11 @@ manifest verification.
   six-target paired workflow demonstrated multiple orchestration and
   classification failures unrelated to a broad provider regression. Retained
   benchmark workflows as independent engineering evidence.
+- 2026-08-16: Preserved the comparison mode through attempt recording and
+  selection, classified excessive paired population divergence as retryable
+  measurement quality, and made sparse Gen2 ratios observational while
+  retaining their absolute candidate ceiling. Paired verdict schema 6 records
+  the resource role and its corresponding state vocabulary.
 
 ### Implementation References
 
@@ -1089,6 +1111,12 @@ manifest verification.
   (primary source; retrieved 2026-08-12)
 - [BenchmarkDotNet job characteristics][bdn-jobs]
   (primary source; retrieved 2026-08-13)
+- [BenchmarkDotNet memory-diagnoser metrics][bdn-diagnosers]
+  (primary source; retrieved 2026-08-16)
+- [.NET `GC.CollectionCount`][dotnet-gc-collection-count]
+  (primary source; retrieved 2026-08-16)
+- [Benchmark stability run 31903353665][benchmark-stability-run]
+  (primary source; retrieved 2026-08-16)
 - [Go benchmark runner source][go-benchmark-source]
   (primary source; retrieved 2026-08-12)
 - [Go benchstat guidance][go-benchstat]
@@ -1157,6 +1185,11 @@ manifest verification.
   https://benchmarkdotnet.org/articles/guides/console-args.html
 [bdn-how-it-works]: https://benchmarkdotnet.org/articles/guides/how-it-works.html
 [bdn-jobs]: https://benchmarkdotnet.org/articles/configs/jobs.html
+[bdn-diagnosers]: https://benchmarkdotnet.org/articles/configs/diagnosers.html
+[dotnet-gc-collection-count]:
+  https://learn.microsoft.com/en-us/dotnet/api/system.gc.collectioncount?view=net-10.0
+[benchmark-stability-run]:
+  https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31903353665
 [go-benchmark-source]: https://go.dev/src/testing/benchmark.go
 [go-benchstat]: https://pkg.go.dev/golang.org/x/perf/cmd/benchstat
 [nist-sample-sizes]:

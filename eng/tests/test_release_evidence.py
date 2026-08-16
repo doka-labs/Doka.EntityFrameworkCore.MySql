@@ -90,6 +90,14 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertEqual(sorted(paths), paths)
         self.assertTrue(all(not Path(path).is_absolute() for path in paths))
         self.assertIn("release-qualification-manifest.json", paths)
+        selection_path = "artifact-selections/assemble-input-artifacts.json"
+        self.assertIn(selection_path, paths)
+        selection = next(
+            artifact
+            for artifact in manifest["artifacts"]
+            if artifact["path"] == selection_path
+        )
+        self.assertEqual("verification-evidence", selection["role"])
         self.assertEqual("refs/tags/v1.2.3", manifest["source"]["ref"])
         self.assertEqual("clean", manifest["source"]["treeState"])
         self.assertEqual(
@@ -365,9 +373,15 @@ class ReleaseEvidenceTests(unittest.TestCase):
         packages = self.root / "packages"
         sbom = self.root / "sbom"
         sbom_components = self.root / "sbom-components" / "runtime"
+        artifact_selections = self.root / "artifact-selections"
         packages.mkdir(parents=True)
         sbom.mkdir(parents=True)
         sbom_components.mkdir(parents=True)
+        artifact_selections.mkdir(parents=True)
+        (artifact_selections / "assemble-input-artifacts.json").write_text(
+            '{"schemaVersion":1}\n',
+            encoding="ascii",
+        )
         for package_id in (
             "Doka.EntityFrameworkCore.MySql",
             "Doka.EntityFrameworkCore.MySql.NetTopologySuite",

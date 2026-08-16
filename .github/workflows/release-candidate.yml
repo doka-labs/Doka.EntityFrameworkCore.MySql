@@ -269,7 +269,7 @@ jobs:
           bash ./eng/release/restore-release-stage-artifacts.sh \
             --output artifacts \
             --selection-output \
-              "artifacts/release-candidate-checkpoints/${DOKA_RELEASE_CANDIDATE_RUN_ID}/sbom-input-artifacts.json" \
+              "artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}/artifact-selections/sbom-input-artifacts.json" \
             --stage package
 
       - name: Run SBOM stage
@@ -324,7 +324,7 @@ jobs:
           bash ./eng/release/restore-release-stage-artifacts.sh \
             --output artifacts \
             --selection-output \
-              "artifacts/release-candidate-checkpoints/${DOKA_RELEASE_CANDIDATE_RUN_ID}/assemble-input-artifacts.json" \
+              "artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}/artifact-selections/assemble-input-artifacts.json" \
             --stage migration-deployment \
             --stage runtime \
             --stage efcore-patch-matrix \

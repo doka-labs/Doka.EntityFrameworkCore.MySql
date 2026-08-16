@@ -31,6 +31,9 @@ if __package__:
         TERMINATION_REASONS,
         InvalidEvidenceError,
         MeasurementQualityError,
+        PAIRED_EVALUATION_KIND,
+        PAIRED_EVALUATION_SCHEMA_VERSION,
+        PAIRED_OBSERVATIONAL_RESOURCE_METRICS,
         PerformanceEvidenceError,
         close_enough,
         finite_number,
@@ -55,6 +58,9 @@ else:
         TERMINATION_REASONS,
         InvalidEvidenceError,
         MeasurementQualityError,
+        PAIRED_EVALUATION_KIND,
+        PAIRED_EVALUATION_SCHEMA_VERSION,
+        PAIRED_OBSERVATIONAL_RESOURCE_METRICS,
         PerformanceEvidenceError,
         close_enough,
         finite_number,
@@ -196,12 +202,12 @@ def paired_ratios(
             )
         observed_ratio = max(counts.values()) / min(counts.values())
         if observed_ratio > maximum_count_ratio:
-            raise InvalidEvidenceError(
+            raise MeasurementQualityError(
                 f"{label} allocated {counts['reference']} reference and "
                 f"{counts['candidate']} candidate samples, a ratio of "
                 f"{observed_ratio:.2f} above the registered "
-                f"{maximum_count_ratio:.2f}. Populations that far apart did not "
-                "measure the same stretch of time."
+                f"{maximum_count_ratio:.2f}. The populations did not measure "
+                "comparable stretches of time."
             )
         for side in SIDES:
             error = relative_standard_error(sides[side], f"{label}.{side}")
@@ -640,10 +646,11 @@ def evaluate_resource_families(
 ) -> list[dict[str, Any]]:
     """Compare every registered resource metric against its paired budget.
 
-    Latency is what the interval machinery is for. Allocation and collection
-    counts are near-deterministic for a fixed code path, so a bootstrap over
-    them would describe the resampling rather than the provider. The median
-    block ratio against a registered budget is the honest test.
+    Allocation is qualifying because a fixed code path reports stable byte
+    counts. Gen2 collections remain observational: ``GC.CollectionCount`` is
+    an integer process counter, so a one-event difference can multiply a
+    sparse per-1,000 projection without establishing provider regression. Its
+    candidate-side absolute ceiling remains a hard gate.
     """
     results: list[dict[str, Any]] = []
     for family in policy["resourceFamilies"]:
@@ -661,14 +668,24 @@ def evaluate_resource_families(
             )
             observed = _median(ratios)
             within = observed <= budget or close_enough(observed, budget)
+            observational = metric in PAIRED_OBSERVATIONAL_RESOURCE_METRICS
+            if observational:
+                state = (
+                    "observed-within-budget"
+                    if within
+                    else "observed-above-budget"
+                )
+            else:
+                state = "qualified" if within else "regression"
             results.append(
                 {
                     "workloadId": workload,
                     "metric": metric,
+                    "role": "observational" if observational else "required",
                     "blocks": len(ratios),
                     "observedRatio": observed,
                     "budget": budget,
-                    "state": "qualified" if within else "regression",
+                    "state": state,
                 }
             )
 
@@ -1767,8 +1784,8 @@ def evaluate_paired_comparison(
         qualification = "pending-run-wide-adjustment"
 
     return {
-        "schemaVersion": 5,
-        "kind": "paired-performance-evaluation",
+        "schemaVersion": PAIRED_EVALUATION_SCHEMA_VERSION,
+        "kind": PAIRED_EVALUATION_KIND,
         # The identity travels from the evidence onto the verdict so a receipt
         # can prove it owns this evaluation. Without it the attempt recorder
         # has nothing to bind and the run produces no selectable result.
@@ -1852,11 +1869,11 @@ def evaluate_scorecard_qualification(
     expected_targets = set(contract["requiredTargets"])
     by_target: dict[str, dict[str, Any]] = {}
     for evaluation in evaluations:
-        if evaluation.get("schemaVersion") != 5:
+        if evaluation.get("schemaVersion") != PAIRED_EVALUATION_SCHEMA_VERSION:
             raise InvalidEvidenceError(
                 "Scorecard target evaluation has an unsupported schema version."
             )
-        if evaluation.get("kind") != "paired-performance-evaluation":
+        if evaluation.get("kind") != PAIRED_EVALUATION_KIND:
             raise InvalidEvidenceError(
                 "Scorecard input is not a paired performance evaluation."
             )
