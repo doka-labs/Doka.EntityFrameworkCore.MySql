@@ -450,23 +450,40 @@ def workflow_identity(run_id: str) -> dict[str, Any]:
     locate and reproduce the evidence-producing execution.
     """
     hosted = os.environ.get("GITHUB_ACTIONS") == "true"
-    identity = {
-        "provider": "github-actions" if hosted else "local",
-        "runId": os.environ.get("GITHUB_RUN_ID", run_id),
-        "runAttempt": os.environ.get("GITHUB_RUN_ATTEMPT", "1"),
+    if not hosted:
+        return {
+            "provider": "local",
+            "runId": run_id,
+            "runAttempt": "1",
+            "workflow": "local-release-candidate",
+            "workflowRef": "local",
+            "repository": "local",
+            "runnerName": "local",
+            "runnerOs": platform.system(),
+            "runnerArch": platform.machine(),
+        }
+
+    required = (
+        "GITHUB_RUN_ID",
+        "GITHUB_RUN_ATTEMPT",
+        "GITHUB_WORKFLOW_REF",
+        "GITHUB_REPOSITORY",
+    )
+    missing = [name for name in required if not os.environ.get(name)]
+    if missing:
+        raise EvidenceError(f"Hosted workflow identity is incomplete: {', '.join(missing)}")
+
+    return {
+        "provider": "github-actions",
+        "runId": os.environ["GITHUB_RUN_ID"],
+        "runAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
         "workflow": os.environ.get("GITHUB_WORKFLOW", "local-release-candidate"),
-        "workflowRef": os.environ.get("GITHUB_WORKFLOW_REF", "local"),
-        "repository": os.environ.get("GITHUB_REPOSITORY", "local"),
+        "workflowRef": os.environ["GITHUB_WORKFLOW_REF"],
+        "repository": os.environ["GITHUB_REPOSITORY"],
         "runnerName": os.environ.get("RUNNER_NAME", "local"),
         "runnerOs": os.environ.get("RUNNER_OS", platform.system()),
         "runnerArch": os.environ.get("RUNNER_ARCH", platform.machine()),
     }
-    if hosted:
-        required = ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "GITHUB_WORKFLOW_REF", "GITHUB_REPOSITORY")
-        missing = [name for name in required if not os.environ.get(name)]
-        if missing:
-            raise EvidenceError(f"Hosted workflow identity is incomplete: {', '.join(missing)}")
-    return identity
 
 
 def validate_qualification_manifest(

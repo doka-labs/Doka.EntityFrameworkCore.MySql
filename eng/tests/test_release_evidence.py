@@ -165,11 +165,26 @@ class ReleaseEvidenceTests(unittest.TestCase):
             {
                 "GITHUB_ACTIONS": "true",
                 "GITHUB_REF": "refs/heads/main",
+                "GITHUB_RUN_ATTEMPT": "3",
+                "GITHUB_RUN_ID": "1000002080",
                 "GITHUB_SHA": "hosted-runner-commit",
+                "GITHUB_WORKFLOW": "CI",
+                "GITHUB_WORKFLOW_REF": "doka/repo/.github/workflows/ci.yml@main",
+                "GITHUB_REPOSITORY": "doka/repo",
+                "RUNNER_ARCH": "X64",
+                "RUNNER_NAME": "GitHub Actions 1000002080",
+                "RUNNER_OS": "Linux",
             },
         ):
             self._generate()
             self._verify()
+
+        manifest = json.loads(
+            (self.root / release_evidence.MANIFEST_NAME).read_text(encoding="utf-8")
+        )
+        self.assertEqual("local", manifest["workflow"]["provider"])
+        self.assertEqual("test-run", manifest["workflow"]["runId"])
+        self.assertEqual("local", manifest["workflow"]["runnerName"])
 
     def test_generate_rejects_incomplete_engine_matrix(self) -> None:
         """Reject a release whose manifest would omit one advertised engine line."""
