@@ -21,8 +21,8 @@ doka-profile-version: "1.0"
 D-026 now excludes performance from release qualification. The benchmark
 architecture in this decision remains implemented for independent
 characterization, early warning, regression investigation, and reviewed
-baseline maintenance. The release-candidate and NuGet-publication workflows do
-not invoke it, consume its artifacts, or depend on its verdicts.
+baseline maintenance. Neither phase of the single `release-candidate.yml`
+workflow invokes it, consumes its artifacts, or depends on its verdicts.
 
 This is a structural separation: there is no warning suppression, bypass, or
 optional release gate. A failed, inconclusive, missing, or stale benchmark

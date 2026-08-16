@@ -3,10 +3,10 @@
 This runbook describes the reproducible performance-evidence system defined by
 [D-019](../decisions/D-019-performance-gate-architecture.md).
 
-This system is independent of release qualification. The release-candidate and
-NuGet-publication workflows do not invoke it or consume its artifacts. A
-failed, inconclusive, missing, or stale benchmark is engineering feedback and
-cannot block a release.
+This system is independent of release qualification. Neither the qualification
+phase nor the protected publication phase of `release-candidate.yml` invokes
+it or consumes its artifacts. A failed, inconclusive, missing, or stale
+benchmark is engineering feedback and cannot block a release.
 
 Every enforced path has six independent controls:
 
