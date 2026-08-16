@@ -71,6 +71,15 @@ integration matrix. The fast lane validates the deterministic floor on every
 push to `main` and every pull request. The provider's response to a detected
 break is either a minimum-version bump in the range or a hot-fix release.
 
+Release qualification does not repeat that complete floor suite serially. Its
+commit-exact `repository-qualification` input already proves the floor through
+repository tests, the six-target specification suite, and representative
+integration tests. The candidate therefore re-resolves and records the exact
+floor dependency graph, validates its version-bound specification contracts,
+and reserves the additional live-test budget for the latest compatible patch.
+The retained floor and latest receipts declare those different scopes, and
+release-evidence verification rejects a missing, swapped, or widened row.
+
 ### Consequences
 
 - Good, because supported patch updates do not require a provider release.
@@ -150,6 +159,19 @@ break is either a minimum-version bump in the range or a hot-fix release.
 - The `efcore-patch-matrix` job overrides `DokaEfCoreVersion` at MSBuild evaluation time. It does not edit source files. Central Package Management floating versions remain disabled by default and are enabled only inside this matrix job, as documented by [NuGet error NU1011 (see Sources).
 - Every matrix restore is followed by a machine-readable `dotnet package list` readback. The job fails unless Design, Relational, and Relational.Specification.Tests resolve to one version matching the matrix contract. The JSON readback is retained as an artifact.
 - Each entry runs `eng/test.sh`, specification plus live functional tests against MySQL 8.4 and MariaDB 11.8, and the representative MySQL 8.4 plus MariaDB 11.8 integration matrix. Test-owned containers make the live paths identical locally and in CI.
+- Before expensive tests begin, `check-spec-version-contract.sh` requires an
+  exact version-bound inventory, baseline membership for every entry, and a
+  complete six-target discovery contract. A newly published patch therefore
+  fails during preflight rather than after a full matrix run.
+- Release qualification records the floor with
+  `validationScope=dependency-graph` and
+  `qualificationSource=repository-qualification`, while the latest compatible
+  patch records `validationScope=full`. The full row retains one reconciled TRX
+  and one engine-lifecycle document per selected specification target plus its
+  integration-matrix evidence under the same row directory.
+  `eng/release/evidence.py` validates both receipts, their exact resolved
+  package graphs, and the retained successful full-row evidence independently
+  of the stage exit code.
 - The next minor (10.1.0) requires a deliberate provider response -- either a range widening (`[10.0.8, 10.2.0)` with the matrix gaining a `10.1.x` axis) or the EF Core 11 jump (ADR D-013). The decision is deferred until 10.1.0 is published.
 - **Floor-raise log:** 2026-05-18 -- lower bound moved from `10.0.4` to `10.0.8` to absorb four published patches in one step. Consumers pinned to `10.0.4..10.0.7` fall outside the provider range and must upgrade. The change closes the diamond-dependency exposure on downstream graphs that already pin `>= 10.0.8`.
 
@@ -190,11 +212,18 @@ break is either a minimum-version bump in the range or a hot-fix release.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
 - 2026-07-31: Amended by D-023 to move the floor/latest matrix from every
   repository event to weekly and manually dispatched exhaustive verification.
+- 2026-08-16: Added the version-contract preflight and split release
+  qualification into a commit-qualified floor graph plus a fully executed
+  latest-patch row, eliminating the redundant serial floor suite without
+  weakening scheduled floor/latest verification.
 
 ### Implementation References
 
 - `Directory.Packages.props`
 - `.github/workflows/ci.yml`
+- `eng/testing/check-spec-version-contract.sh`
+- `eng/testing/test-efcore-matrix.sh`
+- `eng/release/evidence.py`
 
 ### Sources
 

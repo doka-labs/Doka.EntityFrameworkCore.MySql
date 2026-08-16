@@ -111,7 +111,9 @@ matrix.
 
 - migration deployment;
 - runtime posture;
-- EF Core and MySqlConnector patch matrices;
+- EF Core floor-graph and full latest-patch qualification, with an early exact
+  specification-contract preflight;
+- full MySqlConnector floor/latest patch matrices;
 - package and symbol generation;
 - locked dependency restore and SBOM generation;
 - isolated consumer build against the exact local `.nupkg` files;

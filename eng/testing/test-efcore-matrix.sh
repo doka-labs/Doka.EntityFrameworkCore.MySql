@@ -17,9 +17,11 @@ resolved_pattern="${DOKA_EF_CORE_RESOLVED_PATTERN:?DOKA_EF_CORE_RESOLVED_PATTERN
 artifact_suffix="${DOKA_EF_CORE_ARTIFACT_SUFFIX:?DOKA_EF_CORE_ARTIFACT_SUFFIX is required}"
 spec_targets="${DOKA_EF_CORE_SPEC_TARGETS:-mysql84,mariadb118}"
 integration_targets="${DOKA_INTEGRATION_TARGETS:-mysql84,mariadb118}"
+validation_scope="${DOKA_EF_CORE_VALIDATION_SCOPE:-full}"
 evidence_dir="${repo_root}/artifacts/efcore-patch-matrix/${artifact_suffix}"
 resolved_packages_file="${evidence_dir}/resolved-packages.json"
 summary_file="${evidence_dir}/efcore-contract-evidence.json"
+integration_evidence_dir="${evidence_dir}/integration"
 
 # The three packages below are the EF Core surface this provider compiles and
 # tests against. They must resolve to one identical patch; a split graph would
@@ -32,6 +34,15 @@ command -v jq >/dev/null 2>&1 || {
     echo "jq is required to verify EF Core matrix evidence." >&2
     exit 1
 }
+
+case "${validation_scope}" in
+    dependency-graph | full)
+        ;;
+    *)
+        echo "Unsupported EF Core validation scope: ${validation_scope}" >&2
+        exit 2
+        ;;
+esac
 
 export DokaEfCoreVersion="${requested_version}"
 export CentralPackageFloatingVersionsEnabled=true
@@ -73,6 +84,56 @@ jq -r --argjson required "${required_packages}" '
     | "\(.id) requested=\(.requestedVersion) resolved=\(.resolvedVersion)"
 ' "${resolved_packages_file}" | sort -u
 
+bash "${repo_root}/eng/testing/check-spec-version-contract.sh" "${resolved_version}"
+
+write_summary() {
+    local contracts="$1"
+    local qualification_source="$2"
+    local recorded_spec_targets="$3"
+    local recorded_integration_targets="$4"
+    local results="$5"
+
+    jq -n \
+        --arg generatedUtc "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+        --arg requestedVersion "${requested_version}" \
+        --arg resolvedVersion "${resolved_version}" \
+        --arg validationScope "${validation_scope}" \
+        --arg qualificationSource "${qualification_source}" \
+        --arg specTargets "${recorded_spec_targets}" \
+        --arg integrationTargets "${recorded_integration_targets}" \
+        --argjson contracts "${contracts}" \
+        --argjson results "${results}" \
+        '{
+          schemaVersion: 2,
+          generatedUtc: $generatedUtc,
+          requestedVersion: $requestedVersion,
+          resolvedVersion: $resolvedVersion,
+          validationScope: $validationScope,
+          qualificationSource: (
+            if $qualificationSource == "" then null else $qualificationSource end
+          ),
+          specificationTargets: (
+            if $specTargets == "" then [] else ($specTargets | split(",") | sort) end
+          ),
+          integrationTargets: (
+            if $integrationTargets == "" then [] else ($integrationTargets | split(",") | sort) end
+          ),
+          contracts: $contracts,
+          results: $results
+        }' > "${summary_file}"
+}
+
+if [[ "${validation_scope}" == "dependency-graph" ]]; then
+    write_summary \
+        '["resolved-package-graph", "version-contract-preflight"]' \
+        "repository-qualification" \
+        "" \
+        "" \
+        '{"dependencies":"resolved-packages.json"}'
+    echo "EF Core ${resolved_version} dependency-floor graph passed."
+    exit 0
+fi
+
 bash "${repo_root}/eng/testing/test.sh"
 
 # Specification and live coverage runs per engine so a patch that changes
@@ -97,34 +158,25 @@ for spec_target in "${spec_target_list[@]}"; do
         "${target_dir}"
 done
 
+DOKA_INTEGRATION_ARTIFACTS_DIR="${integration_evidence_dir}" \
 DOKA_INTEGRATION_TARGETS="${integration_targets}" \
     bash "${repo_root}/eng/testing/test-integration.sh"
 
-# Keep the contract list machine-readable so release review can distinguish a
-# complete matrix row from an arbitrary filtered test run.
-jq -n \
-    --arg generatedUtc "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-    --arg requestedVersion "${requested_version}" \
-    --arg resolvedVersion "${resolved_version}" \
-    --arg specTargets "${spec_targets}" \
-    --arg integrationTargets "${integration_targets}" \
+write_summary \
+    '[
+      "integration-matrix",
+      "live-suite",
+      "repository-test-path",
+      "resolved-package-graph",
+      "specification-suite",
+      "version-contract-preflight"
+    ]' \
+    "" \
+    "${spec_targets}" \
+    "${integration_targets}" \
     '{
-      schemaVersion: 1,
-      generatedUtc: $generatedUtc,
-      requestedVersion: $requestedVersion,
-      resolvedVersion: $resolvedVersion,
-      specificationTargets: ($specTargets | split(",") | sort),
-      integrationTargets: ($integrationTargets | split(",") | sort),
-      contracts: [
-        "repository-test-path",
-        "specification-suite",
-        "live-suite",
-        "integration-matrix",
-        "resolved-package-graph"
-      ],
-      results: {
-        dependencies: "resolved-packages.json"
-      }
-    }' > "${summary_file}"
+      "dependencies": "resolved-packages.json",
+      "integration": "integration/compatibility-matrix-evidence.json"
+    }'
 
 echo "EF Core ${resolved_version} matrix row passed for ${spec_targets}."

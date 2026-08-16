@@ -306,9 +306,19 @@ public sealed class AdrRepositoryValidatorTests
             Path.Combine(repositoryRoot, "eng", "release", "evidence.py"));
         var workflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+        var runtimeSmokeProject = File.ReadAllText(
+            Path.Combine(
+                repositoryRoot,
+                "tests",
+                "Doka.EntityFrameworkCore.MySql.RuntimeSmoke",
+                "Doka.EntityFrameworkCore.MySql.RuntimeSmoke.csproj"));
 
         Assert.Contains("-p:PublishTrimmed=true", runtimePosture, StringComparison.Ordinal);
         Assert.Contains("-p:TrimMode=full", runtimePosture, StringComparison.Ordinal);
+        Assert.Contains(
+            "<EnableTrimAnalyzer>true</EnableTrimAnalyzer>",
+            runtimeSmokeProject,
+            StringComparison.Ordinal);
         Assert.Contains("write_runtime_evidence", runtimePosture, StringComparison.Ordinal);
         Assert.Contains("runtime-posture-evidence.json", runtimePosture, StringComparison.Ordinal);
         Assert.Contains("run_runtime_posture_gate", releaseCandidate, StringComparison.Ordinal);

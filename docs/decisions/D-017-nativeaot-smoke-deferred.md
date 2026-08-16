@@ -45,6 +45,14 @@ Skip the NativeAOT publish + smoke run in `eng/test-runtime-posture.sh`. The mat
 - **JIT pass**: `dotnet run --configuration Release` against the smoke harness.
 - **PublishTrimmed pass**: `dotnet publish -p:PublishTrimmed=true -p:TrimMode=full --self-contained true` plus a smoke run of the trimmed executable. Trim analysis errors still surface here (IL2026 / IL3050 are honored as build failures).
 
+The runtime-smoke project also enables the trim analyzer during an ordinary
+Release build. Generic service registration preserves public constructors for
+the handler implementation, matching the `ServiceDescriptor` factory
+contract. The migration-context construction path is explicitly marked as
+requiring unreferenced and dynamic code because this smoke intentionally
+exercises EF Core's runtime migrations service graph; the compiled-model basic
+and spatial paths remain the supported trimmed execution proof.
+
 The PublishAot pass is not invoked; the script carries a comment that points readers at this ADR.
 
 ### Consequences
@@ -94,6 +102,9 @@ The PublishAot pass is not invoked; the script carries a comment that points rea
 ### Implementation Snapshot
 
 - `run_runtime_posture()` publishes + executes the smoke harness under JIT and `-p:PublishTrimmed=true -p:TrimMode=full`. The PublishAot publish + execute pair is removed; a comment in the script points readers at this ADR.
+- `Doka.EntityFrameworkCore.MySql.RuntimeSmoke.csproj` enables the trim analyzer
+  for ordinary Release builds, so new call-site warnings fail before the
+  hosted full-trim stage.
 
 ### Primary-Source Evidence
 
@@ -144,6 +155,9 @@ No mainstream EF Core provider ships a Design-assembly split today; the structur
 
 - 2026-05-18: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-08-16: Enabled trim analysis in the ordinary runtime-smoke build and
+  bound migration-handler construction and runtime migrations to their exact
+  trimming contracts after release qualification exposed IL2091 and IL2026.
 
 ### Implementation References
 
@@ -154,3 +168,5 @@ No mainstream EF Core provider ships a Design-assembly split today; the structur
 
 - [EF Core NativeAOT and precompiled queries](https://learn.microsoft.com/en-us/ef/core/performance/nativeaot-and-precompiled-queries) (primary source; retrieved 2026-07-27)
 - [dotnet/efcore issue 35945](https://github.com/dotnet/efcore/issues/35945) (primary source; retrieved 2026-07-27)
+- [.NET trim warnings](https://learn.microsoft.com/en-us/dotnet/core/deploying/trimming/fixing-warnings) (primary source; retrieved 2026-08-16)
+- [.NET dependency injection service descriptors](https://github.com/dotnet/runtime/blob/v10.0.0/src/libraries/Microsoft.Extensions.DependencyInjection.Abstractions/src/ServiceDescriptor.cs) (primary source; retrieved 2026-08-16)

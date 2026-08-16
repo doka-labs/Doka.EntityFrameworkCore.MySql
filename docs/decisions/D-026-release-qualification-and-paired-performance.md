@@ -16,6 +16,40 @@ doka-profile-version: "1.0"
 
 # D-026 -- Qualify releases from bound evidence and paired performance runs
 
+## 2026-08-16 Amendment: Bind EF Core patch scope before expensive execution
+
+The EF Core release gate retains both supported dependency endpoints without
+serially repeating behavior already proven for the candidate commit. The
+protected `repository-qualification` check owns full deterministic-floor
+behavior through repository tests, all six specification targets, and the
+representative integration matrix. Release qualification re-resolves the exact
+10.0.8 graph and validates its version-bound contracts, but performs the
+additional full repository, live specification, and integration execution only
+against the latest compatible 10.0.x patch.
+
+This is an evidence split, not an omitted endpoint. The floor receipt declares
+`validationScope=dependency-graph` and binds its qualification source to
+`repository-qualification`; the latest receipt declares
+`validationScope=full`. Both record the resolved Design, Relational, and
+Relational.Specification.Tests graph. Candidate assembly independently rejects
+missing rows, different scopes, unexpected targets, graph/version mismatch, or
+a missing protected-branch qualification gate. The full row also retains its
+per-target TRX and engine-lifecycle documents plus its integration result;
+assembly rejects absent, failed, mismatched, or incomplete result evidence.
+
+An exact version-contract preflight now follows package resolution and precedes
+all builds and live tests. It requires the generated suite inventory, complete
+baseline membership, and six-target discovery contract for the resolved EF
+Core patch. A newly published patch can no longer consume the full stage budget
+before reporting that its reviewed specification contract is absent.
+
+The stage deadline is reduced from 6,600 to 3,300 seconds, below a 60-minute
+job timeout. The previous hosted evidence measured each fully executed row at
+about 34 minutes; the candidate now executes one such row plus the floor graph
+instead of two full rows. The remaining margin covers restore, evidence
+serialization, and hosted-runner variance without retaining a two-hour hang
+window.
+
 ## 2026-08-16 Amendment: Qualify before creating the release identity
 
 Release qualification and publication now run as two phases of one manually
