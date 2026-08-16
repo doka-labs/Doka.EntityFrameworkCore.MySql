@@ -93,6 +93,10 @@ public static class Program
             MySqlMigrationHandlerFailureCode.DuplicateOperationOwnership);
     }
 
+    [RequiresUnreferencedCode(
+        "This smoke resolves EF Core's migrations service graph and executes the public handler SPI.")]
+    [RequiresDynamicCode(
+        "This smoke resolves EF Core's migrations service graph and executes the public handler SPI.")]
     private static void VerifySuccessfulHandlerOrder(
         RuntimeSmokeHandlerOrder handlerOrder,
         bool handlersBeforeProvider
@@ -159,6 +163,10 @@ public static class Program
             "The package-only migration-operation context remained usable after handler return.");
     }
 
+    [RequiresUnreferencedCode(
+        "This smoke resolves EF Core's migrations service graph and executes the public handler SPI.")]
+    [RequiresDynamicCode(
+        "This smoke resolves EF Core's migrations service graph and executes the public handler SPI.")]
     private static RuntimeSmokeMigrationContext CreateMigrationContext(
         RuntimeSmokeHandlerOrder handlerOrder,
         bool handlersBeforeProvider = false
@@ -180,6 +188,10 @@ public static class Program
         return new RuntimeSmokeMigrationContext(optionsBuilder.Options);
     }
 
+    [RequiresUnreferencedCode(
+        "This smoke resolves EF Core's migrations service graph and executes the public handler SPI.")]
+    [RequiresDynamicCode(
+        "This smoke resolves EF Core's migrations service graph and executes the public handler SPI.")]
     private static void VerifyExpectedHandlerFailure(
         RuntimeSmokeHandlerOrder handlerOrder,
         Func<MigrationOperation> operationFactory,
@@ -350,6 +362,10 @@ public static class Program
 
     private sealed class RuntimeSmokeMigrationContext : DbContext
     {
+        [RequiresUnreferencedCode(
+            "This smoke resolves EF Core's migrations service graph and executes the public handler SPI.")]
+        [RequiresDynamicCode(
+            "This smoke resolves EF Core's migrations service graph and executes the public handler SPI.")]
         public RuntimeSmokeMigrationContext(
             DbContextOptions<RuntimeSmokeMigrationContext> options
         ) : base(options) { }
@@ -427,7 +443,8 @@ public static class Program
         }
     }
 
-    private static void AddHandler<THandler>(
+    private static void AddHandler<
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(
         IServiceCollection services
     )
         where THandler : class, IMySqlMigrationOperationHandler => services.TryAddEnumerable(

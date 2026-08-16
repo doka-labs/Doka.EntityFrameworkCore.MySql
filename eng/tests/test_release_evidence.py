@@ -285,6 +285,111 @@ class ReleaseEvidenceTests(unittest.TestCase):
         ):
             self._generate()
 
+    def test_generate_rejects_a_full_floor_matrix_rerun(self) -> None:
+        """Keep the protected floor proof distinct from candidate-only latest work."""
+        path = (
+            self.root
+            / "efcore-patch-matrix"
+            / "minimum-10-0-8"
+            / "efcore-contract-evidence.json"
+        )
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+        receipt["validationScope"] = "full"
+        path.write_text(json.dumps(receipt), encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "invalid validationScope"
+        ):
+            self._generate()
+
+    def test_generate_rejects_an_unbound_latest_dependency_graph(self) -> None:
+        """Reject a receipt whose resolved version differs from its graph bytes."""
+        path = (
+            self.root
+            / "efcore-patch-matrix"
+            / "latest-10-0"
+            / "efcore-contract-evidence.json"
+        )
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+        receipt["resolvedVersion"] = "10.0.10"
+        path.write_text(json.dumps(receipt), encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "dependency graph does not match"
+        ):
+            self._generate()
+
+    def test_generate_rejects_malformed_efcore_matrix_documents(self) -> None:
+        """Keep malformed matrix JSON inside the typed evidence failure boundary."""
+        directory = self.root / "efcore-patch-matrix" / "latest-10-0"
+        documents = (
+            (directory / "efcore-contract-evidence.json", []),
+            (directory / "resolved-packages.json", {"projects": [None]}),
+        )
+        for path, malformed in documents:
+            with self.subTest(path=path.name):
+                original = path.read_text(encoding="utf-8")
+                path.write_text(json.dumps(malformed), encoding="utf-8")
+                with self.assertRaisesRegex(
+                    release_evidence.EvidenceError,
+                    "EF Core matrix evidence is invalid|dependency graph is invalid",
+                ):
+                    self._generate()
+                path.write_text(original, encoding="utf-8")
+
+    def test_generate_rejects_a_floor_without_repository_qualification(self) -> None:
+        """Do not accept a graph-only floor row without its behavioral proof."""
+        path = self.root / "release-qualification-manifest.json"
+        qualification = json.loads(path.read_text(encoding="utf-8"))
+        qualification["gates"] = [
+            gate
+            for gate in qualification["gates"]
+            if gate["gate"] != "repository-qualification"
+        ]
+        path.write_text(json.dumps(qualification), encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError,
+            "requires commit-exact repository-qualification",
+        ):
+            self._generate()
+
+    def test_generate_rejects_missing_latest_specification_results(self) -> None:
+        """Require retained TRX and engine evidence for each declared target."""
+        path = (
+            self.root
+            / "efcore-patch-matrix"
+            / "latest-10-0"
+            / "mysql84"
+            / "results.trx"
+        )
+        path.unlink()
+
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError,
+            "incomplete specification evidence for mysql84",
+        ):
+            self._generate()
+
+    def test_generate_rejects_failed_latest_integration_results(self) -> None:
+        """Do not let a receipt claim integration work its retained result failed."""
+        path = (
+            self.root
+            / "efcore-patch-matrix"
+            / "latest-10-0"
+            / "integration"
+            / "compatibility-matrix-evidence.json"
+        )
+        integration = json.loads(path.read_text(encoding="utf-8"))
+        integration["testExitCode"] = 1
+        path.write_text(json.dumps(integration), encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError,
+            "latest integration evidence is invalid",
+        ):
+            self._generate()
+
     def test_generate_rejects_runtime_evidence_from_another_run(self) -> None:
         """Reject a green runtime artifact copied from an earlier candidate."""
         path = self.root / release_evidence.RUNTIME_POSTURE_EVIDENCE
@@ -444,7 +549,6 @@ class ReleaseEvidenceTests(unittest.TestCase):
             json.dumps(dependencies),
             encoding="utf-8",
         )
-
         identities = {
             "mysql84": ("MySql", "mysql:8.4", f"mysql:8.4.11@sha256:{'8' * 64}"),
             "mysql97": ("MySql", "mysql:9.7", f"mysql:9.7.2@sha256:{'9' * 64}"),
@@ -469,6 +573,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 f"mariadb:12.3.2@sha256:{'3' * 64}",
             ),
         }
+        self._write_efcore_patch_matrix(identities)
         integration_targets = []
         for target_id, (engine, version, image) in identities.items():
             target_directory = self.root / "specification" / target_id
@@ -550,6 +655,147 @@ class ReleaseEvidenceTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+
+    def _write_efcore_patch_matrix(
+        self,
+        identities: dict[str, tuple[str, str, str]],
+    ) -> None:
+        """Write the floor-graph and full-latest release receipts."""
+        required_packages = (
+            "Microsoft.EntityFrameworkCore.Design",
+            "Microsoft.EntityFrameworkCore.Relational",
+            "Microsoft.EntityFrameworkCore.Relational.Specification.Tests",
+        )
+        legs = {
+            "minimum-10-0-8": {
+                "requestedVersion": "10.0.8",
+                "resolvedVersion": "10.0.8",
+                "validationScope": "dependency-graph",
+                "qualificationSource": "repository-qualification",
+                "specificationTargets": [],
+                "integrationTargets": [],
+                "contracts": [
+                    "resolved-package-graph",
+                    "version-contract-preflight",
+                ],
+            },
+            "latest-10-0": {
+                "requestedVersion": "10.0.*",
+                "resolvedVersion": "10.0.11",
+                "validationScope": "full",
+                "qualificationSource": None,
+                "specificationTargets": ["mariadb118", "mysql84"],
+                "integrationTargets": ["mariadb118", "mysql84"],
+                "contracts": [
+                    "integration-matrix",
+                    "live-suite",
+                    "repository-test-path",
+                    "resolved-package-graph",
+                    "specification-suite",
+                    "version-contract-preflight",
+                ],
+                "results": {
+                    "dependencies": "resolved-packages.json",
+                    "integration": "integration/compatibility-matrix-evidence.json",
+                },
+            },
+        }
+        for leg, receipt in legs.items():
+            directory = self.root / "efcore-patch-matrix" / leg
+            directory.mkdir(parents=True)
+            receipt["schemaVersion"] = 2
+            receipt.setdefault("results", {"dependencies": "resolved-packages.json"})
+            (directory / "efcore-contract-evidence.json").write_text(
+                json.dumps(receipt),
+                encoding="utf-8",
+            )
+            graph = {
+                "projects": [
+                    {
+                        "frameworks": [
+                            {
+                                "topLevelPackages": [
+                                    {
+                                        "id": package,
+                                        "resolvedVersion": receipt["resolvedVersion"],
+                                    }
+                                    for package in required_packages
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "frameworks": [
+                            {
+                                "framework": "net10.0",
+                            }
+                        ]
+                    },
+                ]
+            }
+            (directory / "resolved-packages.json").write_text(
+                json.dumps(graph),
+                encoding="utf-8",
+            )
+            if leg == "latest-10-0":
+                self._write_efcore_full_results(directory, identities)
+
+    @staticmethod
+    def _write_efcore_full_results(
+        directory: Path,
+        identities: dict[str, tuple[str, str, str]],
+    ) -> None:
+        """Write successful specification and integration evidence."""
+        selected_targets = ("mysql84", "mariadb118")
+        retained_targets = []
+        for target_id in selected_targets:
+            engine, version, image = identities[target_id]
+            target = {
+                "targetId": target_id,
+                "engine": engine,
+                "serverVersionToken": version,
+                "source": "testcontainers",
+                "image": image,
+            }
+            target_directory = directory / target_id
+            target_directory.mkdir()
+            (target_directory / "results.trx").write_text(
+                "<TestRun><ResultSummary>"
+                '<Counters total="1" failed="0" />'
+                "</ResultSummary></TestRun>",
+                encoding="ascii",
+            )
+            (target_directory / "test-database-evidence.json").write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "lifecycleState": "cleanup-completed",
+                        "targets": [target],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            retained_targets.append(target)
+
+        integration_directory = directory / "integration"
+        integration_directory.mkdir()
+        (integration_directory / "compatibility-matrix-evidence.json").write_text(
+            json.dumps(
+                {
+                    "mode": "testcontainers",
+                    "targetSelection": ",".join(selected_targets),
+                    "testFilter": "",
+                    "testExitCode": 0,
+                    "testDatabase": {
+                        "schemaVersion": 1,
+                        "lifecycleState": "cleanup-completed",
+                        "targets": retained_targets,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
     def _write_qualification_manifest(self, source_commit: str) -> None:
         """Write the manifest the release document is bound to.
 

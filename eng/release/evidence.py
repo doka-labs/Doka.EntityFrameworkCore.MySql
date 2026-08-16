@@ -21,6 +21,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree
 
 
 SCHEMA_VERSION = 3
@@ -42,6 +43,7 @@ REQUIRED_PACKAGES = (
 INTEGRATION_MATRIX_EVIDENCE = Path("integration/compatibility-matrix-evidence.json")
 LIVE_EXAMPLE_MATRIX_EVIDENCE = Path("integration/examples/live-example-matrix-evidence.json")
 RUNTIME_POSTURE_EVIDENCE = Path("runtime/runtime-posture-evidence.json")
+EFCORE_PATCH_MATRIX_ROOT = Path("efcore-patch-matrix")
 RECONCILIATION_EVIDENCE = Path("release-candidate-reconciliation.json")
 # The reconciliation index is derived from the evidence policy rather than
 # restated here. A second list is free to describe a different release than the
@@ -206,6 +208,220 @@ def collect_dependencies(path: Path) -> dict[str, str]:
             raise EvidenceError(f"Expected one resolved {package_id} version, found: {rendered}")
         result[package_id] = next(iter(versions))
     return result
+
+
+def validate_efcore_full_results(
+    matrix_root: Path,
+    targets: list[str],
+) -> None:
+    """Verify that a full matrix row retained successful live evidence."""
+    for target in targets:
+        target_root = matrix_root / "latest-10-0" / target
+        trx_files = sorted(target_root.glob("*.trx"))
+        database_path = target_root / "test-database-evidence.json"
+        if len(trx_files) != 1 or not database_path.is_file():
+            raise EvidenceError(
+                f"EF Core latest matrix retained incomplete specification evidence for {target}."
+            )
+        try:
+            trx_root = ElementTree.parse(trx_files[0]).getroot()
+            counters = next(
+                element
+                for element in trx_root.iter()
+                if element.tag.endswith("}Counters") or element.tag == "Counters"
+            )
+            database = json.loads(database_path.read_text(encoding="utf-8"))
+        except (OSError, ElementTree.ParseError, StopIteration, json.JSONDecodeError) as exception:
+            raise EvidenceError(
+                f"EF Core latest matrix evidence is unreadable for {target}."
+            ) from exception
+        total = counters.get("total", "")
+        if (
+            counters.get("failed") != "0"
+            or not total.isdigit()
+            or int(total) <= 0
+        ):
+            raise EvidenceError(f"EF Core latest matrix tests did not pass for {target}.")
+        if not isinstance(database, dict):
+            raise EvidenceError(
+                f"EF Core latest matrix retained invalid engine evidence for {target}."
+            )
+        identities = database.get("targets", [])
+        if (
+            not isinstance(identities, list)
+            or any(not isinstance(identity, dict) for identity in identities)
+            or database.get("lifecycleState") != "cleanup-completed"
+            or len(identities) != 1
+            or identities[0].get("targetId") != target
+        ):
+            raise EvidenceError(
+                f"EF Core latest matrix retained invalid engine evidence for {target}."
+            )
+
+    integration_path = (
+        matrix_root
+        / "latest-10-0"
+        / "integration"
+        / "compatibility-matrix-evidence.json"
+    )
+    try:
+        integration = json.loads(integration_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exception:
+        raise EvidenceError("EF Core latest integration evidence is unreadable.") from exception
+    if not isinstance(integration, dict) or not isinstance(
+        integration.get("testDatabase"), dict
+    ):
+        raise EvidenceError("EF Core latest integration evidence is invalid.")
+    test_database = integration["testDatabase"]
+    database_targets = test_database.get("targets")
+    if not isinstance(database_targets, list) or any(
+        not isinstance(target, dict) for target in database_targets
+    ):
+        raise EvidenceError("EF Core latest integration evidence is invalid.")
+    raw_integration_targets = [
+        target.get("targetId") for target in database_targets
+    ]
+    target_selection = integration.get("targetSelection")
+    if (
+        any(not isinstance(target, str) for target in raw_integration_targets)
+        or not isinstance(target_selection, str)
+        or integration.get("mode") != "testcontainers"
+        or integration.get("testExitCode") != 0
+        or integration.get("testFilter") != ""
+        or sorted(target_selection.split(",")) != targets
+        or test_database.get("lifecycleState") != "cleanup-completed"
+        or sorted(raw_integration_targets) != targets
+    ):
+        raise EvidenceError("EF Core latest integration evidence is invalid.")
+
+
+def validate_efcore_patch_matrix(
+    root: Path,
+    qualification_gates: list[str],
+) -> None:
+    """Require one floor graph and one fully executed latest EF Core row.
+
+    The protected branch owns behavior at the deterministic dependency floor.
+    The candidate still resolves and records that exact graph, while the
+    additional candidate-produced test budget is reserved for the newest
+    compatible patch. Receipts make that division explicit and non-optional.
+    """
+    matrix_root = root / EFCORE_PATCH_MATRIX_ROOT
+    receipts = sorted(matrix_root.rglob("efcore-contract-evidence.json"))
+    expected_receipts = [
+        matrix_root / "latest-10-0" / "efcore-contract-evidence.json",
+        matrix_root / "minimum-10-0-8" / "efcore-contract-evidence.json",
+    ]
+    if receipts != expected_receipts:
+        rendered = [portable_path(path, root) for path in receipts]
+        raise EvidenceError(
+            "EF Core patch evidence must contain exactly the floor and latest receipts; "
+            f"found: {rendered}."
+        )
+
+    expected = {
+        "minimum-10-0-8": {
+            "requestedVersion": "10.0.8",
+            "resolvedPattern": r"10[.]0[.]8",
+            "validationScope": "dependency-graph",
+            "qualificationSource": "repository-qualification",
+            "specificationTargets": [],
+            "integrationTargets": [],
+            "contracts": ["resolved-package-graph", "version-contract-preflight"],
+            "results": {"dependencies": "resolved-packages.json"},
+        },
+        "latest-10-0": {
+            "requestedVersion": "10.0.*",
+            "resolvedPattern": r"10[.]0[.][0-9]+",
+            "validationScope": "full",
+            "qualificationSource": None,
+            "specificationTargets": ["mariadb118", "mysql84"],
+            "integrationTargets": ["mariadb118", "mysql84"],
+            "contracts": [
+                "integration-matrix",
+                "live-suite",
+                "repository-test-path",
+                "resolved-package-graph",
+                "specification-suite",
+                "version-contract-preflight",
+            ],
+            "results": {
+                "dependencies": "resolved-packages.json",
+                "integration": "integration/compatibility-matrix-evidence.json",
+            },
+        },
+    }
+    required_packages = {
+        "Microsoft.EntityFrameworkCore.Design",
+        "Microsoft.EntityFrameworkCore.Relational",
+        "Microsoft.EntityFrameworkCore.Relational.Specification.Tests",
+    }
+
+    for leg, contract in expected.items():
+        receipt_path = matrix_root / leg / "efcore-contract-evidence.json"
+        graph_path = matrix_root / leg / "resolved-packages.json"
+        try:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            graph = json.loads(graph_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exception:
+            raise EvidenceError(f"EF Core matrix evidence is unreadable for {leg}.") from exception
+        if not isinstance(receipt, dict) or not isinstance(graph, dict):
+            raise EvidenceError(f"EF Core matrix evidence is invalid for {leg}.")
+
+        for field in (
+            "requestedVersion",
+            "validationScope",
+            "qualificationSource",
+            "specificationTargets",
+            "integrationTargets",
+            "contracts",
+            "results",
+        ):
+            if receipt.get(field) != contract[field]:
+                raise EvidenceError(f"EF Core matrix {leg} has an invalid {field} contract.")
+        if receipt.get("schemaVersion") != 2:
+            raise EvidenceError(f"EF Core matrix {leg} has an unsupported receipt schema.")
+
+        resolved_version = receipt.get("resolvedVersion")
+        if (
+            not isinstance(resolved_version, str)
+            or re.fullmatch(contract["resolvedPattern"], resolved_version) is None
+        ):
+            raise EvidenceError(f"EF Core matrix {leg} resolved an unexpected version.")
+        projects = graph.get("projects")
+        if not isinstance(projects, list) or any(
+            not isinstance(project, dict) for project in projects
+        ):
+            raise EvidenceError(f"EF Core matrix {leg} dependency graph is invalid.")
+        versions: dict[str, set[str]] = {package: set() for package in required_packages}
+        for project in projects:
+            frameworks = project.get("frameworks")
+            if not isinstance(frameworks, list) or any(
+                not isinstance(framework, dict) for framework in frameworks
+            ):
+                raise EvidenceError(f"EF Core matrix {leg} dependency graph is invalid.")
+            for framework in frameworks:
+                # dotnet package list omits both package arrays for projects
+                # that have no PackageReference in the selected framework.
+                packages = framework.get("topLevelPackages", [])
+                if not isinstance(packages, list) or any(
+                    not isinstance(package, dict) for package in packages
+                ):
+                    raise EvidenceError(f"EF Core matrix {leg} dependency graph is invalid.")
+                for package in packages:
+                    package_id = package.get("id")
+                    if package_id in versions and package.get("resolvedVersion"):
+                        versions[package_id].add(package["resolvedVersion"])
+        if any(values != {resolved_version} for values in versions.values()):
+            raise EvidenceError(
+                f"EF Core matrix {leg} dependency graph does not match {resolved_version}."
+            )
+
+    if "repository-qualification" not in qualification_gates:
+        raise EvidenceError(
+            "The EF Core floor receipt requires commit-exact repository-qualification."
+        )
+    validate_efcore_full_results(matrix_root, expected["latest-10-0"]["specificationTargets"])
 
 
 def collect_engines(root: Path) -> list[dict[str, str]]:
@@ -558,6 +774,7 @@ def write_manifest(args: argparse.Namespace) -> None:
     qualification = validate_qualification_manifest(
         root, source["commit"], args.release_version
     )
+    validate_efcore_patch_matrix(root, qualification["gates"])
     reconciliation = validate_reconciliation(root, args.run_id, source["commit"])
     dependencies = collect_dependencies(dependency_graph)
     approved_sdk = approved_dotnet_sdk(repo)
@@ -692,6 +909,12 @@ def verify_manifest(root: Path, repo: Path | None) -> None:
         github_ref = os.environ.get("GITHUB_REF", "")
         if github_ref and source.get("ref") != github_ref:
             raise EvidenceError("The manifest source ref does not match the hosted workflow ref.")
+
+    qualification = manifest.get("qualification", {})
+    qualification_gates = qualification.get("gates", [])
+    if not isinstance(qualification_gates, list):
+        raise EvidenceError("Release evidence has an invalid qualification gate inventory.")
+    validate_efcore_patch_matrix(root, qualification_gates)
 
 
 def parse_arguments() -> argparse.Namespace:

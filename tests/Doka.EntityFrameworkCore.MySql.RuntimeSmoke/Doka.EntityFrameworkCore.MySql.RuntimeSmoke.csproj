@@ -4,6 +4,7 @@
     <AssemblyName>Doka.EntityFrameworkCore.MySql.RuntimeSmoke</AssemblyName>
     <RootNamespace>Doka.EntityFrameworkCore.MySql.RuntimeSmoke</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <!-- IL2104/IL3053 are trim/AOT analysis warnings that this smoke harness intentionally emits. -->
     <NoWarn>$(NoWarn);IL2104;IL3053</NoWarn>
   </PropertyGroup>

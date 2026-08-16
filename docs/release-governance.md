@@ -106,6 +106,15 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - candidate-produced gates: migration deployment, runtime posture, both
     patch matrices, package, and SBOM produce exactly six stage receipts while
     the source is still untagged
+  - EF Core patch scope: the candidate re-resolves and records the exact floor
+    graph already behavior-qualified by commit-exact
+    `repository-qualification`, then fully executes the latest compatible
+    patch; both scopes, resolved package graphs, per-target TRX and engine
+    evidence, and the full-row integration result are independently verified
+    during evidence assembly
+  - EF Core version preflight: exact inventory, complete baseline membership,
+    and six-target discovery contracts are required immediately after restore,
+    before the full repository and live latest-patch matrix begins
   - local consumer boundary: before publication, an isolated project restores
     the exact local provider and spatial packages into an empty cache, binds
     their SHA-256 digests, compiles generated models, and executes basic and

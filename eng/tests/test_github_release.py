@@ -248,6 +248,120 @@ class GitHubReleaseTests(unittest.TestCase):
                 "sbom/provider.cdx.json": (b'{"bomFormat":"CycloneDX"}\n', "sbom"),
             }
         )
+        efcore_packages = (
+            "Microsoft.EntityFrameworkCore.Design",
+            "Microsoft.EntityFrameworkCore.Relational",
+            "Microsoft.EntityFrameworkCore.Relational.Specification.Tests",
+        )
+        efcore_legs = {
+            "minimum-10-0-8": {
+                "requestedVersion": "10.0.8",
+                "resolvedVersion": "10.0.8",
+                "validationScope": "dependency-graph",
+                "qualificationSource": "repository-qualification",
+                "specificationTargets": [],
+                "integrationTargets": [],
+                "contracts": [
+                    "resolved-package-graph",
+                    "version-contract-preflight",
+                ],
+            },
+            "latest-10-0": {
+                "requestedVersion": "10.0.*",
+                "resolvedVersion": "10.0.11",
+                "validationScope": "full",
+                "qualificationSource": None,
+                "specificationTargets": ["mariadb118", "mysql84"],
+                "integrationTargets": ["mariadb118", "mysql84"],
+                "contracts": [
+                    "integration-matrix",
+                    "live-suite",
+                    "repository-test-path",
+                    "resolved-package-graph",
+                    "specification-suite",
+                    "version-contract-preflight",
+                ],
+                "results": {
+                    "dependencies": "resolved-packages.json",
+                    "integration": "integration/compatibility-matrix-evidence.json",
+                },
+            },
+        }
+        for leg, receipt in efcore_legs.items():
+            receipt["schemaVersion"] = 2
+            receipt.setdefault("results", {"dependencies": "resolved-packages.json"})
+            prefix = f"efcore-patch-matrix/{leg}"
+            files[f"{prefix}/efcore-contract-evidence.json"] = (
+                (json.dumps(receipt) + "\n").encode("ascii"),
+                "evidence",
+            )
+            graph = {
+                "projects": [
+                    {
+                        "frameworks": [
+                            {
+                                "topLevelPackages": [
+                                    {
+                                        "id": package,
+                                        "resolvedVersion": receipt["resolvedVersion"],
+                                    }
+                                    for package in efcore_packages
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+            files[f"{prefix}/resolved-packages.json"] = (
+                (json.dumps(graph) + "\n").encode("ascii"),
+                "evidence",
+            )
+            if leg == "latest-10-0":
+                retained_targets = []
+                for target in ("mysql84", "mariadb118"):
+                    target_evidence = {
+                        "targetId": target,
+                        "engine": "MySql" if target == "mysql84" else "MariaDb",
+                    }
+                    retained_targets.append(target_evidence)
+                    files[f"{prefix}/{target}/results.trx"] = (
+                        b"<TestRun><ResultSummary>"
+                        b'<Counters total="1" failed="0" />'
+                        b"</ResultSummary></TestRun>",
+                        "evidence",
+                    )
+                    files[f"{prefix}/{target}/test-database-evidence.json"] = (
+                        (
+                            json.dumps(
+                                {
+                                    "lifecycleState": "cleanup-completed",
+                                    "targets": [target_evidence],
+                                }
+                            )
+                            + "\n"
+                        ).encode("ascii"),
+                        "evidence",
+                    )
+                files[
+                    f"{prefix}/integration/compatibility-matrix-evidence.json"
+                ] = (
+                    (
+                        json.dumps(
+                            {
+                                "mode": "testcontainers",
+                                "targetSelection": "mysql84,mariadb118",
+                                "testFilter": "",
+                                "testExitCode": 0,
+                                "testDatabase": {
+                                    "lifecycleState": "cleanup-completed",
+                                    "targets": retained_targets,
+                                },
+                            }
+                        )
+                        + "\n"
+                    ).encode("ascii"),
+                    "evidence",
+                )
 
         artifacts: list[dict[str, object]] = []
         for relative, (payload, role) in sorted(files.items()):
@@ -289,6 +403,9 @@ class GitHubReleaseTests(unittest.TestCase):
             "toolchain": {
                 "approvedDotnetSdk": "10.0.302",
                 "dotnetSdk": "10.0.302",
+            },
+            "qualification": {
+                "gates": ["repository-qualification"],
             },
             "artifacts": artifacts,
         }

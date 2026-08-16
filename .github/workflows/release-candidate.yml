@@ -139,8 +139,8 @@ jobs:
             timeout_minutes: 40
             deadline_seconds: 2100
           - stage: efcore-patch-matrix
-            timeout_minutes: 120
-            deadline_seconds: 6600
+            timeout_minutes: 60
+            deadline_seconds: 3300
           - stage: mysqlconnector-patch-matrix
             timeout_minutes: 45
             deadline_seconds: 2400

@@ -100,6 +100,11 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
 - Verify the exact EF Core package set a patch matrix resolved. The previous
   check counted packages, so a missing package could be compensated by a
   duplicate of another.
+- Keep release engine qualification bounded and fail-closed. Runtime smoke now
+  declares its trimming requirements, EF Core 10.0.11 carries exact six-target
+  contracts, and future unregistered patches stop after dependency resolution
+  before expensive test execution. Candidate qualification reuses the
+  commit-exact floor proof and fully executes only the latest compatible patch.
 - Reproduce a paired interval across processes. The per-test resampling seed was
   derived from a hash that Python randomizes per process, so a reviewer could
   not reproduce the number a release was decided on.

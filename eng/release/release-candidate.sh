@@ -518,18 +518,20 @@ run_runtime_posture_gate() {
         bash "${repo_root}/eng/testing/test-runtime-posture.sh" --up-test-down
 }
 
-# Both patch matrices resolve a floating dependency leg, so each row is run
-# here rather than imported: the release must prove the provider against the
-# dependency graph its own commit resolves, not the one a scheduled run
-# resolved days earlier. Both legs run inside one stage so the gate keeps a
-# single receipt.
+# The protected branch already runs the complete repository, specification,
+# and integration contracts against the deterministic EF Core floor. The
+# candidate re-resolves that floor to bind its dependency graph, then spends
+# the additional live-test budget only on the latest compatible patch.
 run_efcore_matrix_gate() {
-    local leg
-    for leg in "10.0.8:^10[.]0[.]8$:minimum-10-0-8" \
-               "10.0.*:^10[.]0[.][0-9]+$:latest-10-0"; do
+    local leg scope
+    for leg in "10.0.8:^10[.]0[.]8$:minimum-10-0-8:dependency-graph" \
+               "10.0.*:^10[.]0[.][0-9]+$:latest-10-0:full"; do
+        scope="${leg##*:}"
+        leg="${leg%:*}"
         DokaEfCoreVersion="${leg%%:*}" \
         DOKA_EF_CORE_RESOLVED_PATTERN="$(printf '%s' "${leg}" | cut -d: -f2)" \
         DOKA_EF_CORE_ARTIFACT_SUFFIX="${leg##*:}" \
+        DOKA_EF_CORE_VALIDATION_SCOPE="${scope}" \
             bash "${repo_root}/eng/testing/test-efcore-matrix.sh"
     done
     mkdir -p "${efcore_matrix_dir}"
