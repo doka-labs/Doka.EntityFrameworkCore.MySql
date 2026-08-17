@@ -123,6 +123,14 @@ matrix.
 - canonical evidence assembly; and
 - GitHub artifact attestations bound to `refs/heads/main` and the exact commit.
 
+The runtime-posture stage requires clean release source before it allocates its
+database, restores the host RID into an isolated artifacts and lock directory,
+and rejects any source-tree change before writing evidence. Finalization then
+validates that exact evidence instead of trusting the runtime job conclusion.
+The same real Linux RID path runs inside the commit-exact `integration-smoke`
+job, so pull requests and `main` exercise the failure boundary before
+release-candidate execution without allocating another CI runner.
+
 The final `publish` job waits for approval on the `nuget` environment. Do not
 approve it yet. Review the completed qualification jobs, candidate summary,
 qualification manifest, local-package receipts, and attestations. Record the

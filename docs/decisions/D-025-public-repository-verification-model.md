@@ -16,6 +16,20 @@ doka-profile-version: "1.0"
 
 # D-025 -- Verify on every event and harden the workflow surface for a public repository
 
+## 2026-08-17 Amendment: Make runtime posture commit-exact
+
+RID-specific restore and publish behavior is affected by repository changes and
+runner operating systems, not only by upstream drift. A release-candidate run
+proved that the scheduled runtime lane could report success while producing
+source evidence that finalization rejected. Runtime posture therefore runs for
+every pull request and `main` push, requires an unchanged clean source tree, and
+is an explicit input to `repository-qualification`.
+
+The shared script runs inside the existing `integration-smoke` job, reusing its
+checkout, SDK, package cache, and runner. No workflow, job, runner, or manual
+trigger is added. D-017 excludes NativeAOT from this gate, so no NativeAOT
+toolchain installation is required.
+
 ## Context and Problem Statement
 
 D-023 rationed verification against a fixed runner-minute allowance. Its
@@ -72,13 +86,14 @@ actually detects while keeping pull-request feedback bounded.
 
 Every push to `main` and every pull request runs quality gates, repository
 tests, the representative dual-engine integration path, specification
-conformance across every active LTS target, and the merged coverage gate. These
-lanes detect regressions caused by the change under review.
+conformance across every active LTS target, the merged coverage gate, and the
+real Linux RID runtime-posture path. These lanes detect regressions caused by
+the change under review.
 
 The scheduled lane retains migration deployment, the EF Core floor and latest
-matrix, the MySqlConnector matrix, runtime posture, and every benchmark smoke
-target in the performance contract. These detect upstream drift or environment
-drift, which repository events do not cause and cannot predict.
+matrix, the MySqlConnector matrix, and every benchmark smoke target in the
+performance contract. These detect upstream drift or environment drift, which
+repository events do not cause and cannot predict.
 
 The `baseline-proposal` dispatch profile continues to skip both lanes beyond
 the three required checks. That profile exists for an automated pull request
@@ -209,9 +224,9 @@ default configuration.
   `test_engineering_structure.test_declared_consumers_cover_every_executing_caller`,
   which fails when a workflow runs a root command the manifest does not declare.
 - Inspect `.github/workflows/ci.yml` and confirm that `migration-deployment`,
-  `efcore-patch-matrix`, `mysqlconnector-patch-matrix`, `runtime-posture`, and
-  `benchmark-smoke` carry the scheduled event condition, and that no other job
-  does.
+  `efcore-patch-matrix`, `mysqlconnector-patch-matrix`, and `benchmark-smoke`
+  carry the scheduled event condition. Confirm that `integration-smoke` owns
+  the runtime-posture command and feeds `repository-qualification`.
 - Inspect `.github/workflows/` and confirm every `actions/checkout` step sets
   `persist-credentials: false` except the two baseline-proposal jobs that push,
   and that each of those two runs only from the default branch and requests no
@@ -306,6 +321,9 @@ version control. They are documented in
 - 2026-08-14: Split automatic-submission completion from graph propagation after
   a successful head producer still needed more than the original shared
   180-second window to become visible to dependency review.
+- 2026-08-17: Reclassified runtime posture as commit-exact after a hosted
+  release run exposed RID-specific source mutation that scheduled execution had
+  not prevented from reaching finalization.
 
 ### Implementation References
 
@@ -316,8 +334,10 @@ version control. They are documented in
 - `eng/quality/check-vulnerability-audit.sh`
 - `eng/quality/dependency_snapshot_readiness.py`
 - `eng/performance/check-benchmark-ratios.sh`
+- `eng/testing/test-runtime-posture.sh`
 - `eng/tests/test_dependency_snapshot_readiness.py`
 - `eng/tests/test_engineering_structure.py`
+- `eng/tests/test_runtime_posture_evidence_chain.py`
 - `docs/operations/repository-security-settings.md`
 
 ### Sources

@@ -409,46 +409,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      - name: Cache NuGet packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json', 'dotnet-tools.json') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
-
-      - name: Run representative dual-engine live integration path
-        env:
-          DOKA_INTEGRATION_TARGETS: mysql84,mariadb118
-          DOKA_INTEGRATION_TEST_FILTER: "VerificationLane!=FullIntegration"
-        run: bash ./eng/test-integration.sh
-
-      - name: Upload integration coverage
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: integration-smoke-coverage
-          path: artifacts/coverage/integration
-
-  runtime-posture:
-    if: >-
-      github.event_name == 'schedule'
-      || (github.event_name == 'workflow_dispatch'
-      && inputs.profile != 'baseline-proposal')
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-
     services:
       mysql84:
         image: mysql:8.4.11@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
@@ -484,16 +444,25 @@ jobs:
           restore-keys: |
             nuget-${{ runner.os }}-
 
-      - name: Install NativeAOT toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang zlib1g-dev
+      - name: Run representative dual-engine live integration path
+        env:
+          DOKA_INTEGRATION_TARGETS: mysql84,mariadb118
+          DOKA_INTEGRATION_TEST_FILTER: "VerificationLane!=FullIntegration"
+        run: bash ./eng/test-integration.sh
 
       - name: Run runtime posture smoke
         env:
+          DOKA_RUNTIME_REQUIRE_CLEAN_SOURCE: 1
           DOKA_RUNTIME_TARGET_IMAGE: >-
             mysql:8.4.11@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
         run: bash ./eng/test-runtime-posture.sh --test-only
+
+      - name: Upload integration coverage
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-smoke-coverage
+          path: artifacts/coverage/integration
 
   # The required status check for the protected branch. It exists because
   # GitHub treats a conditionally skipped job as successful and skips the

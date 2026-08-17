@@ -72,12 +72,15 @@ jobs:
           bash ./eng/common/verify-dotnet.sh
           bash -n ./eng/release-candidate.sh
           bash -n ./eng/release/restore-release-stage-artifacts.sh
+          bash -n ./eng/testing/test-runtime-posture.sh
           bash -n ./eng/testing/test-nuget-readback.sh
           python3 -m unittest \
             eng.tests.test_materialize_sbom_assets \
             eng.tests.test_release_artifact_resolver \
+            eng.tests.test_release_finalization_chain \
             eng.tests.test_release_stage_checkpoint \
-            eng.tests.test_release_workflow_policy
+            eng.tests.test_release_workflow_policy \
+            eng.tests.test_runtime_posture_evidence_chain
 
   foundation:
     needs: preflight

@@ -521,6 +521,7 @@ run_runtime_posture_gate() {
     DOKA_RUNTIME_POSTURE_RUN_ID="${release_candidate_run_id}" \
     DOKA_RUNTIME_POSTURE_EVIDENCE_DIR="${runtime_dir}" \
     DOKA_RUNTIME_POSTURE_PUBLISH_DIR="${runtime_publish_dir}" \
+    DOKA_RUNTIME_REQUIRE_CLEAN_SOURCE=1 \
     DOKA_RUNTIME_MYSQL_PORT=0 \
         bash "${repo_root}/eng/testing/test-runtime-posture.sh" --up-test-down
 }
