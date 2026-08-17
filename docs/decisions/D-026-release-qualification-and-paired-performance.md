@@ -16,6 +16,38 @@ doka-profile-version: "1.0"
 
 # D-026 -- Qualify releases from bound evidence and paired performance runs
 
+## 2026-08-17 Amendment: Isolate runtime-specific restore state
+
+Runtime posture publishes a self-contained executable for the host RID. NuGet
+therefore evaluates RID-specific targets that are intentionally absent from the
+platform-neutral product lock files. An implicit publish restore rewrote those
+tracked locks before runtime evidence sampled the source tree, so the producer
+reported `treeState: dirty` and finalization rejected otherwise valid evidence.
+
+The runtime gate now captures source identity before execution, requires a
+clean source for release-candidate evidence, and verifies that execution adds
+no source change. Restore intermediates, build outputs, and the custom NuGet
+lock-file location share one disposable directory. Restore receives the RID
+explicitly and both run and publish use `--no-restore`, so every dependent
+command consumes the same resolved graph without touching accepted locks.
+
+The same shared runtime gate now runs inside the existing `integration-smoke`
+job on every pull request and `main` push. That job already feeds
+`repository-qualification`, so the real Linux RID boundary executes before
+merge while the candidate run still produces its own immutable runtime evidence
+for finalization. No separate workflow, job, runner, or operator trigger is
+added.
+
+Primary-source basis:
+
+- [NuGet PackageReference lock-file contract][nuget-lock-files] defines
+  `NuGetLockFilePath` as the supported custom lock-file location.
+- [.NET CLI publish contract][dotnet-publish] documents the implicit restore,
+  the `--no-restore` boundary, and the requirement to pass an explicit artifacts
+  path consistently to commands that consume earlier outputs.
+
+Retrieved 2026-08-17.
+
 ## 2026-08-17 Amendment: Make finalization self-contained
 
 The finalization job runs on a clean runner and restores only the six verified
@@ -1182,6 +1214,10 @@ manifest verification.
   finalization runner, bound it to exact matrix-resolved dependency patches,
   isolated its build and lock files, and added the same boundary to repository
   tests.
+- 2026-08-17: Isolated RID-specific runtime restore, build, and lock state;
+  bound release runtime evidence to clean source before execution; and made
+  post-execution source immutability a producer-to-consumer contract. Promoted
+  the same Linux RID gate to commit-exact protected-branch qualification.
 
 ### Implementation References
 
@@ -1200,7 +1236,10 @@ manifest verification.
 - `eng/performance/paired.py`
 - `eng/performance/sensitivity.py`
 - `eng/release/check-publication-readiness.sh`
+- `eng/testing/test-runtime-posture.sh`
 - `eng/tests/test_publication_readiness.py`
+- `eng/tests/test_release_finalization_chain.py`
+- `eng/tests/test_runtime_posture_evidence_chain.py`
 - `eng/performance/environment.py`
 - `eng/release/gate_results.py`
 - `eng/release/qualification.py`
@@ -1246,6 +1285,8 @@ manifest verification.
 - [NuGet package deletion policy][nuget-package-deletion]
   (primary source; retrieved 2026-08-16)
 - [NuGet PackageReference lock-file contract][nuget-lock-files]
+  (primary source; retrieved 2026-08-17)
+- [.NET CLI publish contract][dotnet-publish]
   (primary source; retrieved 2026-08-17)
 - [BenchmarkDotNet good practices][bdn-good-practices]
   (primary source; retrieved 2026-08-10)
@@ -1334,6 +1375,7 @@ manifest verification.
   https://learn.microsoft.com/en-us/nuget/nuget-org/policies/deleting-packages
 [nuget-lock-files]:
   https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#locking-dependencies
+[dotnet-publish]: https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-publish
 [bdn-good-practices]:
   https://benchmarkdotnet.org/articles/guides/good-practices.html
 [bdn-baselines]: https://benchmarkdotnet.org/articles/features/baselines.html

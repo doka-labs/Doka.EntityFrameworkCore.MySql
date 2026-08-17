@@ -180,6 +180,17 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
         build_prefix = "dotnet build " + "\\" + "\n    "
         self.assertIn(build_prefix + '"${migration_project}"', migration_model)
 
+    def test_runtime_stage_requires_clean_source_evidence(self) -> None:
+        """Bind the runtime producer to the clean source its consumer requires."""
+        body = ORCHESTRATOR.read_text(encoding="utf-8")
+        start = body.index("run_runtime_posture_gate() {")
+        runtime_gate = body[start : body.index("\n}\n", start)]
+
+        self.assertEqual(
+            1,
+            runtime_gate.count("DOKA_RUNTIME_REQUIRE_CLEAN_SOURCE=1"),
+        )
+
     def test_package_stage_requires_runtime_readback_evidence(self) -> None:
         """Reject a package checkpoint when the runtime readback made no evidence."""
         body = ORCHESTRATOR.read_text(encoding="utf-8")

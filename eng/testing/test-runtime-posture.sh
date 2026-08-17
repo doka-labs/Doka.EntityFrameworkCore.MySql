@@ -25,6 +25,11 @@ runtime_evidence_dir="${DOKA_RUNTIME_POSTURE_EVIDENCE_DIR:-${runtime_artifacts_r
 trimmed_output_dir="${DOKA_RUNTIME_POSTURE_PUBLISH_DIR:-${runtime_evidence_dir}/trimmed}"
 runtime_summary_file="${runtime_evidence_dir}/runtime-posture-summary.md"
 runtime_evidence_file="${runtime_evidence_dir}/runtime-posture-evidence.json"
+require_clean_source="${DOKA_RUNTIME_REQUIRE_CLEAN_SOURCE:-0}"
+runtime_build_root=""
+source_commit=""
+source_status_before=""
+source_tree_state=""
 mode="ensure-up"
 should_stop_stack_on_exit=0
 
@@ -46,6 +51,17 @@ EOF
 
 cleanup() {
     local exit_code="$1"
+
+    if [[ -n "${runtime_build_root}" ]]; then
+        set +e
+        rm -rf -- "${runtime_build_root}"
+        local build_cleanup_exit_code=$?
+        set -e
+
+        if [[ "${exit_code}" -eq 0 && "${build_cleanup_exit_code}" -ne 0 ]]; then
+            exit_code="${build_cleanup_exit_code}"
+        fi
+    fi
 
     if [[ "${should_stop_stack_on_exit}" -eq 1 ]]; then
         set +e
@@ -236,7 +252,45 @@ prepare_runtime_output() {
         exit 1
     fi
 
-    mkdir -p "${runtime_evidence_dir}" "${trimmed_output_dir}"
+    runtime_build_root="$(
+        mktemp -d "${TMPDIR:-/tmp}/doka-runtime-posture.XXXXXX"
+    )"
+    mkdir -p \
+        "${runtime_build_root}/locks" \
+        "${runtime_evidence_dir}" \
+        "${trimmed_output_dir}"
+}
+
+capture_source_identity() {
+    source_commit="$(git -C "${repo_root}" rev-parse HEAD)"
+    source_status_before="$(
+        git -C "${repo_root}" status --porcelain --untracked-files=all
+    )"
+    source_tree_state="clean"
+    if [[ -n "${source_status_before}" ]]; then
+        source_tree_state="dirty"
+    fi
+
+    if [[ "${require_clean_source}" == "1" && "${source_tree_state}" != "clean" ]]; then
+        echo "Runtime posture requires a clean source tree for release evidence." >&2
+        printf '%s\n' "${source_status_before}" >&2
+        exit 1
+    fi
+}
+
+require_unchanged_source() {
+    local source_status_after
+    source_status_after="$(
+        git -C "${repo_root}" status --porcelain --untracked-files=all
+    )"
+    if [[ "${source_status_after}" != "${source_status_before}" ]]; then
+        echo "Runtime posture changed the source tree during execution." >&2
+        echo "Before:" >&2
+        printf '%s\n' "${source_status_before:-<clean>}" >&2
+        echo "After:" >&2
+        printf '%s\n' "${source_status_after:-<clean>}" >&2
+        exit 1
+    fi
 }
 
 write_runtime_evidence() {
@@ -244,17 +298,10 @@ write_runtime_evidence() {
     local trimmed_executable="$2"
     local executable_sha256
     local executable_size
-    local source_commit
-    local source_tree_state
     local target_image
 
     executable_sha256="$(sha256_file "${trimmed_executable}")"
     executable_size="$(wc -c < "${trimmed_executable}" | tr -d ' ')"
-    source_commit="$(git -C "${repo_root}" rev-parse HEAD)"
-    source_tree_state="clean"
-    if [[ -n "$(git -C "${repo_root}" status --porcelain --untracked-files=all)" ]]; then
-        source_tree_state="dirty"
-    fi
     target_image="$(resolve_runtime_target_image)"
 
     cat > "${runtime_summary_file}" <<EOF
@@ -311,6 +358,7 @@ EOF
 run_runtime_posture() {
     local runtime_identifier
     local trimmed_executable
+    local -a runtime_build_properties
 
     runtime_identifier="$(resolve_runtime_identifier)"
     trimmed_executable="$(runtime_smoke_executable_path "${trimmed_output_dir}")"
@@ -318,9 +366,26 @@ run_runtime_posture() {
     prepare_runtime_output
     "${repo_root}/eng/common/verify-dotnet.sh"
 
-    dotnet restore "${runtime_smoke_project}"
+    runtime_build_properties=(
+        "-p:ArtifactsPath=${runtime_build_root}"
+        "-p:NuGetLockFilePath=${runtime_build_root}/locks/\$(MSBuildProjectName).packages.lock.json"
+    )
 
-    dotnet run --project "${runtime_smoke_project}" --configuration Release --no-restore --disable-build-servers
+    # A RID restore adds RID targets to PackageReference locks. Keep the
+    # runtime-only graph and every intermediate under the disposable build
+    # root so the accepted, platform-neutral product locks remain immutable.
+    dotnet restore \
+        "${runtime_smoke_project}" \
+        --runtime "${runtime_identifier}" \
+        --disable-build-servers \
+        "${runtime_build_properties[@]}"
+
+    dotnet run \
+        --project "${runtime_smoke_project}" \
+        --configuration Release \
+        --no-restore \
+        --disable-build-servers \
+        "${runtime_build_properties[@]}"
 
     # Executing the published binary, rather than accepting publish success,
     # catches provider paths removed by trimming.
@@ -331,10 +396,13 @@ run_runtime_posture() {
         -p:PublishTrimmed=true \
         -p:TrimMode=full \
         -o "${trimmed_output_dir}" \
-        --disable-build-servers
+        --no-restore \
+        --disable-build-servers \
+        "${runtime_build_properties[@]}"
 
     "${trimmed_executable}"
 
+    require_unchanged_source
     write_runtime_evidence "${runtime_identifier}" "${trimmed_executable}"
 
     # NativeAOT publish + smoke is intentionally not run. EF Core 10 NativeAOT
@@ -348,6 +416,11 @@ run_runtime_posture() {
 
 if (( $# > 1 )); then
     print_usage >&2
+    exit 1
+fi
+
+if [[ "${require_clean_source}" != "0" && "${require_clean_source}" != "1" ]]; then
+    echo "DOKA_RUNTIME_REQUIRE_CLEAN_SOURCE must be 0 or 1." >&2
     exit 1
 fi
 
@@ -372,6 +445,13 @@ if (( $# == 1 )); then
             exit 1
             ;;
     esac
+fi
+
+if [[ "${mode}" != "down" ]]; then
+    # Release runs fail before allocating a container when the checked-out
+    # source cannot be bound to clean evidence. Local runs retain their initial
+    # clean/dirty state but must finish without adding another source change.
+    capture_source_identity
 fi
 
 case "${mode}" in

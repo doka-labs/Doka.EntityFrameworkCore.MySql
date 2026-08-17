@@ -783,7 +783,6 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             ("mysqlconnector-patch-matrix", "spec-test-suite"),
             ("spec-test-suite", "coverage-gate"),
             ("coverage-gate", "integration-smoke"),
-            ("runtime-posture", "benchmark-smoke"),
             ("benchmark-smoke", None),
         )
         for job_name, next_job_name in expensive_jobs:
@@ -794,7 +793,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         cheap_jobs = (
             ("quality-gates", "migration-deployment"),
             ("repo-tests", "efcore-patch-matrix"),
-            ("integration-smoke", "runtime-posture"),
+            ("integration-smoke", "repository-qualification"),
         )
         for job_name, next_job_name in cheap_jobs:
             with self.subTest(job=job_name):
@@ -893,14 +892,32 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "bash -n ./eng/release/restore-release-stage-artifacts.sh",
             preflight,
         )
+        self.assertIn("bash -n ./eng/testing/test-runtime-posture.sh", preflight)
         self.assertIn("eng.tests.test_release_artifact_resolver", preflight)
+        self.assertIn("eng.tests.test_release_finalization_chain", preflight)
         self.assertIn("eng.tests.test_release_stage_checkpoint", preflight)
         self.assertIn("eng.tests.test_release_workflow_policy", preflight)
         self.assertIn("eng.tests.test_materialize_sbom_assets", preflight)
+        self.assertIn("eng.tests.test_runtime_posture_evidence_chain", preflight)
         self.assertLess(
             text.index("- name: Verify release tooling contracts"),
             text.index("- name: Run ${{ matrix.stage }} stage"),
         )
+
+    def test_runtime_posture_is_commit_exact_before_release(self) -> None:
+        """Reuse a required live job for the real Linux RID boundary."""
+        text = self.workflow("ci.yml")
+        integration = self.job(text, "integration-smoke", "repository-qualification")
+
+        self.assertNotIn("  runtime-posture:", text)
+        self.assertIn("services:", integration)
+        self.assertIn("mysql:8.4.11@sha256:", integration)
+        self.assertIn("DOKA_RUNTIME_REQUIRE_CLEAN_SOURCE: 1", integration)
+        self.assertIn(
+            "bash ./eng/test-runtime-posture.sh --test-only",
+            integration,
+        )
+        self.assertNotIn("Install NativeAOT toolchain", text)
 
     def test_candidate_requires_current_untagged_main_before_the_matrix(self) -> None:
         """Qualify reviewed bytes before creating their irreversible identity."""

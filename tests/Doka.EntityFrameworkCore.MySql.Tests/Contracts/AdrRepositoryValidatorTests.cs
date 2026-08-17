@@ -529,9 +529,21 @@ public sealed class AdrRepositoryValidatorTests
             $"  efcore-patch-matrix:\n    {exhaustiveCondition}",
             workflow,
             StringComparison.Ordinal);
-        Assert.Contains(
+        Assert.DoesNotContain(
             $"  runtime-posture:\n    {exhaustiveCondition}",
             workflow,
+            StringComparison.Ordinal);
+        var integrationStart = workflow.IndexOf(
+            "  integration-smoke:",
+            StringComparison.Ordinal);
+        var repositoryQualificationStart = workflow.IndexOf(
+            "  repository-qualification:",
+            integrationStart,
+            StringComparison.Ordinal);
+        var integration = workflow[integrationStart..repositoryQualificationStart];
+        Assert.Contains(
+            "bash ./eng/test-runtime-posture.sh --test-only",
+            integration,
             StringComparison.Ordinal);
         Assert.Contains(
             $"  benchmark-smoke:\n    {exhaustiveCondition}",

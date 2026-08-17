@@ -470,17 +470,17 @@ class GateImplementationOwnershipTests(unittest.TestCase):
     """Prove every release-path gate has exactly one shared implementation.
 
     D-026 runs migration deployment, runtime posture, and both patch matrices
-    against the candidate commit while their scheduled counterparts keep running
-    on the default branch. Two callers of one gate are only safe while both
-    reach the same script. A gate whose command lives inline in a workflow
-    cannot be shared, so the candidate would get a second copy -- the defect class
-    that made the release coverage gate unsatisfiable while the branch gate
-    passed on the same commit.
+    against the candidate commit while their branch counterparts exercise the
+    same shared scripts. Two callers of one gate are only safe while both reach
+    the same script. A gate whose command lives inline in a workflow cannot be
+    shared, so the candidate would get a second copy -- the defect class that
+    made the release coverage gate unsatisfiable while the branch gate passed
+    on the same commit.
     """
 
     GATES = {
         "migration-deployment": "test-migration-deployment.sh",
-        "runtime-posture": "test-runtime-posture.sh",
+        "integration-smoke": "test-runtime-posture.sh",
         "efcore-patch-matrix": "test-efcore-matrix.sh",
         "mysqlconnector-patch-matrix": "test-mysqlconnector-matrix.sh",
     }
@@ -648,13 +648,14 @@ class RequiredAggregatorTests(unittest.TestCase):
     def test_the_aggregator_does_not_depend_on_full_profile_jobs(self) -> None:
         """Keep jobs that deliberately do not run per event out of the check.
 
-        Migration deployment, runtime posture, and the patch matrices run on a
-        schedule. Requiring them here would make the check unsatisfiable on
-        every pull request.
+        Migration deployment and the patch matrices run on a schedule.
+        Runtime posture executes inside integration-smoke rather than as a
+        separate dependency.
         """
         body = "\n".join(self.body)
         for gate in ("migration-deployment", "runtime-posture",
-                     "efcore-patch-matrix", "mysqlconnector-patch-matrix",
+                     "efcore-patch-matrix",
+                     "mysqlconnector-patch-matrix",
                      "benchmark-smoke"):
             with self.subTest(gate=gate):
                 self.assertNotIn(f"- {gate}", body)
