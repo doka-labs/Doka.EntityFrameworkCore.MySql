@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational.Specification.Tests" />
+    <PackageReference Include="xunit.runner.visualstudio" VersionOverride="4.0.0" />
   </ItemGroup>
 
   <ItemGroup>
