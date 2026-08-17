@@ -31,6 +31,11 @@ class FakeReleaseClient:
         self.latest = False
         self.tag_error: github_release.GitHubReleaseError | None = None
         self.tag_error_on_verification: int | None = None
+        self.release_visibility_delay = 0
+        self.asset_visibility_delay = 0
+        self._pending_release_reads = 0
+        self._pending_asset_reads = 0
+        self._assets_before_upload: list[dict[str, object]] = []
         self._next_asset_id = 100
 
     def verify_tag(self, repository: str, tag: str, commit: str) -> None:
@@ -49,11 +54,20 @@ class FakeReleaseClient:
     ) -> dict[str, object] | None:
         """Return a detached snapshot like a real remote API response."""
         del repository, tag
-        return copy.deepcopy(self.release)
+        if self._pending_release_reads > 0:
+            self._pending_release_reads -= 1
+            return None
+
+        release = copy.deepcopy(self.release)
+        if release is not None and self._pending_asset_reads > 0:
+            self._pending_asset_reads -= 1
+            release["assets"] = copy.deepcopy(self._assets_before_upload)
+        return release
 
     def create_draft(self, plan: dict[str, object]) -> None:
         """Create exactly the draft metadata requested by the plan."""
         self.create_calls += 1
+        self._pending_release_reads = self.release_visibility_delay
         self.release = {
             "id": 42,
             "tag_name": plan["releaseTag"],
@@ -86,6 +100,8 @@ class FakeReleaseClient:
         if not isinstance(assets, list):
             raise AssertionError("The fake release asset inventory is invalid.")
 
+        self._assets_before_upload = copy.deepcopy(assets)
+        self._pending_asset_reads = self.asset_visibility_delay
         for path in paths:
             payload = path.read_bytes()
             asset_id = self._next_asset_id
@@ -687,6 +703,39 @@ class GitHubReleaseTests(unittest.TestCase):
         self.assertIn("provider.cdx.json", names)
         self.assertFalse(set(github_release.PUBLICATION_EVIDENCE_FILES) & names)
 
+    def test_cli_applies_prerelease_and_stable_classification(self) -> None:
+        """Pin GitHub draft and publication flags for both release classes."""
+        stable_plan = copy.deepcopy(self.plan)
+        stable_plan.update(
+            {
+                "releaseVersion": "10.0.0",
+                "releaseTag": "v10.0.0",
+                "name": "Doka.EntityFrameworkCore.MySql 10.0.0",
+                "prerelease": False,
+                "latest": True,
+            }
+        )
+        github_release.validate_plan(stable_plan)
+
+        cases = (
+            (self.plan, {"--prerelease", "--latest=false"}, {"--prerelease=true", "--latest=false"}),
+            (stable_plan, set(), {"--prerelease=false", "--latest=true"}),
+        )
+        for plan, expected_create_flags, expected_publish_flags in cases:
+            with self.subTest(version=plan["releaseVersion"]):
+                client = github_release.GitHubCliClient()
+                with mock.patch.object(client, "_run_text", return_value="") as run_text:
+                    client.create_draft(plan)
+                    client.publish_release(plan)
+
+                create_arguments = set(run_text.call_args_list[0].args)
+                publish_arguments = set(run_text.call_args_list[1].args)
+                self.assertEqual(
+                    expected_create_flags,
+                    create_arguments & {"--prerelease", "--latest=false"},
+                )
+                self.assertTrue(expected_publish_flags <= publish_arguments)
+
     def test_plan_rejects_candidate_tampering_after_manifest_generation(self) -> None:
         """Refuse candidate bytes that no longer match immutable evidence."""
         package = next((self.candidate / "packages").glob("*.nupkg"))
@@ -877,6 +926,27 @@ class GitHubReleaseTests(unittest.TestCase):
             client.verified_tags,
         )
 
+    def test_finalize_waits_for_draft_and_asset_inventory_visibility(self) -> None:
+        """Apply bounded write readback before crossing into publication."""
+        client = FakeReleaseClient()
+        client.release_visibility_delay = 2
+        client.asset_visibility_delay = 2
+        sleeps: list[float] = []
+
+        receipt = github_release.finalize_release(
+            self.plan,
+            client,
+            sleep=sleeps.append,
+            readback_attempts=4,
+        )
+
+        self.assertEqual("published-and-verified", receipt["status"])
+        self.assertEqual(
+            [github_release.READBACK_DELAY_SECONDS] * 4,
+            sleeps,
+        )
+        self.assertEqual(1, client.publish_calls)
+
     def test_stage_creates_a_verified_draft_without_publishing(self) -> None:
         """Create the public release identity before the first NuGet push."""
         client = FakeReleaseClient()
@@ -887,6 +957,46 @@ class GitHubReleaseTests(unittest.TestCase):
         self.assertEqual(1, client.create_calls)
         self.assertEqual(0, client.publish_calls)
         self.assertTrue(client.release["draft"])
+
+    def test_stage_waits_for_draft_and_asset_inventory_visibility(self) -> None:
+        """Tolerate bounded GitHub read-after-write propagation on both writes."""
+        client = FakeReleaseClient()
+        client.release_visibility_delay = 2
+        client.asset_visibility_delay = 2
+        sleeps: list[float] = []
+
+        receipt = github_release.stage_release(
+            self.staged_plan,
+            client,
+            sleep=sleeps.append,
+            readback_attempts=4,
+        )
+
+        self.assertEqual("draft-staged-and-verified", receipt["status"])
+        self.assertEqual(
+            [github_release.READBACK_DELAY_SECONDS] * 4,
+            sleeps,
+        )
+
+    def test_stage_fails_when_the_created_draft_never_becomes_visible(self) -> None:
+        """Keep an unavailable draft fail-closed after the bounded retry window."""
+        client = FakeReleaseClient()
+        client.release_visibility_delay = 3
+        sleeps: list[float] = []
+
+        with self.assertRaisesRegex(
+            github_release.GitHubReleaseError,
+            "created release draft within the readback window",
+        ):
+            github_release.stage_release(
+                self.staged_plan,
+                client,
+                sleep=sleeps.append,
+                readback_attempts=2,
+            )
+
+        self.assertEqual([github_release.READBACK_DELAY_SECONDS], sleeps)
+        self.assertEqual([], client.upload_calls)
 
     def test_stage_rejects_completion_evidence_as_a_release_asset(self) -> None:
         """Keep retry-varying observations outside the immutable release."""
@@ -1124,6 +1234,70 @@ class GitHubReleaseTests(unittest.TestCase):
             ),
         ):
             client.verify_tag(self._REPOSITORY, self._TAG, self._COMMIT)
+
+    def test_client_discovers_drafts_through_the_paginated_inventory(self) -> None:
+        """Use the REST surface that includes drafts for write-capable callers."""
+        client = github_release.GitHubCliClient()
+        expected = {
+            "id": 42,
+            "tag_name": self._TAG,
+            "draft": True,
+            "assets": [],
+        }
+        with mock.patch.object(
+            client,
+            "_run_text",
+            return_value=json.dumps(
+                [
+                    [{"id": 41, "tag_name": "v9.9.9", "draft": False}],
+                    [expected],
+                ]
+            ),
+        ) as run_text:
+            release = client.get_release(self._REPOSITORY, self._TAG)
+
+        self.assertEqual(expected, release)
+        run_text.assert_called_once_with(
+            "api",
+            "--paginate",
+            "--slurp",
+            "-H",
+            "Accept: application/vnd.github+json",
+            "-H",
+            f"X-GitHub-Api-Version: {github_release.GITHUB_API_VERSION}",
+            f"/repos/{self._REPOSITORY}/releases?per_page=100",
+        )
+
+    def test_client_returns_none_when_no_release_matches_the_tag(self) -> None:
+        """Distinguish a missing release from an invalid inventory response."""
+        client = github_release.GitHubCliClient()
+        with mock.patch.object(
+            client,
+            "_run_text",
+            return_value=json.dumps(
+                [[{"id": 41, "tag_name": "v9.9.9", "draft": False}]]
+            ),
+        ):
+            release = client.get_release(self._REPOSITORY, self._TAG)
+
+        self.assertIsNone(release)
+
+    def test_client_rejects_duplicate_releases_for_one_tag(self) -> None:
+        """Fail closed if the paginated inventory violates tag uniqueness."""
+        client = github_release.GitHubCliClient()
+        duplicate = {"id": 42, "tag_name": self._TAG, "draft": True}
+        with (
+            mock.patch.object(
+                client,
+                "_run_text",
+                return_value=json.dumps([[duplicate], [duplicate]]),
+            ),
+            self.assertRaisesRegex(
+                github_release.GitHubReleaseError,
+                "duplicate releases",
+            ),
+        ):
+            client.get_release(self._REPOSITORY, self._TAG)
 
     def test_remote_lightweight_tag_is_rejected(self) -> None:
         """Prevent a lightweight tag from authorizing release finalization."""

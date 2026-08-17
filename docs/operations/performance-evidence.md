@@ -874,14 +874,16 @@ must recover an injected relevant regression before a contract change can
 land.
 
 Every attempt also emits `paired-dispersion-observation.json`. Monthly automatic
-scorecards retain these small files for ninety days and report `drift` as a
-workflow warning; raw attempts remain at seven days. The immutable observation
-series records `stable` below the bound and produces the typed inconclusive
-state for a required target on `drift`. If two separate complete scorecard runs
-within thirty days each exhaust both attempts with drift on the same target,
-D-026 requires an ADR amendment before the benchmark contract or target role is
-changed. There is no automatic role downgrade and no additional
-maintainer-triggered workflow.
+scorecards retain these small files for thirty days and report `drift` as a
+workflow warning; raw attempts remain at seven days. A retry runs as a separate
+hosted job, which GitHub provisions on a fresh runner instance. When both
+attempts emit an observation, the selector writes
+`paired-dispersion-confirmation.json` only after validating and digest-binding
+both receipts and projections. Two drift projections produce
+`confirmed-drift`; one stable or absent projection does not. A confirmed drift
+requires a D-026 amendment before the benchmark contract or target role can
+change. It never blocks a release, changes a role automatically, starts another
+scheduled run, or adds a maintainer-triggered workflow.
 
 ### Reruns and retries
 
@@ -913,6 +915,7 @@ artifacts/benchmarks/<target>/reports/<run-id>/paired-dispersion-observation.jso
 artifacts/benchmarks/<target>/reports/<run-id>/paired-soak.json
 artifacts/benchmarks/<target>/reports/<run-id>/execution-order.json
 artifacts/benchmarks/<target>/reports/<run-id>/blocks/
+artifacts/dispersion-confirmation/<target>/paired-dispersion-confirmation.json
 ```
 
 `execution-order.json` records the order the run followed as it ran, one entry

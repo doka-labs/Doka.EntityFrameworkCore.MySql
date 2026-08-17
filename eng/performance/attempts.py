@@ -22,6 +22,8 @@ from .contract import (
     MeasurementQualityError,
     RecalibrationRequiredError,
     PerformanceEvidenceError,
+    close_enough,
+    finite_number,
     load_json,
     required_commit,
     required_positive_integer,
@@ -34,6 +36,10 @@ from .contract import (
 ATTEMPT_SCHEMA_VERSION = 3
 ATTEMPT_KIND = "performance-attempt-receipt"
 SELECTION_KIND = "performance-attempt-selection"
+DISPERSION_CONFIRMATION_SCHEMA_VERSION = 1
+DISPERSION_CONFIRMATION_KIND = "paired-dispersion-confirmation"
+DISPERSION_OBSERVATION_SCHEMA_VERSION = 1
+DISPERSION_OBSERVATION_KIND = "paired-dispersion-observation"
 MAXIMUM_ATTEMPTS = 2
 
 # Attempt states describe one measurement run. Qualification states describe
@@ -393,6 +399,10 @@ def _validate_receipt(path: Path) -> dict[str, Any]:
         raise PerformanceEvidenceError(
             f"Attempt receipt '{path}' status does not match its exit code."
         )
+    if receipt.get("retryEligible") is not is_retryable(status):
+        raise PerformanceEvidenceError(
+            f"Attempt receipt '{path}' retry policy does not match its status."
+        )
 
     return receipt
 
@@ -420,6 +430,245 @@ def _bound_receipt_file(
         )
 
     return path
+
+
+def _bound_receipt_directory(
+    artifact_root: Path,
+    relative_path: object,
+    label: str,
+    *,
+    allow_missing: bool = False,
+) -> Path | None:
+    """Resolve a receipt-owned directory without accepting path traversal."""
+    if not isinstance(relative_path, str) or not relative_path:
+        raise PerformanceEvidenceError(f"{label} must be a non-empty path.")
+
+    candidate = Path(relative_path)
+    if candidate.is_absolute() or ".." in candidate.parts:
+        raise PerformanceEvidenceError(
+            f"{label} '{relative_path}' must remain below its artifact root."
+        )
+
+    resolved_root = artifact_root.resolve()
+    path = (artifact_root / candidate).resolve()
+    try:
+        canonical_relative_path = path.relative_to(resolved_root).as_posix()
+    except ValueError as error:
+        raise PerformanceEvidenceError(
+            f"{label} '{relative_path}' must remain below its artifact root."
+        ) from error
+    if not path.exists() and allow_missing:
+        return None
+    if path.is_symlink() or not path.is_dir():
+        raise PerformanceEvidenceError(f"{label} '{path}' must be a regular directory.")
+    if canonical_relative_path != candidate.as_posix():
+        raise PerformanceEvidenceError(
+            f"{label} '{relative_path}' is not a canonical artifact path."
+        )
+
+    return path
+
+
+def _validate_dispersion_observation(
+    path: Path,
+    receipt: dict[str, Any],
+) -> dict[str, Any]:
+    """Validate one attempt-owned dispersion observation."""
+    observation = load_json(path)
+    expected = {
+        "schemaVersion": DISPERSION_OBSERVATION_SCHEMA_VERSION,
+        "kind": DISPERSION_OBSERVATION_KIND,
+        "target": receipt["target"],
+        "runId": receipt["runId"],
+        "commit": receipt["commit"],
+        "sourceHash": receipt["sourceHash"],
+        "runnerClass": receipt["runnerClass"],
+    }
+    for key, expected_value in expected.items():
+        if observation.get(key) != expected_value:
+            raise PerformanceEvidenceError(
+                f"Dispersion observation {key} is '{observation.get(key)}', "
+                f"expected '{expected_value}'."
+            )
+
+    required_sha256(observation, "contractDigest", "dispersion observation")
+    required_commit(observation, "referenceCommit", "dispersion observation")
+    required_string(observation, "metric", "dispersion observation")
+    required_string(observation, "aggregation", "dispersion observation")
+    realized = finite_number(
+        observation.get("realizedLogRatioStandardDeviation"),
+        "dispersion observation.realizedLogRatioStandardDeviation",
+        minimum=0,
+    )
+    bound = finite_number(
+        observation.get("registeredUpperBound"),
+        "dispersion observation.registeredUpperBound",
+        minimum=0,
+    )
+    if close_enough(bound, 0):
+        raise PerformanceEvidenceError(
+            "dispersion observation.registeredUpperBound must be positive."
+        )
+    expected_state = (
+        "drift"
+        if realized > bound and not close_enough(realized, bound)
+        else "stable"
+    )
+    if observation.get("state") != expected_state:
+        raise PerformanceEvidenceError(
+            "Dispersion observation state does not match its realized deviation."
+        )
+
+    return observation
+
+
+def record_dispersion_confirmation(
+    *,
+    receipt_paths: Sequence[Path],
+    output: Path,
+) -> dict[str, Any] | None:
+    """Bind two independent attempt observations into one drift decision.
+
+    GitHub gives each hosted job a fresh runner instance. The workflow places
+    attempt 1 and its bounded retry in separate jobs, so their matching drift
+    observations are the two independent fleet samples. Missing observations
+    mean that dispersion was not measured twice and produce no confirmation.
+    """
+    if len(receipt_paths) != MAXIMUM_ATTEMPTS:
+        raise PerformanceEvidenceError(
+            f"Dispersion confirmation requires exactly {MAXIMUM_ATTEMPTS} receipts."
+        )
+
+    loaded = [
+        (path.resolve(), _validate_receipt(path.resolve()))
+        for path in receipt_paths
+    ]
+    loaded.sort(key=lambda item: item[1]["attempt"])
+    if [receipt["attempt"] for _, receipt in loaded] != [1, 2]:
+        raise PerformanceEvidenceError(
+            "Dispersion confirmation requires attempts 1 and 2."
+        )
+
+    first = loaded[0][1]
+    if first["retryEligible"] is not True:
+        raise PerformanceEvidenceError(
+            "Dispersion confirmation requires a policy-authorized bounded retry."
+        )
+    if first["comparisonMode"] != "paired":
+        return None
+
+    identity_keys = (
+        "target",
+        "profile",
+        "commit",
+        "sourceHash",
+        "runnerClass",
+        "comparisonMode",
+    )
+    for _, receipt in loaded[1:]:
+        for key in identity_keys:
+            if receipt[key] != first[key]:
+                raise PerformanceEvidenceError(
+                    f"Dispersion confirmation identity mismatch for '{key}'."
+                )
+    if loaded[0][1]["runId"] == loaded[1][1]["runId"]:
+        raise PerformanceEvidenceError(
+            "Dispersion confirmation requires distinct attempt run identities."
+        )
+
+    observations: list[tuple[Path, Path, dict[str, Any]]] = []
+    for receipt_path, receipt in loaded:
+        artifact_root = receipt_path.parent
+        report_directory = _bound_receipt_directory(
+            artifact_root,
+            receipt.get("reportRelativePath"),
+            "Attempt report directory",
+            allow_missing=True,
+        )
+        if report_directory is None:
+            return None
+        observation_path = report_directory / "paired-dispersion-observation.json"
+        if not observation_path.exists():
+            return None
+        if observation_path.is_symlink() or not observation_path.is_file():
+            raise PerformanceEvidenceError(
+                f"Dispersion observation '{observation_path}' must be a regular file."
+            )
+        observations.append(
+            (
+                receipt_path,
+                observation_path,
+                _validate_dispersion_observation(observation_path, receipt),
+            )
+        )
+
+    observation_identity_keys = (
+        "contractDigest",
+        "referenceCommit",
+        "metric",
+        "aggregation",
+        "registeredUpperBound",
+    )
+    first_observation = observations[0][2]
+    for _, _, observation in observations[1:]:
+        for key in observation_identity_keys:
+            if observation[key] != first_observation[key]:
+                raise PerformanceEvidenceError(
+                    f"Dispersion observation identity mismatch for '{key}'."
+                )
+
+    attempts_payload = []
+    for (receipt_path, receipt), (_, observation_path, observation) in zip(
+        loaded,
+        observations,
+        strict=True,
+    ):
+        attempts_payload.append(
+            {
+                "attempt": receipt["attempt"],
+                "runId": receipt["runId"],
+                "status": receipt["status"],
+                "retryEligible": receipt["retryEligible"],
+                "state": observation["state"],
+                "realizedLogRatioStandardDeviation": observation[
+                    "realizedLogRatioStandardDeviation"
+                ],
+                "receiptArtifact": (
+                    f"benchmark-attempt-{receipt['target']}-{receipt['attempt']}"
+                ),
+                "observationArtifact": (
+                    f"benchmark-dispersion-{receipt['target']}-{receipt['attempt']}"
+                ),
+                "receiptSha256": sha256(receipt_path),
+                "observationSha256": sha256(observation_path),
+            }
+        )
+
+    payload = {
+        "schemaVersion": DISPERSION_CONFIRMATION_SCHEMA_VERSION,
+        "kind": DISPERSION_CONFIRMATION_KIND,
+        "generatedUtc": datetime.now(timezone.utc).isoformat().replace(
+            "+00:00",
+            "Z",
+        ),
+        "target": first["target"],
+        "commit": first["commit"],
+        "sourceHash": first["sourceHash"],
+        "runnerClass": first["runnerClass"],
+        "contractDigest": first_observation["contractDigest"],
+        "referenceCommit": first_observation["referenceCommit"],
+        "metric": first_observation["metric"],
+        "aggregation": first_observation["aggregation"],
+        "registeredUpperBound": first_observation["registeredUpperBound"],
+        "state": (
+            "confirmed-drift"
+            if all(item["state"] == "drift" for item in attempts_payload)
+            else "not-confirmed"
+        ),
+        "attempts": attempts_payload,
+    }
+    write_json(output, payload)
+    return payload
 
 
 def _copy_artifact_tree(source: Path, destination: Path) -> None:

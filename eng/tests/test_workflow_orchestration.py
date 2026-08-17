@@ -30,6 +30,7 @@ DISPATCH_CALL = re.compile(
 )
 DISPATCH_FIELD = re.compile(r"--field (?P<key>[\w-]+)=(?P<value>[\w-]+)")
 LIST_ITEM = re.compile(r"^\s*- (?P<option>[\w.-]+)\s*$")
+RETENTION_DAYS = re.compile(r"^\s*retention-days:\s*(?P<days>\d+)\s*(?:#.*)?$")
 
 
 def indent_of(line: str) -> int:
@@ -194,6 +195,27 @@ class ArtifactHandoffTests(unittest.TestCase):
                         f"{workflow} downloads '{name}', which no workflow uploads.",
                     )
 
+    def test_artifact_retention_does_not_exceed_the_repository_limit(self) -> None:
+        """Keep every upload at or below the configured thirty-day maximum."""
+        for path in sorted(WORKFLOW_ROOT.glob("*.yml")):
+            for line_number, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(),
+                start=1,
+            ):
+                if "retention-days:" not in line:
+                    continue
+                match = RETENTION_DAYS.fullmatch(line)
+                with self.subTest(workflow=path.name, line=line_number):
+                    self.assertIsNotNone(
+                        match,
+                        "Artifact retention must be a reviewable integer literal.",
+                    )
+                    self.assertLessEqual(
+                        int(match.group("days")),
+                        30,
+                        "Artifact retention exceeds the repository maximum.",
+                    )
+
     def test_coverage_gate_downloads_one_artifact_per_specification_target(self) -> None:
         """Bind the coverage inputs to the targets the matrix actually runs.
 
@@ -254,10 +276,22 @@ class ArtifactHandoffTests(unittest.TestCase):
             "name: benchmark-dispersion-${{ inputs.target }}-2",
             target_workflow,
         )
-        self.assertEqual(2, target_workflow.count("retention-days: 90"))
+        self.assertEqual(3, target_workflow.count("retention-days: 30"))
         self.assertEqual(
             2,
             target_workflow.count("title=Benchmark dispersion drift"),
+        )
+        self.assertEqual(
+            1,
+            target_workflow.count("title=Benchmark dispersion confirmed"),
+        )
+        self.assertEqual(
+            1,
+            target_workflow.count("record-dispersion-confirmation"),
+        )
+        self.assertIn(
+            "name: benchmark-dispersion-confirmation-${{ inputs.target }}",
+            target_workflow,
         )
 
         for excluded in (

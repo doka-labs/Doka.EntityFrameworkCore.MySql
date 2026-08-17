@@ -26,6 +26,8 @@ from . import nuget as nuget_publication
 
 
 SCHEMA_VERSION = 2
+GITHUB_API_VERSION = "2022-11-28"
+READBACK_DELAY_SECONDS = 2.0
 SHA1 = re.compile(r"[0-9a-f]{40}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
@@ -834,21 +836,41 @@ class GitHubCliClient:
         )
 
     def get_release(self, repository: str, tag: str) -> dict[str, Any] | None:
-        """Read the canonical REST representation for one release tag."""
+        """Read a published release or draft from the complete inventory."""
         value = self._run_text(
             "api",
-            f"/repos/{repository}/releases/tags/{tag}",
-            allow_not_found=True,
+            "--paginate",
+            "--slurp",
+            "-H",
+            "Accept: application/vnd.github+json",
+            "-H",
+            f"X-GitHub-Api-Version: {GITHUB_API_VERSION}",
+            f"/repos/{repository}/releases?per_page=100",
         )
-        if value is None:
-            return None
         try:
-            release = json.loads(value)
+            pages = json.loads(str(value))
         except json.JSONDecodeError as exception:
-            raise GitHubReleaseError("GitHub returned invalid release JSON.") from exception
-        if not isinstance(release, dict):
-            raise GitHubReleaseError("GitHub returned an invalid release object.")
-        return release
+            raise GitHubReleaseError(
+                "GitHub returned invalid release inventory JSON."
+            ) from exception
+        if not isinstance(pages, list) or any(
+            not isinstance(page, list) for page in pages
+        ):
+            raise GitHubReleaseError("GitHub returned an invalid release inventory.")
+
+        matches: list[dict[str, Any]] = []
+        for page in pages:
+            for release in page:
+                if not isinstance(release, dict):
+                    raise GitHubReleaseError(
+                        "GitHub returned an invalid release inventory object."
+                    )
+                if release.get("tag_name") == tag:
+                    matches.append(release)
+
+        if len(matches) > 1:
+            raise GitHubReleaseError(f"GitHub returned duplicate releases for tag: {tag}")
+        return matches[0] if matches else None
 
     def verify_tag(self, repository: str, tag: str, commit: str) -> None:
         """Resolve the remote annotated tag chain to its final commit."""
@@ -1061,6 +1083,43 @@ def verify_release_assets(
     ]
 
 
+def wait_for_release(
+    client: ReleaseClient,
+    repository: str,
+    tag: str,
+    sleep: Callable[[float], None],
+    readback_attempts: int,
+) -> dict[str, Any] | None:
+    """Wait a bounded interval for a newly created release to become visible."""
+    for attempt in range(readback_attempts):
+        release = client.get_release(repository, tag)
+        if release is not None:
+            return release
+        if attempt + 1 < readback_attempts:
+            sleep(READBACK_DELAY_SECONDS)
+    return None
+
+
+def wait_for_complete_assets(
+    client: ReleaseClient,
+    repository: str,
+    tag: str,
+    plan: dict[str, Any],
+    sleep: Callable[[float], None],
+    readback_attempts: int,
+) -> dict[str, Any] | None:
+    """Wait for every uploaded asset to appear and pass exact readback."""
+    for attempt in range(readback_attempts):
+        release = client.get_release(repository, tag)
+        if release is not None:
+            verify_release_metadata(release, plan)
+            if not verify_release_assets(release, plan, client):
+                return release
+        if attempt + 1 < readback_attempts:
+            sleep(READBACK_DELAY_SECONDS)
+    return None
+
+
 def build_receipt(
     release: dict[str, Any],
     plan: dict[str, Any],
@@ -1131,9 +1190,18 @@ def finalize_release(
     release = client.get_release(repository, tag)
     if release is None:
         client.create_draft(plan)
-        release = client.get_release(repository, tag)
+        release = wait_for_release(
+            client,
+            repository,
+            tag,
+            sleep,
+            readback_attempts,
+        )
         if release is None:
-            raise GitHubReleaseError("GitHub did not return the created release draft.")
+            raise GitHubReleaseError(
+                "GitHub did not return the created release draft within the "
+                "readback window."
+            )
 
     verify_release_metadata(release, plan)
     missing = verify_release_assets(release, plan, client)
@@ -1153,12 +1221,19 @@ def finalize_release(
         return build_receipt(release, plan)
 
     client.upload_assets(repository, tag, missing)
-    release = client.get_release(repository, tag)
+    release = wait_for_complete_assets(
+        client,
+        repository,
+        tag,
+        plan,
+        sleep,
+        readback_attempts,
+    )
     if release is None:
-        raise GitHubReleaseError("GitHub release draft disappeared after asset upload.")
-    verify_release_metadata(release, plan)
-    if verify_release_assets(release, plan, client):
-        raise GitHubReleaseError("GitHub release draft is incomplete after asset upload.")
+        raise GitHubReleaseError(
+            "GitHub release draft did not expose every uploaded asset within "
+            "the readback window."
+        )
 
     client.verify_tag(repository, tag, str(plan["sourceCommit"]))
     client.publish_release(plan)
@@ -1183,7 +1258,7 @@ def finalize_release(
                 client.verify_tag(repository, tag, str(plan["sourceCommit"]))
                 return build_receipt(release, plan)
         if attempt + 1 < readback_attempts:
-            sleep(2.0)
+            sleep(READBACK_DELAY_SECONDS)
 
     raise GitHubReleaseError(
         "GitHub release did not become published and immutable within the readback window."
@@ -1193,6 +1268,8 @@ def finalize_release(
 def stage_release(
     plan: dict[str, Any],
     client: ReleaseClient,
+    sleep: Callable[[float], None] = time.sleep,
+    readback_attempts: int = 6,
 ) -> dict[str, Any]:
     """Create or reconcile a complete draft without publishing it."""
     validate_plan(plan)
@@ -1205,9 +1282,18 @@ def stage_release(
     release = client.get_release(repository, tag)
     if release is None:
         client.create_draft(plan)
-        release = client.get_release(repository, tag)
+        release = wait_for_release(
+            client,
+            repository,
+            tag,
+            sleep,
+            readback_attempts,
+        )
         if release is None:
-            raise GitHubReleaseError("GitHub did not return the created release draft.")
+            raise GitHubReleaseError(
+                "GitHub did not return the created release draft within the "
+                "readback window."
+            )
 
     verify_release_metadata(release, plan)
     missing = verify_release_assets(release, plan, client)
@@ -1237,12 +1323,19 @@ def stage_release(
         }
 
     client.upload_assets(repository, tag, missing)
-    release = client.get_release(repository, tag)
+    release = wait_for_complete_assets(
+        client,
+        repository,
+        tag,
+        plan,
+        sleep,
+        readback_attempts,
+    )
     if release is None:
-        raise GitHubReleaseError("GitHub release draft disappeared after asset upload.")
-    verify_release_metadata(release, plan)
-    if verify_release_assets(release, plan, client):
-        raise GitHubReleaseError("GitHub release draft is incomplete after asset upload.")
+        raise GitHubReleaseError(
+            "GitHub release draft did not expose every uploaded asset within "
+            "the readback window."
+        )
     client.verify_tag(repository, tag, str(plan["sourceCommit"]))
 
     return {

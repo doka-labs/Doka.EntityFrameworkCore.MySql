@@ -89,6 +89,7 @@ if __package__:
         resolve_baseline_mode,
     )
     from .attempts import (
+        record_dispersion_confirmation,
         record_attempt,
         select_attempt,
         verify_selection,
@@ -175,6 +176,7 @@ else:
         resolve_baseline_mode,
     )
     from performance.attempts import (
+        record_dispersion_confirmation,
         record_attempt,
         select_attempt,
         verify_selection,
@@ -344,6 +346,14 @@ def build_parser() -> argparse.ArgumentParser:
     selection_parser.add_argument("--destination", required=True)
     selection_parser.add_argument("--output", required=True)
 
+    dispersion_confirmation_parser = subparsers.add_parser(
+        "record-dispersion-confirmation",
+    )
+    dispersion_confirmation_parser.add_argument(
+        "--receipt", action="append", required=True
+    )
+    dispersion_confirmation_parser.add_argument("--output", required=True)
+
     selection_verification_parser = subparsers.add_parser(
         "verify-attempt-selection",
     )
@@ -406,10 +416,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             output_path = Path(args.output)
             write_json(output_path, payload)
-            # One immutable observation per attempt turns the scheduled
-            # scorecard artifacts into a dispersion time series. Keeping this
-            # projection separate lets operations consume drift without
-            # treating the complete evaluation document as a telemetry API.
+            # One immutable observation per attempt lets the selector bind the
+            # two fresh-runner projections into a same-cycle drift decision.
+            # Keeping this projection separate avoids treating the complete
+            # evaluation document as a telemetry API.
             write_json(
                 output_path.with_name("paired-dispersion-observation.json"),
                 payload["dispersionObservation"],
@@ -500,6 +510,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"Selected performance attempt {payload['selectedAttempt']}: "
                 f"{args.output}"
             )
+            return 0
+        if args.command == "record-dispersion-confirmation":
+            payload = record_dispersion_confirmation(
+                receipt_paths=[Path(path) for path in args.receipt],
+                output=Path(args.output),
+            )
+            if payload is None:
+                print("Dispersion confirmation not available.")
+            else:
+                print(
+                    f"Recorded dispersion confirmation as {payload['state']}: "
+                    f"{args.output}"
+                )
             return 0
         if args.command == "verify-attempt-selection":
             payload = verify_selection(

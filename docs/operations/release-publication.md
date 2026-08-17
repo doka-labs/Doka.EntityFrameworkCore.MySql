@@ -195,6 +195,12 @@ against the exact package bytes that will be uploaded. Public readback after a
 push measures availability, repository signing, and byte identity; it cannot
 make an irreversible publication safe retroactively.
 
+Draft reconciliation enumerates the authenticated, paginated release
+inventory and matches the exact tag. GitHub's release-by-tag REST endpoint is
+documented for published releases and therefore cannot discover a draft.
+Draft creation and asset upload each use bounded readback polling before the
+workflow crosses the NuGet publication boundary.
+
 Post-publication observations are deliberately not GitHub release assets. They
 can contain retry-specific timestamps and remote-state transitions. Keeping
 them in the retained workflow artifact lets a failed completion probe be rerun
@@ -239,6 +245,10 @@ it.
 - A conflicting same-version package, unexpected GitHub release asset, moved
   tag, changed notes, or candidate removed from current `main` history fails
   closed. Preserve all evidence and investigate; do not clobber remote state.
+- Multiple drafts for one release tag also fail closed because tag-based asset
+  operations would be ambiguous. Inspect their IDs and contents; remove only
+  an unambiguously empty orphan under explicit operator control. The workflow
+  never chooses or deletes a duplicate automatically.
 - If publication succeeded but final workflow readback was interrupted, rerun
   the failed `publish` job. A matching immutable GitHub release is accepted
   only after complete metadata and asset digest verification.
@@ -276,6 +286,8 @@ it forces the same-identity recovery path above.
   retrieved 2026-08-16.
 - GitHub, [Re-running workflows and jobs](https://docs.github.com/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs),
   retrieved 2026-08-16.
+- GitHub, [REST API endpoints for releases](https://docs.github.com/en/rest/releases/releases),
+  retrieved 2026-08-17.
 - GitHub, [Workflow-run attempt REST API](https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run-attempt),
   retrieved 2026-08-16.
 - Git, [`git-tag`](https://git-scm.com/docs/git-tag), retrieved 2026-08-16.

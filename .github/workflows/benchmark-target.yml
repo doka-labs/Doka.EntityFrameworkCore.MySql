@@ -114,10 +114,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # Raw samples remain short-lived, while this small observation is the
-      # fleet-drift time series required by D-026. Ninety-day retention makes
-      # its thirty-day governance trigger auditable without retaining every
-      # benchmark sample for the same period.
+      # Raw samples remain short-lived. The small observation is retained so
+      # the selector can bind both fresh-runner attempts into the explicit
+      # fleet-drift confirmation required by D-026.
       - name: Report attempt 1 dispersion
         env:
           OBSERVATION: artifacts/benchmarks/${{ inputs.target }}/reports/${{ steps.identity.outputs.run-id }}/paired-dispersion-observation.json
@@ -141,7 +140,7 @@ jobs:
           name: benchmark-dispersion-${{ inputs.target }}-1
           path: artifacts/benchmarks/${{ inputs.target }}/reports/${{ steps.identity.outputs.run-id }}/paired-dispersion-observation.json
           if-no-files-found: ignore
-          retention-days: 90
+          retention-days: 30
 
   attempt-2:
     needs: attempt-1
@@ -257,7 +256,7 @@ jobs:
           name: benchmark-dispersion-${{ inputs.target }}-2
           path: artifacts/benchmarks/${{ inputs.target }}/reports/${{ steps.identity.outputs.run-id }}/paired-dispersion-observation.json
           if-no-files-found: ignore
-          retention-days: 90
+          retention-days: 30
 
   select:
     needs:
@@ -286,6 +285,28 @@ jobs:
           name: benchmark-attempt-${{ inputs.target }}-2
           path: artifacts/attempts/${{ inputs.target }}/attempt-2
 
+      # GitHub provisions every hosted job on a fresh runner. Binding the two
+      # attempt receipts and their canonical projections makes confirmed drift
+      # independent of the monthly schedule and thirty-day artifact limit.
+      - name: Record independent dispersion confirmation
+        if: needs.attempt-2.result == 'success'
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          confirmation="artifacts/dispersion-confirmation/${TARGET}/paired-dispersion-confirmation.json"
+          python3 -m eng.performance.cli record-dispersion-confirmation \
+            --receipt "artifacts/attempts/${TARGET}/attempt-1/performance-attempt.json" \
+            --receipt "artifacts/attempts/${TARGET}/attempt-2/performance-attempt.json" \
+            --output "${confirmation}"
+          if [[ -f "${confirmation}" ]]; then
+            state="$(jq -er '.state' "${confirmation}")"
+            echo "- ${TARGET} independent dispersion: ${state}" \
+              >> "${GITHUB_STEP_SUMMARY}"
+            if [[ "${state}" == "confirmed-drift" ]]; then
+              echo "::warning title=Benchmark dispersion confirmed::${TARGET} exceeded the registered dispersion bound on both independent runners."
+            fi
+          fi
+
       - name: Select conclusive evidence
         env:
           TARGET: ${{ inputs.target }}
@@ -302,6 +323,15 @@ jobs:
             "${receipts[@]}" \
             --destination "artifacts/benchmarks/${TARGET}" \
             --output "artifacts/benchmarks/${TARGET}/performance-attempt-selection.json"
+
+      - name: Retain independent dispersion confirmation
+        if: always() && needs.attempt-2.result == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: benchmark-dispersion-confirmation-${{ inputs.target }}
+          path: artifacts/dispersion-confirmation/${{ inputs.target }}/paired-dispersion-confirmation.json
+          if-no-files-found: ignore
+          retention-days: 30
 
       - name: Upload qualified evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -647,11 +647,20 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         # still matching on `inconclusive`, simply stopped firing.
         self.assertEqual(1, target_workflow.count("outputs.retry == 'true'"))
         self.assertNotIn("outputs.status ==", target_workflow)
-        self.assertEqual(1, target_workflow.count("if: always()"))
-        # Each attempt publishes its short-lived raw evidence and one small,
-        # long-lived drift observation; selection publishes the chosen target.
-        self.assertEqual(5, target_workflow.count("actions/upload-artifact@"))
+        self.assertEqual(2, target_workflow.count("if: always()"))
+        self.assertIn(
+            "if: always() && needs.attempt-2.result == 'success'",
+            target_workflow,
+        )
+        # Each attempt publishes its short-lived raw evidence and one small
+        # drift observation. Selection publishes the chosen target plus the
+        # digest-bound independent-attempt confirmation when both exist.
+        self.assertEqual(6, target_workflow.count("actions/upload-artifact@"))
         self.assertIn("benchmark-artifacts-${{ inputs.target }}", target_workflow)
+        self.assertIn(
+            "benchmark-dispersion-confirmation-${{ inputs.target }}",
+            target_workflow,
+        )
 
     def test_scheduled_smoke_derives_every_target_from_the_contract(self) -> None:
         """Keep the short smoke path aligned with every supported LTS target."""
