@@ -16,6 +16,26 @@ doka-profile-version: "1.0"
 
 # D-026 -- Qualify releases from bound evidence and paired performance runs
 
+## 2026-08-17 Amendment: Make finalization self-contained
+
+The finalization job runs on a clean runner and restores only the six verified
+stage artifacts. Publication readiness must therefore create its own
+SpecificationContract and FunctionalTests assemblies rather than consuming an
+`artifacts/bin` tree that no preceding job transports.
+
+The gate resolves the exact EF Core and MySqlConnector patches from the full
+matrix receipts, restores and builds both projects into one temporary artifacts
+tree, executes the contract assembly from that tree, and removes the tree on
+exit. Its NuGet lock-file location is redirected into the same temporary tree;
+dynamic matrix versions cannot rewrite the repository's accepted floor locks.
+Repository tests execute this clean-runner boundary before merge, so a missing
+build producer fails in ordinary CI instead of after the expensive candidate
+stages have completed.
+
+NuGet documents `NuGetLockFilePath` as the supported custom lock-file location
+for PackageReference restore. The gate uses that contract instead of deleting,
+rewriting, or bypassing the repository's accepted lock files.
+
 ## 2026-08-16 Amendment: Bind EF Core patch scope before expensive execution
 
 The EF Core release gate retains both supported dependency endpoints without
@@ -110,6 +130,8 @@ Primary-source basis:
   binds a GitHub workflow and optional environment to short-lived credentials.
 - [NuGet package deletion policy][nuget-package-deletion]
   documents unlisting rather than permanent deletion and exact-version access.
+- [NuGet PackageReference lock-file contract][nuget-lock-files]
+  defines `NuGetLockFilePath` as the supported custom lock-file location.
 - [GitHub deployment environments][github-deployment-environments]
   provide branch restrictions and required reviewers before a job can access
   environment credentials.
@@ -1084,6 +1106,9 @@ manifest verification.
 - `eng/release/evidence.py`: inventory the retained artifacts, verify their
   hashes, and bind the inventory to the qualification manifest so the two
   documents cannot describe different releases.
+- `eng/release/check-publication-readiness.sh`: build and execute the provider
+  completeness contract from a temporary output tree using the exact dependency
+  patches qualified by the candidate matrices.
 - `eng/release/release-candidate.sh`: separate evidence verification from
   tag-bound packaging and remove repeated validation stages.
 - `docs/operations/release-publication.md`: remove the mandatory rehearsal and
@@ -1153,6 +1178,10 @@ manifest verification.
   measurement quality, and made sparse Gen2 ratios observational while
   retaining their absolute candidate ceiling. Paired verdict schema 6 records
   the resource role and its corresponding state vocabulary.
+- 2026-08-17: Made publication readiness self-contained on the clean
+  finalization runner, bound it to exact matrix-resolved dependency patches,
+  isolated its build and lock files, and added the same boundary to repository
+  tests.
 
 ### Implementation References
 
@@ -1170,6 +1199,8 @@ manifest verification.
 - `eng/performance/attempts.py`
 - `eng/performance/paired.py`
 - `eng/performance/sensitivity.py`
+- `eng/release/check-publication-readiness.sh`
+- `eng/tests/test_publication_readiness.py`
 - `eng/performance/environment.py`
 - `eng/release/gate_results.py`
 - `eng/release/qualification.py`
@@ -1214,6 +1245,8 @@ manifest verification.
   (primary source; retrieved 2026-08-16)
 - [NuGet package deletion policy][nuget-package-deletion]
   (primary source; retrieved 2026-08-16)
+- [NuGet PackageReference lock-file contract][nuget-lock-files]
+  (primary source; retrieved 2026-08-17)
 - [BenchmarkDotNet good practices][bdn-good-practices]
   (primary source; retrieved 2026-08-10)
 - [BenchmarkDotNet baselines][bdn-baselines]
@@ -1299,6 +1332,8 @@ manifest verification.
   https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing
 [nuget-package-deletion]:
   https://learn.microsoft.com/en-us/nuget/nuget-org/policies/deleting-packages
+[nuget-lock-files]:
+  https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#locking-dependencies
 [bdn-good-practices]:
   https://benchmarkdotnet.org/articles/guides/good-practices.html
 [bdn-baselines]: https://benchmarkdotnet.org/articles/features/baselines.html

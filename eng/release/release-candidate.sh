@@ -94,6 +94,11 @@ if [[ "${chain_probe}" == "1" ]]; then
     exit 0
 fi
 
+if [[ ! "${release_candidate_run_id}" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*$ ]]; then
+    echo "DOKA_RELEASE_CANDIDATE_RUN_ID must be a path-safe ASCII identifier." >&2
+    exit 1
+fi
+
 if [[ ! "${maximum_release_duration_seconds}" =~ ^[1-9][0-9]*$ ]]; then
     echo "DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS must be a positive integer." >&2
     exit 1
@@ -415,6 +420,8 @@ run_pack() {
         "${mysql84_image}" \
         "${local_package_consumer_dir}" \
         "${packages_dir}"
+    require_evidence_file \
+        "${local_package_consumer_dir}/local-package-runtime.json"
 
     # Persist the graph NuGet actually resolved. The manifest rejects missing
     # or ambiguous versions for the provider's contract dependencies.
@@ -518,6 +525,47 @@ run_runtime_posture_gate() {
         bash "${repo_root}/eng/testing/test-runtime-posture.sh" --up-test-down
 }
 
+copy_matrix_evidence_legs() {
+    local source_root="$1"
+    local destination_root="$2"
+    local release_artifacts_root="${repo_root}/artifacts/release-candidate"
+    shift 2
+
+    case "${destination_root}" in
+        "${release_candidate_dir}"/*)
+            ;;
+        *)
+            echo "Matrix evidence destination escapes the release candidate: ${destination_root}" >&2
+            exit 1
+            ;;
+    esac
+
+    if [[ -L "${repo_root}/artifacts" \
+        || -L "${release_artifacts_root}" \
+        || -L "${release_candidate_dir}" \
+        || -L "${destination_root}" ]]; then
+        echo "Matrix evidence destination path must not contain a symlink: ${destination_root}" >&2
+        exit 1
+    fi
+
+    if [[ ! -d "${source_root}" || -L "${source_root}" ]]; then
+        echo "Matrix evidence source is missing or non-regular: ${source_root}" >&2
+        exit 1
+    fi
+
+    rm -rf -- "${destination_root}"
+    mkdir -p "${destination_root}"
+
+    local leg
+    for leg in "$@"; do
+        if [[ ! -d "${source_root}/${leg}" || -L "${source_root}/${leg}" ]]; then
+            echo "Matrix evidence leg is missing or non-regular: ${source_root}/${leg}" >&2
+            exit 1
+        fi
+        cp -R "${source_root}/${leg}" "${destination_root}/${leg}"
+    done
+}
+
 # The protected branch already runs the complete repository, specification,
 # and integration contracts against the deterministic EF Core floor. The
 # candidate re-resolves that floor to bind its dependency graph, then spends
@@ -534,8 +582,11 @@ run_efcore_matrix_gate() {
         DOKA_EF_CORE_VALIDATION_SCOPE="${scope}" \
             bash "${repo_root}/eng/testing/test-efcore-matrix.sh"
     done
-    mkdir -p "${efcore_matrix_dir}"
-    cp -R "${repo_root}/artifacts/efcore-patch-matrix/." "${efcore_matrix_dir}/"
+    copy_matrix_evidence_legs \
+        "${repo_root}/artifacts/efcore-patch-matrix" \
+        "${efcore_matrix_dir}" \
+        "minimum-10-0-8" \
+        "latest-10-0"
 }
 
 run_mysqlconnector_matrix_gate() {
@@ -547,9 +598,11 @@ run_mysqlconnector_matrix_gate() {
         DOKA_MYSQLCONNECTOR_ARTIFACT_SUFFIX="${leg##*:}" \
             bash "${repo_root}/eng/testing/test-mysqlconnector-matrix.sh"
     done
-    mkdir -p "${mysqlconnector_matrix_dir}"
-    cp -R "${repo_root}/artifacts/mysqlconnector-patch-matrix/." \
-        "${mysqlconnector_matrix_dir}/"
+    copy_matrix_evidence_legs \
+        "${repo_root}/artifacts/mysqlconnector-patch-matrix" \
+        "${mysqlconnector_matrix_dir}" \
+        "minimum-2-5-0" \
+        "latest-2-x"
 }
 
 run_coverage_gate() {
@@ -814,6 +867,23 @@ resolve_release_version() {
     fi
 }
 
+resolved_matrix_version() {
+    local receipt="$1"
+    local label="$2"
+    local pattern="$3"
+    local version
+
+    if ! version="$(jq -er --arg pattern "${pattern}" '
+        .resolvedVersion
+        | select(type == "string" and test($pattern))
+    ' "${receipt}")"; then
+        echo "${label} matrix receipt has no valid exact resolved version: ${receipt}" >&2
+        return 1
+    fi
+
+    printf '%s\n' "${version}"
+}
+
 run_sbom_stage() {
     resolve_release_version
     run_sbom "${release_version}"
@@ -849,7 +919,24 @@ run_finalization_stage() {
         exit 1
     fi
 
-    bash "${repo_root}/eng/release/check-publication-readiness.sh"
+    local publication_ef_core_version
+    publication_ef_core_version="$(
+        resolved_matrix_version \
+            "${efcore_matrix_dir}/latest-10-0/efcore-contract-evidence.json" \
+            "EF Core" \
+            '^10[.]0[.][0-9]+$'
+    )"
+    local publication_mysqlconnector_version
+    publication_mysqlconnector_version="$(
+        resolved_matrix_version \
+            "${mysqlconnector_matrix_dir}/latest-2-x/driver-contract-evidence.json" \
+            "MySqlConnector" \
+            '^2[.][0-9]+[.][0-9]+$'
+    )"
+
+    bash "${repo_root}/eng/release/check-publication-readiness.sh" \
+        --ef-core-version "${publication_ef_core_version}" \
+        --mysqlconnector-version "${publication_mysqlconnector_version}"
     assemble_qualification_manifest
     write_reconciliation
     write_summary "${release_version}" "${package_count}"

@@ -389,8 +389,10 @@ dotnet build Doka.EntityFrameworkCore.MySql.slnx
 ./eng/test.sh
 ./eng/test-integration.sh   # requires Docker; owns and cleans up its databases
 ./eng/test-examples.sh      # explicit live example matrix; owns its containers
-bash ./eng/check-publication-readiness.sh # verifies provider completeness
-./eng/pre-tag-check.sh                    # verifies candidate branch and signer prerequisites
+bash ./eng/check-publication-readiness.sh \
+  --ef-core-version 10.0.8 \
+  --mysqlconnector-version 2.5.0 # verifies provider completeness
+./eng/pre-tag-check.sh          # verifies candidate branch and signer prerequisites
 ```
 
 ## Performance and Memory Evidence

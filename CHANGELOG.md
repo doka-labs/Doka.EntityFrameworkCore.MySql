@@ -105,6 +105,10 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   contracts, and future unregistered patches stop after dependency resolution
   before expensive test execution. Candidate qualification reuses the
   commit-exact floor proof and fully executes only the latest compatible patch.
+- Build publication-readiness assemblies inside the clean finalization runner
+  from the exact matrix-resolved EF Core and MySqlConnector patches. The gate
+  no longer depends on build output left by another job or rewrites committed
+  package lock files while qualifying a candidate.
 - Reproduce a paired interval across processes. The per-test resampling seed was
   derived from a hash that Python randomizes per process, so a reviewer could
   not reproduce the number a release was decided on.

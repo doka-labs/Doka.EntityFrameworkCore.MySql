@@ -72,6 +72,12 @@ dotnet build "${unit_test_project}" --configuration Release --no-restore --tl:of
 dotnet build "${functional_test_project}" --configuration Release --no-restore --tl:off -m:1
 bash "${repo_root}/eng/testing/check-spec-contract.sh"
 bash "${repo_root}/eng/testing/check-spec-discovery.sh"
+# This release boundary deliberately rebuilds into an isolated output tree.
+# Running it here prevents local build residue from hiding a clean-runner RC
+# failure and moves the failure before merge instead of after expensive gates.
+bash "${repo_root}/eng/release/check-publication-readiness.sh" \
+    --ef-core-version "${DOKA_PUBLICATION_EF_CORE_VERSION:-10.0.8}" \
+    --mysqlconnector-version "${DOKA_PUBLICATION_MYSQLCONNECTOR_VERSION:-2.5.0}"
 dotnet test "${unit_test_project}" --configuration Release --no-build --no-restore --tl:off \
     --collect:"XPlat Code Coverage" \
     --results-directory "${coverage_results_dir}" \

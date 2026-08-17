@@ -250,6 +250,11 @@ class EngineeringStructureTests(unittest.TestCase):
             "readarray": "use a `while IFS= read -r` loop",
             "declare -A": "use parallel indexed arrays or a case statement",
         }
+        forbidden_expansions = {
+            re.compile(r"\$\{[^}\n]*(?:,,|\^\^)[^}\n]*\}"): (
+                "use `tr '[:upper:]' '[:lower:]'` or its inverse"
+            ),
+        }
 
         for path in sorted(REPOSITORY_ROOT.glob("eng/**/*.sh")):
             body = path.read_text(encoding="utf-8")
@@ -266,6 +271,20 @@ class EngineeringStructureTests(unittest.TestCase):
                         [],
                         uses,
                         f"{path} uses `{builtin}`, which Bash 3.2 lacks; {remedy}",
+                    )
+
+            executable_lines = [
+                line
+                for line in body.splitlines()
+                if not line.lstrip().startswith("#")
+            ]
+            for pattern, remedy in forbidden_expansions.items():
+                uses = [line for line in executable_lines if pattern.search(line)]
+                with self.subTest(script=path.name, expansion=pattern.pattern):
+                    self.assertEqual(
+                        [],
+                        uses,
+                        f"{path} uses a Bash 4 case-conversion expansion; {remedy}",
                     )
 
     def test_no_module_shadows_one_of_its_own_definitions(self) -> None:
