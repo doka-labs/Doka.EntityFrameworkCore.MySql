@@ -30,7 +30,7 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="$(DokaEfCoreVersion)" />
     <PackageVersion Include="MySqlConnector" Version="$(DokaMySqlConnectorVersion)" />
     <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
-    <PackageVersion Include="System.IO.Hashing" Version="10.0.10" />
+    <PackageVersion Include="System.IO.Hashing" Version="10.0.11" />
   </ItemGroup>
 
   <!--
@@ -59,12 +59,12 @@
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="FsCheck.Xunit" Version="3.3.4" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational.Specification.Tests" Version="$(DokaEfCoreVersion)" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageVersion Include="SSH.NET" Version="2026.0.0" />
-    <PackageVersion Include="Testcontainers.MariaDb" Version="4.13.0" />
-    <PackageVersion Include="Testcontainers.MySql" Version="4.13.0" />
+    <PackageVersion Include="Testcontainers.MariaDb" Version="4.14.0" />
+    <PackageVersion Include="Testcontainers.MySql" Version="4.14.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
   </ItemGroup>
 
   <!--
@@ -86,7 +86,7 @@
       examples/Doka.EntityFrameworkCore.MySql.HostExamples
   -->
   <ItemGroup Label="Example hosts">
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
     <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.17.0" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />
