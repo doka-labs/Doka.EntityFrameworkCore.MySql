@@ -10,7 +10,7 @@ from inspect import Parameter, signature
 from pathlib import Path
 from unittest.mock import patch
 
-from eng.performance import attempts, evaluation
+from eng.performance import attempts, cli, evaluation
 from eng.performance.contract import (
     ENVIRONMENT_NOT_COMPARABLE_EXIT_CODE,
     INVALID_EVIDENCE_EXIT_CODE,
@@ -222,6 +222,56 @@ class PerformanceAttemptTests(unittest.TestCase):
             selection_path=selection_path,
         )
         return selection, selection_path
+
+    def _record_dispersion_attempt(
+        self,
+        root: Path,
+        *,
+        attempt: int,
+        state: str,
+        contract_digest: str = "3" * 64,
+        run_id: str | None = None,
+    ) -> Path:
+        """Record one retryable paired attempt with its drift projection."""
+        run_id = run_id or f"paired-run-{attempt}"
+        report_directory = root / "report"
+        report_directory.mkdir(parents=True)
+        realized = 0.08 if state == "drift" else 0.04
+        write_json(
+            report_directory / "paired-dispersion-observation.json",
+            {
+                "schemaVersion": 1,
+                "kind": "paired-dispersion-observation",
+                "target": "mysql84",
+                "runId": run_id,
+                "commit": self._commit,
+                "sourceHash": self._source_hash,
+                "runnerClass": "github-ubuntu-latest-x64",
+                "contractDigest": contract_digest,
+                "referenceCommit": "4" * 40,
+                "metric": "normalizedMedian",
+                "aggregation": "geometric-mean-across-workloads",
+                "realizedLogRatioStandardDeviation": realized,
+                "registeredUpperBound": 0.06,
+                "state": state,
+            },
+        )
+        receipt = root / "performance-attempt.json"
+        attempts.record_attempt(
+            artifact_root=root,
+            report_directory=report_directory,
+            output=receipt,
+            target="mysql84",
+            profile="paired-block",
+            attempt=attempt,
+            run_id=run_id,
+            commit=self._commit,
+            source_hash=self._source_hash,
+            runner_class="github-ubuntu-latest-x64",
+            exit_code=MEASUREMENT_QUALITY_EXIT_CODE,
+            comparison_mode="paired",
+        )
+        return receipt
 
     def test_exit_codes_have_non_overlapping_states(self) -> None:
         """Give every terminating condition its own attempt state.
@@ -465,6 +515,230 @@ class PerformanceAttemptTests(unittest.TestCase):
                 attempts.verify_selection(
                     artifact_root=selected_root,
                     selection_path=selection_path,
+                )
+
+    def test_two_independent_drift_observations_are_confirmed(self) -> None:
+        """Bind both fresh-runner attempts before declaring fleet drift."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            receipts = [
+                self._record_dispersion_attempt(
+                    root / f"attempt-{attempt}",
+                    attempt=attempt,
+                    state="drift",
+                )
+                for attempt in (1, 2)
+            ]
+            output = root / "paired-dispersion-confirmation.json"
+
+            confirmation = attempts.record_dispersion_confirmation(
+                receipt_paths=receipts,
+                output=output,
+            )
+
+            self.assertIsNotNone(confirmation)
+            assert confirmation is not None
+            self.assertEqual("confirmed-drift", confirmation["state"])
+            self.assertEqual(
+                [1, 2],
+                [item["attempt"] for item in confirmation["attempts"]],
+            )
+            self.assertEqual(
+                ["measurement-inconclusive", "measurement-inconclusive"],
+                [item["status"] for item in confirmation["attempts"]],
+            )
+            self.assertTrue(output.is_file())
+            self.assertEqual(
+                [sha256(receipt) for receipt in receipts],
+                [item["receiptSha256"] for item in confirmation["attempts"]],
+            )
+
+    def test_confirmation_cli_writes_the_bound_document(self) -> None:
+        """Exercise the command invoked by the target workflow."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            receipts = [
+                self._record_dispersion_attempt(
+                    root / f"attempt-{attempt}",
+                    attempt=attempt,
+                    state="drift",
+                )
+                for attempt in (1, 2)
+            ]
+            output = root / "paired-dispersion-confirmation.json"
+
+            exit_code = cli.main(
+                [
+                    "record-dispersion-confirmation",
+                    "--receipt",
+                    str(receipts[0]),
+                    "--receipt",
+                    str(receipts[1]),
+                    "--output",
+                    str(output),
+                ]
+            )
+
+            self.assertEqual(0, exit_code)
+            self.assertEqual(
+                "confirmed-drift",
+                json.loads(output.read_text(encoding="utf-8"))["state"],
+            )
+
+    def test_one_stable_observation_does_not_confirm_drift(self) -> None:
+        """Do not let one noisy runner create a governed drift event."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            receipts = [
+                self._record_dispersion_attempt(
+                    root / "attempt-1", attempt=1, state="drift"
+                ),
+                self._record_dispersion_attempt(
+                    root / "attempt-2", attempt=2, state="stable"
+                ),
+            ]
+
+            confirmation = attempts.record_dispersion_confirmation(
+                receipt_paths=receipts,
+                output=root / "paired-dispersion-confirmation.json",
+            )
+
+            self.assertIsNotNone(confirmation)
+            assert confirmation is not None
+            self.assertEqual("not-confirmed", confirmation["state"])
+
+    def test_missing_second_observation_produces_no_confirmation(self) -> None:
+        """Distinguish absent measurement evidence from stable dispersion."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            receipts = [
+                self._record_dispersion_attempt(
+                    root / f"attempt-{attempt}",
+                    attempt=attempt,
+                    state="drift",
+                )
+                for attempt in (1, 2)
+            ]
+            second_observation = (
+                receipts[1].parent
+                / "report"
+                / "paired-dispersion-observation.json"
+            )
+            second_observation.unlink()
+            second_observation.parent.rmdir()
+            output = root / "paired-dispersion-confirmation.json"
+
+            confirmation = attempts.record_dispersion_confirmation(
+                receipt_paths=receipts,
+                output=output,
+            )
+
+            self.assertIsNone(confirmation)
+            self.assertFalse(output.exists())
+
+    def test_confirmation_requires_distinct_attempt_run_identities(self) -> None:
+        """Do not relabel one runner observation as two independent samples."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            receipts = [
+                self._record_dispersion_attempt(
+                    root / f"attempt-{attempt}",
+                    attempt=attempt,
+                    state="drift",
+                    run_id="same-run",
+                )
+                for attempt in (1, 2)
+            ]
+
+            with self.assertRaisesRegex(
+                PerformanceEvidenceError,
+                "distinct attempt run identities",
+            ):
+                attempts.record_dispersion_confirmation(
+                    receipt_paths=receipts,
+                    output=root / "paired-dispersion-confirmation.json",
+                )
+
+    def test_confirmation_rejects_observation_identity_drift(self) -> None:
+        """Refuse to combine observations produced by different contracts."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            receipts = [
+                self._record_dispersion_attempt(
+                    root / "attempt-1",
+                    attempt=1,
+                    state="drift",
+                ),
+                self._record_dispersion_attempt(
+                    root / "attempt-2",
+                    attempt=2,
+                    state="drift",
+                    contract_digest="5" * 64,
+                ),
+            ]
+
+            with self.assertRaisesRegex(
+                PerformanceEvidenceError,
+                "contractDigest",
+            ):
+                attempts.record_dispersion_confirmation(
+                    receipt_paths=receipts,
+                    output=root / "paired-dispersion-confirmation.json",
+                )
+
+    def test_confirmation_rejects_a_forged_observation_state(self) -> None:
+        """Recompute drift instead of trusting the projected state label."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            receipts = [
+                self._record_dispersion_attempt(
+                    root / f"attempt-{attempt}",
+                    attempt=attempt,
+                    state="drift",
+                )
+                for attempt in (1, 2)
+            ]
+            observation_path = (
+                receipts[1].parent
+                / "report"
+                / "paired-dispersion-observation.json"
+            )
+            observation = json.loads(observation_path.read_text(encoding="utf-8"))
+            observation["state"] = "stable"
+            write_json(observation_path, observation)
+
+            with self.assertRaisesRegex(
+                PerformanceEvidenceError,
+                "does not match",
+            ):
+                attempts.record_dispersion_confirmation(
+                    receipt_paths=receipts,
+                    output=root / "paired-dispersion-confirmation.json",
+                )
+
+    def test_confirmation_rejects_a_forged_retry_policy(self) -> None:
+        """Require the first rerun to be authorized by its typed receipt."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            receipts = [
+                self._record_dispersion_attempt(
+                    root / f"attempt-{attempt}",
+                    attempt=attempt,
+                    state="drift",
+                )
+                for attempt in (1, 2)
+            ]
+            first = json.loads(receipts[0].read_text(encoding="utf-8"))
+            first["retryEligible"] = False
+            write_json(receipts[0], first)
+
+            with self.assertRaisesRegex(
+                PerformanceEvidenceError,
+                "retry policy",
+            ):
+                attempts.record_dispersion_confirmation(
+                    receipt_paths=receipts,
+                    output=root / "paired-dispersion-confirmation.json",
                 )
 
 if __name__ == "__main__":

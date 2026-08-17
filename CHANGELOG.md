@@ -7,6 +7,33 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.0.0-rc.9] - 2026-08-17
+
+This release candidate supersedes `10.0.0-rc.8`. Qualification completed,
+but publication stopped before NuGet received any package because GitHub's
+published-tag endpoint cannot return a draft release created moments earlier.
+The signed RC 8 tag is therefore consumed even though its package bytes were
+never published.
+
+Install the release candidate explicitly because NuGet excludes prerelease
+packages from normal stable-version resolution:
+
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.9
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.9
+```
+
+### Fixed
+
+- Rediscover a staged GitHub release through the authenticated, paginated
+  release inventory instead of the published-tag endpoint. Draft creation and
+  asset visibility now use bounded polling, and duplicate drafts fail closed
+  without choosing or deleting remote state.
+- Keep release and benchmark artifacts within the repository's 30-day
+  retention limit. Benchmark drift confirmation now binds two independent
+  hosted attempts from the same scorecard cycle instead of depending on two
+  monthly artifacts that cannot coexist for the required window.
+
 ## [10.0.0-rc.8] - 2026-08-16
 
 Release qualification no longer spends an immutable version before the
@@ -537,7 +564,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.8...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.9...HEAD
+[10.0.0-rc.9]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.9
 [10.0.0-rc.8]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.8
 [10.0.0-rc.7]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.7
 [10.0.0-rc.6]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.6

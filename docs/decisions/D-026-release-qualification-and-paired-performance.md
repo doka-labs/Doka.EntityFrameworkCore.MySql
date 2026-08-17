@@ -132,6 +132,9 @@ The irreversible boundary is explicit:
    before either the tag or a NuGet package exists.
 2. After the tag is bound, a matching GitHub release draft and its staged
    identity assets are created and independently read back before NuGet push.
+   Draft discovery uses the authenticated, paginated release inventory because
+   GitHub's release-by-tag REST endpoint returns published releases only.
+   Creation and asset uploads have bounded readback polling.
 3. Provider, provider symbols, spatial extension, and spatial symbols publish
    in dependency order. Existing primary packages are accepted only when their
    canonical payload matches the candidate; conflicting same-version content
@@ -171,8 +174,11 @@ Primary-source basis:
   bind provenance to the candidate bytes and workflow identity.
 - [GitHub immutable releases][github-immutable-releases]
   recommend preparing a draft and its assets before publication locks them.
+- [GitHub releases REST API][github-releases-api]
+  distinguishes the draft-capable authenticated inventory from the published
+  release-by-tag endpoint.
 
-Retrieved 2026-08-16.
+Retrieved 2026-08-16; releases REST API retrieved 2026-08-17.
 
 ## 2026-08-15 Amendment: Performance has no release authority
 
@@ -692,25 +698,33 @@ therefore `1.265` against the `1.15` practical budget.
 Each paired attempt writes a digest-bound
 `paired-dispersion-observation.json` with target, run, source commit, runner
 class, source hash, contract digest, reference commit, realized dispersion,
-registered bound, and `stable` or `drift`. Monthly automatic scorecards retain
-these small observations for ninety days and report drift as a workflow
-warning. They therefore form an auditable time series without retaining the
-large raw samples or adding another manual workflow. A required target above
-the registered bound is
-`measurement-inconclusive`; it cannot claim power the measured population did
-not possess. The second independent attempt remains the only automatic retry.
+registered bound, and `stable` or `drift`. A required target above the
+registered bound is `measurement-inconclusive`; it cannot claim power the
+measured population did not possess. The second attempt remains the only
+automatic retry and runs in a separate GitHub-hosted job. GitHub documents that
+each [hosted job receives a fresh runner instance][github-runners], so the two
+jobs are the independent fleet observations rather than two samples from one
+machine.
+
+When both observations exist, the selector validates their attempt receipts,
+runtime identity, contract, reference, metric, bound, and state before writing
+`paired-dispersion-confirmation.json`. Only two `drift` observations become
+`confirmed-drift`; a stable observation or missing second projection cannot.
+The confirmation binds both receipts and projections by SHA-256 and is retained
+for the [repository-permitted thirty days][github-artifacts]. This removes
+calendar cadence and artifact survival from the decision without adding
+another scheduled or maintainer-triggered workflow.
 
 There is a governed exit from persistent fail-closed behavior. If the same
-required target exceeds the dispersion bound in both attempts of two separate
-complete scorecard workflow runs within thirty days, the next release requires
-an amendment to this ADR. The amendment must choose and verify one of three
-outcomes: remove a proven measurement defect and retain the contract; register
-a new planning-only characterization and block plan with recomputed power; or
-change that target to `observational` only after documenting why functional,
-resource, absolute-ceiling, and soak evidence still support the advertised
-target contract. No runtime result changes a role automatically, and a
-characterization change requires the reviewed contract path before another
-qualifying run.
+required target produces `confirmed-drift` in a complete scorecard cycle, any
+change to the benchmark contract or target role requires an amendment to this
+ADR. The amendment must choose and verify one of three outcomes: remove a
+proven measurement defect and retain the contract; register a new planning-only
+characterization and block plan with recomputed power; or change that target to
+`observational` only after documenting why functional, resource,
+absolute-ceiling, and soak evidence still support the advertised target
+contract. No runtime result changes a role automatically, and performance
+continues to have no release authority.
 
 Absolute catastrophe ceilings, allocation budgets, garbage-collection
 evidence, soak invariants, raw sample retention, adjacent calibration, and
@@ -758,11 +772,12 @@ qualification level. That blocks a release without asserting a regression.
 ### Retention
 
 Raw benchmark attempt artifacts keep seven days. Their small dispersion
-observations keep ninety days so the governed thirty-day drift trigger remains
-auditable.
+observations and digest-bound same-cycle confirmation keep the repository
+maximum of thirty days. Confirmation is complete before retention begins, so
+the monthly schedule never has to overlap two artifact lifetimes.
 
 The release-candidate workflow copies every raw report, evaluation, receipt,
-and manifest it produced into one self-contained artifact retained for 90 days,
+and manifest it produced into one self-contained artifact retained for 30 days,
 so the release remains independently verifiable after the working artifacts
 expire. No evidence-age limit applies at publication time: repository
 qualification may have completed before the tag was created, but every
@@ -1193,6 +1208,12 @@ manifest verification.
 - 2026-08-14: Bound scorecard reuse invalidation to the extracted target
   workflow and sensitivity assurance, and corrected release provenance to the
   workflow that uploads qualified performance artifacts.
+- 2026-08-17: Corrected GitHub draft discovery to use the authenticated,
+  paginated release inventory and added bounded readback after draft creation
+  and asset upload.
+- 2026-08-17: Bound every workflow artifact to the repository's thirty-day
+  retention maximum and replaced the calendar-coupled drift trigger with a
+  digest-bound confirmation from two fresh hosted jobs in one scorecard cycle.
 - 2026-08-14: Bound scorecard reuse invalidation to the paired endpoint
   estimator and bounded attempt selector, with a structural contract that
   covers every module imported by the supported performance CLI.
@@ -1259,7 +1280,7 @@ manifest verification.
 - [Repeated capped benchmark run 31568808053][capped-benchmark-run]
   (primary source; retrieved 2026-08-12)
 - [GitHub-hosted runners reference][github-runners]
-  (primary source; retrieved 2026-08-10)
+  (primary source; retrieved 2026-08-17)
 - [GitHub workflow runs API][github-runs-api]
   (primary source; retrieved 2026-08-10)
 - [GitHub Actions workflow syntax][github-workflow-syntax]
@@ -1271,13 +1292,15 @@ manifest verification.
 - [Git tag signature verification][git-verify-tag]
   (primary source; retrieved 2026-08-10)
 - [GitHub artifact storage and digest validation][github-artifacts]
-  (primary source; retrieved 2026-08-10)
+  (primary source; retrieved 2026-08-17)
 - [GitHub artifact attestations][github-attestations]
   (primary source; retrieved 2026-08-10)
 - [GitHub deployment environments][github-deployment-environments]
   (primary source; retrieved 2026-08-16)
 - [GitHub immutable releases][github-immutable-releases]
   (primary source; retrieved 2026-08-16)
+- [GitHub releases REST API][github-releases-api]
+  (primary source; retrieved 2026-08-17)
 - [GitHub required status checks][github-required-checks]
   (primary source; retrieved 2026-08-10)
 - [NuGet Trusted Publishing][nuget-trusted-publishing]
@@ -1367,6 +1390,8 @@ manifest verification.
   https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments
 [github-immutable-releases]:
   https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases
+[github-releases-api]:
+  https://docs.github.com/en/rest/releases/releases
 [github-required-checks]:
   https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks
 [nuget-trusted-publishing]:

@@ -348,7 +348,7 @@ jobs:
             artifacts/release-candidate
             artifacts/release-publication
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 30
 
       - name: Upload exhaustive stage receipts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -356,7 +356,7 @@ jobs:
           name: ${{ steps.names.outputs.checkpoint_artifact_name }}
           path: artifacts/release-candidate-checkpoints
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 30
 
   attest:
     needs: assemble
@@ -612,4 +612,4 @@ jobs:
           name: release-publication-${{ inputs.version }}-attempt-${{ github.run_attempt }}
           path: artifacts/release-publication
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 30
