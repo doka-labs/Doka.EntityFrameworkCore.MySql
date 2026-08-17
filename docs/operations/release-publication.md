@@ -118,6 +118,8 @@ matrix.
 - locked dependency restore and SBOM generation;
 - isolated consumer build against the exact local `.nupkg` files;
 - basic and spatial runtime execution against the pinned MySQL 8.4 image;
+- publication completeness rebuilt on the clean finalization runner against
+  the exact EF Core and MySqlConnector patches selected by the matrices;
 - canonical evidence assembly; and
 - GitHub artifact attestations bound to `refs/heads/main` and the exact commit.
 

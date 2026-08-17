@@ -121,8 +121,10 @@ if [[ "${package_source}" != "https://api.nuget.org/v3/index.json" ]]; then
     for package_id in \
         "Doka.EntityFrameworkCore.MySql" \
         "Doka.EntityFrameworkCore.MySql.NetTopologySuite"; do
+        package_id_lower="$(printf '%s' "${package_id}" | tr '[:upper:]' '[:lower:]')"
         source_package="${package_source}/${package_id}.${release_version}.nupkg"
-        cache_package="${package_cache}/${package_id,,}/${release_version}/${package_id,,}.${release_version}.nupkg"
+        cache_package="${package_cache}/${package_id_lower}/${release_version}/"
+        cache_package+="${package_id_lower}.${release_version}.nupkg"
         if [[ ! -f "${source_package}" || ! -f "${cache_package}" ]]; then
             echo "Local runtime restore did not retain ${package_id} package bytes." >&2
             exit 1

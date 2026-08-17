@@ -18,7 +18,9 @@ artifact_suffix="${DOKA_EF_CORE_ARTIFACT_SUFFIX:?DOKA_EF_CORE_ARTIFACT_SUFFIX is
 spec_targets="${DOKA_EF_CORE_SPEC_TARGETS:-mysql84,mariadb118}"
 integration_targets="${DOKA_INTEGRATION_TARGETS:-mysql84,mariadb118}"
 validation_scope="${DOKA_EF_CORE_VALIDATION_SCOPE:-full}"
-evidence_dir="${repo_root}/artifacts/efcore-patch-matrix/${artifact_suffix}"
+artifacts_root="${repo_root}/artifacts"
+evidence_root="${artifacts_root}/efcore-patch-matrix"
+evidence_dir="${evidence_root}/${artifact_suffix}"
 resolved_packages_file="${evidence_dir}/resolved-packages.json"
 summary_file="${evidence_dir}/efcore-contract-evidence.json"
 integration_evidence_dir="${evidence_dir}/integration"
@@ -44,9 +46,22 @@ case "${validation_scope}" in
         ;;
 esac
 
+if [[ ! "${artifact_suffix}" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+    echo "Invalid EF Core matrix artifact suffix: ${artifact_suffix}" >&2
+    exit 2
+fi
+
+if [[ -L "${artifacts_root}" \
+    || -L "${evidence_root}" \
+    || -L "${evidence_dir}" ]]; then
+    echo "EF Core matrix evidence path must not contain a symlink: ${evidence_dir}" >&2
+    exit 1
+fi
+
 export DokaEfCoreVersion="${requested_version}"
 export CentralPackageFloatingVersionsEnabled=true
 
+rm -rf -- "${evidence_dir}"
 mkdir -p "${evidence_dir}"
 cd "${repo_root}"
 
@@ -134,7 +149,9 @@ if [[ "${validation_scope}" == "dependency-graph" ]]; then
     exit 0
 fi
 
-bash "${repo_root}/eng/testing/test.sh"
+DOKA_PUBLICATION_EF_CORE_VERSION="${resolved_version}" \
+DOKA_PUBLICATION_MYSQLCONNECTOR_VERSION="2.5.0" \
+    bash "${repo_root}/eng/testing/test.sh"
 
 # Specification and live coverage runs per engine so a patch that changes
 # translation or materialization behavior is caught for both families rather

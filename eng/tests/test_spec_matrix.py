@@ -149,6 +149,25 @@ class SpecificationMatrixTests(unittest.TestCase):
         self.assertIn("timeout_minutes: 60", efcore_row)
         self.assertIn("deadline_seconds: 3300", efcore_row)
 
+    def test_dependency_matrix_rows_replace_stale_local_evidence(self) -> None:
+        """Keep repeated local rows isolated from earlier TRX and JSON files."""
+        for script_name in (
+            "test-efcore-matrix.sh",
+            "test-mysqlconnector-matrix.sh",
+        ):
+            with self.subTest(script=script_name):
+                script = (
+                    REPOSITORY_ROOT / "eng" / "testing" / script_name
+                ).read_text(encoding="ascii")
+                remove = 'rm -rf -- "${evidence_dir}"'
+                create = 'mkdir -p "${evidence_dir}'
+
+                self.assertIn(
+                    '"${artifact_suffix}" =~ ^[a-z0-9]+(-[a-z0-9]+)*$',
+                    script,
+                )
+                self.assertLess(script.index(remove), script.index(create))
+
     def write_contract(self, targets: object) -> Path:
         """Write a temporary disposition-shaped document and return its path."""
         temporary_directory = tempfile.TemporaryDirectory()

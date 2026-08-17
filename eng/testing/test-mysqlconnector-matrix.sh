@@ -16,7 +16,9 @@ requested_version="${DOKA_MYSQLCONNECTOR_VERSION:?DOKA_MYSQLCONNECTOR_VERSION is
 resolved_pattern="${DOKA_MYSQLCONNECTOR_RESOLVED_PATTERN:?DOKA_MYSQLCONNECTOR_RESOLVED_PATTERN is required}"
 artifact_suffix="${DOKA_MYSQLCONNECTOR_ARTIFACT_SUFFIX:?DOKA_MYSQLCONNECTOR_ARTIFACT_SUFFIX is required}"
 targets="${DOKA_INTEGRATION_TARGETS:-mysql84,mariadb118}"
-evidence_dir="${repo_root}/artifacts/mysqlconnector-patch-matrix/${artifact_suffix}"
+artifacts_root="${repo_root}/artifacts"
+evidence_root="${artifacts_root}/mysqlconnector-patch-matrix"
+evidence_dir="${evidence_root}/${artifact_suffix}"
 resolved_packages_file="${evidence_dir}/resolved-packages.json"
 database_evidence_file="${evidence_dir}/test-database-evidence.json"
 summary_file="${evidence_dir}/driver-contract-evidence.json"
@@ -26,11 +28,24 @@ command -v jq >/dev/null 2>&1 || {
     exit 1
 }
 
+if [[ ! "${artifact_suffix}" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+    echo "Invalid MySqlConnector matrix artifact suffix: ${artifact_suffix}" >&2
+    exit 2
+fi
+
+if [[ -L "${artifacts_root}" \
+    || -L "${evidence_root}" \
+    || -L "${evidence_dir}" ]]; then
+    echo "MySqlConnector matrix evidence path must not contain a symlink: ${evidence_dir}" >&2
+    exit 1
+fi
+
 export DokaMySqlConnectorVersion="${requested_version}"
 export CentralPackageFloatingVersionsEnabled=true
 export DOKA_INTEGRATION_TARGETS="${targets}"
 export DOKA_TEST_DATABASE_EVIDENCE_FILE="${database_evidence_file}"
 
+rm -rf -- "${evidence_dir}"
 mkdir -p "${evidence_dir}/unit" "${evidence_dir}/live"
 cd "${repo_root}"
 
