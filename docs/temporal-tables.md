@@ -164,6 +164,13 @@ modelBuilder.Entity<Price>(entity =>
 });
 ```
 
+The parameterless application-time overload creates the conventional shadow
+properties `ValidFrom` and `ValidTo`. An action-based overload invokes the
+callback first and adds a conventional endpoint only when that endpoint remains
+unspecified. Explicit CLR or named endpoints therefore become the exact model
+and migration property set; configuring only one endpoint intentionally keeps
+the other conventional default.
+
 `UseWithoutOverlaps()` is available on primary or unique keys and indexes. It
 emits MariaDB's native period constraint instead of approximating overlap
 validation in application code. Reverse engineering reads `PERIODS` and

@@ -108,6 +108,11 @@ reverse engineering, generated model code, and typed `FOR PORTION OF`
 these exact operations as engine limitations because MySQL 8.4 / 9.7 have no
 application-time period grammar.
 
+Action-based application-time configuration resolves caller-selected endpoints
+before adding conventional defaults. This keeps explicit CLR or named period
+properties as the exact physical schema while retaining `ValidFrom` or
+`ValidTo` for any endpoint the callback intentionally leaves unspecified.
+
 Migration snapshots and migration designer models emit system-time,
 application-time, and bitemporal metadata through the provider annotation code
 generator. That is the design-time seam EF Core invokes for both artifacts.
@@ -213,6 +218,8 @@ semantics instead of normalizing them into one approximate range operation.
 - 2026-08-18: Bound temporal migration snapshots and designer models to the
   annotation-code-generator seam, added same-table owned inheritance, and made
   the separate current-owned materialization boundary explicit.
+- 2026-08-18: Deferred application-time endpoint defaults until action-based
+  configuration completes, preventing unconsumed conventional shadow columns.
 
 ### Implementation References
 

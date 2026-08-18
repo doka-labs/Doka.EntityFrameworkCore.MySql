@@ -141,6 +141,12 @@ model, migration, scaffolding, and `FOR PORTION OF` update / delete contracts.
 MySQL reports these exact operations as engine limitations rather than a
 provider limitation.
 
+Action-based application-time configuration applies the conventional
+`ValidFrom` and `ValidTo` endpoints only when the callback leaves an endpoint
+unspecified. Selecting explicit CLR or named properties therefore creates no
+unused shadow columns. Parameterless configuration retains both conventional
+defaults.
+
 ## Quick Start
 
 ```csharp

@@ -18,6 +18,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   dynamically discovered V3 package-content endpoint and accept only canonical
   normalized release versions; completion consumes the exact identity written
   by the readback producer.
+- Delay application-time period defaults until action-based configuration has
+  completed, so typed or named endpoints do not leave unused `ValidFrom` and
+  `ValidTo` shadow properties in models, snapshots, or migrations.
 - Preserve system-time, application-time, and bitemporal metadata in generated
   migration snapshots and designer models, including custom period columns, so
   an unchanged model no longer produces a redundant follow-up migration.
