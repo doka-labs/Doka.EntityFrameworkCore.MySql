@@ -245,6 +245,10 @@ modelBuilder.Entity<OrderWithGuid>()
 ```
 
 Both `binary(16)` and `char(36)` round-trip through `Guid` CLR values without manual conversion.
+Context defaults behave consistently for connection strings, `DbConnection`,
+and `MySqlDataSource`. A property-level format may safely override the context
+default in either direction. When `Binary16` overrides a `Char36` context, the
+provider uses RFC 4122 big-endian bytes independently of the connector-wide GUID mode.
 Generated migration snapshots and designer models retain the `Guid` model type
 for `Char36` properties. When an existing principal/dependent relationship moves
 from an application-converted `varchar(36)` mapping to provider-native

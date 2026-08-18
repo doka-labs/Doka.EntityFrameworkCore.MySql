@@ -161,6 +161,29 @@ public sealed class MySqlDesignTimeRoundTripTests
     }
 
     /// <summary>
+    /// A context-level Char36 default and an explicit Binary16 override retain
+    /// Guid model types and byte-order annotations through generated models.
+    /// </summary>
+    [Fact]
+    public void Default_char36_and_binary16_override_roundtrip_through_generated_models()
+    {
+        using var context = new MixedGuidDesignContext(
+            CreateOptions<MixedGuidDesignContext>(
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                MySqlGuidFormat.Char36));
+
+        var generated = GenerateAndCompile(context);
+
+        Assert.Contains(".Property<System.Guid>(\"Id\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".Property<System.Guid>(\"BinaryReference\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".HasMySqlGuidFormat(MySqlGuidFormat.Char36)", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".HasMySqlGuidFormat(MySqlGuidFormat.Binary16)", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Property<byte[]>(\"BinaryReference\")", generated.SnapshotCode, StringComparison.Ordinal);
+        AssertRoundTripsWithoutOperations(context, generated.SnapshotModel);
+        AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
+    }
+
+    /// <summary>
     /// Explicit invisible and visible column dispositions survive both generated
     /// design-time model surfaces without falling back to raw annotations.
     /// </summary>
@@ -386,11 +409,13 @@ public sealed class MySqlDesignTimeRoundTripTests
     }
 
     private static DbContextOptions<TContext> CreateOptions<TContext>(
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        MySqlGuidFormat defaultGuidFormat = MySqlGuidFormat.Binary16
     )
         where TContext : DbContext => MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>().UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
-            serverVersion)
+            serverVersion,
+            options => options.DefaultGuidFormat(defaultGuidFormat))
         .Options;
 
     private sealed record GeneratedTemporalModels(
@@ -673,6 +698,50 @@ public sealed class Char36DesignRevision
     /// Gets or sets the principal navigation.
     /// </summary>
     public Char36DesignDocument Document { get; set; } = null!;
+}
+
+/// <summary>
+/// Test context for mixed default and property-level Guid formats.
+/// </summary>
+public sealed class MixedGuidDesignContext : DbContext
+{
+    /// <summary>
+    /// Creates the mixed Guid design context.
+    /// </summary>
+    public MixedGuidDesignContext(
+        DbContextOptions<MixedGuidDesignContext> options
+    ) : base(options) { }
+
+    /// <inheritdoc />
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
+    {
+        modelBuilder.Entity<MixedGuidDesignRecord>(entity =>
+        {
+            entity.ToTable("MixedGuidDesignRecords");
+            entity.HasKey(record => record.Id);
+            entity
+                .Property(record => record.BinaryReference)
+                .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+        });
+    }
+}
+
+/// <summary>
+/// Entity used by the mixed Guid design model.
+/// </summary>
+public sealed class MixedGuidDesignRecord
+{
+    /// <summary>
+    /// Gets or sets the Char36 default key.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the explicitly Binary16 value.
+    /// </summary>
+    public Guid BinaryReference { get; set; }
 }
 
 /// <summary>

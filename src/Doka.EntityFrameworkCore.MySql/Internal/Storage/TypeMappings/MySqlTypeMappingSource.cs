@@ -66,14 +66,14 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     // GUID text representations are ASCII-only (32 hex digits plus four hyphens), so
     // the column does not need utf8mb4 storage; Unicode: false keeps the on-disk and
     // wire footprint at one byte per character.
-    private static readonly RelationalTypeMapping s_guidChar36Mapping = new StringTypeMapping(
+    private static readonly RelationalTypeMapping s_guidChar36Mapping = new MySqlGuidStringTypeMapping(
         "char(36)",
         DbType.StringFixedLength,
-        unicode: false,
-        size: 36);
+        36,
+        useKeyComparison: false);
 
     private static readonly RelationalTypeMapping s_guidVarchar36Mapping =
-        new StringTypeMapping("varchar(36)", DbType.String, unicode: false, size: 36);
+        new MySqlGuidStringTypeMapping("varchar(36)", DbType.String, 36, useKeyComparison: false);
 
     private static readonly RelationalTypeMapping s_jsonStringMapping = new MySqlJsonStringTypeMapping("json");
 
@@ -354,6 +354,12 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
                 return new MySqlFloatTypeMapping(mappingInfo.StoreTypeName, DbType.Single);
             }
 
+            if (clrType == typeof(byte[])
+                && normalizedStoreType is "binary" or "varbinary" or "blob" or "longblob")
+            {
+                return CreateByteArrayMapping(mappingInfo, normalizedStoreType);
+            }
+
             if (s_storeTypeMappings.TryGetValue(normalizedStoreType, out var storeTypeMapping)
                 && (clrType is null || clrType == storeTypeMapping.ClrType))
             {
@@ -534,6 +540,16 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         var isFixedLength =
             (mappingInfo.IsFixedLength == true || normalizedStoreType == "char")
             && size is > 0;
+
+        if (size == 36
+            && normalizedStoreType is "char" or "varchar")
+        {
+            return new MySqlGuidStringTypeMapping(
+                $"{normalizedStoreType}(36)",
+                normalizedStoreType == "char" ? DbType.StringFixedLength : DbType.String,
+                size.Value,
+                useKeyComparison: mappingInfo.IsKeyOrIndex);
+        }
 
         if (isFixedLength)
         {

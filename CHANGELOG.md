@@ -18,6 +18,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   dynamically discovered V3 package-content endpoint and accept only canonical
   normalized release versions; completion consumes the exact identity written
   by the readback producer.
+- Make context-level `Char36` GUID mappings materialize the connector's `Guid`
+  and text reader shapes across connection strings, `DbConnection`, and
+  `MySqlDataSource`. Explicit `Binary16` overrides now use provider-owned
+  big-endian bytes, while the unannotated `Binary16` default keeps its native
+  no-converter path.
 - Delay application-time period defaults until action-based configuration has
   completed, so typed or named endpoints do not leave unused `ValidFrom` and
   `ValidTo` shadow properties in models, snapshots, or migrations.

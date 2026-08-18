@@ -14,7 +14,7 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
         IndentedStringBuilder stringBuilder
     )
     {
-        if (property.GetMySqlGuidFormat() != MySqlGuidFormat.Char36
+        if (property.GetMySqlGuidFormat() is null
             || (Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType) != typeof(Guid))
         {
             base.GenerateProperty(entityTypeBuilderName, property, stringBuilder);
@@ -22,9 +22,9 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
         }
 
         // EF Core snapshots normally declare a converted property through the
-        // converter's provider CLR type. The provider-native Char36 fluent API
-        // reinstalls its Guid-to-string converter, so its declaration must retain
-        // the model CLR type instead of becoming Property<string>.
+        // converter's provider CLR type. The provider Guid-format fluent API
+        // reinstalls its format-specific converter, so its declaration must retain
+        // the model CLR type instead of becoming Property<string> or Property<byte[]>.
         // This branch mirrors EF Core 10.0.11
         // CSharpSnapshotGenerator.GenerateProperty except for that CLR-type choice.
         // Diff it against upstream whenever the supported EF Core range changes.

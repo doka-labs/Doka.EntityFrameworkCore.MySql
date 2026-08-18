@@ -1,3 +1,7 @@
+using System.Data;
+using System.Linq.Expressions;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
@@ -36,6 +40,33 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
         Assert.Equal("char(36)", guidKeyProperty.GetColumnType());
         Assert.Equal(36, guidKeyProperty.GetMaxLength());
         Assert.True(guidKeyProperty.IsFixedLength());
+    }
+
+    /// <summary>
+    /// The Char36 mapping accepts both runtime shapes documented by MySqlConnector:
+    /// a Guid when GuidFormat is Char36 and a string when automatic Guid conversion
+    /// is disabled. Unsupported shapes remain a focused provider error.
+    /// </summary>
+    [Fact]
+    public void Default_char36_reader_accepts_guid_and_string_but_rejects_binary_values()
+    {
+        using var context = new ValueGenerationContext(CreateOptions(MySqlGuidFormat.Char36));
+        var property = context.Model
+            .FindEntityType(typeof(GuidKeyEntity))!
+            .FindProperty(nameof(GuidKeyEntity.Id))!;
+        var mapping = property.GetRelationalTypeMapping();
+        var value = Guid.Parse("9d54ead7-e69c-4939-9290-8e95586996de");
+
+        Assert.Equal(value.ToString("D", CultureInfo.InvariantCulture), ReadProviderValue(mapping, value));
+        Assert.Equal(value.ToString("D", CultureInfo.InvariantCulture), ReadProviderValue(
+            mapping,
+            value.ToString("D", CultureInfo.InvariantCulture)));
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => ReadProviderValue(mapping, value.ToByteArray(bigEndian: true)));
+
+        Assert.Contains("System.Byte[]", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(Convert.ToHexString(value.ToByteArray()), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -92,6 +123,67 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     }
 
     /// <summary>
+    /// An explicit Binary16 property remains byte-exact even when the context
+    /// default configures MySqlConnector for Char36 columns.
+    /// </summary>
+    [Fact]
+    public void Explicit_binary16_override_uses_big_endian_binary_provider_values()
+    {
+        using var context = new ValueGenerationContext(CreateOptions(MySqlGuidFormat.Char36));
+        var property = context.Model
+            .FindEntityType(typeof(ExplicitBinary16Entity))!
+            .FindProperty(nameof(ExplicitBinary16Entity.Id))!;
+        var converter = Assert.IsAssignableFrom<ValueConverter>(property.GetValueConverter());
+        var value = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
+        var providerValue = Assert.IsType<byte[]>(converter.ConvertToProvider(value));
+
+        Assert.Equal("00112233445566778899AABBCCDDEEFF", Convert.ToHexString(providerValue));
+        Assert.Equal(value, converter.ConvertFromProvider(providerValue));
+        Assert.Throws<InvalidOperationException>(() => _ = converter.ConvertFromProvider(new byte[15]));
+        Assert.Equal(typeof(byte[]), property.GetProviderClrType());
+        Assert.Equal("binary(16)", property.FindAnnotation(RelationalAnnotationNames.ColumnType)?.Value);
+        Assert.Equal("binary(16)", property.GetColumnType());
+    }
+
+    /// <summary>
+    /// The unannotated provider default retains the native Binary16 fast path;
+    /// the byte converter is reserved for an explicit format override.
+    /// </summary>
+    [Fact]
+    public void Default_binary16_mapping_remains_native_and_converter_free()
+    {
+        using var context = new ValueGenerationContext(CreateOptions());
+        var property = context.Model
+            .FindEntityType(typeof(GuidKeyEntity))!
+            .FindProperty(nameof(GuidKeyEntity.Id))!;
+
+        Assert.Equal(MySqlGuidFormat.Binary16, property.GetMySqlGuidFormat());
+        Assert.Equal("binary(16)", property.GetColumnType());
+        Assert.Null(property.GetProviderClrType());
+        Assert.Null(property.GetValueConverter());
+        Assert.IsType<MySqlGuidBinaryTypeMapping>(property.GetRelationalTypeMapping());
+    }
+
+    /// <summary>
+    /// An explicit Binary16 declaration that matches the context default remains
+    /// on the connector-native Guid path instead of adding a redundant converter.
+    /// </summary>
+    [Fact]
+    public void Explicit_binary16_matching_context_default_remains_native_and_converter_free()
+    {
+        using var context = new ValueGenerationContext(CreateOptions());
+        var property = context.Model
+            .FindEntityType(typeof(ExplicitBinary16Entity))!
+            .FindProperty(nameof(ExplicitBinary16Entity.Id))!;
+
+        Assert.Equal(MySqlGuidFormat.Binary16, property.GetMySqlGuidFormat());
+        Assert.Equal("binary(16)", property.GetColumnType());
+        Assert.Null(property.GetProviderClrType());
+        Assert.Null(property.GetValueConverter());
+        Assert.IsType<MySqlGuidBinaryTypeMapping>(property.GetRelationalTypeMapping());
+    }
+
+    /// <summary>
     /// Verifies that a user-configured Guid converter takes precedence over the
     /// provider's default binary Guid representation.
     /// </summary>
@@ -144,7 +236,7 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     )
         where TContext : DbContext
     {
-        var builder = new DbContextOptionsBuilder<TContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>();
 
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
@@ -159,6 +251,32 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     )
     {
         return CreateOptions<ValueGenerationContext>(defaultGuidFormat);
+    }
+
+    private static string ReadProviderValue(
+        RelationalTypeMapping mapping,
+        object value
+    )
+    {
+        var table = new DataTable();
+        table.Columns.Add("Value", value.GetType());
+        table.Rows.Add(value);
+
+        using var reader = table.CreateDataReader();
+        Assert.True(reader.Read());
+
+        var readerExpression = Expression.Parameter(typeof(DbDataReader), "reader");
+        var ordinalExpression = Expression.Constant(0);
+        var getStringExpression = Expression.Call(
+            readerExpression,
+            RelationalTypeMapping.GetDataReaderMethod(typeof(string)),
+            ordinalExpression);
+        var customizedExpression = mapping.CustomizeDataReaderExpression(getStringExpression);
+        var materialize = Expression
+            .Lambda<Func<DbDataReader, string>>(customizedExpression, readerExpression)
+            .Compile();
+
+        return materialize(reader);
     }
 
     private sealed class ValueGenerationContext : DbContext
@@ -206,6 +324,16 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
                 entity
                     .Property(item => item.Id)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36)
+                    .UseMySqlClientGuidValueGeneration();
+            });
+
+            modelBuilder.Entity<ExplicitBinary16Entity>(entity =>
+            {
+                entity.ToTable("Phase2ExplicitBinary16Entities");
+                entity.HasKey(item => item.Id);
+                entity
+                    .Property(item => item.Id)
+                    .HasMySqlGuidFormat(MySqlGuidFormat.Binary16)
                     .UseMySqlClientGuidValueGeneration();
             });
 
@@ -266,6 +394,11 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     }
 
     private sealed class ExplicitChar36Entity
+    {
+        public Guid Id { get; set; }
+    }
+
+    private sealed class ExplicitBinary16Entity
     {
         public Guid Id { get; set; }
     }

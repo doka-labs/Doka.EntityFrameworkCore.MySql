@@ -1,4 +1,5 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
+using static Doka.EntityFrameworkCore.MySql.FunctionalTests.MySqlGuidFormatTestOptions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
@@ -20,6 +21,76 @@ public sealed class MySqlGuidFormatTests
 
     private static readonly Guid s_insertedGuid = Guid.Parse("11112222-3333-4444-5555-666677778888");
 
+    private static readonly Guid s_defaultGuid = Guid.Parse("12345678-90ab-cdef-1234-567890abcdef");
+
+    private static readonly Guid s_explicitBinaryGuid = Guid.Parse("fedcba09-8765-4321-fedc-ba0987654321");
+
+    /// <summary>
+    /// A context-level Char36 default round-trips unannotated keys and foreign
+    /// keys through every supported connection bootstrap. The string path also
+    /// proves that migrations and EnsureCreated have the same runtime contract.
+    /// </summary>
+    [Theory]
+    [InlineData("connection-string", false)]
+    [InlineData("db-connection", false)]
+    [InlineData("data-source", false)]
+    [InlineData("connection-string", true)]
+    public async Task Default_char36_roundtrips_across_connection_paths_and_schema_creation(
+        string bootstrap,
+        bool useMigrations
+    )
+    {
+        var dbName = $"doka_guid_default_{Guid.NewGuid():N}";
+        var connectionString = CreateDatabaseConnectionString(MySqlTestEnvironment.ConnectionString, dbName);
+
+        try
+        {
+            await CreateDatabaseAsync(MySqlTestEnvironment.ConnectionString, dbName);
+
+            switch (bootstrap)
+            {
+                case "connection-string":
+                    await AssertDefaultChar36ContractAsync(
+                        BuildDefaultChar36Options<DefaultChar36GuidContext>(
+                            connectionString,
+                            MySqlTestEnvironment.ServerVersion),
+                        connectionString,
+                        useMigrations);
+                    break;
+                case "db-connection":
+                    await using (var connection = new MySqlConnection(connectionString))
+                    {
+                        await AssertDefaultChar36ContractAsync(
+                            BuildDefaultChar36Options<DefaultChar36GuidContext>(
+                                connection,
+                                MySqlTestEnvironment.ServerVersion),
+                            connectionString,
+                            useMigrations);
+                    }
+
+                    break;
+                case "data-source":
+                    await using (var dataSource = new MySqlDataSourceBuilder(connectionString).Build())
+                    {
+                        await AssertDefaultChar36ContractAsync(
+                            BuildDefaultChar36Options<DefaultChar36GuidContext>(
+                                dataSource,
+                                MySqlTestEnvironment.ServerVersion),
+                            connectionString,
+                            useMigrations);
+                    }
+
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(bootstrap), bootstrap, "Unknown Guid bootstrap path.");
+            }
+        }
+        finally
+        {
+            await DropDatabaseAsync(MySqlTestEnvironment.ConnectionString, dbName);
+        }
+    }
+
     /// <summary>
     /// Verifies that a Guid property mapped to <c>char(36)</c> stores and reads back the
     /// canonical string-form literal exactly, with the original case-folded
@@ -35,13 +106,21 @@ public sealed class MySqlGuidFormatTests
         try
         {
             await using (var seedContext =
-                         new Char36GuidContext(BuildOptions<Char36GuidContext>(connectionString, dbName)))
+                         new Char36GuidContext(
+                             BuildOptions<Char36GuidContext>(
+                                 connectionString,
+                                 dbName,
+                                 MySqlTestEnvironment.ServerVersion)))
             {
                 await seedContext.Database.EnsureCreatedAsync();
             }
 
             await using (var insertContext =
-                         new Char36GuidContext(BuildOptions<Char36GuidContext>(connectionString, dbName)))
+                         new Char36GuidContext(
+                             BuildOptions<Char36GuidContext>(
+                                 connectionString,
+                                 dbName,
+                                 MySqlTestEnvironment.ServerVersion)))
             {
                 insertContext.Entities.Add(
                     new Char36Entity
@@ -53,7 +132,11 @@ public sealed class MySqlGuidFormatTests
             }
 
             await using (var readContext =
-                         new Char36GuidContext(BuildOptions<Char36GuidContext>(connectionString, dbName)))
+                         new Char36GuidContext(
+                             BuildOptions<Char36GuidContext>(
+                                 connectionString,
+                                 dbName,
+                                 MySqlTestEnvironment.ServerVersion)))
             {
                 var seeded = await readContext.Entities.SingleAsync(e => e.Id == s_seededGuid);
                 var inserted = await readContext.Entities.SingleAsync(e => e.Id == s_insertedGuid);
@@ -87,13 +170,21 @@ public sealed class MySqlGuidFormatTests
         try
         {
             await using (var seedContext =
-                         new Binary16GuidContext(BuildOptions<Binary16GuidContext>(connectionString, dbName)))
+                         new Binary16GuidContext(
+                             BuildOptions<Binary16GuidContext>(
+                                 connectionString,
+                                 dbName,
+                                 MySqlTestEnvironment.ServerVersion)))
             {
                 await seedContext.Database.EnsureCreatedAsync();
             }
 
             await using (var insertContext =
-                         new Binary16GuidContext(BuildOptions<Binary16GuidContext>(connectionString, dbName)))
+                         new Binary16GuidContext(
+                             BuildOptions<Binary16GuidContext>(
+                                 connectionString,
+                                 dbName,
+                                 MySqlTestEnvironment.ServerVersion)))
             {
                 insertContext.Entities.Add(
                     new Binary16Entity
@@ -105,7 +196,11 @@ public sealed class MySqlGuidFormatTests
             }
 
             await using (var readContext =
-                         new Binary16GuidContext(BuildOptions<Binary16GuidContext>(connectionString, dbName)))
+                         new Binary16GuidContext(
+                             BuildOptions<Binary16GuidContext>(
+                                 connectionString,
+                                 dbName,
+                                 MySqlTestEnvironment.ServerVersion)))
             {
                 var seeded = await readContext.Entities.SingleAsync(e => e.Id == s_seededGuid);
                 var inserted = await readContext.Entities.SingleAsync(e => e.Id == s_insertedGuid);
@@ -124,20 +219,149 @@ public sealed class MySqlGuidFormatTests
         }
     }
 
-    private static DbContextOptions<TContext> BuildOptions<TContext>(
+    private static async Task AssertDefaultChar36ContractAsync(
+        DbContextOptions<DefaultChar36GuidContext> options,
+        string connectionString,
+        bool useMigrations
+    )
+    {
+        if (useMigrations)
+        {
+            await ApplyInitialMigrationAsync(connectionString);
+        }
+        else
+        {
+            await using var createContext = new DefaultChar36GuidContext(options);
+            _ = await createContext.Database.EnsureCreatedAsync();
+        }
+
+        await using (var insertContext = new DefaultChar36GuidContext(options))
+        {
+            insertContext.Principals.Add(
+                new DefaultChar36Principal
+                {
+                    Id = s_defaultGuid,
+                    Name = "principal",
+                    Dependents =
+                    {
+                        new DefaultChar36Dependent
+                        {
+                            Name = "dependent",
+                        },
+                    },
+                });
+
+            insertContext.BinaryEntities.Add(
+                new ExplicitBinary16UnderChar36
+                {
+                    Id = s_explicitBinaryGuid,
+                    Name = "binary",
+                });
+
+            await insertContext.SaveChangesAsync();
+        }
+
+        await using (var readContext = new DefaultChar36GuidContext(options))
+        {
+            var principal = await readContext
+                .Principals
+                .Include(item => item.Dependents)
+                .SingleAsync(item => item.Id == s_defaultGuid);
+            var dependent = Assert.Single(principal.Dependents);
+            var binary = await readContext
+                .BinaryEntities
+                .AsNoTracking()
+                .SingleAsync(item => item.Id == s_explicitBinaryGuid);
+
+            Assert.Equal(s_defaultGuid, dependent.PrincipalId);
+            Assert.Same(principal, dependent.Principal);
+            Assert.Equal(s_explicitBinaryGuid, binary.Id);
+        }
+
+        await using var connection = new MySqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT CAST(`Id` AS CHAR(36)) FROM `DefaultChar36Principals`;";
+        Assert.Equal(
+            s_defaultGuid.ToString("D", CultureInfo.InvariantCulture),
+            Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
+
+        command.CommandText = "SELECT CAST(`PrincipalId` AS CHAR(36)) FROM `DefaultChar36Dependents`;";
+        Assert.Equal(
+            s_defaultGuid.ToString("D", CultureInfo.InvariantCulture),
+            Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
+
+        command.CommandText = "SELECT HEX(`Id`) FROM `ExplicitBinary16UnderChar36`;";
+        Assert.Equal(
+            "FEDCBA0987654321FEDCBA0987654321",
+            Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
+    }
+
+    private static async Task ApplyInitialMigrationAsync(
+        string connectionString
+    )
+    {
+        await using var source = new EmptyDefaultChar36GuidContext(
+            BuildDefaultChar36Options<EmptyDefaultChar36GuidContext>(
+                connectionString,
+                MySqlTestEnvironment.ServerVersion));
+
+        await using var target = new DefaultChar36GuidContext(
+            BuildDefaultChar36Options<DefaultChar36GuidContext>(
+                connectionString,
+                MySqlTestEnvironment.ServerVersion));
+
+        var operations = target
+            .GetService<IMigrationsModelDiffer>()
+            .GetDifferences(
+                source
+                    .GetService<IDesignTimeModel>()
+                    .Model
+                    .GetRelationalModel(),
+                target
+                    .GetService<IDesignTimeModel>()
+                    .Model
+                    .GetRelationalModel());
+
+        var commands = target
+            .GetService<IMigrationsSqlGenerator>()
+            .Generate(
+                operations,
+                target.GetService<IDesignTimeModel>()
+                    .Model);
+
+        await using var connection = new MySqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        foreach (var migrationCommand in commands)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = migrationCommand.CommandText;
+            _ = await command.ExecuteNonQueryAsync();
+        }
+    }
+
+    private static string CreateDatabaseConnectionString(
+        string baseConnectionString,
+        string databaseName
+    ) => new MySqlConnectionStringBuilder(baseConnectionString)
+    {
+        Database = databaseName,
+    }.ConnectionString;
+
+    private static async Task CreateDatabaseAsync(
         string baseConnectionString,
         string databaseName
     )
-        where TContext : DbContext
     {
-        var builder = new MySqlConnectionStringBuilder(baseConnectionString)
-        {
-            Database = databaseName,
-        };
+        var builder = new MySqlConnectionStringBuilder(baseConnectionString);
+        builder.Remove("Database");
 
-        var optionsBuilder = new DbContextOptionsBuilder<TContext>();
-        optionsBuilder.UseMySql(builder.ConnectionString, MySqlTestEnvironment.ServerVersion);
-        return optionsBuilder.Options;
+        await using var connection = new MySqlConnection(builder.ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"CREATE DATABASE `{databaseName}`;";
+        _ = await command.ExecuteNonQueryAsync();
     }
 
     private static async Task<List<string>> ReadRawIdStringsAsync(
@@ -220,6 +444,83 @@ public sealed class MySqlGuidFormatTests
         public Guid Id { get; set; }
 
         public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class DefaultChar36Principal
+    {
+        public Guid Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public ICollection<DefaultChar36Dependent> Dependents { get; } = [];
+    }
+
+    private sealed class DefaultChar36Dependent
+    {
+        public int Id { get; set; }
+
+        public Guid PrincipalId { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public DefaultChar36Principal Principal { get; set; } = null!;
+    }
+
+    private sealed class ExplicitBinary16UnderChar36
+    {
+        public Guid Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class EmptyDefaultChar36GuidContext : DbContext
+    {
+        public EmptyDefaultChar36GuidContext(
+            DbContextOptions<EmptyDefaultChar36GuidContext> options
+        ) : base(options) { }
+    }
+
+    private sealed class DefaultChar36GuidContext : DbContext
+    {
+        public DefaultChar36GuidContext(
+            DbContextOptions<DefaultChar36GuidContext> options
+        ) : base(options) { }
+
+        public DbSet<DefaultChar36Principal> Principals => Set<DefaultChar36Principal>();
+
+        public DbSet<ExplicitBinary16UnderChar36> BinaryEntities => Set<ExplicitBinary16UnderChar36>();
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<DefaultChar36Principal>(entity =>
+            {
+                entity.ToTable("DefaultChar36Principals");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Name).HasMaxLength(80);
+            });
+
+            modelBuilder.Entity<DefaultChar36Dependent>(entity =>
+            {
+                entity.ToTable("DefaultChar36Dependents");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Name).HasMaxLength(80);
+                entity
+                    .HasOne(item => item.Principal)
+                    .WithMany(item => item.Dependents)
+                    .HasForeignKey(item => item.PrincipalId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ExplicitBinary16UnderChar36>(entity =>
+            {
+                entity.ToTable("ExplicitBinary16UnderChar36");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+                entity.Property(item => item.Name).HasMaxLength(80);
+            });
+        }
     }
 
     private sealed class Char36GuidContext : DbContext
