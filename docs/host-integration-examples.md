@@ -54,6 +54,13 @@ entity.Property(candidate => candidate.LegacyId)
 
 The sample keeps the provider default at `Binary16` for new-schema posture and uses `Char36` only where a legacy schema explicitly needs it.
 
+Generated snapshots preserve `Guid` as the model CLR type for this mapping. If
+an existing relationship changes from an application-level `varchar(36)`
+converter to provider-native `Char36`, the migration model differ removes the
+foreign key before altering either constrained column and restores the same
+constraint after the dependent index is available. The generated down path is
+symmetric, so populated relationships do not require a hand-edited migration.
+
 ## HealthCheck
 
 Hosts that need a readiness or liveness probe for their `MySqlDbContext` use the standard `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore` package. The provider exposes no custom health-check surface; the EF Core integration covers both the connection round-trip and a configurable probe query.

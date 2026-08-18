@@ -68,6 +68,32 @@ public sealed class MySqlDesignTimeRoundTripTests
         AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
     }
 
+    /// <summary>
+    /// Provider-native Char36 keys and foreign keys retain their Guid model CLR type
+    /// through both generated design-time model surfaces.
+    /// </summary>
+    [Fact]
+    public void Char36_snapshot_and_designer_roundtrip_guid_relationship_without_pending_operations()
+    {
+        using var context = new Char36DesignContext(
+            CreateOptions<Char36DesignContext>(MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
+
+        var generated = GenerateAndCompile(context);
+
+        Assert.Contains(".Property<System.Guid>(\"Id\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".Property<System.Guid>(\"DocumentId\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(
+            ".HasMySqlGuidFormat(MySqlGuidFormat.Char36)",
+            generated.SnapshotCode,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(".Property<string>(\"Id\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Property<string>(\"DocumentId\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".Property<System.Guid>(\"Id\")", generated.DesignerCode, StringComparison.Ordinal);
+        Assert.Contains(".Property<System.Guid>(\"DocumentId\")", generated.DesignerCode, StringComparison.Ordinal);
+        AssertRoundTripsWithoutOperations(context, generated.SnapshotModel);
+        AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
+    }
+
     private static GeneratedTemporalModels GenerateAndCompile(
         DbContext context
     )
@@ -350,4 +376,84 @@ public sealed class BitemporalDesignRecord
     /// Gets or sets the key.
     /// </summary>
     public int Id { get; set; }
+}
+
+/// <summary>
+/// Test context for generated provider-native Char36 migration models.
+/// </summary>
+public sealed class Char36DesignContext : DbContext
+{
+    /// <summary>
+    /// Creates the test context.
+    /// </summary>
+    public Char36DesignContext(
+        DbContextOptions<Char36DesignContext> options
+    ) : base(options) { }
+
+    /// <inheritdoc />
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
+    {
+        modelBuilder.Entity<Char36DesignDocument>(entity =>
+        {
+            entity.ToTable("Char36DesignDocuments");
+            entity.HasKey(document => document.Id);
+            entity
+                .Property(document => document.Id)
+                .HasMySqlGuidFormat(MySqlGuidFormat.Char36)
+                .UseMySqlClientGuidValueGeneration();
+        });
+
+        modelBuilder.Entity<Char36DesignRevision>(entity =>
+        {
+            entity.ToTable("Char36DesignRevisions");
+            entity.HasKey(revision => revision.Id);
+            entity
+                .Property(revision => revision.DocumentId)
+                .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+            entity
+                .HasOne(revision => revision.Document)
+                .WithMany(document => document.Revisions)
+                .HasForeignKey(revision => revision.DocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+}
+
+/// <summary>
+/// Principal entity used by the generated Char36 migration model.
+/// </summary>
+public sealed class Char36DesignDocument
+{
+    /// <summary>
+    /// Gets or sets the client-generated key.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets the dependent revisions.
+    /// </summary>
+    public ICollection<Char36DesignRevision> Revisions { get; } = [];
+}
+
+/// <summary>
+/// Dependent entity used by the generated Char36 migration model.
+/// </summary>
+public sealed class Char36DesignRevision
+{
+    /// <summary>
+    /// Gets or sets the revision key.
+    /// </summary>
+    public int Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the principal Guid key.
+    /// </summary>
+    public Guid DocumentId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the principal navigation.
+    /// </summary>
+    public Char36DesignDocument Document { get; set; } = null!;
 }

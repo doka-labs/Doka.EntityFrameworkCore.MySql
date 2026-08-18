@@ -239,6 +239,12 @@ modelBuilder.Entity<OrderWithGuid>()
 ```
 
 Both `binary(16)` and `char(36)` round-trip through `Guid` CLR values without manual conversion.
+Generated migration snapshots and designer models retain the `Guid` model type
+for `Char36` properties. When an existing principal/dependent relationship moves
+from an application-converted `varchar(36)` mapping to provider-native
+`Char36`, generated migrations temporarily remove the foreign key, alter both
+columns, and restore the same constraint after the dependent index is available.
+The reverse migration follows the same dependency-safe ordering.
 
 ### HiLo value generation
 

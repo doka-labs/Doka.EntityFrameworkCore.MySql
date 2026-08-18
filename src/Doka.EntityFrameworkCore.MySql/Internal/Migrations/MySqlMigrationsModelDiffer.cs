@@ -52,6 +52,7 @@ internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
         ApplyDatabaseCharSetAnnotations(operations, source, target);
         ApplyIndexAnnotations(operations, target);
         RemoveDuplicateAlterColumnOperations(operations);
+        EnsureForeignKeysAroundStoreTypeChanges(operations, source, target);
         NormalizeAutoIncrementPrimaryKeyOperations(operations, source, target);
 
         return operations;
@@ -898,6 +899,155 @@ internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
         ? System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals(left, right)
         : Equals(left, right);
 
+    private static void EnsureForeignKeysAroundStoreTypeChanges(
+        List<MigrationOperation> operations,
+        IRelationalModel? source,
+        IRelationalModel target
+    )
+    {
+        if (source is null)
+        {
+            return;
+        }
+
+        var storeTypeChanges = operations
+            .OfType<AlterColumnOperation>()
+            .Where(operation => !StoreTypesGenerateEquivalentSql(operation, operation.OldColumn))
+            .ToArray();
+
+        if (storeTypeChanges.Length == 0)
+        {
+            return;
+        }
+
+        var targetForeignKeys = target
+            .Tables.SelectMany(table => table.ForeignKeyConstraints)
+            .ToArray();
+
+        var transitions = new List<ForeignKeyStoreTypeTransition>();
+
+        foreach (var sourceForeignKey in source
+                     .Tables.SelectMany(table => table.ForeignKeyConstraints)
+                     .OrderBy(foreignKey => foreignKey.Table.Schema, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(foreignKey => foreignKey.Table.Name, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(foreignKey => foreignKey.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var targetForeignKey =
+                targetForeignKeys.SingleOrDefault(candidate => ForeignKeysHaveSameShape(sourceForeignKey, candidate));
+
+            if (targetForeignKey is null
+                || HasForeignKeyLifecycleOperation(operations, sourceForeignKey, targetForeignKey))
+            {
+                continue;
+            }
+
+            var affectedColumns = storeTypeChanges
+                .Where(operation => ForeignKeyUsesColumn(sourceForeignKey, operation))
+                .ToArray();
+
+            if (affectedColumns.Length == 0)
+            {
+                continue;
+            }
+
+            var drop = new DropForeignKeyOperation
+            {
+                Schema = sourceForeignKey.Table.Schema,
+                Table = sourceForeignKey.Table.Name,
+                Name = sourceForeignKey.Name,
+            };
+            drop.AddAnnotations(sourceForeignKey.GetAnnotations());
+
+            transitions.Add(
+                new ForeignKeyStoreTypeTransition(
+                    drop,
+                    AddForeignKeyOperation.CreateFrom(targetForeignKey),
+                    affectedColumns));
+        }
+
+        foreach (var transition in transitions)
+        {
+            var firstAlterIndex = transition.AffectedColumns.Min(operations.IndexOf);
+
+            operations.Insert(firstAlterIndex, transition.Drop);
+        }
+
+        foreach (var transition in transitions)
+        {
+            var restoreIndex = transition.AffectedColumns.Max(operations.IndexOf) + 1;
+
+            var requiredIndex = operations
+                .OfType<CreateIndexOperation>()
+                .Where(operation => CreatesRequiredForeignKeyIndex(operation, transition.Add))
+                .Select(operation => operations.IndexOf(operation))
+                .DefaultIfEmpty(-1)
+                .Max();
+
+            operations.Insert(Math.Max(restoreIndex, requiredIndex + 1), transition.Add);
+        }
+    }
+
+    private static bool ForeignKeysHaveSameShape(
+        IForeignKeyConstraint source,
+        IForeignKeyConstraint target
+    ) => string.Equals(source.Name, target.Name, StringComparison.OrdinalIgnoreCase)
+        && SameStoreObject(source.Table, target.Table)
+        && SameStoreObject(source.PrincipalTable, target.PrincipalTable)
+        && source
+            .Columns
+            .Select(column => column.Name)
+            .SequenceEqual(target.Columns.Select(column => column.Name), StringComparer.OrdinalIgnoreCase)
+        && source
+            .PrincipalColumns
+            .Select(column => column.Name)
+            .SequenceEqual(target.PrincipalColumns.Select(column => column.Name), StringComparer.OrdinalIgnoreCase)
+        && source.OnDeleteAction == target.OnDeleteAction;
+
+    private static bool CreatesRequiredForeignKeyIndex(
+        CreateIndexOperation index,
+        AddForeignKeyOperation foreignKey
+    ) => SameTable(index.Table, foreignKey.Table)
+        && string.Equals(index.Schema, foreignKey.Schema, StringComparison.OrdinalIgnoreCase)
+        && index
+            .Columns
+            .Take(foreignKey.Columns.Length)
+            .SequenceEqual(foreignKey.Columns, StringComparer.OrdinalIgnoreCase);
+
+    private static bool SameStoreObject(
+        ITable source,
+        ITable target
+    ) => SameTable(source.Name, target.Name)
+        && string.Equals(source.Schema, target.Schema, StringComparison.OrdinalIgnoreCase);
+
+    private static bool HasForeignKeyLifecycleOperation(
+        IEnumerable<MigrationOperation> operations,
+        IForeignKeyConstraint source,
+        IForeignKeyConstraint target
+    ) => operations.Any(operation => operation switch
+    {
+        DropForeignKeyOperation drop => SameTable(drop.Table, source.Table.Name)
+            && string.Equals(drop.Schema, source.Table.Schema, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(drop.Name, source.Name, StringComparison.OrdinalIgnoreCase),
+        AddForeignKeyOperation add => SameTable(add.Table, target.Table.Name)
+            && string.Equals(add.Schema, target.Table.Schema, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(add.Name, target.Name, StringComparison.OrdinalIgnoreCase),
+        _ => false,
+    });
+
+    private static bool ForeignKeyUsesColumn(
+        IForeignKeyConstraint foreignKey,
+        AlterColumnOperation operation
+    ) => UsesColumn(foreignKey.Table, foreignKey.Columns, operation)
+        || UsesColumn(foreignKey.PrincipalTable, foreignKey.PrincipalColumns, operation);
+
+    private static bool UsesColumn(
+        ITable table,
+        IEnumerable<IColumn> columns,
+        AlterColumnOperation operation
+    ) => SameTable(table.Name, operation.Table)
+        && string.Equals(table.Schema, operation.Schema, StringComparison.OrdinalIgnoreCase)
+        && columns.Any(column => SameTable(column.Name, operation.Name));
+
     private static void NormalizeAutoIncrementPrimaryKeyOperations(
         List<MigrationOperation> operations,
         IRelationalModel? source,
@@ -1048,6 +1198,11 @@ internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
         string PeriodName,
         string PeriodStartColumn,
         string PeriodEndColumn);
+
+    private readonly record struct ForeignKeyStoreTypeTransition(
+        DropForeignKeyOperation Drop,
+        AddForeignKeyOperation Add,
+        IReadOnlyList<AlterColumnOperation> AffectedColumns);
 
     private static bool IsAutoIncrement(
         ColumnOperation operation

@@ -25,6 +25,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   that share the physical table. Separately stored current-only owned
   collections now fail with a focused diagnostic before historical and current
   rows can be mixed.
+- Preserve the `Guid` model type for provider-native `Char36` properties in
+  generated migration snapshots and designer models, including client-generated
+  primary keys and dependent foreign keys.
+- Order foreign-key removal and recreation around related `varchar(36)` to
+  `char(36)` column migrations in both directions while preserving populated
+  relationships, constraint identity, delete behavior, and dependent indexes.
 
 ## [10.0.0-rc.9] - 2026-08-17
 
