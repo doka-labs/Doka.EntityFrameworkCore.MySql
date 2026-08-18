@@ -20,6 +20,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from datetime import UTC, datetime
@@ -33,7 +34,7 @@ from . import qualification as release_qualification
 from . import trust as release_trust
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 SYMBOL_MANIFEST_SCHEMA_VERSION = 1
 CANDIDATE_RECEIPT_SCHEMA_VERSION = 1
 PUBLICATION_RECEIPT_SCHEMA_VERSION = 4
@@ -44,13 +45,18 @@ SPATIAL_PACKAGE_ID = "Doka.EntityFrameworkCore.MySql.NetTopologySuite"
 CANDIDATE_WORKFLOW = "release-candidate"
 CANDIDATE_WORKFLOW_PATH = ".github/workflows/release-candidate.yml"
 NUGET_SOURCE = "https://api.nuget.org/v3/index.json"
-NUGET_FLAT_CONTAINER = "https://api.nuget.org/v3-flatcontainer"
+NUGET_PACKAGE_BASE_ADDRESS_TYPE = "PackageBaseAddress/3.0.0"
 NUGET_SYMBOL_SERVER = "https://symbols.nuget.org/download/symbols"
 NUGET_SIGNATURE_ENTRY = ".signature.p7s"
 SHA1 = re.compile(r"[0-9a-f]{40}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 RUN_ID = re.compile(r"[1-9][0-9]*")
 SYMBOL_KEY = re.compile(r"[0-9a-f]{32}FFFFFFFF")
+SERVICE_INDEX_VERSION = re.compile(r"3[.][0-9]+[.][0-9]+(?:-[0-9A-Za-z.-]+)?")
+NORMALIZED_RELEASE_VERSION = re.compile(
+    r"(?:0|[1-9][0-9]*)[.](?:0|[1-9][0-9]*)[.](?:0|[1-9][0-9]*)"
+    r"(?:-[0-9a-z-]+(?:[.][0-9a-z-]+)*)?"
+)
 
 
 class PublicationError(RuntimeError):
@@ -126,6 +132,41 @@ def normalize_repository(value: str) -> str:
     if normalized.endswith(".git"):
         normalized = normalized[:-4]
     return normalized.strip("/").lower()
+
+
+def require_normalized_release_version(value: str) -> str:
+    """Require the canonical NuGet-version subset used by release tags."""
+    if not NORMALIZED_RELEASE_VERSION.fullmatch(value):
+        raise PublicationError(f"Release version is not canonical for NuGet: {value}")
+
+    prerelease = value.partition("-")[2]
+    if any(
+        len(identifier) > 1 and identifier.isdigit() and identifier.startswith("0")
+        for identifier in prerelease.split(".")
+        if identifier
+    ):
+        raise PublicationError(f"Release version is not canonical for NuGet: {value}")
+    return value
+
+
+def validate_release_version(args: argparse.Namespace) -> None:
+    """Validate one operator-supplied release version before qualification."""
+    require_normalized_release_version(args.version)
+
+
+def require_https_base_address(value: str) -> str:
+    """Validate one dynamically discovered NuGet package-content endpoint."""
+    parsed = urllib.parse.urlsplit(value)
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise PublicationError(f"NuGet package base address is invalid: {value}")
+    return value.rstrip("/")
 
 
 def package_file_name(package_id: str, version: str, extension: str) -> str:
@@ -402,6 +443,7 @@ def validate_candidate_receipt(
     run_attempt = str(receipt.get("candidateRunAttempt", ""))
     candidate_id = f"github-{run_id}"
     version = str(receipt.get("releaseVersion", ""))
+    require_normalized_release_version(version)
     expected_release_tag = str(receipt.get("expectedReleaseTag", ""))
     repository = str(receipt.get("repository", ""))
     source_commit = str(receipt.get("sourceCommit", ""))
@@ -734,12 +776,90 @@ def bind_candidate(args: argparse.Namespace) -> None:
     )
 
 
-def remote_package_url(package_id: str, version: str) -> str:
-    """Return the immutable NuGet V3 flat-container URL for one package."""
+def fetch_json_document(url: str, timeout_seconds: float) -> Any:
+    """Fetch one NuGet protocol document with retryable transport failures."""
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "Doka-NuGet-Publication/1"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            if response.status != 200:
+                raise RemotePackageUnavailable(
+                    f"Unexpected NuGet service status {response.status}: {url}"
+                )
+            try:
+                return json.loads(response.read())
+            except (UnicodeDecodeError, json.JSONDecodeError) as exception:
+                raise RemotePackageUnavailable(
+                    f"NuGet service returned invalid JSON: {url}"
+                ) from exception
+    except urllib.error.HTTPError as exception:
+        if exception.code in (408, 429) or exception.code >= 500:
+            raise RemotePackageUnavailable(
+                f"Transient NuGet service status {exception.code}: {url}"
+            ) from exception
+        raise PublicationError(
+            f"NuGet service rejected discovery with HTTP {exception.code}."
+        ) from exception
+    except (TimeoutError, urllib.error.URLError) as exception:
+        raise RemotePackageUnavailable(
+            f"NuGet service discovery is unavailable: {url}"
+        ) from exception
+
+
+def resolve_package_base_address(
+    source: str = NUGET_SOURCE,
+    timeout_seconds: float = 30,
+    fetcher: Callable[[str, float], Any] = fetch_json_document,
+) -> str:
+    """Discover the stable package-content resource from a NuGet V3 source."""
+    service_index = fetcher(source, timeout_seconds)
+    if not isinstance(service_index, dict):
+        raise PublicationError("NuGet service index must contain a JSON object.")
+
+    version = service_index.get("version")
+    resources = service_index.get("resources")
+    if (
+        not isinstance(version, str)
+        or not SERVICE_INDEX_VERSION.fullmatch(version)
+        or not isinstance(resources, list)
+    ):
+        raise PublicationError("NuGet service index contract is invalid.")
+
+    addresses: set[str] = set()
+    for resource in resources:
+        if not isinstance(resource, dict):
+            raise PublicationError("NuGet service index contains a non-object resource.")
+        resource_types = resource.get("@type")
+        if isinstance(resource_types, str):
+            types = {resource_types}
+        elif isinstance(resource_types, list) and all(
+            isinstance(value, str) for value in resource_types
+        ):
+            types = set(resource_types)
+        else:
+            raise PublicationError("NuGet service index resource type is invalid.")
+        if NUGET_PACKAGE_BASE_ADDRESS_TYPE in types:
+            address = resource.get("@id")
+            if not isinstance(address, str):
+                raise PublicationError("NuGet package base address is missing.")
+            addresses.add(require_https_base_address(address))
+
+    if len(addresses) != 1:
+        raise PublicationError(
+            "NuGet service index must expose exactly one stable package base address."
+        )
+    return addresses.pop()
+
+
+def remote_package_url(base_address: str, package_id: str, version: str) -> str:
+    """Return the discovered NuGet V3 package-content URL for one package."""
+    normalized_base_address = require_https_base_address(base_address)
     normalized_id = package_id.lower()
-    normalized_version = version.lower()
+    normalized_version = require_normalized_release_version(version)
     return (
-        f"{NUGET_FLAT_CONTAINER}/{normalized_id}/{normalized_version}/"
+        f"{normalized_base_address}/{normalized_id}/{normalized_version}/"
         f"{normalized_id}.{normalized_version}.nupkg"
     )
 
@@ -863,13 +983,14 @@ def fetch_remote_symbol(
         ) from exception
 
 
-def symbol_states(
+def observe_remote_symbols(
     entries: list[dict[str, str]],
     fetcher: Callable[[dict[str, str], float], bytes | None] = fetch_remote_symbol,
     timeout_seconds: float = 30,
-) -> dict[str, dict[str, Any]]:
-    """Classify public symbols as absent or byte-identical to the candidate."""
+) -> tuple[dict[str, dict[str, Any]], dict[str, bytes]]:
+    """Classify symbols and retain the exact matching bytes observed."""
     states: dict[str, dict[str, Any]] = {}
+    payloads: dict[str, bytes] = {}
     for entry in entries:
         remote = fetcher(entry, timeout_seconds)
         if remote is None:
@@ -893,16 +1014,27 @@ def symbol_states(
             "candidateSha256": entry["sha256"],
             "publishedSha256": published_sha256,
         }
-    return states
+        payloads[entry["packageId"]] = remote
+    return states, payloads
 
 
-def remote_states(
-    receipt: dict[str, Any],
-    candidate_root: Path,
-    fetcher: Callable[[str, float], bytes | None] = fetch_remote_package,
+def symbol_states(
+    entries: list[dict[str, str]],
+    fetcher: Callable[[dict[str, str], float], bytes | None] = fetch_remote_symbol,
     timeout_seconds: float = 30,
 ) -> dict[str, dict[str, Any]]:
-    """Classify both package versions as absent or matching the candidate."""
+    """Classify public symbols as absent or byte-identical to the candidate."""
+    return observe_remote_symbols(entries, fetcher, timeout_seconds)[0]
+
+
+def observe_remote_packages(
+    receipt: dict[str, Any],
+    candidate_root: Path,
+    package_base_address: str,
+    fetcher: Callable[[str, float], bytes | None] = fetch_remote_package,
+    timeout_seconds: float = 30,
+) -> tuple[dict[str, dict[str, Any]], dict[str, bytes]]:
+    """Classify packages and retain the exact matching bytes observed."""
     version = str(receipt["releaseVersion"])
     package_map = {
         role: resolve_candidate_path(
@@ -913,10 +1045,11 @@ def remote_states(
         for role in ("provider", "spatial")
     }
     states: dict[str, dict[str, Any]] = {}
+    payloads: dict[str, bytes] = {}
     for role, package_id in (("provider", PROVIDER_PACKAGE_ID), ("spatial", SPATIAL_PACKAGE_ID)):
         candidate_path = package_map[role]
         candidate_digest = canonical_package_digest(candidate_path)
-        url = remote_package_url(package_id, version)
+        url = remote_package_url(package_base_address, package_id, version)
         remote = fetcher(url, timeout_seconds)
         if remote is None:
             states[role] = {
@@ -932,25 +1065,36 @@ def remote_states(
             raise PublicationError(
                 f"NuGet.org already contains conflicting bytes for {package_id} {version}."
             )
-        if not package_has_signature(remote):
-            raise PublicationError(
-                f"NuGet.org returned an unsigned primary package for {package_id} {version}."
-            )
+        signature_present = package_has_signature(remote)
         states[role] = {
             "id": package_id,
-            "status": "matching",
+            "status": "matching" if signature_present else "pending-signature",
             "url": url,
             "candidateContentDigest": candidate_digest,
             "publishedContentDigest": remote_digest,
             "publishedSha256": hashlib.sha256(remote).hexdigest(),
-            "repositorySignaturePresent": True,
+            "repositorySignaturePresent": signature_present,
         }
+        payloads[role] = remote
 
-    # The extension cannot be usable without its exact provider dependency.
-    # Treat the reversed partial state as corruption, not a retry opportunity.
-    if states["spatial"]["status"] == "matching" and states["provider"]["status"] == "absent":
-        raise PublicationError("Spatial package exists without its required provider package.")
-    return states
+    return states, payloads
+
+
+def remote_states(
+    receipt: dict[str, Any],
+    candidate_root: Path,
+    package_base_address: str,
+    fetcher: Callable[[str, float], bytes | None] = fetch_remote_package,
+    timeout_seconds: float = 30,
+) -> dict[str, dict[str, Any]]:
+    """Classify each package version independently during asynchronous indexing."""
+    return observe_remote_packages(
+        receipt,
+        candidate_root,
+        package_base_address,
+        fetcher,
+        timeout_seconds,
+    )[0]
 
 
 def preflight(args: argparse.Namespace) -> None:
@@ -965,18 +1109,16 @@ def preflight(args: argparse.Namespace) -> None:
         symbol_manifest,
         str(receipt["releaseVersion"]),
     )
+    package_base_address = resolve_package_base_address(
+        timeout_seconds=args.timeout_seconds,
+    )
     states = remote_states(
         receipt,
         args.candidate_root,
+        package_base_address,
         timeout_seconds=args.timeout_seconds,
     )
     symbols = symbol_states(symbol_entries, timeout_seconds=args.timeout_seconds)
-    for role, package_id in (("provider", PROVIDER_PACKAGE_ID), ("spatial", SPATIAL_PACKAGE_ID)):
-        if symbols[package_id]["status"] == "matching" and states[role]["status"] == "absent":
-            raise PublicationError(
-                f"Public symbols exist without their required primary package: {package_id}."
-            )
-
     if args.require_absent:
         existing = [
             name
@@ -1000,6 +1142,8 @@ def preflight(args: argparse.Namespace) -> None:
         "expectedReleaseTag": receipt["expectedReleaseTag"],
         "releaseVersion": receipt["releaseVersion"],
         "sourceCommit": receipt["sourceCommit"],
+        "packageSource": NUGET_SOURCE,
+        "packageBaseAddress": package_base_address,
         "packages": states,
         "symbols": symbols,
     }
@@ -1007,7 +1151,7 @@ def preflight(args: argparse.Namespace) -> None:
         output["releaseTag"] = receipt["releaseTag"]
     write_json(args.output.resolve(), output)
     publication_required = any(
-        state["status"] == "absent" for state in (*states.values(), *symbols.values())
+        state["status"] != "matching" for state in (*states.values(), *symbols.values())
     )
     append_github_outputs(
         args.github_output.resolve() if args.github_output else None,
@@ -1040,15 +1184,23 @@ def readback(args: argparse.Namespace) -> None:
     )
     deadline = time.monotonic() + args.timeout_seconds
     last_error = "package or symbols are not indexed"
+    package_base_address: str | None = None
+    package_payloads: dict[str, bytes] = {}
+    symbol_payloads: dict[str, bytes] = {}
 
     while True:
         try:
-            states = remote_states(
+            if package_base_address is None:
+                package_base_address = resolve_package_base_address(
+                    timeout_seconds=min(args.request_timeout_seconds, 30),
+                )
+            states, package_payloads = observe_remote_packages(
                 receipt,
                 args.candidate_root,
+                package_base_address,
                 timeout_seconds=min(args.request_timeout_seconds, 30),
             )
-            symbols = symbol_states(
+            symbols, symbol_payloads = observe_remote_symbols(
                 symbol_entries,
                 timeout_seconds=min(args.request_timeout_seconds, 30),
             )
@@ -1057,7 +1209,21 @@ def readback(args: argparse.Namespace) -> None:
                 and all(state["status"] == "matching" for state in symbols.values())
             ):
                 break
-            last_error = "one or more packages or symbol files are not indexed"
+            pending = [
+                (
+                    f"{state['id']} repository signature"
+                    if state["status"] == "pending-signature"
+                    else f"{state['id']} package"
+                )
+                for state in states.values()
+                if state["status"] != "matching"
+            ]
+            pending.extend(
+                f"{package_id} symbols"
+                for package_id, state in symbols.items()
+                if state["status"] != "matching"
+            )
+            last_error = "not indexed: " + ", ".join(pending)
         except RemotePackageUnavailable as exception:
             last_error = str(exception)
 
@@ -1070,13 +1236,12 @@ def readback(args: argparse.Namespace) -> None:
     output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     version = str(receipt["releaseVersion"])
-    # Re-fetch immediately before persistence. The polling response proves
-    # availability; this second validation proves the bytes retained as
-    # evidence did not change between observation and the evidence write.
+    # The complete polling response proves availability and supplies the exact
+    # bytes retained as evidence. Persisting that same response avoids a second
+    # CDN request reintroducing an ordering race after the complete observation
+    # has already passed.
     for role, package_id in (("provider", PROVIDER_PACKAGE_ID), ("spatial", SPATIAL_PACKAGE_ID)):
-        remote = fetch_remote_package(remote_package_url(package_id, version), args.request_timeout_seconds)
-        if remote is None:
-            raise PublicationError(f"Published package disappeared during readback: {package_id}")
+        remote = package_payloads[role]
         readback_digest = canonical_package_digest(remote)
         if readback_digest != states[role]["candidateContentDigest"]:
             raise PublicationError(
@@ -1095,11 +1260,7 @@ def readback(args: argparse.Namespace) -> None:
     symbols_dir = output_dir / "symbols"
     symbols_dir.mkdir(parents=True, exist_ok=True)
     for entry in symbol_entries:
-        remote = fetch_remote_symbol(entry, args.request_timeout_seconds)
-        if remote is None:
-            raise PublicationError(
-                f"Published symbols disappeared during readback: {entry['packageId']}"
-            )
+        remote = symbol_payloads[entry["packageId"]]
         published_sha256 = hashlib.sha256(remote).hexdigest()
         if not remote.startswith(b"BSJB") or published_sha256 != entry["sha256"]:
             raise PublicationError(
@@ -1114,8 +1275,11 @@ def readback(args: argparse.Namespace) -> None:
         "schemaVersion": SCHEMA_VERSION,
         "verifiedUtc": datetime.now(UTC).isoformat(),
         "releaseTag": receipt["releaseTag"],
+        "expectedReleaseTag": receipt["expectedReleaseTag"],
         "releaseVersion": version,
         "sourceCommit": receipt["sourceCommit"],
+        "packageSource": NUGET_SOURCE,
+        "packageBaseAddress": package_base_address,
         "packages": states,
         "symbols": symbols,
     }
@@ -1168,6 +1332,12 @@ def parse_arguments() -> argparse.Namespace:
     """Parse the publication-boundary command contract."""
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    validate_version = subparsers.add_parser(
+        "validate-version",
+        help="Reject a release version outside the canonical NuGet subset.",
+    )
+    validate_version.add_argument("--version", required=True)
 
     prepare = subparsers.add_parser("prepare", help="Validate an untagged same-run candidate.")
     prepare.add_argument("--repo", type=Path, required=True)
@@ -1227,7 +1397,9 @@ def main() -> int:
     """Run one publication operation with concise operator diagnostics."""
     args = parse_arguments()
     try:
-        if args.command == "prepare":
+        if args.command == "validate-version":
+            validate_release_version(args)
+        elif args.command == "prepare":
             prepare_candidate(args)
         elif args.command == "bind":
             bind_candidate(args)

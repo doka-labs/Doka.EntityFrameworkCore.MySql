@@ -114,11 +114,16 @@ if [[ ! "${release_run_attempt}" =~ ^[1-9][0-9]*$ ]]; then
     exit 1
 fi
 
-if [[ -z "${release_version_override}" \
-    || ! "${release_version_override}" =~ ^[0-9]+[.][0-9]+[.][0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
-    echo "DOKA_RELEASE_VERSION must be an explicit semantic candidate version." >&2
+if [[ -z "${release_version_override}" ]]; then
+    echo "DOKA_RELEASE_VERSION must be an explicit candidate version." >&2
     exit 1
 fi
+
+(
+    cd "${repo_root}"
+    python3 -m eng.release.nuget validate-version \
+        --version "${release_version_override}"
+)
 expected_release_tag="v${release_version_override}"
 
 if [[ -z "${release_runner_identity}" \

@@ -180,7 +180,9 @@ The same workflow run now:
 4. creates or resumes a matching GitHub release draft and reads every staged
    identity asset back before NuGet publication;
 5. checks that every package and symbol is absent or byte-identical to the
-   candidate;
+   candidate when already visible; NuGet.org acceptance and public indexing
+   are separate states, so absence does not authorize assumptions about push
+   history;
 6. requests the short-lived NuGet key;
 7. publishes provider, provider symbols, spatial extension, and spatial
    symbols in dependency order;
@@ -189,6 +191,11 @@ The same workflow run now:
 9. polls NuGet.org and the symbol server, compares public bytes, verifies NuGet
    repository signatures, and binds the results into workflow completion
    evidence.
+
+The package-content endpoint is discovered from the configured NuGet V3
+service index for every preflight and readback operation. Release versions must
+already be canonical lowercase NuGet versions; the workflow does not guess how
+an ambiguous or non-normalized tag maps to a public URL.
 
 The isolated consumer correctness test happens before the first NuGet push
 against the exact package bytes that will be uploaded. Public readback after a
@@ -237,11 +244,17 @@ it.
   replace candidate evidence. Publication reads the exact check-run and
   attempt recorded during candidate assembly and rejects any identity or
   response-digest difference.
-- If the provider package exists and the spatial package does not, retry the
-  same version so the missing spatial package can be added. Never repush or
-  replace the provider package.
-- Primary packages never use `--skip-duplicate`. Symbol uploads use it only for
-  the symbol endpoint's documented pending/duplicate behavior.
+- If any package or symbol is visible before its dependency, retry the failed
+  `publish` job for the same version. NuGet.org indexes primary and symbol
+  artifacts asynchronously, so visibility order is not publication order.
+- If exact package bytes are visible without their repository signature, leave
+  the same job running or rerun its failed attempt. Signature visibility is a
+  pending state until the one-hour readback deadline; conflicting package
+  bytes remain an immediate terminal error.
+- Every package push uses `--skip-duplicate` because an accepted version can
+  return 409 before public readback can see it. This option authorizes no
+  content match: only the subsequent canonical package, exact Portable PDB,
+  and repository-signature readback can complete publication.
 - A conflicting same-version package, unexpected GitHub release asset, moved
   tag, changed notes, or candidate removed from current `main` history fails
   closed. Preserve all evidence and investigate; do not clobber remote state.
@@ -268,13 +281,25 @@ it forces the same-identity recovery path above.
 - NuGet, [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing),
   retrieved 2026-08-16.
 - NuGet, [Publish packages](https://learn.microsoft.com/nuget/nuget-org/publish-a-package),
-  retrieved 2026-08-16.
+  retrieved 2026-08-18.
+- Microsoft, [`dotnet nuget push`](https://learn.microsoft.com/dotnet/core/tools/dotnet-nuget-push),
+  retrieved 2026-08-18.
+- NuGet, [Package publish API](https://learn.microsoft.com/nuget/api/package-publish-resource),
+  retrieved 2026-08-18.
 - NuGet, [Deleting packages](https://learn.microsoft.com/nuget/nuget-org/policies/deleting-packages),
   retrieved 2026-08-16.
 - NuGet, [Symbol packages](https://learn.microsoft.com/nuget/create-packages/symbol-packages-snupkg),
-  retrieved 2026-08-16.
+  retrieved 2026-08-18.
 - NuGet, [Symbol package publish resource](https://learn.microsoft.com/nuget/api/symbol-package-publish-resource),
   retrieved 2026-08-16.
+- NuGet, [Service index](https://learn.microsoft.com/nuget/api/service-index),
+  retrieved 2026-08-18.
+- NuGet, [Package content](https://learn.microsoft.com/nuget/api/package-base-address-resource),
+  retrieved 2026-08-18.
+- NuGet, [Package versioning](https://learn.microsoft.com/nuget/concepts/package-versioning),
+  retrieved 2026-08-18.
+- NuGet, [Repository signatures](https://learn.microsoft.com/nuget/api/repository-signatures-resource),
+  retrieved 2026-08-18.
 - NuGet, [`NuGet/login`](https://github.com/NuGet/login), retrieved 2026-08-16.
 - GitHub, [Managing environments for deployment](https://docs.github.com/actions/deployment/targeting-different-environments/managing-environments-for-deployment),
   retrieved 2026-08-16.

@@ -139,13 +139,21 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - safe retry: existing primary packages are accepted only when canonical
     content matches after excluding NuGet.org's repository-owned
     `.signature.p7s`; provider, provider symbols, spatial, and spatial symbols
-    publish in dependency order; primary packages never use `--skip-duplicate`
+    publish in dependency order; every push tolerates a duplicate response so
+    an accepted but not yet indexed package can resume, while the later public
+    readback rejects conflicting bytes
   - immutable identity: after all four NuGet submissions return successfully,
     the already complete draft is published and independently read back before
     availability probes begin
-  - public completion: bounded package and symbol readback, canonical byte
-    comparison, and cryptographic repository-signature verification are
-    retained as retry-varying workflow evidence, never release assets
+  - public completion: independently ordered package and symbol visibility is
+    polled until the bounded deadline; exact bytes that are visible before
+    their repository signature remain pending rather than becoming a false
+    terminal verdict; canonical byte comparison and cryptographic
+    repository-signature verification are retained as retry-varying workflow
+    evidence, never release assets
+  - protocol discovery: package content is resolved from the configured V3
+    service index's stable `PackageBaseAddress/3.0.0` capability and only a
+    canonical lowercase NuGet release version can form a public readback URL
   - immutable recovery: matching drafts, partial NuGet publication, and
     matching immutable releases resume without replacement;
     unexpected metadata, assets, bytes, tags, or classification fail closed

@@ -288,6 +288,7 @@ def validate_package_state(
     role: str,
     package_id: str,
     receipt: dict[str, Any],
+    package_base_address: str,
     require_matching: bool,
 ) -> None:
     """Validate one NuGet package observation against candidate content."""
@@ -297,11 +298,12 @@ def validate_package_state(
     status = state.get("status")
     candidate_digest = receipt["packages"][role]["contentDigest"]
     if (
-        status not in {"absent", "matching"}
+        status not in {"absent", "pending-signature", "matching"}
         or (require_matching and status != "matching")
         or state.get("id") != package_id
         or state.get("url")
         != nuget_publication.remote_package_url(
+            package_base_address,
             package_id,
             str(receipt["releaseVersion"]),
         )
@@ -309,11 +311,13 @@ def validate_package_state(
     ):
         raise GitHubReleaseError(f"Publication package state is invalid: {role}")
 
-    if status == "matching":
+    if status in {"pending-signature", "matching"}:
+        signature_present = state.get("repositorySignaturePresent")
         if (
             state.get("publishedContentDigest") != candidate_digest
             or not SHA256.fullmatch(str(state.get("publishedSha256", "")))
-            or state.get("repositorySignaturePresent") is not True
+            or not isinstance(signature_present, bool)
+            or signature_present != (status == "matching")
         ):
             raise GitHubReleaseError(
                 f"Published package evidence is invalid: {role}"
@@ -372,6 +376,17 @@ def validate_observation_set(
     require_matching: bool,
 ) -> None:
     """Validate the exact package and symbol observations in one receipt."""
+    if evidence.get("packageSource") != nuget_publication.NUGET_SOURCE:
+        raise GitHubReleaseError("Publication package source is invalid.")
+    try:
+        package_base_address = nuget_publication.require_https_base_address(
+            str(evidence.get("packageBaseAddress", ""))
+        )
+    except nuget_publication.PublicationError as exception:
+        raise GitHubReleaseError(
+            f"Publication package base address is invalid: {exception}"
+        ) from exception
+
     packages = evidence.get("packages")
     symbols = evidence.get("symbols")
     expected_roles = {role for role, _ in PACKAGE_IDENTITIES}
@@ -390,6 +405,7 @@ def validate_observation_set(
             role,
             package_id,
             receipt,
+            package_base_address,
             require_matching,
         )
         validate_symbol_state(

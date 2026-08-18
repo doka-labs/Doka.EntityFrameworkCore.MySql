@@ -99,7 +99,10 @@ signer workflow, signer and source commit, `refs/heads/main`, and GitHub-hosted
 runner class rather than trusting repository ownership alone. Public readback
 independently derives the Portable PDB lookup key and
 SHA-256 checksum from each candidate assembly; it does not trust upload success
-or primary-package visibility as proof that NuGet.org indexed matching symbols.
+or cross-package visibility order as proof that NuGet.org accepted or indexed
+matching packages and symbols. Duplicate push responses are tolerated only so
+an accepted but not yet visible version can resume; exact public byte and
+signature readback remains mandatory.
 The protected publication job stages exact notes and sealed identity assets in
 a GitHub draft before the first NuGet push. It publishes that complete draft
 immediately after all NuGet submissions succeed, then retains retry-varying
@@ -183,6 +186,10 @@ tags or replace conflicting assets.
   package bytes and executes provider and spatial runtime contracts against the
   pinned MySQL 8.4 image. Public readback then compares canonical payload and
   exact checksum-bound Portable PDB bytes and verifies repository signatures.
+  The package-content endpoint is discovered from the HTTPS NuGet V3 service
+  index, release versions must be canonical before URL construction, and an
+  exact but not yet repository-signed payload remains pending only until the
+  bounded readback deadline.
 - GitHub release staging precedes NuGet publication. Immediate finalization
   after all NuGet submissions requires the exact annotated tag and source
   commit, rejects conflicting drafts or assets, and accepts a retry only after
