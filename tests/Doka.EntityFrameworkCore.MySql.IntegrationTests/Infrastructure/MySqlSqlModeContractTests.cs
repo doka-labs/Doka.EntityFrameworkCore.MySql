@@ -1,5 +1,4 @@
 using System.Text;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Query;
 
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;

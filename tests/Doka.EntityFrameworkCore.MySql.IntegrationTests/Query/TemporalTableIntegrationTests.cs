@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Metadata;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
