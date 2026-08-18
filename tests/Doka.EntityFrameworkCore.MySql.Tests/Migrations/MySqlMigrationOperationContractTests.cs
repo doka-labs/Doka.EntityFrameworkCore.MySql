@@ -55,6 +55,7 @@ public sealed class MySqlMigrationOperationContractTests
             MySqlMigrationCommandSpec.Create("SELECT 2;"),
             MySqlMigrationCommandSpec.Create("SELECT 3;"),
         };
+
         commands[nullIndex] = null!;
 
         Assert.Throws<ArgumentException>(() => MySqlMigrationOperationResult.Generated(commands, "generated"));
@@ -125,6 +126,7 @@ public sealed class MySqlMigrationOperationContractTests
 
         var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
             context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 2;" }));
+
         Assert.Equal(MySqlMigrationHandlerFailureCode.RecursiveProviderRendering, exception.FailureCode);
 
         releaseRenderer.Set();
@@ -159,6 +161,7 @@ public sealed class MySqlMigrationOperationContractTests
             });
 
         var activeRender = Task.Run(() => context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 1;" }));
+
         Assert.True(rendererEntered.Wait(TimeSpan.FromSeconds(5)));
 
         var deactivation = Task.Run(() =>
@@ -166,11 +169,14 @@ public sealed class MySqlMigrationOperationContractTests
             deactivationStarted.Set();
             context.Deactivate();
         });
+
         Assert.True(deactivationStarted.Wait(TimeSpan.FromSeconds(5)));
         var prematureCompletion = await Task.WhenAny(deactivation, Task.Delay(TimeSpan.FromMilliseconds(100)));
+
         Assert.NotSame(deactivation, prematureCompletion);
 
         MySqlMigrationOperationHandlerException? expiredException = null;
+
         Assert.True(
             SpinWait.SpinUntil(
                 () =>

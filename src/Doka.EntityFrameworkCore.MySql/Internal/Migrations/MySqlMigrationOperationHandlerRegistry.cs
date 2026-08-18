@@ -83,6 +83,7 @@ internal sealed class MySqlMigrationOperationHandlerRegistry
             .OrderBy(candidate => candidate.HandlerId, StringComparer.Ordinal)
             .ThenBy(candidate => GetStableTypeName(candidate.OperationType), StringComparer.Ordinal)
             .ToArray();
+
         var handlerIds = new Dictionary<string, Registration>(StringComparer.Ordinal);
 
         foreach (var candidate in orderedCandidates)

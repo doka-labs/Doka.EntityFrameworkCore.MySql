@@ -35,6 +35,7 @@ public sealed class MySqlQueryTranslationExtendedTests
         var upperSql = context
             .Items.Select(e => e.Name.ToUpper())
             .ToQueryString();
+
         var lowerSql = context
             .Items.Select(e => e.Name.ToLower())
             .ToQueryString();
@@ -380,6 +381,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .ToQueryString();
 
         MySqlSqlAssert.ContainsFunction(sql, "COALESCE");
+
         Assert.Contains("CAST(", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("AS DOUBLE", sql, StringComparison.OrdinalIgnoreCase);
     }
@@ -602,6 +604,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .ToQueryString();
 
         MySqlSqlAssert.ContainsFunction(sql, "SUM");
+
         Assert.Contains(" AS FLOAT)", sql, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -712,6 +715,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .ToQueryString();
 
         MySqlSqlAssert.ContainsFunction(sql, "MATCH");
+
         Assert.Contains("AGAINST", sql, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -727,6 +731,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .ToQueryString();
 
         MySqlSqlAssert.ContainsFunction(sql, "MATCH");
+
         Assert.Contains("AGAINST", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("IN BOOLEAN MODE", sql, StringComparison.OrdinalIgnoreCase);
     }
@@ -757,6 +762,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .ToQueryString();
 
         MySqlSqlAssert.ContainsRegularExpression(sql, mariaDb: true);
+
         Assert.DoesNotContain("REGEXP_LIKE", sql, StringComparison.OrdinalIgnoreCase);
     }
 

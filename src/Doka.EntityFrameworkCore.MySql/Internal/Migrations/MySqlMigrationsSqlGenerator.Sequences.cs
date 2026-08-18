@@ -58,8 +58,10 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         var minimumValue = operation.MinValue
             ?? GetDefaultSequenceMinimum(typeInfo, operation.IncrementBy);
+
         var maximumValue = operation.MaxValue
             ?? GetDefaultSequenceMaximum(typeInfo, operation.IncrementBy);
+
         var tableName = MySqlSequenceNaming.EmulationTableName(operation.Name);
         var delimitedTableName = Dependencies.SqlGenerationHelper.DelimitIdentifier(tableName);
 
@@ -219,13 +221,16 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 ?.Type
             ?? (operation.OldSequence as CreateSequenceOperation)?.ClrType
             ?? typeof(long);
+
         var typeInfo = GetSequenceTypeInfo(clrType);
         ValidateSequenceIncrement(typeInfo, operation.IncrementBy);
 
         var minimumValue = operation.MinValue
             ?? GetDefaultSequenceMinimum(typeInfo, operation.IncrementBy);
+
         var maximumValue = operation.MaxValue
             ?? GetDefaultSequenceMaximum(typeInfo, operation.IncrementBy);
+
         var tableName = MySqlSequenceNaming.EmulationTableName(operation.Name);
 
         builder

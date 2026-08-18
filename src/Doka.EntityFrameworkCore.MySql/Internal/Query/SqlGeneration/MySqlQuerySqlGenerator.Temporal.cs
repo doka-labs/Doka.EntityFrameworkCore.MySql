@@ -157,6 +157,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         var periodStartColumn = GetRequiredStringAnnotation(
             tableExpression,
             MySqlAnnotationNames.TemporalPeriodStartColumn);
+
         var periodEndColumn = GetRequiredStringAnnotation(
             tableExpression,
             MySqlAnnotationNames.TemporalPeriodEndColumn);

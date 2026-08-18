@@ -18,6 +18,7 @@ public sealed class MySqlMigrationOperationHandlerTests
         using var serviceProvider = CreateServiceProvider(
             [typeof(BaselineRenderingHandler)],
             registerBeforeProvider: true);
+
         using var context = CreateContext(serviceProvider);
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var handler = context
@@ -72,9 +73,11 @@ public sealed class MySqlMigrationOperationHandlerTests
         var handlers = context
             .GetService<IEnumerable<IMySqlMigrationOperationHandler>>()
             .ToArray();
+
         var first = handlers
             .OfType<BaselineRenderingHandler>()
             .Single();
+
         var second = handlers
             .OfType<SecondHandler>()
             .Single();
@@ -100,6 +103,7 @@ public sealed class MySqlMigrationOperationHandlerTests
         using var serviceProvider = CreateServiceProvider(
             [typeof(BaselineRenderingHandler)],
             registerBeforeProvider: true);
+
         using var context = CreateContext(serviceProvider);
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var handler = context
@@ -173,7 +177,9 @@ public sealed class MySqlMigrationOperationHandlerTests
         using var serviceProvider = CreateServiceProvider(
             [typeof(InvalidCommandResultHandler)],
             registerBeforeProvider: true);
+
         using var context = CreateContext(serviceProvider);
+
         var generator = Assert.IsType<MySqlMigrationsSqlGenerator>(context.GetService<IMigrationsSqlGenerator>());
         var builder = new MigrationCommandListBuilder(context.GetService<MigrationsSqlGeneratorDependencies>());
         var generate = typeof(MySqlMigrationsSqlGenerator).GetMethod(
@@ -194,6 +200,7 @@ public sealed class MySqlMigrationOperationHandlerTests
                 context.Model,
                 builder,
             ]));
+
         var exception = Assert.IsType<MySqlMigrationOperationHandlerException>(invocation.InnerException);
 
         Assert.Equal(MySqlMigrationHandlerFailureCode.InvalidHandlerResult, exception.FailureCode);
@@ -206,6 +213,7 @@ public sealed class MySqlMigrationOperationHandlerTests
         using var serviceProvider = CreateServiceProvider(
             [typeof(StatefulResultHandler)],
             registerBeforeProvider: true);
+
         using var context = CreateContext(serviceProvider);
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var handler = context
@@ -228,6 +236,7 @@ public sealed class MySqlMigrationOperationHandlerTests
         using var serviceProvider = CreateServiceProvider(
             [typeof(BaselineRenderingHandler)],
             registerBeforeProvider: true);
+
         using var context = CreateContext(serviceProvider);
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var handler = context
@@ -239,6 +248,7 @@ public sealed class MySqlMigrationOperationHandlerTests
 
         var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
             handler.LastContext!.RenderStandardOperation(new SqlOperation { Sql = "SELECT 4;" }));
+
         Assert.Equal(MySqlMigrationHandlerFailureCode.ContextExpired, exception.FailureCode);
     }
 
@@ -248,6 +258,7 @@ public sealed class MySqlMigrationOperationHandlerTests
         using var serviceProvider = CreateServiceProvider(
             [typeof(CustomRenderingHandler)],
             registerBeforeProvider: true);
+
         using var context = CreateContext(serviceProvider);
         var generator = context.GetService<IMigrationsSqlGenerator>();
 
@@ -265,6 +276,7 @@ public sealed class MySqlMigrationOperationHandlerTests
             using var serviceProvider = CreateServiceProvider(
                 [typeof(BaselineRenderingHandler)],
                 registerBeforeProvider: true);
+
             using var context = CreateContext(serviceProvider, serverVersion);
             var generator = context.GetService<IMigrationsSqlGenerator>();
             var operations = CreateStandardOperationFixtures();
@@ -780,6 +792,7 @@ public sealed class MySqlMigrationOperationHandlerTests
                     ["private-context"] = "tenant=never-export-this",
                 },
             };
+
             throw exception;
         }
     }
@@ -812,6 +825,7 @@ public sealed class MySqlMigrationOperationHandlerTests
                 MySqlMigrationCommandSpec.Create("SELECT 2;"),
                 MySqlMigrationCommandSpec.Create("SELECT 3;"),
             };
+
             var commandConstructor = typeof(MySqlMigrationCommandSpec).GetConstructor(
                 BindingFlags.Instance | BindingFlags.NonPublic,
                 binder: null,
@@ -820,6 +834,7 @@ public sealed class MySqlMigrationOperationHandlerTests
                     typeof(bool),
                 ],
                 modifiers: null);
+
             commands[operation.InvalidCommandIndex] = (MySqlMigrationCommandSpec)commandConstructor!.Invoke(
             [
                 " ",

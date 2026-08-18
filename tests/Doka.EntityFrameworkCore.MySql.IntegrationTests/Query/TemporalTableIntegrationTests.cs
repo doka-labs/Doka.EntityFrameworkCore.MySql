@@ -143,6 +143,7 @@ public sealed class TemporalTableIntegrationTests
             await winnerContext.SaveChangesAsync();
 
             stale.Name = "stale";
+
             await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => staleContext.SaveChangesAsync());
         }
 
@@ -310,9 +311,11 @@ public sealed class TemporalTableIntegrationTests
                 HistoryTableName
             ],
             Array.Empty<string>());
+
         var databaseModel = scopedServices
             .GetRequiredService<IDatabaseModelFactory>()
             .Create(connectionString, databaseOptions);
+
         var sourceTable = Assert.Single(databaseModel.Tables);
 
         Assert.Equal(TableName, sourceTable.Name);
@@ -354,6 +357,7 @@ public sealed class TemporalTableIntegrationTests
                 ScaffoldingTestServices.CreateCodeGenerationOptions(
                     connectionString,
                     contextName: "TemporalSchemaContext"));
+
         var contextCode = scaffoldedModel.ContextFile.Code;
 
         Assert.Contains("tableBuilder.IsTemporal(temporalTableBuilder =>", contextCode);
@@ -535,6 +539,7 @@ public sealed class TemporalTableIntegrationTests
         var sourceModel = source
             .GetService<IDesignTimeModel>()
             .Model.GetRelationalModel();
+
         var targetModel = target
             .GetService<IDesignTimeModel>()
             .Model.GetRelationalModel();
@@ -614,6 +619,7 @@ public sealed class TemporalTableIntegrationTests
                 await ExecuteScalarAsync(connection, "SELECT @@SESSION.sql_mode;"),
                 CultureInfo.InvariantCulture)
             ?? "";
+
         var alterHistoryMode = IsMySql(target)
             ? null
             : Convert.ToString(

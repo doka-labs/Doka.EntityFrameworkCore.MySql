@@ -62,6 +62,7 @@ try
         .AsNoTracking()
         .Select(document => document.Title)
         .ToListAsync(cancellationToken);
+
     var totalDocuments = await verificationContext.Documents
         .IgnoreQueryFilters()
         .AsNoTracking()

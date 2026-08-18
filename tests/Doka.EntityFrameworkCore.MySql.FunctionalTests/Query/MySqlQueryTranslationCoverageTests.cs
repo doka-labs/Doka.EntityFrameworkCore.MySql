@@ -104,6 +104,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .ToQueryString();
 
         MySqlSqlAssert.ContainsFunction(sql, "TIME_TO_SEC");
+
         Assert.Contains("60", sql, StringComparison.Ordinal);
     }
 
@@ -117,6 +118,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .ToQueryString();
 
         MySqlSqlAssert.ContainsFunction(sql, "TIME_TO_SEC");
+
         Assert.Contains("3600", sql, StringComparison.Ordinal);
     }
 
@@ -333,6 +335,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .ToQueryString();
 
         MySqlSqlAssert.ContainsFunction(sql, "GROUP_CONCAT");
+
         Assert.Contains("SEPARATOR", sql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("GROUP_CONCAT(`c`.`Name`, ", sql, StringComparison.Ordinal);
     }
@@ -407,6 +410,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .ToQueryString();
 
         MySqlSqlAssert.ContainsFunction(sql, "MICROSECOND");
+
         Assert.Contains("% 1000", sql, StringComparison.Ordinal);
     }
 
@@ -420,6 +424,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .ToQueryString();
 
         MySqlSqlAssert.ContainsFunction(sql, "MICROSECOND");
+
         Assert.Contains("* 1000", sql, StringComparison.Ordinal);
         Assert.Contains("% 1000", sql, StringComparison.Ordinal);
     }
@@ -443,6 +448,7 @@ public sealed class MySqlQueryTranslationCoverageTests
             .ToQueryString();
 
         MySqlSqlAssert.ContainsFunction(sql, "HEX");
+
         Assert.Contains("LOWER(CONCAT(", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("SUBSTRING(", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("@expected", sql, StringComparison.Ordinal);
@@ -520,6 +526,7 @@ public sealed class MySqlQueryTranslationCoverageTests
 
         MySqlSqlAssert.ContainsFunction(sql, "TIME_TO_SEC");
         MySqlSqlAssert.ContainsFunction(sql, "MICROSECOND");
+
         Assert.Contains("1000000000", sql, StringComparison.Ordinal);
     }
 
@@ -569,26 +576,32 @@ public sealed class MySqlQueryTranslationCoverageTests
         var entity = System.Linq.Expressions.Expression.Parameter(
             typeof(CoverageEntity),
             "entity");
+
         var name = System.Linq.Expressions.Expression.Property(
             entity,
             nameof(CoverageEntity.Name));
+
         var createdAt = System.Linq.Expressions.Expression.Property(
             entity,
             nameof(CoverageEntity.CreatedAt));
+
         var parse = System.Linq.Expressions.Expression.Call(
             typeof(DateTime).GetMethod(
                 nameof(DateTime.Parse),
                 [typeof(string)])!,
             name);
+
         var predicate = System.Linq.Expressions.Expression.Lambda<Func<CoverageEntity, bool>>(
             System.Linq.Expressions.Expression.GreaterThanOrEqual(parse, createdAt),
             entity);
+
         var sql = context
             .Set<CoverageEntity>()
             .Where(predicate)
             .ToQueryString();
 
         MySqlSqlAssert.ContainsFunction(sql, "STR_TO_DATE");
+
         Assert.Contains("%c/%e/%Y %H:%i:%s", sql, StringComparison.Ordinal);
     }
 

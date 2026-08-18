@@ -95,6 +95,7 @@ public class MigrationsMySqlTest : MigrationsInfrastructureTestBase<MigrationsMy
             await migrator.MigrateAsync("Migration2");
 
             var history = db.GetService<IHistoryRepository>();
+
             Assert.Collection(
                 await history.GetAppliedMigrationsAsync(),
                 x => Assert.Equal("00000000000001_Migration1", x.MigrationId),

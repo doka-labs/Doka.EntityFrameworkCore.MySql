@@ -152,6 +152,7 @@ internal static class DiscoveryContract
             var actualTargets = document
                 .Targets.Select(item => item.Target)
                 .OrderBy(value => value, StringComparer.Ordinal);
+
             var expectedTargets =
                 SpecificationBaseline.SupportedTargets.OrderBy(value => value, StringComparer.Ordinal);
 
@@ -182,6 +183,7 @@ internal static class DiscoveryContract
             .Distinct(StringComparer.Ordinal)
             .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
+
         var expected = expectation
             .TestIds.OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();

@@ -65,6 +65,7 @@ public sealed class MySqlQueryCompilationContextTests
         using var context = CreateContext(QuerySplittingBehavior.SplitQuery);
         var factory = context.GetService<
             Microsoft.EntityFrameworkCore.Query.IQueryCompilationContextFactory>();
+
         var compilationContext = Assert.IsType<MySqlQueryCompilationContext>(
             factory.CreatePrecompiled(async));
 

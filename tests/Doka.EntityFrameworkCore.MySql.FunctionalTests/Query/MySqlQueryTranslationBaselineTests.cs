@@ -25,6 +25,7 @@ public sealed class MySqlQueryTranslationBaselineTests
             .ToQueryString();
 
         MySqlSqlAssert.ContainsFunction(sql, "CHAR_LENGTH");
+
         Assert.Contains("`Name`", sql, StringComparison.Ordinal);
         MySqlSqlAssert.ContainsFunction(sql, "DATE");
         MySqlSqlAssert.ContainsFunction(sql, "YEAR");

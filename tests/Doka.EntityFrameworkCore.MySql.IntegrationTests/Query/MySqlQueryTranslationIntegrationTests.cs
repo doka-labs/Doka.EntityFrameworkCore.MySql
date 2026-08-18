@@ -73,18 +73,21 @@ public sealed class MySqlQueryTranslationIntegrationTests
             var containsResult = await context
                 .Items.Where(e => e.Name.Contains("Hello"))
                 .CountAsync();
+
             Assert.Equal(2, containsResult);
 
             // StartsWith
             var startsResult = await context
                 .Items.Where(e => e.Name.StartsWith("Good"))
                 .CountAsync();
+
             Assert.Equal(1, startsResult);
 
             // EndsWith
             var endsResult = await context
                 .Items.Where(e => e.Name.EndsWith("Again"))
                 .CountAsync();
+
             Assert.Equal(1, endsResult);
 
             // ToUpper/ToLower run inside an IQueryable expression tree -- EF translates
@@ -94,6 +97,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
                 .Items.Where(e => e.Id == 1)
                 .Select(e => e.Name.ToUpper())
                 .FirstAsync();
+
             Assert.Contains("HELLO", upperName, StringComparison.Ordinal);
 
             var lowerName = await context
@@ -108,6 +112,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
                 .Items.Where(e => e.Id == 1)
                 .Select(e => e.Name.Trim())
                 .FirstAsync();
+
             Assert.Equal("Hello World", trimmed);
 
             // Substring
@@ -115,6 +120,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
                 .Items.Where(e => e.Id == 2)
                 .Select(e => e.Name.Substring(4))
                 .FirstAsync();
+
             Assert.Equal("bye", sub);
 
             // Replace
@@ -122,6 +128,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
                 .Items.Where(e => e.Id == 2)
                 .Select(e => e.Name.Replace("Good", "See you "))
                 .FirstAsync();
+
             Assert.Equal("See you bye", replaced);
 
             // IndexOf
@@ -129,6 +136,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
                 .Items.Where(e => e.Id == 1)
                 .Select(e => e.Name.IndexOf("World", StringComparison.Ordinal))
                 .FirstAsync();
+
             Assert.True(idx > 0);
 
             // string.Length
@@ -136,6 +144,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
                 .Items.Where(e => e.Id == 2)
                 .Select(e => e.Name.Length)
                 .FirstAsync();
+
             Assert.Equal(7, len);
         }
         finally
@@ -170,24 +179,28 @@ public sealed class MySqlQueryTranslationIntegrationTests
             var result = await context
                 .Items.Select(e => e.CreatedAt.AddDays(10))
                 .FirstAsync();
+
             Assert.Equal(11, result.Day);
 
             // AddMonths
             result = await context
                 .Items.Select(e => e.CreatedAt.AddMonths(2))
                 .FirstAsync();
+
             Assert.Equal(3, result.Month);
 
             // AddYears
             result = await context
                 .Items.Select(e => e.CreatedAt.AddYears(1))
                 .FirstAsync();
+
             Assert.Equal(2026, result.Year);
 
             // AddHours
             result = await context
                 .Items.Select(e => e.CreatedAt.AddHours(5))
                 .FirstAsync();
+
             Assert.Equal(17, result.Hour);
         }
         finally
@@ -221,26 +234,31 @@ public sealed class MySqlQueryTranslationIntegrationTests
             var abs = await context
                 .Items.Select(e => Math.Abs(e.Value))
                 .FirstAsync();
+
             Assert.Equal(16.7, abs, 1);
 
             var ceil = await context
                 .Items.Select(e => Math.Ceiling(e.Value))
                 .FirstAsync();
+
             Assert.Equal(-16.0, ceil, 1);
 
             var floor = await context
                 .Items.Select(e => Math.Floor(e.Value))
                 .FirstAsync();
+
             Assert.Equal(-17.0, floor, 1);
 
             var sqrt = await context
                 .Items.Select(e => Math.Sqrt(Math.Abs(e.Value)))
                 .FirstAsync();
+
             Assert.True(sqrt > 4.0);
 
             var round = await context
                 .Items.Select(e => Math.Round(e.Value, 0))
                 .FirstAsync();
+
             Assert.Equal(-17.0, round, 1);
         }
         finally
@@ -586,11 +604,13 @@ public sealed class MySqlQueryTranslationIntegrationTests
             var depth = await context
                 .Items.Select(e => EF.Functions.JsonDepth(e.Data))
                 .FirstAsync();
+
             Assert.Equal(3, depth);
 
             var length = await context
                 .Items.Select(e => EF.Functions.JsonLength(e.Data))
                 .FirstAsync();
+
             Assert.Equal(2, length);
         }
         finally
@@ -637,6 +657,7 @@ public sealed class MySqlQueryTranslationIntegrationTests
                     Array = EF.Functions.JsonArray(item.Id, suffix, null),
                     Object = EF.Functions.JsonObject("id", item.Id, "suffix", suffix, "missing", null),
                 });
+
             var sql = query.ToQueryString();
             var result = await query.SingleAsync();
 
@@ -648,11 +669,13 @@ public sealed class MySqlQueryTranslationIntegrationTests
                     && commandText.Contains("JSON_OBJECT(", StringComparison.Ordinal));
 
             using var array = JsonDocument.Parse(result.Array);
+
             Assert.Equal(1, array.RootElement[0].GetInt32());
             Assert.Equal(suffix, array.RootElement[1].GetString());
             Assert.Equal(JsonValueKind.Null, array.RootElement[2].ValueKind);
 
             using var jsonObject = JsonDocument.Parse(result.Object);
+
             Assert.Equal(1, jsonObject.RootElement.GetProperty("id").GetInt32());
             Assert.Equal(suffix, jsonObject.RootElement.GetProperty("suffix").GetString());
             Assert.Equal(JsonValueKind.Null, jsonObject.RootElement.GetProperty("missing").ValueKind);

@@ -44,6 +44,7 @@ public sealed class InvisibleColumnIntegrationTests
             var addColumn = Assert.Single(
                 GetDifferences(withoutColumn, invisible)
                     .OfType<AddColumnOperation>());
+
             Assert.Equal(
                 true,
                 addColumn.FindAnnotation(MySqlAnnotationNames.Invisible)
@@ -63,6 +64,7 @@ public sealed class InvisibleColumnIntegrationTests
             var makeVisible = Assert.Single(
                 GetDifferences(invisible, visible)
                     .OfType<AlterColumnOperation>());
+
             Assert.Equal(
                 false,
                 makeVisible.FindAnnotation(MySqlAnnotationNames.Invisible)
@@ -85,6 +87,7 @@ public sealed class InvisibleColumnIntegrationTests
             var makeInvisible = Assert.Single(
                 GetDifferences(visible, invisible)
                     .OfType<AlterColumnOperation>());
+
             Assert.Equal(
                 true,
                 makeInvisible.FindAnnotation(MySqlAnnotationNames.Invisible)

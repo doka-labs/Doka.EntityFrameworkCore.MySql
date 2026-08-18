@@ -117,6 +117,7 @@ public sealed class MySqlHistoryRepositoryTests
     public void LockReleaseBehavior_is_explicit()
     {
         var repo = CreateRepository();
+
         Assert.Equal(LockReleaseBehavior.Explicit, repo.LockReleaseBehavior);
     }
 

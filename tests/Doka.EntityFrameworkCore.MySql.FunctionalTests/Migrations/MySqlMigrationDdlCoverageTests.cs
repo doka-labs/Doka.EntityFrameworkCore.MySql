@@ -410,6 +410,7 @@ public sealed class MySqlMigrationDdlCoverageTests
             Columns = ["Name", "Code"],
             IsDescending = [false, true],
         };
+
         operation.SetAnnotation(MySqlAnnotationNames.IndexPrefixLength, s_mixedPrefixLengths);
 
         var sql = JoinSql(generator.Generate([operation], context.Model));
@@ -459,6 +460,7 @@ public sealed class MySqlMigrationDdlCoverageTests
             Table = "Entries",
             Columns = ["Body"],
         };
+
         operation.SetAnnotation(MySqlAnnotationNames.FullTextIndex, true);
 
         var sql = JoinSql(generator.Generate([operation], context.Model));
@@ -511,6 +513,7 @@ public sealed class MySqlMigrationDdlCoverageTests
             Table = "Places",
             Columns = ["Location"],
         };
+
         operation.SetAnnotation(MySqlAnnotationNames.SpatialIndex, true);
 
         var commands = generator.Generate([operation], context.Model);
@@ -576,6 +579,7 @@ public sealed class MySqlMigrationDdlCoverageTests
         using var context = new ConstraintTestContext(builder.Options);
         var childEntity = context.Model.FindEntityType(typeof(ChildEntity))
             ?? throw new InvalidOperationException("ChildEntity metadata was not created.");
+
         var foreignKey = Assert.Single(childEntity.GetForeignKeys());
         var constraintName = foreignKey.GetConstraintName()
             ?? throw new InvalidOperationException("Foreign-key constraint name was not generated.");
@@ -605,6 +609,7 @@ public sealed class MySqlMigrationDdlCoverageTests
             Name = "LiteralContracts",
             Comment = tableComment,
         };
+
         createTable.Columns.Add(
             new AddColumnOperation
             {
@@ -625,6 +630,7 @@ public sealed class MySqlMigrationDdlCoverageTests
                 { insertedValue },
             },
         };
+
         var updateData = new UpdateDataOperation
         {
             Table = createTable.Name,
@@ -641,6 +647,7 @@ public sealed class MySqlMigrationDdlCoverageTests
                 { updateKey },
             },
         };
+
         var deleteData = new DeleteDataOperation
         {
             Table = createTable.Name,

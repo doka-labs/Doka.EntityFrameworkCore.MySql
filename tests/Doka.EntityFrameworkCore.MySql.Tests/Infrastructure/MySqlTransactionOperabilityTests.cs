@@ -65,13 +65,16 @@ public sealed class MySqlTransactionOperabilityTests
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         await using var connection =
             new RecordingDbConnection(commitFailure: new SocketException((int)SocketError.ConnectionReset));
+
         await using var context =
             new TransactionOperabilityContext(
                 CreateOptions(connection, loggerFactory, MySqlGuidFormat.Char36));
+
         var activeSingletonOptions = context
             .GetService<IEnumerable<ISingletonOptions>>()
             .OfType<MySqlSingletonOptions>()
             .Single();
+
         await using var transaction = await context.Database.BeginTransactionAsync();
 
         Assert.Same(primedSingletonOptions, activeSingletonOptions);

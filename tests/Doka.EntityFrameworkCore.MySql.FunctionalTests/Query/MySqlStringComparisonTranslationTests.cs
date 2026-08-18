@@ -24,6 +24,7 @@ public sealed class MySqlStringComparisonTranslationTests
         MySqlSqlAssert.ContainsFunction(sql, "LOCATE");
         MySqlSqlAssert.ContainsFunction(sql, "LEFT");
         MySqlSqlAssert.ContainsFunction(sql, "RIGHT");
+
         Assert.Contains("`Name` = 'alp'", sql, StringComparison.Ordinal);
     }
 

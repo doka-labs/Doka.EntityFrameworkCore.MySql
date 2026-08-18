@@ -178,6 +178,7 @@ public sealed class ScaffoldingHelpersTests
 
         Assert.Equal(3, count);
         var emitted = sql.ToString();
+
         Assert.Contains("@t0", emitted);
         Assert.Contains("@t1", emitted);
         Assert.Contains("@t2", emitted);

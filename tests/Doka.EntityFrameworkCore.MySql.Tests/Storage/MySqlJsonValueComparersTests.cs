@@ -18,6 +18,7 @@ public sealed class MySqlJsonValueComparersTests
     {
         using var docA = JsonDocument.Parse("""{"a":1,"b":2}""");
         using var docB = JsonDocument.Parse("""{"a":1,"b":2}""");
+
         Assert.True(MySqlJsonValueComparers.JsonElementComparer.Equals(docA.RootElement, docB.RootElement));
     }
 
@@ -27,6 +28,7 @@ public sealed class MySqlJsonValueComparersTests
     {
         using var docA = JsonDocument.Parse("""{"a":1}""");
         using var docB = JsonDocument.Parse("""{"a":1,"b":2}""");
+
         Assert.False(MySqlJsonValueComparers.JsonElementComparer.Equals(docA.RootElement, docB.RootElement));
     }
 
@@ -36,6 +38,7 @@ public sealed class MySqlJsonValueComparersTests
     {
         using var docA = JsonDocument.Parse("""{"a":1}""");
         using var docB = JsonDocument.Parse("""{"a":2}""");
+
         Assert.False(MySqlJsonValueComparers.JsonElementComparer.Equals(docA.RootElement, docB.RootElement));
     }
 
@@ -73,6 +76,7 @@ public sealed class MySqlJsonValueComparersTests
         var large = "[" + string.Join(",", Enumerable.Range(0, 200).Select(i => $"\"item-{i:D6}\"")) + "]";
         using var docA = JsonDocument.Parse(large);
         using var docB = JsonDocument.Parse(large);
+
         Assert.True(MySqlJsonValueComparers.JsonElementComparer.Equals(docA.RootElement, docB.RootElement));
     }
 
@@ -82,6 +86,7 @@ public sealed class MySqlJsonValueComparersTests
     {
         using var docA = JsonDocument.Parse("""{"a":1,"b":"x"}""");
         using var docB = JsonDocument.Parse("""{"a":1,"b":"x"}""");
+
         Assert.Equal(
             MySqlJsonValueComparers.JsonElementComparer.GetHashCode(docA.RootElement),
             MySqlJsonValueComparers.JsonElementComparer.GetHashCode(docB.RootElement));
@@ -94,6 +99,7 @@ public sealed class MySqlJsonValueComparersTests
     public void JsonDocument_reference_equal_is_equal()
     {
         using var doc = JsonDocument.Parse("""{"a":1}""");
+
         Assert.True(MySqlJsonValueComparers.JsonDocumentComparer.Equals(doc, doc));
     }
 
@@ -102,6 +108,7 @@ public sealed class MySqlJsonValueComparersTests
     public void JsonDocument_one_null_side_is_not_equal()
     {
         using var doc = JsonDocument.Parse("""{"a":1}""");
+
         Assert.False(MySqlJsonValueComparers.JsonDocumentComparer.Equals(doc, null));
         Assert.False(MySqlJsonValueComparers.JsonDocumentComparer.Equals(null, doc));
     }
@@ -145,6 +152,7 @@ public sealed class MySqlJsonValueComparersTests
     public void JsonNode_reference_equal_is_equal()
     {
         var node = JsonNode.Parse("""{"a":1}""");
+
         Assert.True(MySqlJsonValueComparers.JsonNodeComparer.Equals(node, node));
     }
 
@@ -153,6 +161,7 @@ public sealed class MySqlJsonValueComparersTests
     public void JsonNode_one_null_side_is_not_equal()
     {
         var node = JsonNode.Parse("""{"a":1}""");
+
         Assert.False(MySqlJsonValueComparers.JsonNodeComparer.Equals(node, null));
         Assert.False(MySqlJsonValueComparers.JsonNodeComparer.Equals(null, node));
     }
@@ -168,6 +177,7 @@ public sealed class MySqlJsonValueComparersTests
     {
         var a = JsonNode.Parse("""{"a":1,"b":2}""");
         var b = JsonNode.Parse("""{"a":1,"b":2}""");
+
         Assert.True(MySqlJsonValueComparers.JsonNodeComparer.Equals(a, b));
     }
 
@@ -177,6 +187,7 @@ public sealed class MySqlJsonValueComparersTests
     {
         var a = JsonNode.Parse("""{"a":1}""");
         var b = JsonNode.Parse("""{"a":1,"b":2}""");
+
         Assert.False(MySqlJsonValueComparers.JsonNodeComparer.Equals(a, b));
     }
 
@@ -196,6 +207,7 @@ public sealed class MySqlJsonValueComparersTests
     {
         var source = JsonNode.Parse("""{"a":1,"b":[1,2,3]}""");
         var snapshot = MySqlJsonValueComparers.JsonNodeComparer.Snapshot(source);
+
         Assert.NotSame(source, snapshot);
         Assert.True(MySqlJsonValueComparers.JsonNodeComparer.Equals(source, snapshot));
     }
@@ -244,6 +256,7 @@ public sealed class MySqlJsonValueComparersTests
                     .Range(0, 500)
                     .Select(index => $"{{\"id\":{index},\"value\":\"item-{index:D6}\"}}"))
             + "]";
+
         using var first = JsonDocument.Parse(json);
         using var second = JsonDocument.Parse(json);
         var expectedHash = MySqlJsonValueComparers.JsonElementComparer.GetHashCode(first.RootElement);
@@ -284,6 +297,7 @@ public sealed class MySqlJsonValueComparersTests
         )
         {
             var index = _outstanding.FindIndex(candidate => ReferenceEquals(candidate, array));
+
             Assert.True(index >= 0, "A buffer was returned more than once or did not originate from this pool.");
             _outstanding.RemoveAt(index);
             ReturnCount++;

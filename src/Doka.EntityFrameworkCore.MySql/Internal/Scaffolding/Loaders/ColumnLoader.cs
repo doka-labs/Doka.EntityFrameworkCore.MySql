@@ -66,6 +66,7 @@ internal static class ColumnLoader
             var collation = rawCollation;
             var tableCollation = table.FindAnnotation(RelationalAnnotationNames.Collation)
                 ?.Value as string;
+
             var comment = reader.IsDBNull(8) ? null : reader.GetString(8);
 
             if (string.Equals(collation, tableCollation, StringComparison.OrdinalIgnoreCase))

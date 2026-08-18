@@ -98,6 +98,7 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
             .WithUsername("root")
             .WithPassword(RootPassword)
             .WithCreateParameterModifier(BindDatabasePortToLoopback);
+
         builder = ConfigureTls(builder, tlsMaterial);
 
         var container = builder
@@ -115,6 +116,7 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
             var connectionString = AddProviderTestSettings(
                 container.GetConnectionString(),
                 tlsMaterial);
+
             VerifyLoopbackConnectionString(
                 connectionString,
                 container.GetMappedPublicPort(3306));
@@ -145,6 +147,7 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
             .WithUsername("root")
             .WithPassword(RootPassword)
             .WithCreateParameterModifier(BindDatabasePortToLoopback);
+
         builder = ConfigureTls(builder, tlsMaterial);
 
         var container = builder
@@ -162,6 +165,7 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
             var connectionString = AddProviderTestSettings(
                 container.GetConnectionString(),
                 tlsMaterial);
+
             VerifyLoopbackConnectionString(
                 connectionString,
                 container.GetMappedPublicPort(3306));
@@ -233,9 +237,11 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
         using var dockerClient = TestcontainersSettings
             .OS.DockerEndpointAuthConfig.GetDockerClientBuilder()
             .Build();
+
         var inspection = await dockerClient
             .Containers.InspectContainerAsync(container.Id, cancellationToken)
             .ConfigureAwait(false);
+
         var portBindings = inspection.NetworkSettings?.Ports
             ?? throw new InvalidOperationException(
                 $"Docker did not report network settings for container '{container.Id}'.");

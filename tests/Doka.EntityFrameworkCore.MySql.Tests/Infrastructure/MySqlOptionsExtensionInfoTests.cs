@@ -13,6 +13,7 @@ public sealed class MySqlOptionsExtensionInfoTests
     public void IsDatabaseProvider_is_true()
     {
         var info = new MySqlOptionsExtension().Info;
+
         Assert.True(info.IsDatabaseProvider);
     }
 
@@ -22,6 +23,7 @@ public sealed class MySqlOptionsExtensionInfoTests
     public void LogFragment_without_server_version_is_unparameterized()
     {
         var info = new MySqlOptionsExtension().Info;
+
         Assert.Equal("using Doka MySql ", info.LogFragment);
     }
 
@@ -30,7 +32,9 @@ public sealed class MySqlOptionsExtensionInfoTests
     {
         var extension = new MySqlOptionsExtension()
             .WithServerVersion(MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
         var info = extension.Info;
+
         Assert.Contains("MySQL", info.LogFragment, StringComparison.Ordinal);
         Assert.Contains("8.4.0", info.LogFragment, StringComparison.Ordinal);
     }
@@ -43,6 +47,7 @@ public sealed class MySqlOptionsExtensionInfoTests
         var info = new MySqlOptionsExtension().Info;
         var dict = new Dictionary<string, string>();
         info.PopulateDebugInfo(dict);
+
         Assert.True(dict.ContainsKey("DokaMySql"));
     }
 
@@ -53,6 +58,7 @@ public sealed class MySqlOptionsExtensionInfoTests
     {
         var infoA = InfoFor(WithVersion(new MySqlOptionsExtension()));
         var infoB = InfoFor(WithVersion(new MySqlOptionsExtension()));
+
         Assert.True(infoA.ShouldUseSameServiceProvider(infoB));
     }
 
@@ -61,6 +67,7 @@ public sealed class MySqlOptionsExtensionInfoTests
     {
         var info = InfoFor(WithVersion(new MySqlOptionsExtension()));
         var otherInfo = new OtherExtensionInfo();
+
         Assert.False(info.ShouldUseSameServiceProvider(otherInfo));
     }
 
@@ -69,8 +76,10 @@ public sealed class MySqlOptionsExtensionInfoTests
     {
         var infoA = InfoFor(new MySqlOptionsExtension()
             .WithServerVersion(MySqlServerVersion.MySql(new Version(8, 0, 0))));
+
         var infoB = InfoFor(new MySqlOptionsExtension()
             .WithServerVersion(MySqlServerVersion.MySql(new Version(8, 4, 0))));
+
         Assert.False(infoA.ShouldUseSameServiceProvider(infoB));
     }
 
@@ -79,8 +88,10 @@ public sealed class MySqlOptionsExtensionInfoTests
     {
         var infoA = InfoFor(WithVersion(new MySqlOptionsExtension())
             .WithRetryOptions(new MySqlRetryOptions(3, TimeSpan.FromSeconds(1))));
+
         var infoB = InfoFor(WithVersion(new MySqlOptionsExtension())
             .WithRetryOptions(new MySqlRetryOptions(5, TimeSpan.FromSeconds(2))));
+
         Assert.False(infoA.ShouldUseSameServiceProvider(infoB));
     }
 
@@ -89,8 +100,10 @@ public sealed class MySqlOptionsExtensionInfoTests
     {
         var infoA = InfoFor(WithVersion(new MySqlOptionsExtension())
             .WithDefaultGuidFormat(MySqlGuidFormat.Binary16));
+
         var infoB = InfoFor(WithVersion(new MySqlOptionsExtension())
             .WithDefaultGuidFormat(MySqlGuidFormat.Char36));
+
         Assert.False(infoA.ShouldUseSameServiceProvider(infoB));
     }
 
@@ -100,6 +113,7 @@ public sealed class MySqlOptionsExtensionInfoTests
         var infoA = InfoFor(WithVersion(new MySqlOptionsExtension()));
         var infoB = InfoFor(WithVersion(new MySqlOptionsExtension())
             .WithConnection(new MySqlConnection()));
+
         Assert.False(infoA.ShouldUseSameServiceProvider(infoB));
     }
 
@@ -109,6 +123,7 @@ public sealed class MySqlOptionsExtensionInfoTests
         var infoA = InfoFor(WithVersion(new MySqlOptionsExtension()));
         var infoB = InfoFor(WithVersion(new MySqlOptionsExtension())
             .WithDataSource(new MySqlDataSourceBuilder("Server=localhost").Build()));
+
         Assert.False(infoA.ShouldUseSameServiceProvider(infoB));
     }
 
@@ -119,6 +134,7 @@ public sealed class MySqlOptionsExtensionInfoTests
     {
         var hashA = InfoFor(WithVersion(new MySqlOptionsExtension())).GetServiceProviderHashCode();
         var hashB = InfoFor(WithVersion(new MySqlOptionsExtension())).GetServiceProviderHashCode();
+
         Assert.Equal(hashA, hashB);
     }
 
@@ -128,9 +144,11 @@ public sealed class MySqlOptionsExtensionInfoTests
         var hashA = InfoFor(new MySqlOptionsExtension()
                 .WithServerVersion(MySqlServerVersion.MySql(new Version(8, 0, 0))))
             .GetServiceProviderHashCode();
+
         var hashB = InfoFor(new MySqlOptionsExtension()
                 .WithServerVersion(MySqlServerVersion.MySql(new Version(8, 4, 0))))
             .GetServiceProviderHashCode();
+
         Assert.NotEqual(hashA, hashB);
     }
 

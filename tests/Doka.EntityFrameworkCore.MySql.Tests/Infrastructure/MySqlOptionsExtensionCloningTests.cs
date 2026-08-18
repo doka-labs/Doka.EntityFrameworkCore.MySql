@@ -105,6 +105,7 @@ public sealed class MySqlOptionsExtensionCloningTests
         var seeded = new MySqlOptionsExtension()
             .WithConnectionString(ConnectionStringA)
             .WithServerVersion(serverVersion);
+
         var withTimeout = (MySqlOptionsExtension)seeded.WithCommandTimeout(42);
 
         var rotated = withTimeout.WithDataSource(dataSource);

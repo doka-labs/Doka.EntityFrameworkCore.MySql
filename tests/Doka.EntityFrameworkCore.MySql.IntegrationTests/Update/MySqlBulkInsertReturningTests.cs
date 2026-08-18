@@ -65,6 +65,7 @@ public sealed class MySqlBulkInsertReturningTests
             var roundTripped = await context
                 .Items.OrderBy(e => e.Id)
                 .ToListAsync();
+
             Assert.Equal(5, roundTripped.Count);
             Assert.Equal("row-1", roundTripped[0].Name);
             Assert.Equal(50, roundTripped[4].Score);
@@ -146,6 +147,7 @@ public sealed class MySqlBulkInsertReturningTests
             var roundTripped = await context
                 .Items.OrderBy(e => e.Id)
                 .ToListAsync();
+
             Assert.Equal(5, roundTripped.Count);
             Assert.Equal("k-3", roundTripped[2].Name);
         }

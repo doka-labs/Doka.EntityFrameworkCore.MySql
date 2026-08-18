@@ -528,6 +528,7 @@ public static class Program
     {
         var configuredConnectionString = Environment.GetEnvironmentVariable(
             "DOKA_RUNTIME_SMOKE_CONNECTION_STRING");
+
         if (!string.IsNullOrWhiteSpace(configuredConnectionString))
         {
             // Release candidates own an isolated container on a dynamic port.
@@ -589,16 +590,19 @@ public static class Program
         var entityType = context.Model.FindEntityType(typeof(BasicSmokeEntity))
             ?? throw new InvalidOperationException(
                 "The NativeAOT basic smoke path could not resolve the compiled entity type.");
+
         var storeObject = StoreObjectIdentifier.Table(
             entityType.GetTableName()
             ?? throw new InvalidOperationException(
                 "The NativeAOT basic smoke path could not resolve the compiled table name."),
             entityType.GetSchema());
+
         var idColumnName = entityType
                 .FindProperty(nameof(BasicSmokeEntity.Id))
                 ?.GetColumnName(storeObject)
             ?? throw new InvalidOperationException(
                 "The NativeAOT basic smoke path could not resolve the compiled Id column name.");
+
         var nameColumnName = entityType
                 .FindProperty(nameof(BasicSmokeEntity.Name))
                 ?.GetColumnName(storeObject)
@@ -625,16 +629,19 @@ public static class Program
         var entityType = context.Model.FindEntityType(typeof(SpatialSmokeEntity))
             ?? throw new InvalidOperationException(
                 "The NativeAOT spatial smoke path could not resolve the compiled entity type.");
+
         var storeObject = StoreObjectIdentifier.Table(
             entityType.GetTableName()
             ?? throw new InvalidOperationException(
                 "The NativeAOT spatial smoke path could not resolve the compiled table name."),
             entityType.GetSchema());
+
         var idColumnName = entityType
                 .FindProperty(nameof(SpatialSmokeEntity.Id))
                 ?.GetColumnName(storeObject)
             ?? throw new InvalidOperationException(
                 "The NativeAOT spatial smoke path could not resolve the compiled Id column name.");
+
         var locationColumnName = entityType
                 .FindProperty(nameof(SpatialSmokeEntity.Location))
                 ?.GetColumnName(storeObject)

@@ -58,6 +58,7 @@ public sealed class ConnectionStringOverrideTests
         var overriddenConnectionString = IntegrationDatabaseUtilities.BuildConnectionString(
             baseConnectionString,
             databaseName);
+
         var serverVersion = MySqlServerVersion.Parse(
             IntegrationTestEnvironment.CreateRequest(target)
                 .ServerVersionToken);
@@ -67,6 +68,7 @@ public sealed class ConnectionStringOverrideTests
             await using var context = new ConnectionOverrideContext(
                 IntegrationTestDbContextOptions.Create<ConnectionOverrideContext>().UseMySql(baseConnectionString, serverVersion)
                     .Options);
+
             context.Database.SetConnectionString(overriddenConnectionString);
 
             var databaseCreator = context.GetService<IRelationalDatabaseCreator>();
@@ -94,6 +96,7 @@ public sealed class ConnectionStringOverrideTests
                 await using var command = context
                     .Database.GetDbConnection()
                     .CreateCommand();
+
                 command.CommandText = "SELECT DATABASE();";
 
                 Assert.Equal(

@@ -537,6 +537,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
 
         var size = mappingInfo.Size
             ?? (mappingInfo.IsKeyOrIndex ? DefaultKeyOrIndexLength : null);
+
         var isFixedLength =
             (mappingInfo.IsFixedLength == true || normalizedStoreType == "char")
             && size is > 0;

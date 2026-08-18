@@ -96,6 +96,7 @@ internal static partial class AdrParser
         var lines = text
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Split('\n');
+
         var metadata = ParseMetadata(lines, relativePath, errors, out var bodyStart);
         var title = ParseTitle(lines, bodyStart, relativePath, errors);
 
@@ -157,6 +158,7 @@ internal static partial class AdrParser
             var key = line[..separator];
             var value = line[(separator + 1)..]
                 .Trim();
+
             observedKeys.Add(key);
 
             if (!metadata.TryAdd(key, value))
@@ -477,6 +479,7 @@ internal static partial class AdrParser
                 headingIndex + 1,
                 end - headingIndex - 1,
                 line => line == optionHeading);
+
             if (optionIndex < 0)
             {
                 errors.Add(
@@ -492,6 +495,7 @@ internal static partial class AdrParser
                 optionIndex + 1,
                 end - optionIndex - 1,
                 static line => line.StartsWith("### ", StringComparison.Ordinal));
+
             var optionEnd = nextHeading < 0 ? end : nextHeading;
             ValidateGoodBadSection(lines, optionIndex, optionEnd, relativePath, $"Option '{option}'", errors);
         }
@@ -823,6 +827,7 @@ internal static partial class AdrParser
     {
         var match = SourceReferenceDefinitionRegex()
             .Match(lines[index]);
+
         if (!match.Success)
         {
             return false;

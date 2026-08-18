@@ -1,5 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
+/// <summary>
+/// Reconstructs an EF model from the provider database model while preserving MySQL-specific metadata.
+/// </summary>
 internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
 {
     private readonly MySqlReverseEngineeringOptions _reverseEngineeringOptions;
@@ -62,8 +65,10 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
             var entityBuilder = modelBuilder.Entity(entityName);
             var tableCollation = table.FindAnnotation(RelationalAnnotationNames.Collation)
                 ?.Value as string;
+
             var tableCharSet = table.FindAnnotation(MySqlAnnotationNames.CharSet)
                 ?.Value as string;
+
             var storageEngine = table.FindAnnotation(MySqlAnnotationNames.StorageEngine)
                 ?.Value as string;
 
@@ -302,15 +307,19 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
                 var dependentProperties = foreignKey
                     .Columns.Select(column => entityPropertyBuilders[(table, column)].Metadata)
                     .ToArray();
+
                 var principalProperties = foreignKey
                     .PrincipalColumns.Select(
                         column => entityPropertyBuilders[(foreignKey.PrincipalTable, column)].Metadata)
                     .ToArray();
+
                 var principalReadOnlyProperties = principalProperties
                     .Cast<IReadOnlyProperty>()
                     .ToArray();
+
                 var principalKey = principalEntityBuilder.Metadata.FindKey(principalReadOnlyProperties)
                     ?? principalEntityBuilder.Metadata.AddKey(principalProperties);
+
                 var relationship = dependentEntityBuilder.Metadata.AddForeignKey(
                     dependentProperties,
                     principalKey,
@@ -341,6 +350,7 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
                 ? typeof(long)
                 : _typeMappingSource.FindMapping(sequence.StoreType)?.ClrType
                     ?? typeof(long);
+
             var sequenceBuilder = modelBuilder.HasSequence(
                 sequenceType,
                 sequence.Name,

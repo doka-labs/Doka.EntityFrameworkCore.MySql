@@ -453,6 +453,7 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
         {
             Name = "London",
         };
+
         var contactTitle = "Sales Representative";
 
         using var context = CreateContext();

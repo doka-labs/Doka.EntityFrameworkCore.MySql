@@ -124,6 +124,7 @@ internal sealed class MySqlTemporalConvention
 
         var profile = _singletonOptions.Profile
             ?? throw new InvalidOperationException("The MySQL provider profile has not been initialized.");
+
         var support = profile.GetSupport(ProviderCapability.TemporalTables);
 
         PropagateTemporalMappingToSharedOwnedEntityTypes(modelBuilder.Metadata);
@@ -442,6 +443,7 @@ internal sealed class MySqlTemporalConvention
 
         var periodStartPropertyName = entityType.GetMySqlTemporalPeriodStartPropertyName()
             ?? MySqlTemporalMetadata.DefaultPeriodStartPropertyName;
+
         var periodEndPropertyName = entityType.GetMySqlTemporalPeriodEndPropertyName()
             ?? MySqlTemporalMetadata.DefaultPeriodEndPropertyName;
 

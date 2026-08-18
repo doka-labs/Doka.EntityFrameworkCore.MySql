@@ -56,6 +56,7 @@ try
     var firstVersionEnd = AsUtc(versions[0].ValidTo);
     var firstVersionMidpoint = firstVersionStart.AddTicks(
         (firstVersionEnd - firstVersionStart).Ticks / 2);
+
     var asOfName = await context.Documents
         .TemporalAsOf(firstVersionMidpoint)
         .Select(version => version.Name)

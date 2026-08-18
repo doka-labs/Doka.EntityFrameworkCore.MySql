@@ -24,6 +24,7 @@ try
         .AsNoTracking()
         .Where(label => label.Title == "alpha")
         .CountAsync(cancellationToken);
+
     var caseInsensitiveMatches = await context.Labels
         .AsNoTracking()
         .Where(label => label.SearchCode == "doka")

@@ -103,6 +103,7 @@ public class TemporalProviderBenchmarks
             .Where(entity => entity.Id >= minimumId)
             .ToQueryString()
             .Length;
+
         totalLength += context
             .TemporalEntities.TemporalAll()
             .Where(entity => entity.Id >= minimumId)

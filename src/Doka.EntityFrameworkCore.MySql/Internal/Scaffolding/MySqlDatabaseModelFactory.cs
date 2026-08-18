@@ -71,9 +71,11 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
                 .Schemas.Where(schema => !string.IsNullOrWhiteSpace(schema))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
+
             var databaseNames = requestedDatabaseNames.Length == 0
                 ? [databaseName]
                 : requestedDatabaseNames;
+
             var databaseCollation = ScaffoldingHelpers.ExecuteScalarString(
                 connection,
                 """
@@ -98,8 +100,10 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
             var tableFilter = TableFilter.For(options.Tables);
             var databaseTables =
                 new Dictionary<(string DatabaseName, string TableName), DatabaseTable>();
+
             var databaseColumns =
                 new Dictionary<(string DatabaseName, string TableName, string ColumnName), DatabaseColumn>();
+
             var temporalHistoryTables = new HashSet<(string DatabaseName, string TableName)>();
             var pipelineContexts = new List<ScaffoldingPipelineContext>(databaseNames.Length);
 
@@ -111,6 +115,7 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
                     == ProviderSupportStatus.Emulated
                     ? JsonCheckConstraintLoader.Load(connection, tableFilter)
                     : new HashSet<(string, string)>();
+
                 var pipelineContext = new ScaffoldingPipelineContext(
                     connection,
                     databaseModel,

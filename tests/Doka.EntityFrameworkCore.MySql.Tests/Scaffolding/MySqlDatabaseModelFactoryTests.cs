@@ -19,6 +19,7 @@ public sealed class MySqlDatabaseModelFactoryTests
         var databaseModel = factory.Create(
             connection,
             new DatabaseModelFactoryOptions(["mixed_index_table"], Array.Empty<string>()));
+
         var table = Assert.Single(databaseModel.Tables);
         var index = Assert.Single(table.Indexes);
 
@@ -47,6 +48,7 @@ public sealed class MySqlDatabaseModelFactoryTests
         var databaseModel = factory.Create(
             connection,
             new DatabaseModelFactoryOptions(["spatial_feature_table"], Array.Empty<string>()));
+
         var table = Assert.Single(databaseModel.Tables);
         var spatialColumn = Assert.Single(table.Columns, column => column.Name == "Location");
         var spatialIndex = Assert.Single(table.Indexes);
@@ -73,11 +75,13 @@ public sealed class MySqlDatabaseModelFactoryTests
         var databaseModel = factory.Create(
             connection,
             new DatabaseModelFactoryOptions(["spatial_feature_table"], Array.Empty<string>()));
+
         var table = Assert.Single(databaseModel.Tables);
         var spatialColumn = Assert.Single(table.Columns, column => column.Name == "Location");
         var checkConstraints = Assert.IsType<MySqlScaffoldedCheckConstraint[]>(
             table.FindAnnotation(MySqlAnnotationNames.ScaffoldingCheckConstraints)
                 ?.Value);
+
         var userCheck = Assert.Single(checkConstraints);
 
         Assert.Equal(
@@ -107,6 +111,7 @@ public sealed class MySqlDatabaseModelFactoryTests
         var databaseModel = factory.Create(
             connection,
             new DatabaseModelFactoryOptions(["mixed_index_table"], ["tenant_database"]));
+
         var table = Assert.Single(databaseModel.Tables);
 
         Assert.Equal("tenant_database", table.Schema);
@@ -137,12 +142,15 @@ public sealed class MySqlDatabaseModelFactoryTests
                     "principal_database",
                     "dependent_database"
                 ]));
+
         var principalTable = Assert.Single(
             databaseModel.Tables,
             table => table.Schema == "principal_database");
+
         var dependentTable = Assert.Single(
             databaseModel.Tables,
             table => table.Schema == "dependent_database");
+
         var foreignKey = Assert.Single(dependentTable.ForeignKeys);
 
         Assert.Same(principalTable, foreignKey.PrincipalTable);
@@ -178,6 +186,7 @@ public sealed class MySqlDatabaseModelFactoryTests
         var databaseModel = factory.Create(
             connection,
             new DatabaseModelFactoryOptions(["audit_entries"], Array.Empty<string>()));
+
         var table = Assert.Single(databaseModel.Tables);
 
         Assert.Equal("audit_entries", table.Name);
@@ -203,6 +212,7 @@ public sealed class MySqlDatabaseModelFactoryTests
         var databaseModel = factory.Create(
             connection,
             new DatabaseModelFactoryOptions([], Array.Empty<string>()));
+
         var table = Assert.Single(databaseModel.Tables);
 
         Assert.Equal("audit_entries", table.Name);
@@ -227,11 +237,13 @@ public sealed class MySqlDatabaseModelFactoryTests
     {
         using var connection = new ScaffoldingDbConnection(
             ScaffoldingScenario.IncompleteMySqlTemporalEmulation);
+
         var factory = new MySqlDatabaseModelFactory(new StubDriverFacade(), new MySqlScaffoldingContext());
 
         var databaseModel = factory.Create(
             connection,
             new DatabaseModelFactoryOptions([], Array.Empty<string>()));
+
         var tables = databaseModel.Tables.OrderBy(table => table.Name).ToArray();
 
         Assert.Collection(
@@ -528,10 +540,12 @@ public sealed class MySqlDatabaseModelFactoryTests
                 "audit_entries_history",
                 "ValidFrom",
                 "ValidTo");
+
             var insertBody =
                 $"BEGIN /* {marker} */ "
                 + "SET NEW.`ValidFrom` = UTC_TIMESTAMP(6); "
                 + "SET NEW.`ValidTo` = '9999-12-31 23:59:59.999999'; END";
+
             var updateBody =
                 $"BEGIN /* {marker} */ "
                 + "DECLARE __doka_temporal_timestamp datetime(6); "

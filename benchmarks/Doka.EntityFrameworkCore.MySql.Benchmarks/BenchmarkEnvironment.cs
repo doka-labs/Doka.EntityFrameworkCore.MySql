@@ -31,6 +31,7 @@ internal static class BenchmarkEnvironment
             var family = s_target.IsMariaDb
                 ? EngineFamily.MariaDb
                 : EngineFamily.MySql;
+
             var providerProfile = new ProviderProfile(
                 EngineProfileTable.Resolve(family, s_target.ServerVersion));
 

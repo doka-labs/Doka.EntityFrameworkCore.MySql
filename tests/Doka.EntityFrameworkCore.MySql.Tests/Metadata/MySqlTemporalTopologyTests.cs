@@ -144,6 +144,7 @@ public sealed class MySqlTemporalTopologyTests
         var rootPeriodStart = root.GetMySqlTemporalPeriodStartPropertyName()!;
         var derivedPeriodStart = derived.GetMySqlTemporalPeriodStartPropertyName()!;
         var derivedStoreObject = StoreObjectIdentifier.Table("TemporalDogs", schema: null);
+
         var baseLink = Assert.Single(derived.GetForeignKeys(), foreignKey => foreignKey.IsBaseLinking());
 
         Assert.True(root.IsMySqlTemporal());

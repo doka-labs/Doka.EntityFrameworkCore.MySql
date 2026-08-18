@@ -89,6 +89,7 @@ internal static class IntegrationTestEnvironment
             .Select(GetTargetId)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
         var selectedTargetIds = GetSelectedTargets()
             .Select(GetTargetId)
             .ToArray();
@@ -119,6 +120,7 @@ internal static class IntegrationTestEnvironment
         var supportedTargetIds = Enum.GetValues<IntegrationDatabaseTarget>()
             .Select(GetTargetId)
             .ToArray();
+
         var invalidTargetIds = targetIds
             .Except(supportedTargetIds, StringComparer.OrdinalIgnoreCase)
             .OrderBy(targetId => targetId, StringComparer.OrdinalIgnoreCase)

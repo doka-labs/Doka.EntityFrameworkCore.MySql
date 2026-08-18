@@ -221,6 +221,7 @@ internal static class ApplicationTimeTableLoader
 
         var uniqueConstraint = table.UniqueConstraints.SingleOrDefault(constraint =>
             string.Equals(constraint.Name, constraintName, StringComparison.Ordinal));
+
         var index = table.Indexes.SingleOrDefault(candidate => string.Equals(
             candidate.Name,
             constraintName,

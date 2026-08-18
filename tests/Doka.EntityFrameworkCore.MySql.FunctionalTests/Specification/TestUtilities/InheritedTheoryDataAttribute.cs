@@ -31,6 +31,7 @@ public sealed class InheritedTheoryDataAttribute : DataAttribute
             ?? throw new InvalidOperationException(
                 $"Method '{testMethod.DeclaringType?.FullName}.{testMethod.Name}' has no "
                 + "matching base declaration with theory data.");
+
         var dataAttributes = baseMethod
             .GetCustomAttributes<DataAttribute>(inherit: false)
             .ToArray();

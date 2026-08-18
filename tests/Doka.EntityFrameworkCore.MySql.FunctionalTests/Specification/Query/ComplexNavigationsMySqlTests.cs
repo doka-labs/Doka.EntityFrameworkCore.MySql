@@ -180,16 +180,19 @@ file static class ComplexNavigationContractAssertions
             .OrderBy(level1 => level1.Id)
             .SelectMany(level1 => level1.OneToMany_Optional1.Select(level2 => new { level2.Name }))
             .Take(1);
+
         var sql = query.ToQueryString();
 
         Assert.Contains("ORDER BY `l`.`Id`", sql, StringComparison.Ordinal);
 
         var results = async ? await query.ToListAsync() : query.ToList();
+
         var result = Assert.Single(results);
         var firstParent = expectedData
             .Set<Level1>()
             .OrderBy(level1 => level1.Id)
             .First();
+
         var validNames = firstParent.OneToMany_Optional1.Select(level2 => level2.Name);
 
         Assert.Contains(result.Name, validNames);

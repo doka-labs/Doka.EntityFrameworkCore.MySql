@@ -53,7 +53,9 @@ public sealed class AdrRepositoryValidatorTests
 
         var releaseCandidateScript = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
+
         var normalizedReleaseCandidateScript = NormalizeShellLayout(releaseCandidateScript);
+
         Assert.Contains(
             "dotnet tool run sbom-tool --allow-roll-forward -- Generate",
             normalizedReleaseCandidateScript,
@@ -97,6 +99,7 @@ public sealed class AdrRepositoryValidatorTests
                 releaseCandidateScript,
                 StringComparison.Ordinal);
         }
+
         Assert.Contains(
             "assemble_qualification_manifest",
             normalizedReleaseCandidateScript,
@@ -104,6 +107,7 @@ public sealed class AdrRepositoryValidatorTests
 
         var benchmarkGateScript = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "performance", "check-benchmark-ratios.sh"));
+
         Assert.Contains(
             "report_dir=\"${benchmarks_root}/${target}/reports/${run_id}\"",
             benchmarkGateScript,
@@ -119,6 +123,7 @@ public sealed class AdrRepositoryValidatorTests
 
         var benchmarkScript = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "performance", "benchmark.sh"));
+
         Assert.Contains(
             "\"${compose_command[@]}\" ps -q \"${benchmark_compose_service}\"",
             benchmarkScript,
@@ -148,6 +153,7 @@ public sealed class AdrRepositoryValidatorTests
         // therefore bound to the one implementation.
         var hostPreflightScript = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "performance", "host-preflight.sh"));
+
         Assert.Contains(
             "DOKA_BENCHMARK_HOST_CPU_UTILIZATION",
             hostPreflightScript,
@@ -159,6 +165,7 @@ public sealed class AdrRepositoryValidatorTests
 
         var pairedScript = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "performance", "paired-benchmark.sh"));
+
         foreach (var caller in new[] { benchmarkScript, pairedScript })
         {
             Assert.Contains(
@@ -167,6 +174,7 @@ public sealed class AdrRepositoryValidatorTests
                 StringComparison.Ordinal);
             Assert.Contains("capture_host_preflight", caller, StringComparison.Ordinal);
         }
+
         Assert.Contains(
             "--host \"${host_evidence}\"",
             benchmarkGateScript,
@@ -175,12 +183,15 @@ public sealed class AdrRepositoryValidatorTests
         var hostPreflightIndex = benchmarkScript.IndexOf(
             "    run_host_preflight\n",
             StringComparison.Ordinal);
+
         var workloadMatrixIndex = benchmarkScript.IndexOf(
             "    run_workload_matrix\n",
             StringComparison.Ordinal);
+
         var tailConfirmationIndex = benchmarkScript.IndexOf(
             "    confirm_historical_tail_if_required\n",
             StringComparison.Ordinal);
+
         var benchmarkDotNetIndex = benchmarkScript.IndexOf(
             "    run_benchmarkdotnet\n",
             StringComparison.Ordinal);
@@ -202,6 +213,7 @@ public sealed class AdrRepositoryValidatorTests
                 "benchmarks",
                 "Doka.EntityFrameworkCore.MySql.Benchmarks",
                 "PerformanceWorkloadRunner.cs"));
+
         Assert.Contains(
             "performance-workload-diagnostic",
             workloadRunner,
@@ -214,9 +226,11 @@ public sealed class AdrRepositoryValidatorTests
                 "benchmarks",
                 "Doka.EntityFrameworkCore.MySql.Benchmarks",
                 "BenchmarkDatabaseTarget.cs"));
+
         Assert.Contains("DOKA_BENCHMARK_DATABASE_PORT", benchmarkTarget, StringComparison.Ordinal);
 
         var workflow = File.ReadAllText(Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+
         Assert.Contains(
             "- name: Run repository quality gates\n" + "        run: bash eng/quality-gates.sh",
             workflow,
@@ -233,12 +247,16 @@ public sealed class AdrRepositoryValidatorTests
         var repositoryRoot = FindRepositoryRoot();
         var modelGate = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "quality", "check-migration-model.sh"));
+
         var deploymentGate = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "testing", "test-migration-deployment.sh"));
+
         var releaseCandidate = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
+
         var qualityGates = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "quality", "quality-gates.sh"));
+
         var workflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
 
@@ -280,6 +298,7 @@ public sealed class AdrRepositoryValidatorTests
         var repositoryRoot = FindRepositoryRoot();
         var packageConsumer = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "testing", "test-local-package-consumer.sh"));
+
         var releaseCandidate = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
 
@@ -300,12 +319,16 @@ public sealed class AdrRepositoryValidatorTests
         var repositoryRoot = FindRepositoryRoot();
         var runtimePosture = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "testing", "test-runtime-posture.sh"));
+
         var releaseCandidate = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
+
         var releaseEvidence = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "evidence.py"));
+
         var workflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+
         var runtimeSmokeProject = File.ReadAllText(
             Path.Combine(
                 repositoryRoot,
@@ -367,9 +390,11 @@ public sealed class AdrRepositoryValidatorTests
         var repositoryRoot = FindRepositoryRoot();
         var workflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "release-candidate.yml"));
+
         var normalizedWorkflow = NormalizeShellLayout(workflow);
         var publication = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "nuget.py"));
+
         var symbolReadback = File.ReadAllText(
             Path.Combine(
                 repositoryRoot,
@@ -377,6 +402,7 @@ public sealed class AdrRepositoryValidatorTests
                 "tools",
                 "Doka.EntityFrameworkCore.MySql.NuGetSymbolReadback",
                 "SymbolReadbackManifestBuilder.cs"));
+
         var readback = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "testing", "test-nuget-readback.sh"));
 
@@ -474,12 +500,16 @@ public sealed class AdrRepositoryValidatorTests
         var repositoryRoot = FindRepositoryRoot();
         var workflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+
         var containerMatrix = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "container-matrix.yml"));
+
         var releaseCandidate = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "release-candidate.yml"));
+
         var dependabot = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "dependabot.yml"));
+
         const string exhaustiveCondition =
             "if: >-\n"
             + "      github.event_name == 'schedule'\n"
@@ -514,6 +544,7 @@ public sealed class AdrRepositoryValidatorTests
             StringComparison.Ordinal);
         AssertPerEventJob(workflow, "spec-test-suite");
         AssertPerEventJob(workflow, "coverage-gate");
+
         Assert.Contains("--filter \"Category=Spec|Category=Live\"", workflow, StringComparison.Ordinal);
         Assert.Equal(
             1,
@@ -536,11 +567,14 @@ public sealed class AdrRepositoryValidatorTests
         var integrationStart = workflow.IndexOf(
             "  integration-smoke:",
             StringComparison.Ordinal);
+
         var repositoryQualificationStart = workflow.IndexOf(
             "  repository-qualification:",
             integrationStart,
             StringComparison.Ordinal);
+
         var integration = workflow[integrationStart..repositoryQualificationStart];
+
         Assert.Contains(
             "bash ./eng/test-runtime-posture.sh --test-only",
             integration,
@@ -558,14 +592,17 @@ public sealed class AdrRepositoryValidatorTests
         var aggregatorStart = workflow.IndexOf(
             "  repository-qualification:",
             StringComparison.Ordinal);
+
         Assert.True(aggregatorStart >= 0, "The required aggregator is missing.");
         var aggregatorEnd = workflow.IndexOf(
             "\n  benchmark-smoke:",
             aggregatorStart,
             StringComparison.Ordinal);
+
         Assert.True(aggregatorEnd > aggregatorStart, "The aggregator has no successor job.");
 
         var outsideAggregator = workflow[..aggregatorStart] + workflow[aggregatorEnd..];
+
         Assert.DoesNotContain(
             "    if: >-\n      always()",
             outsideAggregator,
@@ -617,10 +654,13 @@ public sealed class AdrRepositoryValidatorTests
         var repositoryRoot = FindRepositoryRoot();
         var workflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+
         var integrationRunner = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "testing", "test-integration.sh"));
+
         var releaseCandidate = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
+
         var sqlModeTests = File.ReadAllText(
             Path.Combine(
                 repositoryRoot,
@@ -628,6 +668,7 @@ public sealed class AdrRepositoryValidatorTests
                 "Doka.EntityFrameworkCore.MySql.IntegrationTests",
                 "Infrastructure",
                 "MySqlSqlModeContractTests.cs"));
+
         var securityTests = File.ReadAllText(
             Path.Combine(
                 repositoryRoot,
@@ -635,6 +676,7 @@ public sealed class AdrRepositoryValidatorTests
                 "Doka.EntityFrameworkCore.MySql.IntegrationTests",
                 "Infrastructure",
                 "MySqlTlsAuthenticationContractTests.cs"));
+
         var failureTests = File.ReadAllText(
             Path.Combine(
                 repositoryRoot,
@@ -642,6 +684,7 @@ public sealed class AdrRepositoryValidatorTests
                 "Doka.EntityFrameworkCore.MySql.IntegrationTests",
                 "Infrastructure",
                 "MySqlPoolAndFailoverContractTests.cs"));
+
         var tlsFixture = File.ReadAllText(
             Path.Combine(
                 repositoryRoot,
@@ -699,14 +742,19 @@ public sealed class AdrRepositoryValidatorTests
         var repositoryRoot = FindRepositoryRoot();
         var workflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+
         var qualityGates = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "quality", "quality-gates.sh"));
+
         var commitMessage = File.ReadAllText(
             Path.Combine(repositoryRoot, ".githooks", "commit-msg"));
+
         var preCommit = File.ReadAllText(
             Path.Combine(repositoryRoot, ".githooks", "pre-commit"));
+
         var prePush = File.ReadAllText(
             Path.Combine(repositoryRoot, ".githooks", "pre-push"));
+
         var installer = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "development", "install-git-hooks.sh"));
 
@@ -1419,9 +1467,11 @@ public sealed class AdrRepositoryValidatorTests
     )
     {
         var jobStart = workflow.IndexOf($"  {jobName}:", StringComparison.Ordinal);
+
         Assert.True(jobStart >= 0, $"Workflow job '{jobName}' is missing.");
 
         var runsOn = workflow.IndexOf("    runs-on:", jobStart, StringComparison.Ordinal);
+
         Assert.True(runsOn > jobStart, $"Workflow job '{jobName}' has no runs-on declaration.");
 
         Assert.DoesNotContain(
@@ -1436,9 +1486,11 @@ public sealed class AdrRepositoryValidatorTests
     )
     {
         var jobStart = workflow.IndexOf($"  {jobName}:", StringComparison.Ordinal);
+
         Assert.True(jobStart >= 0, $"Workflow job '{jobName}' is missing.");
 
         var steps = workflow.IndexOf("\n    steps:", jobStart, StringComparison.Ordinal);
+
         Assert.True(steps > jobStart, $"Workflow job '{jobName}' has no steps.");
 
         // Asserting inside the job header rather than across the whole file
@@ -1459,6 +1511,7 @@ public sealed class AdrRepositoryValidatorTests
         var validator = script.IndexOf(
             "\"${repo_root}/eng/quality/validate-adrs.sh\"",
             StringComparison.Ordinal);
+
         var followingCommand = validator < 0
             ? -1
             : script.IndexOf(firstFollowingCommand, validator + 1, StringComparison.Ordinal);
@@ -1623,6 +1676,7 @@ public sealed class AdrRepositoryValidatorTests
         public void WriteGeneratedArtifacts()
         {
             var report = Validate(validateGeneratedArtifacts: false);
+
             Assert.True(report.IsValid, FormatErrors(report));
             AdrIndexRenderer.WriteGeneratedArtifacts(Root, report.Documents);
         }

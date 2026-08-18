@@ -13,6 +13,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     {
         using var context = new MySqlJsonContext(
             CreateOptions<MySqlJsonContext>(MySqlServerVersion.MySql(new Version(8, 4, 0))));
+
         var entityType = context.Model.FindEntityType(typeof(JsonEntity))!;
         var payload = entityType.FindProperty(nameof(JsonEntity.Payload))!;
         var virtualKind = entityType.FindProperty(nameof(JsonEntity.VirtualKind))!;
@@ -33,6 +34,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     {
         using var context = new MySqlJsonContext(
             CreateOptions<MySqlJsonContext>(MySqlServerVersion.MySql(new Version(8, 4, 0))));
+
         var sql = GenerateJsonCreateTableSql(context);
 
         Assert.Contains("`Payload` json NOT NULL", sql, StringComparison.Ordinal);
@@ -54,6 +56,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     {
         using var context = new MariaDbJsonContext(
             CreateOptions<MariaDbJsonContext>(MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
+
         var sql = GenerateJsonCreateTableSql(context);
 
         Assert.Contains(
@@ -90,6 +93,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
                 MySqlServerVersion.MariaDb(
                     new Version(10, 1, 0),
                     MySqlServerVersionCompatibilityMode.AllowUnsupported)));
+
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var operation = CreateJsonTableOperation();
 
@@ -120,6 +124,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
                 MySqlServerVersion.MariaDb(
                     new Version(10, 2, 2),
                     MySqlServerVersionCompatibilityMode.AllowUnsupported)));
+
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var operation = CreateJsonTableOperation();
 
@@ -140,6 +145,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
                 MySqlServerVersion.MySql(
                     new Version(5, 6, 0),
                     MySqlServerVersionCompatibilityMode.AllowUnsupported)));
+
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var operation = CreateJsonTableOperation();
 
@@ -159,6 +165,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
                 MySqlServerVersion.MySql(
                     new Version(5, 6, 0),
                     MySqlServerVersionCompatibilityMode.AllowUnsupported)));
+
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var operation = CreateJsonTableOperation();
 
@@ -178,6 +185,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     {
         using var context = new MySqlJsonContext(
             CreateOptions<MySqlJsonContext>(MySqlServerVersion.MySql(new Version(8, 4, 0))));
+
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var operation = CreateJsonTableOperation();
 
@@ -197,6 +205,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     )
     {
         var generator = context.GetService<IMigrationsSqlGenerator>();
+
         var command = Assert.Single(generator.Generate([CreateJsonTableOperation()], context.Model));
 
         return command.CommandText;

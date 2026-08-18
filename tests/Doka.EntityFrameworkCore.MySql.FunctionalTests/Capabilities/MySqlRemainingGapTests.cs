@@ -21,8 +21,10 @@ public sealed class MySqlRemainingGapTests
         using var context = new HiLoGuidContext(builder.Options);
         var entityType = context.Model.FindEntityType(typeof(HiLoGuidEntity))
             ?? throw new InvalidOperationException("HiLoGuidEntity metadata was not created.");
+
         var property = entityType.FindProperty(nameof(HiLoGuidEntity.Id))
             ?? throw new InvalidOperationException("HiLoGuidEntity.Id metadata was not created.");
+
         var selector = context.GetService<IValueGeneratorSelector>();
 
         var exception = Assert.Throws<InvalidOperationException>(
@@ -105,6 +107,7 @@ public sealed class MySqlRemainingGapTests
                 nameof(Varchar36GuidEntity.ExternalId))!;
 
         var columnType = property.GetColumnType();
+
         Assert.Contains("varchar(36)", columnType!, StringComparison.OrdinalIgnoreCase);
     }
 

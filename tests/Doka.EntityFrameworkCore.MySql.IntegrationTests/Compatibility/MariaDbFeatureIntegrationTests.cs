@@ -21,7 +21,9 @@ public sealed class MariaDbFeatureIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new SimpleContext(
             CreateOptions<SimpleContext>(connectionString, MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
+
         var creator = context.GetService<IRelationalDatabaseCreator>();
+
         Assert.True(await creator.ExistsAsync());
     }
 
@@ -31,7 +33,9 @@ public sealed class MariaDbFeatureIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb114);
         await using var context = new SimpleContext(
             CreateOptions<SimpleContext>(connectionString, MySqlServerVersion.MariaDb(new Version(11, 4, 0))));
+
         var creator = context.GetService<IRelationalDatabaseCreator>();
+
         Assert.True(await creator.ExistsAsync());
     }
 
@@ -43,10 +47,12 @@ public sealed class MariaDbFeatureIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new SimpleContext(
             CreateOptions<SimpleContext>(connectionString, MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
+
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `SimpleItems`;");
 
         await context.Database.EnsureCreatedAsync();
         var creator = context.GetService<IRelationalDatabaseCreator>();
+
         Assert.True(await creator.HasTablesAsync());
 
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `SimpleItems`;");
@@ -91,6 +97,7 @@ public sealed class MariaDbFeatureIntegrationTests
 
             // Read back.
             var item = await context.Items.FirstAsync();
+
             Assert.Contains("MariaDB", item.Data, StringComparison.Ordinal);
 
             // Update.
@@ -99,6 +106,7 @@ public sealed class MariaDbFeatureIntegrationTests
             context.ChangeTracker.Clear();
 
             var updated = await context.Items.FirstAsync();
+
             Assert.Contains("12", updated.Data, StringComparison.Ordinal);
         }
         finally
@@ -152,6 +160,7 @@ public sealed class MariaDbFeatureIntegrationTests
             var value = Convert.ToInt64(
                 await fetchCmd.ExecuteScalarAsync(),
                 System.Globalization.CultureInfo.InvariantCulture);
+
             Assert.Equal(100, value);
 
             // Generate DROP SEQUENCE DDL.
@@ -199,12 +208,14 @@ public sealed class MariaDbFeatureIntegrationTests
                     Score = 2.5
                 });
             await context.SaveChangesAsync();
+
             Assert.Equal(2, await context.Items.CountAsync());
 
             // Read.
             var first = await context
                 .Items.Where(e => e.Name == "First")
                 .FirstAsync();
+
             Assert.Equal(1.5, first.Score, 1);
 
             // Update.
@@ -212,11 +223,13 @@ public sealed class MariaDbFeatureIntegrationTests
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
             var updated = await context.Items.FindAsync(first.Id);
+
             Assert.Equal(99.9, updated!.Score, 1);
 
             // Delete.
             context.Items.Remove(updated);
             await context.SaveChangesAsync();
+
             Assert.Equal(1, await context.Items.CountAsync());
         }
         finally
@@ -264,12 +277,14 @@ public sealed class MariaDbFeatureIntegrationTests
                 .Items.Where(e => e.Score > 15)
                 .OrderBy(e => e.Name)
                 .ToListAsync();
+
             Assert.Equal(2, filtered.Count);
             Assert.Equal("Beta", filtered[0].Name);
             Assert.Equal("Gamma", filtered[1].Name);
 
             context.Items.RemoveRange(filtered);
             await context.SaveChangesAsync();
+
             Assert.Equal(1, await context.Items.CountAsync());
         }
         finally
@@ -305,11 +320,13 @@ public sealed class MariaDbFeatureIntegrationTests
             var addedDays = await context
                 .Items.Select(e => e.Created.AddDays(10))
                 .FirstAsync();
+
             Assert.Equal(25, addedDays.Day);
 
             var addedMonths = await context
                 .Items.Select(e => e.BirthDate.AddMonths(6))
                 .FirstAsync();
+
             Assert.Equal(12, addedMonths.Month);
         }
         finally

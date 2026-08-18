@@ -26,6 +26,7 @@ public sealed class MySqlDefensiveValidationTests
                 },
             },
         };
+
         operation.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4; DROP TABLE users");
 
         var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
@@ -51,6 +52,7 @@ public sealed class MySqlDefensiveValidationTests
                 },
             },
         };
+
         operation.SetAnnotation(MySqlAnnotationNames.StorageEngine, "InnoDB`");
 
         var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
@@ -76,6 +78,7 @@ public sealed class MySqlDefensiveValidationTests
                 },
             },
         };
+
         operation.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
 
         // Should not throw.
@@ -130,6 +133,7 @@ public sealed class MySqlDefensiveValidationTests
                 },
             },
         };
+
         operation.SetAnnotation(MySqlAnnotationNames.StorageEngine, "InnoDB");
 
         var commands = generator.Generate([operation], context.Model);
@@ -274,6 +278,7 @@ public sealed class MySqlDefensiveValidationTests
             .GetMethod(
                 "EscapeJsonPathPropertyName",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
         Assert.NotNull(method);
 
         return (string)method.Invoke(null, [propertyName])!;

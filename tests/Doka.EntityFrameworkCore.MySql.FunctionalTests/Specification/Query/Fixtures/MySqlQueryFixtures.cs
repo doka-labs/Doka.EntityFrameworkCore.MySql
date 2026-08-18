@@ -79,6 +79,7 @@ public sealed class SpatialQueryMySqlFixture : SpatialQueryRelationalFixture
         var geoPointMapping = (RelationalTypeMapping)pointMapping.WithComposedConverter(new GeoPointConverter());
         var functionBuilder = modelBuilder.HasDbFunction(
             typeof(GeoExtensions).GetMethod(nameof(GeoExtensions.Distance))!);
+
         functionBuilder.HasTranslation(arguments => new SqlFunctionExpression(
             "ST_Distance",
             arguments

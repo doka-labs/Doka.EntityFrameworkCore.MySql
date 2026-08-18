@@ -232,6 +232,7 @@ public sealed class MySqlSpatialInputGuardTests
     {
         var wkb = CreateNestedWkb(depth: 50_000, littleEndian: true);
         object providerValue = useMySqlGeometry ? MySqlGeometry.FromWkb(0, wkb) : wkb;
+
         var exception = Assert.Throws<InvalidOperationException>(() =>
             InvokeReadSpatialColumn(typeof(Geometry), providerValue));
 
@@ -296,12 +297,14 @@ public sealed class MySqlSpatialInputGuardTests
         _ = table.Rows.Add(providerValue);
 
         using var reader = table.CreateDataReader();
+
         Assert.True(reader.Read());
 
         var mappingType = typeof(MySqlNetTopologySuiteGeometryTypeMapping<>).MakeGenericType(geometryType);
         var method = mappingType.GetMethod(
             "ReadSpatialColumn",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
         Assert.NotNull(method);
 
         try

@@ -17,6 +17,7 @@ internal static class PerformanceSoakRunner
         var profile = contract.Profiles.TryGetValue(profileName, out var configuredProfile)
             ? configuredProfile
             : throw new InvalidDataException($"Performance contract does not define profile '{profileName}'.");
+
         var results = new List<SoakScenarioResult>();
 
         BenchmarkEnvironment.EnsureInitialized();
@@ -104,6 +105,7 @@ internal static class PerformanceSoakRunner
                 "benchmark-user",
                 MySqlConnectionProtocol.Sockets,
                 string.Empty);
+
             _ = MySqlHiLoStateCache.GetOrCreate(identity, "benchmark-sequence", blockSize: 32);
         }
 
@@ -168,6 +170,7 @@ internal static class PerformanceSoakRunner
         var connectionString = BenchmarkEnvironment.CreateConnectionString(
             BenchmarkEnvironment.DatabaseNameValue,
             pooling: false);
+
         await using var observer = new MySqlConnection(connectionString);
 
         await observer
@@ -195,6 +198,7 @@ internal static class PerformanceSoakRunner
 
         var after = await ReadThreadsConnectedAsync(observer, cancellationToken)
             .ConfigureAwait(false);
+
         var delta = after - before;
 
         return Result(
@@ -244,6 +248,7 @@ internal static class PerformanceSoakRunner
         var holder = await command
             .ExecuteScalarAsync(cancellationToken)
             .ConfigureAwait(false);
+
         var heldLockCount = holder is null || holder is DBNull ? 0 : 1;
 
         return Result(
@@ -271,6 +276,7 @@ internal static class PerformanceSoakRunner
         var managedHeapSamples = new List<long>(windowCount);
         var payload = JsonNode.Parse("""{"items":[{"id":1,"value":"benchmark"},{"id":2,"value":"provider"}]}""")
             ?? throw new InvalidDataException("The working-set payload is null.");
+
         var comparer = MySqlJsonValueComparers.JsonNodeComparer;
 
         for (var window = 0; window < windowCount; window++)
@@ -355,9 +361,11 @@ internal static class PerformanceSoakRunner
         var initialThroughput = throughputSamples
             .Take(2)
             .Average();
+
         var finalThroughput = throughputSamples
             .TakeLast(2)
             .Average();
+
         var retentionRatio = finalThroughput / initialThroughput;
 
         return Result(

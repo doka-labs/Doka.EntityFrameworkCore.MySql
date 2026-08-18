@@ -113,6 +113,7 @@ public sealed class MySqlComprehensiveCoverageTests
             // Verify FK from child to parent.
             Assert.Single(childTable.ForeignKeys);
             var fk = childTable.ForeignKeys.First();
+
             Assert.Equal("ScaffoldParent", fk.PrincipalTable.Name);
             Assert.Equal(ReferentialAction.Cascade, fk.OnDelete);
 
@@ -163,6 +164,7 @@ public sealed class MySqlComprehensiveCoverageTests
                     CreatedAt = new DateTime(2025, 6, 1, 0, 0, 0)
                 });
             await context.SaveChangesAsync();
+
             Assert.Equal(2, await context.Items.CountAsync());
 
             // String queries.
@@ -181,12 +183,14 @@ public sealed class MySqlComprehensiveCoverageTests
             var added = await context
                 .Items.Select(e => e.CreatedAt.AddDays(10))
                 .FirstAsync();
+
             Assert.Equal(25, added.Day);
 
             // Math queries.
             var abs = await context
                 .Items.Select(e => Math.Abs(e.Value))
                 .FirstAsync();
+
             Assert.Equal(42.5, abs, 1);
 
             // Update + Delete.
@@ -194,6 +198,7 @@ public sealed class MySqlComprehensiveCoverageTests
             item.Name = "Updated";
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
+
             Assert.Equal("Updated", (await context.Items.FindAsync(item.Id))!.Name);
 
             context.Items.Remove(
@@ -201,6 +206,7 @@ public sealed class MySqlComprehensiveCoverageTests
                     .Items.OrderBy(e => e.Id)
                     .LastAsync());
             await context.SaveChangesAsync();
+
             Assert.Equal(1, await context.Items.CountAsync());
         }
         finally
@@ -236,6 +242,7 @@ public sealed class MySqlComprehensiveCoverageTests
             var dogs = await context
                 .Animals.OfType<ParityDog>()
                 .ToListAsync();
+
             Assert.Single(dogs);
             Assert.Equal("Lab", dogs[0].Breed);
         }
@@ -293,11 +300,13 @@ public sealed class MySqlComprehensiveCoverageTests
                 .Items.Where(e => e.Value < 0)
                 .Select(e => Math.Abs(e.Value))
                 .FirstAsync();
+
             Assert.Equal(5.0, abs, 1);
 
             var added = await context
                 .Items.Select(e => e.CreatedAt.AddMonths(2))
                 .FirstAsync();
+
             Assert.Equal(5, added.Month);
         }
         finally
@@ -326,6 +335,7 @@ public sealed class MySqlComprehensiveCoverageTests
                     Breed = "Poodle"
                 });
             await context.SaveChangesAsync();
+
             Assert.Single(
                 await context
                     .Animals.OfType<ParityDog>()
@@ -370,6 +380,7 @@ public sealed class MySqlComprehensiveCoverageTests
             var count = await context
                 .Items.Where(e => EF.Functions.Regexp(e.Name, "[0-9]+"))
                 .CountAsync();
+
             Assert.Equal(1, count);
         }
         finally
@@ -423,6 +434,7 @@ public sealed class MySqlComprehensiveCoverageTests
             var items = await context
                 .Items.OrderBy(e => e.Id)
                 .ToListAsync();
+
             Assert.Equal(2, items.Count);
             Assert.True(items[0].Id > 0, "First ID should be positive");
             Assert.True(items[1].Id > items[0].Id, "Second ID should be greater than first");
@@ -522,15 +534,18 @@ public sealed class MySqlComprehensiveCoverageTests
 
             // EnsureCreated creates DB + tables.
             var created = await context.Database.EnsureCreatedAsync();
+
             Assert.True(created);
 
             // Insert data to verify tables work.
             context.Items.Add(new SimpleItem { Name = "Test" });
             await context.SaveChangesAsync();
+
             Assert.Equal(1, await context.Items.CountAsync());
 
             // EnsureDeleted drops the DB.
             var deleted = await context.Database.EnsureDeletedAsync();
+
             Assert.True(deleted);
         }
         finally

@@ -136,6 +136,7 @@ public sealed class MySqlNetworkFaultContractTests
         await using var command = context
             .Database.GetDbConnection()
             .CreateCommand();
+
         command.CommandText = """
                               /* doka_stream_fault */
                               WITH RECURSIVE sequence AS (
@@ -185,6 +186,7 @@ public sealed class MySqlNetworkFaultContractTests
         await using var transaction = await context
             .Database.BeginTransactionAsync()
             .ConfigureAwait(false);
+
         await InsertOperationAsync(context, operationId)
             .ConfigureAwait(false);
         proxy.ArmCommitFault(CommitFaultMode.BeforeRequest);
@@ -229,6 +231,7 @@ public sealed class MySqlNetworkFaultContractTests
         await using var transaction = await context
             .Database.BeginTransactionAsync()
             .ConfigureAwait(false);
+
         await InsertOperationAsync(context, operationId)
             .ConfigureAwait(false);
         proxy.ArmCommitFault(CommitFaultMode.BeforeResponse);
@@ -236,6 +239,7 @@ public sealed class MySqlNetworkFaultContractTests
         await Assert
             .ThrowsAnyAsync<Exception>(() => transaction.CommitAsync())
             .ConfigureAwait(false);
+
         Assert.Equal(
             CommitFaultMode.BeforeResponse,
             await proxy
@@ -287,6 +291,7 @@ public sealed class MySqlNetworkFaultContractTests
         await using var transaction = await context
             .Database.BeginTransactionAsync()
             .ConfigureAwait(false);
+
         await InsertOperationAsync(context, operationId)
             .ConfigureAwait(false);
         proxy.ArmCommitFault(CommitFaultMode.AfterResponse);
@@ -294,6 +299,7 @@ public sealed class MySqlNetworkFaultContractTests
         await transaction
             .CommitAsync()
             .ConfigureAwait(false);
+
         Assert.Equal(
             CommitFaultMode.AfterResponse,
             await proxy
@@ -304,6 +310,7 @@ public sealed class MySqlNetworkFaultContractTests
                 .Database.SqlQueryRaw<int>("SELECT 1 AS Value")
                 .SingleAsync())
             .ConfigureAwait(false);
+
         Assert.Equal(
             1,
             await CountOperationAsync(directConnectionString, operationId)

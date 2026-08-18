@@ -697,6 +697,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         var columnType = operation.ColumnType
             ?? GetColumnType(operation.Schema, operation.Table, operation.Name, operation, model);
+
         var defaultValue = operation.DefaultValue ?? GetClrDefaultValue(operation.ClrType);
 
         builder
@@ -714,6 +715,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         {
             var mapping = Dependencies.TypeMappingSource.FindMapping(defaultValue.GetType(), columnType)
                 ?? Dependencies.TypeMappingSource.GetMappingForValue(defaultValue);
+
             builder.Append(mapping.GenerateSqlLiteral(defaultValue));
         }
 

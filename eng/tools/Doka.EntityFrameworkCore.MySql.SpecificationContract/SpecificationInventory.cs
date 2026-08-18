@@ -228,6 +228,7 @@ internal static class SpecificationInventory
                     .GetGenericParameterConstraints()
                     .Select(TypeName)
                     .OrderBy(value => value, StringComparer.Ordinal);
+
                 return $"generic({argument.Name}:{string.Join("&", constraints)})";
             });
 
@@ -320,6 +321,7 @@ internal static class SpecificationInventory
     {
         var informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
             ?.InformationalVersion;
+
         if (string.IsNullOrWhiteSpace(informationalVersion))
         {
             throw new InvalidOperationException($"Assembly '{assembly.GetName().Name}' has no informational version.");

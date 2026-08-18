@@ -1,5 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
+/// <summary>
+/// Translates NetTopologySuite member access into capability-aware MySQL or MariaDB spatial SQL.
+/// </summary>
 internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
 {
     private static readonly BoolTypeMapping s_boolMapping = new("tinyint(1)", DbType.Boolean);
@@ -142,6 +145,7 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
             instance,
             typeof(string),
             s_stringMapping);
+
         var typeNames = new[]
         {
             "Point",
@@ -152,6 +156,7 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
             "MultiPolygon",
             "GeometryCollection",
         };
+
         var clauses = typeNames
             .Select(typeName => new CaseWhenClause(
                 _sqlExpressionFactory.Equal(

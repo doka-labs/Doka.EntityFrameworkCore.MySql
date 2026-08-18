@@ -234,6 +234,7 @@ internal sealed class MySqlApplyRewritingExpressionVisitor : MySqlShapedQueryTra
                 setter.Value,
             })
             .ToArray();
+
         var selectExpression = RewriteMutationTargetSelection(updateExpression.SelectExpression, setterExpressions);
 
         return updateExpression.Update(selectExpression, updateExpression.ColumnValueSetters);
@@ -266,6 +267,7 @@ internal sealed class MySqlApplyRewritingExpressionVisitor : MySqlShapedQueryTra
             {
                 var exists = _sqlExpressionFactory.Exists(
                     (SelectExpression)inner!.Clone(alias: null, AliasRemovingCloningExpressionVisitor.Instance));
+
                 predicate = predicate is null ? exists : _sqlExpressionFactory.AndAlso(predicate, exists);
             }
         }

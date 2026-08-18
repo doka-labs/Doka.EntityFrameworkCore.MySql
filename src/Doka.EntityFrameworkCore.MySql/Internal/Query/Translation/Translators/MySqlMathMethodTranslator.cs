@@ -207,6 +207,7 @@ internal sealed class MySqlMathMethodTranslator : IMethodCallTranslator
         var quotient = _sqlExpressionFactory.Divide(
             _sqlExpressionFactory.Add(one, argument),
             _sqlExpressionFactory.Subtract(one, argument));
+
         var logarithm = TranslateFunction("LOG", [quotient], resultType);
 
         return _sqlExpressionFactory.Multiply(_sqlExpressionFactory.Constant(0.5), logarithm);

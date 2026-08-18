@@ -116,6 +116,7 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
 
             var exception = await Assert.ThrowsAsync<MySqlException>(() => targetContext.Database.ExecuteSqlRawAsync(
                 $"INSERT INTO `{SridTable}` (`Id`, `Location`) VALUES (1, ST_GeomFromText('POINT (1 2)', 0));"));
+
             Assert.Equal(4025, exception.Number);
 
             await using var serviceProvider = ScaffoldingTestServices.CreateDesignTimeServiceProvider(
@@ -217,6 +218,7 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
                 .Entities
                 .SingleAsync()
                 .ConfigureAwait(false);
+
             AssertGeometrySet(expected, tracked);
 
             context.ChangeTracker.Clear();
@@ -225,6 +227,7 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
                 .AsNoTracking()
                 .SingleAsync()
                 .ConfigureAwait(false);
+
             AssertGeometrySet(expected, untracked);
 
             var scalar = await context
@@ -241,6 +244,7 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
                     entity.Geometry))
                 .SingleAsync()
                 .ConfigureAwait(false);
+
             AssertGeometrySet(expected, scalar);
 
             var included = await context
@@ -249,7 +253,9 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
                 .Include(entity => entity.Children)
                 .SingleAsync()
                 .ConfigureAwait(false);
+
             AssertGeometrySet(expected, included);
+
             Assert.Single(included.Children);
 
             var split = await context
@@ -259,7 +265,9 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
                 .Include(entity => entity.Children)
                 .SingleAsync()
                 .ConfigureAwait(false);
+
             AssertGeometrySet(expected, split);
+
             Assert.Single(split.Children);
         }
         finally
@@ -282,6 +290,7 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
         {
             await using var context = new SpatialCrossesContext(
                 CreateOptions<SpatialCrossesContext>(connectionString, target));
+
             await context
                 .Database
                 .ExecuteSqlRawAsync(
@@ -315,6 +324,7 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
                 .Select(row => row.LeftGeometry.Crosses(row.RightGeometry))
                 .ToListAsync()
                 .ConfigureAwait(false);
+
             var expected = cases
                 .Select(pair => pair.Left.Crosses(pair.Right))
                 .ToArray();
@@ -342,6 +352,7 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
         {
             await using var context = new SpatialCrossesContext(
                 CreateOptions<SpatialCrossesContext>(connectionString, target));
+
             await context
                 .Database
                 .ExecuteSqlRawAsync(
@@ -384,6 +395,7 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
                     .Select(row => row.LeftGeometry.Buffer(1, 4))
                     .SingleAsync()
                     .ConfigureAwait(false);
+
             Assert.False(buffered.IsEmpty);
 
             var combined = await context
@@ -393,6 +405,7 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
                     group.Select(row => row.LeftGeometry)))
                 .SingleAsync()
                 .ConfigureAwait(false);
+
             var union = await context
                 .Rows
                 .GroupBy(_ => 1)
@@ -400,6 +413,7 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
                     group.Select(row => row.LeftGeometry)))
                 .SingleAsync()
                 .ConfigureAwait(false);
+
             var envelope = await context
                 .Rows
                 .GroupBy(_ => 1)
@@ -535,6 +549,7 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
         await using var reader = await command
             .ExecuteReaderAsync()
             .ConfigureAwait(false);
+
         Assert.True(
             await reader
                 .ReadAsync()

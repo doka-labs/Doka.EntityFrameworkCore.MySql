@@ -271,9 +271,11 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 Table = PointTableName,
                 Columns = ["Location"],
             };
+
             indexOperation.SetAnnotation(MySqlAnnotationNames.SpatialIndex, true);
 
             var commands = generator.Generate([indexOperation], context.Model);
+
             Assert.Single(commands);
             Assert.Contains("SPATIAL INDEX", commands[0].CommandText, StringComparison.OrdinalIgnoreCase);
 
@@ -287,6 +289,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
             verify.CommandText =
                 $"SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = '{PointTableName}' AND index_name = 'IX_Spatial_Location';";
             var indexCount = Convert.ToInt32(await verify.ExecuteScalarAsync().ConfigureAwait(false), CultureInfo.InvariantCulture);
+
             Assert.True(indexCount > 0);
         }
         finally

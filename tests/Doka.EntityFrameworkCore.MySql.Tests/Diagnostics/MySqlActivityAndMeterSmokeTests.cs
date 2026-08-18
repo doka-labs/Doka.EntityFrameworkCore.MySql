@@ -65,6 +65,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
         using var failures = new CounterSink<long>(MySqlDiagnostics.MigrationOperationHandlerFailuresTotalMetricName);
         using var violations = new CounterSink<long>(
             MySqlDiagnostics.MigrationOperationHandlerContractViolationsTotalMetricName);
+
         using var duration = new HistogramSink<double>(MySqlDiagnostics.MigrationOperationHandlerDurationMetricName);
         var tags = new TagList
         {
@@ -92,6 +93,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
         var recordedActivity = Assert.Single(
             activitySink.Activities,
             candidate => candidate.OperationName == MySqlDiagnostics.MigrationOperationHandlerSpanName);
+
         Assert.Equal("tests.handler", recordedActivity.GetTagItem(MySqlDiagnosticTags.MigrationHandlerId));
         Assert.Equal(MySqlDiagnosticTags.MySql, recordedActivity.GetTagItem(MySqlDiagnosticTags.DatabaseSystem));
         Assert.Equal(MySqlDiagnosticTags.MySql, recordedActivity.GetTagItem(MySqlDiagnosticTags.EngineFamilyName));
@@ -119,6 +121,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
                 "Server=localhost;Database=doka;User ID=root;Password=password;",
                 MySqlServerVersion.MySql(new Version(8, 4, 11)))
             .Options;
+
         using var context = new OutcomeContext(options);
 
         _ = context
@@ -129,6 +132,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
             activitySink.Activities,
             candidate => candidate.OperationName == MySqlDiagnostics.MigrationOperationHandlerSpanName
                 && Equals(candidate.GetTagItem(MySqlDiagnosticTags.MigrationHandlerId), "tests.outcome"));
+
         Assert.Equal("qualified", activity.GetTagItem(MySqlDiagnosticTags.MigrationHandlerOutcome));
         Assert.True(calls.TotalDelta >= 1);
         Assert.Contains(
@@ -154,6 +158,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
         using var loggerFactory = LoggerFactory.Create(builder => builder
             .SetMinimumLevel(LogLevel.Trace)
             .AddProvider(new TestLoggerProvider(logSink)));
+
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(loggerFactory);
         services.AddScoped<IMySqlMigrationOperationHandler, FailureHandler>();
@@ -166,6 +171,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
                 "Server=localhost;Database=doka;User ID=root;Password=password;",
                 MySqlServerVersion.MySql(new Version(8, 4, 11)))
             .Options;
+
         using var context = new FailureContext(options);
 
         var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() => context
@@ -180,6 +186,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
         var log = Assert.Single(
             logSink.Entries,
             entry => entry.EventId == MySqlEventId.MigrationOperationHandlerFailed);
+
         Assert.Null(log.ExceptionType);
         Assert.Contains(nameof(InvalidOperationException), log.Message, StringComparison.Ordinal);
 
@@ -187,6 +194,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
             activitySink.Activities,
             candidate => candidate.OperationName == MySqlDiagnostics.MigrationOperationHandlerSpanName
                 && Equals(candidate.GetTagItem(MySqlDiagnosticTags.MigrationHandlerId), "tests.failure"));
+
         Assert.Equal(ActivityStatusCode.Error, activity.Status);
         Assert.Equal(
             nameof(MySqlMigrationHandlerFailureCode.HandlerFailed),
@@ -195,6 +203,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
         var failureTags = Assert.Single(
             failures.TagSets,
             tags => Equals(tags[MySqlDiagnosticTags.MigrationHandlerId], "tests.failure"));
+
         Assert.Equal(
             nameof(MySqlMigrationHandlerFailureCode.HandlerFailed),
             failureTags[MySqlDiagnosticTags.ErrorType]);
@@ -219,6 +228,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
                     .TagSets.Concat(duration.TagSets)
                     .SelectMany(tags => tags)
                     .Select(tag => $"{tag.Key}={tag.Value}")));
+
         Assert.DoesNotContain(sensitiveMessage, serializedTelemetry, StringComparison.Ordinal);
         Assert.DoesNotContain(sensitiveData, serializedTelemetry, StringComparison.Ordinal);
         Assert.DoesNotContain("private-context", serializedTelemetry, StringComparison.Ordinal);
@@ -346,7 +356,9 @@ public sealed class MySqlActivityAndMeterSmokeTests
             "Open",
             EngineFamily.MySql,
             exception)) { }
+
         using (MySqlActivitySource.StartCommandTimeout("Open", EngineFamily.MySql, exception)) { }
+
         using (MySqlActivitySource.StartCommitUnknown("Broken", EngineFamily.MySql, exception)) { }
 
         var operationNames = activitySink.Activities
@@ -381,6 +393,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
     public void Source_has_no_listeners_when_nothing_subscribed_keeps_start_helpers_returning_null()
     {
         var activity = MySqlActivitySource.StartRetryAttempt(attemptNumber: 0, EngineFamily.MySql);
+
         Assert.Null(activity);
     }
 
@@ -456,6 +469,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
                         ["private-context"] = "tenant=private_tenant",
                     },
                 };
+
             throw exception;
         }
     }

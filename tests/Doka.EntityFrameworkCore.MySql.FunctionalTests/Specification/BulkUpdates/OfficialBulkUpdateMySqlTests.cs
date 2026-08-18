@@ -40,8 +40,10 @@ public sealed class NorthwindBulkUpdatesMySqlTest
                 customer => EF.Functions.Like(
                     customer.CustomerID,
                     "F%"));
+
         var orderCount = await context.Orders
             .CountAsync(order => order.OrderID > 5);
+
         var rows = await (
                 from customer in context.Customers
                 where EF.Functions.Like(customer.CustomerID, "F%")
@@ -73,6 +75,7 @@ public sealed class NorthwindBulkUpdatesMySqlTest
                 customer => EF.Functions.Like(
                     customer.CustomerID,
                     "F%"));
+
         var rows = await (
                 from customer in context.Customers
                 where EF.Functions.Like(customer.CustomerID, "F%")

@@ -145,6 +145,7 @@ public sealed class MySqlGuidFormatTests
                 Assert.Equal("inserted", inserted.Name);
 
                 var storageShape = await ReadRawIdStringsAsync(connectionString, dbName, "Char36Entities");
+
                 Assert.Contains("00003803-ce08-4029-b639-200564ae1dd2", storageShape, StringComparer.Ordinal);
                 Assert.Contains("11112222-3333-4444-5555-666677778888", storageShape, StringComparer.Ordinal);
             }
@@ -209,6 +210,7 @@ public sealed class MySqlGuidFormatTests
                 Assert.Equal("inserted", inserted.Name);
 
                 var rawHex = await ReadRawIdHexAsync(connectionString, dbName, "Binary16Entities");
+
                 Assert.Contains("00003803CE084029B639200564AE1DD2", rawHex, StringComparer.OrdinalIgnoreCase);
                 Assert.Contains("11112222333344445555666677778888", rawHex, StringComparer.OrdinalIgnoreCase);
             }
@@ -267,6 +269,7 @@ public sealed class MySqlGuidFormatTests
                 .Principals
                 .Include(item => item.Dependents)
                 .SingleAsync(item => item.Id == s_defaultGuid);
+
             var dependent = Assert.Single(principal.Dependents);
             var binary = await readContext
                 .BinaryEntities
@@ -282,16 +285,19 @@ public sealed class MySqlGuidFormatTests
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT CAST(`Id` AS CHAR(36)) FROM `DefaultChar36Principals`;";
+
         Assert.Equal(
             s_defaultGuid.ToString("D", CultureInfo.InvariantCulture),
             Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
 
         command.CommandText = "SELECT CAST(`PrincipalId` AS CHAR(36)) FROM `DefaultChar36Dependents`;";
+
         Assert.Equal(
             s_defaultGuid.ToString("D", CultureInfo.InvariantCulture),
             Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
 
         command.CommandText = "SELECT HEX(`Id`) FROM `ExplicitBinary16UnderChar36`;";
+
         Assert.Equal(
             "FEDCBA0987654321FEDCBA0987654321",
             Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));

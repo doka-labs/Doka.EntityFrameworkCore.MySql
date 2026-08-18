@@ -313,6 +313,7 @@ internal sealed class
         {
             var selectExpressions =
                 (IReadOnlyList<SelectExpression>)s_tpcSelectExpressionsProperty.GetValue(tpcTablesExpression)!;
+
             var visitedSelectExpressions = selectExpressions
                 .Select(selectExpression => (SelectExpression)Visit(selectExpression))
                 .ToArray();
@@ -481,6 +482,7 @@ internal sealed class
                     var elementMapping = projection.TypeMapping ?? _typeMappingSource.FindMapping(projection.Type);
                     var collectionMapping = parameter.TypeMapping
                         ?? _typeMappingSource.FindMapping(parameter.Type, _queryCompilationContext.Model, elementMapping);
+
                     var json = collectionMapping is null ? parameter : parameter.ApplyTypeMapping(collectionMapping);
 
                     return UpdateElementQuery(
@@ -518,6 +520,7 @@ internal sealed class
                             _sqlExpressionFactory.Equal(translatedIndex, row.Values[0]),
                             row.Values[1]))
                         .ToArray();
+
                     var fallback = _sqlExpressionFactory.Constant(null, projection.Type, projection.TypeMapping);
 
                     return UpdateElementQuery(source, _sqlExpressionFactory.Case(whenClauses, fallback));

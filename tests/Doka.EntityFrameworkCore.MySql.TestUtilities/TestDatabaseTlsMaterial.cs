@@ -69,6 +69,7 @@ internal sealed class TestDatabaseTlsMaterial : IDisposable
                 clientKey,
                 "doka-integration-client",
                 isServer: false);
+
             using var untrustedCaKey = RSA.Create(3072);
             using var untrustedCaCertificate = CreateCertificateAuthority(untrustedCaKey);
 
@@ -128,6 +129,7 @@ internal sealed class TestDatabaseTlsMaterial : IDisposable
             key,
             HashAlgorithmName.SHA256,
             RSASignaturePadding.Pkcs1);
+
         request.CertificateExtensions.Add(
             new X509BasicConstraintsExtension(certificateAuthority: true, hasPathLengthConstraint: false, 0, true));
         request.CertificateExtensions.Add(
@@ -149,6 +151,7 @@ internal sealed class TestDatabaseTlsMaterial : IDisposable
             key,
             HashAlgorithmName.SHA256,
             RSASignaturePadding.Pkcs1);
+
         request.CertificateExtensions.Add(
             new X509BasicConstraintsExtension(certificateAuthority: false, hasPathLengthConstraint: false, 0, true));
         request.CertificateExtensions.Add(

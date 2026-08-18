@@ -134,6 +134,7 @@ public sealed class MySqlMigrationRenameColumnTests
 
             var designTimeModel = context.GetService<IDesignTimeModel>().Model;
             var commands = generator.Generate([operation], designTimeModel);
+
             Assert.Single(commands);
 
             var emitted = commands[0].CommandText;

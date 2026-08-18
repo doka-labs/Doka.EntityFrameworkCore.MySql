@@ -272,6 +272,7 @@ public class MigrationsSqlGenerationBenchmarks
                 targetContext
                     .GetService<IDesignTimeModel>()
                     .Model.GetRelationalModel());
+
             var commands = migrationsSqlGenerator.Generate(operations, targetContext.Model);
             commandCount += commands.Count;
         }

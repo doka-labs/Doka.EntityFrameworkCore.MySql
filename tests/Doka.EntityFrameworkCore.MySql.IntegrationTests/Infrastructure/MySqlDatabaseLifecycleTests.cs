@@ -178,6 +178,7 @@ public sealed class MySqlDatabaseLifecycleTests
         await using var databaseLock = await historyRepository
             .AcquireDatabaseLockAsync()
             .ConfigureAwait(false);
+
         var lockName = MySqlAdvisoryLockNaming.BuildLockName(connectionString);
 
         await using var competingConnection = new MySqlConnection(connectionString);
@@ -309,6 +310,7 @@ public sealed class MySqlDatabaseLifecycleTests
                 sequenceName,
                 7,
                 supportsNativeSequences: false);
+
             var secondValue = MySqlSequenceValueGenerator.GetNextValue(
                 connection,
                 sequenceName,
@@ -322,6 +324,7 @@ public sealed class MySqlDatabaseLifecycleTests
             using var duplicateRowCommand = connection.CreateCommand();
             duplicateRowCommand.CommandText =
                 $"INSERT INTO `__efsequence_{sequenceName}` (`id`, `value`, `is_called`) VALUES (2, 100, FALSE);";
+
             Assert.Throws<MySqlException>(() => duplicateRowCommand.ExecuteNonQuery());
         }
         finally
@@ -361,6 +364,7 @@ public sealed class MySqlDatabaseLifecycleTests
                     7,
                     supportsNativeSequences: false)
                 .ConfigureAwait(false);
+
             var secondValue = await MySqlSequenceValueGenerator
                 .GetNextValueAsync(
                     connection,
@@ -471,6 +475,7 @@ public sealed class MySqlDatabaseLifecycleTests
                 seqName,
                 1,
                 supportsNativeSequences: true);
+
             var value2 = MySqlSequenceValueGenerator.GetNextValue(
                 connection,
                 seqName,
@@ -517,6 +522,7 @@ public sealed class MySqlDatabaseLifecycleTests
                     1,
                     supportsNativeSequences: true)
                 .ConfigureAwait(false);
+
             var value2 = await MySqlSequenceValueGenerator
                 .GetNextValueAsync(
                     connection,

@@ -22,6 +22,7 @@ try
         ["attempts"] = 3,
         ["tags"] = new JsonArray("provider", "mysql"),
     };
+
     var serializedPayload = payload.ToJsonString();
     context.Documents.Add(new JsonDocumentEntity
     {
@@ -40,6 +41,7 @@ try
         .AsNoTracking()
         .Where(document => EF.Functions.JsonContains(document.SearchDocument, "{\"status\":\"active\"}"))
         .CountAsync(cancellationToken);
+
     var depth = await context.Documents
         .AsNoTracking()
         .Select(document => EF.Functions.JsonDepth(document.SearchDocument))

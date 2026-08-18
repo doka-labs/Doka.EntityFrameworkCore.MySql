@@ -26,6 +26,7 @@ public class UpdatesMySqlTest : UpdatesRelationalTestBase<UpdatesMySqlTest.Updat
             typeof(
                 LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectly
             ))!;
+
         var secondEntityType = context.Model.FindEntityType(
             typeof(
                 LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectlyDetails
@@ -39,6 +40,7 @@ public class UpdatesMySqlTest : UpdatesRelationalTestBase<UpdatesMySqlTest.Updat
         AssertIdentifier(secondEntityType.GetTableName());
         AssertIdentifier(secondEntityType.GetKeys().Single().GetName());
         AssertIdentifier(secondEntityType.GetIndexes().Single().GetDatabaseName());
+
         Assert.NotEqual(firstEntityType.GetTableName(), secondEntityType.GetTableName());
 
         var table = StoreObjectIdentifier.Table(secondEntityType.GetTableName()!);

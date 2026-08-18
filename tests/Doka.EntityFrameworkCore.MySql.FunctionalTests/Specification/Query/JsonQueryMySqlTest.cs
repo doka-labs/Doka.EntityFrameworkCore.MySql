@@ -370,6 +370,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
     {
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => base.Json_collection_index_in_projection_using_untranslatable_client_method(async));
+
         Assert.Contains("MyMethod", ex.Message);
         Assert.Contains("could not be translated", ex.Message);
     }
@@ -385,6 +386,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
     {
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => base.Json_collection_index_in_projection_using_untranslatable_client_method2(async));
+
         Assert.Contains("MyMethod", ex.Message);
         Assert.Contains("could not be translated", ex.Message);
     }

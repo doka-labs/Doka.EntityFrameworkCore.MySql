@@ -320,6 +320,7 @@ public sealed class FullMigrationsMySqlTest
             var schemaFilter = selectedDatabases.Length > 1
                 ? selectedDatabases
                 : [];
+
             var scaffoldedModel = databaseModelFactory.Create(
                 context.Database.GetDbConnection(),
                 new DatabaseModelFactoryOptions([], schemaFilter));

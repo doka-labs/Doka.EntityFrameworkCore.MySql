@@ -54,6 +54,7 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
         var property = context.Model
             .FindEntityType(typeof(GuidKeyEntity))!
             .FindProperty(nameof(GuidKeyEntity.Id))!;
+
         var mapping = property.GetRelationalTypeMapping();
         var value = Guid.Parse("9d54ead7-e69c-4939-9290-8e95586996de");
 
@@ -133,8 +134,10 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
         var property = context.Model
             .FindEntityType(typeof(ExplicitBinary16Entity))!
             .FindProperty(nameof(ExplicitBinary16Entity.Id))!;
+
         var converter = Assert.IsAssignableFrom<ValueConverter>(property.GetValueConverter());
         var value = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
+
         var providerValue = Assert.IsType<byte[]>(converter.ConvertToProvider(value));
 
         Assert.Equal("00112233445566778899AABBCCDDEEFF", Convert.ToHexString(providerValue));
@@ -263,6 +266,7 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
         table.Rows.Add(value);
 
         using var reader = table.CreateDataReader();
+
         Assert.True(reader.Read());
 
         var readerExpression = Expression.Parameter(typeof(DbDataReader), "reader");
@@ -271,6 +275,7 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
             readerExpression,
             RelationalTypeMapping.GetDataReaderMethod(typeof(string)),
             ordinalExpression);
+
         var customizedExpression = mapping.CustomizeDataReaderExpression(getStringExpression);
         var materialize = Expression
             .Lambda<Func<DbDataReader, string>>(customizedExpression, readerExpression)

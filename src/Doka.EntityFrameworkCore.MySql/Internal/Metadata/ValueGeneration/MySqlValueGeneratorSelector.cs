@@ -73,6 +73,7 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
 
         var converter = property.GetTypeMapping()
             .Converter;
+
         if (converter is not null
             && converter.ProviderClrType != propertyType)
         {

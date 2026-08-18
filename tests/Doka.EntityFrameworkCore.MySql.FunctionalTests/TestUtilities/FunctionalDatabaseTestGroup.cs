@@ -22,6 +22,7 @@ public sealed class FunctionalDatabaseFixture : IAsyncLifetime
         var session = await TestDatabaseSession
             .StartAsync([request])
             .ConfigureAwait(false);
+
         var endpoint = session.GetEndpoint(request.TargetId);
 
         try

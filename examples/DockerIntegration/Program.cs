@@ -31,6 +31,7 @@ try
     var detectedVersion = Convert.ToString(
         await command.ExecuteScalarAsync(cancellationToken),
         System.Globalization.CultureInfo.InvariantCulture);
+
     var probeCount = await context.Probes.AsNoTracking().CountAsync(cancellationToken);
 
     if (string.IsNullOrWhiteSpace(detectedVersion) || probeCount != 1)

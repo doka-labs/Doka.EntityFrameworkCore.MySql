@@ -112,6 +112,7 @@ public sealed class MySqlPoolAndFailoverContractTests
             baseConnectionString,
             maximumPoolSize: 2,
             connectionTimeout: 1);
+
         await using var firstConnection = new MySqlConnection(connectionString);
         await MySqlConnection
             .ClearPoolAsync(firstConnection, CancellationToken.None)
@@ -176,6 +177,7 @@ public sealed class MySqlPoolAndFailoverContractTests
             baseConnectionString,
             maximumPoolSize: 1,
             connectionTimeout: 30);
+
         await using var blockingConnection = new MySqlConnection(connectionString);
         await MySqlConnection
             .ClearPoolAsync(blockingConnection, CancellationToken.None)
@@ -216,6 +218,7 @@ public sealed class MySqlPoolAndFailoverContractTests
             baseConnectionString,
             maximumPoolSize: 1,
             connectionTimeout: 2);
+
         await using var initialConnection = new MySqlConnection(connectionString);
         await MySqlConnection
             .ClearPoolAsync(initialConnection, CancellationToken.None)
@@ -296,6 +299,7 @@ public sealed class MySqlPoolAndFailoverContractTests
             ConnectionTimeout = 2,
             ApplicationName = $"doka-broken-pool-{Guid.NewGuid():N}",
         };
+
         await using var faultedConnection = new MySqlConnection(proxiedBuilder.ConnectionString);
         await MySqlConnection
             .ClearPoolAsync(faultedConnection, CancellationToken.None)
@@ -353,6 +357,7 @@ public sealed class MySqlPoolAndFailoverContractTests
             directBuilder.Server,
             checked((int)directBuilder.Port),
             healthyHost);
+
         var unavailableHost = IPAddress.Loopback;
 
         using (var unavailableClient = new TcpClient(AddressFamily.InterNetwork))

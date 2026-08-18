@@ -1,5 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
+/// <summary>
+/// Decorates EF Core model differencing with provider annotations and engine-safe operation ordering.
+/// </summary>
 internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
 {
     private readonly IMigrationsModelDiffer _innerDiffer;
@@ -956,6 +959,7 @@ internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
                 Table = sourceForeignKey.Table.Name,
                 Name = sourceForeignKey.Name,
             };
+
             drop.AddAnnotations(sourceForeignKey.GetAnnotations());
 
             transitions.Add(

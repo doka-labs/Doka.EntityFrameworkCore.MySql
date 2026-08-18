@@ -87,6 +87,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         var mySqlTask = Task.Run(() => ScaffoldAndAssertStateConsumed(
             serviceProvider,
             "Server=localhost;Database=spatial_mysql;User ID=root;Password=secret;"));
+
         var mariaDbTask = Task.Run(() => ScaffoldAndAssertStateConsumed(
             serviceProvider,
             "Server=localhost;Database=plain_mariadb;User ID=root;Password=secret;"));
@@ -150,6 +151,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         using var sourceContext = new EmptySpatialContext(CreateOptions<EmptySpatialContext>(isMariaDb: false));
         using var targetContext =
             new SpatialMigrationsContext(CreateOptions<SpatialMigrationsContext>(isMariaDb: false));
+
         var differ = targetContext.GetService<IMigrationsModelDiffer>();
         var migrationsSqlGenerator = targetContext.GetService<IMigrationsSqlGenerator>();
         var operations = differ.GetDifferences(
@@ -159,6 +161,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             targetContext
                 .GetService<IDesignTimeModel>()
                 .Model.GetRelationalModel());
+
         var sql = string.Join(
             Environment.NewLine,
             migrationsSqlGenerator
@@ -180,6 +183,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         using var sourceContext = new EmptySpatialContext(CreateOptions<EmptySpatialContext>(isMariaDb: true));
         using var targetContext =
             new SpatialMigrationsContext(CreateOptions<SpatialMigrationsContext>(isMariaDb: true));
+
         var differ = targetContext.GetService<IMigrationsModelDiffer>();
         var migrationsSqlGenerator = targetContext.GetService<IMigrationsSqlGenerator>();
         var operations = differ.GetDifferences(
@@ -189,6 +193,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             targetContext
                 .GetService<IDesignTimeModel>()
                 .Model.GetRelationalModel());
+
         var sql = string.Join(
             Environment.NewLine,
             migrationsSqlGenerator
@@ -312,6 +317,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
     )
     {
         var codeGenerator = serviceProvider.GetRequiredService<IProviderConfigurationCodeGenerator>();
+
         var exception = Assert.Throws<InvalidOperationException>(
             () => codeGenerator.GenerateUseProvider(connectionString));
 
@@ -432,6 +438,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             IsNullable = false,
             ValueGenerated = ValueGenerated.OnAdd,
         };
+
         var locationColumn = new DatabaseColumn
         {
             Table = table,
@@ -472,11 +479,13 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             DatabaseName = "plain_mariadb",
             Collation = "utf8mb4_general_ci",
         };
+
         var table = new DatabaseTable
         {
             Database = databaseModel,
             Name = "plain_feature",
         };
+
         var idColumn = new DatabaseColumn
         {
             Table = table,

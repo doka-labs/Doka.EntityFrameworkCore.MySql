@@ -380,5 +380,24 @@ resharper_csharp_place_expr_method_on_single_line = always
 resharper_csharp_place_expr_property_on_single_line = if_owner_is_single_line
 resharper_csharp_place_expr_accessor_on_single_line = if_owner_is_single_line
 
+# --- Vertical Grouping -------------------------------------------------------
+# Keep one visual boundary after control-flow blocks. Rider has no equivalent
+# rule limited to multiline local declarations, so those boundaries remain
+# explicit in source and are preserved by the two keep-max settings.
+resharper_csharp_keep_blank_lines_in_code = 1
+resharper_csharp_keep_blank_lines_in_declarations = 1
+resharper_csharp_blank_lines_after_block_statements = 1
+resharper_csharp_blank_lines_around_local_method = 1
+resharper_csharp_blank_lines_around_single_line_local_method = 1
+
 # --- Inspections -------------------------------------------------------------
 resharper_convert_to_primary_constructor_highlighting = none
+
+# -----------------------------------------------------------------------------
+# Package Public API Documentation
+# -----------------------------------------------------------------------------
+
+[src/**/*.cs]
+# Public package symbols must carry XML documentation so their contracts are
+# available in IntelliSense and remain compiler-verified.
+dotnet_diagnostic.CS1591.severity = warning

@@ -31,6 +31,7 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
 
         var defaultStringMapping = (RelationalTypeMapping?)typeMappingSource.FindMapping(typeof(string))
             ?? throw new InvalidOperationException("The provider must define a default string type mapping.");
+
         var valuesAliases = new ValuesAliasFindingVisitor().Find(expression);
 
         if (valuesAliases.Count == 0)

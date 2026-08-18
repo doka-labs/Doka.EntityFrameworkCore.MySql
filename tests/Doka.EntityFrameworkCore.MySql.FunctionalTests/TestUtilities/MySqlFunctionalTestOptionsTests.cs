@@ -182,6 +182,7 @@ public sealed class MySqlFunctionalTestOptionsTests
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToArray();
+
         var expected = s_expectedNonTransientUseMySqlSites
             .Order(StringComparer.Ordinal)
             .ToArray();
@@ -216,6 +217,7 @@ public sealed class MySqlFunctionalTestOptionsTests
             var relativePath = Path
                 .GetRelativePath(projectRoot, path)
                 .Replace(Path.DirectorySeparatorChar, '/');
+
             var root = CSharpSyntaxTree
                 .ParseText(File.ReadAllText(path))
                 .GetCompilationUnitRoot();

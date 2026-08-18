@@ -35,6 +35,7 @@ public sealed class MariaDbModelingIntegrationTests
             await context.SaveChangesAsync();
 
             var dogs = await context.Animals.OfType<TphDog>().ToListAsync();
+
             Assert.Single(dogs);
             Assert.Equal("Shepherd", dogs[0].Breed);
             Assert.Equal(2, await context.Animals.CountAsync());
@@ -62,6 +63,7 @@ public sealed class MariaDbModelingIntegrationTests
             context.Vehicles.Add(new TptCar { Make = "Audi", SeatCount = 4 });
             await context.SaveChangesAsync();
             var car = await context.Vehicles.OfType<TptCar>().FirstAsync();
+
             Assert.Equal("Audi", car.Make);
             Assert.Equal(4, car.SeatCount);
         }
@@ -96,6 +98,7 @@ public sealed class MariaDbModelingIntegrationTests
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
             var c = await context.Customers.FirstAsync();
+
             Assert.Equal("Munich", c.Address!.City);
         }
         finally
@@ -128,6 +131,7 @@ public sealed class MariaDbModelingIntegrationTests
             var loaded = await context
                 .Students.Include(x => x.Courses)
                 .FirstAsync();
+
             Assert.Single(loaded.Courses);
         }
         finally
@@ -152,6 +156,7 @@ public sealed class MariaDbModelingIntegrationTests
             await context.Database.ExecuteSqlRawAsync("UPDATE `MdbConcurrency` SET `Version` = 99 WHERE `Id` = 1;");
             var entity = await context.Items.FirstAsync();
             entity.Name = "Modified";
+
             await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => context.SaveChangesAsync());
         }
         finally
@@ -181,6 +186,7 @@ public sealed class MariaDbModelingIntegrationTests
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
             var loaded = await context.Items.FirstAsync();
+
             Assert.True(loaded.IsActive);
             Assert.Equal(99.95m, loaded.Price);
         }

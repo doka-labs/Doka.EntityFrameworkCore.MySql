@@ -79,6 +79,7 @@ internal static class Program
             .RequiredMany("--inventory")
             .Select(SpecificationInventory.Load)
             .ToArray();
+
         var output = options.RequiredSingle("--output");
         var provider = options.RequiredSingle("--provider");
         var baseline = SpecificationBaseline.Create(inventories, provider);
@@ -148,6 +149,7 @@ internal static class Program
         var providerPath = options.RequiredSingle("--provider");
         var providerAssembly = AssemblyName.GetAssemblyName(providerPath)
             .Name!;
+
         var efCoreVersion = SpecificationInventory.CurrentEfCoreVersion();
         var existing = File.Exists(contractPath) ? DiscoveryContract.Load(contractPath) : null;
         var updated = DiscoveryContract.Update(
@@ -191,8 +193,10 @@ internal static class Program
     {
         var all = DiscoveryContract.ParseListOutput(
             File.ReadAllText(options.RequiredSingle("--all")));
+
         var classified = DiscoveryContract.ParseListOutput(
             File.ReadAllText(options.RequiredSingle("--classified")));
+
         var errors = DiscoveryContract.ValidateClassification(all, classified);
 
         foreach (var error in errors)

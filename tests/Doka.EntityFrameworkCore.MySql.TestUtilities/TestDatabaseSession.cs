@@ -289,6 +289,7 @@ public sealed class TestDatabaseSession : IAsyncDisposable
             GeneratedUtc: DateTimeOffset.UtcNow,
             LifecycleState: lifecycleState,
             Targets: targets);
+
         var temporaryFile = $"{_evidenceFile}.{Guid.NewGuid():N}.tmp";
 
         await using (var stream = File.Create(temporaryFile))

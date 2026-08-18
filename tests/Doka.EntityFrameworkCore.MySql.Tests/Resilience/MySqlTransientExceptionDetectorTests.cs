@@ -76,6 +76,7 @@ public sealed class MySqlTransientExceptionDetectorTests
     {
         var inner = new System.Net.Sockets.SocketException();
         var outer = new InvalidOperationException("wrapper", inner);
+
         Assert.True(_detector.ShouldRetryOn(outer));
     }
 
@@ -140,6 +141,7 @@ public sealed class MySqlTransientExceptionDetectorTests
     {
         var inner = CreateMySqlException(MySqlErrorCode.LockDeadlock);
         var outer = new InvalidOperationException("wrapper", inner);
+
         Assert.True(_detector.ShouldRetryOn(outer));
     }
 

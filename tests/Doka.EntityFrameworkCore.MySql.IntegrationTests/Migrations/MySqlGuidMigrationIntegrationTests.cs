@@ -83,6 +83,7 @@ public sealed class MySqlGuidMigrationIntegrationTests
     )
     {
         var operationList = operations.ToList();
+
         var drop = Assert.Single(operations.OfType<DropForeignKeyOperation>());
         var alters = operations
             .OfType<AlterColumnOperation>()

@@ -306,6 +306,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
             "@quantityPerUnit",
             MySqlDbType.VarChar,
             20);
+
         var unitsOnOrder = command.Parameters.Add("@unitsOnOrder", MySqlDbType.UInt16);
         var reorderLevel = command.Parameters.Add("@reorderLevel", MySqlDbType.UInt16);
         var productId = command.Parameters.Add("@productId", MySqlDbType.Int32);
@@ -413,6 +414,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
             "@titleOfCourtesy",
             MySqlDbType.VarChar,
             25);
+
         var birthDate = command.Parameters.Add("@birthDate", MySqlDbType.DateTime);
         var hireDate = command.Parameters.Add("@hireDate", MySqlDbType.DateTime);
         var address = command.Parameters.Add("@address", MySqlDbType.VarChar, 60);

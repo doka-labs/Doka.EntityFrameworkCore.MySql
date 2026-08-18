@@ -62,6 +62,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         var serverVersion = _mySqlSingletonOptions.ServerVersion
             ?? throw new InvalidOperationException(
                 "The server version must be initialized before migration SQL generation.");
+
         var generationMode = GetGenerationMode(Options);
         var operationType = registration.OperationType.FullName ?? registration.OperationType.Name;
 
@@ -144,6 +145,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 outcome,
                 serverVersion.Profile.Engine.Family,
                 failureCode.ToString());
+
             RecordHandlerCompletion(failureTags, handlerDurationSeconds);
             MySqlMeter.MigrationOperationHandlerFailuresTotal.Add(1, failureTags);
 
@@ -186,6 +188,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             generationMode,
             result.OutcomeCode,
             serverVersion.Profile.Engine.Family);
+
         RecordHandlerCompletion(successTags, handlerDurationSeconds);
 
         foreach (var command in commands)
@@ -299,6 +302,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             outcome,
             engineFamily,
             failureCode.ToString());
+
         RecordHandlerCompletion(tags, handlerDurationSeconds);
         MySqlMeter.MigrationOperationHandlerContractViolationsTotal.Add(1, tags);
     }
@@ -334,6 +338,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             "unknown_operation",
             profile.Engine.Family,
             nameof(MySqlMigrationHandlerFailureCode.UnknownOperationType));
+
         MySqlMeter.MigrationOperationHandlerContractViolationsTotal.Add(1, tags);
 
         throw new MySqlMigrationOperationHandlerException(

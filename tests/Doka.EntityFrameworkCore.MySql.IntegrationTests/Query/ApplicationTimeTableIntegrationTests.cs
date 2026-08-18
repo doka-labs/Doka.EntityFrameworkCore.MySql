@@ -60,6 +60,7 @@ public sealed class ApplicationTimeTableIntegrationTests
             await AssertPortionMutationContractAsync(target);
 
             await ExecuteOperationsAsync(emptyContext, connection, GetDifferences(bitemporalContext, emptyContext));
+
             Assert.Equal(0, await CountTablesAsync(connection));
         }
         finally
@@ -150,6 +151,7 @@ public sealed class ApplicationTimeTableIntegrationTests
         var databaseModel = scopedServices
             .GetRequiredService<IDatabaseModelFactory>()
             .Create(connectionString, databaseOptions);
+
         var sourceTable = Assert.Single(databaseModel.Tables);
 
         Assert.True(
@@ -183,6 +185,7 @@ public sealed class ApplicationTimeTableIntegrationTests
                 ScaffoldingTestServices.CreateCodeGenerationOptions(
                     connectionString,
                     contextName: "BitemporalSchemaContext"));
+
         var contextCode = scaffoldedModel.ContextFile.Code;
 
         Assert.Contains("tableBuilder.IsTemporal(temporalTableBuilder =>", contextCode);
@@ -286,6 +289,7 @@ public sealed class ApplicationTimeTableIntegrationTests
         var sourceModel = source
             .GetService<IDesignTimeModel>()
             .Model.GetRelationalModel();
+
         var targetModel = target
             .GetService<IDesignTimeModel>()
             .Model.GetRelationalModel();
@@ -341,6 +345,7 @@ public sealed class ApplicationTimeTableIntegrationTests
             + $"FOR SHOW CREATE TABLE `{TableName}`;";
 
         await using var reader = await command.ExecuteReaderAsync();
+
         Assert.True(await reader.ReadAsync());
 
         return reader.GetString(1);

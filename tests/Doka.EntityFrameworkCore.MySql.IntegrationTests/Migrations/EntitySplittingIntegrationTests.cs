@@ -81,14 +81,17 @@ public sealed class EntitySplittingIntegrationTests
                 Name = "inventory",
                 Description = "initial",
             };
+
             targetContext.Inventory.Add(inventory);
             await targetContext.SaveChangesAsync();
+
             Assert.True(inventory.Id > 0);
 
             await using (var readContext = new EntitySplitContext(
                              CreateOptions<EntitySplitContext>(connectionString, serverVersion)))
             {
                 var loaded = await readContext.Inventory.SingleAsync(item => item.Id == inventory.Id);
+
                 Assert.Equal("inventory", loaded.Name);
                 Assert.Equal("initial", loaded.Description);
                 loaded.Description = "updated";
@@ -99,6 +102,7 @@ public sealed class EntitySplittingIntegrationTests
             {
                 command.CommandText = $"SELECT `Description` FROM `{SecondaryTable}` WHERE `Id` = @id;";
                 command.Parameters.AddWithValue("@id", inventory.Id);
+
                 Assert.Equal(
                     "updated",
                     Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
@@ -107,11 +111,13 @@ public sealed class EntitySplittingIntegrationTests
                 _ = await command.ExecuteNonQueryAsync();
 
                 command.CommandText = $"SELECT COUNT(*) FROM `{SecondaryTable}` WHERE `Id` = @id;";
+
                 Assert.Equal(0L, Convert.ToInt64(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
             }
 
             await using var finalContext = new EntitySplitContext(
                 CreateOptions<EntitySplitContext>(connectionString, serverVersion));
+
             Assert.Empty(
                 await finalContext
                     .Inventory

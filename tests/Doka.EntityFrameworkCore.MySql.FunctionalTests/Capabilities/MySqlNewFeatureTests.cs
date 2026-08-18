@@ -21,6 +21,7 @@ public sealed class MySqlNewFeatureTests
         Assert.Equal(ValueGenerated.OnAdd, property.ValueGenerated);
 
         var sequence = context.Model.FindSequence("HiLoTestSequence");
+
         Assert.NotNull(sequence);
         Assert.Equal(10, sequence.IncrementBy);
     }
@@ -40,6 +41,7 @@ public sealed class MySqlNewFeatureTests
         var sequences = context
             .Model.GetSequences()
             .ToList();
+
         Assert.Single(sequences);
         Assert.Contains("HiLoDefaultEntity", sequences[0].Name, StringComparison.Ordinal);
     }
@@ -139,6 +141,7 @@ public sealed class MySqlNewFeatureTests
         using var source = CreateContext<EmptyInvisibleContext>(isMariaDb: true);
         using var context = CreateContext<InvisibleContext>(isMariaDb: true);
         var operations = GetDifferences(source, context);
+
         var createTable = Assert.Single(operations.OfType<CreateTableOperation>());
         var invisibleColumn = Assert.Single(
             createTable.Columns,
@@ -216,6 +219,7 @@ public sealed class MySqlNewFeatureTests
             context.Model.FindEntityType(typeof(InvisibleEntity))!.FindProperty(nameof(InvisibleEntity.InternalData))!;
 
         var annotation = property.FindAnnotation(MySqlAnnotationNames.Invisible);
+
         Assert.NotNull(annotation);
         Assert.Equal(true, annotation.Value);
     }

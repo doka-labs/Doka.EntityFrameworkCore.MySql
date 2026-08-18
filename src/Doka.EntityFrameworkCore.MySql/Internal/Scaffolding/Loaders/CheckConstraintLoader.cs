@@ -17,6 +17,7 @@ internal static class CheckConstraintLoader
         using var command = context.Connection.CreateCommand();
         var catalogIncludesTableName = context.Profile.Engine.Has(
             EngineCapability.CheckConstraintCatalogIncludesTableName);
+
         var sql = catalogIncludesTableName ? MariaDbQuery() : MySqlQuery();
 
         ScaffoldingHelpers.AppendTableNameFilter(

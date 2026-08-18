@@ -33,6 +33,7 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
         _maxRetryCount = retryOptions?.MaxRetryCount;
         var capabilityProfile = (singletonOptions ?? throw new ArgumentNullException(nameof(singletonOptions))).Profile
             ?? throw new InvalidOperationException("The MySQL capability profile must be initialized.");
+
         _engineFamily = capabilityProfile.Engine.Family;
         _logger = logger;
         _transientExceptionDetector = transientExceptionDetector
@@ -167,6 +168,7 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
         var cancellationPath = isHardPath
             ? MySqlDiagnosticTags.Hard
             : MySqlDiagnosticTags.Soft;
+
         using var activity = MySqlActivitySource.StartCancellation(
             cancellationPath,
             connectionStateName,
@@ -209,6 +211,7 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
             diagnostic.ConnectionStateName,
             _engineFamily,
             exception);
+
         MySqlMeter.CommandTimeoutTotal.Add(
             1,
             MySqlDiagnosticTags.CreateEngineMetricTag(_engineFamily));

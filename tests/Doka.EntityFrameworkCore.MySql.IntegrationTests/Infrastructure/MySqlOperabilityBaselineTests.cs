@@ -169,11 +169,13 @@ public sealed class MySqlOperabilityBaselineTests
         var exception = await Assert
             .ThrowsAsync<MySqlException>(() => query.SingleAsync())
             .ConfigureAwait(false);
+
         var timeoutEntries = sink
             .Entries.Where(entry =>
                 entry.EventId.Id == MySqlEventId.CommandTimeoutExhausted.Id
                 && entry.Category == MySqlLoggerCategory.Resilience)
             .ToList();
+
         var resilienceEntries = sink
             .Entries.Where(entry => entry.Category == MySqlLoggerCategory.Resilience)
             .Select(entry => $"{entry.EventId.Id}:{entry.Message}")
@@ -201,6 +203,7 @@ public sealed class MySqlOperabilityBaselineTests
 
         await using var context = new OperabilityContext(
             CreateOptions(connectionStringBuilder.ConnectionString, serverVersion, loggerFactory));
+
         using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
         var query = context.Database.SqlQueryRaw<int>(LongRunningBenchmarkSql);
 

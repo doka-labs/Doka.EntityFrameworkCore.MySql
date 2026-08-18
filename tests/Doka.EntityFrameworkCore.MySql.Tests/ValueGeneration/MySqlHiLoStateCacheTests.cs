@@ -62,6 +62,7 @@ public sealed class MySqlHiLoStateCacheTests : IDisposable
     {
         var first = MySqlDatabaseIdentity.FromConnectionString(
             "Server=db.example;Port=3307;Database=orders;User ID=app;Password=top-secret;");
+
         var second = MySqlDatabaseIdentity.FromConnectionString(
             "Server=db.example;Port=3307;Database=orders;User ID=app;Password=another-secret;");
 
@@ -83,6 +84,7 @@ public sealed class MySqlHiLoStateCacheTests : IDisposable
     {
         var first = MySqlDatabaseIdentity.FromConnectionString(
             "Server=localhost;Database=orders;User ID=app;Connection Protocol=Pipe;Pipe Name=orders-a;");
+
         var second = MySqlDatabaseIdentity.FromConnectionString(
             "Server=localhost;Database=orders;User ID=app;Connection Protocol=Pipe;Pipe Name=orders-b;");
 
@@ -99,6 +101,7 @@ public sealed class MySqlHiLoStateCacheTests : IDisposable
     {
         var first = MySqlDatabaseIdentity.FromConnectionString(
             "Server=/var/run/mysql-a.sock;Database=orders;User ID=app;Connection Protocol=Unix;");
+
         var second = MySqlDatabaseIdentity.FromConnectionString(
             "Server=/var/run/mysql-b.sock;Database=orders;User ID=app;Connection Protocol=Unix;");
 
@@ -116,6 +119,7 @@ public sealed class MySqlHiLoStateCacheTests : IDisposable
     {
         var first = MySqlDatabaseIdentity.FromConnectionString(
             "Server=localhost;Database=orders;User ID=app;Connection Protocol=Pipe;Pipe Name=orders;");
+
         var second = MySqlDatabaseIdentity.FromConnectionString(
             "Data Source=localhost;Initial Catalog=orders;Uid=app;Protocol=Pipe;Pipe=orders;");
 
@@ -150,6 +154,7 @@ public sealed class MySqlHiLoStateCacheTests : IDisposable
             _ => instances.Add(MySqlHiLoStateCache.GetOrCreate(s_database, "orders_seq", blockSize: 10)));
 
         var distinct = instances.Distinct().ToArray();
+
         Assert.Single(distinct);
         Assert.Equal(1, MySqlHiLoStateCache.Count);
     }

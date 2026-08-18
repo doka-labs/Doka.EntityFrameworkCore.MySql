@@ -13,6 +13,7 @@ public sealed class MySqlServerVersionTypeMappingTests
     public void Supported_version_literal_uses_default_factory_overload()
     {
         var mapping = new MySqlServerVersionTypeMapping();
+
         var expression = Assert.IsAssignableFrom<MethodCallExpression>(
             mapping.GenerateCodeLiteral(MySqlServerVersion.MySql(new Version(8, 4, 7))));
 
@@ -28,6 +29,7 @@ public sealed class MySqlServerVersionTypeMappingTests
     public void Unsupported_version_literal_preserves_explicit_compatibility_mode()
     {
         var mapping = new MySqlServerVersionTypeMapping();
+
         var expression = Assert.IsAssignableFrom<MethodCallExpression>(
             mapping.GenerateCodeLiteral(
                 MySqlServerVersion.MariaDb(

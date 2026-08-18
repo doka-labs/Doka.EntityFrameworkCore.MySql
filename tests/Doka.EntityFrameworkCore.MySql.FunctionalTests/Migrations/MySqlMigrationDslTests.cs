@@ -21,6 +21,7 @@ public sealed class MySqlMigrationDslTests
         var prefixIndex = entityType
             ?.GetIndexes()
             .Single(index => index.GetDatabaseName() == "IX_MigrationDsl_Name_Code");
+
         var fullTextIndex = entityType
             ?.GetIndexes()
             .Single(index => index.GetDatabaseName() == "IX_MigrationDsl_Body");
@@ -81,12 +82,15 @@ public sealed class MySqlMigrationDslTests
         var externalIdColumn = Assert.Single(
             createTable.Columns,
             column => column.Name == nameof(MigrationDslEntity.ExternalId));
+
         var prefixIndex = Assert.Single(
             operations.OfType<CreateIndexOperation>(),
             operation => operation.Name == "IX_MigrationDsl_Name_Code");
+
         var fullTextIndex = Assert.Single(
             operations.OfType<CreateIndexOperation>(),
             operation => operation.Name == "IX_MigrationDsl_Body");
+
         var spatialIndex = Assert.Single(
             operations.OfType<CreateIndexOperation>(),
             operation => operation.Name == "IX_MigrationDsl_Location");
@@ -142,6 +146,7 @@ public sealed class MySqlMigrationDslTests
 
         var principal = tables["SplitInventory"];
         var secondary = tables["SplitInventoryDetails"];
+
         var principalId = Assert.Single(principal.Columns, column => column.Name == "Id");
         var secondaryId = Assert.Single(secondary.Columns, column => column.Name == "Id");
         var secondaryForeignKey = Assert.Single(secondary.ForeignKeys);
@@ -250,10 +255,12 @@ public sealed class MySqlMigrationDslTests
         using var sourceContext = new EmptyMigrationDslContext(CreateOptions<EmptyMigrationDslContext>());
         using var targetContext = new TemporalMigrationDslContext(CreateOptions<TemporalMigrationDslContext>());
         var operations = GetDifferences(sourceContext, targetContext);
+
         var createTable = Assert.Single(operations.OfType<CreateTableOperation>());
         var periodStart = Assert.Single(
             createTable.Columns,
             column => column.Name == "ValidFrom");
+
         var periodEnd = Assert.Single(
             createTable.Columns,
             column => column.Name == "ValidTo");
@@ -281,8 +288,10 @@ public sealed class MySqlMigrationDslTests
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
         using var sourceContext = new EmptyMigrationDslContext(
             CreateOptions<EmptyMigrationDslContext>(serverVersion));
+
         using var targetContext = new TemporalMigrationDslContext(
             CreateOptions<TemporalMigrationDslContext>(serverVersion));
+
         var sql = GenerateMigrationSql(sourceContext, targetContext);
 
         Assert.Contains(
@@ -312,8 +321,10 @@ public sealed class MySqlMigrationDslTests
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
         using var sourceContext = new EmptyMigrationDslContext(
             CreateOptions<EmptyMigrationDslContext>(serverVersion));
+
         using var targetContext = new ApplicationTimeMigrationDslContext(
             CreateOptions<ApplicationTimeMigrationDslContext>(serverVersion));
+
         var sql = GenerateMigrationSql(sourceContext, targetContext);
 
         Assert.Contains(
@@ -341,8 +352,10 @@ public sealed class MySqlMigrationDslTests
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
         using var sourceContext = new EmptyMigrationDslContext(
             CreateOptions<EmptyMigrationDslContext>(serverVersion));
+
         using var targetContext = new BitemporalMigrationDslContext(
             CreateOptions<BitemporalMigrationDslContext>(serverVersion));
+
         var sql = GenerateMigrationSql(sourceContext, targetContext);
 
         Assert.Contains("PERIOD FOR SYSTEM_TIME (`SystemValidFrom`, `SystemValidTo`)", sql, StringComparison.Ordinal);
@@ -362,8 +375,10 @@ public sealed class MySqlMigrationDslTests
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
         using var sourceContext = new EmptyMigrationDslContext(
             CreateOptions<EmptyMigrationDslContext>(serverVersion));
+
         using var targetContext = new TemporalMigrationDslContext(
             CreateOptions<TemporalMigrationDslContext>(serverVersion));
+
         var sql = GenerateMigrationSql(sourceContext, targetContext);
 
         Assert.Contains("CREATE TABLE `MigrationDslHistory`", sql, StringComparison.Ordinal);
@@ -386,17 +401,21 @@ public sealed class MySqlMigrationDslTests
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
         using var sourceContext = new TemporalSchemaContext(
             CreateOptions<TemporalSchemaContext>(serverVersion));
+
         using var targetContext = new TemporalSchemaWithDescriptionContext(
             CreateOptions<TemporalSchemaWithDescriptionContext>(serverVersion));
+
         var sql = GenerateMigrationSql(sourceContext, targetContext);
 
         var dropTrigger = sql.IndexOf("DROP TRIGGER", StringComparison.Ordinal);
         var alterCurrent = sql.IndexOf(
             "ALTER TABLE `TemporalRecords` ADD `Description`",
             StringComparison.Ordinal);
+
         var alterHistory = sql.IndexOf(
             "ALTER TABLE `TemporalRecordsHistory` ADD `Description`",
             StringComparison.Ordinal);
+
         var createTrigger = sql.IndexOf("CREATE TRIGGER", StringComparison.Ordinal);
 
         Assert.True(dropTrigger >= 0);
@@ -416,8 +435,10 @@ public sealed class MySqlMigrationDslTests
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
         using var sourceContext = new TemporalSchemaContext(
             CreateOptions<TemporalSchemaContext>(serverVersion));
+
         using var targetContext = new TemporalSchemaWithRenamedColumnContext(
             CreateOptions<TemporalSchemaWithRenamedColumnContext>(serverVersion));
+
         var sql = GenerateMigrationSql(sourceContext, targetContext);
 
         Assert.Contains(
@@ -445,8 +466,10 @@ public sealed class MySqlMigrationDslTests
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
         using var sourceContext = new TemporalSchemaContext(
             CreateOptions<TemporalSchemaContext>(serverVersion));
+
         using var targetContext = new TemporalSchemaWithBoundedNameContext(
             CreateOptions<TemporalSchemaWithBoundedNameContext>(serverVersion));
+
         var sql = GenerateMigrationSql(sourceContext, targetContext);
 
         Assert.Contains(
@@ -469,9 +492,12 @@ public sealed class MySqlMigrationDslTests
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
         using var sourceContext = new TemporalSchemaWithDescriptionContext(
             CreateOptions<TemporalSchemaWithDescriptionContext>(serverVersion));
+
         using var targetContext = new TemporalSchemaContext(
             CreateOptions<TemporalSchemaContext>(serverVersion));
+
         var operations = GetDifferences(sourceContext, targetContext);
+
         var dropColumn = Assert.Single(operations.OfType<DropColumnOperation>());
 
         Assert.True(
@@ -487,6 +513,7 @@ public sealed class MySqlMigrationDslTests
         var commands = targetContext
             .GetService<IMigrationsSqlGenerator>()
             .Generate(operations, targetContext.Model);
+
         var sql = string.Join(
             Environment.NewLine,
             commands.Select(command => command.CommandText));
@@ -512,8 +539,10 @@ public sealed class MySqlMigrationDslTests
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
         using var sourceContext = new TemporalSchemaContext(
             CreateOptions<TemporalSchemaContext>(serverVersion));
+
         using var targetContext = new TemporalSchemaWithGeneratedColumnContext(
             CreateOptions<TemporalSchemaWithGeneratedColumnContext>(serverVersion));
+
         var sql = GenerateMigrationSql(sourceContext, targetContext);
 
         Assert.Contains(
@@ -567,6 +596,7 @@ public sealed class MySqlMigrationDslTests
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
         using var nonTemporalContext = new NonTemporalSchemaContext(
             CreateOptions<NonTemporalSchemaContext>(serverVersion));
+
         using var temporalContext = new TemporalSchemaContext(
             CreateOptions<TemporalSchemaContext>(serverVersion));
 
@@ -577,15 +607,19 @@ public sealed class MySqlMigrationDslTests
         var finalPeriodColumn = enableSql.IndexOf(
             "ADD `ValidTo` timestamp(6) GENERATED ALWAYS AS ROW END",
             StringComparison.Ordinal);
+
         var periodActivation = enableSql.IndexOf(
             "ADD PERIOD FOR SYSTEM_TIME (`ValidFrom`, `ValidTo`)",
             StringComparison.Ordinal);
+
         var systemVersioningDeactivation = disableSql.IndexOf(
             "DROP SYSTEM VERSIONING",
             StringComparison.Ordinal);
+
         var periodDeactivation = disableSql.IndexOf(
             "DROP PERIOD FOR SYSTEM_TIME",
             StringComparison.Ordinal);
+
         var firstPeriodColumnDrop = disableSql.IndexOf(
             "DROP COLUMN `ValidFrom`",
             StringComparison.Ordinal);
@@ -642,8 +676,10 @@ public sealed class MySqlMigrationDslTests
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
         using var sourceContext = new TemporalSchemaContext(
             CreateOptions<TemporalSchemaContext>(serverVersion));
+
         using var targetContext = new RenamedTemporalSchemaContext(
             CreateOptions<RenamedTemporalSchemaContext>(serverVersion));
+
         var sql = GenerateMigrationSql(sourceContext, targetContext);
 
         Assert.Contains(
@@ -668,8 +704,10 @@ public sealed class MySqlMigrationDslTests
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
         using var sourceContext = new TemporalSchemaContext(
             CreateOptions<TemporalSchemaContext>(serverVersion));
+
         using var targetContext = new EmptyMigrationDslContext(
             CreateOptions<EmptyMigrationDslContext>(serverVersion));
+
         var sql = GenerateMigrationSql(sourceContext, targetContext);
 
         Assert.Contains("DROP TABLE `TemporalRecords`", sql, StringComparison.Ordinal);
@@ -686,6 +724,7 @@ public sealed class MySqlMigrationDslTests
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
         using var nonTemporalContext = new NonTemporalSchemaContext(
             CreateOptions<NonTemporalSchemaContext>(serverVersion));
+
         using var temporalContext = new TemporalSchemaContext(
             CreateOptions<TemporalSchemaContext>(serverVersion));
 
@@ -694,6 +733,7 @@ public sealed class MySqlMigrationDslTests
         var finalPeriodColumn = enableSql.IndexOf(
             "ADD `ValidTo` datetime(6) NOT NULL DEFAULT '9999-12-31 23:59:59.999999'",
             StringComparison.Ordinal);
+
         var historyActivation = enableSql.IndexOf(
             "CREATE TABLE `TemporalRecordsHistory`",
             StringComparison.Ordinal);
@@ -759,6 +799,7 @@ public sealed class MySqlMigrationDslTests
             targetContext
                 .GetService<IDesignTimeModel>()
                 .Model.GetRelationalModel());
+
         var commands = migrationsSqlGenerator.Generate(operations, targetContext.Model);
         var sql = string.Join(Environment.NewLine, commands.Select(command => command.CommandText));
 
@@ -796,6 +837,7 @@ public sealed class MySqlMigrationDslTests
         var prefixIndex = entityType
             .GetIndexes()
             .Single(index => index.GetDatabaseName() == "IX_MigrationDsl_Name_Code");
+
         var fullTextIndex = entityType
             .GetIndexes()
             .Single(index => index.GetDatabaseName() == "IX_MigrationDsl_Body");
@@ -803,18 +845,22 @@ public sealed class MySqlMigrationDslTests
         var modelAnnotations = context
             .Model.GetAnnotations()
             .ToDictionary(annotation => annotation.Name);
+
         var entityAnnotations = entityType
             .GetAnnotations()
             .ToDictionary(annotation => annotation.Name);
+
         var propertyAnnotations = property
             .GetAnnotations()
             .ToDictionary(annotation => annotation.Name);
+
         var modelCalls = codeGenerator.GenerateFluentApiCalls(context.Model, modelAnnotations);
         var entityCalls = codeGenerator.GenerateFluentApiCalls(entityType, entityAnnotations);
         var propertyCalls = codeGenerator.GenerateFluentApiCalls(property, propertyAnnotations);
         var prefixIndexCalls = codeGenerator.GenerateFluentApiCalls(
             prefixIndex,
             prefixIndex.GetAnnotations().ToDictionary(annotation => annotation.Name));
+
         var fullTextIndexCalls = codeGenerator.GenerateFluentApiCalls(
             fullTextIndex,
             fullTextIndex.GetAnnotations().ToDictionary(annotation => annotation.Name));
@@ -855,6 +901,7 @@ public sealed class MySqlMigrationDslTests
         using var source = new KeylessPeopleContext(CreateOptions<KeylessPeopleContext>());
         using var target = new KeyedPeopleContext(CreateOptions<KeyedPeopleContext>());
         var operations = GetDifferences(source, target);
+
         var addPrimaryKey = Assert.Single(operations.OfType<AddPrimaryKeyOperation>());
         var alterColumn = Assert.Single(operations.OfType<AlterColumnOperation>());
 
@@ -873,6 +920,7 @@ public sealed class MySqlMigrationDslTests
         using var source = new KeyedPeopleContext(CreateOptions<KeyedPeopleContext>());
         using var target = new KeylessPeopleContext(CreateOptions<KeylessPeopleContext>());
         var operations = GetDifferences(source, target);
+
         var alterColumn = Assert.Single(operations.OfType<AlterColumnOperation>());
         var dropPrimaryKey = Assert.Single(operations.OfType<DropPrimaryKeyOperation>());
 
@@ -929,6 +977,7 @@ public sealed class MySqlMigrationDslTests
             target
                 .GetService<IDesignTimeModel>()
                 .Model.GetRelationalModel());
+
         var alterColumn = Assert.Single(operations.OfType<AlterColumnOperation>());
 
         Assert.Equal("Entity", alterColumn.Table);

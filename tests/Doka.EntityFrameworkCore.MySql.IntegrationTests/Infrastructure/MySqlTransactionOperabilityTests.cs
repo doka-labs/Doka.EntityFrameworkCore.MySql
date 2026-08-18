@@ -250,6 +250,7 @@ public sealed class MySqlTransactionOperabilityTests
 
             await using var verificationContext = new TransactionOperabilityContext(
                 CreateOptions(connectionString, serverVersion));
+
             var names = await verificationContext
                 .Entities.OrderBy(entity => entity.Id)
                 .Select(entity => entity.Name)
@@ -278,6 +279,7 @@ public sealed class MySqlTransactionOperabilityTests
         await using var transaction = await context
             .Database.BeginTransactionAsync()
             .ConfigureAwait(false);
+
         var strategy = context.Database.CreateExecutionStrategy();
 
         var exception = await Assert

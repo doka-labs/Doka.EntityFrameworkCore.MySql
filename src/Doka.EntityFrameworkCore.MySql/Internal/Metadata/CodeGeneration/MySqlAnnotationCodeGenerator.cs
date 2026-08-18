@@ -1,5 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
+/// <summary>
+/// Converts provider annotations into fluent API calls for generated migrations and snapshots.
+/// </summary>
 internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
 {
     private static readonly MethodInfo s_entityTypeToTableMethod =
@@ -163,6 +166,7 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
                 entityType.GetMySqlTemporalPeriodEndPropertyName(),
                 entityType,
                 "temporal period-end property");
+
             var temporalCalls = new List<MethodCallCodeFragment>();
 
             var historyTableName = entityType.GetMySqlTemporalHistoryTableName();

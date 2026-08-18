@@ -147,6 +147,7 @@ public sealed class MySql84CrudBaselineTests
 
         await using var missingDatabaseContext =
             new MySql84CrudContext(CreateOptions(missingDatabaseBuilder.ConnectionString));
+
         var missingDatabaseCreator = missingDatabaseContext.GetService<IRelationalDatabaseCreator>();
 
         Assert.False(missingDatabaseCreator.Exists());
@@ -162,6 +163,7 @@ public sealed class MySql84CrudBaselineTests
 
         await using var invalidCredentialsContext =
             new MySql84CrudContext(CreateOptions(invalidCredentialsBuilder.ConnectionString));
+
         var invalidCredentialsCreator = invalidCredentialsContext.GetService<IRelationalDatabaseCreator>();
 
         var syncException = Assert.Throws<MySqlException>(() => invalidCredentialsCreator.Exists());
@@ -275,6 +277,7 @@ public sealed class MySql84CrudBaselineTests
             {
                 Name = "binary",
             };
+
             var charEntity = new CharGuidEntity
             {
                 Name = "char36",
@@ -295,6 +298,7 @@ public sealed class MySql84CrudBaselineTests
             var loadedBinary = await context
                 .BinaryGuidEntities.SingleAsync(entity => entity.Id == binaryEntity.Id)
                 .ConfigureAwait(false);
+
             var loadedChar = await context
                 .CharGuidEntities.SingleAsync(entity => entity.Id == charEntity.Id)
                 .ConfigureAwait(false);

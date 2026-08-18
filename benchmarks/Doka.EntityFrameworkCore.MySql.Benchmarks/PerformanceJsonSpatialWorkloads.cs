@@ -58,8 +58,10 @@ internal static class PerformanceJsonSpatialWorkloads
         var (leftJson, rightJson) = BuildPayloadPair(payloadBytes, mismatch);
         var left = JsonNode.Parse(leftJson)
             ?? throw new InvalidDataException("The left JSON workload payload is null.");
+
         var right = JsonNode.Parse(rightJson)
             ?? throw new InvalidDataException("The right JSON workload payload is null.");
+
         var comparer = MySqlJsonValueComparers.JsonNodeComparer;
 
         catalog.Add(
