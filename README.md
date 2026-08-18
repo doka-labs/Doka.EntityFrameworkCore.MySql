@@ -303,9 +303,23 @@ var articles = context.Articles
 var depth = context.Documents
     .Select(d => EF.Functions.JsonDepth(d.SearchDocument))
     .FirstOrDefault();
+
+var summaries = context.Products
+    .Select(product => new
+    {
+        Values = EF.Functions.JsonArray(product.Sku, product.Name),
+        Fields = EF.Functions.JsonObject("sku", product.Sku, "name", product.Name),
+    });
 ```
 
-Full set: `Regexp`, `Match`, `MatchInBooleanMode`, `JsonSet`, `JsonReplace`, `JsonRemove`, `JsonArray`, `JsonObject`, `JsonDepth`, `JsonLength`, `JsonType`, `JsonKeys`, `JsonContains`. REGEXP uses `REGEXP_LIKE(...)` on MySQL and the infix `REGEXP` operator on MariaDB.
+Full set: `Regexp`, `Match`, `MatchInBooleanMode`, `JsonSet`, `JsonReplace`,
+`JsonRemove`, `JsonArray`, `JsonObject`, `JsonDepth`, `JsonLength`, `JsonType`,
+`JsonKeys`, `JsonContains`. Ordinary `params` calls to `JsonArray` and
+`JsonObject` are flattened into variadic server arguments; captured scalars
+remain parameters. `JsonObject` requires complete key/value pairs and rejects
+an odd argument count before execution. SQL `NULL` inputs become JSON `null`
+elements rather than making the constructor result SQL `NULL`. REGEXP uses
+`REGEXP_LIKE(...)` on MySQL and the infix `REGEXP` operator on MariaDB.
 
 ### MariaDB `INVISIBLE` columns
 

@@ -564,7 +564,9 @@ public sealed class MySqlQueryTranslationIntegrationTests
     public async Task Json_depth_and_length_execute_on_mysql84()
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
-        await using var context = new JsonQueryContext(CreateJsonOptions(connectionString));
+        await using var context = new JsonQueryContext(
+            CreateJsonOptions(connectionString, IntegrationDatabaseTarget.MySql84));
+
         await CleanupJsonAsync(context);
 
         try
@@ -597,6 +599,70 @@ public sealed class MySqlQueryTranslationIntegrationTests
         }
     }
 
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
+    public Task Json_constructors_materialize_server_results_on_mysql84() =>
+        RunJsonConstructorTest(IntegrationDatabaseTarget.MySql84);
+
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
+    public Task Json_constructors_materialize_server_results_on_mariadb118() =>
+        RunJsonConstructorTest(IntegrationDatabaseTarget.MariaDb118);
+
+    private static async Task RunJsonConstructorTest(
+        IntegrationDatabaseTarget target
+    )
+    {
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
+        var interceptor = new CommandCaptureInterceptor();
+        await using var context = new JsonQueryContext(CreateJsonOptions(connectionString, target, interceptor));
+        await CleanupJsonAsync(context);
+
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync(
+                """
+                CREATE TABLE IF NOT EXISTS `IntJsonItems` (
+                    `Id` int NOT NULL AUTO_INCREMENT,
+                    `Data` json NOT NULL,
+                    CONSTRAINT `PK_IntJsonItems` PRIMARY KEY (`Id`)
+                ) CHARACTER SET utf8mb4;
+                """);
+            await context.Database.ExecuteSqlRawAsync(
+                "INSERT INTO `IntJsonItems` (`Data`) VALUES ({0});",
+                "{}");
+
+            var suffix = "tail";
+            var query = context
+                .Items.Select(item => new
+                {
+                    Array = EF.Functions.JsonArray(item.Id, suffix, null),
+                    Object = EF.Functions.JsonObject("id", item.Id, "suffix", suffix, "missing", null),
+                });
+            var sql = query.ToQueryString();
+            var result = await query.SingleAsync();
+
+            Assert.Contains("JSON_ARRAY(", sql, StringComparison.Ordinal);
+            Assert.Contains("JSON_OBJECT(", sql, StringComparison.Ordinal);
+            Assert.Contains(
+                interceptor.CommandTexts,
+                commandText => commandText.Contains("JSON_ARRAY(", StringComparison.Ordinal)
+                    && commandText.Contains("JSON_OBJECT(", StringComparison.Ordinal));
+
+            using var array = JsonDocument.Parse(result.Array);
+            Assert.Equal(1, array.RootElement[0].GetInt32());
+            Assert.Equal(suffix, array.RootElement[1].GetString());
+            Assert.Equal(JsonValueKind.Null, array.RootElement[2].ValueKind);
+
+            using var jsonObject = JsonDocument.Parse(result.Object);
+            Assert.Equal(1, jsonObject.RootElement.GetProperty("id").GetInt32());
+            Assert.Equal(suffix, jsonObject.RootElement.GetProperty("suffix").GetString());
+            Assert.Equal(JsonValueKind.Null, jsonObject.RootElement.GetProperty("missing").ValueKind);
+        }
+        finally
+        {
+            await CleanupJsonAsync(context);
+        }
+    }
+
     // -- Helpers --
 
     private static DbContextOptions<QueryContext> CreateOptions(
@@ -611,11 +677,19 @@ public sealed class MySqlQueryTranslationIntegrationTests
     }
 
     private static DbContextOptions<JsonQueryContext> CreateJsonOptions(
-        string connectionString
+        string connectionString,
+        IntegrationDatabaseTarget target,
+        IInterceptor? interceptor = null
     )
     {
         var builder = IntegrationTestDbContextOptions.Create<JsonQueryContext>();
-        builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+        builder.UseMySql(connectionString, IntegrationTestEnvironment.GetServerVersion(target));
+
+        if (interceptor is not null)
+        {
+            builder.AddInterceptors(interceptor);
+        }
+
         return builder.Options;
     }
 
@@ -724,6 +798,22 @@ public sealed class MySqlQueryTranslationIntegrationTests
                     .Property(x => x.Data)
                     .HasColumnType("json");
             });
+        }
+    }
+
+    private sealed class CommandCaptureInterceptor : DbCommandInterceptor
+    {
+        public List<string> CommandTexts { get; } = [];
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default
+        )
+        {
+            CommandTexts.Add(command.CommandText);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
         }
     }
 }

@@ -212,6 +212,121 @@ public sealed class MySqlNewFeatureTests
         MySqlSqlAssert.ContainsFunction(query, "JSON_REMOVE");
     }
 
+    /// <summary>
+    /// Ordinary C# params syntax is flattened into independent JSON_ARRAY SQL
+    /// arguments while captured values remain parameters.
+    /// </summary>
+    [Fact]
+    public void JsonArray_params_translate_to_variadic_parameterized_sql()
+    {
+        using var context = CreateContext<JsonFunctionContext>();
+        var suffix = "tail";
+        var query = context
+            .Set<JsonFunctionEntity>()
+            .Select(entity => EF.Functions.JsonArray(entity.Data, suffix))
+            .ToQueryString();
+
+        Assert.Contains("JSON_ARRAY(`j`.`Data", query, StringComparison.Ordinal);
+        Assert.Contains("@suffix", query, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// JSON_OBJECT receives alternating keys and values as individual SQL arguments.
+    /// </summary>
+    [Fact]
+    public void JsonObject_params_translate_to_variadic_sql()
+    {
+        using var context = CreateContext<JsonFunctionContext>();
+        var query = context
+            .Set<JsonFunctionEntity>()
+            .Select(entity => EF.Functions.JsonObject("data", entity.Data, "id", entity.Id))
+            .ToQueryString();
+
+        Assert.Contains("JSON_OBJECT('data', `j`.`Data`, 'id', `j`.`Id`)", query, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// SQL NULL remains an argument of each JSON constructor instead of making the
+    /// constructor untranslatable or null-propagating the complete result.
+    /// </summary>
+    [Fact]
+    public void Json_constructors_translate_null_arguments_as_json_null_inputs()
+    {
+        using var context = CreateContext<JsonFunctionContext>();
+
+        var arraySql = context
+            .Set<JsonFunctionEntity>()
+            .Select(entity => EF.Functions.JsonArray(entity.Data, null))
+            .ToQueryString();
+
+        var objectSql = context
+            .Set<JsonFunctionEntity>()
+            .Select(entity => EF.Functions.JsonObject("data", entity.Data, "missing", null))
+            .ToQueryString();
+
+        Assert.Contains("JSON_ARRAY(`j`.`Data`, NULL)", arraySql, StringComparison.Ordinal);
+        Assert.Contains(
+            "JSON_OBJECT('data', `j`.`Data`, 'missing', NULL)",
+            objectSql,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Empty params arrays map to the engines' documented empty JSON constructors.
+    /// </summary>
+    [Fact]
+    public void Empty_json_constructors_translate_without_arguments()
+    {
+        using var context = CreateContext<JsonFunctionContext>();
+
+        var arraySql = context
+            .Set<JsonFunctionEntity>()
+            .Select(_ => EF.Functions.JsonArray())
+            .ToQueryString();
+
+        var objectSql = context
+            .Set<JsonFunctionEntity>()
+            .Select(_ => EF.Functions.JsonObject())
+            .ToQueryString();
+
+        Assert.Contains("JSON_ARRAY()", arraySql, StringComparison.Ordinal);
+        Assert.Contains("JSON_OBJECT()", objectSql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An incomplete key/value pair is rejected during translation with a focused
+    /// provider diagnostic instead of reaching query execution.
+    /// </summary>
+    [Fact]
+    public void JsonObject_rejects_an_odd_argument_count_before_execution()
+    {
+        using var context = CreateContext<JsonFunctionContext>();
+
+        var exception = Assert.Throws<InvalidOperationException>(() => context
+            .Set<JsonFunctionEntity>()
+            .Select(entity => EF.Functions.JsonObject("data", entity.Data, "orphan"))
+            .ToQueryString());
+
+        Assert.Contains("even number of key and value arguments", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Composite client objects cannot cross the JSON-construction translation
+    /// boundary because their representation is not a database scalar.
+    /// </summary>
+    [Fact]
+    public void JsonArray_rejects_an_unsupported_nested_client_value_before_execution()
+    {
+        using var context = CreateContext<JsonFunctionContext>();
+
+        var exception = Assert.Throws<InvalidOperationException>(() => context
+            .Set<JsonFunctionEntity>()
+            .Select(entity => EF.Functions.JsonArray(new UnsupportedJsonValue(entity.Data)))
+            .ToQueryString());
+
+        Assert.Contains("argument 1 cannot be translated to SQL", exception.Message, StringComparison.Ordinal);
+    }
+
     // -- JSON Inspection Functions --
 
     /// <summary>
@@ -408,6 +523,8 @@ public sealed class MySqlNewFeatureTests
         public int Id { get; set; }
         public string Data { get; set; } = "{}";
     }
+
+    private sealed record UnsupportedJsonValue(string Value);
 
     private sealed class JsonFunctionContext : DbContext
     {

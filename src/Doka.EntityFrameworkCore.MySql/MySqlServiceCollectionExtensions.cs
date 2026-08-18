@@ -21,6 +21,9 @@ public static class MySqlServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(serviceCollection);
 
+        serviceCollection.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IEvaluatableExpressionFilterPlugin, MySqlEvaluatableExpressionFilterPlugin>());
+
         var builder = new EntityFrameworkRelationalServicesBuilder(serviceCollection)
             .TryAdd<IDatabaseProvider, DatabaseProvider<MySqlOptionsExtension>>()
             .TryAdd<ISingletonOptions, MySqlSingletonOptions>()

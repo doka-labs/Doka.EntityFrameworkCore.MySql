@@ -206,20 +206,6 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
             typeof(string),
         ])!;
 
-    private static readonly MethodInfo s_jsonArrayMethod = typeof(MySqlDbFunctionsExtensions).GetRuntimeMethod(
-        nameof(MySqlDbFunctionsExtensions.JsonArray),
-        [
-            typeof(DbFunctions),
-            typeof(object[]),
-        ])!;
-
-    private static readonly MethodInfo s_jsonObjectMethod = typeof(MySqlDbFunctionsExtensions).GetRuntimeMethod(
-        nameof(MySqlDbFunctionsExtensions.JsonObject),
-        [
-            typeof(DbFunctions),
-            typeof(object[]),
-        ])!;
-
     private static readonly MethodInfo s_jsonDepthMethod = typeof(MySqlDbFunctionsExtensions).GetRuntimeMethod(
         nameof(MySqlDbFunctionsExtensions.JsonDepth),
         [
@@ -510,37 +496,6 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
                 ],
                 nullable: true,
                 argumentsPropagateNullability: s_roundTwoArgumentNullPropagation,
-                typeof(string));
-        }
-
-        // JSON construction functions.
-        if (method == s_jsonArrayMethod)
-        {
-            return _sqlExpressionFactory.Function(
-                "JSON_ARRAY",
-                arguments
-                    .Skip(1)
-                    .ToArray(),
-                nullable: false,
-                argumentsPropagateNullability: arguments
-                    .Skip(1)
-                    .Select(_ => true)
-                    .ToArray(),
-                typeof(string));
-        }
-
-        if (method == s_jsonObjectMethod)
-        {
-            return _sqlExpressionFactory.Function(
-                "JSON_OBJECT",
-                arguments
-                    .Skip(1)
-                    .ToArray(),
-                nullable: false,
-                argumentsPropagateNullability: arguments
-                    .Skip(1)
-                    .Select(_ => true)
-                    .ToArray(),
                 typeof(string));
         }
 

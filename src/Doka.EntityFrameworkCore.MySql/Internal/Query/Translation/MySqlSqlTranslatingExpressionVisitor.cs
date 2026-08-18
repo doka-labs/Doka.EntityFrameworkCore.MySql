@@ -19,6 +19,14 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// The SQL generator emits signed <c>TIMESTAMPDIFF(MICROSECOND) * 10</c>, which avoids
 /// the database <c>TIME</c> range while preserving the engines' six-digit temporal
 /// precision.
+///
+/// JSON construction expands the CLR <c>params</c> array into the engines'
+/// variadic arguments. MySQL specifies an empty-or-valued list for
+/// <c>JSON_ARRAY</c> and complete key/value pairs for <c>JSON_OBJECT</c>:
+/// <see href="https://dev.mysql.com/doc/refman/8.4/en/json-creation-functions.html">
+/// MySQL 8.4 JSON creation functions</see>. MariaDB exposes the same
+/// <c>JSON_ARRAY</c> and <c>JSON_OBJECT</c> function contract in its server JSON
+/// function reference. Sources retrieved 2026-08-18.
 /// </remarks>
 internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTranslatingExpressionVisitor
 {
@@ -32,6 +40,20 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
     private static readonly MethodInfo s_convertObjectToStringMethod = typeof(Convert).GetRuntimeMethod(
         nameof(Convert.ToString),
         [typeof(object)])!;
+
+    private static readonly MethodInfo s_jsonArrayMethod = typeof(MySqlDbFunctionsExtensions).GetRuntimeMethod(
+        nameof(MySqlDbFunctionsExtensions.JsonArray),
+        [
+            typeof(DbFunctions),
+            typeof(object[]),
+        ])!;
+
+    private static readonly MethodInfo s_jsonObjectMethod = typeof(MySqlDbFunctionsExtensions).GetRuntimeMethod(
+        nameof(MySqlDbFunctionsExtensions.JsonObject),
+        [
+            typeof(DbFunctions),
+            typeof(object[]),
+        ])!;
 
     private static readonly MethodInfo s_enumerableElementAtMethod = typeof(Enumerable)
         .GetRuntimeMethods()
@@ -270,6 +292,16 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         MethodCallExpression methodCallExpression
     )
     {
+        if (methodCallExpression.Method == s_jsonArrayMethod)
+        {
+            return TranslateJsonConstruction(methodCallExpression, "JSON_ARRAY", requirePairs: false);
+        }
+
+        if (methodCallExpression.Method == s_jsonObjectMethod)
+        {
+            return TranslateJsonConstruction(methodCallExpression, "JSON_OBJECT", requirePairs: true);
+        }
+
         if (methodCallExpression.Method.IsGenericMethod
             && methodCallExpression.Method.GetGenericMethodDefinition() == s_enumerableContainsMethod
             && TryTranslateConvertedEnumCollectionContains(methodCallExpression) is { } enumCollectionContains)
@@ -334,6 +366,75 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
             typeof(string),
             _typeMappingSource.FindMapping(typeof(string)));
     }
+
+    private SqlExpression TranslateJsonConstruction(
+        MethodCallExpression methodCallExpression,
+        string functionName,
+        bool requirePairs
+    )
+    {
+        if (methodCallExpression.Arguments[1] is ConstantExpression { Value: object[] { Length: 0, }, })
+        {
+            return _sqlExpressionFactory.Function(
+                functionName,
+                [],
+                nullable: false,
+                argumentsPropagateNullability: [],
+                typeof(string),
+                _typeMappingSource.FindMapping(typeof(string)));
+        }
+
+        if (methodCallExpression.Arguments[1] is not NewArrayExpression { NodeType: ExpressionType.NewArrayInit, } values)
+        {
+            throw new InvalidOperationException(
+                $"{methodCallExpression.Method.Name} requires inline params arguments so every JSON value can be "
+                + "translated and parameterized by the database provider.");
+        }
+
+        if (requirePairs && values.Expressions.Count % 2 != 0)
+        {
+            throw new InvalidOperationException(
+                $"{methodCallExpression.Method.Name} requires an even number of key and value arguments.");
+        }
+
+        var arguments = new List<SqlExpression>(values.Expressions.Count);
+        var nullTypeMapping = _typeMappingSource.FindMapping(typeof(string))!;
+
+        for (var index = 0; index < values.Expressions.Count; index++)
+        {
+            var value = UnwrapObjectConversion(values.Expressions[index]);
+
+            if (Visit(value) is not SqlExpression translatedValue)
+            {
+                throw new InvalidOperationException(
+                    $"{methodCallExpression.Method.Name} argument {index + 1} cannot be translated to SQL. "
+                    + "Use a database column, a scalar constant, or a parameterized scalar value.");
+            }
+
+            arguments.Add(
+                translatedValue is SqlConstantExpression { Value: null, TypeMapping: null, }
+                    ? _sqlExpressionFactory.ApplyTypeMapping(translatedValue, nullTypeMapping)
+                    : _sqlExpressionFactory.ApplyDefaultTypeMapping(translatedValue));
+        }
+
+        return _sqlExpressionFactory.Function(
+            functionName,
+            arguments,
+            nullable: false,
+            argumentsPropagateNullability: new bool[arguments.Count],
+            typeof(string),
+            _typeMappingSource.FindMapping(typeof(string)));
+    }
+
+    private static Expression UnwrapObjectConversion(
+        Expression expression
+    ) => expression is UnaryExpression
+        {
+            NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked, Type: { } type,
+        } conversion
+        && type == typeof(object)
+            ? conversion.Operand
+            : expression;
 
     /// <summary>
     /// Translates <c>Contains</c> over enum collections serialized by a value
