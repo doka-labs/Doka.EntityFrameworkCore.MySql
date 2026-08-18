@@ -207,8 +207,18 @@ internal sealed class MySqlMigrationsAnnotationProvider : IMigrationsAnnotationP
         AddMappedPropertyAnnotationIfMissing(columnAnnotations, column, MySqlAnnotationNames.ValueGenerationStrategy);
         AddMappedPropertyAnnotationIfMissing(columnAnnotations, column, MySqlAnnotationNames.SpatialReferenceSystemId);
         AddMappedPropertyAnnotationIfMissing(columnAnnotations, column, MySqlAnnotationNames.Invisible);
+        RemoveAutoIncrementFromNonPrincipalSplitColumn(columnAnnotations, column);
 
         return columnAnnotations;
+    }
+
+    private static void RemoveAutoIncrementFromNonPrincipalSplitColumn(
+        List<IAnnotation> annotations,
+        IColumn column
+    )
+    {
+        annotations.RemoveAll(annotation => annotation.Name == MySqlAnnotationNames.ValueGenerationStrategy
+            && !MySqlColumnAnnotationPolicy.ShouldEmitValueGeneration(column, annotation));
     }
 
     private static void AddMappedPropertyAnnotationIfMissing(

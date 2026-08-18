@@ -109,7 +109,8 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
             yield return guidFormatAnnotation;
         }
 
-        if (FindColumnAnnotation(column, MySqlAnnotationNames.ValueGenerationStrategy) is { } valueGenerationAnnotation)
+        if (FindColumnAnnotation(column, MySqlAnnotationNames.ValueGenerationStrategy) is { } valueGenerationAnnotation
+            && MySqlColumnAnnotationPolicy.ShouldEmitValueGeneration(column, valueGenerationAnnotation))
         {
             yield return valueGenerationAnnotation;
         }

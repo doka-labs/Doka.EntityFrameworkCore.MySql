@@ -23,6 +23,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `MySqlDataSource`. Explicit `Binary16` overrides now use provider-owned
   big-endian bytes, while the unannotated `Binary16` default keeps its native
   no-converter path.
+- Keep `AUTO_INCREMENT` exclusively on the principal table of an entity-split
+  mapping. Secondary shared primary/foreign keys remain non-generating through
+  migrations, generated snapshots, live CRUD, and cascading deletes.
 - Delay application-time period defaults until action-based configuration has
   completed, so typed or named endpoints do not leave unused `ValidFrom` and
   `ValidTo` shadow properties in models, snapshots, or migrations.

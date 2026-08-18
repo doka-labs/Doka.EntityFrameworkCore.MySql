@@ -256,6 +256,12 @@ from an application-converted `varchar(36)` mapping to provider-native
 columns, and restore the same constraint after the dependent index is available.
 The reverse migration follows the same dependency-safe ordering.
 
+### Entity-splitting key generation
+
+For entity splitting, an auto-increment key belongs only to the principal
+table. The secondary table receives the same value as a non-generating shared
+primary/foreign key with its configured delete behavior.
+
 ### HiLo value generation
 
 ```csharp

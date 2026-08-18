@@ -205,6 +205,26 @@ public sealed class MySqlDesignTimeRoundTripTests
         AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
     }
 
+    /// <summary>
+    /// Entity-splitting snapshots retain one generated principal key without
+    /// turning the secondary shared primary/foreign key into a generator.
+    /// </summary>
+    [Fact]
+    public void Entity_splitting_snapshot_and_designer_preserve_principal_generation_ownership()
+    {
+        var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
+        using var context = new EntitySplitDesignContext(CreateOptions<EntitySplitDesignContext>(serverVersion));
+        var generated = GenerateAndCompile(context);
+
+        Assert.Contains(".SplitToTable(", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".SplitToTable(", generated.DesignerCode, StringComparison.Ordinal);
+        AssertRoundTripsWithoutOperations(context, generated.SnapshotModel);
+        AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
+        AssertEntitySplitGenerationOwnership(context, context.GetService<IDesignTimeModel>().Model, serverVersion);
+        AssertEntitySplitGenerationOwnership(context, generated.SnapshotModel, serverVersion);
+        AssertEntitySplitGenerationOwnership(context, generated.DesignerModel, serverVersion);
+    }
+
     private static GeneratedTemporalModels GenerateAndCompile(
         DbContext context
     )
@@ -406,6 +426,43 @@ public sealed class MySqlDesignTimeRoundTripTests
             .ToArray();
 
         Assert.Equal(expectedProperties, properties);
+    }
+
+    private static void AssertEntitySplitGenerationOwnership(
+        DbContext context,
+        IModel model,
+        MySqlServerVersion serverVersion
+    )
+    {
+        using var source = new EmptyTemporalDesignContext(CreateOptions<EmptyTemporalDesignContext>(serverVersion));
+        var initializedModel = context
+            .GetService<IModelRuntimeInitializer>()
+            .Initialize(
+                model,
+                designTime: true,
+                context.GetService<IDiagnosticsLogger<DbLoggerCategory.Model.Validation>>());
+
+        var operations = context
+            .GetService<IMigrationsModelDiffer>()
+            .GetDifferences(
+                source
+                    .GetService<IDesignTimeModel>()
+                    .Model
+                    .GetRelationalModel(),
+                initializedModel.GetRelationalModel());
+
+        var tables = operations
+            .OfType<CreateTableOperation>()
+            .ToDictionary(operation => operation.Name, StringComparer.Ordinal);
+
+        var principalId = Assert.Single(tables["EntitySplitDesignRecords"].Columns, column => column.Name == "Id");
+
+        var secondaryId = Assert.Single(tables["EntitySplitDesignDetails"].Columns, column => column.Name == "Id");
+
+        Assert.Equal(
+            MySqlValueGenerationStrategy.AutoIncrement,
+            principalId.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)?.Value);
+        Assert.Null(secondaryId.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy));
     }
 
     private static DbContextOptions<TContext> CreateOptions<TContext>(
@@ -795,4 +852,54 @@ public sealed class InvisibleColumnDesignRecord
     /// Gets or sets the explicitly visible value.
     /// </summary>
     public string VisibleValue { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Test context for generated entity-splitting migration models.
+/// </summary>
+public sealed class EntitySplitDesignContext : DbContext
+{
+    /// <summary>
+    /// Creates the entity-splitting design context.
+    /// </summary>
+    public EntitySplitDesignContext(
+        DbContextOptions<EntitySplitDesignContext> options
+    ) : base(options) { }
+
+    /// <inheritdoc />
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
+    {
+        modelBuilder.Entity<EntitySplitDesignRecord>(entity =>
+        {
+            entity.ToTable("EntitySplitDesignRecords");
+            entity.HasKey(record => record.Id);
+            entity.Property(record => record.Id).UseMySqlAutoIncrementColumn();
+            entity.SplitToTable(
+                "EntitySplitDesignDetails",
+                split => split.Property(record => record.Description));
+        });
+    }
+}
+
+/// <summary>
+/// Entity used by the generated entity-splitting migration model.
+/// </summary>
+public sealed class EntitySplitDesignRecord
+{
+    /// <summary>
+    /// Gets or sets the generated key.
+    /// </summary>
+    public int Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the property held by the principal table.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the property held by the secondary table.
+    /// </summary>
+    public string Description { get; set; } = string.Empty;
 }
