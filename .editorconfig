@@ -323,6 +323,7 @@ resharper_csharp_align_multiline_argument = false
 resharper_csharp_wrap_after_dot_in_method_calls = false
 resharper_csharp_wrap_chained_method_calls = chop_always
 resharper_csharp_wrap_before_first_method_call = true
+resharper_csharp_wrap_after_property_in_chained_method_calls = true
 resharper_csharp_align_multiline_calls_chain = false
 resharper_csharp_outdent_dots = false
 
@@ -337,6 +338,11 @@ resharper_csharp_wrap_chained_binary_patterns = chop_if_long
 resharper_csharp_align_multiline_binary_expressions_chain = false
 resharper_csharp_outdent_binary_ops = false
 resharper_csharp_continuous_indent_multiplier = 1
+
+# --- Ternary Expressions -----------------------------------------------------
+resharper_csharp_wrap_before_ternary_opsigns = true
+resharper_csharp_wrap_ternary_expr_style = chop_if_long
+resharper_csharp_nested_ternary_style = expanded
 
 # --- LINQ And Initializers ---------------------------------------------------
 # More than one initializer element or member should become multiline.

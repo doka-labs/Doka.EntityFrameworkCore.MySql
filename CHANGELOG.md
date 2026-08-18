@@ -18,6 +18,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   dynamically discovered V3 package-content endpoint and accept only canonical
   normalized release versions; completion consumes the exact identity written
   by the readback producer.
+- Preserve system-time, application-time, and bitemporal metadata in generated
+  migration snapshots and designer models, including custom period columns, so
+  an unchanged model no longer produces a redundant follow-up migration.
+- Propagate a temporal table contract to convention-owned `OwnsOne` mappings
+  that share the physical table. Separately stored current-only owned
+  collections now fail with a focused diagnostic before historical and current
+  rows can be mixed.
 
 ## [10.0.0-rc.9] - 2026-08-17
 

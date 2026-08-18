@@ -104,17 +104,6 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
                     .GetCheckConstraints()
                     .OrderBy(checkConstraint => checkConstraint.Name, StringComparer.Ordinal)
                     .ToArray(),
-                IsTemporal = entityType.IsMySqlTemporal(),
-                TemporalHistoryTableName = entityType.GetMySqlTemporalHistoryTableName(),
-                TemporalHistoryTableSchema = entityType.GetMySqlTemporalHistoryTableSchema(),
-                TemporalPeriodStartPropertyName = entityType.GetMySqlTemporalPeriodStartPropertyName(),
-                TemporalPeriodEndPropertyName = entityType.GetMySqlTemporalPeriodEndPropertyName(),
-                IsApplicationTime = entityType.IsMySqlApplicationTime(),
-                ApplicationTimePeriodName = entityType.GetMySqlApplicationTimePeriodName(),
-                ApplicationTimePeriodStartPropertyName = entityType
-                    .GetMySqlApplicationTimePeriodStartPropertyName(),
-                ApplicationTimePeriodEndPropertyName = entityType
-                    .GetMySqlApplicationTimePeriodEndPropertyName(),
                 ColumnOrders = entityType
                     .GetProperties()
                     .Select(property => new
@@ -129,8 +118,6 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
             .Where(configuration => configuration.PrimaryKey?.GetName() is not null
                 || configuration.AlternateKeys.Length > 0
                 || configuration.CheckConstraints.Length > 0
-                || configuration.IsTemporal
-                || configuration.IsApplicationTime
                 || configuration.ColumnOrders.Length > 0)
             .OrderBy(configuration => configuration.EntityType.Name, StringComparer.Ordinal)
             .ToArray();
@@ -224,9 +211,7 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
                     .Append(newline);
             }
 
-            if (configuration.CheckConstraints.Length == 0
-                && !configuration.IsTemporal
-                && !configuration.IsApplicationTime)
+            if (configuration.CheckConstraints.Length == 0)
             {
                 continue;
             }
@@ -240,27 +225,6 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
                 .Append(newline)
                 .Append("            {")
                 .Append(newline);
-
-            if (configuration.IsTemporal)
-            {
-                AppendTemporalConfiguration(
-                    configurationCode,
-                    newline,
-                    configuration.TemporalHistoryTableName,
-                    configuration.TemporalHistoryTableSchema,
-                    configuration.TemporalPeriodStartPropertyName,
-                    configuration.TemporalPeriodEndPropertyName);
-            }
-
-            if (configuration.IsApplicationTime)
-            {
-                AppendApplicationTimeConfiguration(
-                    configurationCode,
-                    newline,
-                    configuration.ApplicationTimePeriodName,
-                    configuration.ApplicationTimePeriodStartPropertyName,
-                    configuration.ApplicationTimePeriodEndPropertyName);
-            }
 
             foreach (var checkConstraint in configuration.CheckConstraints)
             {
@@ -280,96 +244,6 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
         }
 
         return code.Insert(insertionIndex, configurationCode.ToString());
-    }
-
-    private void AppendTemporalConfiguration(
-        StringBuilder configurationCode,
-        string newline,
-        string? historyTableName,
-        string? historyTableSchema,
-        string? periodStartPropertyName,
-        string? periodEndPropertyName
-    )
-    {
-        if (string.IsNullOrWhiteSpace(periodStartPropertyName)
-            || string.IsNullOrWhiteSpace(periodEndPropertyName))
-        {
-            throw new InvalidOperationException(
-                "A scaffolded temporal entity must expose both temporal period properties.");
-        }
-
-        configurationCode
-            .Append("                tableBuilder.IsTemporal(temporalTableBuilder =>")
-            .Append(newline)
-            .Append("                {")
-            .Append(newline);
-
-        if (!string.IsNullOrWhiteSpace(historyTableName))
-        {
-            configurationCode
-                .Append("                    temporalTableBuilder.UseHistoryTable(")
-                .Append(_csharpHelper.Literal(historyTableName));
-
-            if (!string.IsNullOrWhiteSpace(historyTableSchema))
-            {
-                configurationCode
-                    .Append(", ")
-                    .Append(_csharpHelper.Literal(historyTableSchema));
-            }
-
-            configurationCode
-                .Append(");")
-                .Append(newline);
-        }
-
-        configurationCode
-            .Append("                    temporalTableBuilder.HasPeriodStart(")
-            .Append(_csharpHelper.Literal(periodStartPropertyName))
-            .Append(");")
-            .Append(newline)
-            .Append("                    temporalTableBuilder.HasPeriodEnd(")
-            .Append(_csharpHelper.Literal(periodEndPropertyName))
-            .Append(");")
-            .Append(newline)
-            .Append("                });")
-            .Append(newline);
-    }
-
-    private void AppendApplicationTimeConfiguration(
-        StringBuilder configurationCode,
-        string newline,
-        string? periodName,
-        string? periodStartPropertyName,
-        string? periodEndPropertyName
-    )
-    {
-        if (string.IsNullOrWhiteSpace(periodName)
-            || string.IsNullOrWhiteSpace(periodStartPropertyName)
-            || string.IsNullOrWhiteSpace(periodEndPropertyName))
-        {
-            throw new InvalidOperationException(
-                "A scaffolded application-time entity must expose its period name and both period properties.");
-        }
-
-        configurationCode
-            .Append("                tableBuilder.HasApplicationTimePeriod(applicationTimeTableBuilder =>")
-            .Append(newline)
-            .Append("                {")
-            .Append(newline)
-            .Append("                    applicationTimeTableBuilder.HasPeriodName(")
-            .Append(_csharpHelper.Literal(periodName))
-            .Append(");")
-            .Append(newline)
-            .Append("                    applicationTimeTableBuilder.HasPeriodStart(")
-            .Append(_csharpHelper.Literal(periodStartPropertyName))
-            .Append(");")
-            .Append(newline)
-            .Append("                    applicationTimeTableBuilder.HasPeriodEnd(")
-            .Append(_csharpHelper.Literal(periodEndPropertyName))
-            .Append(");")
-            .Append(newline)
-            .Append("                });")
-            .Append(newline);
     }
 
     private static bool HasColumnOrderConfiguration(

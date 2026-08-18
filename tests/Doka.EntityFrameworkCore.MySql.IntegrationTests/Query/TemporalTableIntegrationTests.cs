@@ -359,8 +359,10 @@ public sealed class TemporalTableIntegrationTests
         var contextCode = scaffoldedModel.ContextFile.Code;
 
         Assert.Contains("tableBuilder.IsTemporal(temporalTableBuilder =>", contextCode);
-        Assert.Contains($"temporalTableBuilder.HasPeriodStart(\"{PeriodStartColumnName}\")", contextCode);
-        Assert.Contains($"temporalTableBuilder.HasPeriodEnd(\"{PeriodEndColumnName}\")", contextCode);
+        Assert.Contains($".HasPeriodStart(\"{PeriodStartColumnName}\")", contextCode);
+        Assert.Contains($".HasPeriodEnd(\"{PeriodEndColumnName}\")", contextCode);
+        Assert.Contains($".HasColumnName(\"{PeriodStartColumnName}\")", contextCode);
+        Assert.Contains($".HasColumnName(\"{PeriodEndColumnName}\")", contextCode);
 
         if (IsMySql(target))
         {

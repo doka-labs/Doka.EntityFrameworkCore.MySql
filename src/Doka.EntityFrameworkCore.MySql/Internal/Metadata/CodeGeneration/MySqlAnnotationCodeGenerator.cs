@@ -2,6 +2,80 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
 {
+    private static readonly MethodInfo s_entityTypeToTableMethod =
+        typeof(RelationalEntityTypeBuilderExtensions).GetRuntimeMethod(
+            nameof(RelationalEntityTypeBuilderExtensions.ToTable),
+            [
+                typeof(EntityTypeBuilder),
+                typeof(Action<TableBuilder>),
+            ])!;
+
+    private static readonly MethodInfo s_tableIsTemporalMethod = typeof(MySqlTableBuilderExtensions).GetRuntimeMethod(
+        nameof(MySqlTableBuilderExtensions.IsTemporal),
+        [
+            typeof(TableBuilder),
+            typeof(Action<MySqlTemporalTableBuilder>),
+        ])!;
+
+    private static readonly MethodInfo s_temporalUseHistoryTableMethod =
+        typeof(MySqlTemporalTableBuilder).GetRuntimeMethod(
+            nameof(MySqlTemporalTableBuilder.UseHistoryTable),
+            [typeof(string)])!;
+
+    private static readonly MethodInfo s_temporalUseHistoryTableWithSchemaMethod =
+        typeof(MySqlTemporalTableBuilder).GetRuntimeMethod(
+            nameof(MySqlTemporalTableBuilder.UseHistoryTable),
+            [
+                typeof(string),
+                typeof(string),
+            ])!;
+
+    private static readonly MethodInfo s_temporalHasPeriodStartMethod =
+        typeof(MySqlTemporalTableBuilder).GetRuntimeMethod(
+            nameof(MySqlTemporalTableBuilder.HasPeriodStart),
+            [typeof(string)])!;
+
+    private static readonly MethodInfo s_temporalHasPeriodEndMethod =
+        typeof(MySqlTemporalTableBuilder).GetRuntimeMethod(
+            nameof(MySqlTemporalTableBuilder.HasPeriodEnd),
+            [typeof(string)])!;
+
+    private static readonly MethodInfo s_propertyHasColumnNameMethod =
+        typeof(RelationalPropertyBuilderExtensions).GetRuntimeMethod(
+            nameof(RelationalPropertyBuilderExtensions.HasColumnName),
+            [
+                typeof(PropertyBuilder),
+                typeof(string),
+            ])!;
+
+    private static readonly MethodInfo s_tableHasApplicationTimePeriodMethod =
+        typeof(MySqlApplicationTimeTableBuilderExtensions).GetRuntimeMethod(
+            nameof(MySqlApplicationTimeTableBuilderExtensions.HasApplicationTimePeriod),
+            [
+                typeof(TableBuilder),
+                typeof(Action<MySqlApplicationTimeTableBuilder>),
+            ])!;
+
+    private static readonly MethodInfo s_applicationTimeHasPeriodNameMethod =
+        typeof(MySqlApplicationTimeTableBuilder).GetRuntimeMethod(
+            nameof(MySqlApplicationTimeTableBuilder.HasPeriodName),
+            [typeof(string)])!;
+
+    private static readonly MethodInfo s_applicationTimeHasPeriodStartMethod =
+        typeof(MySqlApplicationTimeTableBuilder).GetRuntimeMethod(
+            nameof(MySqlApplicationTimeTableBuilder.HasPeriodStart),
+            [typeof(string)])!;
+
+    private static readonly MethodInfo s_applicationTimeHasPeriodEndMethod =
+        typeof(MySqlApplicationTimeTableBuilder).GetRuntimeMethod(
+            nameof(MySqlApplicationTimeTableBuilder.HasPeriodEnd),
+            [typeof(string)])!;
+
+    private static readonly MethodInfo s_applicationTimeUseWithoutOverlapsMethod =
+        typeof(MySqlApplicationTimeTableBuilder).GetRuntimeMethod(
+            nameof(MySqlApplicationTimeTableBuilder.UseWithoutOverlaps),
+            [typeof(bool)])!;
+
     public MySqlAnnotationCodeGenerator(
         AnnotationCodeGeneratorDependencies dependencies
     ) : base(dependencies) { }
@@ -36,23 +110,22 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
         ArgumentNullException.ThrowIfNull(entityType);
         ArgumentNullException.ThrowIfNull(annotations);
 
-        // The model-code generator emits both temporal contracts through the strongly
-        // typed table-builder APIs. Removing these annotations here prevents a second,
-        // provider-internal HasAnnotation representation from leaking into user code.
-        annotations.Remove(MySqlAnnotationNames.IsTemporal);
-        annotations.Remove(MySqlAnnotationNames.TemporalHistoryTableName);
-        annotations.Remove(MySqlAnnotationNames.TemporalHistoryTableSchema);
-        annotations.Remove(MySqlAnnotationNames.TemporalPeriodStartPropertyName);
-        annotations.Remove(MySqlAnnotationNames.TemporalPeriodEndPropertyName);
-        annotations.Remove(MySqlAnnotationNames.IsApplicationTime);
-        annotations.Remove(MySqlAnnotationNames.ApplicationTimePeriodName);
-        annotations.Remove(MySqlAnnotationNames.ApplicationTimePeriodStartPropertyName);
-        annotations.Remove(MySqlAnnotationNames.ApplicationTimePeriodEndPropertyName);
-        annotations.Remove(MySqlAnnotationNames.ApplicationTimeWithoutOverlaps);
-
         var fragments = base
             .GenerateFluentApiCalls(entityType, annotations)
             .ToList();
+
+        var tableBuilderCalls = new List<MethodCallCodeFragment>();
+
+        GenerateTemporalTableCall(entityType, annotations, tableBuilderCalls);
+        GenerateApplicationTimeTableCall(entityType, annotations, tableBuilderCalls);
+
+        if (tableBuilderCalls.Count > 0)
+        {
+            fragments.Add(
+                new MethodCallCodeFragment(
+                    s_entityTypeToTableMethod,
+                    new NestedClosureCodeFragment("tableBuilder", tableBuilderCalls)));
+        }
 
         if (annotations.Remove(MySqlAnnotationNames.CharSet, out var charSetAnnotation)
             && charSetAnnotation.Value is string charSet
@@ -71,6 +144,142 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
 
         return fragments;
     }
+
+    private static void GenerateTemporalTableCall(
+        IEntityType entityType,
+        IDictionary<string, IAnnotation> annotations,
+        List<MethodCallCodeFragment> tableBuilderCalls
+    )
+    {
+        if (annotations.TryGetValue(MySqlAnnotationNames.IsTemporal, out var annotation)
+            && (annotation.Value as bool?) == true)
+        {
+            var periodStartPropertyName = RequireName(
+                entityType.GetMySqlTemporalPeriodStartPropertyName(),
+                entityType,
+                "temporal period-start property");
+
+            var periodEndPropertyName = RequireName(
+                entityType.GetMySqlTemporalPeriodEndPropertyName(),
+                entityType,
+                "temporal period-end property");
+            var temporalCalls = new List<MethodCallCodeFragment>();
+
+            var historyTableName = entityType.GetMySqlTemporalHistoryTableName();
+            var historyTableSchema = entityType.GetMySqlTemporalHistoryTableSchema();
+
+            if (historyTableName is not null)
+            {
+                temporalCalls.Add(
+                    historyTableSchema is null
+                        ? new MethodCallCodeFragment(s_temporalUseHistoryTableMethod, historyTableName)
+                        : new MethodCallCodeFragment(
+                            s_temporalUseHistoryTableWithSchemaMethod,
+                            historyTableName,
+                            historyTableSchema));
+            }
+
+            temporalCalls.Add(
+                CreatePeriodPropertyCall(entityType, periodStartPropertyName, s_temporalHasPeriodStartMethod));
+            temporalCalls.Add(
+                CreatePeriodPropertyCall(entityType, periodEndPropertyName, s_temporalHasPeriodEndMethod));
+
+            tableBuilderCalls.Add(
+                new MethodCallCodeFragment(
+                    s_tableIsTemporalMethod,
+                    new NestedClosureCodeFragment("temporalTableBuilder", temporalCalls)));
+        }
+
+        annotations.Remove(MySqlAnnotationNames.IsTemporal);
+        annotations.Remove(MySqlAnnotationNames.TemporalHistoryTableName);
+        annotations.Remove(MySqlAnnotationNames.TemporalHistoryTableSchema);
+        annotations.Remove(MySqlAnnotationNames.TemporalPeriodStartPropertyName);
+        annotations.Remove(MySqlAnnotationNames.TemporalPeriodEndPropertyName);
+    }
+
+    private static void GenerateApplicationTimeTableCall(
+        IEntityType entityType,
+        IDictionary<string, IAnnotation> annotations,
+        List<MethodCallCodeFragment> tableBuilderCalls
+    )
+    {
+        if (annotations.TryGetValue(MySqlAnnotationNames.IsApplicationTime, out var annotation)
+            && annotation.Value as bool? == true)
+        {
+            var periodName = RequireName(
+                entityType.GetMySqlApplicationTimePeriodName(),
+                entityType,
+                "application-time period");
+
+            var periodStartPropertyName = RequireName(
+                entityType.GetMySqlApplicationTimePeriodStartPropertyName(),
+                entityType,
+                "application-time period-start property");
+
+            var periodEndPropertyName = RequireName(
+                entityType.GetMySqlApplicationTimePeriodEndPropertyName(),
+                entityType,
+                "application-time period-end property");
+
+            var applicationTimeCalls = new List<MethodCallCodeFragment>
+            {
+                new(s_applicationTimeHasPeriodNameMethod, periodName),
+                CreatePeriodPropertyCall(
+                    entityType,
+                    periodStartPropertyName,
+                    s_applicationTimeHasPeriodStartMethod),
+                CreatePeriodPropertyCall(
+                    entityType,
+                    periodEndPropertyName,
+                    s_applicationTimeHasPeriodEndMethod),
+            };
+
+            if (entityType.GetMySqlApplicationTimeWithoutOverlaps())
+            {
+                applicationTimeCalls.Add(
+                    new MethodCallCodeFragment(s_applicationTimeUseWithoutOverlapsMethod));
+            }
+
+            tableBuilderCalls.Add(
+                new MethodCallCodeFragment(
+                    s_tableHasApplicationTimePeriodMethod,
+                    new NestedClosureCodeFragment("applicationTimeTableBuilder", applicationTimeCalls)));
+        }
+
+        annotations.Remove(MySqlAnnotationNames.IsApplicationTime);
+        annotations.Remove(MySqlAnnotationNames.ApplicationTimePeriodName);
+        annotations.Remove(MySqlAnnotationNames.ApplicationTimePeriodStartPropertyName);
+        annotations.Remove(MySqlAnnotationNames.ApplicationTimePeriodEndPropertyName);
+        annotations.Remove(MySqlAnnotationNames.ApplicationTimeWithoutOverlaps);
+    }
+
+    private static MethodCallCodeFragment CreatePeriodPropertyCall(
+        IEntityType entityType,
+        string propertyName,
+        MethodInfo method
+    )
+    {
+        var tableName = entityType.GetTableName()
+            ?? throw new InvalidOperationException(
+                $"Entity type '{entityType.DisplayName()}' has temporal metadata but no table mapping.");
+
+        var storeObject = StoreObjectIdentifier.Table(tableName, entityType.GetSchema());
+        var columnName = entityType
+            .FindProperty(propertyName)
+            ?.GetColumnName(storeObject);
+
+        var call = new MethodCallCodeFragment(method, propertyName);
+
+        return columnName is null ? call : call.Chain(s_propertyHasColumnNameMethod, columnName);
+    }
+
+    private static string RequireName(
+        string? value,
+        IEntityType entityType,
+        string role
+    ) => string.IsNullOrWhiteSpace(value)
+        ? throw new InvalidOperationException($"Entity type '{entityType.DisplayName()}' has no {role} name.")
+        : value;
 
     public override IReadOnlyList<MethodCallCodeFragment> GenerateFluentApiCalls(
         IKey key,

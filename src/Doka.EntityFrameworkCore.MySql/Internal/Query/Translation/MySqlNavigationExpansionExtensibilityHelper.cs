@@ -58,6 +58,16 @@ internal sealed class MySqlNavigationExpansionExtensibilityHelper : NavigationEx
                     .GetRootType()
                     .IsMySqlTemporal())
             {
+                if (entityType.IsOwned())
+                {
+                    throw new InvalidOperationException(
+                        $"Temporal query materialization expanded separately stored, non-temporal "
+                        + $"owned entity '{entityType.DisplayName()}'. EF Core expands owned navigations "
+                        + "even when Include is omitted or IgnoreAutoIncludes is used. Mixing historical "
+                        + "owner rows with current owned rows is not supported. Project only columns from "
+                        + "the temporal table or map the owned table as temporal.");
+                }
+
                 throw new InvalidOperationException(
                     $"Temporal navigation expansion reached non-temporal entity "
                     + $"'{entityType.DisplayName()}'. Map every separately stored target "

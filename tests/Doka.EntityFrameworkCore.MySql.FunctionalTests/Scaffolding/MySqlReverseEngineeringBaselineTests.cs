@@ -179,13 +179,15 @@ public sealed class MySqlReverseEngineeringBaselineTests
             contextCode,
             StringComparison.Ordinal);
         Assert.Contains(
-            "temporalTableBuilder.HasPeriodStart(\"ValidFrom\")",
+            ".HasPeriodStart(\"ValidFrom\")",
             contextCode,
             StringComparison.Ordinal);
         Assert.Contains(
-            "temporalTableBuilder.HasPeriodEnd(\"ValidTo\")",
+            ".HasPeriodEnd(\"ValidTo\")",
             contextCode,
             StringComparison.Ordinal);
+        Assert.Contains(".HasColumnName(\"ValidFrom\")", contextCode, StringComparison.Ordinal);
+        Assert.Contains(".HasColumnName(\"ValidTo\")", contextCode, StringComparison.Ordinal);
         Assert.DoesNotContain(
             MySqlAnnotationNames.IsTemporal,
             contextCode,
@@ -213,11 +215,11 @@ public sealed class MySqlReverseEngineeringBaselineTests
             contextCode,
             StringComparison.Ordinal);
         Assert.Contains(
-            "applicationTimeTableBuilder.HasPeriodStart(\"ValidFrom\")",
+            ".HasPeriodStart(\"ValidFrom\")",
             contextCode,
             StringComparison.Ordinal);
         Assert.Contains(
-            "applicationTimeTableBuilder.HasPeriodEnd(\"ValidTo\")",
+            ".HasPeriodEnd(\"ValidTo\")",
             contextCode,
             StringComparison.Ordinal);
         Assert.Contains(".UseWithoutOverlaps()", contextCode, StringComparison.Ordinal);

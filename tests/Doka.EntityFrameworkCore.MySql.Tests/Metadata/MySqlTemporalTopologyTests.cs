@@ -42,6 +42,57 @@ public sealed class MySqlTemporalTopologyTests
     }
 
     /// <summary>
+    /// Convention-owned rows sharing a temporal table inherit its complete physical contract.
+    /// </summary>
+    [Fact]
+    public void Implicit_owned_mapping_inherits_shared_temporal_table_contract()
+    {
+        using var context = CreateContext<ImplicitTemporalOwnedConfiguration>();
+
+        var owner = context.Model.FindEntityType(typeof(TemporalOwner))!;
+        var owned = Assert.Single(owner.GetNavigations()).TargetEntityType;
+        var storeObject = StoreObjectIdentifier.Table("TemporalOwners", schema: null);
+
+        Assert.True(owned.IsMySqlTemporal());
+        Assert.Equal("TemporalOwnerHistory", owned.GetMySqlTemporalHistoryTableName());
+        Assert.Equal("ValidFrom", owned.GetMySqlTemporalPeriodStartPropertyName());
+        Assert.Equal("ValidTo", owned.GetMySqlTemporalPeriodEndPropertyName());
+        Assert.Equal("valid_from", owned.FindProperty("ValidFrom")!.GetColumnName(storeObject));
+        Assert.Equal("valid_to", owned.FindProperty("ValidTo")!.GetColumnName(storeObject));
+    }
+
+    /// <summary>
+    /// Owned rows stored in a separate table remain current-only unless configured otherwise.
+    /// </summary>
+    [Fact]
+    public void Separately_mapped_owned_entity_does_not_inherit_temporal_contract()
+    {
+        using var context = CreateContext<SeparateOwnedConfiguration>();
+
+        var owner = context.Model.FindEntityType(typeof(TemporalOwner))!;
+        var owned = Assert.Single(owner.GetNavigations()).TargetEntityType;
+
+        Assert.True(owner.IsMySqlTemporal());
+        Assert.False(owned.IsMySqlTemporal());
+        Assert.Equal("TemporalOwnerDetails", owned.GetTableName());
+    }
+
+    /// <summary>
+    /// The table-splitting exemption does not permit a physical MySQL cascade to bypass
+    /// history triggers on a separately stored temporal owned type.
+    /// </summary>
+    [Fact]
+    public void Separately_mapped_temporal_owned_entity_still_rejects_mysql_cascade()
+    {
+        using var context = CreateContext<SeparateTemporalOwnedConfiguration>(
+            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+
+        Assert.Contains("cannot use database delete behavior 'Cascade'", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Explicitly aligned owner and owned metadata produce one valid table contract.
     /// </summary>
     [Fact]
@@ -124,13 +175,15 @@ public sealed class MySqlTemporalTopologyTests
             cat.FindProperty(catPeriodStart)!.GetColumnName(catStoreObject));
     }
 
-    private static TopologyContext<TConfiguration> CreateContext<TConfiguration>()
+    private static TopologyContext<TConfiguration> CreateContext<TConfiguration>(
+        MySqlServerVersion? serverVersion = null
+    )
         where TConfiguration : ITopologyConfiguration, new()
     {
         var options = new DbContextOptionsBuilder<TopologyContext<TConfiguration>>()
             .UseMySql(
                 "Server=localhost;Database=doka;User ID=root;Password=password;",
-                s_mariaDb114)
+                serverVersion ?? s_mariaDb114)
             .Options;
 
         return new TopologyContext<TConfiguration>(options);
@@ -167,14 +220,35 @@ public sealed class MySqlTemporalTopologyTests
     {
         public void Configure(
             ModelBuilder modelBuilder
-        ) => ConfigureOwner(modelBuilder, configureOwnedAsTemporal: false);
+        ) => ConfigureOwner(modelBuilder, OwnedTemporalMapping.ExplicitCurrent);
+    }
+
+    private sealed class ImplicitTemporalOwnedConfiguration : ITopologyConfiguration
+    {
+        public void Configure(
+            ModelBuilder modelBuilder
+        ) => ConfigureOwner(modelBuilder, OwnedTemporalMapping.Implicit);
     }
 
     private sealed class TemporalOwnedConfiguration : ITopologyConfiguration
     {
         public void Configure(
             ModelBuilder modelBuilder
-        ) => ConfigureOwner(modelBuilder, configureOwnedAsTemporal: true);
+        ) => ConfigureOwner(modelBuilder, OwnedTemporalMapping.ExplicitTemporal);
+    }
+
+    private sealed class SeparateOwnedConfiguration : ITopologyConfiguration
+    {
+        public void Configure(
+            ModelBuilder modelBuilder
+        ) => ConfigureOwner(modelBuilder, OwnedTemporalMapping.SeparateTable);
+    }
+
+    private sealed class SeparateTemporalOwnedConfiguration : ITopologyConfiguration
+    {
+        public void Configure(
+            ModelBuilder modelBuilder
+        ) => ConfigureOwner(modelBuilder, OwnedTemporalMapping.SeparateTemporalTable);
     }
 
     private sealed class TphConfiguration : ITopologyConfiguration
@@ -233,7 +307,7 @@ public sealed class MySqlTemporalTopologyTests
 
     private static void ConfigureOwner(
         ModelBuilder modelBuilder,
-        bool configureOwnedAsTemporal
+        OwnedTemporalMapping ownedTemporalMapping
     )
     {
         modelBuilder.Entity<TemporalOwner>(entity =>
@@ -244,27 +318,53 @@ public sealed class MySqlTemporalTopologyTests
                 table => table.IsTemporal(
                     temporal =>
                     {
-                        temporal.HasPeriodStart("ValidFrom");
-                        temporal.HasPeriodEnd("ValidTo");
+                        temporal.UseHistoryTable("TemporalOwnerHistory");
+                        temporal.HasPeriodStart("ValidFrom").HasColumnName("valid_from");
+                        temporal.HasPeriodEnd("ValidTo").HasColumnName("valid_to");
                     }));
 
             entity.OwnsOne(
                 item => item.Details,
                 owned =>
                 {
-                    if (configureOwnedAsTemporal)
+                    if (ownedTemporalMapping == OwnedTemporalMapping.SeparateTable)
                     {
-                        owned.ToTable(
-                            "TemporalOwners",
-                            table => table.IsTemporal(
+                        owned.ToTable("TemporalOwnerDetails");
+                    }
+                    else if (ownedTemporalMapping == OwnedTemporalMapping.SeparateTemporalTable)
+                    {
+                        owned.ToTable("TemporalOwnerDetails", table => table.IsTemporal());
+                    }
+                    else if (ownedTemporalMapping != OwnedTemporalMapping.Implicit)
+                    {
+                        owned.ToTable("TemporalOwners", table =>
+                        {
+                            if (ownedTemporalMapping == OwnedTemporalMapping.ExplicitCurrent)
+                            {
+                                table.IsTemporal(false);
+                                return;
+                            }
+
+                            table.IsTemporal(
                                 temporal =>
                                 {
-                                    temporal.HasPeriodStart("ValidFrom");
-                                    temporal.HasPeriodEnd("ValidTo");
-                                }));
+                                    temporal.UseHistoryTable("TemporalOwnerHistory");
+                                    temporal.HasPeriodStart("ValidFrom").HasColumnName("valid_from");
+                                    temporal.HasPeriodEnd("ValidTo").HasColumnName("valid_to");
+                                });
+                        });
                     }
                 });
         });
+    }
+
+    private enum OwnedTemporalMapping
+    {
+        Implicit,
+        ExplicitCurrent,
+        ExplicitTemporal,
+        SeparateTable,
+        SeparateTemporalTable,
     }
 
     private sealed class TopologyContext<TConfiguration> : DbContext

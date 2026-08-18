@@ -191,9 +191,11 @@ public sealed class ApplicationTimeTableIntegrationTests
         Assert.Contains("tableBuilder.HasApplicationTimePeriod(applicationTimeTableBuilder =>", contextCode);
         Assert.Contains($"applicationTimeTableBuilder.HasPeriodName(\"{ApplicationPeriodName}\")", contextCode);
         Assert.Contains(
-            $"applicationTimeTableBuilder.HasPeriodStart(\"{ApplicationPeriodStartColumnName}\")",
+            $".HasPeriodStart(\"{ApplicationPeriodStartColumnName}\")",
             contextCode);
-        Assert.Contains($"applicationTimeTableBuilder.HasPeriodEnd(\"{ApplicationPeriodEndColumnName}\")", contextCode);
+        Assert.Contains($".HasPeriodEnd(\"{ApplicationPeriodEndColumnName}\")", contextCode);
+        Assert.Contains($".HasColumnName(\"{ApplicationPeriodStartColumnName}\")", contextCode);
+        Assert.Contains($".HasColumnName(\"{ApplicationPeriodEndColumnName}\")", contextCode);
         Assert.Contains(".UseWithoutOverlaps()", contextCode);
     }
 

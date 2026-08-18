@@ -449,6 +449,19 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                 continue;
             }
 
+            if (foreignKey.IsOwnership
+                && string.Equals(
+                    entityType.GetTableName(),
+                    foreignKey.PrincipalEntityType.GetTableName(),
+                    StringComparison.OrdinalIgnoreCase)
+                && string.Equals(
+                    entityType.GetSchema(),
+                    foreignKey.PrincipalEntityType.GetSchema(),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             ThrowInvalidTemporalTable(
                 logger,
                 $"MySQL temporal entity type '{entityType.DisplayName()}' cannot use database delete behavior "

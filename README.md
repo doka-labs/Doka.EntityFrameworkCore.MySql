@@ -122,6 +122,11 @@ var history = await context.Employees
     .ToListAsync();
 ```
 
+Table-split `OwnsOne` mappings inherit their owner's system-time contract.
+Separately stored owned collections must be temporal before an entity-shaped
+historical query can materialize them; otherwise, project only columns from the
+temporal table.
+
 Non-recursive and recursive CTEs compose through EF Core's parameterized
 `FromSql` and `SqlQuery` roots. MySQL 8.4 / 9.7 and MariaDB 12.3 also accept
 the documented CTE data-modification SQL. MariaDB 10.11 / 11.4 / 11.8 do not,
