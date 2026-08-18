@@ -133,6 +133,7 @@ internal sealed class MySqlMigrationsAnnotationProvider : IMigrationsAnnotationP
                 or MySqlAnnotationNames.GuidFormat
                 or MySqlAnnotationNames.ValueGenerationStrategy
                 or MySqlAnnotationNames.SpatialReferenceSystemId
+                or MySqlAnnotationNames.Invisible
                 or MySqlAnnotationNames.SpatialIndex
                 or MySqlAnnotationNames.FullTextIndex
                 or MySqlAnnotationNames.IndexPrefixLength
@@ -205,6 +206,7 @@ internal sealed class MySqlMigrationsAnnotationProvider : IMigrationsAnnotationP
         AddMappedPropertyAnnotationIfMissing(columnAnnotations, column, MySqlAnnotationNames.GuidFormat);
         AddMappedPropertyAnnotationIfMissing(columnAnnotations, column, MySqlAnnotationNames.ValueGenerationStrategy);
         AddMappedPropertyAnnotationIfMissing(columnAnnotations, column, MySqlAnnotationNames.SpatialReferenceSystemId);
+        AddMappedPropertyAnnotationIfMissing(columnAnnotations, column, MySqlAnnotationNames.Invisible);
 
         return columnAnnotations;
     }

@@ -64,8 +64,74 @@ public sealed class MySqlDesignTimeRoundTripTests
             StringComparison.Ordinal);
         Assert.DoesNotContain(MySqlAnnotationNames.IsApplicationTime, generated.SnapshotCode, StringComparison.Ordinal);
         Assert.DoesNotContain(MySqlAnnotationNames.IsApplicationTime, generated.DesignerCode, StringComparison.Ordinal);
+        AssertExactPropertySet(
+            context.GetService<IDesignTimeModel>().Model,
+            typeof(BitemporalDesignRecord),
+            "BusinessFrom",
+            "BusinessTo",
+            "Id",
+            "RecordedFrom",
+            "RecordedTo");
+        AssertExactPropertySet(
+            generated.SnapshotModel,
+            typeof(BitemporalDesignRecord),
+            "BusinessFrom",
+            "BusinessTo",
+            "Id",
+            "RecordedFrom",
+            "RecordedTo");
+        AssertExactPropertySet(
+            generated.DesignerModel,
+            typeof(BitemporalDesignRecord),
+            "BusinessFrom",
+            "BusinessTo",
+            "Id",
+            "RecordedFrom",
+            "RecordedTo");
         AssertRoundTripsWithoutOperations(context, generated.SnapshotModel);
         AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
+        AssertSinglePhysicalBitemporalTableCreation(context);
+    }
+
+    /// <summary>
+    /// Typed application-time endpoints remain the complete property set through
+    /// both generated design-time surfaces and the initial migration.
+    /// </summary>
+    [Fact]
+    public void Application_time_snapshot_and_designer_roundtrip_without_default_properties()
+    {
+        using var context = new ApplicationTimeDesignContext(
+            CreateOptions<ApplicationTimeDesignContext>(MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
+
+        var generated = GenerateAndCompile(context);
+
+        Assert.Contains(
+            ".HasApplicationTimePeriod(applicationTimeTableBuilder =>",
+            generated.SnapshotCode,
+            StringComparison.Ordinal);
+        Assert.Contains(".HasPeriodStart(\"BusinessFrom\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".HasPeriodEnd(\"BusinessTo\")", generated.SnapshotCode, StringComparison.Ordinal);
+        AssertExactPropertySet(
+            context.GetService<IDesignTimeModel>().Model,
+            typeof(ApplicationTimeDesignRecord),
+            "BusinessFrom",
+            "BusinessTo",
+            "Id");
+        AssertExactPropertySet(
+            generated.SnapshotModel,
+            typeof(ApplicationTimeDesignRecord),
+            "BusinessFrom",
+            "BusinessTo",
+            "Id");
+        AssertExactPropertySet(
+            generated.DesignerModel,
+            typeof(ApplicationTimeDesignRecord),
+            "BusinessFrom",
+            "BusinessTo",
+            "Id");
+        AssertRoundTripsWithoutOperations(context, generated.SnapshotModel);
+        AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
+        AssertSinglePhysicalApplicationTimeTableCreation(context);
     }
 
     /// <summary>
@@ -90,6 +156,28 @@ public sealed class MySqlDesignTimeRoundTripTests
         Assert.DoesNotContain(".Property<string>(\"DocumentId\")", generated.SnapshotCode, StringComparison.Ordinal);
         Assert.Contains(".Property<System.Guid>(\"Id\")", generated.DesignerCode, StringComparison.Ordinal);
         Assert.Contains(".Property<System.Guid>(\"DocumentId\")", generated.DesignerCode, StringComparison.Ordinal);
+        AssertRoundTripsWithoutOperations(context, generated.SnapshotModel);
+        AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
+    }
+
+    /// <summary>
+    /// Explicit invisible and visible column dispositions survive both generated
+    /// design-time model surfaces without falling back to raw annotations.
+    /// </summary>
+    [Fact]
+    public void Invisible_column_snapshot_and_designer_roundtrip_without_pending_operations()
+    {
+        using var context = new InvisibleColumnDesignContext(
+            CreateOptions<InvisibleColumnDesignContext>(MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
+
+        var generated = GenerateAndCompile(context);
+
+        Assert.Contains(".IsInvisible()", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".IsInvisible(false)", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".IsInvisible()", generated.DesignerCode, StringComparison.Ordinal);
+        Assert.Contains(".IsInvisible(false)", generated.DesignerCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(MySqlAnnotationNames.Invisible, generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(MySqlAnnotationNames.Invisible, generated.DesignerCode, StringComparison.Ordinal);
         AssertRoundTripsWithoutOperations(context, generated.SnapshotModel);
         AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
     }
@@ -225,6 +313,78 @@ public sealed class MySqlDesignTimeRoundTripTests
                 ?.Value as bool?);
     }
 
+    private static void AssertSinglePhysicalBitemporalTableCreation(
+        BitemporalDesignContext targetContext
+    )
+    {
+        using var sourceContext = new EmptyTemporalDesignContext(
+            CreateOptions<EmptyTemporalDesignContext>(MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
+
+        var operations = targetContext
+            .GetService<IMigrationsModelDiffer>()
+            .GetDifferences(
+                sourceContext
+                    .GetService<IDesignTimeModel>()
+                    .Model
+                    .GetRelationalModel(),
+                targetContext
+                    .GetService<IDesignTimeModel>()
+                    .Model
+                    .GetRelationalModel());
+
+        var createTable = Assert.Single(operations.OfType<CreateTableOperation>());
+        var columnNames = createTable
+            .Columns.Select(column => column.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            ["Id", "business_from", "business_to", "recorded_from", "recorded_to"],
+            columnNames);
+        Assert.DoesNotContain(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName, columnNames);
+        Assert.DoesNotContain(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName, columnNames);
+    }
+
+    private static void AssertSinglePhysicalApplicationTimeTableCreation(
+        ApplicationTimeDesignContext targetContext
+    )
+    {
+        using var sourceContext = new EmptyTemporalDesignContext(
+            CreateOptions<EmptyTemporalDesignContext>(MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
+
+        var operations = targetContext
+            .GetService<IMigrationsModelDiffer>()
+            .GetDifferences(
+                sourceContext.GetService<IDesignTimeModel>().Model.GetRelationalModel(),
+                targetContext.GetService<IDesignTimeModel>().Model.GetRelationalModel());
+
+        var createTable = Assert.Single(operations.OfType<CreateTableOperation>());
+        var columnNames = createTable
+            .Columns.Select(column => column.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(["Id", "business_from", "business_to"], columnNames);
+        Assert.DoesNotContain(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName, columnNames);
+        Assert.DoesNotContain(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName, columnNames);
+    }
+
+    private static void AssertExactPropertySet(
+        IModel model,
+        Type entityType,
+        params string[] expectedProperties
+    )
+    {
+        var properties = model
+            .FindEntityType(entityType)!
+            .GetProperties()
+            .Select(property => property.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(expectedProperties, properties);
+    }
+
     private static DbContextOptions<TContext> CreateOptions<TContext>(
         MySqlServerVersion serverVersion
     )
@@ -316,6 +476,63 @@ public sealed class SystemTimeDesignDetails
     /// Gets or sets the description.
     /// </summary>
     public string Description { get; set; } = null!;
+}
+
+/// <summary>
+/// Test context for generated application-time migration models.
+/// </summary>
+public sealed class ApplicationTimeDesignContext : DbContext
+{
+    /// <summary>
+    /// Creates the test context.
+    /// </summary>
+    public ApplicationTimeDesignContext(
+        DbContextOptions<ApplicationTimeDesignContext> options
+    ) : base(options) { }
+
+    /// <inheritdoc />
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
+    {
+        modelBuilder.Entity<ApplicationTimeDesignRecord>(entity =>
+        {
+            entity.HasKey(record => record.Id);
+            entity.ToTable(
+                "ApplicationTimeRecords",
+                table => table.HasApplicationTimePeriod<ApplicationTimeDesignRecord>(applicationTime =>
+                {
+                    applicationTime.HasPeriodName("BusinessValidity");
+                    applicationTime
+                        .HasPeriodStart(record => record.BusinessFrom)
+                        .HasColumnName("business_from");
+                    applicationTime
+                        .HasPeriodEnd(record => record.BusinessTo)
+                        .HasColumnName("business_to");
+                }));
+        });
+    }
+}
+
+/// <summary>
+/// Entity used by the generated application-time migration model.
+/// </summary>
+public sealed class ApplicationTimeDesignRecord
+{
+    /// <summary>
+    /// Gets or sets the key.
+    /// </summary>
+    public int Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the inclusive application-time boundary.
+    /// </summary>
+    public DateTime BusinessFrom { get; set; }
+
+    /// <summary>
+    /// Gets or sets the exclusive application-time boundary.
+    /// </summary>
+    public DateTime BusinessTo { get; set; }
 }
 
 /// <summary>
@@ -456,4 +673,57 @@ public sealed class Char36DesignRevision
     /// Gets or sets the principal navigation.
     /// </summary>
     public Char36DesignDocument Document { get; set; } = null!;
+}
+
+/// <summary>
+/// Test context for generated MySQL-family invisible-column migration models.
+/// </summary>
+public sealed class InvisibleColumnDesignContext : DbContext
+{
+    /// <summary>
+    /// Creates the test context.
+    /// </summary>
+    public InvisibleColumnDesignContext(
+        DbContextOptions<InvisibleColumnDesignContext> options
+    ) : base(options) { }
+
+    /// <inheritdoc />
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
+    {
+        modelBuilder.Entity<InvisibleColumnDesignRecord>(entity =>
+        {
+            entity.ToTable("InvisibleColumnDesignRecords");
+            entity.HasKey(record => record.Id);
+            entity
+                .Property(record => record.HiddenValue)
+                .HasDefaultValue(string.Empty)
+                .IsInvisible();
+            entity
+                .Property(record => record.VisibleValue)
+                .IsInvisible(false);
+        });
+    }
+}
+
+/// <summary>
+/// Entity used by the generated invisible-column migration model.
+/// </summary>
+public sealed class InvisibleColumnDesignRecord
+{
+    /// <summary>
+    /// Gets or sets the key.
+    /// </summary>
+    public int Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the hidden value.
+    /// </summary>
+    public string HiddenValue { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the explicitly visible value.
+    /// </summary>
+    public string VisibleValue { get; set; } = string.Empty;
 }

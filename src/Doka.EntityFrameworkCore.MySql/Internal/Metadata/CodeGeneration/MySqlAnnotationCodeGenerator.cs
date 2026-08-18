@@ -338,6 +338,15 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
             fragments.Add(new MethodCallCodeFragment("HasSrid", spatialReferenceSystemId));
         }
 
+        if (annotations.Remove(MySqlAnnotationNames.Invisible, out var invisibleAnnotation)
+            && invisibleAnnotation.Value is bool invisible)
+        {
+            fragments.Add(
+                invisible
+                    ? new MethodCallCodeFragment(nameof(MySqlPropertyBuilderExtensions.IsInvisible))
+                    : new MethodCallCodeFragment(nameof(MySqlPropertyBuilderExtensions.IsInvisible), false));
+        }
+
         return fragments;
     }
 

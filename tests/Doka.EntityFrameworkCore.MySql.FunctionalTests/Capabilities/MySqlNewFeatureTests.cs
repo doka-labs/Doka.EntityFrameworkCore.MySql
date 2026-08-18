@@ -128,7 +128,7 @@ public sealed class MySqlNewFeatureTests
         MySqlSqlAssert.ContainsFunction(query, "ADDTIME");
     }
 
-    // -- MariaDB INVISIBLE Columns --
+    // -- MySQL-family INVISIBLE Columns --
 
     /// <summary>
     /// IsInvisible annotation generates INVISIBLE keyword in column DDL.
@@ -136,33 +136,73 @@ public sealed class MySqlNewFeatureTests
     [Fact]
     public void IsInvisible_generates_invisible_ddl()
     {
+        using var source = CreateContext<EmptyInvisibleContext>(isMariaDb: true);
         using var context = CreateContext<InvisibleContext>(isMariaDb: true);
-        var generator = context.GetService<IMigrationsSqlGenerator>();
-        var operation = new CreateTableOperation
-        {
-            Name = "InvisibleEntities",
-            Columns =
-            {
-                new AddColumnOperation
-                {
-                    Name = "Id",
-                    ClrType = typeof(int),
-                    ColumnType = "int"
-                },
-                new AddColumnOperation
-                {
-                    Name = "InternalData",
-                    ClrType = typeof(string),
-                    ColumnType = "varchar(255)",
-                    [MySqlAnnotationNames.Invisible] = true,
-                },
-            },
-        };
+        var operations = GetDifferences(source, context);
+        var createTable = Assert.Single(operations.OfType<CreateTableOperation>());
+        var invisibleColumn = Assert.Single(
+            createTable.Columns,
+            column => column.Name == nameof(InvisibleEntity.InternalData));
 
-        var commands = generator.Generate([operation], context.Model);
+        Assert.Equal(true, invisibleColumn.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value);
+
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var commands = generator.Generate(operations, context.Model);
         var sql = string.Join("\n", commands.Select(c => c.CommandText));
 
         Assert.Contains("INVISIBLE", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Adding an invisible property to an existing table carries the model annotation
+    /// into the standalone column operation.
+    /// </summary>
+    [Fact]
+    public void IsInvisible_propagates_to_standalone_add_column()
+    {
+        using var source = CreateContext<InvisibleWithoutColumnContext>(isMariaDb: true);
+        using var target = CreateContext<InvisibleContext>(isMariaDb: true);
+
+        var operation = Assert.Single(GetDifferences(source, target).OfType<AddColumnOperation>());
+
+        Assert.Equal(nameof(InvisibleEntity.InternalData), operation.Name);
+        Assert.Equal(true, operation.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value);
+    }
+
+    /// <summary>
+    /// Visibility changes preserve both sides of the migration so generated up and
+    /// down operations deterministically add or remove the INVISIBLE attribute.
+    /// </summary>
+    [Fact]
+    public void IsInvisible_propagates_through_bidirectional_alter_column()
+    {
+        using var invisible = CreateContext<InvisibleContext>(isMariaDb: true);
+        using var visible = CreateContext<VisibleColumnContext>(isMariaDb: true);
+
+        var makeVisible = Assert.Single(GetDifferences(invisible, visible).OfType<AlterColumnOperation>());
+        var makeInvisible = Assert.Single(GetDifferences(visible, invisible).OfType<AlterColumnOperation>());
+
+        Assert.Equal(false, makeVisible.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value);
+        Assert.Equal(true, makeVisible.OldColumn.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value);
+        Assert.Equal(true, makeInvisible.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value);
+        Assert.Equal(false, makeInvisible.OldColumn.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value);
+
+        var visibleSql = string.Join(
+            "\n",
+            visible
+                .GetService<IMigrationsSqlGenerator>()
+                .Generate([makeVisible], visible.Model)
+                .Select(command => command.CommandText));
+
+        var invisibleSql = string.Join(
+            "\n",
+            invisible
+                .GetService<IMigrationsSqlGenerator>()
+                .Generate([makeInvisible], invisible.Model)
+                .Select(command => command.CommandText));
+
+        Assert.DoesNotContain("INVISIBLE", visibleSql, StringComparison.Ordinal);
+        Assert.Contains("INVISIBLE", invisibleSql, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -421,6 +461,15 @@ public sealed class MySqlNewFeatureTests
         return (TContext)Activator.CreateInstance(typeof(TContext), builder.Options)!;
     }
 
+    private static IReadOnlyList<MigrationOperation> GetDifferences(
+        DbContext source,
+        DbContext target
+    ) => target
+        .GetService<IMigrationsModelDiffer>()
+        .GetDifferences(
+            source.GetService<IDesignTimeModel>().Model.GetRelationalModel(),
+            target.GetService<IDesignTimeModel>().Model.GetRelationalModel());
+
     // -- Entities and Contexts --
 
     private sealed class HiLoEntity
@@ -510,10 +559,60 @@ public sealed class MySqlNewFeatureTests
         {
             modelBuilder.Entity<InvisibleEntity>(e =>
             {
+                e.ToTable("InvisibleEntities");
                 e.HasKey(x => x.Id);
                 e
                     .Property(x => x.InternalData)
+                    .HasDefaultValue(string.Empty)
                     .IsInvisible();
+            });
+        }
+    }
+
+    private sealed class EmptyInvisibleContext : DbContext
+    {
+        public EmptyInvisibleContext(
+            DbContextOptions<EmptyInvisibleContext> options
+        ) : base(options) { }
+    }
+
+    private sealed class InvisibleWithoutColumnContext : DbContext
+    {
+        public InvisibleWithoutColumnContext(
+            DbContextOptions<InvisibleWithoutColumnContext> options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<InvisibleEntity>(entity =>
+            {
+                entity.ToTable("InvisibleEntities");
+                entity.HasKey(value => value.Id);
+                entity.Ignore(value => value.InternalData);
+            });
+        }
+    }
+
+    private sealed class VisibleColumnContext : DbContext
+    {
+        public VisibleColumnContext(
+            DbContextOptions<VisibleColumnContext> options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<InvisibleEntity>(entity =>
+            {
+                entity.ToTable("InvisibleEntities");
+                entity.HasKey(value => value.Id);
+                entity
+                    .Property(value => value.InternalData)
+                    .HasDefaultValue(string.Empty)
+                    .IsInvisible(false);
             });
         }
     }

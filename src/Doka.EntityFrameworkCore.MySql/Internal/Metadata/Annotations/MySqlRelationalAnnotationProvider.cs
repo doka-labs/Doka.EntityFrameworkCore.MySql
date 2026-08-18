@@ -120,6 +120,11 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
             yield return spatialReferenceSystemIdAnnotation;
         }
 
+        if (FindColumnAnnotation(column, MySqlAnnotationNames.Invisible) is { } invisibleAnnotation)
+        {
+            yield return invisibleAnnotation;
+        }
+
         foreach (var propertyMapping in column.PropertyMappings)
         {
             if (propertyMapping.Property.DeclaringType is not IReadOnlyEntityType entityType)

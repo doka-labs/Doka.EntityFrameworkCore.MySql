@@ -76,6 +76,12 @@ remain JSON `null` values instead of making the constructor result SQL `NULL`.
 untranslatable nested client value is rejected before a database command
 executes.
 
+## MySQL-Family Invisible Columns
+
+`IsInvisible()` supports MySQL 8.0.23+ and MariaDB 10.3.3+. Both engines omit
+invisible columns from `SELECT *`, preserve explicit access by name, and expose
+the state as `INVISIBLE` through `INFORMATION_SCHEMA.COLUMNS.EXTRA`.
+
 ## Required and Optional Values
 
 EF Core 10 supports optional complex properties when the complex type contains
@@ -135,3 +141,5 @@ Unless noted otherwise, sources were retrieved on 2026-08-05.
 - [MySQL 8.4 JSON creation functions](https://dev.mysql.com/doc/refman/8.4/en/json-creation-functions.html), retrieved 2026-08-18
 - [MariaDB JSON_ARRAY](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_array), retrieved 2026-08-18
 - [MariaDB JSON_OBJECT](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_object), retrieved 2026-08-18
+- [MySQL invisible columns](https://dev.mysql.com/doc/refman/8.0/en/invisible-columns.html), retrieved 2026-08-18
+- [MariaDB invisible columns](https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/invisible-columns), retrieved 2026-08-18

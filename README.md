@@ -321,13 +321,19 @@ an odd argument count before execution. SQL `NULL` inputs become JSON `null`
 elements rather than making the constructor result SQL `NULL`. REGEXP uses
 `REGEXP_LIKE(...)` on MySQL and the infix `REGEXP` operator on MariaDB.
 
-### MariaDB `INVISIBLE` columns
+### MySQL-family `INVISIBLE` columns
 
 ```csharp
 modelBuilder.Entity<User>()
     .Property(u => u.InternalNotes)
     .IsInvisible();
 ```
+
+The visibility annotation survives initial table creation, standalone column
+addition, migration snapshots, and changes in either direction. MySQL 8.0.23+
+and MariaDB 10.3.3+ omit an invisible column from `SELECT *` while retaining
+explicit access by name. See the MySQL and MariaDB invisible-column references
+in the [capability details](docs/complex-types.md#mysql-family-invisible-columns).
 
 ### Spatial types (opt-in)
 

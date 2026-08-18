@@ -25,6 +25,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `JsonObject` into variadic server functions, including parameterized values,
   empty constructors, JSON-null preservation for SQL `NULL` arguments, and
   focused rejection of invalid argument shapes.
+- Preserve MySQL 8.0.23+ and MariaDB 10.3.3+ `INVISIBLE` column annotations
+  through create, add, alter, snapshot, designer, and reverse visibility
+  migrations.
 - Preserve system-time, application-time, and bitemporal metadata in generated
   migration snapshots and designer models, including custom period columns, so
   an unchanged model no longer produces a redundant follow-up migration.
@@ -569,7 +572,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
 - `EF.Functions` extensions: `Regexp`, `Match`, `MatchInBooleanMode`, `JsonSet`, `JsonReplace`, `JsonRemove`, `JsonArray`, `JsonObject`, `JsonDepth`, `JsonLength`, `JsonType`, `JsonKeys`, `JsonContains`
 - Engine-aware REGEXP dialect (`REGEXP_LIKE(...)` on MySQL, infix `REGEXP` on MariaDB)
 - Full-text search via `MATCH(col) AGAINST(term [IN BOOLEAN MODE])` with sentinel-rewrite SQL generation
-- MariaDB `INVISIBLE` column support (10.3.3+) via `IsInvisible()` fluent API
+- MySQL 8.0.23+ and MariaDB 10.3.3+ `INVISIBLE` column support via the
+  `IsInvisible()` fluent API
 - SQL-generation hardening: shared ASCII grammar-token validation for
   charsets, storage engines, and query, table, and column collations;
   JSON-path property-name escaping for single quotes and backslashes
