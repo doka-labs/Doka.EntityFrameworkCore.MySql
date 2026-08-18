@@ -16,6 +16,56 @@ doka-profile-version: "1.0"
 
 # D-026 -- Qualify releases from bound evidence and paired performance runs
 
+## 2026-08-18 Amendment: Treat NuGet indexing as asynchronous visibility
+
+NuGet.org accepts, validates, and indexes primary and symbol packages in
+separate asynchronous stages. Public flat-container and symbol-server
+visibility can therefore arrive in a different order from the dependency-
+ordered pushes. A release-candidate run demonstrated this directly: the
+spatial package became visible while its already accepted provider dependency
+was still absent from public readback. The former classifier treated that
+intermediate observation as permanent corruption and bypassed the registered
+one-hour polling budget.
+
+Preflight and readback now classify every remote artifact independently.
+Partial package, symbol, and repository-signature visibility remains retryable
+until the public-readback deadline. Conflicting canonical package bytes and
+conflicting Portable PDB bytes still fail immediately. All four pushes use the
+official `--skip-duplicate` behavior so a rerun can survive HTTP 409 when
+NuGet.org accepted an artifact that its public read endpoints have not indexed
+yet. Duplicate tolerance never establishes identity: publication completes
+only after exact public package, symbol, and signature readback.
+
+The package-content base address is resolved from the NuGet V3 service index's
+stable `PackageBaseAddress/3.0.0` resource instead of being fixed to today's
+nuget.org infrastructure path. Release versions are restricted to a canonical,
+lowercase three-component subset of NuGet's normalized version grammar before
+they enter a flat-container URL. Readback schema 3 records the service index,
+the discovered base address, and the complete release identity consumed by the
+completion validator.
+
+Primary-source basis:
+
+- [NuGet package publication][nuget-publish-package] documents separate
+  validation and indexing, the normal delay, and the one-hour support
+  threshold.
+- [NuGet symbol publication][nuget-symbol-packages] documents independent
+  symbol validation and indexing under the same operational threshold.
+- [`dotnet nuget push`][dotnet-nuget-push] defines `--skip-duplicate` as
+  treating HTTP 409 as a warning.
+- [NuGet package publish API][nuget-package-publish-api] defines HTTP 409 as an
+  existing package with the same ID and version.
+- [NuGet package content API][nuget-package-content-api] requires dynamic
+  `PackageBaseAddress` discovery and normalized lowercase IDs and versions.
+- [NuGet package versioning][nuget-package-versioning] defines normalization
+  and recommends `NuGet.Versioning` for clients that accept arbitrary versions;
+  this workflow instead rejects versions outside its canonical release subset.
+- [NuGet repository signatures][nuget-repository-signatures] defines the
+  source-wide `allRepositorySigned` contract but no ordering guarantee between
+  package-content visibility and repository-signature visibility.
+
+Retrieved 2026-08-18.
+
 ## 2026-08-17 Amendment: Isolate runtime-specific restore state
 
 Runtime posture publishes a self-contained executable for the host RID. NuGet
@@ -1239,6 +1289,13 @@ manifest verification.
   bound release runtime evidence to clean source before execution; and made
   post-execution source immutability a producer-to-consumer contract. Promoted
   the same Linux RID gate to commit-exact protected-branch qualification.
+- 2026-08-18: Made partial NuGet package and symbol visibility retryable until
+  the registered readback deadline and made every package push resumable across
+  an accepted but not yet indexed HTTP 409 response.
+- 2026-08-18: Extended the same retry contract to repository-signature
+  propagation, discovered package content from the V3 service index, required
+  canonical NuGet release versions, and bound the readback writer directly to
+  the completion validator's identity contract.
 
 ### Implementation References
 
@@ -1271,6 +1328,22 @@ manifest verification.
 
 ### Sources
 
+- [NuGet package publication][nuget-publish-package]
+  (primary source; retrieved 2026-08-18)
+- [NuGet symbol publication][nuget-symbol-packages]
+  (primary source; retrieved 2026-08-18)
+- [`dotnet nuget push`][dotnet-nuget-push]
+  (primary source; retrieved 2026-08-18)
+- [NuGet package publish API][nuget-package-publish-api]
+  (primary source; retrieved 2026-08-18)
+- [NuGet V3 service index][nuget-service-index]
+  (primary source; retrieved 2026-08-18)
+- [NuGet package content API][nuget-package-content-api]
+  (primary source; retrieved 2026-08-18)
+- [NuGet package versioning][nuget-package-versioning]
+  (primary source; retrieved 2026-08-18)
+- [NuGet repository signatures][nuget-repository-signatures]
+  (primary source; retrieved 2026-08-18)
 - [Six-target paired benchmark run 31903353665][failed-six-target-run]
   (primary source; retrieved 2026-08-15)
 - [Release-candidate run 31334669273][candidate-run]
@@ -1400,6 +1473,22 @@ manifest verification.
   https://learn.microsoft.com/en-us/nuget/nuget-org/policies/deleting-packages
 [nuget-lock-files]:
   https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#locking-dependencies
+[nuget-publish-package]:
+  https://learn.microsoft.com/en-us/nuget/nuget-org/publish-a-package
+[nuget-symbol-packages]:
+  https://learn.microsoft.com/en-us/nuget/create-packages/symbol-packages-snupkg
+[dotnet-nuget-push]:
+  https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-nuget-push
+[nuget-package-publish-api]:
+  https://learn.microsoft.com/en-us/nuget/api/package-publish-resource
+[nuget-service-index]:
+  https://learn.microsoft.com/en-us/nuget/api/service-index
+[nuget-package-content-api]:
+  https://learn.microsoft.com/en-us/nuget/api/package-base-address-resource
+[nuget-package-versioning]:
+  https://learn.microsoft.com/en-us/nuget/concepts/package-versioning
+[nuget-repository-signatures]:
+  https://learn.microsoft.com/en-us/nuget/api/repository-signatures-resource
 [dotnet-publish]: https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-publish
 [bdn-good-practices]:
   https://benchmarkdotnet.org/articles/guides/good-practices.html

@@ -165,6 +165,7 @@ class GitHubReleaseTests(unittest.TestCase):
     _REPOSITORY = "doka-labs/Doka.EntityFrameworkCore.MySql"
     _VERSION = "10.0.0-rc.1"
     _TAG = f"v{_VERSION}"
+    _PACKAGE_BASE_ADDRESS = "https://packages.example.test/v3-flatcontainer"
     _COMMIT = "a" * 40
 
     @staticmethod
@@ -536,6 +537,7 @@ class GitHubReleaseTests(unittest.TestCase):
         for role, package_id in github_release.PACKAGE_IDENTITIES:
             candidate_digest = receipt_packages[role]["contentDigest"]
             package_url = nuget_publication.remote_package_url(
+                self._PACKAGE_BASE_ADDRESS,
                 package_id,
                 self._VERSION,
             )
@@ -594,6 +596,8 @@ class GitHubReleaseTests(unittest.TestCase):
                 "expectedReleaseTag": self._TAG,
                 "releaseVersion": self._VERSION,
                 "sourceCommit": self._COMMIT,
+                "packageSource": nuget_publication.NUGET_SOURCE,
+                "packageBaseAddress": self._PACKAGE_BASE_ADDRESS,
                 "packages": preflight_packages,
                 "symbols": preflight_symbols,
             },
@@ -604,6 +608,8 @@ class GitHubReleaseTests(unittest.TestCase):
                 "expectedReleaseTag": self._TAG,
                 "releaseVersion": self._VERSION,
                 "sourceCommit": self._COMMIT,
+                "packageSource": nuget_publication.NUGET_SOURCE,
+                "packageBaseAddress": self._PACKAGE_BASE_ADDRESS,
                 "packages": preflight_packages,
                 "symbols": preflight_symbols,
             },
@@ -619,6 +625,8 @@ class GitHubReleaseTests(unittest.TestCase):
                 "expectedReleaseTag": self._TAG,
                 "releaseVersion": self._VERSION,
                 "sourceCommit": self._COMMIT,
+                "packageSource": nuget_publication.NUGET_SOURCE,
+                "packageBaseAddress": self._PACKAGE_BASE_ADDRESS,
                 "packages": readback_packages,
                 "symbols": readback_symbols,
             },
@@ -885,6 +893,28 @@ class GitHubReleaseTests(unittest.TestCase):
             },
             {entry["name"] for entry in receipt["evidence"]},
         )
+
+    def test_completion_accepts_signature_propagation_in_the_preflight(self) -> None:
+        """Allow publication to finish once a formerly unsigned match is signed."""
+        preflight_path = self.publication / "publication-preflight.json"
+        readback_path = self.publication / "nuget-publication-readback.json"
+        preflight = json.loads(preflight_path.read_text(encoding="utf-8"))
+        readback = json.loads(readback_path.read_text(encoding="utf-8"))
+        pending = copy.deepcopy(readback["packages"]["provider"])
+        pending["status"] = "pending-signature"
+        pending["repositorySignaturePresent"] = False
+        pending.pop("readbackPath", None)
+        preflight["packages"]["provider"] = pending
+        preflight_path.write_text(json.dumps(preflight) + "\n", encoding="utf-8")
+
+        receipt = github_release.build_completion_receipt(
+            self._REPOSITORY,
+            self.candidate,
+            self.publication,
+            self.changelog,
+        )
+
+        self.assertEqual("published-and-verified", receipt["status"])
 
     def test_retry_varying_completion_evidence_cannot_change_release_assets(self) -> None:
         """Keep availability observations outside the immutable asset plan."""

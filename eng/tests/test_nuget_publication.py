@@ -9,7 +9,8 @@ import subprocess
 import tempfile
 import unittest
 import zipfile
-from io import BytesIO
+from contextlib import redirect_stderr, redirect_stdout
+from io import BytesIO, StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -24,6 +25,7 @@ class NuGetPublicationTests(unittest.TestCase):
     _VERSION = "10.0.0-rc.1"
     _COMMIT = "1" * 40
     _REPOSITORY = "doka-labs/Doka.EntityFrameworkCore.MySql"
+    _PACKAGE_BASE_ADDRESS = "https://packages.example.test/v3-flatcontainer"
 
     def setUp(self) -> None:
         """Create an isolated candidate package directory."""
@@ -171,6 +173,125 @@ class NuGetPublicationTests(unittest.TestCase):
             nuget_publication.canonical_package_digest(conflicting),
         )
 
+    def test_package_base_address_is_discovered_from_the_service_index(self) -> None:
+        """Use the source capability document instead of a fixed NuGet.org path."""
+        service_index = {
+            "version": "3.0.0",
+            "resources": [
+                {
+                    "@id": "https://search.example.test/query",
+                    "@type": "SearchQueryService/3.5.0",
+                },
+                {
+                    "@id": f"{self._PACKAGE_BASE_ADDRESS}/",
+                    "@type": nuget_publication.NUGET_PACKAGE_BASE_ADDRESS_TYPE,
+                },
+            ],
+        }
+
+        address = nuget_publication.resolve_package_base_address(
+            timeout_seconds=7,
+            fetcher=lambda source, timeout: (
+                service_index
+                if source == nuget_publication.NUGET_SOURCE and timeout == 7
+                else self.fail("Service discovery used an unexpected request contract.")
+            ),
+        )
+
+        self.assertEqual(self._PACKAGE_BASE_ADDRESS, address)
+        self.assertEqual(
+            (
+                f"{self._PACKAGE_BASE_ADDRESS}/"
+                "doka.entityframeworkcore.mysql/10.0.0-rc.1/"
+                "doka.entityframeworkcore.mysql.10.0.0-rc.1.nupkg"
+            ),
+            nuget_publication.remote_package_url(
+                address,
+                nuget_publication.PROVIDER_PACKAGE_ID,
+                self._VERSION,
+            ),
+        )
+
+    def test_package_urls_reject_noncanonical_nuget_release_versions(self) -> None:
+        """Keep release tags inside a normalized NuGet-version subset."""
+        for version in (
+            "10.00.0-rc.1",
+            "10.0.0.0",
+            "10.0.0-RC.1",
+            "10.0.0-rc.01",
+            "10.0.0+build.1",
+        ):
+            with self.subTest(version=version):
+                with self.assertRaisesRegex(
+                    nuget_publication.PublicationError,
+                    "not canonical for NuGet",
+                ):
+                    nuget_publication.remote_package_url(
+                        self._PACKAGE_BASE_ADDRESS,
+                        nuget_publication.PROVIDER_PACKAGE_ID,
+                        version,
+                    )
+
+    def test_validate_version_command_owns_the_canonical_release_contract(self) -> None:
+        """Expose the package-version validator to the earliest workflow gate."""
+        with (
+            mock.patch.object(
+                nuget_publication,
+                "parse_arguments",
+                return_value=SimpleNamespace(
+                    command="validate-version",
+                    version=self._VERSION,
+                ),
+            ),
+            redirect_stdout(StringIO()),
+        ):
+            self.assertEqual(0, nuget_publication.main())
+
+        with (
+            mock.patch.object(
+                nuget_publication,
+                "parse_arguments",
+                return_value=SimpleNamespace(
+                    command="validate-version",
+                    version="10.00.0-rc.1",
+                ),
+            ),
+            redirect_stderr(StringIO()),
+        ):
+            self.assertEqual(1, nuget_publication.main())
+
+    def test_service_discovery_rejects_ambiguous_or_insecure_resources(self) -> None:
+        """Fail closed when the package-content capability is not trustworthy."""
+        cases = (
+            [],
+            [
+                {
+                    "@id": "http://packages.example.test/v3-flatcontainer",
+                    "@type": nuget_publication.NUGET_PACKAGE_BASE_ADDRESS_TYPE,
+                }
+            ],
+            [
+                {
+                    "@id": self._PACKAGE_BASE_ADDRESS,
+                    "@type": nuget_publication.NUGET_PACKAGE_BASE_ADDRESS_TYPE,
+                },
+                {
+                    "@id": "https://secondary.example.test/v3-flatcontainer",
+                    "@type": nuget_publication.NUGET_PACKAGE_BASE_ADDRESS_TYPE,
+                },
+            ],
+        )
+
+        for resources in cases:
+            with self.subTest(resources=resources):
+                with self.assertRaises(nuget_publication.PublicationError):
+                    nuget_publication.resolve_package_base_address(
+                        fetcher=lambda _source, _timeout: {
+                            "version": "3.0.0",
+                            "resources": resources,
+                        }
+                    )
+
     def test_preflight_allows_absent_packages_and_matching_retry(self) -> None:
         """Permit first publication and a byte-identical partial retry."""
         receipt = self._receipt()
@@ -181,6 +302,7 @@ class NuGetPublicationTests(unittest.TestCase):
 
         def fetcher(url: str, _: float) -> bytes | None:
             if url == nuget_publication.remote_package_url(
+                self._PACKAGE_BASE_ADDRESS,
                 nuget_publication.PROVIDER_PACKAGE_ID,
                 self._VERSION,
             ):
@@ -190,6 +312,7 @@ class NuGetPublicationTests(unittest.TestCase):
         states = nuget_publication.remote_states(
             receipt,
             self.root,
+            self._PACKAGE_BASE_ADDRESS,
             fetcher=fetcher,
         )
 
@@ -197,22 +320,33 @@ class NuGetPublicationTests(unittest.TestCase):
         self.assertTrue(states["provider"]["repositorySignaturePresent"])
         self.assertEqual("absent", states["spatial"]["status"])
 
-    def test_preflight_rejects_an_unsigned_matching_public_package(self) -> None:
-        """Require NuGet.org ingestion rather than payload equality alone."""
+    def test_preflight_treats_an_unsigned_matching_public_package_as_pending(self) -> None:
+        """Wait for repository signing without weakening payload equality."""
         receipt = self._receipt()
         provider_bytes = (
             self.root / str(receipt["packages"]["provider"]["package"])
         ).read_bytes()
 
-        with self.assertRaisesRegex(
-            nuget_publication.PublicationError,
-            "unsigned primary package",
-        ):
-            nuget_publication.remote_states(
-                receipt,
-                self.root,
-                fetcher=lambda _url, _timeout: provider_bytes,
+        def fetcher(url: str, _: float) -> bytes | None:
+            return (
+                provider_bytes
+                if url == nuget_publication.remote_package_url(
+                    self._PACKAGE_BASE_ADDRESS,
+                    nuget_publication.PROVIDER_PACKAGE_ID,
+                    self._VERSION,
+                )
+                else None
             )
+
+        states = nuget_publication.remote_states(
+            receipt,
+            self.root,
+            self._PACKAGE_BASE_ADDRESS,
+            fetcher=fetcher,
+        )
+
+        self.assertEqual("pending-signature", states["provider"]["status"])
+        self.assertFalse(states["provider"]["repositorySignaturePresent"])
 
     def test_preflight_rejects_conflicting_existing_package(self) -> None:
         """Never hide an immutable same-version conflict behind retry behavior."""
@@ -229,11 +363,12 @@ class NuGetPublicationTests(unittest.TestCase):
             nuget_publication.remote_states(
                 receipt,
                 self.root,
+                self._PACKAGE_BASE_ADDRESS,
                 fetcher=lambda _url, _timeout: conflicting,
             )
 
-    def test_preflight_rejects_spatial_without_provider(self) -> None:
-        """Reject an impossible dependency publication order before login."""
+    def test_preflight_allows_spatial_while_provider_is_still_indexing(self) -> None:
+        """Treat independently indexed package visibility as retryable state."""
         receipt = self._receipt()
         spatial_bytes = self._package_bytes(
             nuget_publication.SPATIAL_PACKAGE_ID,
@@ -243,21 +378,95 @@ class NuGetPublicationTests(unittest.TestCase):
 
         def fetcher(url: str, _: float) -> bytes | None:
             if url == nuget_publication.remote_package_url(
+                self._PACKAGE_BASE_ADDRESS,
                 nuget_publication.SPATIAL_PACKAGE_ID,
                 self._VERSION,
             ):
                 return spatial_bytes
             return None
 
-        with self.assertRaisesRegex(
-            nuget_publication.PublicationError,
-            "without its required provider",
+        states = nuget_publication.remote_states(
+            receipt,
+            self.root,
+            self._PACKAGE_BASE_ADDRESS,
+            fetcher=fetcher,
+        )
+
+        self.assertEqual("absent", states["provider"]["status"])
+        self.assertEqual("matching", states["spatial"]["status"])
+
+    def test_preflight_requires_publication_while_signature_is_pending(self) -> None:
+        """Request credentials whenever an exact package still needs signing."""
+        receipt = self._receipt()
+        receipt["expectedReleaseTag"] = receipt["releaseTag"]
+        manifest, symbol_payloads = self._symbol_manifest()
+        symbol_entries = nuget_publication.validated_symbol_entries(
+            manifest,
+            self._VERSION,
+        )
+        packages = {
+            "provider": {
+                "id": nuget_publication.PROVIDER_PACKAGE_ID,
+                "status": "pending-signature",
+                "url": "https://example.invalid/provider",
+                "candidateContentDigest": "1" * 64,
+                "publishedContentDigest": "1" * 64,
+                "publishedSha256": "2" * 64,
+                "repositorySignaturePresent": False,
+            },
+            "spatial": {
+                "id": nuget_publication.SPATIAL_PACKAGE_ID,
+                "status": "matching",
+                "url": "https://example.invalid/spatial",
+                "candidateContentDigest": "2" * 64,
+            },
+        }
+        symbols = nuget_publication.symbol_states(
+            symbol_entries,
+            fetcher=lambda entry, _timeout: symbol_payloads[entry["packageId"]],
+        )
+        receipt_path = self.root / "preflight-receipt.json"
+        manifest_path = self.root / "preflight-symbol-manifest.json"
+        output = self.root / "preflight.json"
+        github_output = self.root / "github-output.txt"
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        arguments = SimpleNamespace(
+            receipt=receipt_path,
+            candidate_root=self.root,
+            symbol_manifest=manifest_path,
+            output=output,
+            github_output=github_output,
+            timeout_seconds=5,
+            require_absent=False,
+        )
+
+        with (
+            mock.patch.object(
+                nuget_publication,
+                "validate_portable_receipt",
+                return_value=nuget_publication.package_paths(self.root, self._VERSION),
+            ),
+            mock.patch.object(
+                nuget_publication,
+                "resolve_package_base_address",
+                return_value=self._PACKAGE_BASE_ADDRESS,
+            ),
+            mock.patch.object(nuget_publication, "remote_states", return_value=packages),
+            mock.patch.object(nuget_publication, "symbol_states", return_value=symbols),
         ):
-            nuget_publication.remote_states(
-                receipt,
-                self.root,
-                fetcher=fetcher,
-            )
+            nuget_publication.preflight(arguments)
+
+        evidence = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(nuget_publication.NUGET_SOURCE, evidence["packageSource"])
+        self.assertEqual(self._PACKAGE_BASE_ADDRESS, evidence["packageBaseAddress"])
+        self.assertEqual(
+            "pending-signature",
+            evidence["packages"]["provider"]["status"],
+        )
+        outputs = github_output.read_text(encoding="utf-8")
+        self.assertIn("provider_published=false", outputs)
+        self.assertIn("publication_required=true", outputs)
 
     def test_candidate_paths_reject_absolute_and_traversal_values(self) -> None:
         """Reject receipt paths that cannot remain portable across runners."""
@@ -340,6 +549,147 @@ class NuGetPublicationTests(unittest.TestCase):
             "package set is invalid",
         ):
             nuget_publication.validated_symbol_entries(manifest, self._VERSION)
+
+    def test_readback_retries_independent_package_indexing_order(self) -> None:
+        """Retry package visibility and repository-signature propagation."""
+        receipt = self._receipt()
+        manifest, symbol_payloads = self._symbol_manifest()
+        symbol_entries = nuget_publication.validated_symbol_entries(
+            manifest,
+            self._VERSION,
+        )
+        provider_bytes = self._package_bytes(
+            nuget_publication.PROVIDER_PACKAGE_ID,
+            signature=b"repository signature",
+        )
+        unsigned_provider_bytes = self._package_bytes(
+            nuget_publication.PROVIDER_PACKAGE_ID,
+        )
+        spatial_bytes = self._package_bytes(
+            nuget_publication.SPATIAL_PACKAGE_ID,
+            dependencies=[(nuget_publication.PROVIDER_PACKAGE_ID, self._VERSION)],
+            signature=b"repository signature",
+        )
+
+        def package_fetcher(url: str, _: float) -> bytes | None:
+            if url == nuget_publication.remote_package_url(
+                self._PACKAGE_BASE_ADDRESS,
+                nuget_publication.PROVIDER_PACKAGE_ID,
+                self._VERSION,
+            ):
+                return provider_bytes
+            return spatial_bytes
+
+        partial_packages = nuget_publication.observe_remote_packages(
+            receipt,
+            self.root,
+            self._PACKAGE_BASE_ADDRESS,
+            fetcher=lambda url, timeout: (
+                None
+                if url == nuget_publication.remote_package_url(
+                    self._PACKAGE_BASE_ADDRESS,
+                    nuget_publication.PROVIDER_PACKAGE_ID,
+                    self._VERSION,
+                )
+                else package_fetcher(url, timeout)
+            ),
+        )
+        pending_signature_packages = nuget_publication.observe_remote_packages(
+            receipt,
+            self.root,
+            self._PACKAGE_BASE_ADDRESS,
+            fetcher=lambda url, timeout: (
+                unsigned_provider_bytes
+                if url == nuget_publication.remote_package_url(
+                    self._PACKAGE_BASE_ADDRESS,
+                    nuget_publication.PROVIDER_PACKAGE_ID,
+                    self._VERSION,
+                )
+                else package_fetcher(url, timeout)
+            ),
+        )
+        complete_packages = nuget_publication.observe_remote_packages(
+            receipt,
+            self.root,
+            self._PACKAGE_BASE_ADDRESS,
+            fetcher=package_fetcher,
+        )
+        absent_symbols = nuget_publication.observe_remote_symbols(
+            symbol_entries,
+            fetcher=lambda _entry, _timeout: None,
+        )
+        complete_symbols = nuget_publication.observe_remote_symbols(
+            symbol_entries,
+            fetcher=lambda entry, _timeout: symbol_payloads[entry["packageId"]],
+        )
+        receipt_path = self.root / "publication-receipt.json"
+        manifest_path = self.root / "symbol-manifest.json"
+        output = self.root / "publication-readback.json"
+        output_dir = self.root / "public-packages"
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        arguments = SimpleNamespace(
+            receipt=receipt_path,
+            candidate_root=self.root,
+            symbol_manifest=manifest_path,
+            output_dir=output_dir,
+            output=output,
+            timeout_seconds=60,
+            request_timeout_seconds=5,
+            poll_interval_seconds=1,
+        )
+
+        with (
+            mock.patch.object(nuget_publication, "validate_portable_receipt"),
+            mock.patch.object(
+                nuget_publication,
+                "resolve_package_base_address",
+                return_value=self._PACKAGE_BASE_ADDRESS,
+            ),
+            mock.patch.object(
+                nuget_publication,
+                "observe_remote_packages",
+                side_effect=(
+                    partial_packages,
+                    pending_signature_packages,
+                    complete_packages,
+                ),
+            ) as observe_remote_packages,
+            mock.patch.object(
+                nuget_publication,
+                "observe_remote_symbols",
+                side_effect=(absent_symbols, complete_symbols, complete_symbols),
+            ),
+            mock.patch.object(
+                nuget_publication.time,
+                "monotonic",
+                side_effect=(0.0, 1.0, 2.0),
+            ),
+            mock.patch.object(nuget_publication.time, "sleep") as sleep,
+        ):
+            nuget_publication.readback(arguments)
+
+        self.assertEqual(3, observe_remote_packages.call_count)
+        self.assertEqual("pending-signature", pending_signature_packages[0]["provider"]["status"])
+        self.assertEqual([mock.call(1), mock.call(1)], sleep.call_args_list)
+        evidence = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(receipt["expectedReleaseTag"], evidence["expectedReleaseTag"])
+        self.assertEqual(nuget_publication.NUGET_SOURCE, evidence["packageSource"])
+        self.assertEqual(self._PACKAGE_BASE_ADDRESS, evidence["packageBaseAddress"])
+        self.assertEqual("matching", evidence["packages"]["provider"]["status"])
+        self.assertEqual("matching", evidence["packages"]["spatial"]["status"])
+        github_release.require_release_identity(
+            evidence,
+            "NuGet publication readback",
+            receipt,
+            "verifiedUtc",
+        )
+        github_release.validate_observation_set(
+            evidence,
+            receipt,
+            {entry["packageId"]: entry for entry in symbol_entries},
+            require_matching=True,
+        )
 
     def test_prepare_and_bind_preserve_identity_after_main_advances(self) -> None:
         """Bind the exact candidate while allowing later protected-main merges."""
@@ -621,30 +971,39 @@ class NuGetPublicationTests(unittest.TestCase):
 
     def _receipt(self) -> dict[str, object]:
         """Return the validated-candidate shape consumed by remote checks."""
+        provider_package = (
+            Path("packages")
+            / nuget_publication.package_file_name(
+                nuget_publication.PROVIDER_PACKAGE_ID,
+                self._VERSION,
+                "nupkg",
+            )
+        )
+        spatial_package = (
+            Path("packages")
+            / nuget_publication.package_file_name(
+                nuget_publication.SPATIAL_PACKAGE_ID,
+                self._VERSION,
+                "nupkg",
+            )
+        )
         return {
             "releaseTag": f"v{self._VERSION}",
+            "expectedReleaseTag": f"v{self._VERSION}",
             "releaseVersion": self._VERSION,
             "sourceCommit": self._COMMIT,
             "packages": {
                 "provider": {
-                    "package": (
-                        Path("packages")
-                        / nuget_publication.package_file_name(
-                            nuget_publication.PROVIDER_PACKAGE_ID,
-                            self._VERSION,
-                            "nupkg",
-                        )
-                    ).as_posix(),
+                    "package": provider_package.as_posix(),
+                    "contentDigest": nuget_publication.canonical_package_digest(
+                        self.root / provider_package
+                    ),
                 },
                 "spatial": {
-                    "package": (
-                        Path("packages")
-                        / nuget_publication.package_file_name(
-                            nuget_publication.SPATIAL_PACKAGE_ID,
-                            self._VERSION,
-                            "nupkg",
-                        )
-                    ).as_posix(),
+                    "package": spatial_package.as_posix(),
+                    "contentDigest": nuget_publication.canonical_package_digest(
+                        self.root / spatial_package
+                    ),
                 },
             },
         }

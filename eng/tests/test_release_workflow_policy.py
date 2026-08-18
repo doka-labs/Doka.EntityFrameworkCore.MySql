@@ -955,6 +955,20 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             publish,
         )
 
+    def test_release_entry_points_share_the_canonical_nuget_version_gate(self) -> None:
+        """Reject noncanonical versions before any direct or hosted RC stage."""
+        workflow = self.workflow("release-candidate.yml")
+        preflight = self.job(workflow, "preflight", "foundation")
+        release_script = (
+            self.repo / "eng" / "release" / "release-candidate.sh"
+        ).read_text(encoding="utf-8")
+        validator = "python3 -m eng.release.nuget validate-version"
+
+        self.assertEqual(1, preflight.count(validator))
+        self.assertIn('--version "${RELEASE_VERSION}"', preflight)
+        self.assertEqual(1, release_script.count(validator))
+        self.assertIn('--version "${release_version_override}"', release_script)
+
     def test_the_candidate_never_measures_or_imports_performance(self) -> None:
         """Keep benchmark outcomes from qualifying or blocking a release."""
         text = self.workflow("release-candidate.yml")
@@ -1123,6 +1137,8 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             "if: steps.preflight.outputs.publication_required == 'true'",
             publish,
         )
+        self.assertEqual(4, publish.count("dotnet nuget push"))
+        self.assertEqual(4, publish.count("--skip-duplicate"))
 
     def test_short_lived_nuget_key_is_not_exposed_as_a_process_argument(self) -> None:
         """Use the SDK's CI environment contract instead of command arguments."""

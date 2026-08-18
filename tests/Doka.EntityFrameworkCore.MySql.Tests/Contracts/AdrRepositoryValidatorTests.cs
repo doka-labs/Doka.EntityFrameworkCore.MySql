@@ -432,16 +432,16 @@ public sealed class AdrRepositoryValidatorTests
             && providerSymbolsStep > providerPackageStep
             && spatialPackageStep > providerSymbolsStep
             && spatialSymbolsStep > spatialPackageStep);
-        Assert.DoesNotContain(
+        Assert.Contains(
             "--skip-duplicate",
             workflow[providerPackageStep..providerSymbolsStep],
             StringComparison.Ordinal);
-        Assert.DoesNotContain(
+        Assert.Contains(
             "--skip-duplicate",
             workflow[spatialPackageStep..spatialSymbolsStep],
             StringComparison.Ordinal);
         Assert.Equal(
-            2,
+            4,
             workflow.Split("--skip-duplicate", StringSplitOptions.None).Length - 1);
 
         Assert.Contains(

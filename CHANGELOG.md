@@ -7,6 +7,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Treat independently delayed NuGet package and symbol indexing as retryable
+  until the bounded public-readback deadline. Every package push can now resume
+  an already accepted but not yet visible version, while canonical byte,
+  Portable PDB, and repository-signature verification still fail closed.
+- Treat matching package bytes that precede their NuGet.org repository
+  signature as pending until the same deadline. Public package URLs now use the
+  dynamically discovered V3 package-content endpoint and accept only canonical
+  normalized release versions; completion consumes the exact identity written
+  by the readback producer.
+
 ## [10.0.0-rc.9] - 2026-08-17
 
 This release candidate supersedes `10.0.0-rc.8`. Qualification completed,
