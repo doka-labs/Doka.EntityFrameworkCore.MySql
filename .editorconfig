@@ -223,7 +223,7 @@ csharp_style_expression_bodied_indexers = when_on_single_line:suggestion
 csharp_style_expression_bodied_lambdas = true:suggestion
 csharp_style_expression_bodied_constructors = false:suggestion
 csharp_style_expression_bodied_operators = false:suggestion
-csharp_style_expression_bodied_local_functions = false:suggestion
+csharp_style_expression_bodied_local_functions = true:suggestion
 
 # --- Formatting --------------------------------------------------------------
 csharp_new_line_before_open_brace = all
