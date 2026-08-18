@@ -903,7 +903,7 @@ public sealed class MySqlMigrationDslTests
     )
         where TContext : DbContext
     {
-        var builder = new DbContextOptionsBuilder<TContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>();
 
         builder.UseMySql(
             "Server=localhost;Database=phase2;User ID=root;Password=password;",

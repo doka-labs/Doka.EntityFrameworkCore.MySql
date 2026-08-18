@@ -84,7 +84,7 @@ public sealed class MySqlStringComparisonTranslationTests
 
     private static DbContextOptions<StringComparisonContext> CreateOptions()
     {
-        var builder = new DbContextOptionsBuilder<StringComparisonContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<StringComparisonContext>();
 
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",

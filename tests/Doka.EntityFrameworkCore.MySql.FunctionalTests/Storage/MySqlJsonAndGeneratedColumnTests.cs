@@ -243,7 +243,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     )
         where TContext : DbContext
     {
-        var builder = new DbContextOptionsBuilder<TContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>();
 
         builder.UseMySql("Server=localhost;Database=doka;User ID=root;Password=password;", serverVersion);
 

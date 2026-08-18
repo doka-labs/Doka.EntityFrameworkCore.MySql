@@ -214,7 +214,7 @@ public sealed class MySqlTemporalQueryCompositionTests
     private static TemporalCompositionContext<TConfiguration> CreateContext<TConfiguration>()
         where TConfiguration : ICompositionConfiguration, new()
     {
-        var options = new DbContextOptionsBuilder<TemporalCompositionContext<TConfiguration>>().UseMySql(
+        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<TemporalCompositionContext<TConfiguration>>().UseMySql(
                 "Server=localhost;Database=doka;User ID=root;Password=password;",
                 MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
             .Options;

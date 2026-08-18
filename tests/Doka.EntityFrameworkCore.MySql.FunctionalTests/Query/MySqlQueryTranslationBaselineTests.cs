@@ -125,7 +125,7 @@ public sealed class MySqlQueryTranslationBaselineTests
 
     private static DbContextOptions<QueryTranslationContext> CreateOptions()
     {
-        var builder = new DbContextOptionsBuilder<QueryTranslationContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<QueryTranslationContext>();
 
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",

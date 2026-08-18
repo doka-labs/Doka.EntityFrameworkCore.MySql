@@ -388,7 +388,7 @@ public sealed class MySqlDesignTimeRoundTripTests
     private static DbContextOptions<TContext> CreateOptions<TContext>(
         MySqlServerVersion serverVersion
     )
-        where TContext : DbContext => new DbContextOptionsBuilder<TContext>().UseMySql(
+        where TContext : DbContext => MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>().UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             serverVersion)
         .Options;

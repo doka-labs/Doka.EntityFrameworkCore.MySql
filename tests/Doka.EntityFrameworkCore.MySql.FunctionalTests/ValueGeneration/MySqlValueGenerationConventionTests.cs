@@ -286,9 +286,11 @@ public sealed class MySqlValueGenerationConventionTests
 
         protected override void OnConfiguring(
             DbContextOptionsBuilder optionsBuilder
-        ) => optionsBuilder.UseMySql(
-            "Server=127.0.0.1;Database=doka_convention_probe;User ID=root;Password=root;",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+        ) => optionsBuilder
+            .UseTransientInternalServiceProvider()
+            .UseMySql(
+                "Server=127.0.0.1;Database=doka_convention_probe;User ID=root;Password=root;",
+                MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
         protected override void OnModelCreating(
             ModelBuilder modelBuilder

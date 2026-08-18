@@ -910,7 +910,7 @@ public sealed class MySqlQueryTranslationExtendedTests
 
     private static DbContextOptions<EnumQueryContext> CreateEnumOptions()
     {
-        var builder = new DbContextOptionsBuilder<EnumQueryContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<EnumQueryContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -961,7 +961,7 @@ public sealed class MySqlQueryTranslationExtendedTests
 
     private static DbContextOptions<AutoIncludeContext> CreateAutoIncludeOptions()
     {
-        var builder = new DbContextOptionsBuilder<AutoIncludeContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<AutoIncludeContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -991,7 +991,7 @@ public sealed class MySqlQueryTranslationExtendedTests
 
     private static DbContextOptions<JsonPropertyContext> CreateJsonOptions()
     {
-        var builder = new DbContextOptionsBuilder<JsonPropertyContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<JsonPropertyContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -1034,7 +1034,7 @@ public sealed class MySqlQueryTranslationExtendedTests
         MySqlServerVersion serverVersion
     )
     {
-        var builder = new DbContextOptionsBuilder<TranslationTestContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TranslationTestContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             serverVersion);
@@ -1043,7 +1043,7 @@ public sealed class MySqlQueryTranslationExtendedTests
 
     private static TranslationTestContext CreateMariaDbContext()
     {
-        var builder = new DbContextOptionsBuilder<TranslationTestContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TranslationTestContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MariaDb(new Version(11, 8, 0)));

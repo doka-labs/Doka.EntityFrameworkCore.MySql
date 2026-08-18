@@ -220,7 +220,7 @@ public sealed class MySqlModelValidatorAndDdlTests
 
     private static DdlTestContext CreateMySqlContext()
     {
-        var builder = new DbContextOptionsBuilder<DdlTestContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<DdlTestContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -229,7 +229,7 @@ public sealed class MySqlModelValidatorAndDdlTests
 
     private static DdlTestContext CreateMariaDbContext()
     {
-        var builder = new DbContextOptionsBuilder<DdlTestContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<DdlTestContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
@@ -238,7 +238,7 @@ public sealed class MySqlModelValidatorAndDdlTests
 
     private static SchemaDdlTestContext CreateSchemaContext()
     {
-        var builder = new DbContextOptionsBuilder<SchemaDdlTestContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<SchemaDdlTestContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -248,7 +248,7 @@ public sealed class MySqlModelValidatorAndDdlTests
     private static DbContextOptions<TContext> CreateOptions<TContext>()
         where TContext : DbContext
     {
-        var builder = new DbContextOptionsBuilder<TContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));

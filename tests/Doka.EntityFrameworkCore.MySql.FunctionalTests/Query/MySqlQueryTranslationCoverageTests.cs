@@ -596,7 +596,7 @@ public sealed class MySqlQueryTranslationCoverageTests
 
     private static CoverageContext CreateContext()
     {
-        var builder = new DbContextOptionsBuilder<CoverageContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<CoverageContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));

@@ -283,7 +283,7 @@ public sealed class MySqlDefensiveValidationTests
 
     private static DefensiveContext CreateContext()
     {
-        var builder = new DbContextOptionsBuilder<DefensiveContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<DefensiveContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));

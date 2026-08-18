@@ -13,7 +13,7 @@ public sealed class MySqlRemainingGapTests
     [Fact]
     public void UseHiLo_on_guid_property_throws_when_the_value_generator_is_selected()
     {
-        var builder = new DbContextOptionsBuilder<HiLoGuidContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<HiLoGuidContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -94,7 +94,7 @@ public sealed class MySqlRemainingGapTests
     [Fact]
     public void Varchar36_guid_property_gets_correct_column_type()
     {
-        var builder = new DbContextOptionsBuilder<Varchar36GuidContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<Varchar36GuidContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));

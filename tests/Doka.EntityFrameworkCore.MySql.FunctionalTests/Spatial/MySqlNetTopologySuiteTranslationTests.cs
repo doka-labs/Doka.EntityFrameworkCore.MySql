@@ -97,7 +97,7 @@ public sealed class MySqlNetTopologySuiteTranslationTests
 
     private static DbContextOptions<SpatialTranslationContext> CreateOptions()
     {
-        var builder = new DbContextOptionsBuilder<SpatialTranslationContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<SpatialTranslationContext>();
 
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",

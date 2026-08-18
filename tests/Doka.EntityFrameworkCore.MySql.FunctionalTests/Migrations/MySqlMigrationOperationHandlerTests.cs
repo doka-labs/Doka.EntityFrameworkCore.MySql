@@ -303,7 +303,7 @@ public sealed class MySqlMigrationOperationHandlerTests
         bool registerBeforeUseMySql
     )
     {
-        var builder = new DbContextOptionsBuilder<HandlerContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<HandlerContext>();
 
         if (registerBeforeUseMySql)
         {
@@ -330,7 +330,7 @@ public sealed class MySqlMigrationOperationHandlerTests
     [Fact]
     public void Independent_plugin_options_extensions_compose_in_the_internal_service_graph()
     {
-        var builder = new DbContextOptionsBuilder<HandlerContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<HandlerContext>();
         AddPlugin<BaselineRenderingHandler>(builder);
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
@@ -358,7 +358,7 @@ public sealed class MySqlMigrationOperationHandlerTests
         MySqlMigrationHandlerFailureCode expectedFailureCode
     )
     {
-        var builder = new DbContextOptionsBuilder<HandlerContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<HandlerContext>();
         AddPlugin<BaselineRenderingHandler>(builder);
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",

@@ -440,7 +440,7 @@ public sealed class MySqlMigrationBaselineTests
     )
         where TContext : DbContext
     {
-        var builder = new DbContextOptionsBuilder<TContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>();
 
         if (loggerFactory is not null)
         {

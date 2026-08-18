@@ -568,7 +568,7 @@ public sealed class MySqlMigrationDdlCoverageTests
     [Fact]
     public void Model_with_long_fk_name_builds_with_normalized_constraint_name()
     {
-        var builder = new DbContextOptionsBuilder<ConstraintTestContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<ConstraintTestContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -676,7 +676,7 @@ public sealed class MySqlMigrationDdlCoverageTests
     [Fact]
     public void UseHiLo_on_short_property_sets_strategy()
     {
-        var builder = new DbContextOptionsBuilder<HiLoShortContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<HiLoShortContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -739,7 +739,7 @@ public sealed class MySqlMigrationDdlCoverageTests
 
     private static DdlCoverageContext CreateMySqlContext()
     {
-        var builder = new DbContextOptionsBuilder<DdlCoverageContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<DdlCoverageContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -748,7 +748,7 @@ public sealed class MySqlMigrationDdlCoverageTests
 
     private static DdlCoverageContext CreateMariaDbContext()
     {
-        var builder = new DbContextOptionsBuilder<DdlCoverageContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<DdlCoverageContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
@@ -757,7 +757,7 @@ public sealed class MySqlMigrationDdlCoverageTests
 
     private static JsonFuncContext CreateJsonContext()
     {
-        var builder = new DbContextOptionsBuilder<JsonFuncContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<JsonFuncContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -766,7 +766,7 @@ public sealed class MySqlMigrationDdlCoverageTests
 
     private static TemporalContext CreateTemporalContext()
     {
-        var builder = new DbContextOptionsBuilder<TemporalContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TemporalContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));

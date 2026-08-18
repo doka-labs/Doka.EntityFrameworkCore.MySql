@@ -227,7 +227,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
     )
         where TContext : DbContext
     {
-        var builder = new DbContextOptionsBuilder<TContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>();
         var serverVersion = isMariaDb
             ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
             : MySqlServerVersion.MySql(new Version(8, 4, 0));

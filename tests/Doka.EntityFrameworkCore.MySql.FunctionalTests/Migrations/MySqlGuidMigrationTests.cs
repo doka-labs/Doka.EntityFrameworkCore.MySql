@@ -113,7 +113,7 @@ public sealed class MySqlGuidMigrationTests
     }
 
     private static DbContextOptions<TContext> CreateOptions<TContext>()
-        where TContext : DbContext => new DbContextOptionsBuilder<TContext>().UseMySql(
+        where TContext : DbContext => MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>().UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
         .Options;
