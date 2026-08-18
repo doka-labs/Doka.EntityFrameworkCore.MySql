@@ -183,7 +183,6 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
         [s_disjointMethod] = "ST_Disjoint",
         [s_overlapsMethod] = "ST_Overlaps",
         [s_touchesMethod] = "ST_Touches",
-        [s_crossesMethod] = "ST_Crosses",
         [s_equalsTopologicallyMethod] = "ST_Equals",
     };
 
@@ -201,18 +200,21 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
     private readonly IRelationalTypeMappingSource _typeMappingSource;
     private readonly ILogger _logger;
     private readonly bool _supportsMariaDbSpatialFunctions;
+    private readonly bool _supportsBufferStrategies;
 
     public MySqlNetTopologySuiteMethodCallTranslator(
         ISqlExpressionFactory sqlExpressionFactory,
         IRelationalTypeMappingSource typeMappingSource,
         ILogger logger,
-        bool supportsMariaDbSpatialFunctions
+        bool supportsMariaDbSpatialFunctions,
+        bool supportsBufferStrategies
     )
     {
         _sqlExpressionFactory = sqlExpressionFactory ?? throw new ArgumentNullException(nameof(sqlExpressionFactory));
         _typeMappingSource = typeMappingSource ?? throw new ArgumentNullException(nameof(typeMappingSource));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _supportsMariaDbSpatialFunctions = supportsMariaDbSpatialFunctions;
+        _supportsBufferStrategies = supportsBufferStrategies;
     }
 
     public SqlExpression? Translate(
@@ -274,6 +276,15 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
         if (method == s_bufferWithQuadrantSegmentsMethod
             && instance is not null)
         {
+            if (!_supportsBufferStrategies)
+            {
+                MySqlLoggerMessages.MissingSpatialTranslation(
+                    _logger,
+                    "Geometry.Buffer(Double, Int32) requires MySQL ST_Buffer_Strategy");
+
+                return null;
+            }
+
             return TranslateBufferWithQuadrantSegments(instance, arguments);
         }
 
@@ -327,6 +338,21 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
             && instance is not null)
         {
             return TranslateCovers(arguments[0], instance);
+        }
+
+        if (method == s_crossesMethod
+            && instance is not null)
+        {
+            return _supportsMariaDbSpatialFunctions
+                ? TranslateMariaDbCrosses(instance, arguments[0])
+                : TranslateFunction(
+                    "ST_Crosses",
+                    typeof(bool),
+                    s_boolMapping,
+                    [
+                        instance,
+                        arguments[0],
+                    ]);
         }
 
         if (method == s_relatePatternMethod
@@ -532,6 +558,52 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
             ]);
 
         return TranslateFunction("ST_IsEmpty", typeof(bool), s_boolMapping, [difference]);
+    }
+
+    private SqlExpression TranslateMariaDbCrosses(
+        SqlExpression left,
+        SqlExpression right
+    )
+    {
+        var leftDimension = TranslateFunction("ST_Dimension", typeof(int), s_intMapping, [left]);
+        var rightDimension = TranslateFunction("ST_Dimension", typeof(int), s_intMapping, [right]);
+
+        // Keep all seven pairs explicit so this stays auditable one-for-one
+        // against the version-pinned NetTopologySuite Crosses table in D-012.
+        return _sqlExpressionFactory.Case(
+            [
+                new CaseWhenClause(HasDimensions(0, 1), Relates("T*T******")),
+                new CaseWhenClause(HasDimensions(0, 2), Relates("T*T******")),
+                new CaseWhenClause(HasDimensions(1, 0), Relates("T*****T**")),
+                new CaseWhenClause(HasDimensions(1, 1), Relates("0********")),
+                new CaseWhenClause(HasDimensions(1, 2), Relates("T*T******")),
+                new CaseWhenClause(HasDimensions(2, 0), Relates("T*****T**")),
+                new CaseWhenClause(HasDimensions(2, 1), Relates("T*****T**")),
+            ],
+            _sqlExpressionFactory.Constant(false, s_boolMapping));
+
+        SqlExpression HasDimensions(
+            int leftValue,
+            int rightValue
+        ) => _sqlExpressionFactory.AndAlso(
+            _sqlExpressionFactory.Equal(
+                leftDimension,
+                _sqlExpressionFactory.Constant(leftValue, s_intMapping)),
+            _sqlExpressionFactory.Equal(
+                rightDimension,
+                _sqlExpressionFactory.Constant(rightValue, s_intMapping)));
+
+        SqlExpression Relates(
+            string pattern
+        ) => TranslateFunction(
+            "ST_Relate",
+            typeof(bool),
+            s_boolMapping,
+            [
+                left,
+                right,
+                _sqlExpressionFactory.Constant(pattern, s_stringMapping),
+            ]);
     }
 
     private SqlExpression AlignStaticGeometrySrid(

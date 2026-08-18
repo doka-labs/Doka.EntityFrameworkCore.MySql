@@ -489,17 +489,33 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(" ")
             .Append(columnType);
 
-        if (operation.FindAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId)
-                ?.Value is int spatialReferenceSystemId
-            && _mySqlSingletonOptions.Profile?.GetSupport(
-                ProviderCapability.SpatialColumnSridAttribute) == ProviderSupportStatus.Native)
+        var spatialReferenceSystemId = operation.FindAnnotation(
+                MySqlAnnotationNames.SpatialReferenceSystemId)
+            ?.Value as int?;
+
+        var spatialReferenceSystemIdSupport = _mySqlSingletonOptions.Profile?.GetSupport(
+            ProviderCapability.SpatialColumnSridEnforcement);
+
+        if (spatialReferenceSystemId is not null
+            && spatialReferenceSystemIdSupport == ProviderSupportStatus.Native)
         {
             builder
                 .Append(" SRID ")
-                .Append(spatialReferenceSystemId.ToString(CultureInfo.InvariantCulture));
+                .Append(spatialReferenceSystemId.Value.ToString(CultureInfo.InvariantCulture));
         }
 
         builder.Append(operation.IsNullable ? " NULL" : " NOT NULL");
+
+        if (spatialReferenceSystemId is not null
+            && spatialReferenceSystemIdSupport == ProviderSupportStatus.Emulated)
+        {
+            builder
+                .Append(" CHECK (ST_SRID(")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(name))
+                .Append(") = ")
+                .Append(spatialReferenceSystemId.Value.ToString(CultureInfo.InvariantCulture))
+                .Append(")");
+        }
     }
 
     private void ValidateJsonSupport(

@@ -7,12 +7,27 @@ internal sealed class MySqlNetTopologySuiteAggregateMethodCallTranslatorPlugin :
 {
     public MySqlNetTopologySuiteAggregateMethodCallTranslatorPlugin(
         ISqlExpressionFactory sqlExpressionFactory,
-        IRelationalTypeMappingSource typeMappingSource
+        IRelationalTypeMappingSource typeMappingSource,
+        ILoggerFactory loggerFactory,
+        IEnumerable<ISingletonOptions> singletonOptions
     )
     {
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+        ArgumentNullException.ThrowIfNull(singletonOptions);
+
+        var profile = singletonOptions
+                .OfType<MySqlSingletonOptions>()
+                .Single()
+                .Profile
+            ?? throw new InvalidOperationException("A configured server profile is required for spatial translation.");
+
         Translators =
         [
-            new MySqlNetTopologySuiteAggregateMethodTranslator(sqlExpressionFactory, typeMappingSource),
+            new MySqlNetTopologySuiteAggregateMethodTranslator(
+                sqlExpressionFactory,
+                typeMappingSource,
+                loggerFactory.CreateLogger(MySqlLoggerCategory.Spatial),
+                profile.Engine.Has(EngineCapability.SpatialCollectAggregate)),
         ];
     }
 

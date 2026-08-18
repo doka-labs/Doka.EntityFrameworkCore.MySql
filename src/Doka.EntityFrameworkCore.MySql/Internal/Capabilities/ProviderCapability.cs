@@ -18,7 +18,7 @@ internal enum ProviderCapability
     GeneratedColumnNullabilityClause,
     VirtualGeneratedColumns,
     StoredGeneratedColumns,
-    SpatialColumnSridAttribute,
+    SpatialColumnSridEnforcement,
     CommonTableExpressions,
     TemporalTables,
     ApplicationTimePeriods,

@@ -223,7 +223,7 @@ The active LTS contract is:
 | Generated-column nullability clause | Native | Unsupported |
 | Virtual generated columns | Native | Native |
 | Stored generated columns | Native | Native |
-| Column-level spatial SRID | Native | Unsupported |
+| Column-level spatial SRID | Native | Emulated with an enforced column `CHECK` |
 | Expression defaults | Native | Native |
 | Temporal tables | Emulated | Native |
 | Application-time periods | Unsupported | Native |

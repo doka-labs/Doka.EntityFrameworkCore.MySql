@@ -205,6 +205,10 @@ Six discovered engine constraints remain fully supported by the provider:
 - MariaDB exposes `ST_Relate` but no named Covers predicate. The spatial
   translator composes the four OGC DE-9IM covers masks and reverses operands
   for CoveredBy.
+- MariaDB `ST_Crosses` returns `NULL` for documented mixed-dimension argument
+  orders that NetTopologySuite defines as Boolean. The translator selects the
+  applicable NetTopologySuite DE-9IM mask from both runtime dimensions and
+  returns `false` for dimension pairs that cannot cross.
 - MariaDB's `ST_SRID` is getter-only. Static geometry arguments are serialized
   with `ST_AsWKB` and reconstructed through `ST_GeomFromWKB` with the model
   column's SRID.
@@ -336,6 +340,9 @@ specification corpus; D-021 governs how exceptions are classified and enforced.
   provider debt.
 - 2026-08-15: Required explicit targets for live local execution and bound
   standalone live functional tests to the six-target per-event CI matrix.
+- 2026-08-18: Bound spatial validity, buffer strategies, and collection
+  aggregates to their exact engine-version capabilities, and implemented the
+  NetTopologySuite Crosses relation through MariaDB DE-9IM predicates.
 
 ### Implementation References
 

@@ -1,10 +1,9 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Loads spatial-column metadata from INFORMATION_SCHEMA.ST_GEOMETRY_COLUMNS. Annotates
-/// each matching column with the source SRID via
-/// <see cref="MySqlAnnotationNames.SpatialReferenceSystemId"/>. Skipped when the engine
-/// does not advertise SupportsSpatialColumnSridAttribute.
+/// Restores spatial SRID metadata from the engine-specific enforcement mechanism.
+/// MySQL exposes native SRID attributes through ST_GEOMETRY_COLUMNS. MariaDB uses
+/// the provider-owned column CHECK shape because it has no enforcing SRID attribute.
 /// </summary>
 internal static class SpatialColumnLoader
 {
@@ -14,11 +13,26 @@ internal static class SpatialColumnLoader
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!context.Profile.Supports(ProviderCapability.SpatialColumnSridAttribute))
+        switch (context.Profile.GetSupport(ProviderCapability.SpatialColumnSridEnforcement))
         {
-            return;
+            case ProviderSupportStatus.Native:
+                LoadNativeAttributes(context);
+                return;
+            case ProviderSupportStatus.Emulated:
+                // CheckConstraintLoader owns the MariaDB CHECK catalog query and
+                // applies provider-owned SRID checks while preserving user checks.
+                return;
+            case ProviderSupportStatus.UnsupportedByEngine:
+                return;
+            default:
+                throw new InvalidOperationException("Unknown spatial SRID enforcement status.");
         }
+    }
 
+    private static void LoadNativeAttributes(
+        ScaffoldingPipelineContext context
+    )
+    {
         using var command = context.Connection.CreateCommand();
         var sql = new StringBuilder(
             """
@@ -53,5 +67,33 @@ internal static class SpatialColumnLoader
                 column.SetAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId, reader.GetInt32(2));
             }
         }
+    }
+
+    public static bool TryApplyMariaDbCheck(
+        ScaffoldingPipelineContext context,
+        string tableName,
+        string constraintName,
+        string checkClause
+    )
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
+        ArgumentNullException.ThrowIfNull(checkClause);
+
+        if (context.Profile.GetSupport(ProviderCapability.SpatialColumnSridEnforcement)
+            != ProviderSupportStatus.Emulated
+            || !MariaDbSpatialSridCheckConstraintParser.TryParse(
+                checkClause,
+                out var columnName,
+                out var spatialReferenceSystemId)
+            || !string.Equals(constraintName, columnName, StringComparison.Ordinal)
+            || !context.Columns.TryGetValue((tableName, columnName), out var column))
+        {
+            return false;
+        }
+
+        column.SetAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId, spatialReferenceSystemId);
+        return true;
     }
 }

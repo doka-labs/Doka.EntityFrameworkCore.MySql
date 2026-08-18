@@ -95,16 +95,163 @@ public sealed class MySqlNetTopologySuiteTranslationTests
         Assert.Contains("could not be translated", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static DbContextOptions<SpatialTranslationContext> CreateOptions()
+    /// <summary>
+    /// Preserves MySQL's native IsValid, buffer-strategy, Crosses, and collection
+    /// aggregate translations on versions that expose the required functions.
+    /// </summary>
+    [Fact]
+    public void MySql_spatial_function_capabilities_translate_at_supported_versions()
+    {
+        using var context =
+            new SpatialTranslationContext(CreateOptions(MySqlServerVersion.MySql(new Version(8, 4, 0))));
+
+        var scalarSql = context
+            .Entities
+            .Select(entity => new
+            {
+                entity.Shape.IsValid,
+                Buffer = entity.Shape.Buffer(1, 4),
+                Crosses = entity.Shape.Crosses(entity.Region),
+            })
+            .ToQueryString();
+
+        var aggregateSql = CreateAggregateQueries(context);
+
+        Assert.Contains("ST_IsValid(", scalarSql, StringComparison.Ordinal);
+        Assert.Contains("ST_Buffer_Strategy(", scalarSql, StringComparison.Ordinal);
+        Assert.Contains("ST_Crosses(", scalarSql, StringComparison.Ordinal);
+        Assert.DoesNotContain("ST_Relate(", scalarSql, StringComparison.Ordinal);
+        Assert.DoesNotContain("ELSE 0", scalarSql, StringComparison.Ordinal);
+        Assert.All(aggregateSql, sql => Assert.Contains("ST_Collect(", sql, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Rejects each spatial function that MariaDB 11.x does not expose instead of
+    /// emitting SQL that can only fail when the query reaches the server.
+    /// </summary>
+    [Theory]
+    [InlineData(10, 11)]
+    [InlineData(11, 4)]
+    [InlineData(11, 8)]
+    public void MariaDb_before_12_rejects_unavailable_spatial_functions_at_translation(
+        int major,
+        int minor
+    )
+    {
+        using var context =
+            new SpatialTranslationContext(CreateOptions(MySqlServerVersion.MariaDb(new Version(major, minor, 0))));
+
+        AssertTranslationFailure(() => context
+            .Entities
+            .Where(entity => entity.Shape.IsValid)
+            .ToQueryString());
+        AssertTranslationFailure(() => context
+            .Entities
+            .Where(entity => entity.Shape.Buffer(1, 4)
+                .IsEmpty)
+            .ToQueryString());
+
+        foreach (var aggregateQuery in CreateAggregateQueryFactories(context))
+        {
+            AssertTranslationFailure(aggregateQuery);
+        }
+    }
+
+    /// <summary>
+    /// Enables MariaDB 12 collection and validity functions while retaining the
+    /// two-argument Buffer boundary and replacing MariaDB's nullable Crosses result
+    /// with the NetTopologySuite DE-9IM definition.
+    /// </summary>
+    [Fact]
+    public void MariaDb12_uses_its_exact_spatial_function_contract()
+    {
+        using var context = new SpatialTranslationContext(
+            CreateOptions(MySqlServerVersion.MariaDb(new Version(12, 3, 2))));
+
+        var scalarSql = context
+            .Entities
+            .Select(entity => new
+            {
+                entity.Shape.IsValid,
+                Buffer = entity.Shape.Buffer(1),
+                Crosses = entity.Shape.Crosses(entity.Region),
+            })
+            .ToQueryString();
+
+        Assert.Contains("ST_IsValid(", scalarSql, StringComparison.Ordinal);
+        Assert.Contains("ST_Buffer(", scalarSql, StringComparison.Ordinal);
+        Assert.DoesNotContain("ST_Buffer_Strategy(", scalarSql, StringComparison.Ordinal);
+        Assert.DoesNotContain("ST_Crosses(", scalarSql, StringComparison.Ordinal);
+        Assert.Contains("ST_Dimension(", scalarSql, StringComparison.Ordinal);
+        Assert.Contains("ST_Relate(", scalarSql, StringComparison.Ordinal);
+        Assert.Contains("T*T******", scalarSql, StringComparison.Ordinal);
+        Assert.Contains("T*****T**", scalarSql, StringComparison.Ordinal);
+        Assert.Contains("0********", scalarSql, StringComparison.Ordinal);
+        Assert.Contains("ELSE 0", scalarSql, StringComparison.Ordinal);
+        Assert.All(
+            CreateAggregateQueries(context),
+            sql => Assert.Contains("ST_Collect(", sql, StringComparison.Ordinal));
+
+        AssertTranslationFailure(() => context
+            .Entities
+            .Where(entity => entity.Shape.Buffer(1, 4)
+                .IsEmpty)
+            .ToQueryString());
+    }
+
+    private static DbContextOptions<SpatialTranslationContext> CreateOptions(
+        MySqlServerVersion? serverVersion = null
+    )
     {
         var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<SpatialTranslationContext>();
 
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)),
+            serverVersion ?? MySqlServerVersion.MySql(new Version(8, 4, 0)),
             options => options.UseNetTopologySuite());
 
         return builder.Options;
+    }
+
+    private static string[] CreateAggregateQueries(
+        SpatialTranslationContext context
+    ) => CreateAggregateQueryFactories(context)
+        .Select(factory => factory())
+        .ToArray();
+
+    private static Func<string>[] CreateAggregateQueryFactories(
+        SpatialTranslationContext context
+    ) =>
+    [
+        () => context
+            .Entities
+            .GroupBy(_ => 1)
+            .Select(group => NetTopologySuite.Geometries.Utilities.GeometryCombiner.Combine(
+                group.Select(entity => entity.Shape)))
+            .Where(geometry => geometry.IsEmpty)
+            .ToQueryString(),
+        () => context
+            .Entities
+            .GroupBy(_ => 1)
+            .Select(group => NetTopologySuite.Operation.Union.UnaryUnionOp.Union(group.Select(entity => entity.Shape)))
+            .Where(geometry => geometry.IsEmpty)
+            .ToQueryString(),
+        () => context
+            .Entities
+            .GroupBy(_ => 1)
+            .Select(group => NetTopologySuite.Geometries.Utilities.EnvelopeCombiner.CombineAsGeometry(
+                group.Select(entity => entity.Shape)))
+            .Where(geometry => geometry.IsEmpty)
+            .ToQueryString(),
+    ];
+
+    private static void AssertTranslationFailure(
+        Func<string> query
+    )
+    {
+        var exception = Assert.Throws<InvalidOperationException>(query);
+
+        Assert.Contains("could not be translated", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     private static Point CreatePoint(

@@ -101,6 +101,13 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb1011);
 
     /// <summary>
+    /// Verifies that the MariaDB 11.4 runtime executes the approved spatial helper baseline.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public Task MariaDb114_spatial_helpers_succeed() =>
+        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb114);
+
+    /// <summary>
     /// Verifies that the MariaDB 12.3 runtime executes the approved spatial helper baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
@@ -172,13 +179,9 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
 
     /// <summary>
     /// MariaDB 11.8 WKB round-trip: persist a Point, materialize it via a
-    /// post-clear fresh read, assert SRID and coordinates survive. MariaDB does
-    /// not wrap spatial column reads as <see cref="MySqlGeometry"/>; the value
-    /// arrives as raw <c>byte[]</c>. The MariaDB-flavored TypeMapping accepts
-    /// both canonical OGC WKB and the MySQL-style SRID-prefixed layout via
-    /// <see cref="MariaDbNetTopologySuiteGeometryTypeMapping{TGeometry}.ConvertFromWkbBytes"/>;
-    /// this test pins both the engine-aware mapping selection and the byte-layout
-    /// handling end-to-end against the live MariaDB server.
+    /// post-clear fresh read, assert SRID and coordinates survive. MariaDB exposes
+    /// raw bytes for spatial columns, so this test pins the runtime dispatcher and
+    /// byte-layout handling end-to-end against the live server.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_wkb_roundtrip_preserves_srid_and_coordinates()

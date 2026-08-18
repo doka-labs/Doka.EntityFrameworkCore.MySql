@@ -14,10 +14,11 @@ internal sealed class MySqlNetTopologySuiteMemberTranslatorPlugin : IMemberTrans
         ArgumentNullException.ThrowIfNull(loggerFactory);
         ArgumentNullException.ThrowIfNull(singletonOptions);
 
-        var supportsMariaDbSpatialFunctions = singletonOptions
-            .OfType<MySqlSingletonOptions>()
-            .Single()
-            .Profile?.Engine.Has(EngineCapability.MariaDbSpatialSemantics) == true;
+        var profile = singletonOptions
+                .OfType<MySqlSingletonOptions>()
+                .Single()
+                .Profile
+            ?? throw new InvalidOperationException("A configured server profile is required for spatial translation.");
 
         Translators =
         [
@@ -25,7 +26,8 @@ internal sealed class MySqlNetTopologySuiteMemberTranslatorPlugin : IMemberTrans
                 sqlExpressionFactory,
                 typeMappingSource,
                 loggerFactory.CreateLogger(MySqlLoggerCategory.Spatial),
-                supportsMariaDbSpatialFunctions),
+                profile.Engine.Has(EngineCapability.MariaDbSpatialSemantics),
+                profile.Engine.Has(EngineCapability.SpatialIsValidFunction)),
         ];
     }
 

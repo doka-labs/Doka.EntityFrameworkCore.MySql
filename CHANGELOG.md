@@ -18,6 +18,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   dynamically discovered V3 package-content endpoint and accept only canonical
   normalized release versions; completion consumes the exact identity written
   by the readback producer.
+- Materialize every supported NetTopologySuite geometry type from the runtime
+  values returned by MySqlConnector across tracked, no-tracking, scalar,
+  Include, and split-query paths.
+- Enforce exact spatial-function capabilities by engine version. MariaDB
+  `Crosses` now follows NetTopologySuite's DE-9IM contract, unavailable
+  `IsValid`, collection aggregates, and quadrant-segment Buffer overloads fail
+  during translation, and supported MySQL/MariaDB versions retain native SQL.
+- Enforce MariaDB column SRIDs with provider-owned check constraints and recover
+  the `HasSrid(...)` contract during reverse engineering without scaffolding a
+  duplicate user check constraint.
 - Make context-level `Char36` GUID mappings materialize the connector's `Guid`
   and text reader shapes across connection strings, `DbConnection`, and
   `MySqlDataSource`. Explicit `Binary16` overrides now use provider-owned

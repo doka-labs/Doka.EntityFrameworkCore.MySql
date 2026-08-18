@@ -171,10 +171,11 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
     }
 
     /// <summary>
-    /// Verifies that MariaDB keeps the spatial-index contract but omits the unsupported SRID column clause.
+    /// Verifies that MariaDB enforces the spatial SRID through its documented CHECK
+    /// mechanism while preserving the spatial-index contract.
     /// </summary>
     [Fact]
-    public void MariaDb_spatial_migrations_omit_the_column_srid_clause_but_keep_spatial_indexes()
+    public void MariaDb_spatial_migrations_emit_srid_check_and_spatial_index_sql()
     {
         using var sourceContext = new EmptySpatialContext(CreateOptions<EmptySpatialContext>(isMariaDb: true));
         using var targetContext =
@@ -194,7 +195,10 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
                 .Generate(operations, targetContext.Model)
                 .Select(command => command.CommandText));
 
-        Assert.Contains("`Location` point NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains(
+            "`Location` point NOT NULL CHECK (ST_SRID(`Location`) = 4326)",
+            sql,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("SRID 4326", sql, StringComparison.Ordinal);
         Assert.Contains("CREATE SPATIAL INDEX", sql, StringComparison.Ordinal);
     }

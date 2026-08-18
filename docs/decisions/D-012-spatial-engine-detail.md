@@ -41,6 +41,14 @@ the current implementation under-documents them:
    The provider currently emits a single form that happens to work on
    both engines; the test coverage for the negative case (NULLABLE
    spatial column) is absent.
+4. **Function availability and relation semantics.** MariaDB exposes
+   `ST_IsValid` and `ST_Collect` only from 12.0, accepts only the
+   two-argument `ST_Buffer` form, and documents nullable `ST_Crosses`
+   outcomes for argument orders where NetTopologySuite requires a Boolean.
+5. **Column SRID enforcement.** MySQL has a native spatial-column SRID
+   attribute. MariaDB accepts the same-looking syntax without enforcing it,
+   while an enforced column `CHECK (ST_SRID(column) = value)` preserves the
+   model contract and remains visible in `CHECK_CONSTRAINTS`.
 
 ## Decision Drivers
 
@@ -67,13 +75,11 @@ Three structural improvements:
    differ. The warning surfaces at `Warning` level with the
    participating SRIDs, so the consumer sees the silent-Cartesian
    risk before it produces a wrong result.
-2. **MariaDB spatial integration tests.** A new test class
-   `MariaDbSpatialIntegrationTests` covers the WKB round-trip
-   (`Geometry` -> bytes -> `Geometry` identity check), `ST_Distance`
-   against a deliberate SRID-matched pair and against a mismatched
-   pair (asserting the warning fires), and spatial-index DDL emission
-   plus runtime usage. The tests run against the MariaDB 11.x LTS
-   targets in the integration matrix.
+2. **Cross-engine spatial integration tests.** Live contracts cover every
+   supported geometry CLR type through tracked, no-tracking, scalar, Include,
+   and split-query materialization. MariaDB Crosses runs on every active
+   MariaDB LTS target, and function-capability probes run on both MySQL lines
+   plus MariaDB 12.3.
 3. **Engine-difference documentation.** A "Support matrix" table in
    this ADR enumerates the engine-by-feature deltas so consumers can
    plan around them without reading the provider source.
@@ -141,17 +147,34 @@ Three structural improvements:
 ### Implementation Notes
 
 - **SRID-mismatch warning** (`MySqlEventId.SpatialSridMismatchDetected` = 1603) fires inside `MySqlNetTopologySuiteMethodCallTranslator.TranslateDistance` when the translator can statically observe that the two operand SRIDs differ. SRID resolution walks both the `SqlConstantExpression` side (reads the literal `Geometry.SRID` value) and the `ColumnExpression` side (walks `Column` (`IColumnBase`) -> `PropertyMappings` -> `IProperty` and reads the `MySqlAnnotationNames.SpatialReferenceSystemId` annotation set by `HasSrid`). Column-vs-constant detection therefore lights up automatically as soon as the consumer declares the column SRID via the `HasSrid` fluent extension. Queries that compute SRIDs at runtime (a join through a GIS metadata table, for example) still escape the static check; the warning is a best-effort safety net, not a guarantee, and that scope is intentional.
-- **MariaDB byte[]-WKB read path** is handled by extending `MySqlNetTopologySuiteGeometryTypeMapping.CustomizeDataReaderExpression` to pattern-match the standard `reader.GetFieldValue<T>(ordinal)` shape and route through a new `ReadSpatialColumn` dispatcher. The dispatcher inspects the actual runtime value: `MySqlGeometry` follows the existing MySQL conversion path; raw `byte[]` is the MariaDB path. Two WKB layouts are accepted on the MariaDB side: canonical OGC WKB (byte-order indicator at index 0) and MySQL-style SRID-prefixed WKB (4-byte little-endian SRID then byte-order indicator at index 4). The extracted SRID lands on the materialized geometry; canonical OGC WKB leaves the SRID at 0 because the format does not embed one. Keeping `MySqlGeometry` as the value-converter provider type preserves the write path on both engines (MariaDB rejects raw `byte[]` WKB on inline parameter binding because it parses the bytes as text).
-- **MariaDB spatial integration tests** in `MySqlNetTopologySuiteIntegrationTests`: `MariaDb118_wkb_roundtrip_preserves_srid_and_coordinates` writes a Point, clears the change tracker, and asserts the materialized round-trip preserves SRID + coordinates; `MariaDb118_spatial_index_ddl_creates_index_on_geometry_column` emits the `CREATE SPATIAL INDEX` form via the migration generator, runs it against the live MariaDB server, then queries `information_schema.statistics` to confirm the index landed. `TranslateDistance_warns_when_column_and_constant_srids_differ` and `TranslateDistance_does_not_warn_when_column_and_constant_srids_match` pin the SRID-warning contract for the realistic column-vs-constant query shape.
+- **Driver-shape spatial reads** use `DbDataReader.GetValue` as the common
+  boundary before EF Core buffers a row. The dispatcher accepts
+  `MySqlGeometry` and raw `byte[]`, including split-query buffering, and rejects
+  unknown types and geometry-family mismatches explicitly.
+- **Spatial functions** are version-gated by four independent capabilities.
+  MariaDB Crosses is composed from `ST_Dimension` and the NetTopologySuite
+  DE-9IM masks instead of materializing MariaDB's documented `NULL` results.
+  With a SQL `NULL` operand, MySQL's native `ST_Crosses` remains `NULL`, while
+  the MariaDB emulation falls through to `false` to satisfy NetTopologySuite's
+  non-nullable Boolean contract. The distinction is observable in projections
+  but equivalent in a `WHERE` predicate.
+- **MariaDB SRID enforcement** emits a column CHECK. Reverse engineering
+  recognizes only the exact provider-owned expression and consumes it before
+  ordinary check-constraint scaffolding, so generated models recover
+  `HasSrid(...)` without duplicating `HasCheckConstraint(...)`.
 
 ### Engine support matrix
 
 | Feature | MySQL 8.4 / 9.7 LTS | MariaDB 10.11 / 11.4 / 11.8 / 12.3 LTS |
 |---|---|---|
 | `ST_Distance` SRID-strict check | yes (hard error on mismatch) | no (silent Cartesian) |
-| WKB SRID-header prefix on read | yes (4-byte LE prefix) | no (canonical OGC) |
+| Runtime spatial value | `MySqlGeometry` or bytes | raw bytes |
+| Column-level SRID enforcement | native SRID attribute | provider `CHECK (ST_SRID(column) = value)` |
 | Spatial index on NULLABLE column | rejected | accepted (functionally ignores NULLs) |
 | `ST_Buffer` quadrant-segment count default | 8 | 32 |
+| `Buffer(distance, quadrantSegments)` | native strategy argument | unsupported; rejected during translation |
+| `ST_IsValid` and `ST_Collect` | supported | supported from 12.0 |
+| NetTopologySuite `Crosses` | native `ST_Crosses` | dimension-selected `ST_Relate` masks |
 | Geography (`GEOGRAPHY`) type | no (Geometry-only) | no (Geometry-only) |
 
 ### Additional Alternative Rationale
@@ -159,9 +182,9 @@ Three structural improvements:
 - **Status quo (MySQL-only test coverage).** Rejected: MariaDB
   spatial pathway is undocumented and untested; wrong-result risk
   documented above.
-- **Mark MariaDB spatial as unsupported.** Rejected: MariaDB 11.4 LTS
-  and 11.8 LTS both support spatial fully. Dropping the support
-  would be a functional regression for a real subset of consumers.
+- **Mark MariaDB spatial as unsupported.** Rejected: every active MariaDB LTS
+  line supports the core geometry contract. Exact function differences are
+  safer as executable capabilities than as a family-wide claim.
 - **Translate SRID-mismatch into a hard error on both engines.**
   Rejected: would break existing MariaDB consumers who rely on the
   silent-Cartesian behavior. The warning gives them a migration
@@ -187,12 +210,33 @@ Three structural improvements:
 - 2026-08-11: Reconciled the engine matrix with all six active LTS targets;
   MariaDB 12.3 capability additions remain governed by executable
   dispositions rather than a family-wide assumption.
+- 2026-08-18: Added driver-shape-safe buffered materialization, exact spatial
+  function capabilities, MariaDB Crosses DE-9IM semantics, and enforced
+  MariaDB SRID CHECK round trips.
 
 ### Implementation References
 
-- `src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Internal/Storage/MySqlNetTopologySuiteGeometryTypeMapping.cs`
+- `src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Internal/MySqlNetTopologySuiteGeometryTypeMapping.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Spatial/MySqlNetTopologySuiteIntegrationTests.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Spatial/MySqlNetTopologySuiteContractIntegrationTests.cs`
 
 ### Sources
 
-- No external sources; repository evidence only.
+- [MariaDB ST_Buffer](https://mariadb.com/docs/server/reference/sql-statements/geometry-constructors/geometry-constructors/st_buffer)
+  (primary source; retrieved 2026-08-18)
+- [MariaDB ST_Collect](https://mariadb.com/docs/server/reference/sql-statements/geometry-constructors/miscellaneous-gis-functions/st_collect)
+  (primary source; retrieved 2026-08-18)
+- [MariaDB ST_IsValid](https://mariadb.com/docs/server/reference/sql-statements/geometry-constructors/miscellaneous-gis-functions/st_isvalid)
+  (primary source; retrieved 2026-08-18)
+- [MariaDB Crosses](https://mariadb.com/docs/server/reference/sql-statements/geometry-constructors/geometry-relations/crosses)
+  (primary source; retrieved 2026-08-18)
+- [MariaDB constraints](https://mariadb.com/docs/server/reference/sql-statements/data-definition/constraint)
+  (primary source; retrieved 2026-08-18)
+- [MySQL 8.0.24 release notes](https://dev.mysql.com/doc/relnotes/mysql/8.0/en/news-8-0-24.html)
+  (primary source; retrieved 2026-08-18)
+- [MySQL 5.7.6 release notes](https://dev.mysql.com/doc/relnotes/mysql/5.7/en/news-5-7-6.html)
+  (primary source; retrieved 2026-08-18)
+- [MySQL 5.7.7 release notes](https://dev.mysql.com/doc/relnotes/mysql/5.7/en/news-5-7-7.html)
+  (primary source; retrieved 2026-08-18)
+- [NetTopologySuite 2.6.0 `Geometry.Crosses` source](https://github.com/NetTopologySuite/NetTopologySuite/blob/v2.6.0/src/NetTopologySuite/Geometries/Geometry.cs)
+  (primary source; retrieved 2026-08-18)

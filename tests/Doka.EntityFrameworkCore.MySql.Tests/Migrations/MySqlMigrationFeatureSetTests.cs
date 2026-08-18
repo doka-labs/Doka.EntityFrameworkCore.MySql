@@ -76,7 +76,7 @@ public sealed class MySqlMigrationFeatureSetTests
         [MySqlMigrationFeature.GeneratedColumnNullabilityClause] = MySqlMigrationFeatureSupport.Unsupported,
         [MySqlMigrationFeature.VirtualGeneratedColumns] = MySqlMigrationFeatureSupport.Native,
         [MySqlMigrationFeature.StoredGeneratedColumns] = MySqlMigrationFeatureSupport.Native,
-        [MySqlMigrationFeature.SpatialColumnSridAttribute] = MySqlMigrationFeatureSupport.Unsupported,
+        [MySqlMigrationFeature.SpatialColumnSridAttribute] = MySqlMigrationFeatureSupport.Emulated,
         [MySqlMigrationFeature.ExpressionDefaults] = MySqlMigrationFeatureSupport.Native,
         [MySqlMigrationFeature.TemporalTables] = MySqlMigrationFeatureSupport.Native,
         [MySqlMigrationFeature.ApplicationTimePeriods] = MySqlMigrationFeatureSupport.Native,

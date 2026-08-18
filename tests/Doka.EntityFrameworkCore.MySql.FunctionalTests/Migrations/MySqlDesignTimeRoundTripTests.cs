@@ -206,6 +206,35 @@ public sealed class MySqlDesignTimeRoundTripTests
     }
 
     /// <summary>
+    /// Spatial SRID metadata survives generated snapshots on both the native MySQL
+    /// route and the MariaDB CHECK-emulation route without a pending migration.
+    /// </summary>
+    [Fact]
+    public void Spatial_srid_snapshot_and_designer_roundtrip_without_pending_operations()
+    {
+        var serverVersions = new[]
+        {
+            MySqlServerVersion.MySql(new Version(8, 4, 0)),
+            MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+        };
+
+        foreach (var serverVersion in serverVersions)
+        {
+            using var context = new SpatialSridDesignContext(CreateSpatialOptions(serverVersion));
+            var generated = GenerateAndCompile(context);
+
+            Assert.Contains(".HasSrid(4326)", generated.SnapshotCode, StringComparison.Ordinal);
+            Assert.Contains(".HasSrid(4326)", generated.DesignerCode, StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                MySqlAnnotationNames.SpatialReferenceSystemId,
+                generated.SnapshotCode,
+                StringComparison.Ordinal);
+            AssertRoundTripsWithoutOperations(context, generated.SnapshotModel);
+            AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
+        }
+    }
+
+    /// <summary>
     /// Entity-splitting snapshots retain one generated principal key without
     /// turning the secondary shared primary/foreign key into a generator.
     /// </summary>
@@ -241,6 +270,7 @@ public sealed class MySqlDesignTimeRoundTripTests
 
         services.AddLogging();
         services.AddEntityFrameworkDokaMySqlDesignTime();
+        services.AddEntityFrameworkDokaMySqlNetTopologySuite();
 
         using var serviceProvider = services.BuildServiceProvider();
         var generator = serviceProvider
@@ -475,12 +505,65 @@ public sealed class MySqlDesignTimeRoundTripTests
             options => options.DefaultGuidFormat(defaultGuidFormat))
         .Options;
 
+    private static DbContextOptions<SpatialSridDesignContext> CreateSpatialOptions(
+        MySqlServerVersion serverVersion
+    ) => MySqlFunctionalTestOptions
+        .CreateTransientBuilder<SpatialSridDesignContext>()
+        .UseMySql(
+            "Server=localhost;Database=doka;User ID=root;Password=password;",
+            serverVersion,
+            options => options.UseNetTopologySuite())
+        .Options;
+
     private sealed record GeneratedTemporalModels(
         string SnapshotCode,
         string DesignerCode,
         IModel SnapshotModel,
         IModel DesignerModel
     );
+}
+
+/// <summary>
+/// Test context for generated spatial SRID migration models.
+/// </summary>
+public sealed class SpatialSridDesignContext : DbContext
+{
+    /// <summary>
+    /// Creates the spatial design-time context.
+    /// </summary>
+    public SpatialSridDesignContext(
+        DbContextOptions<SpatialSridDesignContext> options
+    ) : base(options) { }
+
+    /// <inheritdoc />
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
+    {
+        modelBuilder.Entity<SpatialSridDesignRecord>(entity =>
+        {
+            entity.HasKey(record => record.Id);
+            entity
+                .Property(record => record.Location)
+                .HasSrid(4326);
+        });
+    }
+}
+
+/// <summary>
+/// Entity used by the generated spatial SRID migration model.
+/// </summary>
+public sealed class SpatialSridDesignRecord
+{
+    /// <summary>
+    /// Gets or sets the key.
+    /// </summary>
+    public int Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the SRID-constrained location.
+    /// </summary>
+    public Point Location { get; set; } = null!;
 }
 
 /// <summary>

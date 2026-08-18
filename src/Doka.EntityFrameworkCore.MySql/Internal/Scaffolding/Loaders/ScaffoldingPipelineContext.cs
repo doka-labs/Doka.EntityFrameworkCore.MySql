@@ -35,6 +35,7 @@ internal sealed class ScaffoldingPipelineContext
         DatabaseName = string.IsNullOrWhiteSpace(databaseName)
             ? throw new ArgumentException("A scaffolding database name is required.", nameof(databaseName))
             : databaseName;
+
         QualifyNamesWithSchema = qualifyNamesWithSchema;
         DatabaseTables = databaseTables ?? throw new ArgumentNullException(nameof(databaseTables));
         DatabaseColumns = databaseColumns ?? throw new ArgumentNullException(nameof(databaseColumns));

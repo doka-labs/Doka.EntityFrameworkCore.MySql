@@ -38,18 +38,21 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
     private readonly IRelationalTypeMappingSource _typeMappingSource;
     private readonly ILogger _logger;
     private readonly bool _supportsMariaDbSpatialFunctions;
+    private readonly bool _supportsIsValid;
 
     public MySqlNetTopologySuiteMemberTranslator(
         ISqlExpressionFactory sqlExpressionFactory,
         IRelationalTypeMappingSource typeMappingSource,
         ILogger logger,
-        bool supportsMariaDbSpatialFunctions
+        bool supportsMariaDbSpatialFunctions,
+        bool supportsIsValid
     )
     {
         _sqlExpressionFactory = sqlExpressionFactory ?? throw new ArgumentNullException(nameof(sqlExpressionFactory));
         _typeMappingSource = typeMappingSource ?? throw new ArgumentNullException(nameof(typeMappingSource));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _supportsMariaDbSpatialFunctions = supportsMariaDbSpatialFunctions;
+        _supportsIsValid = supportsIsValid;
     }
 
     public SqlExpression? Translate(
@@ -76,6 +79,15 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
 
         if (TryGetScalarFunction(member, out var scalarFunctionName, out var typeMapping))
         {
+            if (scalarFunctionName == "ST_IsValid" && !_supportsIsValid)
+            {
+                MySqlLoggerMessages.MissingSpatialTranslation(
+                    _logger,
+                    "Geometry.IsValid requires MySQL 5.7.6 or MariaDB 12.0 or newer");
+
+                return null;
+            }
+
             if (_supportsMariaDbSpatialFunctions && scalarFunctionName == "ST_NumInteriorRing")
             {
                 scalarFunctionName = "ST_NumInteriorRings";
