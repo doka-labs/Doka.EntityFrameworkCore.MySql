@@ -7,6 +7,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.0.0-rc.10] - 2026-08-19
+
+This release candidate supersedes `10.0.0-rc.9`. It carries the NuGet readback
+corrections and the provider fixes found through consumer testing of temporal
+models, GUID mappings, JSON constructors, invisible columns, entity splitting,
+and spatial behavior.
+
+Install the release candidate explicitly because NuGet excludes prerelease
+packages from normal stable-version resolution:
+
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.10
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.10
+```
+
 ### Fixed
 
 - Treat independently delayed NuGet package and symbol indexing as retryable
@@ -619,7 +634,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.9...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.10...HEAD
+[10.0.0-rc.10]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.10
 [10.0.0-rc.9]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.9
 [10.0.0-rc.8]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.8
 [10.0.0-rc.7]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.7
