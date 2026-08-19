@@ -154,10 +154,10 @@ Three structural improvements:
 - **Spatial functions** are version-gated by four independent capabilities.
   MariaDB Crosses is composed from `ST_Dimension` and the NetTopologySuite
   DE-9IM masks instead of materializing MariaDB's documented `NULL` results.
-  With a SQL `NULL` operand, MySQL's native `ST_Crosses` remains `NULL`, while
-  the MariaDB emulation falls through to `false` to satisfy NetTopologySuite's
-  non-nullable Boolean contract. The distinction is observable in projections
-  but equivalent in a `WHERE` predicate.
+  The emulation preserves SQL `NULL` when either operand is `NULL` and returns
+  `false` only for non-null dimension pairs that NetTopologySuite defines as
+  unable to cross. This retains relational null semantics in nullable
+  projections while preserving the complete NetTopologySuite dimension table.
 - **MariaDB SRID enforcement** emits a column CHECK. Reverse engineering
   recognizes only the exact provider-owned expression and consumes it before
   ordinary check-constraint scaffolding, so generated models recover
@@ -213,6 +213,9 @@ Three structural improvements:
 - 2026-08-18: Added driver-shape-safe buffered materialization, exact spatial
   function capabilities, MariaDB Crosses DE-9IM semantics, and enforced
   MariaDB SRID CHECK round trips.
+- 2026-08-19: Corrected MariaDB Crosses null propagation before the
+  dimension-based DE-9IM dispatch and bound both nullable operands on every
+  supported MariaDB LTS line.
 
 ### Implementation References
 
@@ -240,3 +243,5 @@ Three structural improvements:
   (primary source; retrieved 2026-08-18)
 - [NetTopologySuite 2.6.0 `Geometry.Crosses` source](https://github.com/NetTopologySuite/NetTopologySuite/blob/v2.6.0/src/NetTopologySuite/Geometries/Geometry.cs)
   (primary source; retrieved 2026-08-18)
+- [EF Core 10.0.8 `SpatialQueryTestBase.Crosses` source](https://github.com/dotnet/efcore/blob/v10.0.8/test/EFCore.Specification.Tests/Query/SpatialQueryTestBase.cs#L289-L300)
+  (primary source; retrieved 2026-08-19)

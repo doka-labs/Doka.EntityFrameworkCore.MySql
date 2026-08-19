@@ -297,8 +297,8 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
                     $"""
                      CREATE TABLE `{CrossesTable}` (
                          `Id` int NOT NULL,
-                         `LeftGeometry` geometry NOT NULL,
-                         `RightGeometry` geometry NOT NULL,
+                         `LeftGeometry` geometry NULL,
+                         `RightGeometry` geometry NULL,
                          CONSTRAINT `PK_{CrossesTable}` PRIMARY KEY (`Id`)
                      );
                      """)
@@ -314,6 +314,21 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
                     LeftGeometry = pair.Left,
                     RightGeometry = pair.Right,
                 }));
+            context.Rows.AddRange(
+                new SpatialCrossesRow
+                {
+                    Id = cases.Length + 1,
+                    RightGeometry = cases[0].Right,
+                },
+                new SpatialCrossesRow
+                {
+                    Id = cases.Length + 2,
+                    LeftGeometry = cases[0].Left,
+                },
+                new SpatialCrossesRow
+                {
+                    Id = cases.Length + 3,
+                });
             await context
                 .SaveChangesAsync()
                 .ConfigureAwait(false);
@@ -321,16 +336,18 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
             var actual = await context
                 .Rows
                 .OrderBy(row => row.Id)
-                .Select(row => row.LeftGeometry.Crosses(row.RightGeometry))
+                .Select(row => (bool?)row.LeftGeometry!.Crosses(row.RightGeometry!))
                 .ToListAsync()
                 .ConfigureAwait(false);
 
             var expected = cases
-                .Select(pair => pair.Left.Crosses(pair.Right))
+                .Select(pair => (bool?)pair.Left.Crosses(pair.Right))
+                .Concat([null, null, null])
                 .ToArray();
 
             Assert.Contains(true, expected);
             Assert.Contains(false, expected);
+            Assert.Equal(3, expected.Count(result => result is null));
             Assert.Equal(expected, actual);
         }
         finally
@@ -380,19 +397,19 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
             Assert.True(
                 await context
                     .Rows
-                    .Select(row => row.LeftGeometry.IsValid)
+                    .Select(row => row.LeftGeometry!.IsValid)
                     .SingleAsync()
                     .ConfigureAwait(false));
 
             var buffered = target == IntegrationDatabaseTarget.MariaDb123
                 ? await context
                     .Rows
-                    .Select(row => row.LeftGeometry.Buffer(1))
+                    .Select(row => row.LeftGeometry!.Buffer(1))
                     .SingleAsync()
                     .ConfigureAwait(false)
                 : await context
                     .Rows
-                    .Select(row => row.LeftGeometry.Buffer(1, 4))
+                    .Select(row => row.LeftGeometry!.Buffer(1, 4))
                     .SingleAsync()
                     .ConfigureAwait(false);
 
@@ -703,8 +720,8 @@ public sealed class MySqlNetTopologySuiteContractIntegrationTests
     private sealed class SpatialCrossesRow
     {
         public int Id { get; set; }
-        public Geometry LeftGeometry { get; set; } = null!;
-        public Geometry RightGeometry { get; set; } = null!;
+        public Geometry? LeftGeometry { get; set; }
+        public Geometry? RightGeometry { get; set; }
     }
 
     private sealed class EmptySpatialContractContext : DbContext

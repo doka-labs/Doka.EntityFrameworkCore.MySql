@@ -199,6 +199,28 @@ public sealed class MySqlNetTopologySuiteTranslationTests
             .ToQueryString());
     }
 
+    /// <summary>
+    /// Preserves SQL null propagation before MariaDB's dimension-based Crosses dispatch.
+    /// </summary>
+    [Fact]
+    public void MariaDb_crosses_preserves_null_operands_before_dimension_dispatch()
+    {
+        using var context = new SpatialTranslationContext(
+            CreateOptions(MySqlServerVersion.MariaDb(new Version(12, 3, 2))));
+
+        var sql = context
+            .Entities
+            .Select(entity => (bool?)entity.OptionalShape!.Crosses(entity.OptionalRegion!))
+            .ToQueryString();
+
+        Assert.Contains("`OptionalShape` IS NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("`OptionalRegion` IS NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("THEN NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("ST_Dimension(", sql, StringComparison.Ordinal);
+        Assert.Contains("ST_Relate(", sql, StringComparison.Ordinal);
+        Assert.Contains("ELSE 0", sql, StringComparison.Ordinal);
+    }
+
     private static DbContextOptions<SpatialTranslationContext> CreateOptions(
         MySqlServerVersion? serverVersion = null
     )
@@ -309,6 +331,8 @@ public sealed class MySqlNetTopologySuiteTranslationTests
                 entity.Property(item => item.Region);
                 entity.Property(item => item.ShapeCollection);
                 entity.Property(item => item.Shape);
+                entity.Property(item => item.OptionalShape);
+                entity.Property(item => item.OptionalRegion);
             });
         }
     }
@@ -326,5 +350,9 @@ public sealed class MySqlNetTopologySuiteTranslationTests
         public GeometryCollection ShapeCollection { get; set; } = default!;
 
         public Geometry Shape { get; set; } = default!;
+
+        public Geometry? OptionalShape { get; set; }
+
+        public Geometry? OptionalRegion { get; set; }
     }
 }

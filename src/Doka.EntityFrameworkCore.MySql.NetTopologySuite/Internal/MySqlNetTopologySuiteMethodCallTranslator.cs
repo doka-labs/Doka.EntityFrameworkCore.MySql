@@ -568,10 +568,17 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
         var leftDimension = TranslateFunction("ST_Dimension", typeof(int), s_intMapping, [left]);
         var rightDimension = TranslateFunction("ST_Dimension", typeof(int), s_intMapping, [right]);
 
-        // Keep all seven pairs explicit so this stays auditable one-for-one
-        // against the version-pinned NetTopologySuite Crosses table in D-012.
+        // Guard nulls before dimensional dispatch; otherwise every UNKNOWN
+        // condition falls through to the non-null false fallback. Keep all
+        // seven pairs explicit so this stays auditable one-for-one against the
+        // version-pinned NetTopologySuite Crosses table in D-012.
         return _sqlExpressionFactory.Case(
             [
+                new CaseWhenClause(
+                    _sqlExpressionFactory.OrElse(
+                        _sqlExpressionFactory.IsNull(left),
+                        _sqlExpressionFactory.IsNull(right)),
+                    _sqlExpressionFactory.Constant(null, typeof(bool), s_boolMapping)),
                 new CaseWhenClause(HasDimensions(0, 1), Relates("T*T******")),
                 new CaseWhenClause(HasDimensions(0, 2), Relates("T*T******")),
                 new CaseWhenClause(HasDimensions(1, 0), Relates("T*****T**")),

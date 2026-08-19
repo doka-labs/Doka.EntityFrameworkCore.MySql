@@ -208,7 +208,8 @@ Six discovered engine constraints remain fully supported by the provider:
 - MariaDB `ST_Crosses` returns `NULL` for documented mixed-dimension argument
   orders that NetTopologySuite defines as Boolean. The translator selects the
   applicable NetTopologySuite DE-9IM mask from both runtime dimensions and
-  returns `false` for dimension pairs that cannot cross.
+  returns `false` for non-null dimension pairs that cannot cross while
+  preserving SQL `NULL` when either operand is `NULL`.
 - MariaDB's `ST_SRID` is getter-only. Static geometry arguments are serialized
   with `ST_AsWKB` and reconstructed through `ST_GeomFromWKB` with the model
   column's SRID.

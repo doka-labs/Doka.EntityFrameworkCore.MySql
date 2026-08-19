@@ -24,7 +24,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Enforce exact spatial-function capabilities by engine version. MariaDB
   `Crosses` now follows NetTopologySuite's DE-9IM contract, unavailable
   `IsValid`, collection aggregates, and quadrant-segment Buffer overloads fail
-  during translation, and supported MySQL/MariaDB versions retain native SQL.
+  during translation, nullable `Crosses` operands preserve SQL `NULL`, and
+  supported MySQL/MariaDB versions retain native SQL.
 - Enforce MariaDB column SRIDs with provider-owned check constraints and recover
   the `HasSrid(...)` contract during reverse engineering without scaffolding a
   duplicate user check constraint.
