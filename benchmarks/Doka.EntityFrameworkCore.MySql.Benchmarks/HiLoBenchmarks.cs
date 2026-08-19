@@ -177,6 +177,7 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
                     var contextInsertedRows = await context
                         .SaveChangesAsync(token)
                         .ConfigureAwait(false);
+
                     Interlocked.Add(ref insertedRows, contextInsertedRows);
                 })
             .ConfigureAwait(false);

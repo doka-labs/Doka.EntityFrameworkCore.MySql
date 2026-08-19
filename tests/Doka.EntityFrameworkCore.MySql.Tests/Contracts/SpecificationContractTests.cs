@@ -54,10 +54,12 @@ public class SpecificationContractTests
             providerTypes: ["Provider.Original"],
             closurePhase: null,
             expiresAt: null);
+
         var actualMappings = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
         {
             [UpstreamBaseId] = ["Provider.Replacement"],
         };
+
         var errors = Validate(Baseline(entry), actualMappings);
 
         Assert.Contains(errors, error => error.Contains("Provider.Original", StringComparison.Ordinal));
@@ -71,6 +73,7 @@ public class SpecificationContractTests
         {
             InitialProviderGapCount = 0,
         };
+
         var errors = Validate(baseline);
 
         Assert.Contains(errors, error => error.Contains("closurePhase 4, 5, or 6", StringComparison.Ordinal));
@@ -84,6 +87,7 @@ public class SpecificationContractTests
         {
             AssignmentFingerprint = "tampered",
         };
+
         var errors = Validate(baseline);
 
         Assert.Contains(errors, error => error.Contains("Assignment fingerprint mismatch", StringComparison.Ordinal));
@@ -97,6 +101,7 @@ public class SpecificationContractTests
             providerTypes: ["Provider.Original"],
             closurePhase: null,
             expiresAt: null);
+
         var errors = Validate(Baseline(entry));
 
         Assert.Contains(errors, error => error.Contains("no longer has a provider mapping", StringComparison.Ordinal));
@@ -144,6 +149,7 @@ public class SpecificationContractTests
             2,
             [UpstreamBaseId, UpstreamBaseId],
             []);
+
         var invalidContract = new SpecificationContractReport(
             EfCoreVersion,
             1,
@@ -167,6 +173,7 @@ public class SpecificationContractTests
                 PassedTestId,
                 SkippedTestId
             ]);
+
         var duplicateTarget = expected with
         {
             Targets =
@@ -175,6 +182,7 @@ public class SpecificationContractTests
                 expected.Targets[0]
             ],
         };
+
         var actual = new[]
         {
             PassedTestId,
@@ -200,6 +208,7 @@ public class SpecificationContractTests
         {
             Value = unicodeValue,
         });
+
         var roundTripped = JsonSerializer.Deserialize<JsonElement>(serialized)
             .GetProperty("value")
             .GetString();
@@ -435,6 +444,7 @@ public class SpecificationContractTests
         var body = string.Join(
             string.Empty,
             results.Select(result => $"<UnitTestResult testName=\"{result.TestId}\" outcome=\"{result.Outcome}\" />"));
+
         return $"<TestRun><Results>{body}</Results></TestRun>";
     }
 }

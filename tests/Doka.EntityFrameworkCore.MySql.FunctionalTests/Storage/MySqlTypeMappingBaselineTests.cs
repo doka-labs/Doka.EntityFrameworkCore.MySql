@@ -128,6 +128,7 @@ public sealed class MySqlTypeMappingBaselineTests
         using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
         var designTimeModel = context.GetService<IDesignTimeModel>()
             .Model;
+
         var entityType = designTimeModel.FindEntityType(typeof(TypeMappingEntity))!;
         var property = entityType.FindProperty(nameof(TypeMappingEntity.CollatedText))!;
 
@@ -185,6 +186,7 @@ public sealed class MySqlTypeMappingBaselineTests
     {
         using var context = new ImplicitKeyedTextContext(
             CreateOptions<ImplicitKeyedTextContext>());
+
         var property = context.Model
             .FindEntityType(typeof(ImplicitKeyedTextEntity))!
             .FindProperty(nameof(ImplicitKeyedTextEntity.Code))!;
@@ -201,6 +203,7 @@ public sealed class MySqlTypeMappingBaselineTests
     {
         using var context = new ImplicitIndexedBinaryContext(
             CreateOptions<ImplicitIndexedBinaryContext>());
+
         var property = context.Model
             .FindEntityType(typeof(ImplicitIndexedBinaryEntity))!
             .FindProperty(nameof(ImplicitIndexedBinaryEntity.Token))!;
@@ -211,7 +214,7 @@ public sealed class MySqlTypeMappingBaselineTests
     private static DbContextOptions<TContext> CreateOptions<TContext>()
         where TContext : DbContext
     {
-        var builder = new DbContextOptionsBuilder<TContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>();
 
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",

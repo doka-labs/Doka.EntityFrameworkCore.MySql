@@ -1,5 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
+/// <summary>
+/// Implements EF Core database lifecycle operations against the active MySQL-compatible engine.
+/// </summary>
 internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
 {
     private const string HasTablesSql = """
@@ -105,6 +108,7 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         var result = await command
             .ExecuteScalarAsync(cancellationToken)
             .ConfigureAwait(false);
+
         return result is not null && Convert.ToInt64(result, CultureInfo.InvariantCulture) > 0;
     }
 

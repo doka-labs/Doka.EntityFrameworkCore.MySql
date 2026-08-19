@@ -107,6 +107,7 @@ public sealed class SymbolReadbackManifestBuilderTests
         using var symbols = ZipFile.Open(
             Path.Combine(packagesRoot, $"{packageId}.{Version}.snupkg"),
             ZipArchiveMode.Create);
+
         var entry = symbols.CreateEntry(pdbEntry);
         using var stream = entry.Open();
         stream.Write(pdb);

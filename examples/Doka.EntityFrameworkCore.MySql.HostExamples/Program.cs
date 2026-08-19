@@ -17,6 +17,7 @@ internal static class Program
         var builder = Host.CreateApplicationBuilder(args);
         var connectionString = builder.Configuration["ConnectionStrings:MySql"]
             ?? "Server=localhost;Database=doka_host_examples;User ID=root;Password=password;";
+
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 
         builder.Services.AddSerilog((

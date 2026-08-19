@@ -1,5 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
+/// <summary>
+/// Owns the provider-specific migration history contract and advisory-lock-protected application flow.
+/// </summary>
 internal sealed class MySqlHistoryRepository : HistoryRepository
 {
     private const string ApplyMigrationProcedureName = "__ef_apply_migration";
@@ -209,6 +212,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             _lockScopeId = MySqlAdvisoryLockNaming.BuildDiagnosticScopeId(_lockName);
             var options = _historyRepository.Dependencies.Options.FindExtension<MySqlOptionsExtension>()
                 ?? throw new InvalidOperationException("The Doka MySQL options extension is not configured.");
+
             _lockTimeoutSeconds = options.CommandTimeout
                 ?? DefaultLockTimeoutSeconds;
             _engineFamily = options.ServerVersion?.Profile.Engine.Family
@@ -548,6 +552,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                     using var activity = MySqlActivitySource.StartMigrationLockReleaseFailed(
                         _engineFamily,
                         exception);
+
                     MySqlMeter.MigrationLockReleaseFailedTotal.Add(
                         1,
                         MySqlDiagnosticTags.CreateEngineMetricTag(_engineFamily));
@@ -588,6 +593,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                     using var activity = MySqlActivitySource.StartMigrationLockReleaseFailed(
                         _engineFamily,
                         exception);
+
                     MySqlMeter.MigrationLockReleaseFailedTotal.Add(
                         1,
                         MySqlDiagnosticTags.CreateEngineMetricTag(_engineFamily));
@@ -623,6 +629,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
             {
                 Pooling = false,
             };
+
             builder.Remove("Database");
 
             // CloneWith retains security information that may have been supplied out of

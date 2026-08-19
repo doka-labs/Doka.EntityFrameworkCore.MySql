@@ -222,6 +222,7 @@ public sealed class MySqlScaffoldingRoundTripTests
             await using var serviceProvider =
                 ScaffoldingTestServices.CreateDesignTimeServiceProvider(
                     includeSpatialServices: true);
+
             using var scope = serviceProvider.CreateScope();
             var scopedServices = scope.ServiceProvider;
             var databaseOptions = new DatabaseModelFactoryOptions(
@@ -231,6 +232,7 @@ public sealed class MySqlScaffoldingRoundTripTests
                     SummaryView,
                 ],
                 Array.Empty<string>());
+
             var databaseModel = scopedServices
                 .GetRequiredService<IDatabaseModelFactory>()
                 .Create(connectionString, databaseOptions);
@@ -268,6 +270,7 @@ public sealed class MySqlScaffoldingRoundTripTests
             await using var serviceProvider =
                 ScaffoldingTestServices.CreateDesignTimeServiceProvider(
                     includeSpatialServices: true);
+
             using var scope = serviceProvider.CreateScope();
             var scopedServices = scope.ServiceProvider;
             var databaseOptions = new DatabaseModelFactoryOptions(
@@ -283,6 +286,7 @@ public sealed class MySqlScaffoldingRoundTripTests
                         EmulatedSequenceTable,
                     ],
                 Array.Empty<string>());
+
             var databaseModel = scopedServices
                 .GetRequiredService<IDatabaseModelFactory>()
                 .Create(connectionString, databaseOptions);
@@ -321,9 +325,11 @@ public sealed class MySqlScaffoldingRoundTripTests
         {
             var serverVersionText = await ReadServerVersionAsync(connectionString)
                 .ConfigureAwait(false);
+
             await using var serviceProvider =
                 ScaffoldingTestServices.CreateDesignTimeServiceProvider(
                     includeSpatialServices: true);
+
             using var scope = serviceProvider.CreateScope();
             var scopedServices = scope.ServiceProvider;
             var databaseOptions = new DatabaseModelFactoryOptions(
@@ -343,6 +349,7 @@ public sealed class MySqlScaffoldingRoundTripTests
                         EmulatedSequenceTable,
                     ],
                 Array.Empty<string>());
+
             var scaffoldedModel = scopedServices
                 .GetRequiredService<IReverseEngineerScaffolder>()
                 .ScaffoldModel(
@@ -386,6 +393,7 @@ public sealed class MySqlScaffoldingRoundTripTests
 
         var parent = databaseModel.Tables.Single(table => table.Name == ParentTable);
         var child = databaseModel.Tables.Single(table => table.Name == ChildTable);
+
         var view = Assert.IsType<DatabaseView>(
             databaseModel.Tables.Single(table => table.Name == SummaryView));
 
@@ -393,11 +401,13 @@ public sealed class MySqlScaffoldingRoundTripTests
         Assert.Equal("PRIMARY", parent.PrimaryKey?.Name);
 
         var optionalCount = parent.Columns.Single(column => column.Name == "OptionalCount");
+
         Assert.True(optionalCount.IsNullable);
         Assert.Equal("7", optionalCount.DefaultValueSql);
         Assert.Equal("optional count", optionalCount.Comment);
 
         var computedCount = parent.Columns.Single(column => column.Name == "ComputedCount");
+
         Assert.True(computedCount.IsStored);
         Assert.Contains("OptionalCount", computedCount.ComputedColumnSql, StringComparison.OrdinalIgnoreCase);
 
@@ -407,6 +417,7 @@ public sealed class MySqlScaffoldingRoundTripTests
 
         var checkConstraints = Assert.IsAssignableFrom<IReadOnlyList<MySqlScaffoldedCheckConstraint>>(
             parent.FindAnnotation(MySqlAnnotationNames.ScaffoldingCheckConstraints)?.Value);
+
         var checkConstraint = Assert.Single(checkConstraints);
         Assert.Equal(CheckConstraint, checkConstraint.Name);
         Assert.Contains("OptionalCount", checkConstraint.Sql, StringComparison.OrdinalIgnoreCase);
@@ -430,6 +441,7 @@ public sealed class MySqlScaffoldingRoundTripTests
                     "class DokaScaffoldCoreParent",
                     StringComparison.Ordinal))
             .Code;
+
         var viewCode = scaffoldedModel
             .AdditionalFiles.Single(
                 file => file.Code.Contains(
@@ -489,6 +501,7 @@ public sealed class MySqlScaffoldingRoundTripTests
         AssertStoreType(table, "BitValue", "bit(8)");
         AssertStoreType(table, "YearValue", "year");
         AssertStoreType(table, "JsonValue", "json");
+
         Assert.Equal(
             "utf8mb4_bin",
             table.Columns.Single(column => column.Name == "Name").Collation,
@@ -525,9 +538,11 @@ public sealed class MySqlScaffoldingRoundTripTests
         }
 
         var functionalIndex = table.Indexes.Single(index => index.Name == FunctionalIndex);
+
         var functionalParts = Assert.IsType<MySqlScaffoldedIndexPart[]>(
             functionalIndex.FindAnnotation(MySqlAnnotationNames.ScaffoldingIndexParts)
                 ?.Value);
+
         var functionalPart = Assert.Single(functionalParts);
 
         Assert.Null(functionalPart.ColumnName);

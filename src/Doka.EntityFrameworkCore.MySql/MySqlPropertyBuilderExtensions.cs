@@ -247,8 +247,9 @@ public static class MySqlPropertyBuilderExtensions
     }
 
     /// <summary>
-    /// Marks a column as <c>INVISIBLE</c> (MariaDB 10.3.3+). Invisible columns are excluded
-    /// from <c>SELECT *</c> and <c>INSERT</c> without explicit column lists.
+    /// Marks a column as <c>INVISIBLE</c> (MySQL 8.0.23+ and MariaDB 10.3.3+).
+    /// Invisible columns are excluded from <c>SELECT *</c> and <c>INSERT</c>
+    /// without explicit column lists.
     /// </summary>
     /// <param name="propertyBuilder">The property builder.</param>
     /// <param name="invisible">Whether the column should be invisible.</param>
@@ -256,7 +257,7 @@ public static class MySqlPropertyBuilderExtensions
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "ApiDesign",
         "RS0026:Do not add multiple overloads with optional parameters",
-        Justification = "MariaDB INVISIBLE fluent API: the toggle defaults to true so the no-argument call site reads naturally. See ADR D-008.")]
+        Justification = "MySQL-family INVISIBLE fluent API: the toggle defaults to true so the no-argument call site reads naturally. See ADR D-008.")]
     public static PropertyBuilder IsInvisible(
         this PropertyBuilder propertyBuilder,
         bool invisible = true
@@ -270,7 +271,7 @@ public static class MySqlPropertyBuilderExtensions
     }
 
     /// <summary>
-    /// Marks a column as <c>INVISIBLE</c> (MariaDB 10.3.3+).
+    /// Marks a column as <c>INVISIBLE</c> (MySQL 8.0.23+ and MariaDB 10.3.3+).
     /// </summary>
     /// <typeparam name="TProperty">The property CLR type.</typeparam>
     /// <param name="propertyBuilder">The property builder.</param>
@@ -279,7 +280,7 @@ public static class MySqlPropertyBuilderExtensions
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "ApiDesign",
         "RS0026:Do not add multiple overloads with optional parameters",
-        Justification = "MariaDB INVISIBLE fluent API: the toggle defaults to true so the no-argument call site reads naturally. See ADR D-008.")]
+        Justification = "MySQL-family INVISIBLE fluent API: the toggle defaults to true so the no-argument call site reads naturally. See ADR D-008.")]
     public static PropertyBuilder<TProperty> IsInvisible<TProperty>(
         this PropertyBuilder<TProperty> propertyBuilder,
         bool invisible = true

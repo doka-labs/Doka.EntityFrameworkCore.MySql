@@ -13,7 +13,7 @@ public sealed class MySqlRemainingGapTests
     [Fact]
     public void UseHiLo_on_guid_property_throws_when_the_value_generator_is_selected()
     {
-        var builder = new DbContextOptionsBuilder<HiLoGuidContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<HiLoGuidContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -21,8 +21,10 @@ public sealed class MySqlRemainingGapTests
         using var context = new HiLoGuidContext(builder.Options);
         var entityType = context.Model.FindEntityType(typeof(HiLoGuidEntity))
             ?? throw new InvalidOperationException("HiLoGuidEntity metadata was not created.");
+
         var property = entityType.FindProperty(nameof(HiLoGuidEntity.Id))
             ?? throw new InvalidOperationException("HiLoGuidEntity.Id metadata was not created.");
+
         var selector = context.GetService<IValueGeneratorSelector>();
 
         var exception = Assert.Throws<InvalidOperationException>(
@@ -94,7 +96,7 @@ public sealed class MySqlRemainingGapTests
     [Fact]
     public void Varchar36_guid_property_gets_correct_column_type()
     {
-        var builder = new DbContextOptionsBuilder<Varchar36GuidContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<Varchar36GuidContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -105,6 +107,7 @@ public sealed class MySqlRemainingGapTests
                 nameof(Varchar36GuidEntity.ExternalId))!;
 
         var columnType = property.GetColumnType();
+
         Assert.Contains("varchar(36)", columnType!, StringComparison.OrdinalIgnoreCase);
     }
 

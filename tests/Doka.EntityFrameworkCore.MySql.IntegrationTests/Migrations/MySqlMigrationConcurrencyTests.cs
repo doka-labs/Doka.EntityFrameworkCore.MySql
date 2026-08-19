@@ -30,6 +30,7 @@ public sealed class MySqlMigrationConcurrencyTests
         {
             await using var contextA =
                 new LockContext(CreateOptions(BuildConnectionString(baseConnectionString, dbNameA)));
+
             await using var contextB =
                 new LockContext(CreateOptions(BuildConnectionString(baseConnectionString, dbNameB)));
 
@@ -152,6 +153,7 @@ public sealed class MySqlMigrationConcurrencyTests
             await using var waitedLock = await waiterHistory
                 .AcquireDatabaseLockAsync()
                 .ConfigureAwait(false);
+
             acquireStopwatch.Stop();
 
             await releaseHolderTask.ConfigureAwait(false);
@@ -202,6 +204,7 @@ public sealed class MySqlMigrationConcurrencyTests
                 var holdResult = await holdCommand
                     .ExecuteScalarAsync()
                     .ConfigureAwait(false);
+
                 Assert.Equal(1L, Convert.ToInt64(holdResult, CultureInfo.InvariantCulture));
             }
 
@@ -253,6 +256,7 @@ public sealed class MySqlMigrationConcurrencyTests
             await using var holderContext = new LockContext(CreateOptions(scopedConnectionString));
             await using var contenderContext = new LockContext(
                 CreateOptions(scopedConnectionString, commandTimeout: 1));
+
             var holderHistory = holderContext.GetService<IHistoryRepository>();
             var contenderHistory = contenderContext.GetService<IHistoryRepository>();
 
@@ -261,6 +265,7 @@ public sealed class MySqlMigrationConcurrencyTests
                 .ConfigureAwait(false);
 
             var stopwatch = Stopwatch.StartNew();
+
             await Assert.ThrowsAsync<TimeoutException>(
                 () => contenderHistory.AcquireDatabaseLockAsync());
             stopwatch.Stop();
@@ -292,6 +297,7 @@ public sealed class MySqlMigrationConcurrencyTests
             await using var holderContext = new LockContext(CreateOptions(scopedConnectionString));
             await using var contenderContext = new LockContext(
                 CreateOptions(scopedConnectionString, commandTimeout: 30));
+
             var holderHistory = holderContext.GetService<IHistoryRepository>();
             var contenderHistory = contenderContext.GetService<IHistoryRepository>();
 
@@ -354,6 +360,7 @@ public sealed class MySqlMigrationConcurrencyTests
                     // Disposal won the lifecycle gate; terminal disposal is expected.
                 }
             });
+
             var disposeTask = Task.Run(
                 async () => await lockInstance
                     .DisposeAsync()
@@ -370,6 +377,7 @@ public sealed class MySqlMigrationConcurrencyTests
             await using var verificationConnection = await dataSource
                 .OpenConnectionAsync()
                 .ConfigureAwait(false);
+
             Assert.Equal(ConnectionState.Open, verificationConnection.State);
         }
         finally
@@ -388,6 +396,7 @@ public sealed class MySqlMigrationConcurrencyTests
         {
             Database = databaseName,
         };
+
         return builder.ConnectionString;
     }
 
@@ -400,6 +409,7 @@ public sealed class MySqlMigrationConcurrencyTests
         {
             Database = string.Empty,
         };
+
         serverBuilder.Remove("Database");
 
         await using var connection = new MySqlConnector.MySqlConnection(serverBuilder.ConnectionString);
@@ -422,6 +432,7 @@ public sealed class MySqlMigrationConcurrencyTests
         {
             Database = string.Empty,
         };
+
         serverBuilder.Remove("Database");
 
         await using var connection = new MySqlConnector.MySqlConnection(serverBuilder.ConnectionString);

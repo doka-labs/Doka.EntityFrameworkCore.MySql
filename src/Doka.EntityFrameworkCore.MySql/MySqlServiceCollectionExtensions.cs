@@ -1,6 +1,7 @@
 // File-local using: ICSharpRuntimeAnnotationCodeGenerator is registered via the Design.Internal
 // service-pair below; the rest of this file's surface stays on the public EF Core API.
 using Microsoft.EntityFrameworkCore.Design.Internal;
+using Microsoft.EntityFrameworkCore.Migrations.Design;
 
 namespace Doka.EntityFrameworkCore.MySql;
 
@@ -19,6 +20,9 @@ public static class MySqlServiceCollectionExtensions
     )
     {
         ArgumentNullException.ThrowIfNull(serviceCollection);
+
+        serviceCollection.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IEvaluatableExpressionFilterPlugin, MySqlEvaluatableExpressionFilterPlugin>());
 
         var builder = new EntityFrameworkRelationalServicesBuilder(serviceCollection)
             .TryAdd<IDatabaseProvider, DatabaseProvider<MySqlOptionsExtension>>()
@@ -102,6 +106,8 @@ public static class MySqlServiceCollectionExtensions
         // consumers (integration tests, custom scaffolders) skip the tooling path, so we
         // run the helper here to make this method self-contained.
         serviceCollection.AddEntityFrameworkDesignTimeServices();
+        serviceCollection.Replace(
+            ServiceDescriptor.Singleton<ICSharpSnapshotGenerator, MySqlCSharpSnapshotGenerator>());
 
 #pragma warning disable EF1001
         var builder = new EntityFrameworkRelationalDesignServicesBuilder(serviceCollection)

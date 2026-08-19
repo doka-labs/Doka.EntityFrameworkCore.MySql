@@ -71,8 +71,10 @@ public sealed class MySqlValueGenerationConventionTests
         using var context = new ConventionContext();
         var entityType = context.Model
             .FindEntityType(typeof(ConvertedKeyEntity))!;
+
         var idProperty = entityType
             .FindProperty(nameof(ConvertedKeyEntity.Id))!;
+
         var script = context.Database.GenerateCreateScript();
 
         Assert.Equal("varchar(64)", idProperty.GetColumnType());
@@ -94,6 +96,7 @@ public sealed class MySqlValueGenerationConventionTests
         var convertedProperty = context.Model
             .FindEntityType(typeof(LongToIntKeyEntity))!
             .FindProperty(nameof(LongToIntKeyEntity.Id))!;
+
         var enumProperty = context.Model
             .FindEntityType(typeof(EnumKeyEntity))!
             .FindProperty(nameof(EnumKeyEntity.Id))!;
@@ -141,6 +144,7 @@ public sealed class MySqlValueGenerationConventionTests
             .GetEntityTypes()
             .Single(entityType => entityType.ClrType == typeof(OwnedCollectionElement))
             .FindProperty("Id")!;
+
         var script = context.Database.GenerateCreateScript();
 
         Assert.Equal(
@@ -180,6 +184,7 @@ public sealed class MySqlValueGenerationConventionTests
         var principalProperty = context.Model
             .FindEntityType(typeof(GuidStringPrincipal))!
             .FindProperty(nameof(GuidStringPrincipal.Id))!;
+
         var dependentProperty = context.Model
             .FindEntityType(typeof(GuidStringDependent))!
             .FindProperty(nameof(GuidStringDependent.PrincipalId))!;
@@ -286,9 +291,11 @@ public sealed class MySqlValueGenerationConventionTests
 
         protected override void OnConfiguring(
             DbContextOptionsBuilder optionsBuilder
-        ) => optionsBuilder.UseMySql(
-            "Server=127.0.0.1;Database=doka_convention_probe;User ID=root;Password=root;",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+        ) => optionsBuilder
+            .UseTransientInternalServiceProvider()
+            .UseMySql(
+                "Server=127.0.0.1;Database=doka_convention_probe;User ID=root;Password=root;",
+                MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
         protected override void OnModelCreating(
             ModelBuilder modelBuilder

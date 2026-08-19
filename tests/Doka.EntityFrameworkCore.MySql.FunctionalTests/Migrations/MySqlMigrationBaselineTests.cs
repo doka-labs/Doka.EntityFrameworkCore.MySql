@@ -73,6 +73,7 @@ public sealed class MySqlMigrationBaselineTests
     {
         var options = CreateOptions(extension =>
             (MySqlOptionsExtension)extension.WithMigrationsHistoryTableName("__CustomHistory"));
+
         using var context = new BaselineContext(options);
         var historyRepository = context.GetService<IHistoryRepository>();
 
@@ -95,6 +96,7 @@ public sealed class MySqlMigrationBaselineTests
                 .WithMigrationsHistoryTableName("__CustomHistory")
                 .WithMigrationsHistoryTableSchema("dbo"),
             loggerFactory);
+
         using var context = new BaselineContext(options);
 
         var exception = Assert.Throws<InvalidOperationException>(() => context.GetService<IHistoryRepository>());
@@ -221,6 +223,7 @@ public sealed class MySqlMigrationBaselineTests
             targetContext
                 .GetService<IDesignTimeModel>()
                 .Model.GetRelationalModel());
+
         var createTable = Assert.Single(operations.OfType<CreateTableOperation>());
         var idColumn = Assert.Single(createTable.Columns, column => column.Name == nameof(BaselineEntity.Id));
         var commands = migrationsSqlGenerator.Generate(operations, targetContext.Model);
@@ -430,6 +433,7 @@ public sealed class MySqlMigrationBaselineTests
 
         // MySQL path: should create an emulation table.
         var sql = string.Join(Environment.NewLine, commands.Select(c => c.CommandText));
+
         Assert.Contains("__efsequence_TestSequence", sql, StringComparison.Ordinal);
         Assert.Contains("`value` BIGINT NOT NULL", sql, StringComparison.Ordinal);
     }
@@ -440,7 +444,7 @@ public sealed class MySqlMigrationBaselineTests
     )
         where TContext : DbContext
     {
-        var builder = new DbContextOptionsBuilder<TContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>();
 
         if (loggerFactory is not null)
         {
@@ -455,6 +459,7 @@ public sealed class MySqlMigrationBaselineTests
         {
             var extension =
                 Assert.IsType<MySqlOptionsExtension>(builder.Options.FindExtension<MySqlOptionsExtension>());
+
             extension = configureExtension(extension);
             ((IDbContextOptionsBuilderInfrastructure)builder).AddOrUpdateExtension(extension);
         }

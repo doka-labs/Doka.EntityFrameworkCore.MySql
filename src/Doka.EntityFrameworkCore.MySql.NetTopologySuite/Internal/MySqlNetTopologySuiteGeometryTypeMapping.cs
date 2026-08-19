@@ -14,6 +14,10 @@ internal sealed class
             nameof(ReadSpatialColumn),
             BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly MethodInfo s_getValueMethod = typeof(System.Data.Common.DbDataReader).GetMethod(
+        nameof(System.Data.Common.DbDataReader.GetValue),
+        [typeof(int)])!;
+
     public MySqlNetTopologySuiteGeometryTypeMapping(
         ValueConverter<TGeometry, MySqlGeometry> converter,
         string storeType,
@@ -30,6 +34,8 @@ internal sealed class
     ) => new MySqlNetTopologySuiteGeometryTypeMapping<TGeometry>(parameters, SpatialConverter!);
 
     protected override Type WktReaderType => typeof(WKTReader);
+
+    public override MethodInfo GetDataReaderMethod() => s_getValueMethod;
 
     protected override string AsText(
         object value
@@ -128,7 +134,9 @@ internal sealed class
     {
         if (expression is MethodCallExpression
             {
-                Method.Name: "GetFieldValue", Object: { } readerInstance, Arguments: [{ } ordinalArg],
+                Method.Name: "GetFieldValue" or "GetValue",
+                Object: { } readerInstance,
+                Arguments: [{ } ordinalArg],
             })
         {
             reader = readerInstance;

@@ -23,14 +23,17 @@ public sealed partial class MySqlModelingBaselineTests
 
         // Discriminator property exists on the base type.
         var discriminator = baseType.FindDiscriminatorProperty();
+
         Assert.NotNull(discriminator);
         Assert.Equal("Discriminator", discriminator.Name);
 
         // Derived-type-only columns must be nullable in the shared table.
         var breedProperty = dogType.FindProperty(nameof(Dog.Breed))!;
+
         Assert.True(breedProperty.IsColumnNullable());
 
         var indoorProperty = catType.FindProperty(nameof(Cat.IsIndoor))!;
+
         Assert.True(indoorProperty.IsColumnNullable());
     }
 
@@ -51,6 +54,7 @@ public sealed partial class MySqlModelingBaselineTests
         // Discriminator values should be non-null and distinct.
         var mammalDiscriminator = mammalType.GetDiscriminatorValue();
         var dogDiscriminator = dogType.GetDiscriminatorValue();
+
         Assert.NotNull(mammalDiscriminator);
         Assert.NotNull(dogDiscriminator);
         Assert.NotEqual(mammalDiscriminator, dogDiscriminator);
@@ -139,6 +143,7 @@ public sealed partial class MySqlModelingBaselineTests
         var sql = context
             .Set<Shape>()
             .ToQueryString();
+
         Assert.Contains("UNION ALL", sql, StringComparison.OrdinalIgnoreCase);
     }
 

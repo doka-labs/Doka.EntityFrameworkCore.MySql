@@ -217,6 +217,7 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
         var parameterName = useOriginalValue
             ? columnModification.OriginalParameterName!
             : columnModification.ParameterName!;
+
         var value = useOriginalValue ? columnModification.OriginalValue : columnModification.Value;
 
         if (value is null)

@@ -25,6 +25,7 @@ public sealed class MySqlQueryTranslationBaselineTests
             .ToQueryString();
 
         MySqlSqlAssert.ContainsFunction(sql, "CHAR_LENGTH");
+
         Assert.Contains("`Name`", sql, StringComparison.Ordinal);
         MySqlSqlAssert.ContainsFunction(sql, "DATE");
         MySqlSqlAssert.ContainsFunction(sql, "YEAR");
@@ -125,7 +126,7 @@ public sealed class MySqlQueryTranslationBaselineTests
 
     private static DbContextOptions<QueryTranslationContext> CreateOptions()
     {
-        var builder = new DbContextOptionsBuilder<QueryTranslationContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<QueryTranslationContext>();
 
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",

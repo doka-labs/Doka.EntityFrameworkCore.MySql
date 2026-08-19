@@ -121,7 +121,9 @@ matrix.
 - publication completeness rebuilt on the clean finalization runner against
   the exact EF Core and MySqlConnector patches selected by the matrices;
 - canonical evidence assembly; and
-- GitHub artifact attestations bound to `refs/heads/main` and the exact commit.
+- GitHub artifact attestations bound to `refs/heads/main` and the exact commit;
+  the same job materializes their SLSA bundle as
+  `release-provenance.intoto.jsonl` without an operator step.
 
 The runtime-posture stage requires clean release source before it allocates its
 database, restores the host RID into an isolated artifacts and lock directory,
@@ -170,15 +172,17 @@ approve the `nuget` environment deployment.
 The same workflow run now:
 
 1. revalidates the exact qualified checkout, its continued reachability from
-   current `main`, the candidate manifest, local package bytes, and same-run
-   attestations;
+   current `main`, the candidate manifest, local package bytes, and the exact
+   same-run SLSA bundle; every selected subject is checked structurally and
+   with `gh attestation verify --bundle` before a remote write;
 2. verifies the signed annotated tag, registered signer, protected-main
    qualification, version, and commit by reading the exact check-run ID and
    workflow-run attempt frozen in the qualification manifest;
 3. binds the qualification manifest, candidate receipt, and tag-trust receipt
    by SHA-256;
-4. creates or resumes a matching GitHub release draft and reads every staged
-   identity asset back before NuGet publication;
+4. creates or resumes a matching GitHub release draft, including
+   `release-provenance.intoto.jsonl`, and reads every staged identity asset back
+   before NuGet publication;
 5. checks that every package and symbol is absent or byte-identical to the
    candidate when already visible; NuGet.org acceptance and public indexing
    are separate states, so absence does not authorize assumptions about push
@@ -213,6 +217,11 @@ can contain retry-specific timestamps and remote-state transitions. Keeping
 them in the retained workflow artifact lets a failed completion probe be rerun
 without attempting to alter an immutable release.
 
+The portable SLSA bundle is different: it is created before publication, binds
+the candidate bytes, and is part of the immutable draft asset set. The workflow
+exports and verifies it automatically; operators do not download or attach an
+attestation manually.
+
 ### 6. Complete the operator readback
 
 Before considering the release complete, confirm:
@@ -221,6 +230,7 @@ Before considering the release complete, confirm:
 - both primary and symbol packages have matching public readback;
 - both public packages carry valid NuGet repository signatures;
 - the GitHub release points at `release_tag` and is immutable;
+- the GitHub release contains `release-provenance.intoto.jsonl`;
 - prereleases are marked prerelease and are not `latest`;
 - stable releases are not prereleases and are `latest`; and
 - `release-publication-<version>-attempt-<attempt>` contains candidate binding,

@@ -46,6 +46,69 @@ public sealed class MySqlTemporalQueryCompositionTests
     }
 
     /// <summary>
+    /// EF Core implicitly expands owned navigations during entity materialization, so a
+    /// separately stored current-only collection cannot be mixed with historical owners.
+    /// </summary>
+    [Fact]
+    public void TemporalAsOf_rejects_implicit_current_only_owned_collection()
+    {
+        using var context = CreateContext<CurrentOwnedCollectionConfiguration>();
+
+        var exception = Assert.Throws<InvalidOperationException>(() => context
+            .Parents
+            .TemporalAsOf(s_firstPoint)
+            .ToQueryString());
+
+        Assert.Contains("separately stored, non-temporal owned entity", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("even when Include is omitted", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(
+            "Mixing historical owner rows with current owned rows",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// IgnoreAutoIncludes does not suppress EF Core's implicit owned-navigation expansion.
+    /// </summary>
+    [Fact]
+    public void IgnoreAutoIncludes_does_not_mix_current_owned_rows_into_temporal_query()
+    {
+        using var context = CreateContext<CurrentOwnedCollectionConfiguration>();
+
+        var exception = Assert.Throws<InvalidOperationException>(() => context
+            .Parents
+            .TemporalAsOf(s_firstPoint)
+            .IgnoreAutoIncludes()
+            .ToQueryString());
+
+        Assert.Contains("IgnoreAutoIncludes is used", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A scalar projection remains valid because it does not materialize the separately
+    /// stored current-only owned collection.
+    /// </summary>
+    [Fact]
+    public void TemporalAsOf_scalar_projection_excludes_current_owned_collection()
+    {
+        using var context = CreateContext<CurrentOwnedCollectionConfiguration>();
+
+        var sql = context
+            .Parents
+            .TemporalAsOf(s_firstPoint)
+            .Select(parent => new
+            {
+                parent.Id,
+                parent.Profile.DisplayName,
+            })
+            .ToQueryString();
+
+        Assert.Contains("FOR SYSTEM_TIME AS OF", sql, StringComparison.Ordinal);
+        Assert.Contains("DisplayName", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("TemporalParentNotes", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Multi-version roots cannot define one consistent instant for a separately
     /// stored related collection and are rejected before SQL generation.
     /// </summary>
@@ -151,7 +214,7 @@ public sealed class MySqlTemporalQueryCompositionTests
     private static TemporalCompositionContext<TConfiguration> CreateContext<TConfiguration>()
         where TConfiguration : ICompositionConfiguration, new()
     {
-        var options = new DbContextOptionsBuilder<TemporalCompositionContext<TConfiguration>>().UseMySql(
+        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<TemporalCompositionContext<TConfiguration>>().UseMySql(
                 "Server=localhost;Database=doka;User ID=root;Password=password;",
                 MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
             .Options;
@@ -179,6 +242,8 @@ public sealed class MySqlTemporalQueryCompositionTests
     private interface ICompositionConfiguration
     {
         bool ChildrenAreTemporal { get; }
+
+        bool ConfigureCurrentOwnedCollection => false;
     }
 
     private sealed class AllTemporalConfiguration : ICompositionConfiguration
@@ -189,6 +254,13 @@ public sealed class MySqlTemporalQueryCompositionTests
     private sealed class CurrentChildrenConfiguration : ICompositionConfiguration
     {
         public bool ChildrenAreTemporal => false;
+    }
+
+    private sealed class CurrentOwnedCollectionConfiguration : ICompositionConfiguration
+    {
+        public bool ChildrenAreTemporal => true;
+
+        public bool ConfigureCurrentOwnedCollection => true;
     }
 
     private sealed class TemporalCompositionContext<TConfiguration> : DbContext
@@ -215,6 +287,25 @@ public sealed class MySqlTemporalQueryCompositionTests
                     .WithOne(child => child.Parent)
                     .HasForeignKey(child => child.ParentId)
                     .OnDelete(DeleteBehavior.Restrict);
+
+                if (configuration.ConfigureCurrentOwnedCollection)
+                {
+                    entity.OwnsOne(parent => parent.Profile);
+                    entity.OwnsMany(
+                        parent => parent.Notes,
+                        owned =>
+                        {
+                            owned.ToTable("TemporalParentNotes");
+                            owned.WithOwner().HasForeignKey("ParentId");
+                            owned.Property<int>("Id");
+                            owned.HasKey("ParentId", "Id");
+                        });
+                }
+                else
+                {
+                    entity.Ignore(parent => parent.Profile);
+                    entity.Ignore(parent => parent.Notes);
+                }
             });
 
             modelBuilder.Entity<TemporalChild>(entity =>
@@ -230,6 +321,10 @@ public sealed class MySqlTemporalQueryCompositionTests
         public int Id { get; set; }
 
         public ICollection<TemporalChild> Children { get; } = [];
+
+        public TemporalProfile Profile { get; set; } = new();
+
+        public ICollection<TemporalNote> Notes { get; } = [];
     }
 
     private sealed class TemporalChild
@@ -239,5 +334,15 @@ public sealed class MySqlTemporalQueryCompositionTests
         public int ParentId { get; set; }
 
         public TemporalParent Parent { get; set; } = null!;
+    }
+
+    private sealed class TemporalProfile
+    {
+        public string DisplayName { get; set; } = null!;
+    }
+
+    private sealed class TemporalNote
+    {
+        public string Text { get; set; } = null!;
     }
 }

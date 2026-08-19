@@ -80,6 +80,7 @@ public sealed class MySqlCrossLayerObservabilityTests
                 MinimumPoolSize = 0,
                 MaximumPoolSize = 4,
             };
+
         connectionStringBuilder.Remove("Application Name");
 
         using var rootActivity = new Activity("doka-observability-contract").Start();
@@ -116,19 +117,24 @@ public sealed class MySqlCrossLayerObservabilityTests
             .Activities.Where(activity =>
                 activity.Source.Name == MySqlDiagnostics.SourceName && activity.TraceId == traceId)
             .ToList();
+
         var driverActivities = activitySink
             .Activities.Where(activity =>
                 activity.Source.Name == MySqlDiagnostics.MySqlConnectorSourceName && activity.TraceId == traceId)
             .ToList();
+
         var efEvents = diagnosticSink
             .Events.Where(entry => entry.TraceId == traceId)
             .ToList();
+
         var resolutionLogs = logSink
             .Entries.Where(entry => entry.EventId == MySqlEventId.ServerVersionResolved)
             .ToList();
+
         var migrationLockLog = Assert.Single(
             logSink.Entries,
             entry => entry.EventId == MySqlEventId.MigrationLockAcquired);
+
         var normalizedConnectionString = new MySqlConnectionStringBuilder(
             context.Database.GetDbConnection()
                 .ConnectionString);

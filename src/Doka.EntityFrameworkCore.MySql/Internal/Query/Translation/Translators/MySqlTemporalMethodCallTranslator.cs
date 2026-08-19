@@ -123,6 +123,7 @@ internal sealed class MySqlTemporalMethodCallTranslator : IMethodCallTranslator
             var nonWrappingRange = _sqlExpressionFactory.AndAlso(
                 _sqlExpressionFactory.GreaterThanOrEqual(instance, arguments[0]),
                 _sqlExpressionFactory.LessThan(instance, arguments[1]));
+
             var wrappingRange = _sqlExpressionFactory.OrElse(
                 _sqlExpressionFactory.GreaterThanOrEqual(instance, arguments[0]),
                 _sqlExpressionFactory.LessThan(instance, arguments[1]));

@@ -410,6 +410,7 @@ public sealed class MySqlMigrationDdlCoverageTests
             Columns = ["Name", "Code"],
             IsDescending = [false, true],
         };
+
         operation.SetAnnotation(MySqlAnnotationNames.IndexPrefixLength, s_mixedPrefixLengths);
 
         var sql = JoinSql(generator.Generate([operation], context.Model));
@@ -459,6 +460,7 @@ public sealed class MySqlMigrationDdlCoverageTests
             Table = "Entries",
             Columns = ["Body"],
         };
+
         operation.SetAnnotation(MySqlAnnotationNames.FullTextIndex, true);
 
         var sql = JoinSql(generator.Generate([operation], context.Model));
@@ -511,6 +513,7 @@ public sealed class MySqlMigrationDdlCoverageTests
             Table = "Places",
             Columns = ["Location"],
         };
+
         operation.SetAnnotation(MySqlAnnotationNames.SpatialIndex, true);
 
         var commands = generator.Generate([operation], context.Model);
@@ -568,7 +571,7 @@ public sealed class MySqlMigrationDdlCoverageTests
     [Fact]
     public void Model_with_long_fk_name_builds_with_normalized_constraint_name()
     {
-        var builder = new DbContextOptionsBuilder<ConstraintTestContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<ConstraintTestContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -576,6 +579,7 @@ public sealed class MySqlMigrationDdlCoverageTests
         using var context = new ConstraintTestContext(builder.Options);
         var childEntity = context.Model.FindEntityType(typeof(ChildEntity))
             ?? throw new InvalidOperationException("ChildEntity metadata was not created.");
+
         var foreignKey = Assert.Single(childEntity.GetForeignKeys());
         var constraintName = foreignKey.GetConstraintName()
             ?? throw new InvalidOperationException("Foreign-key constraint name was not generated.");
@@ -605,6 +609,7 @@ public sealed class MySqlMigrationDdlCoverageTests
             Name = "LiteralContracts",
             Comment = tableComment,
         };
+
         createTable.Columns.Add(
             new AddColumnOperation
             {
@@ -625,6 +630,7 @@ public sealed class MySqlMigrationDdlCoverageTests
                 { insertedValue },
             },
         };
+
         var updateData = new UpdateDataOperation
         {
             Table = createTable.Name,
@@ -641,6 +647,7 @@ public sealed class MySqlMigrationDdlCoverageTests
                 { updateKey },
             },
         };
+
         var deleteData = new DeleteDataOperation
         {
             Table = createTable.Name,
@@ -676,7 +683,7 @@ public sealed class MySqlMigrationDdlCoverageTests
     [Fact]
     public void UseHiLo_on_short_property_sets_strategy()
     {
-        var builder = new DbContextOptionsBuilder<HiLoShortContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<HiLoShortContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -739,7 +746,7 @@ public sealed class MySqlMigrationDdlCoverageTests
 
     private static DdlCoverageContext CreateMySqlContext()
     {
-        var builder = new DbContextOptionsBuilder<DdlCoverageContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<DdlCoverageContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -748,7 +755,7 @@ public sealed class MySqlMigrationDdlCoverageTests
 
     private static DdlCoverageContext CreateMariaDbContext()
     {
-        var builder = new DbContextOptionsBuilder<DdlCoverageContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<DdlCoverageContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
@@ -757,7 +764,7 @@ public sealed class MySqlMigrationDdlCoverageTests
 
     private static JsonFuncContext CreateJsonContext()
     {
-        var builder = new DbContextOptionsBuilder<JsonFuncContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<JsonFuncContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -766,7 +773,7 @@ public sealed class MySqlMigrationDdlCoverageTests
 
     private static TemporalContext CreateTemporalContext()
     {
-        var builder = new DbContextOptionsBuilder<TemporalContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TemporalContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));

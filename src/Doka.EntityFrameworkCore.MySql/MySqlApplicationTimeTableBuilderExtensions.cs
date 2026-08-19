@@ -39,8 +39,8 @@ public static class MySqlApplicationTimeTableBuilderExtensions
         ArgumentNullException.ThrowIfNull(buildAction);
 
         var builder = Enable(tableBuilder.Metadata, tableBuilder.GetInfrastructure());
-        ConfigureDefaults(builder);
         buildAction(builder);
+        ConfigureMissingDefaults(builder, tableBuilder.Metadata);
 
         return tableBuilder;
     }
@@ -99,9 +99,7 @@ public static class MySqlApplicationTimeTableBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(tableBuilder);
 
-        var builder = new MySqlApplicationTimeTableBuilder<TEntity>(
-            tableBuilder.GetInfrastructure<EntityTypeBuilder<TEntity>>());
-        tableBuilder.Metadata.SetMySqlApplicationTime(true);
+        var builder = Enable(tableBuilder);
         ConfigureDefaults(builder);
 
         return builder;
@@ -124,8 +122,9 @@ public static class MySqlApplicationTimeTableBuilderExtensions
         ArgumentNullException.ThrowIfNull(tableBuilder);
         ArgumentNullException.ThrowIfNull(buildAction);
 
-        var builder = tableBuilder.HasApplicationTimePeriod();
+        var builder = Enable(tableBuilder);
         buildAction(builder);
+        ConfigureMissingDefaults(builder, tableBuilder.Metadata);
 
         return tableBuilder;
     }
@@ -186,6 +185,18 @@ public static class MySqlApplicationTimeTableBuilderExtensions
         return new MySqlApplicationTimeTableBuilder(entityTypeBuilder);
     }
 
+    private static MySqlApplicationTimeTableBuilder<TEntity> Enable<
+        [DynamicallyAccessedMembers(MySqlTrimmingConstants.EntityType)] TEntity>(
+        TableBuilder<TEntity> tableBuilder
+    )
+        where TEntity : class
+    {
+        tableBuilder.Metadata.SetMySqlApplicationTime(true);
+
+        return new MySqlApplicationTimeTableBuilder<TEntity>(
+            tableBuilder.GetInfrastructure<EntityTypeBuilder<TEntity>>());
+    }
+
     private static void ConfigureDefaults(
         MySqlApplicationTimeTableBuilder builder
     )
@@ -193,5 +204,26 @@ public static class MySqlApplicationTimeTableBuilderExtensions
         builder.HasPeriodName(MySqlApplicationTimeMetadata.DefaultPeriodName);
         _ = builder.HasPeriodStart(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName);
         _ = builder.HasPeriodEnd(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName);
+    }
+
+    private static void ConfigureMissingDefaults(
+        MySqlApplicationTimeTableBuilder builder,
+        IMutableEntityType entityType
+    )
+    {
+        if (entityType.GetMySqlApplicationTimePeriodName() is null)
+        {
+            builder.HasPeriodName(MySqlApplicationTimeMetadata.DefaultPeriodName);
+        }
+
+        if (entityType.GetMySqlApplicationTimePeriodStartPropertyName() is null)
+        {
+            _ = builder.HasPeriodStart(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName);
+        }
+
+        if (entityType.GetMySqlApplicationTimePeriodEndPropertyName() is null)
+        {
+            _ = builder.HasPeriodEnd(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName);
+        }
     }
 }

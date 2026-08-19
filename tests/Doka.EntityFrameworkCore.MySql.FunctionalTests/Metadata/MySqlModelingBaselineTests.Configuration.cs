@@ -39,6 +39,7 @@ public sealed partial class MySqlModelingBaselineTests
         var filteredSql = context
             .Set<SoftDeleteEntity>()
             .ToQueryString();
+
         var unfilteredSql = context
             .Set<SoftDeleteEntity>()
             .IgnoreQueryFilters()
@@ -74,6 +75,7 @@ public sealed partial class MySqlModelingBaselineTests
         using var context = new CheckConstraintContext(CreateOptions<CheckConstraintContext>());
         var designModel = context.GetService<IDesignTimeModel>()
             .Model;
+
         var entityType = designModel.FindEntityType(typeof(PricedItem))!;
         var checkConstraints = entityType
             .GetCheckConstraints()
@@ -90,6 +92,7 @@ public sealed partial class MySqlModelingBaselineTests
         using var context = new CheckConstraintContext(CreateOptions<CheckConstraintContext>());
         var designModel = context.GetService<IDesignTimeModel>()
             .Model;
+
         var entityType = designModel.FindEntityType(typeof(DateRangeItem))!;
         var checkConstraints = entityType
             .GetCheckConstraints()
@@ -342,6 +345,7 @@ public sealed partial class MySqlModelingBaselineTests
         using var context = new SeedDataContext(CreateOptions<SeedDataContext>());
         var designModel = context.GetService<IDesignTimeModel>()
             .Model;
+
         var entityType = designModel.FindEntityType(typeof(SeedEntity))!;
         var seedData = entityType
             .GetSeedData()

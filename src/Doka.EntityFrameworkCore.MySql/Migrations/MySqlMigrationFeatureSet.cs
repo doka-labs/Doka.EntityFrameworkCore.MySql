@@ -49,7 +49,7 @@ public sealed class MySqlMigrationFeatureSet
                 ProviderCapability.GeneratedColumnNullabilityClause,
             MySqlMigrationFeature.VirtualGeneratedColumns => ProviderCapability.VirtualGeneratedColumns,
             MySqlMigrationFeature.StoredGeneratedColumns => ProviderCapability.StoredGeneratedColumns,
-            MySqlMigrationFeature.SpatialColumnSridAttribute => ProviderCapability.SpatialColumnSridAttribute,
+            MySqlMigrationFeature.SpatialColumnSridAttribute => ProviderCapability.SpatialColumnSridEnforcement,
             MySqlMigrationFeature.ExpressionDefaults => ProviderCapability.ExpressionDefaults,
             MySqlMigrationFeature.TemporalTables => ProviderCapability.TemporalTables,
             MySqlMigrationFeature.ApplicationTimePeriods => ProviderCapability.ApplicationTimePeriods,

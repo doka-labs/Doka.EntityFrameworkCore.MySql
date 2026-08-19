@@ -117,6 +117,7 @@ public sealed class MySqlHistoryRepositoryTests
     public void LockReleaseBehavior_is_explicit()
     {
         var repo = CreateRepository();
+
         Assert.Equal(LockReleaseBehavior.Explicit, repo.LockReleaseBehavior);
     }
 
@@ -124,7 +125,7 @@ public sealed class MySqlHistoryRepositoryTests
 
     private static IHistoryRepository CreateRepository()
     {
-        var builder = new DbContextOptionsBuilder<HistoryTestContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<HistoryTestContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));

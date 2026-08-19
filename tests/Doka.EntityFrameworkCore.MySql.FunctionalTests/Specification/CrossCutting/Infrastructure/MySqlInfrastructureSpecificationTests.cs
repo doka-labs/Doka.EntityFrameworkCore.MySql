@@ -99,6 +99,14 @@ public sealed class SeedingMySqlTest : SeedingTestBase
         string testId
     ) => new MySqlSeedingContext(testId);
 
+    internal static DbContextOptionsBuilder ConfigureTransientOptions(
+        DbContextOptionsBuilder optionsBuilder,
+        string connectionString,
+        MySqlServerVersion serverVersion
+    ) => optionsBuilder
+        .UseTransientInternalServiceProvider()
+        .UseMySql(connectionString, serverVersion);
+
     private sealed class MySqlSeedingContext : SeedingContext
     {
         public MySqlSeedingContext(
@@ -115,7 +123,7 @@ public sealed class SeedingMySqlTest : SeedingTestBase
                     Database = $"Seeds{TestId}",
                 }.ConnectionString;
 
-            optionsBuilder.UseMySql(connectionString, MySqlTestStore.ServerVersion);
+            ConfigureTransientOptions(optionsBuilder, connectionString, MySqlTestStore.ServerVersion);
         }
     }
 }

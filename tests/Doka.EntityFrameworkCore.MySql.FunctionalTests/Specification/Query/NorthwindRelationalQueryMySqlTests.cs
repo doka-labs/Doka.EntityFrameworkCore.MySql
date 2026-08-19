@@ -418,6 +418,7 @@ public class
             1,
             2,
         ];
+
         await AssertQueryScalar(
             async,
             ss => from employee in ss.Set<Employee>()

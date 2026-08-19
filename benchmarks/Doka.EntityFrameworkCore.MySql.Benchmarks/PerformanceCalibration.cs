@@ -76,6 +76,7 @@ internal static class PerformanceCalibration
     {
         var connectionString = BenchmarkEnvironment.CreateConnectionString(
             BenchmarkEnvironment.DatabaseNameValue);
+
         await using var connection = new MySqlConnection(connectionString);
 
         await connection

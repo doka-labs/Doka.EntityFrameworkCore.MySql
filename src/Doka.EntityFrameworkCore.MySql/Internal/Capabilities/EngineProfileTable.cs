@@ -19,6 +19,7 @@ internal static class EngineProfileTable
     private static readonly Version s_mySql57 = new(5, 7, 0);
     private static readonly Version s_mySql571 = new(5, 7, 1);
     private static readonly Version s_mySql576 = new(5, 7, 6);
+    private static readonly Version s_mySql577 = new(5, 7, 7);
     private static readonly Version s_mySql578 = new(5, 7, 8);
     private static readonly Version s_mySql800 = new(8, 0, 0);
     private static readonly Version s_mySql801 = new(8, 0, 1);
@@ -27,6 +28,7 @@ internal static class EngineProfileTable
     private static readonly Version s_mySql8013 = new(8, 0, 13);
     private static readonly Version s_mySql8014 = new(8, 0, 14);
     private static readonly Version s_mySql8016 = new(8, 0, 16);
+    private static readonly Version s_mySql8024 = new(8, 0, 24);
     private static readonly Version s_mariaDb52 = new(5, 2, 0);
     private static readonly Version s_mariaDb1021 = new(10, 2, 1);
     private static readonly Version s_mariaDb1022 = new(10, 2, 2);
@@ -41,6 +43,7 @@ internal static class EngineProfileTable
     private static readonly Version s_mariaDb1062 = new(10, 6, 2);
     private static readonly Version s_mariaDb108 = new(10, 8, 0);
     private static readonly Version s_mariaDb114 = new(11, 4, 0);
+    private static readonly Version s_mariaDb120 = new(12, 0, 0);
 
     // EF Core's options graph requires stable profile references for repeated
     // versions. Resolution is configuration-time work, so one short critical
@@ -147,6 +150,12 @@ internal static class EngineProfileTable
             capabilities.Add(EngineCapability.VirtualGeneratedColumns);
             capabilities.Add(EngineCapability.StoredGeneratedColumns);
             capabilities.Add(EngineCapability.GeneratedColumnNullabilityClause);
+            capabilities.Add(EngineCapability.SpatialIsValidFunction);
+        }
+
+        if (IsAtLeast(version, s_mySql577))
+        {
+            capabilities.Add(EngineCapability.SpatialBufferStrategies);
         }
 
         if (IsAtLeast(version, s_mySql578))
@@ -194,6 +203,11 @@ internal static class EngineProfileTable
             capabilities.Add(EngineCapability.CheckConstraints);
         }
 
+        if (IsAtLeast(version, s_mySql8024))
+        {
+            capabilities.Add(EngineCapability.SpatialCollectAggregate);
+        }
+
         capabilities.Add(EngineCapability.SelfReferencingMutationRequiresIsolation);
     }
 
@@ -216,6 +230,7 @@ internal static class EngineProfileTable
         {
             capabilities.Add(EngineCapability.CheckConstraints);
             capabilities.Add(EngineCapability.ExpressionDefaults);
+            capabilities.Add(EngineCapability.SpatialSridCheckConstraint);
         }
 
         if (IsAtLeast(version, s_mariaDb52)
@@ -285,6 +300,12 @@ internal static class EngineProfileTable
         if (IsAtLeast(version, s_mariaDb114))
         {
             capabilities.Add(EngineCapability.TemporalPeriodCatalog);
+        }
+
+        if (IsAtLeast(version, s_mariaDb120))
+        {
+            capabilities.Add(EngineCapability.SpatialIsValidFunction);
+            capabilities.Add(EngineCapability.SpatialCollectAggregate);
         }
     }
 

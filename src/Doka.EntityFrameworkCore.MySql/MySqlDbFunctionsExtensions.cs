@@ -87,7 +87,7 @@ public static class MySqlDbFunctionsExtensions
     /// </summary>
     public static string JsonArray(
         this DbFunctions functions,
-        params object[] values
+        params object?[] values
     ) => throw new InvalidOperationException("This method is for use with EF Core LINQ queries only.");
 
     /// <summary>
@@ -96,7 +96,7 @@ public static class MySqlDbFunctionsExtensions
     /// </summary>
     public static string JsonObject(
         this DbFunctions functions,
-        params object[] keyValuePairs
+        params object?[] keyValuePairs
     ) => throw new InvalidOperationException("This method is for use with EF Core LINQ queries only.");
 
     // -- JSON Inspection --

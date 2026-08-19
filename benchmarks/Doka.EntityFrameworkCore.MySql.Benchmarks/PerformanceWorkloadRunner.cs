@@ -57,8 +57,10 @@ internal static class PerformanceWorkloadRunner
         var checkpointDirectory = workloadId is null
             ? Environment.GetEnvironmentVariable("DOKA_BENCHMARK_CHECKPOINT_DIRECTORY")
             : null;
+
         using var runTimeoutSource = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken);
+
         runTimeoutSource.CancelAfter(
             TimeSpan.FromSeconds(profile.MaximumWorkloadMatrixDurationSeconds));
         var runCancellationToken = runTimeoutSource.Token;
@@ -125,11 +127,14 @@ internal static class PerformanceWorkloadRunner
                     : throw new InvalidDataException(
                         $"Performance workload '{definition.Id}' references unknown "
                         + $"timeout policy '{definition.TimeoutPolicy}'.");
+
             var workloadTimeoutSeconds = Math.Max(
                 profile.MaximumWorkloadDurationSeconds,
                 timeoutPolicySeconds);
+
             using var workloadTimeoutSource = CancellationTokenSource.CreateLinkedTokenSource(
                 runCancellationToken);
+
             workloadTimeoutSource.CancelAfter(
                 TimeSpan.FromSeconds(workloadTimeoutSeconds));
             PerformanceWorkloadResult result;
@@ -360,6 +365,7 @@ internal static class PerformanceWorkloadRunner
                 measurementSource.TimestampFrequency,
                 operationBatchingDurationHeadroomPercent,
                 minimumSampleCount);
+
             pilotSamplesElapsedTicks = await MeasurePilotSamplesAsync(
                     workload,
                     definition.OperationsPerSample,
@@ -720,6 +726,7 @@ internal static class PerformanceWorkloadRunner
             RunnerClass = runnerClass,
             Workload = result,
         };
+
         var path = GetCheckpointPath(checkpointDirectory, result.Id);
 
         // Persisting a completed result is intentionally independent from the
@@ -737,6 +744,7 @@ internal static class PerformanceWorkloadRunner
     {
         var digest = System.Security.Cryptography.SHA256.HashData(
             Encoding.UTF8.GetBytes(workloadId));
+
         var fileName = $"{Convert.ToHexStringLower(digest)}.json";
 
         return Path.Combine(checkpointDirectory, fileName);
@@ -764,6 +772,7 @@ internal static class PerformanceWorkloadRunner
             profileName,
             BenchmarkProfiles.SmokeProfile,
             StringComparison.Ordinal);
+
         var definitions = contract
             .Workloads.Where(definition => !narrowsToSmoke || definition.Smoke)
             .OrderBy(definition => definition.Id, StringComparer.Ordinal)
@@ -789,11 +798,13 @@ internal static class PerformanceWorkloadRunner
         var expected = definitions
             .Select(definition => definition.Id)
             .ToHashSet(StringComparer.Ordinal);
+
         var actual = workloads.Keys.ToHashSet(StringComparer.Ordinal);
         var missing = expected
             .Except(actual, StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToArray();
+
         var unknown = actual
             .Except(expected, StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)

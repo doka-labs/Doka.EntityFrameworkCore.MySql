@@ -19,6 +19,7 @@ public sealed class MySqlDatabaseModelFactoryTests
         var databaseModel = factory.Create(
             connection,
             new DatabaseModelFactoryOptions(["mixed_index_table"], Array.Empty<string>()));
+
         var table = Assert.Single(databaseModel.Tables);
         var index = Assert.Single(table.Indexes);
 
@@ -47,6 +48,7 @@ public sealed class MySqlDatabaseModelFactoryTests
         var databaseModel = factory.Create(
             connection,
             new DatabaseModelFactoryOptions(["spatial_feature_table"], Array.Empty<string>()));
+
         var table = Assert.Single(databaseModel.Tables);
         var spatialColumn = Assert.Single(table.Columns, column => column.Name == "Location");
         var spatialIndex = Assert.Single(table.Indexes);
@@ -58,6 +60,42 @@ public sealed class MySqlDatabaseModelFactoryTests
         Assert.True(
             spatialIndex.FindAnnotation(MySqlAnnotationNames.SpatialIndex)
                 ?.Value as bool?);
+    }
+
+    /// <summary>
+    /// Verifies that MariaDB SRID metadata shares the general CHECK catalog query,
+    /// consumes only the provider-owned check, and preserves an adjacent user check.
+    /// </summary>
+    [Fact]
+    public void Reverse_engineering_reads_mariadb_srid_and_user_checks_in_one_catalog_query()
+    {
+        using var connection = new ScaffoldingDbConnection(ScaffoldingScenario.MariaDbSpatial);
+        var factory = new MySqlDatabaseModelFactory(new StubDriverFacade(), new MySqlScaffoldingContext());
+
+        var databaseModel = factory.Create(
+            connection,
+            new DatabaseModelFactoryOptions(["spatial_feature_table"], Array.Empty<string>()));
+
+        var table = Assert.Single(databaseModel.Tables);
+        var spatialColumn = Assert.Single(table.Columns, column => column.Name == "Location");
+        var checkConstraints = Assert.IsType<MySqlScaffoldedCheckConstraint[]>(
+            table.FindAnnotation(MySqlAnnotationNames.ScaffoldingCheckConstraints)
+                ?.Value);
+
+        var userCheck = Assert.Single(checkConstraints);
+
+        Assert.Equal(
+            4326,
+            spatialColumn.FindAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId)
+                ?.Value);
+        Assert.Equal("CK_spatial_location_not_null", userCheck.Name);
+        Assert.Equal("`Location` IS NOT NULL", userCheck.Sql);
+        Assert.Single(
+            connection.ReaderCommands,
+            commandText => commandText.Contains(
+                    "FROM information_schema.CHECK_CONSTRAINTS",
+                    StringComparison.Ordinal)
+                && !commandText.Contains("JSON_VALID", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -73,6 +111,7 @@ public sealed class MySqlDatabaseModelFactoryTests
         var databaseModel = factory.Create(
             connection,
             new DatabaseModelFactoryOptions(["mixed_index_table"], ["tenant_database"]));
+
         var table = Assert.Single(databaseModel.Tables);
 
         Assert.Equal("tenant_database", table.Schema);
@@ -103,12 +142,15 @@ public sealed class MySqlDatabaseModelFactoryTests
                     "principal_database",
                     "dependent_database"
                 ]));
+
         var principalTable = Assert.Single(
             databaseModel.Tables,
             table => table.Schema == "principal_database");
+
         var dependentTable = Assert.Single(
             databaseModel.Tables,
             table => table.Schema == "dependent_database");
+
         var foreignKey = Assert.Single(dependentTable.ForeignKeys);
 
         Assert.Same(principalTable, foreignKey.PrincipalTable);
@@ -144,6 +186,7 @@ public sealed class MySqlDatabaseModelFactoryTests
         var databaseModel = factory.Create(
             connection,
             new DatabaseModelFactoryOptions(["audit_entries"], Array.Empty<string>()));
+
         var table = Assert.Single(databaseModel.Tables);
 
         Assert.Equal("audit_entries", table.Name);
@@ -169,6 +212,7 @@ public sealed class MySqlDatabaseModelFactoryTests
         var databaseModel = factory.Create(
             connection,
             new DatabaseModelFactoryOptions([], Array.Empty<string>()));
+
         var table = Assert.Single(databaseModel.Tables);
 
         Assert.Equal("audit_entries", table.Name);
@@ -193,11 +237,13 @@ public sealed class MySqlDatabaseModelFactoryTests
     {
         using var connection = new ScaffoldingDbConnection(
             ScaffoldingScenario.IncompleteMySqlTemporalEmulation);
+
         var factory = new MySqlDatabaseModelFactory(new StubDriverFacade(), new MySqlScaffoldingContext());
 
         var databaseModel = factory.Create(
             connection,
             new DatabaseModelFactoryOptions([], Array.Empty<string>()));
+
         var tables = databaseModel.Tables.OrderBy(table => table.Name).ToArray();
 
         Assert.Collection(
@@ -214,6 +260,7 @@ public sealed class MySqlDatabaseModelFactoryTests
     {
         Default,
         NativeMariaDbTemporal,
+        MariaDbSpatial,
         MySqlTemporalEmulation,
         IncompleteMySqlTemporalEmulation,
     }
@@ -246,11 +293,14 @@ public sealed class MySqlDatabaseModelFactoryTests
 
         public List<string> DatabaseChanges { get; } = [];
 
+        public List<string> ReaderCommands { get; } = [];
+
         public ScaffoldingScenario Scenario { get; }
 
         public override string DataSource => "localhost";
 
-        public override string ServerVersion => Scenario == ScaffoldingScenario.NativeMariaDbTemporal
+        public override string ServerVersion => Scenario is ScaffoldingScenario.NativeMariaDbTemporal
+            or ScaffoldingScenario.MariaDbSpatial
             ? "11.4.7-MariaDB"
             : "8.4.6";
 
@@ -334,6 +384,8 @@ public sealed class MySqlDatabaseModelFactoryTests
             CommandBehavior behavior
         )
         {
+            _connection.ReaderCommands.Add(CommandText);
+
             return CommandText switch
             {
                 var sql when sql.Contains("IS_SYSTEM_TIME_PERIOD_START", StringComparison.Ordinal) =>
@@ -350,7 +402,7 @@ public sealed class MySqlDatabaseModelFactoryTests
                     && sql.Contains("JSON_VALID", StringComparison.OrdinalIgnoreCase) =>
                     CreateJsonCheckConstraintsReader(),
                 var sql when sql.Contains("FROM information_schema.CHECK_CONSTRAINTS", StringComparison.Ordinal) =>
-                    CreateCheckConstraintsReader(),
+                    CreateCheckConstraintsReader(_connection.Scenario),
                 var sql when sql.Contains("TABLE_TYPE = 'SEQUENCE'", StringComparison.Ordinal) =>
                     CreateNativeSequenceNamesReader(),
                 var sql when sql.Contains("FROM information_schema.TABLES", StringComparison.Ordinal) =>
@@ -362,7 +414,7 @@ public sealed class MySqlDatabaseModelFactoryTests
                 var sql when sql.Contains("CONSTRAINT_TYPE = 'UNIQUE'", StringComparison.Ordinal) =>
                     CreateUniqueConstraintsReader(),
                 var sql when sql.Contains("CONSTRAINT_TYPE = 'CHECK'", StringComparison.Ordinal) =>
-                    CreateCheckConstraintsReader(),
+                    CreateCheckConstraintsReader(_connection.Scenario),
                 var sql when sql.Contains("FROM information_schema.ST_GEOMETRY_COLUMNS", StringComparison.Ordinal) =>
                     CreateSpatialGeometryColumnsReader(),
                 var sql when sql.Contains("FROM information_schema.STATISTICS", StringComparison.Ordinal) =>
@@ -488,10 +540,12 @@ public sealed class MySqlDatabaseModelFactoryTests
                 "audit_entries_history",
                 "ValidFrom",
                 "ValidTo");
+
             var insertBody =
                 $"BEGIN /* {marker} */ "
                 + "SET NEW.`ValidFrom` = UTC_TIMESTAMP(6); "
                 + "SET NEW.`ValidTo` = '9999-12-31 23:59:59.999999'; END";
+
             var updateBody =
                 $"BEGIN /* {marker} */ "
                 + "DECLARE __doka_temporal_timestamp datetime(6); "
@@ -716,12 +770,23 @@ public sealed class MySqlDatabaseModelFactoryTests
             return table.CreateDataReader();
         }
 
-        private static DataTableReader CreateCheckConstraintsReader()
+        private static DataTableReader CreateCheckConstraintsReader(
+            ScaffoldingScenario scenario
+        )
         {
             var table = new DataTable();
             table.Columns.Add("TABLE_NAME", typeof(string));
             table.Columns.Add("CONSTRAINT_NAME", typeof(string));
             table.Columns.Add("CHECK_CLAUSE", typeof(string));
+
+            if (scenario == ScaffoldingScenario.MariaDbSpatial)
+            {
+                table.Rows.Add("spatial_feature_table", "Location", "srid(`Location`) = 4326");
+                table.Rows.Add(
+                    "spatial_feature_table",
+                    "CK_spatial_location_not_null",
+                    "`Location` IS NOT NULL");
+            }
 
             return table.CreateDataReader();
         }

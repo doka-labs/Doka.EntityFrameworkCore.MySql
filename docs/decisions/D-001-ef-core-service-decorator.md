@@ -26,6 +26,9 @@ they can layer MySQL-specific behavior:
   (additional spatial-index handling and CharSet annotation diffing).
 - `IModelCodeGenerator` is wrapped with `MySqlModelCodeGenerator` (scaffolding
   output that emits MySQL annotations).
+- `ICSharpSnapshotGenerator` is replaced with
+  `MySqlCSharpSnapshotGenerator` so provider-native `Char36` properties retain
+  their `Guid` model type in snapshots and migration designer models.
 
 The current implementation walks the `IServiceCollection` with
 `LastOrDefault(d => d.ServiceType == typeof(IMigrationsModelDiffer))`, captures
@@ -84,7 +87,22 @@ The helper:
   from `BuildServiceProvider()` and asserts the resolved instance is the Doka
   decorator type (and its inner reference is the EF Core default).
 
-`MySqlServiceCollectionExtensions` then reduces to two `Decorate<...>(...)` calls.
+`MySqlServiceCollectionExtensions` then routes each EF Core service wrapper
+through the same `Decorate<...>(...)` boundary.
+
+The design-time entry point separately replaces EF Core's singleton
+`ICSharpSnapshotGenerator` with a provider subclass. EF Core otherwise declares
+a converted property through the converter's provider CLR type; for `Char36`,
+that would generate `Property<string>` before the provider fluent API installs a
+`GuidToStringConverter`. The provider override retains `Guid` only for this
+provider-native mapping and delegates every other property to EF Core.
+
+The migrations model-differ decorator also owns dependency ordering when an
+existing constrained column changes store type. Stable foreign keys touching
+either altered side are removed before the first alter and recreated, with the
+same identity and delete action, after both constrained columns and any required
+dependent index are available. The same rule applies when generating the down
+migration.
 
 ### Consequences
 
@@ -180,12 +198,27 @@ The helper:
 
 - 2026-05-16: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-08-18: Added the provider snapshot-generator replacement and the
+  dependency-safe foreign-key lifecycle for native `Char36` migrations.
 
 ### Implementation References
 
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Infrastructure/EfCoreServiceDecorator.cs`
-- `src/Doka.EntityFrameworkCore.MySql/Extensions/MySqlServiceCollectionExtensions.cs`
+- `src/Doka.EntityFrameworkCore.MySql/MySqlServiceCollectionExtensions.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Metadata/CodeGeneration/MySqlCSharpSnapshotGenerator.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Migrations/MySqlMigrationsModelDiffer.cs`
 
 ### Sources
 
-- No external sources; repository evidence only.
+- [EF Core 10.0.11 `CSharpSnapshotGenerator` source](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore.Design/Migrations/Design/CSharpSnapshotGenerator.cs)
+  (primary source; retrieved 2026-08-18)
+- [EF Core 10.0.11 design-time service registration](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore.Design/Design/DesignTimeServiceCollectionExtensions.cs)
+  (primary source; retrieved 2026-08-18)
+- [EF Core 10.0.11 `MigrationsModelDiffer` source](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore.Relational/Migrations/Internal/MigrationsModelDiffer.cs)
+  (primary source; retrieved 2026-08-18)
+- [EF Core 10.0.11 `AddForeignKeyOperation` source](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore.Relational/Migrations/Operations/AddForeignKeyOperation.cs)
+  (primary source; retrieved 2026-08-18)
+- [MySQL 8.4 foreign-key constraints](https://dev.mysql.com/doc/refman/8.4/en/create-table-foreign-keys.html)
+  (primary source; retrieved 2026-08-18)
+- [MariaDB foreign keys](https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/optimization-and-indexes/foreign-keys)
+  (primary source; retrieved 2026-08-18)

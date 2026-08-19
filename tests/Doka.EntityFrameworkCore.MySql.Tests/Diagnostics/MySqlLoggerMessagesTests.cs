@@ -14,6 +14,7 @@ public sealed class MySqlLoggerMessagesTests
     {
         var logger = new CapturingLogger { MinLevel = LogLevel.Warning };
         MySqlLoggerMessages.ServerVersionResolved(logger, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
         Assert.Empty(logger.Entries);
     }
 
@@ -36,6 +37,7 @@ public sealed class MySqlLoggerMessagesTests
     {
         var logger = new CapturingLogger();
         MySqlLoggerMessages.ServerVersionResolved(logger, MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
+
         Assert.Contains("MariaDB", logger.Entries.Single().RenderedMessage);
     }
 
@@ -62,6 +64,7 @@ public sealed class MySqlLoggerMessagesTests
             state.Skip(4).Select(entry => entry.Key));
 
         var iterated = state.ToList();
+
         Assert.Equal(state.Count, iterated.Count);
 
         Assert.Throws<ArgumentOutOfRangeException>(() => state[state.Count]);
@@ -96,6 +99,7 @@ public sealed class MySqlLoggerMessagesTests
     {
         var logger = new CapturingLogger();
         MySqlLoggerMessages.RetryAttempt(logger, attempt: 1, maxRetryCount: 3, delay: null, exception: new InvalidOperationException("test"));
+
         Assert.Single(logger.Entries);
     }
 
@@ -110,6 +114,7 @@ public sealed class MySqlLoggerMessagesTests
             maxRetryCount: 3,
             delay: TimeSpan.FromMilliseconds(250),
             exception: new InvalidOperationException("retry"));
+
         Assert.Single(logger.Entries);
     }
 

@@ -11,6 +11,7 @@ public sealed class MySqlSqlGenerationHelperTests
     {
         var helper = CreateHelper();
         var result = helper.DelimitIdentifier("MyTable");
+
         Assert.Equal("`MyTable`", result);
     }
 
@@ -20,6 +21,7 @@ public sealed class MySqlSqlGenerationHelperTests
     {
         var helper = CreateHelper();
         var result = helper.DelimitIdentifier("my`table");
+
         Assert.Equal("`my``table`", result);
     }
 
@@ -29,6 +31,7 @@ public sealed class MySqlSqlGenerationHelperTests
     {
         var helper = CreateHelper();
         var result = helper.DelimitIdentifier("MyTable", "myschema");
+
         Assert.Equal("`myschema`.`MyTable`", result);
     }
 
@@ -37,6 +40,7 @@ public sealed class MySqlSqlGenerationHelperTests
     public void StatementTerminator_is_semicolon()
     {
         var helper = CreateHelper();
+
         Assert.Equal(";", helper.StatementTerminator);
     }
 
@@ -47,6 +51,7 @@ public sealed class MySqlSqlGenerationHelperTests
         var helper = CreateHelper();
         var sb = new System.Text.StringBuilder();
         helper.DelimitIdentifier(sb, "Test`Col");
+
         Assert.Equal("`Test``Col`", sb.ToString());
     }
 

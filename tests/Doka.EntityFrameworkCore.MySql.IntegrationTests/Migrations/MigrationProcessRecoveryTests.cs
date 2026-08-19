@@ -64,6 +64,7 @@ public sealed class MigrationProcessRecoveryTests
         var connectionString = IntegrationDatabaseUtilities.BuildConnectionString(baseConnectionString, databaseName);
         var serverVersion = IntegrationTestEnvironment.CreateRequest(target)
             .ServerVersionToken;
+
         var pauseFile = Path.Combine(Path.GetTempPath(), $"doka-migration-pause-{Guid.NewGuid():N}");
         var lockName = MySqlAdvisoryLockNaming.BuildLockName(connectionString);
 
@@ -226,6 +227,7 @@ public sealed class MigrationProcessRecoveryTests
             RedirectStandardError = true,
             UseShellExecute = false,
         };
+
         startInfo.ArgumentList.Add(executablePath);
         startInfo.ArgumentList.Add(command);
         startInfo.Environment[ConnectionStringEnvironmentVariable] = connectionString;

@@ -76,13 +76,16 @@ internal static class MigrationWorkflowCommand
             .GetAppliedMigrationsAsync()
             .ConfigureAwait(false))
             .ToArray();
+
         var pendingMigrations = (await context.Database
             .GetPendingMigrationsAsync()
             .ConfigureAwait(false))
             .ToArray();
+
         var seedRowExists = await context.Items
             .AnyAsync()
             .ConfigureAwait(false);
+
         var handlerEvidenceTableCount = await CountApplicationTablesAsync(
                 context,
                 MigrationWorkflowOperationHandlerExtensions.EvidenceTableName,
@@ -114,6 +117,7 @@ internal static class MigrationWorkflowCommand
         var appliedMigrations = await context.Database
             .GetAppliedMigrationsAsync()
             .ConfigureAwait(false);
+
         var applicationTableCount = await CountApplicationTablesAsync(
                 context,
                 "MigrationWorkflowItems",

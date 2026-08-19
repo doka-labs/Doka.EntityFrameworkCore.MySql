@@ -37,6 +37,7 @@ public sealed class MySqlExecutionStrategyTests
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         await using var context =
             new ExecutionStrategyContext(CreateOptions(enableRetry: true, loggerFactory: loggerFactory));
+
         var strategy = context.Database.CreateExecutionStrategy();
         var attempts = 0;
 
@@ -72,6 +73,7 @@ public sealed class MySqlExecutionStrategyTests
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         await using var context =
             new ExecutionStrategyContext(CreateOptions(enableRetry: true, loggerFactory: loggerFactory));
+
         var strategy = context.Database.CreateExecutionStrategy();
 
         await Assert.ThrowsAsync<RetryLimitExceededException>(() =>

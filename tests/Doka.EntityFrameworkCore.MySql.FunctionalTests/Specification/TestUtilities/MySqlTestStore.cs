@@ -87,6 +87,7 @@ public class MySqlTestStore : RelationalTestStore
         var initializationLock = s_initializationLocks.GetOrAdd(
             Name,
             static _ => new SemaphoreSlim(1, 1));
+
         await initializationLock.WaitAsync();
 
         var initializesSharedStore = false;
@@ -239,6 +240,7 @@ public class MySqlTestStore : RelationalTestStore
         {
             DefaultCommandTimeout = (uint)DefaultCommandTimeout,
         };
+
         builder.Remove("Database");
         return builder.ConnectionString;
     }

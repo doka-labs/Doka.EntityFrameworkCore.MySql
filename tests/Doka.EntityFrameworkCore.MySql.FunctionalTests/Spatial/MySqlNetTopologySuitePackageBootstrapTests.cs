@@ -51,7 +51,7 @@ public sealed class MySqlNetTopologySuitePackageBootstrapTests
         bool useNetTopologySuite
     )
     {
-        var builder = new DbContextOptionsBuilder<TestDbContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TestDbContext>();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 
         builder.UseMySql(

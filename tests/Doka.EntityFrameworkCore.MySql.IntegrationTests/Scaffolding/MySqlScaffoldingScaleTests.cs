@@ -2,7 +2,6 @@ using System.Buffers;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using Xunit.Abstractions;
 
@@ -119,6 +118,7 @@ public sealed class MySqlScaffoldingScaleTests
                     tableNames);
 
                 AssertMeasuredBudgets(metrics, policy.Budgets, target, run);
+
                 Assert.Equal(policy.TableCount, metrics.EntityFileCount);
                 _output.WriteLine(
                     "{0} run {1}: elapsed={2:F0}ms; allocated={3}B; "
@@ -144,6 +144,7 @@ public sealed class MySqlScaffoldingScaleTests
             var firstQueryRun = MeasureMetadataCommands(
                 connectionString,
                 tableNames);
+
             var secondQueryRun = MeasureMetadataCommands(
                 connectionString,
                 tableNames);
@@ -173,6 +174,7 @@ public sealed class MySqlScaffoldingScaleTests
                     policy.Budgets.MaximumSetBasedMetadataCommandsPerRun,
                     target)
                 .ConfigureAwait(false);
+
             _output.WriteLine(
                 "{0} restricted metadata: visibleTables={1}; commands={2}; setBasedBudget={3}",
                 target,
@@ -250,6 +252,7 @@ public sealed class MySqlScaffoldingScaleTests
         var factory = new MySqlDatabaseModelFactory(
             new MySqlConnectorDriverFacade(),
             new MySqlScaffoldingContext());
+
         var databaseModel = factory.Create(
             connection,
             new DatabaseModelFactoryOptions(tableNames, Array.Empty<string>()));
@@ -300,13 +303,16 @@ public sealed class MySqlScaffoldingScaleTests
             var factory = new MySqlDatabaseModelFactory(
                 new MySqlConnectorDriverFacade(),
                 new MySqlScaffoldingContext());
+
             var databaseModel = factory.Create(
                 connection,
                 new DatabaseModelFactoryOptions(Array.Empty<string>(), Array.Empty<string>()));
+
             var expectedVisibleTables = tableNames
                 .Take(visibleTableCount)
                 .OrderBy(tableName => tableName, StringComparer.Ordinal)
                 .ToArray();
+
             var actualVisibleTables = databaseModel
                 .Tables.Select(table => table.Name)
                 .OrderBy(tableName => tableName, StringComparer.Ordinal)
@@ -320,6 +326,7 @@ public sealed class MySqlScaffoldingScaleTests
                 target,
                 visibleTableCount,
                 maximumSetBasedMetadataCommands);
+
             Assert.Equal(ConnectionState.Open, connection.State);
             executedCommandCount = connection.ExecutedCommandCount;
         }
@@ -344,6 +351,7 @@ public sealed class MySqlScaffoldingScaleTests
         var expectedDefinitionCommands = RequiresPerTableDefinitionFallback(target)
             ? selectedTableCount
             : 0;
+
         var definitionCommands = metrics.CommandTexts
             .Count(IsTableDefinitionCommand);
 
@@ -438,6 +446,7 @@ public sealed class MySqlScaffoldingScaleTests
         var restrictedConnectionString = CreateRestrictedConnectionString(
             rootConnectionString,
             account);
+
         await using var connection = new MySqlConnection(restrictedConnectionString);
 
         var exception = await Assert.ThrowsAsync<MySqlException>(
@@ -634,6 +643,7 @@ public sealed class MySqlScaffoldingScaleTests
             FindRepositoryRoot(),
             "eng",
             "scaffolding-performance-policy.json");
+
         return JsonSerializer.Deserialize<ScaffoldingPerformancePolicy>(
                 File.ReadAllText(policyPath),
                 s_policySerializerOptions)

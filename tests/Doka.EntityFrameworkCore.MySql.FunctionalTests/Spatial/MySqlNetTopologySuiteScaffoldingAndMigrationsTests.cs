@@ -87,6 +87,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         var mySqlTask = Task.Run(() => ScaffoldAndAssertStateConsumed(
             serviceProvider,
             "Server=localhost;Database=spatial_mysql;User ID=root;Password=secret;"));
+
         var mariaDbTask = Task.Run(() => ScaffoldAndAssertStateConsumed(
             serviceProvider,
             "Server=localhost;Database=plain_mariadb;User ID=root;Password=secret;"));
@@ -150,6 +151,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         using var sourceContext = new EmptySpatialContext(CreateOptions<EmptySpatialContext>(isMariaDb: false));
         using var targetContext =
             new SpatialMigrationsContext(CreateOptions<SpatialMigrationsContext>(isMariaDb: false));
+
         var differ = targetContext.GetService<IMigrationsModelDiffer>();
         var migrationsSqlGenerator = targetContext.GetService<IMigrationsSqlGenerator>();
         var operations = differ.GetDifferences(
@@ -159,6 +161,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             targetContext
                 .GetService<IDesignTimeModel>()
                 .Model.GetRelationalModel());
+
         var sql = string.Join(
             Environment.NewLine,
             migrationsSqlGenerator
@@ -171,14 +174,16 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
     }
 
     /// <summary>
-    /// Verifies that MariaDB keeps the spatial-index contract but omits the unsupported SRID column clause.
+    /// Verifies that MariaDB enforces the spatial SRID through its documented CHECK
+    /// mechanism while preserving the spatial-index contract.
     /// </summary>
     [Fact]
-    public void MariaDb_spatial_migrations_omit_the_column_srid_clause_but_keep_spatial_indexes()
+    public void MariaDb_spatial_migrations_emit_srid_check_and_spatial_index_sql()
     {
         using var sourceContext = new EmptySpatialContext(CreateOptions<EmptySpatialContext>(isMariaDb: true));
         using var targetContext =
             new SpatialMigrationsContext(CreateOptions<SpatialMigrationsContext>(isMariaDb: true));
+
         var differ = targetContext.GetService<IMigrationsModelDiffer>();
         var migrationsSqlGenerator = targetContext.GetService<IMigrationsSqlGenerator>();
         var operations = differ.GetDifferences(
@@ -188,13 +193,17 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             targetContext
                 .GetService<IDesignTimeModel>()
                 .Model.GetRelationalModel());
+
         var sql = string.Join(
             Environment.NewLine,
             migrationsSqlGenerator
                 .Generate(operations, targetContext.Model)
                 .Select(command => command.CommandText));
 
-        Assert.Contains("`Location` point NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains(
+            "`Location` point NOT NULL CHECK (ST_SRID(`Location`) = 4326)",
+            sql,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("SRID 4326", sql, StringComparison.Ordinal);
         Assert.Contains("CREATE SPATIAL INDEX", sql, StringComparison.Ordinal);
     }
@@ -227,7 +236,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
     )
         where TContext : DbContext
     {
-        var builder = new DbContextOptionsBuilder<TContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>();
         var serverVersion = isMariaDb
             ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
             : MySqlServerVersion.MySql(new Version(8, 4, 0));
@@ -308,6 +317,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
     )
     {
         var codeGenerator = serviceProvider.GetRequiredService<IProviderConfigurationCodeGenerator>();
+
         var exception = Assert.Throws<InvalidOperationException>(
             () => codeGenerator.GenerateUseProvider(connectionString));
 
@@ -428,6 +438,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             IsNullable = false,
             ValueGenerated = ValueGenerated.OnAdd,
         };
+
         var locationColumn = new DatabaseColumn
         {
             Table = table,
@@ -468,11 +479,13 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             DatabaseName = "plain_mariadb",
             Collation = "utf8mb4_general_ci",
         };
+
         var table = new DatabaseTable
         {
             Database = databaseModel,
             Name = "plain_feature",
         };
+
         var idColumn = new DatabaseColumn
         {
             Table = table,

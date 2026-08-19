@@ -60,6 +60,107 @@ public sealed class MySqlApplicationTimeMetadataTests
     }
 
     /// <summary>
+    /// Explicit typed period properties replace the conventional endpoints without
+    /// leaving unreferenced convention properties in the finalized model.
+    /// </summary>
+    [Fact]
+    public void Typed_action_with_explicit_properties_does_not_create_default_properties()
+    {
+        using var context = CreateCustomContext<TypedCustomEndpointConfiguration>();
+        var entityType = context.Model.FindEntityType(typeof(CustomApplicationTimeRecord))!;
+
+        Assert.Equal(
+            nameof(CustomApplicationTimeRecord.BusinessValidFrom),
+            entityType.GetMySqlApplicationTimePeriodStartPropertyName());
+        Assert.Equal(
+            nameof(CustomApplicationTimeRecord.BusinessValidTo),
+            entityType.GetMySqlApplicationTimePeriodEndPropertyName());
+        Assert.Null(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName));
+        Assert.Null(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName));
+    }
+
+    /// <summary>
+    /// The non-generic action overload follows the same lazy-default contract as the
+    /// typed overload when callers supply custom property names.
+    /// </summary>
+    [Fact]
+    public void String_action_with_explicit_properties_does_not_create_default_properties()
+    {
+        using var context = new StringApplicationTimeContext(
+            CreateOptions<StringApplicationTimeContext>(s_mariaDb114));
+
+        var entityType = context.Model.FindEntityType(typeof(CustomApplicationTimeRecord))!;
+
+        Assert.Equal(
+            nameof(CustomApplicationTimeRecord.BusinessValidFrom),
+            entityType.GetMySqlApplicationTimePeriodStartPropertyName());
+        Assert.Equal(
+            nameof(CustomApplicationTimeRecord.BusinessValidTo),
+            entityType.GetMySqlApplicationTimePeriodEndPropertyName());
+        Assert.Null(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName));
+        Assert.Null(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName));
+    }
+
+    /// <summary>
+    /// An action that replaces one endpoint receives only the missing conventional
+    /// endpoint after the caller's configuration has completed.
+    /// </summary>
+    [Fact]
+    public void Action_with_one_explicit_endpoint_adds_only_the_missing_default()
+    {
+        using var context = CreateCustomContext<SingleCustomEndpointConfiguration>();
+        var entityType = context.Model.FindEntityType(typeof(CustomApplicationTimeRecord))!;
+
+        Assert.Equal(
+            nameof(CustomApplicationTimeRecord.BusinessValidFrom),
+            entityType.GetMySqlApplicationTimePeriodStartPropertyName());
+        Assert.Equal(
+            MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName,
+            entityType.GetMySqlApplicationTimePeriodEndPropertyName());
+        Assert.Null(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName));
+        Assert.True(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName)!.IsShadowProperty());
+    }
+
+    /// <summary>
+    /// The parameterless overload retains the documented conventional endpoint pair.
+    /// </summary>
+    [Fact]
+    public void Parameterless_overload_creates_both_default_properties()
+    {
+        using var context = CreateCustomContext<DefaultEndpointConfiguration>();
+        var entityType = context.Model.FindEntityType(typeof(CustomApplicationTimeRecord))!;
+
+        Assert.Equal(
+            MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName,
+            entityType.GetMySqlApplicationTimePeriodStartPropertyName());
+        Assert.Equal(
+            MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName,
+            entityType.GetMySqlApplicationTimePeriodEndPropertyName());
+        Assert.True(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName)!.IsShadowProperty());
+        Assert.True(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName)!.IsShadowProperty());
+    }
+
+    /// <summary>
+    /// Caller-owned properties that happen to use a conventional endpoint name are
+    /// never removed when another property becomes the active period endpoint.
+    /// </summary>
+    [Fact]
+    public void Explicit_endpoint_does_not_remove_independently_configured_default_property()
+    {
+        using var context = CreateCustomContext<CallerOwnedDefaultPropertyConfiguration>();
+        var entityType = context.Model.FindEntityType(typeof(CustomApplicationTimeRecord))!;
+        var callerOwnedProperty = entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName)!;
+        var table = StoreObjectIdentifier.Table("CustomApplicationTimeRecords", null);
+
+        Assert.True(callerOwnedProperty.IsShadowProperty());
+        Assert.Equal(typeof(DateTime), callerOwnedProperty.ClrType);
+        Assert.Equal("AuditValidFrom", callerOwnedProperty.GetColumnName(table));
+        Assert.Equal(
+            nameof(CustomApplicationTimeRecord.BusinessValidFrom),
+            entityType.GetMySqlApplicationTimePeriodStartPropertyName());
+    }
+
+    /// <summary>
     /// MySQL cannot silently accept MariaDB-only application-time metadata.
     /// </summary>
     [Fact]
@@ -125,9 +226,27 @@ public sealed class MySqlApplicationTimeMetadataTests
         return new ApplicationTimeContext<TConfiguration>(options);
     }
 
+    private static CustomApplicationTimeContext<TConfiguration> CreateCustomContext<TConfiguration>()
+        where TConfiguration : ICustomApplicationTimeConfiguration, new() => new(
+        CreateOptions<CustomApplicationTimeContext<TConfiguration>>(s_mariaDb114));
+
+    private static DbContextOptions<TContext> CreateOptions<TContext>(
+        MySqlServerVersion serverVersion
+    )
+        where TContext : DbContext => new DbContextOptionsBuilder<TContext>()
+        .UseMySql(
+            "Server=localhost;Database=doka;User ID=root;Password=password;",
+            serverVersion)
+        .Options;
+
     private interface IApplicationTimeConfiguration
     {
         void Configure(EntityTypeBuilder<ApplicationTimeRecord> entity);
+    }
+
+    private interface ICustomApplicationTimeConfiguration
+    {
+        void Configure(EntityTypeBuilder<CustomApplicationTimeRecord> entity);
     }
 
     private sealed class ApplicationTimeConfiguration : IApplicationTimeConfiguration
@@ -179,6 +298,55 @@ public sealed class MySqlApplicationTimeMetadataTests
         }
     }
 
+    private sealed class TypedCustomEndpointConfiguration : ICustomApplicationTimeConfiguration
+    {
+        public void Configure(
+            EntityTypeBuilder<CustomApplicationTimeRecord> entity
+        ) => entity.ToTable(
+            "CustomApplicationTimeRecords",
+            table => table.HasApplicationTimePeriod(period =>
+            {
+                period.HasPeriodStart(record => record.BusinessValidFrom);
+                period.HasPeriodEnd(record => record.BusinessValidTo);
+            }));
+    }
+
+    private sealed class SingleCustomEndpointConfiguration : ICustomApplicationTimeConfiguration
+    {
+        public void Configure(
+            EntityTypeBuilder<CustomApplicationTimeRecord> entity
+        ) => entity.ToTable(
+            "CustomApplicationTimeRecords",
+            table => table.HasApplicationTimePeriod(period =>
+                period.HasPeriodStart(record => record.BusinessValidFrom)));
+    }
+
+    private sealed class DefaultEndpointConfiguration : ICustomApplicationTimeConfiguration
+    {
+        public void Configure(
+            EntityTypeBuilder<CustomApplicationTimeRecord> entity
+        ) => entity.ToTable("CustomApplicationTimeRecords", table => table.HasApplicationTimePeriod());
+    }
+
+    private sealed class CallerOwnedDefaultPropertyConfiguration : ICustomApplicationTimeConfiguration
+    {
+        public void Configure(
+            EntityTypeBuilder<CustomApplicationTimeRecord> entity
+        )
+        {
+            entity
+                .Property<DateTime>(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName)
+                .HasColumnName("AuditValidFrom");
+            entity.ToTable(
+                "CustomApplicationTimeRecords",
+                table => table.HasApplicationTimePeriod(period =>
+                {
+                    period.HasPeriodStart(record => record.BusinessValidFrom);
+                    period.HasPeriodEnd(record => record.BusinessValidTo);
+                }));
+        }
+    }
+
     private sealed class ApplicationTimeContext<TConfiguration> : DbContext
         where TConfiguration : IApplicationTimeConfiguration, new()
     {
@@ -196,6 +364,45 @@ public sealed class MySqlApplicationTimeMetadataTests
         }
     }
 
+    private sealed class CustomApplicationTimeContext<TConfiguration> : DbContext
+        where TConfiguration : ICustomApplicationTimeConfiguration, new()
+    {
+        public CustomApplicationTimeContext(
+            DbContextOptions<CustomApplicationTimeContext<TConfiguration>> options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            var entity = modelBuilder.Entity<CustomApplicationTimeRecord>();
+            entity.HasKey(record => record.Id);
+            new TConfiguration().Configure(entity);
+        }
+    }
+
+    private sealed class StringApplicationTimeContext : DbContext
+    {
+        public StringApplicationTimeContext(
+            DbContextOptions<StringApplicationTimeContext> options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            EntityTypeBuilder entity = modelBuilder.Entity<CustomApplicationTimeRecord>();
+            entity.HasKey(nameof(CustomApplicationTimeRecord.Id));
+            entity.ToTable(
+                "CustomApplicationTimeRecords",
+                table => table.HasApplicationTimePeriod(period =>
+                {
+                    period.HasPeriodStart(nameof(CustomApplicationTimeRecord.BusinessValidFrom));
+                    period.HasPeriodEnd(nameof(CustomApplicationTimeRecord.BusinessValidTo));
+                }));
+        }
+    }
+
     private sealed class ApplicationTimeRecord
     {
         public int Id { get; set; }
@@ -205,5 +412,14 @@ public sealed class MySqlApplicationTimeMetadataTests
         public DateTime ValidFrom { get; set; }
 
         public DateTime ValidTo { get; set; }
+    }
+
+    private sealed class CustomApplicationTimeRecord
+    {
+        public int Id { get; set; }
+
+        public DateTime BusinessValidFrom { get; set; }
+
+        public DateTime BusinessValidTo { get; set; }
     }
 }

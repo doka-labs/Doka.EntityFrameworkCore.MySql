@@ -7,6 +7,99 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 public sealed class MySqlSpatialInputGuardTests
 {
     /// <summary>
+    /// Pins the untyped reader boundary required for driver-specific runtime
+    /// shapes and EF Core buffered split-query readers.
+    /// </summary>
+    [Fact]
+    public void Geometry_mapping_reads_the_untyped_provider_value()
+    {
+        var mapping = new MySqlNetTopologySuiteGeometryTypeMapping<Geometry>(
+            new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<Geometry, MySqlGeometry>(
+                geometry => MySqlGeometry.FromWkb(geometry.SRID, new WKBWriter().Write(geometry)),
+                providerValue => ReadProviderGeometry(providerValue)),
+            "geometry",
+            jsonValueReaderWriter: null);
+
+        var readerMethod = mapping.GetDataReaderMethod();
+
+        Assert.Equal(typeof(System.Data.Common.DbDataReader), readerMethod.DeclaringType);
+        Assert.Equal(nameof(System.Data.Common.DbDataReader.GetValue), readerMethod.Name);
+        Assert.Equal(typeof(object), readerMethod.ReturnType);
+    }
+
+    /// <summary>
+    /// Proves every public geometry mapping materializes both driver shapes with
+    /// the concrete CLR type and SRID intact.
+    /// </summary>
+    [Fact]
+    public void ReadSpatialColumn_materializes_every_geometry_family_from_both_driver_shapes()
+    {
+        var cases = new (Type MappingType, string Wkt)[]
+        {
+            (typeof(Point), "POINT (1 2)"),
+            (typeof(LineString), "LINESTRING (0 0, 1 1)"),
+            (typeof(Polygon), "POLYGON ((0 0, 0 1, 1 1, 0 0))"),
+            (typeof(MultiPoint), "MULTIPOINT ((0 0), (1 1))"),
+            (typeof(MultiLineString), "MULTILINESTRING ((0 0, 1 1), (2 2, 3 3))"),
+            (typeof(MultiPolygon), "MULTIPOLYGON (((0 0, 0 1, 1 1, 0 0)))"),
+            (typeof(GeometryCollection), "GEOMETRYCOLLECTION (POINT (0 0), LINESTRING (0 0, 1 1))"),
+            (typeof(Geometry), "POINT (3 4)"),
+        };
+
+        foreach (var (mappingType, wkt) in cases)
+        {
+            var expected = new WKTReader().Read(wkt);
+            expected.SRID = 4326;
+            var wkb = new WKBWriter().Write(expected);
+            var sridPrefixedWkb = new byte[wkb.Length + sizeof(int)];
+            BinaryPrimitives.WriteInt32LittleEndian(sridPrefixedWkb, 4326);
+            wkb.CopyTo(sridPrefixedWkb, sizeof(int));
+
+            foreach (var providerValue in new object[]
+                     {
+                         MySqlGeometry.FromWkb(4326, wkb),
+                         sridPrefixedWkb,
+                     })
+            {
+                var actual = InvokeReadSpatialColumn(mappingType, providerValue);
+
+                Assert.IsAssignableFrom(mappingType, actual);
+                Assert.Equal(4326, actual.SRID);
+                Assert.True(expected.EqualsExact(actual));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Requires a deterministic provider error when the wire geometry cannot be
+    /// assigned to the model's concrete spatial CLR type.
+    /// </summary>
+    [Fact]
+    public void ReadSpatialColumn_rejects_a_geometry_family_mismatch()
+    {
+        var line = new WKTReader().Read("LINESTRING (0 0, 1 1)");
+        var providerValue = MySqlGeometry.FromWkb(4326, new WKBWriter().Write(line));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            InvokeReadSpatialColumn(typeof(Point), providerValue));
+
+        Assert.Contains("cannot be materialized as 'Point'", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Rejects driver values outside the two explicitly supported wire shapes.
+    /// </summary>
+    [Fact]
+    public void ReadSpatialColumn_rejects_an_unknown_driver_shape()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            InvokeReadSpatialColumn(typeof(Geometry), "POINT (1 2)"));
+
+        Assert.Contains("System.String", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("POINT (1 2)", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Preserves every MySQL and MariaDB geometry family through both central
     /// readers while exercising point, sequence, polygon, and collection layouts.
     /// </summary>
@@ -139,26 +232,9 @@ public sealed class MySqlSpatialInputGuardTests
     {
         var wkb = CreateNestedWkb(depth: 50_000, littleEndian: true);
         object providerValue = useMySqlGeometry ? MySqlGeometry.FromWkb(0, wkb) : wkb;
-        var table = new DataTable();
-        _ = table.Columns.Add("Spatial", typeof(object));
-        _ = table.Rows.Add(providerValue);
 
-        using var reader = table.CreateDataReader();
-        Assert.True(reader.Read());
-
-        var method = typeof(MySqlNetTopologySuiteGeometryTypeMapping<Geometry>).GetMethod(
-            "ReadSpatialColumn",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-        Assert.NotNull(method);
-
-        var invocationException =
-            Assert.Throws<System.Reflection.TargetInvocationException>(() => method.Invoke(
-                null,
-                [
-                    reader,
-                    0
-                ]));
-        var exception = Assert.IsType<InvalidOperationException>(invocationException.InnerException);
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            InvokeReadSpatialColumn(typeof(Geometry), providerValue));
 
         Assert.Equal(ExpectedLimitMessage(), exception.Message);
     }
@@ -210,6 +286,51 @@ public sealed class MySqlSpatialInputGuardTests
     private static string CreateNestedWkt(
         int depth
     ) => string.Concat(Enumerable.Repeat("GEOMETRYCOLLECTION(", depth)) + "POINT (0 0)" + new string(')', depth);
+
+    private static Geometry InvokeReadSpatialColumn(
+        Type geometryType,
+        object providerValue
+    )
+    {
+        var table = new DataTable();
+        _ = table.Columns.Add("Spatial", typeof(object));
+        _ = table.Rows.Add(providerValue);
+
+        using var reader = table.CreateDataReader();
+
+        Assert.True(reader.Read());
+
+        var mappingType = typeof(MySqlNetTopologySuiteGeometryTypeMapping<>).MakeGenericType(geometryType);
+        var method = mappingType.GetMethod(
+            "ReadSpatialColumn",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+        Assert.NotNull(method);
+
+        try
+        {
+            return Assert.IsType<Geometry>(method.Invoke(null, [reader, 0]), exactMatch: false);
+        }
+        catch (System.Reflection.TargetInvocationException exception) when (exception.InnerException is not null)
+        {
+            System
+                .Runtime
+                .ExceptionServices
+                .ExceptionDispatchInfo
+                .Capture(exception.InnerException)
+                .Throw();
+            throw;
+        }
+    }
+
+    private static Geometry ReadProviderGeometry(
+        MySqlGeometry providerValue
+    )
+    {
+        var geometry = MySqlSpatialValueReader.ReadWkb(providerValue.WKB.ToArray());
+        geometry.SRID = providerValue.SRID;
+        return geometry;
+    }
 
     private static byte[] CreateNestedWkb(
         int depth,

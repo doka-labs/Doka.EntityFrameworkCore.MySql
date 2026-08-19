@@ -94,6 +94,7 @@ public sealed class MySqlObservabilityContractTests
             privacy.GetProperty("boundedLogFieldDomains"),
             "configurationFailureReason",
             Enum.GetNames<MySqlConfigurationFailureReason>());
+
         Assert.Equal(
             "SHA-256",
             privacy
@@ -273,6 +274,7 @@ public sealed class MySqlObservabilityContractTests
 
         var handlerOperation = operations
             .Single(operation => OperationId(operation) == "migration-operation-handler");
+
         var handlerBounds = handlerOperation.GetProperty("metricTagBounds");
 
         Assert.True(handlerBounds.TryGetProperty(MySqlDiagnosticTags.MigrationHandlerId, out _));

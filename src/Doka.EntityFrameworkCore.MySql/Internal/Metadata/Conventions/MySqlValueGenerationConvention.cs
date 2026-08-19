@@ -60,7 +60,7 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         }
 
         if (format is null
-            && TryApplyExplicitTextGuidMapping(mutableProperty, explicitStoreType))
+            && TryApplyExplicitStoreTypeGuidMapping(mutableProperty, explicitStoreType))
         {
             return;
         }
@@ -75,8 +75,14 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
                 mutableProperty.SetMaxLength(16);
                 mutableProperty.SetIsFixedLength(true);
                 mutableProperty.SetColumnType("binary(16)");
-                mutableProperty.SetProviderClrType(null);
-                mutableProperty.SetValueConverter((ValueConverter?)null);
+                mutableProperty.SetProviderClrType(
+                    _singletonOptions.DefaultGuidFormat == MySqlGuidFormat.Char36
+                        ? typeof(byte[])
+                        : null);
+                mutableProperty.SetValueConverter(
+                    _singletonOptions.DefaultGuidFormat == MySqlGuidFormat.Char36
+                        ? MySqlGuidToBytesConverter.Default
+                        : null);
                 break;
             case MySqlGuidFormat.Char36:
                 mutableProperty.SetMaxLength(36);
@@ -91,7 +97,7 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         }
     }
 
-    private static bool TryApplyExplicitTextGuidMapping(
+    private bool TryApplyExplicitStoreTypeGuidMapping(
         IMutableProperty property,
         string? explicitStoreType
     )
@@ -131,8 +137,14 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
                 property.SetMaxLength(16);
                 property.SetIsFixedLength(true);
                 property.SetColumnType("binary(16)");
-                property.SetProviderClrType(null);
-                property.SetValueConverter((ValueConverter?)null);
+                property.SetProviderClrType(
+                    _singletonOptions.DefaultGuidFormat == MySqlGuidFormat.Char36
+                        ? typeof(byte[])
+                        : null);
+                property.SetValueConverter(
+                    _singletonOptions.DefaultGuidFormat == MySqlGuidFormat.Char36
+                        ? MySqlGuidToBytesConverter.Default
+                        : null);
 
                 return true;
 

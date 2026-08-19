@@ -34,6 +34,7 @@ public sealed class MySqlRuntimeBaselineTests
         Assert.True(databaseCreator.Exists());
         databaseCreator.Create();
         databaseCreator.Delete();
+
         Assert.True(databaseCreator.HasTables());
 
         Assert.Equal(4, connection.Commands.Count);
@@ -51,23 +52,29 @@ public sealed class MySqlRuntimeBaselineTests
     {
         using var connection = new MySqlConnection(
             "Server=localhost;Database=doka;User ID=root;Password=password;");
+
         Func<System.Security.Cryptography.X509Certificates.X509CertificateCollection, ValueTask>
             clientCertificates = _ => ValueTask.CompletedTask;
+
         Func<MySqlProvidePasswordContext, string> password = _ => "rotated-password";
         System.Net.Security.RemoteCertificateValidationCallback remoteCertificate =
             (_, _, _, errors) => errors == System.Net.Security.SslPolicyErrors.None;
+
         connection.ProvideClientCertificatesCallback = clientCertificates;
         connection.ProvidePasswordCallback = password;
         connection.RemoteCertificateValidationCallback = remoteCertificate;
         using var context = new RuntimeBaselineContext(CreateOptions(connection));
+
         var relationalConnection = Assert.IsType<MySqlRelationalConnection>(
             context.GetService<IRelationalConnection>());
+
         var serverConnectionString = new MySqlConnectionStringBuilder(connection.ConnectionString)
         {
             Database = string.Empty,
         }.ConnectionString;
 
         using var lease = relationalConnection.CreateLifecycleConnection(serverConnectionString);
+
         var lifecycleConnection = Assert.IsType<MySqlConnection>(lease.Connection);
 
         Assert.NotSame(connection, lifecycleConnection);
@@ -87,8 +94,10 @@ public sealed class MySqlRuntimeBaselineTests
     {
         Func<System.Security.Cryptography.X509Certificates.X509CertificateCollection, ValueTask>
             clientCertificates = _ => ValueTask.CompletedTask;
+
         System.Net.Security.RemoteCertificateValidationCallback remoteCertificate =
             (_, _, _, errors) => errors == System.Net.Security.SslPolicyErrors.None;
+
         using var dataSource = new MySqlDataSourceBuilder(
                 "Server=localhost;Database=doka;User ID=root;")
             .UseClientCertificatesCallback(clientCertificates)
@@ -98,18 +107,23 @@ public sealed class MySqlRuntimeBaselineTests
                 TimeSpan.FromMinutes(5),
                 TimeSpan.FromSeconds(1))
             .Build();
+
         var options = new DbContextOptionsBuilder<RuntimeBaselineContext>()
             .UseMySql(dataSource, MySqlServerVersion.MySql(new Version(8, 4, 0)))
             .Options;
+
         using var context = new RuntimeBaselineContext(options);
+
         var relationalConnection = Assert.IsType<MySqlRelationalConnection>(
             context.GetService<IRelationalConnection>());
+
         var serverConnectionString = new MySqlConnectionStringBuilder(dataSource.ConnectionString)
         {
             Database = string.Empty,
         }.ConnectionString;
 
         using var lease = relationalConnection.CreateLifecycleConnection(serverConnectionString);
+
         var lifecycleConnection = Assert.IsType<MySqlConnection>(lease.Connection);
 
         Assert.Same(clientCertificates, lifecycleConnection.ProvideClientCertificatesCallback);
@@ -152,6 +166,7 @@ public sealed class MySqlRuntimeBaselineTests
         await using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
         await using var context =
             new RuntimeBaselineContext(CreateOptions("Server=localhost;Database=doka;", serviceProvider));
+
         var databaseCreator = context.GetService<IRelationalDatabaseCreator>();
 
         await databaseCreator.CreateAsync();
@@ -240,6 +255,7 @@ public sealed class MySqlRuntimeBaselineTests
             ConnectionTimeout = 9,
             AllowUserVariables = true,
         };
+
         var optionsBuilder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
         optionsBuilder.UseMySql(
             configured.ConnectionString,
@@ -372,6 +388,7 @@ public sealed class MySqlRuntimeBaselineTests
 
             var isServerConnection = !connectionString.Contains("Database=", StringComparison.OrdinalIgnoreCase)
                 && !connectionString.Contains("Initial Catalog=", StringComparison.OrdinalIgnoreCase);
+
             var connection = new AsyncAwareDbConnection(connectionString);
 
             if (isServerConnection)

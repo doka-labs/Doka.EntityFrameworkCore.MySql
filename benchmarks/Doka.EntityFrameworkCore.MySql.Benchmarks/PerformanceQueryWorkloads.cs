@@ -28,14 +28,17 @@ internal static class PerformanceQueryWorkloads
             contextPooling: true,
             connectionPooling: true,
             retryOnFailure: false);
+
         var poolNone = new PerformanceContextSource(
             contextPooling: false,
             connectionPooling: false,
             retryOnFailure: false);
+
         var poolContext = new PerformanceContextSource(
             contextPooling: true,
             connectionPooling: false,
             retryOnFailure: false);
+
         var poolConnection = new PerformanceContextSource(
             contextPooling: false,
             connectionPooling: true,
@@ -81,6 +84,7 @@ internal static class PerformanceQueryWorkloads
             contextPooling: true,
             connectionPooling: true,
             retryOnFailure: false);
+
         var retryOn = new PerformanceContextSource(contextPooling: true, connectionPooling: true, retryOnFailure: true);
 
         AddResilience(catalog, "resilience.query.async.retry-off.listener-off", retryOff, listenerEnabled: false);

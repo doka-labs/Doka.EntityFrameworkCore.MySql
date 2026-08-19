@@ -302,6 +302,7 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
         var readOperations = firstCommand
             .ColumnModifications.Where(o => o.IsRead)
             .ToList();
+
         var writeOperations = firstCommand
             .ColumnModifications.Where(o => o.IsWrite)
             .ToList();
@@ -457,6 +458,7 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
         var writeColumns = command
             .ColumnModifications.Where(c => c.IsWrite)
             .ToList();
+
         var readColumns = command
             .ColumnModifications.Where(c => c.IsRead)
             .ToList();

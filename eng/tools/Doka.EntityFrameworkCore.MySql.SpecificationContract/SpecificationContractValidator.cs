@@ -233,6 +233,7 @@ internal static class SpecificationContractValidator
                     var removedMappings = entry
                         .ProviderTypes.Except(mappings, StringComparer.Ordinal)
                         .ToArray();
+
                     foreach (var removedMapping in removedMappings)
                     {
                         errors.Add(

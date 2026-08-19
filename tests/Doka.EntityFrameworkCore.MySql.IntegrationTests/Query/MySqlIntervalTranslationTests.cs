@@ -62,6 +62,7 @@ public sealed class MySqlIntervalTranslationTests
                 0,
                 0,
                 DateTimeKind.Utc);
+
             context.Items.Add(new IntervalItem { CreatedAt = anchor.AddDays(-5) });
             context.Items.Add(new IntervalItem { CreatedAt = anchor.AddDays(5) });
             await context

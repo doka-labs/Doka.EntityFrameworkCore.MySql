@@ -222,7 +222,7 @@ public sealed class MySqlServerVersionTests
             serverVersion.Profile.GetSupport(ProviderCapability.TemporalTables));
         Assert.Equal(
             ProviderSupportStatus.Native,
-            serverVersion.Profile.GetSupport(ProviderCapability.SpatialColumnSridAttribute));
+            serverVersion.Profile.GetSupport(ProviderCapability.SpatialColumnSridEnforcement));
         Assert.Equal(ProviderSupportStatus.Emulated, serverVersion.Profile.GetSupport(ProviderCapability.Sequences));
         Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.RenameColumn));
         Assert.Equal(
@@ -261,8 +261,8 @@ public sealed class MySqlServerVersionTests
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.TemporalTables));
         Assert.Equal(
-            ProviderSupportStatus.UnsupportedByEngine,
-            serverVersion.Profile.GetSupport(ProviderCapability.SpatialColumnSridAttribute));
+            ProviderSupportStatus.Emulated,
+            serverVersion.Profile.GetSupport(ProviderCapability.SpatialColumnSridEnforcement));
         Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.Sequences));
         Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.RenameColumn));
         Assert.Equal(

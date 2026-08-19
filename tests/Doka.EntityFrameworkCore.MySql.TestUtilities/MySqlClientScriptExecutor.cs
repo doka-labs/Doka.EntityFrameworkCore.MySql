@@ -219,6 +219,7 @@ public static class MySqlClientScriptExecutor
         var line = script
             .AsSpan(lineStart, lineEnd - lineStart)
             .Trim();
+
         if (!line.StartsWith(directive, StringComparison.OrdinalIgnoreCase))
         {
             nextIndex = lineStart;
@@ -240,6 +241,7 @@ public static class MySqlClientScriptExecutor
 
         var delimiterSpan = line[directive.Length..]
             .Trim();
+
         if (delimiterSpan.IsEmpty
             || delimiterSpan.IndexOfAny(" \t\r\n") >= 0)
         {
@@ -271,6 +273,7 @@ public static class MySqlClientScriptExecutor
         var commandText = statement
             .ToString()
             .Trim();
+
         statement.Clear();
 
         if (commandText.Length != 0)

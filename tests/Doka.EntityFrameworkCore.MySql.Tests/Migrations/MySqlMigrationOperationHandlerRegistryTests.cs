@@ -14,6 +14,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
         var registry = new MySqlMigrationOperationHandlerRegistry([handler]);
 
         var registration = AssertRegistration(registry, typeof(FirstOperation));
+
         Assert.Same(handler, registration.Handler);
         Assert.Equal("sample.first", registration.HandlerId);
         Assert.Equal(1, handler.HandlerIdReadCount);
@@ -179,6 +180,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
         var generateActionsField = typeof(MigrationsSqlGenerator).GetField(
             "GenerateActions",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
         var generateActions = Assert.IsAssignableFrom<IDictionary>(generateActionsField?.GetValue(null));
         var efCoreOperationTypes = generateActions
             .Keys.Cast<Type>()

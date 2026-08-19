@@ -51,10 +51,12 @@ public sealed class MySqlModelingIntegrationTests
             var dogs = await context
                 .Animals.OfType<TphDog>()
                 .ToListAsync();
+
             Assert.Single(dogs);
             Assert.Equal("Shepherd", dogs[0].Breed);
 
             var allAnimals = await context.Animals.ToListAsync();
+
             Assert.Equal(2, allAnimals.Count);
         }
         finally
@@ -100,6 +102,7 @@ public sealed class MySqlModelingIntegrationTests
             await context.SaveChangesAsync();
 
             var customer = await context.Customers.FirstAsync();
+
             Assert.Equal("Alice", customer.Name);
             Assert.NotNull(customer.Address);
             Assert.Equal("Berlin", customer.Address!.City);
@@ -159,6 +162,7 @@ public sealed class MySqlModelingIntegrationTests
             var loaded = await context
                 .Students.Include(s => s.Courses)
                 .FirstAsync();
+
             Assert.Single(loaded.Courses);
             Assert.Equal("Databases", loaded.Courses[0].Title);
         }
@@ -205,11 +209,13 @@ public sealed class MySqlModelingIntegrationTests
             await context.SaveChangesAsync();
 
             var vehicle = await context.Vehicles.FirstAsync();
+
             Assert.Equal("BMW", vehicle.Make);
 
             var car = await context
                 .Vehicles.OfType<TptCar>()
                 .FirstAsync();
+
             Assert.Equal(5, car.SeatCount);
         }
         finally
@@ -299,6 +305,7 @@ public sealed class MySqlModelingIntegrationTests
             context.ChangeTracker.Clear();
 
             var loaded = await context.Items.FirstAsync();
+
             Assert.True(loaded.IsActive);
             Assert.Equal(42.50m, loaded.Price.Amount);
         }

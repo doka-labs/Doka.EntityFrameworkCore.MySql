@@ -54,9 +54,11 @@ internal sealed class ExampleDatabaseConfiguration
                 ?.Trim()
                 .ToLowerInvariant()
             ?? DefaultTarget;
+
         var serverVersion = ResolveServerVersion(target);
         var configuredConnectionString = Environment.GetEnvironmentVariable("DOKA_EXAMPLE_CONNECTION_STRING")
             ?? Environment.GetEnvironmentVariable("DOKA_MYSQL_CONNECTION_STRING") ?? DefaultConnectionString(target);
+
         var connectionStringBuilder =
             new MySqlConnectionStringBuilder(configuredConnectionString)
             {

@@ -38,9 +38,11 @@ try
         .ExecuteUpdateAsync(
             setters => setters.SetProperty(reading => reading.Processed, true),
             cancellationToken);
+
     var deleted = await context.Readings
         .Where(reading => reading.Processed)
         .ExecuteDeleteAsync(cancellationToken);
+
     var remaining = await context.Readings
         .AsNoTracking()
         .CountAsync(cancellationToken);

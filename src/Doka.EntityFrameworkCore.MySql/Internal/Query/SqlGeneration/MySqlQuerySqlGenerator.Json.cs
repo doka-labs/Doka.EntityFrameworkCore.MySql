@@ -549,6 +549,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         var modelNonNullable = modelClrType is null
             ? null
             : Nullable.GetUnderlyingType(modelClrType) ?? modelClrType;
+
         var hasConverter = typeMapping?.Converter is not null;
 
         // bool: emit `(JSON_EXTRACT(...) = TRUE)`. The boolean-comparison result is TINYINT

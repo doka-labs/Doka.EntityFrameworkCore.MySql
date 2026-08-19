@@ -118,6 +118,7 @@ public sealed class MySqlTlsAuthenticationContractTests
     )
     {
         var endpoint = _fixture.GetEndpoint(target);
+
         var tlsOptions = Assert.IsType<TestDatabaseTlsOptions>(endpoint.TlsOptions);
 
         await AssertVerifiedTransportAsync(endpoint.ConnectionString, serverVersion)
@@ -152,13 +153,16 @@ public sealed class MySqlTlsAuthenticationContractTests
         var builder = CreateLifecycleConnectionString(
             administrativeConnectionString,
             databaseName);
+
         var password = builder.Password;
         builder.Password = string.Empty;
         using var clientCertificate = X509Certificate2.CreateFromPemFile(
             tlsOptions.ClientCertificateFile,
             tlsOptions.ClientKeyFile);
+
         using var certificateAuthority = X509CertificateLoader.LoadCertificateFromFile(
             tlsOptions.CaCertificateFile);
+
         var certificateCallbackCount = 0;
         var clientCertificateCallbackCount = 0;
         var passwordCallbackCount = 0;
@@ -184,6 +188,7 @@ public sealed class MySqlTlsAuthenticationContractTests
                 return password;
             },
         };
+
         var options = IntegrationTestDbContextOptions.Create<SecurityContractContext>()
             .UseMySql(connection, serverVersion)
             .Options;
@@ -210,6 +215,7 @@ public sealed class MySqlTlsAuthenticationContractTests
         using var clientCertificate = X509Certificate2.CreateFromPemFile(
             tlsOptions.ClientCertificateFile,
             tlsOptions.ClientKeyFile);
+
         using var certificateAuthority = X509CertificateLoader.LoadCertificateFromFile(tlsOptions.CaCertificateFile);
         var certificateCallbackCount = 0;
         var clientCertificateCallbackCount = 0;
@@ -272,6 +278,7 @@ public sealed class MySqlTlsAuthenticationContractTests
                     return ValueTask.CompletedTask;
                 })
                 .Build();
+
             var options = IntegrationTestDbContextOptions.Create<SecurityContractContext>().UseMySql(dataSource, serverVersion)
                 .Options;
 
@@ -347,6 +354,7 @@ public sealed class MySqlTlsAuthenticationContractTests
             await creator
                 .CreateAsync()
                 .ConfigureAwait(false);
+
             Assert.True(
                 await creator
                     .ExistsAsync()
@@ -358,6 +366,7 @@ public sealed class MySqlTlsAuthenticationContractTests
             await creator
                 .DeleteAsync()
                 .ConfigureAwait(false);
+
             Assert.False(
                 await creator
                     .ExistsAsync()
@@ -420,6 +429,7 @@ public sealed class MySqlTlsAuthenticationContractTests
             Pooling = false,
             SslMode = MySqlSslMode.Disabled,
         };
+
         await AssertConnectionRejectedAsync(disabledTls.ConnectionString)
             .ConfigureAwait(false);
 
@@ -447,11 +457,13 @@ public sealed class MySqlTlsAuthenticationContractTests
                 connectionString,
                 CertificateValidationUser,
                 string.Empty);
+
             var untrustedAuthority = new MySqlConnectionStringBuilder(certificateValidationConnectionString)
             {
                 SslCa = tlsOptions.UntrustedCaCertificateFile,
                 SslMode = MySqlSslMode.VerifyCA,
             };
+
             await AssertConnectionRejectedAsync(untrustedAuthority.ConnectionString)
                 .ConfigureAwait(false);
 
@@ -459,6 +471,7 @@ public sealed class MySqlTlsAuthenticationContractTests
             {
                 Server = IPAddress.Loopback.ToString(),
             };
+
             await AssertConnectionRejectedAsync(hostnameMismatch.ConnectionString)
                 .ConfigureAwait(false);
         }
@@ -500,6 +513,7 @@ public sealed class MySqlTlsAuthenticationContractTests
                 administrativeConnectionString,
                 PasswordUser,
                 TestPassword);
+
             await AssertProviderQueryAsync(passwordConnectionString, serverVersion)
                 .ConfigureAwait(false);
 
@@ -507,6 +521,7 @@ public sealed class MySqlTlsAuthenticationContractTests
             {
                 Password = "wrong_password",
             };
+
             await AssertConnectionRejectedAsync(wrongPassword.ConnectionString)
                 .ConfigureAwait(false);
 
@@ -516,6 +531,7 @@ public sealed class MySqlTlsAuthenticationContractTests
                 SslCert = tlsOptions.ClientCertificateFile,
                 SslKey = tlsOptions.ClientKeyFile,
             }.ConnectionString;
+
             await AssertProviderQueryAsync(clientCertificateConnectionString, serverVersion)
                 .ConfigureAwait(false);
 
@@ -524,6 +540,7 @@ public sealed class MySqlTlsAuthenticationContractTests
                 SslCert = string.Empty,
                 SslKey = string.Empty,
             };
+
             await AssertConnectionRejectedAsync(missingClientCertificate.ConnectionString)
                 .ConfigureAwait(false);
         }

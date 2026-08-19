@@ -56,6 +56,7 @@ internal static class SymbolReadbackManifestBuilder
         var codeViewEntries = debugEntries
             .Where(entry => entry.Type == DebugDirectoryEntryType.CodeView && entry.IsPortableCodeView)
             .ToArray();
+
         var checksumEntries = debugEntries
             .Where(entry => entry.Type == DebugDirectoryEntryType.PdbChecksum)
             .ToArray();
@@ -115,10 +116,12 @@ internal static class SymbolReadbackManifestBuilder
         var sha256 = Convert
             .ToHexString(pdbSha256)
             .ToLowerInvariant();
+
         var checksumHeader = $"{checksum.AlgorithmName}:"
             + Convert
                 .ToHexString(checksum.Checksum.AsSpan())
                 .ToLowerInvariant();
+
         return new SymbolReadbackEntry(
             packageId,
             version,
@@ -141,6 +144,7 @@ internal static class SymbolReadbackManifestBuilder
     {
         var metadataHeader = metadataProvider.GetMetadataReader()
             .DebugMetadataHeader;
+
         if (metadataHeader is null)
         {
             throw new InvalidDataException($"{pdbEntryName} has no Portable PDB metadata header.");
@@ -201,6 +205,7 @@ internal static class SymbolReadbackManifestBuilder
         var matches = archive
             .Entries.Where(entry => StringComparer.Ordinal.Equals(entry.FullName, entryName))
             .ToArray();
+
         if (matches.Length != 1)
         {
             throw new InvalidDataException(
@@ -209,6 +214,7 @@ internal static class SymbolReadbackManifestBuilder
 
         using var stream = matches[0]
             .Open();
+
         using var buffer = new MemoryStream();
         stream.CopyTo(buffer);
         return buffer.ToArray();

@@ -68,6 +68,7 @@ internal sealed class MySqlQueryTranslationPostprocessor : RelationalQueryTransl
         var profile = _singletonOptions.Profile
             ?? throw new InvalidOperationException(
                 "The provider profile must be initialized before query postprocessing.");
+
         var supportsLateralDerivedTables = profile.Supports(ProviderCapability.LateralDerivedTables);
 
         var flattened = new MySqlApplyRewritingExpressionVisitor(

@@ -56,6 +56,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     {
         using var dataSource = new MySqlDataSourceBuilder(
             "Server=localhost;Database=doka;User ID=root;Password=password;").Build();
+
         var builder = new DbContextOptionsBuilder();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 

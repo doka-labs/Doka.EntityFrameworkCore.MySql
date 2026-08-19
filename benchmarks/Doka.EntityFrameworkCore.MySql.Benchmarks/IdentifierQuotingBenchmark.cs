@@ -92,8 +92,10 @@ public class IdentifierQuotingBenchmark
                 {
                     sb.Append('`');
                 }
+
                 sb.Append(c);
             }
+
             sb.Append('`').Append('.');
         }
 
@@ -104,8 +106,10 @@ public class IdentifierQuotingBenchmark
             {
                 sb.Append('`');
             }
+
             sb.Append(c);
         }
+
         sb.Append('`');
 
         return sb.ToString();

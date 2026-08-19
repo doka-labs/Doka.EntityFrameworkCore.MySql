@@ -301,7 +301,7 @@ public sealed class MySqlTemporalQueryTranslationTests
     )
         where TConfiguration : ITemporalQueryConfiguration, new()
     {
-        var options = new DbContextOptionsBuilder<TemporalQueryContext<TConfiguration>>().UseMySql(
+        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<TemporalQueryContext<TConfiguration>>().UseMySql(
                 "Server=localhost;Database=doka;User ID=root;Password=password;",
                 serverVersion)
             .Options;
@@ -313,7 +313,7 @@ public sealed class MySqlTemporalQueryTranslationTests
         MySqlServerVersion serverVersion
     )
     {
-        var options = new DbContextOptionsBuilder<TptTemporalContext>().UseMySql(
+        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<TptTemporalContext>().UseMySql(
                 "Server=localhost;Database=doka;User ID=root;Password=password;",
                 serverVersion)
             .Options;
@@ -325,7 +325,7 @@ public sealed class MySqlTemporalQueryTranslationTests
         MySqlServerVersion serverVersion
     )
     {
-        var options = new DbContextOptionsBuilder<TpcTemporalContext>().UseMySql(
+        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<TpcTemporalContext>().UseMySql(
                 "Server=localhost;Database=doka;User ID=root;Password=password;",
                 serverVersion)
             .Options;

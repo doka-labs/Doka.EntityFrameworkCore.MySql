@@ -17,6 +17,7 @@ internal static class CheckConstraintLoader
         using var command = context.Connection.CreateCommand();
         var catalogIncludesTableName = context.Profile.Engine.Has(
             EngineCapability.CheckConstraintCatalogIncludesTableName);
+
         var sql = catalogIncludesTableName ? MariaDbQuery() : MySqlQuery();
 
         ScaffoldingHelpers.AppendTableNameFilter(
@@ -33,9 +34,16 @@ internal static class CheckConstraintLoader
         while (reader.Read())
         {
             var tableName = reader.GetString(0);
+            var constraintName = reader.GetString(1);
+            var checkClause = reader.GetString(2);
 
             if (!context.TableFilter.Matches(tableName)
                 || !context.TableLookup.TryGetValue(tableName, out _))
+            {
+                continue;
+            }
+
+            if (SpatialColumnLoader.TryApplyMariaDbCheck(context, tableName, constraintName, checkClause))
             {
                 continue;
             }
@@ -44,7 +52,7 @@ internal static class CheckConstraintLoader
                 ? existing
                 : constraintsByTable[tableName] = [];
 
-            constraints.Add(new MySqlScaffoldedCheckConstraint(reader.GetString(1), reader.GetString(2)));
+            constraints.Add(new MySqlScaffoldedCheckConstraint(constraintName, checkClause));
         }
 
         foreach (var (tableName, constraints) in constraintsByTable)

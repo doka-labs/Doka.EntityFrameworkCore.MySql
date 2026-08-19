@@ -26,6 +26,7 @@ internal static class GeneratedContextRuntimeVerifier
         var temporaryDirectory = Path.Combine(
             Path.GetTempPath(),
             "doka-generated-context-" + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
+
         Directory.CreateDirectory(temporaryDirectory);
 
         try
@@ -68,12 +69,14 @@ internal static class GeneratedContextRuntimeVerifier
                 "src",
                 "Doka.EntityFrameworkCore.MySql",
                 "Doka.EntityFrameworkCore.MySql.csproj"));
+
         var spatialProject = EscapeXml(
             Path.Combine(
                 repositoryRoot,
                 "src",
                 "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
                 "Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj"));
+
         var efCoreVersion = GetEfCoreVersion();
         var projectCode =
             $"""
@@ -145,6 +148,7 @@ internal static class GeneratedContextRuntimeVerifier
             RedirectStandardError = true,
             UseShellExecute = false,
         };
+
         startInfo.ArgumentList.Add("run");
         startInfo.ArgumentList.Add("--project");
         startInfo.ArgumentList.Add(Path.Combine(temporaryDirectory, "GeneratedContext.csproj"));
@@ -164,6 +168,7 @@ internal static class GeneratedContextRuntimeVerifier
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("The generated context process could not be started.");
+
         var standardOutput = process.StandardOutput.ReadToEndAsync();
         var standardError = process.StandardError.ReadToEndAsync();
         using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));

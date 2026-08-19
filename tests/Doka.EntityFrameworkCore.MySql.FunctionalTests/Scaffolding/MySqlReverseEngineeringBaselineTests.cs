@@ -67,10 +67,12 @@ public sealed class MySqlReverseEngineeringBaselineTests
         var scaffoldedModel = ScaffoldModel(
             CreateCoreMetadataDatabaseModel(),
             detectedServerVersionText: "8.4.6");
+
         var contextCode = scaffoldedModel.ContextFile.Code;
         var recordCode = scaffoldedModel
             .AdditionalFiles.Single(file => file.Code.Contains("class CoreRecord", StringComparison.Ordinal))
             .Code;
+
         var viewCode = scaffoldedModel
             .AdditionalFiles.Single(file => file.Code.Contains("class CoreSummary", StringComparison.Ordinal))
             .Code;
@@ -103,6 +105,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
         var scaffoldedModel = ScaffoldModel(
             CreateIndexAndStoreTypeDatabaseModel(),
             detectedServerVersionText: "8.4.6");
+
         var contextCode = scaffoldedModel.ContextFile.Code;
         var entityCode = scaffoldedModel
             .AdditionalFiles.Single(file => file.Code.Contains("class StoreTypeRecord", StringComparison.Ordinal))
@@ -168,6 +171,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
         var scaffoldedModel = ScaffoldModel(
             CreateTemporalDatabaseModel(),
             detectedServerVersionText: "8.4.6");
+
         var contextCode = scaffoldedModel.ContextFile.Code;
 
         Assert.Contains(
@@ -179,13 +183,15 @@ public sealed class MySqlReverseEngineeringBaselineTests
             contextCode,
             StringComparison.Ordinal);
         Assert.Contains(
-            "temporalTableBuilder.HasPeriodStart(\"ValidFrom\")",
+            ".HasPeriodStart(\"ValidFrom\")",
             contextCode,
             StringComparison.Ordinal);
         Assert.Contains(
-            "temporalTableBuilder.HasPeriodEnd(\"ValidTo\")",
+            ".HasPeriodEnd(\"ValidTo\")",
             contextCode,
             StringComparison.Ordinal);
+        Assert.Contains(".HasColumnName(\"ValidFrom\")", contextCode, StringComparison.Ordinal);
+        Assert.Contains(".HasColumnName(\"ValidTo\")", contextCode, StringComparison.Ordinal);
         Assert.DoesNotContain(
             MySqlAnnotationNames.IsTemporal,
             contextCode,
@@ -202,6 +208,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
         var scaffoldedModel = ScaffoldModel(
             CreateApplicationTimeDatabaseModel(),
             detectedServerVersionText: "11.4.5-MariaDB");
+
         var contextCode = scaffoldedModel.ContextFile.Code;
 
         Assert.Contains(
@@ -213,11 +220,11 @@ public sealed class MySqlReverseEngineeringBaselineTests
             contextCode,
             StringComparison.Ordinal);
         Assert.Contains(
-            "applicationTimeTableBuilder.HasPeriodStart(\"ValidFrom\")",
+            ".HasPeriodStart(\"ValidFrom\")",
             contextCode,
             StringComparison.Ordinal);
         Assert.Contains(
-            "applicationTimeTableBuilder.HasPeriodEnd(\"ValidTo\")",
+            ".HasPeriodEnd(\"ValidTo\")",
             contextCode,
             StringComparison.Ordinal);
         Assert.Contains(".UseWithoutOverlaps()", contextCode, StringComparison.Ordinal);
@@ -352,6 +359,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
     {
         using var serviceProvider =
             CreateDesignTimeServiceProvider(databaseModel, detectedServerVersionText, configure);
+
         using var scope = serviceProvider.CreateScope();
         var scaffolder = scope.ServiceProvider.GetRequiredService<IReverseEngineerScaffolder>();
 
@@ -424,6 +432,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             IsNullable = false,
             ValueGenerated = ValueGenerated.OnAdd,
         };
+
         var payloadColumn = new DatabaseColumn
         {
             Table = table,
@@ -431,6 +440,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             StoreType = "json",
             IsNullable = false,
         };
+
         var storedCountColumn = new DatabaseColumn
         {
             Table = table,
@@ -468,12 +478,14 @@ public sealed class MySqlReverseEngineeringBaselineTests
             DatabaseName = "core_metadata",
             Collation = "utf8mb4_0900_ai_ci",
         };
+
         var table = new DatabaseTable
         {
             Database = databaseModel,
             Name = "core_record",
             Comment = "core table",
         };
+
         var idColumn = new DatabaseColumn
         {
             Table = table,
@@ -482,6 +494,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             IsNullable = false,
             ValueGenerated = ValueGenerated.OnAdd,
         };
+
         var codeColumn = new DatabaseColumn
         {
             Table = table,
@@ -489,6 +502,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             StoreType = "varchar(32)",
             IsNullable = false,
         };
+
         var optionalCountColumn = new DatabaseColumn
         {
             Table = table,
@@ -498,6 +512,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             DefaultValueSql = "7",
             Comment = "optional count",
         };
+
         var computedCountColumn = new DatabaseColumn
         {
             Table = table,
@@ -525,6 +540,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             Name = "UQ_core_record_Code",
             Columns = { codeColumn },
         };
+
         var duplicateUniqueIndex = new DatabaseIndex
         {
             Table = table,
@@ -547,6 +563,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             Database = databaseModel,
             Name = "core_child",
         };
+
         var childIdColumn = new DatabaseColumn
         {
             Table = childTable,
@@ -554,6 +571,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             StoreType = "int",
             IsNullable = false,
         };
+
         var parentIdColumn = new DatabaseColumn
         {
             Table = childTable,
@@ -588,6 +606,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             Database = databaseModel,
             Name = "core_summary",
         };
+
         var viewOptionalCountColumn = new DatabaseColumn
         {
             Table = view,
@@ -611,6 +630,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             DatabaseName = "index_store_metadata",
             Collation = "utf8mb4_0900_ai_ci",
         };
+
         var table = new DatabaseTable
         {
             Database = databaseModel,
@@ -655,6 +675,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             Columns = { nameColumn, codeColumn },
             IsDescending = { false, true },
         };
+
         prefixIndex.SetAnnotation(MySqlAnnotationNames.IndexPrefixLength, prefixLengths);
 
         var fullTextIndex = new DatabaseIndex
@@ -663,6 +684,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             Name = "IX_StoreType_Body",
             Columns = { bodyColumn },
         };
+
         fullTextIndex.SetAnnotation(MySqlAnnotationNames.FullTextIndex, true);
 
         var uniqueIndex = new DatabaseIndex
@@ -678,6 +700,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             Table = table,
             Name = "IX_StoreType_Functional",
         };
+
         functionalIndex.SetAnnotation(
             MySqlAnnotationNames.ScaffoldingIndexParts,
             new MySqlScaffoldedIndexPart[]
@@ -833,6 +856,7 @@ public sealed class MySqlReverseEngineeringBaselineTests
             IsNullable = false,
             ValueGenerated = ValueGenerated.OnAdd,
         };
+
         var externalIdColumn = new DatabaseColumn
         {
             Table = table,

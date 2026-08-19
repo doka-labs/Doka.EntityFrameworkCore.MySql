@@ -1,5 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
+/// <summary>
+/// Validates provider metadata against the capabilities and relational constraints of the configured engine.
+/// </summary>
 internal sealed class MySqlModelValidator : RelationalModelValidator
 {
     private readonly MySqlSingletonOptions _singletonOptions;
@@ -108,6 +111,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
         // signal for whether the engine can build a complete key or index.
         var storeType = property.GetRelationalTypeMapping()
             .StoreType;
+
         var facetStart = storeType.IndexOf('(');
         var storeTypeName = facetStart >= 0 ? storeType[..facetStart] : storeType;
 
@@ -330,6 +334,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
 
         var profile = _singletonOptions.Profile
             ?? throw new InvalidOperationException("The MySQL provider profile has not been initialized.");
+
         var support = profile.GetSupport(ProviderCapability.TemporalTables);
 
         if (!profile.Supports(ProviderCapability.TemporalTables))
@@ -445,6 +450,19 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
         foreach (var foreignKey in entityType.GetForeignKeys())
         {
             if (foreignKey.DeleteBehavior is not (DeleteBehavior.Cascade or DeleteBehavior.SetNull))
+            {
+                continue;
+            }
+
+            if (foreignKey.IsOwnership
+                && string.Equals(
+                    entityType.GetTableName(),
+                    foreignKey.PrincipalEntityType.GetTableName(),
+                    StringComparison.OrdinalIgnoreCase)
+                && string.Equals(
+                    entityType.GetSchema(),
+                    foreignKey.PrincipalEntityType.GetSchema(),
+                    StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }

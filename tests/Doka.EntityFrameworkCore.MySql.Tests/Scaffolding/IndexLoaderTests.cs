@@ -176,6 +176,7 @@ public sealed class IndexLoaderTests
         var index = Assert.Single(table.Indexes);
         var parts = Assert.IsType<MySqlScaffoldedIndexPart[]>(
             index.FindAnnotation(MySqlAnnotationNames.ScaffoldingIndexParts)?.Value);
+
         var part = Assert.Single(parts);
 
         Assert.Empty(index.Columns);
@@ -194,6 +195,7 @@ public sealed class IndexLoaderTests
             .Select(row => row.TableName)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+
         var capabilities = MySqlServerVersion.MySql(new Version(8, 4, 0)).Profile;
         var context = new ScaffoldingPipelineContext(
             new IndexStubConnection(rows),
@@ -227,6 +229,7 @@ public sealed class IndexLoaderTests
                     StoreType = "varchar(255)",
                     IsNullable = false,
                 };
+
                 table.Columns.Add(column);
                 context.Columns[(tableName, columnName)] = column;
             }

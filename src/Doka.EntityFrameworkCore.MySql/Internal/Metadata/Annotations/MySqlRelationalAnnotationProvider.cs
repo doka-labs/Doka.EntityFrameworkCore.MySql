@@ -109,7 +109,8 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
             yield return guidFormatAnnotation;
         }
 
-        if (FindColumnAnnotation(column, MySqlAnnotationNames.ValueGenerationStrategy) is { } valueGenerationAnnotation)
+        if (FindColumnAnnotation(column, MySqlAnnotationNames.ValueGenerationStrategy) is { } valueGenerationAnnotation
+            && MySqlColumnAnnotationPolicy.ShouldEmitValueGeneration(column, valueGenerationAnnotation))
         {
             yield return valueGenerationAnnotation;
         }
@@ -118,6 +119,11 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
             { } spatialReferenceSystemIdAnnotation)
         {
             yield return spatialReferenceSystemIdAnnotation;
+        }
+
+        if (FindColumnAnnotation(column, MySqlAnnotationNames.Invisible) is { } invisibleAnnotation)
+        {
+            yield return invisibleAnnotation;
         }
 
         foreach (var propertyMapping in column.PropertyMappings)

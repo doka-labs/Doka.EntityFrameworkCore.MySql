@@ -146,6 +146,7 @@ public sealed class MySqlOptionsRegistrationTests
     {
         using var dataSource = new MySqlDataSourceBuilder(
             "Server=localhost;Database=doka;User ID=root;Password=password;").Build();
+
         var builder = new DbContextOptionsBuilder<TestDbContext>();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 
@@ -162,6 +163,7 @@ public sealed class MySqlOptionsRegistrationTests
     {
         using var dataSource = new MySqlDataSourceBuilder(
             "Server=localhost;Database=doka;User ID=root;Password=password;").Build();
+
         var builder = new DbContextOptionsBuilder<TestDbContext>();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 

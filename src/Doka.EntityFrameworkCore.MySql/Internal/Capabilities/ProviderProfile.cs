@@ -30,7 +30,11 @@ internal sealed record ProviderProfile(EngineProfile Engine)
             NativeWhen(EngineCapability.GeneratedColumnNullabilityClause),
         ProviderCapability.VirtualGeneratedColumns => NativeWhen(EngineCapability.VirtualGeneratedColumns),
         ProviderCapability.StoredGeneratedColumns => NativeWhen(EngineCapability.StoredGeneratedColumns),
-        ProviderCapability.SpatialColumnSridAttribute => NativeWhen(EngineCapability.SpatialColumnSridAttribute),
+        ProviderCapability.SpatialColumnSridEnforcement => Engine.Has(EngineCapability.SpatialColumnSridAttribute)
+            ? ProviderSupportStatus.Native
+            : Engine.Has(EngineCapability.SpatialSridCheckConstraint)
+                ? ProviderSupportStatus.Emulated
+                : ProviderSupportStatus.UnsupportedByEngine,
         ProviderCapability.CommonTableExpressions => NativeWhen(EngineCapability.CommonTableExpressions),
         ProviderCapability.TemporalTables => Engine.Has(EngineCapability.SystemVersionedTables)
             ? ProviderSupportStatus.Native

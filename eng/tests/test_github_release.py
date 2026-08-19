@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import copy
 import hashlib
 import io
@@ -15,6 +16,7 @@ from unittest import mock
 from eng.release import evidence as release_evidence
 from eng.release import github as github_release
 from eng.release import nuget as nuget_publication
+from eng.release import provenance as release_provenance
 
 
 class FakeReleaseClient:
@@ -636,6 +638,44 @@ class GitHubReleaseTests(unittest.TestCase):
                 json.dumps(value) + "\n",
                 encoding="utf-8",
             )
+
+        provenance_subjects = [
+            *(path for package in package_map.values() for path in package.values()),
+            self.candidate / release_evidence.MANIFEST_NAME,
+            self.candidate / release_evidence.CHECKSUM_NAME,
+            self.publication / "candidate-receipt.json",
+            self.publication / "candidate-publication-preflight.json",
+            self.publication / "symbol-readback-manifest.json",
+        ]
+        statement = {
+            "_type": release_provenance.IN_TOTO_STATEMENT_TYPE,
+            "subject": [
+                {
+                    "name": subject.name,
+                    "digest": {
+                        "sha256": hashlib.sha256(subject.read_bytes()).hexdigest()
+                    },
+                }
+                for subject in provenance_subjects
+            ],
+            "predicateType": release_provenance.SLSA_PROVENANCE_TYPE,
+            "predicate": {"buildDefinition": {}, "runDetails": {}},
+        }
+        bundle = {
+            "mediaType": release_provenance.SIGSTORE_BUNDLE_MEDIA_TYPE,
+            "verificationMaterial": {"certificate": {"rawBytes": "AA=="}},
+            "dsseEnvelope": {
+                "payloadType": release_provenance.IN_TOTO_PAYLOAD_TYPE,
+                "payload": base64.b64encode(
+                    json.dumps(statement, separators=(",", ":")).encode("utf-8")
+                ).decode("ascii"),
+                "signatures": [{"sig": "AA=="}],
+            },
+        }
+        (self.publication / release_provenance.PORTABLE_PROVENANCE_NAME).write_text(
+            json.dumps(bundle, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
         (self.publication / "nuget-signature-verification.txt").write_text(
             "Successfully verified both NuGet.org repository signatures.\n",
             encoding="utf-8",
@@ -709,7 +749,45 @@ class GitHubReleaseTests(unittest.TestCase):
         self.assertFalse(self.plan["latest"])
         self.assertIn(release_evidence.MANIFEST_NAME, names)
         self.assertIn("provider.cdx.json", names)
+        self.assertIn(release_provenance.PORTABLE_PROVENANCE_NAME, names)
         self.assertFalse(set(github_release.PUBLICATION_EVIDENCE_FILES) & names)
+
+    def test_plan_rejects_missing_portable_provenance(self) -> None:
+        """Require the offline-verifiable SLSA bundle before draft creation."""
+        (self.publication / release_provenance.PORTABLE_PROVENANCE_NAME).unlink()
+
+        with self.assertRaisesRegex(
+            github_release.GitHubReleaseError,
+            "Portable release provenance is invalid",
+        ):
+            github_release.build_release_plan(
+                self._REPOSITORY,
+                self.candidate,
+                self.publication,
+                self.changelog,
+            )
+
+    def test_plan_rejects_provenance_for_different_package_bytes(self) -> None:
+        """Prevent a valid-shaped bundle from describing another candidate."""
+        path = self.publication / release_provenance.PORTABLE_PROVENANCE_NAME
+        bundle = json.loads(path.read_text(encoding="utf-8"))
+        statement = json.loads(base64.b64decode(bundle["dsseEnvelope"]["payload"]))
+        statement["subject"][0]["digest"]["sha256"] = "0" * 64
+        bundle["dsseEnvelope"]["payload"] = base64.b64encode(
+            json.dumps(statement, separators=(",", ":")).encode("utf-8")
+        ).decode("ascii")
+        path.write_text(json.dumps(bundle) + "\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            github_release.GitHubReleaseError,
+            "Portable release provenance is invalid",
+        ):
+            github_release.build_release_plan(
+                self._REPOSITORY,
+                self.candidate,
+                self.publication,
+                self.changelog,
+            )
 
     def test_cli_applies_prerelease_and_stable_classification(self) -> None:
         """Pin GitHub draft and publication flags for both release classes."""

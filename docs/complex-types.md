@@ -64,6 +64,24 @@ model contract. Nested scalar access, document updates, materialization, and
 EF Core-valid reference-type complex collections remain in the normal EF Core
 query and update pipelines.
 
+## JSON Construction Functions
+
+`EF.Functions.JsonArray(...)` and `EF.Functions.JsonObject(...)` translate
+ordinary C# `params` calls into the engines' variadic `JSON_ARRAY` and
+`JSON_OBJECT` functions. Each array element is translated independently, so
+captured scalar values remain SQL parameters instead of forcing client
+evaluation. Empty calls produce empty JSON containers, and SQL `NULL` arguments
+remain JSON `null` values instead of making the constructor result SQL `NULL`.
+`JsonObject` requires complete key/value pairs; an odd argument count or an
+untranslatable nested client value is rejected before a database command
+executes.
+
+## MySQL-Family Invisible Columns
+
+`IsInvisible()` supports MySQL 8.0.23+ and MariaDB 10.3.3+. Both engines omit
+invisible columns from `SELECT *`, preserve explicit access by name, and expose
+the state as `INVISIBLE` through `INFORMATION_SCHEMA.COLUMNS.EXTRA`.
+
 ## Required and Optional Values
 
 EF Core 10 supports optional complex properties when the complex type contains
@@ -111,7 +129,7 @@ in [External Engine and EF Core Limitations](limitations.md).
 
 ## Primary Sources
 
-All sources were retrieved on 2026-08-05.
+Unless noted otherwise, sources were retrieved on 2026-08-05.
 
 - [EF Core 10 complex-type improvements](https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-10.0/whatsnew)
 - [EF Core 10 breaking changes](https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-10.0/breaking-changes)
@@ -120,3 +138,8 @@ All sources were retrieved on 2026-08-05.
 - [EF Core NativeAOT and precompiled queries](https://learn.microsoft.com/en-us/ef/core/performance/nativeaot-and-precompiled-queries)
 - [MySQL 8.4 JSON data type](https://dev.mysql.com/doc/refman/8.4/en/json.html)
 - [MariaDB JSON data type](https://mariadb.com/docs/server/reference/data-types/string-data-types/json)
+- [MySQL 8.4 JSON creation functions](https://dev.mysql.com/doc/refman/8.4/en/json-creation-functions.html), retrieved 2026-08-18
+- [MariaDB JSON_ARRAY](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_array), retrieved 2026-08-18
+- [MariaDB JSON_OBJECT](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_object), retrieved 2026-08-18
+- [MySQL invisible columns](https://dev.mysql.com/doc/refman/8.0/en/invisible-columns.html), retrieved 2026-08-18
+- [MariaDB invisible columns](https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/invisible-columns), retrieved 2026-08-18

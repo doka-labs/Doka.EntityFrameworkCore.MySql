@@ -78,9 +78,11 @@ public class CompiledModelMySqlTest : CompiledModelRelationalTestBase
         base.AssertBigModel(model, jsonColumns);
 
         var data = model.FindEntityType(typeof(Data));
+
         Assert.NotNull(data);
 
         var point = data.FindProperty("Point");
+
         Assert.NotNull(point);
         Assert.Equal(typeof(Point), point.ClrType);
         Assert.Equal("point", point.GetColumnType());
@@ -113,6 +115,7 @@ public class CompiledModelMySqlTest : CompiledModelRelationalTestBase
             var stored = await context
                 .Set<Data>()
                 .SingleAsync();
+
             var actual = Assert.IsType<Point>(
                 context
                     .Entry(stored)

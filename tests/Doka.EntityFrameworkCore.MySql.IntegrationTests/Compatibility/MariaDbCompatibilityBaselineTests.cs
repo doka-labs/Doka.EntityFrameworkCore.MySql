@@ -119,6 +119,7 @@ public sealed class MariaDbCompatibilityBaselineTests
 
             await using var verificationContext =
                 new MariaDbCompatibilityContext(CreateOptions(connectionString, expectedVersion));
+
             var entity = Assert.Single(
                 await verificationContext
                     .Entities.OrderBy(candidate => candidate.Id)

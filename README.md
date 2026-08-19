@@ -122,6 +122,11 @@ var history = await context.Employees
     .ToListAsync();
 ```
 
+Table-split `OwnsOne` mappings inherit their owner's system-time contract.
+Separately stored owned collections must be temporal before an entity-shaped
+historical query can materialize them; otherwise, project only columns from the
+temporal table.
+
 Non-recursive and recursive CTEs compose through EF Core's parameterized
 `FromSql` and `SqlQuery` roots. MySQL 8.4 / 9.7 and MariaDB 12.3 also accept
 the documented CTE data-modification SQL. MariaDB 10.11 / 11.4 / 11.8 do not,
@@ -135,6 +140,12 @@ MariaDB application-time and bitemporal tables additionally expose typed
 model, migration, scaffolding, and `FOR PORTION OF` update / delete contracts.
 MySQL reports these exact operations as engine limitations rather than a
 provider limitation.
+
+Action-based application-time configuration applies the conventional
+`ValidFrom` and `ValidTo` endpoints only when the callback leaves an endpoint
+unspecified. Selecting explicit CLR or named properties therefore creates no
+unused shadow columns. Parameterless configuration retains both conventional
+defaults.
 
 ## Quick Start
 
@@ -234,6 +245,22 @@ modelBuilder.Entity<OrderWithGuid>()
 ```
 
 Both `binary(16)` and `char(36)` round-trip through `Guid` CLR values without manual conversion.
+Context defaults behave consistently for connection strings, `DbConnection`,
+and `MySqlDataSource`. A property-level format may safely override the context
+default in either direction. When `Binary16` overrides a `Char36` context, the
+provider uses RFC 4122 big-endian bytes independently of the connector-wide GUID mode.
+Generated migration snapshots and designer models retain the `Guid` model type
+for `Char36` properties. When an existing principal/dependent relationship moves
+from an application-converted `varchar(36)` mapping to provider-native
+`Char36`, generated migrations temporarily remove the foreign key, alter both
+columns, and restore the same constraint after the dependent index is available.
+The reverse migration follows the same dependency-safe ordering.
+
+### Entity-splitting key generation
+
+For entity splitting, an auto-increment key belongs only to the principal
+table. The secondary table receives the same value as a non-generating shared
+primary/foreign key with its configured delete behavior.
 
 ### HiLo value generation
 
@@ -286,17 +313,37 @@ var articles = context.Articles
 var depth = context.Documents
     .Select(d => EF.Functions.JsonDepth(d.SearchDocument))
     .FirstOrDefault();
+
+var summaries = context.Products
+    .Select(product => new
+    {
+        Values = EF.Functions.JsonArray(product.Sku, product.Name),
+        Fields = EF.Functions.JsonObject("sku", product.Sku, "name", product.Name),
+    });
 ```
 
-Full set: `Regexp`, `Match`, `MatchInBooleanMode`, `JsonSet`, `JsonReplace`, `JsonRemove`, `JsonArray`, `JsonObject`, `JsonDepth`, `JsonLength`, `JsonType`, `JsonKeys`, `JsonContains`. REGEXP uses `REGEXP_LIKE(...)` on MySQL and the infix `REGEXP` operator on MariaDB.
+Full set: `Regexp`, `Match`, `MatchInBooleanMode`, `JsonSet`, `JsonReplace`,
+`JsonRemove`, `JsonArray`, `JsonObject`, `JsonDepth`, `JsonLength`, `JsonType`,
+`JsonKeys`, `JsonContains`. Ordinary `params` calls to `JsonArray` and
+`JsonObject` are flattened into variadic server arguments; captured scalars
+remain parameters. `JsonObject` requires complete key/value pairs and rejects
+an odd argument count before execution. SQL `NULL` inputs become JSON `null`
+elements rather than making the constructor result SQL `NULL`. REGEXP uses
+`REGEXP_LIKE(...)` on MySQL and the infix `REGEXP` operator on MariaDB.
 
-### MariaDB `INVISIBLE` columns
+### MySQL-family `INVISIBLE` columns
 
 ```csharp
 modelBuilder.Entity<User>()
     .Property(u => u.InternalNotes)
     .IsInvisible();
 ```
+
+The visibility annotation survives initial table creation, standalone column
+addition, migration snapshots, and changes in either direction. MySQL 8.0.23+
+and MariaDB 10.3.3+ omit an invisible column from `SELECT *` while retaining
+explicit access by name. See the MySQL and MariaDB invisible-column references
+in the [capability details](docs/complex-types.md#mysql-family-invisible-columns).
 
 ### Spatial types (opt-in)
 

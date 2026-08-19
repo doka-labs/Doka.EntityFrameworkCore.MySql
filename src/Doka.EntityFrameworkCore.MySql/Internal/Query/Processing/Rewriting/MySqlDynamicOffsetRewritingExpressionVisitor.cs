@@ -66,6 +66,7 @@ internal sealed class MySqlDynamicOffsetRewritingExpressionVisitor : MySqlShaped
         var innerAliases = MySqlTableExpressionHelper
             .CollectAliases(selectExpression.Tables)
             .ToHashSet(StringComparer.Ordinal);
+
         var offsetAliases = ColumnAliasCollector.Collect(selectExpression.Offset);
 
         if (offsetAliases.Count == 0
@@ -143,6 +144,7 @@ internal sealed class MySqlDynamicOffsetRewritingExpressionVisitor : MySqlShaped
                 rankedAlias,
                 correlation.Inner,
                 nullable: correlation.Inner.IsNullable);
+
             predicate = AndAlso(predicate, _sqlExpressionFactory.Equal(correlation.Outer, partition));
         }
 
@@ -152,6 +154,7 @@ internal sealed class MySqlDynamicOffsetRewritingExpressionVisitor : MySqlShaped
             offset,
             _sqlExpressionFactory.Constant(1L, _longTypeMapping),
             _longTypeMapping);
+
         predicate = AndAlso(predicate, _sqlExpressionFactory.Equal(rowNumber, requestedRow));
 
 #pragma warning disable EF1001 // The window rewrite must construct EF Core's internal SelectExpression shape.
@@ -294,6 +297,7 @@ internal sealed class MySqlDynamicOffsetRewritingExpressionVisitor : MySqlShaped
             var baseAlias = string.IsNullOrWhiteSpace(projections[index].Alias)
                 ? $"value{index}"
                 : projections[index].Alias;
+
             var alias = baseAlias;
             var suffix = 0;
 

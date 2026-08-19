@@ -44,6 +44,7 @@ internal sealed class AdrRepositoryValidator
             var relativePath = Path
                 .GetRelativePath(repositoryRoot, file)
                 .Replace('\\', '/');
+
             var result = AdrParser.Parse(file, relativePath);
             errors.AddRange(result.Errors);
 

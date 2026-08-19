@@ -24,6 +24,7 @@ public sealed class MySqlStringComparisonTranslationTests
         MySqlSqlAssert.ContainsFunction(sql, "LOCATE");
         MySqlSqlAssert.ContainsFunction(sql, "LEFT");
         MySqlSqlAssert.ContainsFunction(sql, "RIGHT");
+
         Assert.Contains("`Name` = 'alp'", sql, StringComparison.Ordinal);
     }
 
@@ -84,7 +85,7 @@ public sealed class MySqlStringComparisonTranslationTests
 
     private static DbContextOptions<StringComparisonContext> CreateOptions()
     {
-        var builder = new DbContextOptionsBuilder<StringComparisonContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<StringComparisonContext>();
 
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",

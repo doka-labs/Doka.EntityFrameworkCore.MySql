@@ -28,6 +28,7 @@ public sealed class MySqlServerVersionSupportTests
             isMariaDb,
             new Version(major, minor, 0),
             MySqlServerVersionCompatibilityMode.SupportedOnly);
+
         var (extension, options) = CreateOptions(serverVersion);
 
         extension.Validate(options);
@@ -55,6 +56,7 @@ public sealed class MySqlServerVersionSupportTests
             isMariaDb,
             new Version(major, minor, 0),
             MySqlServerVersionCompatibilityMode.SupportedOnly);
+
         var (extension, options) = CreateOptions(serverVersion);
 
         var exception = Assert.Throws<NotSupportedException>(() => extension.Validate(options));
@@ -85,6 +87,7 @@ public sealed class MySqlServerVersionSupportTests
             isMariaDb,
             new Version(major, minor, 0),
             MySqlServerVersionCompatibilityMode.AllowUnsupported);
+
         var (extension, options) = CreateOptions(serverVersion);
 
         extension.Validate(options);

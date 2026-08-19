@@ -141,6 +141,7 @@ internal static class MySqlTemporalMetadata
         var hash = XxHash64
             .HashToUInt64(Encoding.UTF8.GetBytes(qualifiedName))
             .ToString("x16", CultureInfo.InvariantCulture);
+
         var prefixLength = MySqlConventionSetBuilder.MaxIdentifierLength - hash.Length - 1;
 
         return candidate[..prefixLength] + "_" + hash;

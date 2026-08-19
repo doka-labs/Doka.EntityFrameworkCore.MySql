@@ -50,6 +50,7 @@ public sealed class MySqlHiLoConcurrencyTests
                 .ConfigureAwait(false);
 
             var expectedCount = ContextCount * InsertsPerContext;
+
             Assert.Equal(expectedCount, seenIds.Count);
             Assert.Equal(expectedCount, seenIds.Distinct().Count());
         }
@@ -188,6 +189,7 @@ public sealed class MySqlHiLoConcurrencyTests
             Assert.Equal(ConnectionState.Open, connection.State);
             await using var command = connection.CreateCommand();
             command.CommandText = $"SELECT COUNT(*) FROM `{TableName}`;";
+
             Assert.Equal(
                 1L,
                 Convert.ToInt64(
@@ -270,6 +272,7 @@ public sealed class MySqlHiLoConcurrencyTests
         var result = await command
             .ExecuteScalarAsync()
             .ConfigureAwait(false);
+
         return Convert.ToInt32(result, CultureInfo.InvariantCulture);
     }
 

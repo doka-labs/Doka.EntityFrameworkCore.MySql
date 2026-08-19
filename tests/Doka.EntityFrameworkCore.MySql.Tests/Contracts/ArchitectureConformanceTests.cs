@@ -20,6 +20,7 @@ public sealed class ArchitectureConformanceTests
             "Query",
             "Expressions",
             "MySqlSentinelContract.cs");
+
         var violations = EnumerateProductSources(repositoryRoot)
             .Where(path => !string.Equals(path, contractPath, StringComparison.Ordinal))
             .Where(path => File
@@ -48,6 +49,7 @@ public sealed class ArchitectureConformanceTests
             Path.Combine(repositoryRoot, "src", "Doka.EntityFrameworkCore.MySql", "Internal", "Update"),
             Path.Combine(repositoryRoot, "src", "Doka.EntityFrameworkCore.MySql.NetTopologySuite", "Internal"),
         };
+
         var forbiddenFragments = new[]
         {
             ".IsMariaDb",
@@ -83,6 +85,7 @@ public sealed class ArchitectureConformanceTests
             "EngineCapability.cs",
             "EngineProfileTable.cs",
         };
+
         var sources = EnumerateProductSources(repositoryRoot)
             .Where(path => !excludedFiles.Contains(Path.GetFileName(path), StringComparer.Ordinal))
             .Select(path => (Path: path, Content: File.ReadAllText(path)))
@@ -112,6 +115,7 @@ public sealed class ArchitectureConformanceTests
             "ProviderCapability.cs",
             "ProviderProfile.cs",
         };
+
         var sources = EnumerateProductSources(repositoryRoot)
             .Where(path => !excludedFiles.Contains(Path.GetFileName(path), StringComparer.Ordinal))
             .Select(path => (Path: path, Content: File.ReadAllText(path)))

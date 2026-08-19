@@ -40,6 +40,12 @@ and generated `timestamp(6)` row-start / row-end columns on native MariaDB.
 Names are explicit so migrations, reverse engineering, and generated model
 code round-trip the same contract.
 
+An `OwnsOne` mapping that shares the same physical table inherits the complete
+system-time contract by convention. Do not repeat `IsTemporal`, history-table,
+or period-column configuration on that owned type. An explicit conflicting
+mapping still fails model validation, and an owned type mapped to a separate
+table remains non-temporal unless that table is configured as temporal.
+
 Temporal tables participate in `EnsureCreated`, ordinary migrations, migration
 scripts, and reverse engineering. MariaDB 11.4 and later expose period metadata
 through dedicated information-schema catalogs. MariaDB 10.11 exposes system
@@ -88,6 +94,14 @@ The native MariaDB route emits `FOR SYSTEM_TIME`. The MySQL route queries a
 `UNION ALL` of the current and history tables with equivalent boundary
 predicates. `ExecuteUpdate` and `ExecuteDelete` reject temporal roots because
 historical versions are immutable query results, not mutation targets.
+
+EF Core expands owned navigations when their owner is materialized, including
+when `Include` is absent or `IgnoreAutoIncludes()` is used. A temporal entity
+query therefore rejects a separately stored, non-temporal owned collection:
+combining historical owner rows with current dependent rows would describe no
+consistent database instant. Map that owned table as temporal, or project only
+the required columns from the temporal table. Same-table `OwnsOne` values are
+part of the temporal row and remain available in such projections.
 
 ## Schema Safety
 
@@ -149,6 +163,13 @@ modelBuilder.Entity<Price>(entity =>
         .UseWithoutOverlaps();
 });
 ```
+
+The parameterless application-time overload creates the conventional shadow
+properties `ValidFrom` and `ValidTo`. An action-based overload invokes the
+callback first and adds a conventional endpoint only when that endpoint remains
+unspecified. Explicit CLR or named endpoints therefore become the exact model
+and migration property set; configuring only one endpoint intentionally keeps
+the other conventional default.
 
 `UseWithoutOverlaps()` is available on primary or unique keys and indexes. It
 emits MariaDB's native period constraint instead of approximating overlap
@@ -220,3 +241,10 @@ All sources were retrieved on 2026-08-11.
 - [MariaDB `SET STATEMENT`](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/set-commands/set-statement)
 - [EF Core SQL Server temporal tables](https://learn.microsoft.com/en-us/ef/core/providers/sql-server/temporal-tables)
 - [EF Core 10.0.10 SQL Server temporal query extensions](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.SqlServer/Extensions/SqlServerDbSetExtensions.cs)
+
+Additional EF Core sources retrieved on 2026-08-18:
+
+- [EF Core eager loading and owned-navigation behavior](https://learn.microsoft.com/en-us/ef/core/querying/related-data/eager)
+- [EF Core 10.0.10 snapshot generator](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Design/Migrations/Design/CSharpSnapshotGenerator.cs)
+- [EF Core 10.0.10 SQL Server temporal annotation generator](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.SqlServer/Design/Internal/SqlServerAnnotationCodeGenerator.cs)
+- [EF Core issue 29303: temporal table splitting](https://github.com/dotnet/efcore/issues/29303)

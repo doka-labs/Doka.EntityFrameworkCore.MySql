@@ -64,6 +64,7 @@ internal static class MySqlSqlAssert
         ArgumentException.ThrowIfNullOrWhiteSpace(intervalUnit);
 
         ContainsFunction(sql, "DATE_ADD");
+
         Assert.Contains("INTERVAL", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(intervalUnit, sql, StringComparison.OrdinalIgnoreCase);
     }

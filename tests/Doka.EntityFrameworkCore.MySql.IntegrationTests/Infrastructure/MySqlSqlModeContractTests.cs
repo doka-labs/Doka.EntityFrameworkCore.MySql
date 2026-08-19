@@ -1,5 +1,4 @@
 using System.Text;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Query;
 
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
@@ -113,6 +112,7 @@ public sealed class MySqlSqlModeContractTests
         await using var context = new SqlModeContractContext(
             IntegrationTestDbContextOptions.Create<SqlModeContractContext>().UseMySql(connection, serverVersion)
                 .Options);
+
         var mapping = context
             .GetService<IRelationalTypeMappingSource>()
             .FindMapping(typeof(string));
@@ -164,9 +164,11 @@ public sealed class MySqlSqlModeContractTests
             ("has\"quote", "quote"),
             ("apo'stroph", "apostrophe"),
         ];
+
         var queryGenerator = context
             .GetService<IQuerySqlGeneratorFactory>()
             .Create();
+
         var escapeMethod = queryGenerator
             .GetType()
             .GetMethod(
@@ -211,6 +213,7 @@ public sealed class MySqlSqlModeContractTests
             Name = tableName,
             Comment = tableComment,
         };
+
         createTable.Columns.Add(
             new AddColumnOperation
             {
@@ -261,6 +264,7 @@ public sealed class MySqlSqlModeContractTests
                 Name = tableName,
                 Comment = alteredTableComment,
             };
+
             alterTable.OldTable.Comment = tableComment;
             var addColumn = new AddColumnOperation
             {
@@ -300,6 +304,7 @@ public sealed class MySqlSqlModeContractTests
                 IsNullable = true,
                 Comment = alteredColumnComment,
             };
+
             alterColumn.OldColumn.ClrType = typeof(string);
             alterColumn.OldColumn.ColumnType = "longtext";
             alterColumn.OldColumn.IsNullable = true;

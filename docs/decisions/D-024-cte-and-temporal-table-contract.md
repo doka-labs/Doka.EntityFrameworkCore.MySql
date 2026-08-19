@@ -108,6 +108,24 @@ reverse engineering, generated model code, and typed `FOR PORTION OF`
 these exact operations as engine limitations because MySQL 8.4 / 9.7 have no
 application-time period grammar.
 
+Action-based application-time configuration resolves caller-selected endpoints
+before adding conventional defaults. This keeps explicit CLR or named period
+properties as the exact physical schema while retaining `ValidFrom` or
+`ValidTo` for any endpoint the callback intentionally leaves unspecified.
+
+Migration snapshots and migration designer models emit system-time,
+application-time, and bitemporal metadata through the provider annotation code
+generator. That is the design-time seam EF Core invokes for both artifacts.
+The generated public Fluent API is compiled and compared with the source model;
+an unchanged temporal model must produce no migration operations.
+
+System-time mapping belongs to the physical table. A convention-owned
+`OwnsOne` mapped to the owner's table therefore inherits the owner's history
+and period contract. Explicit conflicts remain invalid. A separately stored
+owned type does not inherit the contract, and temporal entity materialization
+rejects its implicit current-only expansion. Scalar projections that do not
+materialize that separate owned navigation remain valid.
+
 ### Consequences
 
 - Good, because supported engines expose one provider contract without hiding
@@ -197,6 +215,11 @@ semantics instead of normalizing them into one approximate range operation.
   engine boundary.
 - 2026-08-11: Closed the MariaDB 10.11 reverse-engineering gap with
   generation-expression metadata and a canonical table-definition parser.
+- 2026-08-18: Bound temporal migration snapshots and designer models to the
+  annotation-code-generator seam, added same-table owned inheritance, and made
+  the separate current-owned materialization boundary explicit.
+- 2026-08-18: Deferred application-time endpoint defaults until action-based
+  configuration completes, preventing unconsumed conventional shadow columns.
 
 ### Implementation References
 
@@ -267,3 +290,11 @@ semantics instead of normalizing them into one approximate range operation.
   (primary source; retrieved 2026-08-04)
 - [EF Core 10.0.10 SQL Server temporal query extensions](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.SqlServer/Extensions/SqlServerDbSetExtensions.cs)
   (primary source; retrieved 2026-08-04)
+- [EF Core 10.0.11 snapshot generator](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore.Design/Migrations/Design/CSharpSnapshotGenerator.cs)
+  (primary source; retrieved 2026-08-18)
+- [EF Core 10.0.10 SQL Server temporal annotation generator](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.SqlServer/Design/Internal/SqlServerAnnotationCodeGenerator.cs)
+  (primary source; retrieved 2026-08-18)
+- [EF Core eager loading and owned-navigation behavior](https://learn.microsoft.com/en-us/ef/core/querying/related-data/eager)
+  (primary source; retrieved 2026-08-18)
+- [EF Core issue 29303: temporal table splitting](https://github.com/dotnet/efcore/issues/29303)
+  (primary source; retrieved 2026-08-18)

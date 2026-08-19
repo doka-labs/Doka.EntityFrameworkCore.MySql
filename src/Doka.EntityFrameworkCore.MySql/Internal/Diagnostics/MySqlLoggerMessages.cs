@@ -256,7 +256,7 @@ internal static class MySqlLoggerMessages
         ("GeneratedColumnNullabilityClause", ProviderCapability.GeneratedColumnNullabilityClause),
         ("VirtualGeneratedColumns", ProviderCapability.VirtualGeneratedColumns),
         ("StoredGeneratedColumns", ProviderCapability.StoredGeneratedColumns),
-        ("SpatialColumnSridAttribute", ProviderCapability.SpatialColumnSridAttribute),
+        ("SpatialColumnSridEnforcement", ProviderCapability.SpatialColumnSridEnforcement),
         ("CommonTableExpressions", ProviderCapability.CommonTableExpressions),
         ("TemporalTables", ProviderCapability.TemporalTables),
         ("ApplicationTimePeriods", ProviderCapability.ApplicationTimePeriods),

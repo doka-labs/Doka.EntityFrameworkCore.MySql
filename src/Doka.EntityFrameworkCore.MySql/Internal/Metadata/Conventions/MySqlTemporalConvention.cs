@@ -124,8 +124,10 @@ internal sealed class MySqlTemporalConvention
 
         var profile = _singletonOptions.Profile
             ?? throw new InvalidOperationException("The MySQL provider profile has not been initialized.");
+
         var support = profile.GetSupport(ProviderCapability.TemporalTables);
 
+        PropagateTemporalMappingToSharedOwnedEntityTypes(modelBuilder.Metadata);
         PropagateTemporalMappingToHierarchies(modelBuilder.Metadata);
         NormalizeTemporalTptBaseLinks(modelBuilder.Metadata);
         PropagateTemporalMappingToImplicitJoinEntities(modelBuilder.Metadata);
@@ -157,6 +159,114 @@ internal sealed class MySqlTemporalConvention
                 .FindPrimaryKey()
                 ?.SetAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps, true);
         }
+    }
+
+    private static void PropagateTemporalMappingToSharedOwnedEntityTypes(
+        IConventionModel model
+    )
+    {
+        foreach (var ownedEntityType in model
+                     .GetEntityTypes()
+                     .Where(entityType => entityType.IsOwned()
+                         && !entityType.IsMySqlTemporal()
+                         && entityType.FindAnnotation(MySqlAnnotationNames.IsTemporal) is null))
+        {
+            var temporalOwner = FindTemporalOwnerSharingTable(ownedEntityType);
+
+            if (temporalOwner is null)
+            {
+                continue;
+            }
+
+            CopySharedOwnedTemporalMapping(temporalOwner, ownedEntityType);
+        }
+    }
+
+    private static IConventionEntityType? FindTemporalOwnerSharingTable(
+        IConventionEntityType ownedEntityType
+    )
+    {
+        var owner = ownedEntityType.FindOwnership()?.PrincipalEntityType;
+
+        while (owner is not null
+               && SharesTable(owner, ownedEntityType))
+        {
+            if (owner.IsMySqlTemporal())
+            {
+                return owner;
+            }
+
+            owner = owner.FindOwnership()?.PrincipalEntityType;
+        }
+
+        return null;
+    }
+
+    private static bool SharesTable(
+        IReadOnlyEntityType left,
+        IReadOnlyEntityType right
+    ) => left.GetTableName() is { } tableName
+        && string.Equals(tableName, right.GetTableName(), StringComparison.OrdinalIgnoreCase)
+        && string.Equals(left.GetSchema(), right.GetSchema(), StringComparison.OrdinalIgnoreCase);
+
+    private static void CopySharedOwnedTemporalMapping(
+        IConventionEntityType source,
+        IConventionEntityType target
+    )
+    {
+        var targetBuilder = target.Builder;
+        var periodStartPropertyName = source.GetMySqlTemporalPeriodStartPropertyName()
+            ?? MySqlTemporalMetadata.DefaultPeriodStartPropertyName;
+
+        var periodEndPropertyName = source.GetMySqlTemporalPeriodEndPropertyName()
+            ?? MySqlTemporalMetadata.DefaultPeriodEndPropertyName;
+
+        targetBuilder.HasAnnotation(MySqlAnnotationNames.IsTemporal, true, fromDataAnnotation: false);
+        CopyConventionAnnotation(source, targetBuilder, MySqlAnnotationNames.TemporalHistoryTableName);
+        CopyConventionAnnotation(source, targetBuilder, MySqlAnnotationNames.TemporalHistoryTableSchema);
+
+        targetBuilder.HasAnnotation(
+            MySqlAnnotationNames.TemporalPeriodStartPropertyName,
+            periodStartPropertyName,
+            fromDataAnnotation: false);
+        targetBuilder.HasAnnotation(
+            MySqlAnnotationNames.TemporalPeriodEndPropertyName,
+            periodEndPropertyName,
+            fromDataAnnotation: false);
+
+        CopySharedPeriodColumn(source, targetBuilder, periodStartPropertyName);
+        CopySharedPeriodColumn(source, targetBuilder, periodEndPropertyName);
+    }
+
+    private static void CopyConventionAnnotation(
+        IConventionEntityType source,
+        IConventionEntityTypeBuilder targetBuilder,
+        string annotationName
+    )
+    {
+        if (source.FindAnnotation(annotationName)?.Value is { } value)
+        {
+            targetBuilder.HasAnnotation(annotationName, value, fromDataAnnotation: false);
+        }
+    }
+
+    private static void CopySharedPeriodColumn(
+        IConventionEntityType source,
+        IConventionEntityTypeBuilder targetBuilder,
+        string propertyName
+    )
+    {
+        var tableName = source.GetTableName()!;
+        var storeObject = StoreObjectIdentifier.Table(tableName, source.GetSchema());
+        var columnName = source
+                .FindProperty(propertyName)
+                ?.GetColumnName(storeObject)
+            ?? propertyName;
+
+        var property = targetBuilder.Property(typeof(DateTime), propertyName)
+            ?.Metadata;
+
+        property?.SetColumnName(columnName, storeObject, fromDataAnnotation: false);
     }
 
     private static void NormalizeTemporalTptBaseLinks(
@@ -333,6 +443,7 @@ internal sealed class MySqlTemporalConvention
 
         var periodStartPropertyName = entityType.GetMySqlTemporalPeriodStartPropertyName()
             ?? MySqlTemporalMetadata.DefaultPeriodStartPropertyName;
+
         var periodEndPropertyName = entityType.GetMySqlTemporalPeriodEndPropertyName()
             ?? MySqlTemporalMetadata.DefaultPeriodEndPropertyName;
 
@@ -354,17 +465,23 @@ internal sealed class MySqlTemporalConvention
         if (entityType.GetTableName() is { } tableName)
         {
             var storeObject = StoreObjectIdentifier.Table(tableName, entityType.GetSchema());
-            var columnName = propertyName.StartsWith(
-                MySqlTemporalMetadata.DefaultPeriodStartPropertyName + "_",
-                StringComparison.Ordinal)
-                ? MySqlTemporalMetadata.DefaultPeriodStartPropertyName
-                : propertyName.StartsWith(
-                    MySqlTemporalMetadata.DefaultPeriodEndPropertyName + "_",
-                    StringComparison.Ordinal)
-                    ? MySqlTemporalMetadata.DefaultPeriodEndPropertyName
-                    : propertyName;
+            var configuredColumnName = property.GetColumnName(storeObject);
 
-            property.SetColumnName(columnName, storeObject);
+            if (configuredColumnName is null
+                || string.Equals(configuredColumnName, propertyName, StringComparison.Ordinal))
+            {
+                var columnName = propertyName.StartsWith(
+                        MySqlTemporalMetadata.DefaultPeriodStartPropertyName + "_",
+                        StringComparison.Ordinal)
+                    ? MySqlTemporalMetadata.DefaultPeriodStartPropertyName
+                    : propertyName.StartsWith(
+                        MySqlTemporalMetadata.DefaultPeriodEndPropertyName + "_",
+                        StringComparison.Ordinal)
+                        ? MySqlTemporalMetadata.DefaultPeriodEndPropertyName
+                        : propertyName;
+
+                property.SetColumnName(columnName, storeObject);
+            }
         }
 
         // Native MariaDB period columns require TIMESTAMP, whereas the MySQL

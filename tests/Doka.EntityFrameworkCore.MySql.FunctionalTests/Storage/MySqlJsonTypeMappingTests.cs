@@ -25,6 +25,7 @@ public sealed class MySqlJsonTypeMappingTests
         Assert.Equal(typeof(JsonElement), property.ClrType);
 
         var typeMapping = property.GetRelationalTypeMapping();
+
         Assert.NotNull(typeMapping.Converter);
         Assert.Equal(typeof(JsonElement), typeMapping.Converter.ModelClrType);
         Assert.Equal(typeof(string), typeMapping.Converter.ProviderClrType);
@@ -44,6 +45,7 @@ public sealed class MySqlJsonTypeMappingTests
         Assert.Equal(typeof(JsonDocument), property.ClrType);
 
         var typeMapping = property.GetRelationalTypeMapping();
+
         Assert.NotNull(typeMapping.Converter);
         Assert.Equal(typeof(JsonDocument), typeMapping.Converter.ModelClrType);
     }
@@ -61,6 +63,7 @@ public sealed class MySqlJsonTypeMappingTests
         Assert.Equal(typeof(JsonNode), property.ClrType);
 
         var typeMapping = property.GetRelationalTypeMapping();
+
         Assert.NotNull(typeMapping.Converter);
         Assert.Equal(typeof(JsonNode), typeMapping.Converter.ModelClrType);
     }
@@ -79,6 +82,7 @@ public sealed class MySqlJsonTypeMappingTests
         Assert.Equal(typeof(JsonObject), property.ClrType);
 
         var typeMapping = property.GetRelationalTypeMapping();
+
         Assert.NotNull(typeMapping.Converter);
         Assert.Equal(typeof(JsonObject), typeMapping.Converter.ModelClrType);
     }
@@ -97,6 +101,7 @@ public sealed class MySqlJsonTypeMappingTests
         Assert.Equal(typeof(JsonArray), property.ClrType);
 
         var typeMapping = property.GetRelationalTypeMapping();
+
         Assert.NotNull(typeMapping.Converter);
         Assert.Equal(typeof(JsonArray), typeMapping.Converter.ModelClrType);
     }
@@ -117,6 +122,7 @@ public sealed class MySqlJsonTypeMappingTests
 
         var original = JsonDocument.Parse("""{"key":"value","num":42}""")
             .RootElement;
+
         var serialized = (string)converter.ConvertToProvider(original)!;
         var deserialized = (JsonElement)converter.ConvertFromProvider(serialized)!;
 
@@ -152,8 +158,10 @@ public sealed class MySqlJsonTypeMappingTests
     {
         var a = JsonDocument.Parse("""{"x":1}""")
             .RootElement;
+
         var b = JsonDocument.Parse("""{"x":1}""")
             .RootElement;
+
         var c = JsonDocument.Parse("""{"x":2}""")
             .RootElement;
 
@@ -245,7 +253,7 @@ public sealed class MySqlJsonTypeMappingTests
     private static TContext CreateContext<TContext>()
         where TContext : DbContext
     {
-        var builder = new DbContextOptionsBuilder<TContext>();
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));

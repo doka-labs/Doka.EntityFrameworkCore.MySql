@@ -7,6 +7,29 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.0.0-rc.10] - 2026-08-19
+
+This release candidate supersedes `10.0.0-rc.9`. It carries the NuGet readback
+corrections and the provider fixes found through consumer testing of temporal
+models, GUID mappings, JSON constructors, invisible columns, entity splitting,
+and spatial behavior.
+
+Install the release candidate explicitly because NuGet excludes prerelease
+packages from normal stable-version resolution:
+
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.10
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.10
+```
+
+### Added
+
+- Publish the workflow-generated SLSA provenance as the immutable
+  `release-provenance.intoto.jsonl` release asset. The protected publication
+  job automatically binds and verifies the exact bundle against packages,
+  candidate evidence, publication inputs, and stage checkpoints before any
+  release write or NuGet credential exchange.
+
 ### Fixed
 
 - Treat independently delayed NuGet package and symbol indexing as retryable
@@ -18,6 +41,48 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   dynamically discovered V3 package-content endpoint and accept only canonical
   normalized release versions; completion consumes the exact identity written
   by the readback producer.
+- Materialize every supported NetTopologySuite geometry type from the runtime
+  values returned by MySqlConnector across tracked, no-tracking, scalar,
+  Include, and split-query paths.
+- Enforce exact spatial-function capabilities by engine version. MariaDB
+  `Crosses` now follows NetTopologySuite's DE-9IM contract, unavailable
+  `IsValid`, collection aggregates, and quadrant-segment Buffer overloads fail
+  during translation, nullable `Crosses` operands preserve SQL `NULL`, and
+  supported MySQL/MariaDB versions retain native SQL.
+- Enforce MariaDB column SRIDs with provider-owned check constraints and recover
+  the `HasSrid(...)` contract during reverse engineering without scaffolding a
+  duplicate user check constraint.
+- Make context-level `Char36` GUID mappings materialize the connector's `Guid`
+  and text reader shapes across connection strings, `DbConnection`, and
+  `MySqlDataSource`. Explicit `Binary16` overrides now use provider-owned
+  big-endian bytes, while the unannotated `Binary16` default keeps its native
+  no-converter path.
+- Keep `AUTO_INCREMENT` exclusively on the principal table of an entity-split
+  mapping. Secondary shared primary/foreign keys remain non-generating through
+  migrations, generated snapshots, live CRUD, and cascading deletes.
+- Delay application-time period defaults until action-based configuration has
+  completed, so typed or named endpoints do not leave unused `ValidFrom` and
+  `ValidTo` shadow properties in models, snapshots, or migrations.
+- Translate ordinary `params` calls to `EF.Functions.JsonArray` and
+  `JsonObject` into variadic server functions, including parameterized values,
+  empty constructors, JSON-null preservation for SQL `NULL` arguments, and
+  focused rejection of invalid argument shapes.
+- Preserve MySQL 8.0.23+ and MariaDB 10.3.3+ `INVISIBLE` column annotations
+  through create, add, alter, snapshot, designer, and reverse visibility
+  migrations.
+- Preserve system-time, application-time, and bitemporal metadata in generated
+  migration snapshots and designer models, including custom period columns, so
+  an unchanged model no longer produces a redundant follow-up migration.
+- Propagate a temporal table contract to convention-owned `OwnsOne` mappings
+  that share the physical table. Separately stored current-only owned
+  collections now fail with a focused diagnostic before historical and current
+  rows can be mixed.
+- Preserve the `Guid` model type for provider-native `Char36` properties in
+  generated migration snapshots and designer models, including client-generated
+  primary keys and dependent foreign keys.
+- Order foreign-key removal and recreation around related `varchar(36)` to
+  `char(36)` column migrations in both directions while preserving populated
+  relationships, constraint identity, delete behavior, and dependent indexes.
 
 ## [10.0.0-rc.9] - 2026-08-17
 
@@ -549,7 +614,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
 - `EF.Functions` extensions: `Regexp`, `Match`, `MatchInBooleanMode`, `JsonSet`, `JsonReplace`, `JsonRemove`, `JsonArray`, `JsonObject`, `JsonDepth`, `JsonLength`, `JsonType`, `JsonKeys`, `JsonContains`
 - Engine-aware REGEXP dialect (`REGEXP_LIKE(...)` on MySQL, infix `REGEXP` on MariaDB)
 - Full-text search via `MATCH(col) AGAINST(term [IN BOOLEAN MODE])` with sentinel-rewrite SQL generation
-- MariaDB `INVISIBLE` column support (10.3.3+) via `IsInvisible()` fluent API
+- MySQL 8.0.23+ and MariaDB 10.3.3+ `INVISIBLE` column support via the
+  `IsInvisible()` fluent API
 - SQL-generation hardening: shared ASCII grammar-token validation for
   charsets, storage engines, and query, table, and column collations;
   JSON-path property-name escaping for single quotes and backslashes
@@ -576,7 +642,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.9...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.10...HEAD
+[10.0.0-rc.10]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.10
 [10.0.0-rc.9]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.9
 [10.0.0-rc.8]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.8
 [10.0.0-rc.7]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.7

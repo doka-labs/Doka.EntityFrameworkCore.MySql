@@ -58,9 +58,11 @@ public sealed partial class MySqlModelingBaselineTests
 
         // Complex type properties should exist on the entity type's table.
         var complexProperty = entityType.FindComplexProperty(nameof(Order.BillingAddress));
+
         Assert.NotNull(complexProperty);
 
         var complexType = complexProperty.ComplexType;
+
         Assert.NotNull(complexType.FindProperty(nameof(ComplexAddress.Street)));
         Assert.NotNull(complexType.FindProperty(nameof(ComplexAddress.City)));
     }
@@ -186,6 +188,7 @@ public sealed partial class MySqlModelingBaselineTests
         var tableMappings = entityType
             .GetTableMappings()
             .ToList();
+
         Assert.True(tableMappings.Count >= 2, $"Expected >= 2 table mappings but got {tableMappings.Count}");
     }
     // -- Entity Splitting ------------------------------------------------
