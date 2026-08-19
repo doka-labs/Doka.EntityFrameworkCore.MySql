@@ -125,7 +125,8 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     select only checksum-verified state from the same run and no future attempt
   - attestation boundary: the `attest` job alone receives attestation and
     artifact-metadata write permissions, and binds the untagged
-    `refs/heads/main` source plus candidate bytes
+    `refs/heads/main` source plus candidate bytes; its exact Sigstore bundle is
+    materialized as attempt-qualified portable SLSA provenance
   - manual identity transition: after reversible qualification succeeds, the
     operator pushes one signed annotated `v<version>` tag on the candidate SHA
   - publication boundary: the waiting `publish` job alone enters the protected
@@ -133,9 +134,12 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - same-run binding: publication revalidates the exact qualified checkout and
     its continued reachability from current `main`, the signed tag, frozen
     branch qualification, candidate receipt, package bytes, and same-run
-    attestations; no workflow run ID or artifact handoff is operator-selected
+    attestations; the exact portable bundle is selected through a job output,
+    verified offline before draft creation, and no workflow run ID or artifact
+    handoff is operator-selected
   - GitHub release staging: a matching draft and all pre-publication identity
-    assets are uploaded and read back before the first NuGet push
+    assets, including `release-provenance.intoto.jsonl`, are uploaded and read
+    back before the first NuGet push
   - safe retry: existing primary packages are accepted only when canonical
     content matches after excluding NuGet.org's repository-owned
     `.signature.p7s`; provider, provider symbols, spatial, and spatial symbols
@@ -182,6 +186,7 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `candidate-publication-preflight.json`
     - `publication-preflight.json`
     - `symbol-readback-manifest.json`
+    - `release-provenance.intoto.jsonl`
     - `nuget-publication-readback.json`
     - `nuget-signature-verification.txt`
     - `github-release-staged-plan.json`

@@ -23,9 +23,10 @@ from typing import Any, Callable, Protocol
 
 from . import evidence as release_evidence
 from . import nuget as nuget_publication
+from . import provenance as release_provenance
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 GITHUB_API_VERSION = "2022-11-28"
 READBACK_DELAY_SECONDS = 2.0
 SHA1 = re.compile(r"[0-9a-f]{40}")
@@ -37,6 +38,7 @@ STAGED_EVIDENCE_FILES = (
     "release-tag-trust-root.json",
     "candidate-publication-preflight.json",
     "symbol-readback-manifest.json",
+    release_provenance.PORTABLE_PROVENANCE_NAME,
 )
 PUBLICATION_EVIDENCE_FILES = (
     "publication-preflight.json",
@@ -529,6 +531,7 @@ def validate_staged_evidence(
     publication_evidence: Path,
     candidate_root: Path,
     receipt: dict[str, Any],
+    package_map: dict[str, dict[str, Path]],
 ) -> list[Path]:
     """Validate the pre-publish evidence that authorizes draft staging."""
     paths = {name: publication_evidence / name for name in STAGED_EVIDENCE_FILES}
@@ -609,6 +612,25 @@ def validate_staged_evidence(
         or runtime.get("runtimeSmoke") != "pass"
     ):
         raise GitHubReleaseError("Local package runtime qualification is invalid.")
+
+    provenance_subjects = [
+        *(path for package in package_map.values() for path in package.values()),
+        candidate_root / release_evidence.MANIFEST_NAME,
+        candidate_root / release_evidence.CHECKSUM_NAME,
+        candidate_path,
+        paths["candidate-publication-preflight.json"],
+        paths["symbol-readback-manifest.json"],
+    ]
+    try:
+        release_provenance.verify_portable_bundle(
+            paths[release_provenance.PORTABLE_PROVENANCE_NAME],
+            provenance_subjects,
+            require_exact=False,
+        )
+    except release_provenance.ProvenanceError as exception:
+        raise GitHubReleaseError(
+            f"Portable release provenance is invalid: {exception}"
+        ) from exception
 
     for path in paths.values():
         sha256_file(path)
@@ -727,6 +749,7 @@ def build_release_plan(
         publication_evidence,
         candidate_root,
         receipt,
+        package_map,
     )
     assets = [
         asset_record(path)

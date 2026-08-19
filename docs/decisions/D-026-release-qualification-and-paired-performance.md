@@ -16,6 +16,52 @@ doka-profile-version: "1.0"
 
 # D-026 -- Qualify releases from bound evidence and paired performance runs
 
+## 2026-08-19 Amendment: Publish portable SLSA provenance
+
+GitHub's attestation API proves the candidate inside the hosted workflow, but
+the generated Sigstore bundle previously remained on the attestation runner.
+Release consumers and OpenSSF Scorecard therefore could not discover portable
+provenance among the immutable release assets.
+
+The attestation job now retains the exact `actions/attest` `bundle-path` as one
+canonical `release-provenance.intoto.jsonl` record. It validates the SLSA v1
+predicate and every selected subject name and SHA-256 digest before uploading
+an attempt-qualified workflow artifact. The protected publication job
+downloads that exact artifact through a job output, validates its complete
+subject inventory, and runs `gh attestation verify --bundle` for every package,
+candidate evidence file, publication input, and stage checkpoint before draft
+creation or NuGet credential exchange.
+
+The release planner independently requires the portable bundle to bind all
+four package files and the canonical candidate evidence. It includes the
+bundle in the staged asset set, so draft readback covers its digest and the
+immutable release locks it with the other assets. A failed publish-job rerun
+reuses the successful attestation job's exact artifact; a rerun that regenerates
+attestation receives a new attempt-qualified artifact and output rather than
+overwriting earlier evidence. No operator command is added.
+
+OpenSSF Scorecard recognizes `.intoto.jsonl` release assets as provenance but
+does not itself verify their signatures. The repository therefore keeps the
+stronger structural, digest, workflow-identity, source-identity, and Sigstore
+verification gates before publication. Because Scorecard evaluates recent
+releases, immutable historical releases without the asset age out of that
+window rather than being modified.
+
+Primary-source basis:
+
+- [`actions/attest`][actions-attest] documents default SLSA provenance, one
+  attestation for multiple subjects, and the JSON-serialized Sigstore
+  `bundle-path` output.
+- [GitHub offline attestation verification][github-offline-attestations]
+  documents `gh attestation verify --bundle` for a local Sigstore bundle.
+- [OpenSSF Signed-Releases][openssf-signed-releases] recognizes
+  `.intoto.jsonl` release assets as SLSA provenance and states that filename
+  discovery does not verify the signature.
+- [GitHub immutable releases][github-immutable-releases] locks release assets
+  after draft publication.
+
+Retrieved 2026-08-19.
+
 ## 2026-08-18 Amendment: Treat NuGet indexing as asynchronous visibility
 
 NuGet.org accepts, validates, and indexes primary and symbol packages in
@@ -1368,6 +1414,12 @@ manifest verification.
   (primary source; retrieved 2026-08-17)
 - [GitHub artifact attestations][github-attestations]
   (primary source; retrieved 2026-08-10)
+- [`actions/attest`][actions-attest]
+  (primary source; retrieved 2026-08-19)
+- [GitHub offline attestation verification][github-offline-attestations]
+  (primary source; retrieved 2026-08-19)
+- [OpenSSF Signed-Releases][openssf-signed-releases]
+  (primary source; retrieved 2026-08-19)
 - [GitHub deployment environments][github-deployment-environments]
   (primary source; retrieved 2026-08-16)
 - [GitHub immutable releases][github-immutable-releases]
@@ -1459,6 +1511,11 @@ manifest verification.
   https://docs.github.com/en/actions/tutorials/store-and-share-data
 [github-attestations]:
   https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations
+[github-offline-attestations]:
+  https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/verify-attestations-offline
+[actions-attest]: https://github.com/actions/attest
+[openssf-signed-releases]:
+  https://github.com/ossf/scorecard/blob/main/docs/checks/internal/checks.yaml
 [github-deployment-environments]:
   https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments
 [github-immutable-releases]:

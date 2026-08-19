@@ -76,6 +76,7 @@ jobs:
             eng.tests.test_materialize_sbom_assets \
             eng.tests.test_release_artifact_resolver \
             eng.tests.test_release_finalization_chain \
+            eng.tests.test_release_provenance \
             eng.tests.test_release_stage_checkpoint \
             eng.tests.test_release_workflow_policy \
             eng.tests.test_runtime_posture_evidence_chain
@@ -361,6 +362,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    outputs:
+      provenance_artifact_name: ${{ steps.provenance.outputs.provenance_artifact_name }}
+
     permissions:
       actions: read
       attestations: write
@@ -369,6 +373,11 @@ jobs:
       id-token: write
 
     steps:
+      - name: Checkout qualified source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Download immutable release candidate
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -382,6 +391,7 @@ jobs:
           path: artifacts/release-candidate-checkpoints
 
       - name: Attest packages, evidence, and stage receipts
+        id: attestation
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: |
@@ -393,6 +403,32 @@ jobs:
             artifacts/release-publication/candidate-publication-preflight.json
             artifacts/release-publication/symbol-readback-manifest.json
             artifacts/release-candidate-checkpoints/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}/*.json
+
+      - name: Materialize portable SLSA provenance
+        id: provenance
+        env:
+          DOKA_ATTESTATION_BUNDLE: ${{ steps.attestation.outputs.bundle-path }}
+        shell: bash
+        run: |
+          candidate_root="artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          checkpoint_root="artifacts/release-candidate-checkpoints/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          output_root="artifacts/release-provenance"
+
+          python3 -m eng.release.provenance materialize \
+            --bundle "${DOKA_ATTESTATION_BUNDLE}" \
+            --output "${output_root}/release-provenance.intoto.jsonl" \
+            --candidate-root "${candidate_root}" \
+            --publication-evidence artifacts/release-publication \
+            --checkpoint-root "${checkpoint_root}"
+          echo "provenance_artifact_name=release-provenance-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload portable SLSA provenance
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.provenance.outputs.provenance_artifact_name }}
+          path: artifacts/release-provenance/release-provenance.intoto.jsonl
+          if-no-files-found: error
+          retention-days: 30
 
   publish:
     needs:
@@ -427,6 +463,18 @@ jobs:
           name: ${{ needs.assemble.outputs.candidate_artifact_name }}
           path: artifacts
 
+      - name: Download exhaustive stage receipts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.assemble.outputs.checkpoint_artifact_name }}
+          path: artifacts/release-candidate-checkpoints
+
+      - name: Download portable SLSA provenance
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.attest.outputs.provenance_artifact_name }}
+          path: artifacts/release-publication
+
       - name: Revalidate source, evidence, and attestations
         env:
           GH_TOKEN: ${{ github.token }}
@@ -444,16 +492,29 @@ jobs:
           fi
 
           candidate_root="artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          checkpoint_root="artifacts/release-candidate-checkpoints/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          provenance_bundle="artifacts/release-publication/release-provenance.intoto.jsonl"
           python3 -m eng.release.evidence verify --root "${candidate_root}"
-          for artifact in \
-            "${candidate_root}/release-candidate-evidence.json" \
-            "${candidate_root}/release-candidate-evidence.sha256" \
-            "${candidate_root}/packages/"*.nupkg \
-            "${candidate_root}/packages/"*.snupkg \
-            artifacts/release-publication/candidate-receipt.json \
-            artifacts/release-publication/candidate-publication-preflight.json \
-            artifacts/release-publication/symbol-readback-manifest.json; do
+          shopt -s nullglob
+          artifacts=(
+            "${candidate_root}/release-candidate-evidence.json"
+            "${candidate_root}/release-candidate-evidence.sha256"
+            "${candidate_root}/packages/"*.nupkg
+            "${candidate_root}/packages/"*.snupkg
+            artifacts/release-publication/candidate-receipt.json
+            artifacts/release-publication/candidate-publication-preflight.json
+            artifacts/release-publication/symbol-readback-manifest.json
+            "${checkpoint_root}/"*.json
+          )
+          python3 -m eng.release.provenance verify \
+            --bundle "${provenance_bundle}" \
+            --candidate-root "${candidate_root}" \
+            --publication-evidence artifacts/release-publication \
+            --checkpoint-root "${checkpoint_root}"
+
+          for artifact in "${artifacts[@]}"; do
             gh attestation verify "${artifact}" \
+              --bundle "${provenance_bundle}" \
               --repo "${GITHUB_REPOSITORY}" \
               --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release-candidate.yml" \
               --signer-digest "${GITHUB_SHA}" \

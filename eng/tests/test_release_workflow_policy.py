@@ -1083,10 +1083,57 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("release-stage-${{ matrix.stage }}-attempt-", candidate)
         self.assertIn("release-candidate-${GITHUB_RUN_ID}-attempt-", candidate)
         self.assertIn("release-checkpoints-${GITHUB_RUN_ID}-attempt-", candidate)
+        self.assertIn("release-provenance-${GITHUB_RUN_ID}-attempt-", candidate)
         self.assertIn(
             "release-publication-${{ inputs.version }}-attempt-${{ github.run_attempt }}",
             candidate,
         )
+
+    def test_portable_provenance_is_verified_before_the_release_boundary(self) -> None:
+        """Carry the exact SLSA bundle into every pre-publication verification."""
+        text = self.workflow("release-candidate.yml")
+        attest = self.job(text, "attest", "publish")
+        publish = self.job(text, "publish")
+
+        self.assertIn("id: attestation", attest)
+        self.assertIn("steps.attestation.outputs.bundle-path", attest)
+        self.assertIn('--bundle "${DOKA_ATTESTATION_BUNDLE}"', attest)
+        self.assertIn("python3 -m eng.release.provenance materialize", attest)
+        self.assertIn("release-provenance.intoto.jsonl", attest)
+        self.assertNotIn("package_subjects=", attest)
+        self.assertEqual(1, attest.count("/packages/*.nupkg"))
+        self.assertEqual(1, attest.count("/packages/*.snupkg"))
+        self.assertIn("Upload portable SLSA provenance", attest)
+        self.assertIn(
+            "provenance_artifact_name: "
+            "${{ steps.provenance.outputs.provenance_artifact_name }}",
+            attest,
+        )
+
+        self.assertIn(
+            "name: ${{ needs.attest.outputs.provenance_artifact_name }}",
+            publish,
+        )
+        structural_verification = publish.index(
+            "python3 -m eng.release.provenance verify"
+        )
+        cryptographic_verification = publish.index("gh attestation verify")
+        draft = publish.index("- name: Stage and verify GitHub release draft")
+        first_push = publish.index("- name: Publish provider package")
+        self.assertLess(structural_verification, cryptographic_verification)
+        self.assertLess(cryptographic_verification, draft)
+        self.assertLess(draft, first_push)
+        self.assertIn('--bundle "${provenance_bundle}"', publish)
+        self.assertEqual(1, publish.count('"${candidate_root}/packages/"*.nupkg'))
+        self.assertEqual(1, publish.count('"${candidate_root}/packages/"*.snupkg'))
+
+    def test_release_preflight_executes_portable_provenance_contracts(self) -> None:
+        """Catch bundle and workflow drift before allocating release runners."""
+        text = self.workflow("release-candidate.yml")
+        preflight = self.job(text, "preflight", "foundation")
+
+        self.assertIn("eng.tests.test_release_provenance", preflight)
+        self.assertIn("eng.tests.test_release_workflow_policy", preflight)
 
     def test_oidc_is_confined_to_attestation_and_protected_publication(self) -> None:
         """Grant OIDC only to attestation and the protected NuGet exchange."""

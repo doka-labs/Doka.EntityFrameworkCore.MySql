@@ -22,6 +22,14 @@ dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.10
 dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.10
 ```
 
+### Added
+
+- Publish the workflow-generated SLSA provenance as the immutable
+  `release-provenance.intoto.jsonl` release asset. The protected publication
+  job automatically binds and verifies the exact bundle against packages,
+  candidate evidence, publication inputs, and stage checkpoints before any
+  release write or NuGet credential exchange.
+
 ### Fixed
 
 - Treat independently delayed NuGet package and symbol indexing as retryable

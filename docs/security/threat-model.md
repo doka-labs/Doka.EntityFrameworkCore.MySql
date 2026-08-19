@@ -96,7 +96,11 @@ obtains only a short-lived OIDC credential and proceeds only when repository,
 workflow run, source commit, semantic tag, manifest, package metadata, local
 runtime proof, and hosted attestations agree. Attestation verification pins the
 signer workflow, signer and source commit, `refs/heads/main`, and GitHub-hosted
-runner class rather than trusting repository ownership alone. Public readback
+runner class rather than trusting repository ownership alone. The exact
+Sigstore bundle is also validated as single-record SLSA provenance, matched to
+every selected local subject, verified offline before any release write, and
+included in the immutable release as `release-provenance.intoto.jsonl`.
+Public readback
 independently derives the Portable PDB lookup key and
 SHA-256 checksum from each candidate assembly; it does not trust upload success
 or cross-package visibility order as proof that NuGet.org accepted or indexed
