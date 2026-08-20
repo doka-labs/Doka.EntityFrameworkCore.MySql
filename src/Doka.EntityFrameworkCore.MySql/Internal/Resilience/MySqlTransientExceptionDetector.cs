@@ -24,6 +24,11 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
         Exception exception
     )
     {
+        if (ContainsMigrationSessionCleanupFailure(exception))
+        {
+            return false;
+        }
+
         // Cancellation and command timeout are terminal classifications for
         // the whole bounded chain. Resolve them before a transient outer
         // wrapper can short-circuit traversal and schedule another attempt.
@@ -44,6 +49,28 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
             }
 
             if (current is SocketException or IOException)
+            {
+                return true;
+            }
+
+            current = current.InnerException;
+            depth++;
+        }
+
+        return false;
+    }
+
+    private static bool ContainsMigrationSessionCleanupFailure(
+        Exception exception
+    )
+    {
+        var current = exception;
+        var depth = 0;
+
+        while (current is not null
+               && depth < MaxInnerExceptionDepth)
+        {
+            if (current is MySqlMigrationSessionCleanupException)
             {
                 return true;
             }

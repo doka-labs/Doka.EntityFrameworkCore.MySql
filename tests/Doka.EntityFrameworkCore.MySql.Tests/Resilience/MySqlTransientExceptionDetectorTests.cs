@@ -37,6 +37,19 @@ public sealed class MySqlTransientExceptionDetectorTests
         Assert.False(_detector.ShouldRetryOn(exception));
     }
 
+    /// <summary>
+    /// A session cleanup failure is an ambiguous DDL outcome and must not be
+    /// retried even when its cause would normally be transient.
+    /// </summary>
+    [Fact]
+    public void Migration_session_cleanup_failure_is_not_retryable()
+    {
+        var exception = new MySqlMigrationSessionCleanupException(
+            new IOException("connection reset during cleanup"));
+
+        Assert.False(_detector.ShouldRetryOn(exception));
+    }
+
     /// <summary>A retryable connector error cannot hide an inner cancellation.</summary>
     [Fact]
     public void MySqlException_wrapping_cancellation_is_not_retryable()

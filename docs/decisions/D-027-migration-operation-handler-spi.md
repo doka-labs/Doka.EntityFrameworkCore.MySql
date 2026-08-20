@@ -107,6 +107,28 @@ snapshot, and appends only the validated copy to the outer builder. Handler
 failure or contract failure never falls back to built-in generation. An
 unregistered custom operation also fails closed.
 
+Provider-rendered command specifications additionally expose immutable
+`Setup`, `Body`, and `Cleanup` fragments. Every fragment is an exact
+`ReadOnlyMemory<char>` slice of the aggregate `CommandText`; ordered fragments
+are contiguous and cover that text completely. The legal provider shape is
+`Setup*`, exactly one `Body`, and `Cleanup*`. Ordinary provider commands expose
+one `Body`. Handler-authored commands created through
+`MySqlMigrationCommandSpec.Create` remain opaque and expose no fragments, so a
+package cannot forge provider semantics. The default fragment struct value is
+`Unspecified` with empty text and is never part of a provider layout.
+
+The aggregate text remains the canonical script representation. For runtime
+execution, a provider-rendered comment scope is represented by a specialized
+`MigrationCommand`. Its synchronous and asynchronous paths keep one physical
+connection open, capture the original session mode client-side, enable the
+required mode, execute the body, and restore the captured value after success,
+failure, or cancellation. Async restoration ignores the canceled caller token.
+A cleanup failure forcibly closes the physical connection, clears the
+MySqlConnector pool, and remains observable; a simultaneous body and cleanup
+failure remains available as an aggregate inner cause without discarding either
+exception. The provider classifies cleanup failure as terminal so EF's execution
+strategy cannot retry an already committed but ambiguously reported DDL body.
+
 ### Consequences
 
 - Good, because independent handler packages compose without replacing the
@@ -117,6 +139,10 @@ unregistered custom operation also fails closed.
   forcing packages to maintain private version tables.
 - Good, because the baseline renderer preserves provider SQL and command
   boundaries without exposing the mutable builder.
+- Good, because package consumers can identify provider-owned command roles
+  without parsing private SQL text or allocating substrings.
+- Good, because runtime comment scopes restore session state through a real
+  finally-equivalent execution boundary rather than a later EF command.
 - Bad, because package authors must provide an EF options extension rather
   than relying on ordinary application-container registration.
 - Bad, because every public feature and failure value becomes a versioned API
@@ -130,6 +156,11 @@ unregistered custom operation also fails closed.
   package-only consumer dispatch, and functional service-graph contracts.
 - Run `dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --filter FullyQualifiedName~MySqlMigrationOperationHandlerTests` to validate exact dispatch, every generation mode, baseline rendering, and independent options extensions.
 - Run `dotnet build tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke/Doka.EntityFrameworkCore.MySql.RuntimeSmoke.csproj --configuration Release` to compile the public SPI in the trim and NativeAOT smoke consumer.
+- Run the package-only handler smoke to prove opaque handler commands, ordinary
+  provider bodies, and scoped provider fragments from restored package bytes.
+- Run the SQL-mode integration contract to prove exact restoration after
+  success, server failure, cancellation, closed-connection execution, and
+  pooled-session reuse.
 - Run `./eng/test-migration-deployment.sh` to prove the same options-owned
   handler through design-time normal and idempotent scripts, runtime migration,
   bundle generation, rollback, and reapply on all six active LTS targets.
@@ -137,6 +168,9 @@ unregistered custom operation also fails closed.
   the exact local `.nupkg` bytes and dispatch a custom operation through the
   provider-owned baseline renderer before publication.
 - Run `dotnet build benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks.csproj --configuration Release` to keep the dispatch benchmark buildable.
+- Run the complete handler-generation allocation contract to enforce the
+  measured 48 MiB matrix ceiling and at-most 1.10 normalized per-operation
+  growth from 100 to 1,000 operations across both engine families.
 - Run `./eng/validate-adrs.sh` and the public-API analyzer gate.
 
 ## Pros and Cons of the Options
@@ -215,17 +249,22 @@ contract.
 - 2026-08-11: Decision recorded with status proposed.
 - 2026-08-11: Status changed from proposed to accepted.
 - 2026-08-11: Status changed from accepted to implemented.
+- 2026-08-20: Added provider-owned command fragments and failure-safe runtime
+  session-state recovery to the implemented SPI contract.
 
 ### Implementation References
 
 - `src/Doka.EntityFrameworkCore.MySql/Migrations/`
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Migrations/MySqlMigrationOperationHandlerRegistry.cs`
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Migrations/MySqlMigrationsSqlGenerator.Handlers.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Migrations/MySqlMigrationCommandLayout.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Migrations/MySqlScopedMigrationCommand.cs`
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Migrations/MySqlStandardMigrationOperations.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.Tests/Migrations/`
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Migrations/MySqlMigrationOperationHandlerTests.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke/Program.cs`
 - `eng/tests/test_paired_runtime_guards.py`
+- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/MigrationOperationHandlerGenerationBenchmark.cs`
 - `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/MigrationOperationHandlerDispatchBenchmark.cs`
 - `docs/migration-operation-handlers.md`
 - `docs/operations/observability-contract.json`
@@ -238,6 +277,7 @@ contract.
 - [EF Core 10.0.8 migrations SQL generator interface source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/IMigrationsSqlGenerator.cs) (primary source; retrieved 2026-08-11)
 - [EF Core 10.0.10 migrations SQL generator interface source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/IMigrationsSqlGenerator.cs) (primary source; retrieved 2026-08-11)
 - [EF Core 10.0.8 migration command source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationCommand.cs) (primary source; retrieved 2026-08-11)
+- [EF Core 10.0.8 migration command executor source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/Internal/MigrationCommandExecutor.cs) (primary source; retrieved 2026-08-20)
 - [EF Core 10.0.10 migration command source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/MigrationCommand.cs) (primary source; retrieved 2026-08-11)
 - [EF Core 10.0.8 migration command-list builder source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationCommandListBuilder.cs) (primary source; retrieved 2026-08-11)
 - [EF Core 10.0.10 migration command-list builder source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/MigrationCommandListBuilder.cs) (primary source; retrieved 2026-08-11)

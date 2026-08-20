@@ -1,5 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
-
 namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 
 /// <summary>

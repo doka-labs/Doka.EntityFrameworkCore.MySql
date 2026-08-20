@@ -188,6 +188,38 @@ may contain provider-rendered compound SQL; the SPI never splits SQL on
 semicolons. Set `transactionSuppressed` only when EF Core must execute that
 entire command outside its migration transaction.
 
+Commands created by a handler are intentionally opaque:
+`MySqlMigrationCommandSpec.Create` returns an empty `Fragments` collection.
+Provider-rendered commands returned by `RenderStandardOperation` instead carry
+provider-owned structural metadata:
+
+- ordinary commands contain one `Body` fragment;
+- scoped commands contain `Setup*`, exactly one `Body`, and `Cleanup*`;
+- fragments are ordered, immutable, contiguous slices of `CommandText` and
+  reproduce it exactly when concatenated;
+- the default struct value is `Unspecified` with empty text and is never
+  attached to a provider-rendered command;
+- `TransactionSuppressed` applies to the complete command, not individual
+  fragments.
+
+Use the `Body` fragment when an extension must embed the provider statement in
+its own guard or prepared-statement protocol. Do not split `CommandText`, search
+for semicolons, or depend on private wrapper spelling. A `Body` role does not by
+itself promise that arbitrary operation SQL is preparable; the extension still
+owns that validation. Do not recreate a provider baseline with `Create`, because
+doing so deliberately discards provider structure and runtime recovery
+semantics.
+
+For runtime EF execution, Doka executes its own scoped baseline through a
+specialized migration command. It keeps one physical connection open, captures
+the original `sql_mode` client-side, restores it after success, failure, or
+cancellation, and forcibly closes the physical connection and clears the pool
+if cleanup itself fails. Generated SQL scripts still contain the setup, body,
+and cleanup statements in sequence because a
+portable SQL script has no cross-engine `finally`. A script runner must stop on
+failure and discard that connection. Doka's repository script gate does so by
+running each script in a process-owned client session.
+
 Use `MySqlMigrationOperationResult.Generated` to snapshot the completed
 sequence. Every result must contain at least one non-null command. The outcome
 code must match `^[a-z][a-z0-9_]{0,63}$` and remain low-cardinality across
@@ -301,6 +333,8 @@ highest supported provider patch:
 8. Generated SQL and error telemetry contain no secret or unbounded payload.
 9. A packed consumer builds against the NuGet package rather than a project or
    internal reference.
+10. Opaque handler commands have no provider fragments, while provider
+    baselines expose exact body and scoped fragment shapes without SQL parsing.
 
 The provider repository verifies the general contract with two independent
 conformance handlers, an exhaustive 21-by-6 feature matrix, a local
@@ -320,6 +354,7 @@ recovery, and least-privilege behavior.
 - Microsoft, [EF Core 10.0.8 `IMigrationsSqlGenerator` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/IMigrationsSqlGenerator.cs), retrieved 2026-08-11.
 - Microsoft, [EF Core 10.0.10 `IMigrationsSqlGenerator` source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/IMigrationsSqlGenerator.cs), retrieved 2026-08-11.
 - Microsoft, [EF Core 10.0.8 `MigrationCommand` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationCommand.cs), retrieved 2026-08-11.
+- Microsoft, [EF Core 10.0.8 migration command executor source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/Internal/MigrationCommandExecutor.cs), retrieved 2026-08-20.
 - Microsoft, [EF Core 10.0.10 `MigrationCommand` source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/MigrationCommand.cs), retrieved 2026-08-11.
 - Microsoft, [EF Core 10.0.8 `MigrationCommandListBuilder` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationCommandListBuilder.cs), retrieved 2026-08-11.
 - Microsoft, [EF Core 10.0.10 `MigrationCommandListBuilder` source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/MigrationCommandListBuilder.cs), retrieved 2026-08-11.

@@ -51,6 +51,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 "A temporal CREATE TABLE operation using MySQL emulation must terminate its commands.");
         }
 
+        ValidateDdlCommentSqlModeScope(operation);
         var requiresCommentSqlModeScope = RequiresDdlCommentSqlModeScope(operation);
         if (requiresCommentSqlModeScope)
         {
@@ -555,6 +556,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         }
 
         var requiresCommentSqlModeScope = RequiresDdlCommentSqlModeScope(columnOperation.Comment);
+        ValidateDdlCommentSqlModeScope(columnOperation);
         if (requiresCommentSqlModeScope)
         {
             AppendDdlCommentSqlModeScopeStart(builder);
@@ -583,5 +585,28 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         }
 
         builder.EndCommand();
+    }
+
+    private static void ValidateDdlCommentSqlModeScope(
+        CreateTableOperation operation
+    )
+    {
+        if (!RequiresDdlCommentSqlModeScope(operation))
+        {
+            return;
+        }
+
+        foreach (var column in operation.Columns)
+        {
+            ValidateDdlCommentSqlModeScope(column, scopeRequired: true);
+        }
+
+        if (operation.CheckConstraints.Any(
+                static constraint => constraint.Sql.Contains('\\')))
+        {
+            throw new InvalidOperationException(
+                "DDL comments containing backslashes cannot be combined with a check constraint "
+                + "whose caller-authored SQL also contains a backslash.");
+        }
     }
 }

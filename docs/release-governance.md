@@ -236,10 +236,22 @@ provider cannot use the general `_utf8mb4 X'...'` expression form directly
 after `COMMENT`. For comment statements containing a backslash, generated SQL
 uses a server-executable comment to save the session mode, adds
 `NO_BACKSLASH_ESCAPES` without removing existing modes, emits the quoted DDL,
-and restores the exact previous mode. MySqlConnector treats the wrapper as a
-comment while MySQL and MariaDB execute its contents, so runtime migrations do
-not require `Allow User Variables=true`. Live readback verifies comment bytes,
-data-operation values, and exact mode restoration.
+and appends restoration of the exact previous mode. MySqlConnector treats the
+script wrapper as a comment while MySQL and MariaDB execute its contents, so
+generated scripts do not require `Allow User Variables=true`.
+
+Runtime migrations do not rely on sequential server statements for recovery.
+The provider keeps one physical connection open, captures `sql_mode`
+client-side, executes the DDL, and restores the captured value after success,
+failure, or cancellation. The runtime path neither overwrites nor consumes a
+caller-owned user variable. A failed restore forcibly closes the physical
+connection and clears the pool. Live readback verifies comment bytes, exact
+mode restoration, cancellation recovery, same-session reuse, forced eviction,
+and pool behavior. Cleanup failure is terminal for the provider execution
+strategy because DDL may already be committed and cannot be safely replayed.
+Generated scripts have no portable failure-finally mechanism; the repository
+gate executes them in a process-owned client and discards that session on any
+failure.
 
 JSON member names that are not identifiers are quoted and escaped at the JSON
 path layer. The complete static path, or each literal chunk of a dynamic path,

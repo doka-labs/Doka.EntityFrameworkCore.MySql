@@ -39,7 +39,17 @@ Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.DefaultGuidFormat(Do
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.EnableRetryOnFailure(int maxRetryCount = 6, System.TimeSpan? maxRetryDelay = null) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec
 Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec.CommandText.get -> string!
+Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec.Fragments.get -> System.Collections.Generic.IReadOnlyList<Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragment>!
 Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec.TransactionSuppressed.get -> bool
+Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragment
+Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragment.CommandText.get -> System.ReadOnlyMemory<char>
+Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragment.Kind.get -> Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragmentKind
+Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragment.MySqlMigrationCommandFragment() -> void
+Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragmentKind
+Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragmentKind.Body = 2 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragmentKind
+Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragmentKind.Cleanup = 3 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragmentKind
+Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragmentKind.Setup = 1 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragmentKind
+Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragmentKind.Unspecified = 0 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragmentKind
 Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
 Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.ApplicationTimePeriods = 15 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature
 Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature.AtomicDdl = 19 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeature

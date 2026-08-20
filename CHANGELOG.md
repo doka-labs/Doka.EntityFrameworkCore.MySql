@@ -7,6 +7,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Expose provider-authored setup, body, and cleanup fragments through
+  `MySqlMigrationCommandSpec.Fragments`, so migration-operation handlers can
+  inspect exact command boundaries without parsing SQL.
+
+### Fixed
+
+- Execute DDL comments that contain backslashes in a scoped
+  `NO_BACKSLASH_ESCAPES` session and restore the previous session `sql_mode`
+  after success, failure, or cancellation. Cleanup failures now clear the
+  affected MySqlConnector pool before the migration error is reported.
+- Generate typed invariant defaults for character, JSON, spatial, date, time,
+  and duration columns. Duration literals now reject values outside MySQL's
+  `TIME` range instead of allowing the server to saturate them silently.
+
 ## [10.0.0-rc.10] - 2026-08-19
 
 This release candidate supersedes `10.0.0-rc.9`. It carries the NuGet readback

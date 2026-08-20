@@ -77,6 +77,96 @@ public sealed class MySqlMigrationOperationContractTests
     ) => Assert.Throws<ArgumentException>(() => MySqlMigrationCommandSpec.Create(commandText));
 
     [Fact]
+    public void Handler_created_command_is_opaque()
+    {
+        var command = MySqlMigrationCommandSpec.Create(
+            "SELECT 1;",
+            transactionSuppressed: true);
+
+        Assert.Empty(command.Fragments);
+        Assert.Equal("SELECT 1;", command.CommandText);
+        Assert.True(command.TransactionSuppressed);
+    }
+
+    [Fact]
+    public void Opaque_commands_share_the_empty_fragment_snapshot()
+    {
+        var first = MySqlMigrationCommandSpec.Create("SELECT 1;");
+        var second = MySqlMigrationCommandSpec.Create("SELECT 2;");
+
+        Assert.Same(first.Fragments, second.Fragments);
+    }
+
+    [Fact]
+    public void Default_fragment_is_explicitly_unclassified()
+    {
+        var fragment = default(MySqlMigrationCommandFragment);
+
+        Assert.Equal(MySqlMigrationCommandFragmentKind.Unspecified, fragment.Kind);
+        Assert.True(fragment.CommandText.IsEmpty);
+    }
+
+    [Fact]
+    public void Provider_layout_preserves_exact_order_and_complete_coverage()
+    {
+        var setup = new[] { "SET @scope = 1;\n" };
+        var cleanup = new[] { "SET @scope = NULL;\n" };
+        var commandText = setup[0] + "ALTER TABLE `Entries` COMMENT 'safe';\n" + cleanup[0];
+
+        var layout = MySqlMigrationCommandLayout.CreateScoped(commandText, setup, cleanup);
+
+        Assert.Collection(
+            layout.Fragments,
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Setup, fragment.Kind),
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Body, fragment.Kind),
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Cleanup, fragment.Kind));
+        Assert.Equal(
+            commandText,
+            string.Concat(layout.Fragments.Select(static fragment => fragment.CommandText.ToString())));
+        Assert.Equal("ALTER TABLE `Entries` COMMENT 'safe';\n", layout.Body.ToString());
+
+        foreach (var fragment in layout.Fragments)
+        {
+            Assert.True(
+                MemoryMarshal.TryGetString(
+                    fragment.CommandText,
+                    out var backingString,
+                    out _,
+                    out _));
+            Assert.Same(commandText, backingString);
+        }
+    }
+
+    [Fact]
+    public void Provider_layout_rejects_a_fragment_that_does_not_match_the_command()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            MySqlMigrationCommandLayout.CreateScoped(
+                "SET @scope = 1;\nSELECT 1;\nSET @scope = NULL;\n",
+                ["SET @scope = 2;\n"],
+                ["SET @scope = NULL;\n"]));
+    }
+
+    [Fact]
+    public void Provider_layout_rejects_an_empty_body()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            MySqlMigrationCommandLayout.CreateScoped(
+                "SET @scope = 1;\n   SET @scope = NULL;\n",
+                ["SET @scope = 1;\n"],
+                ["SET @scope = NULL;\n"]));
+    }
+
+    [Fact]
+    public void Provider_layout_requires_setup_and_cleanup()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            MySqlMigrationCommandLayout.CreateScoped("SELECT 1;", [], ["SET @scope = NULL;"]));
+        Assert.Throws<ArgumentException>(() =>
+            MySqlMigrationCommandLayout.CreateScoped("SELECT 1;", ["SET @scope = 1;"], []));
+    }
+
+    [Fact]
     public void Recursive_standard_rendering_is_rejected()
     {
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 11));
@@ -100,7 +190,7 @@ public sealed class MySqlMigrationOperationContractTests
     [Fact]
     public async Task Concurrent_standard_rendering_is_rejected()
     {
-        using var rendererEntered = new ManualResetEventSlim();
+        var rendererEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var releaseRenderer = new ManualResetEventSlim();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 11));
         var context = new MySqlMigrationOperationContext(
@@ -113,16 +203,20 @@ public sealed class MySqlMigrationOperationContractTests
             "tests.concurrent",
             _ =>
             {
-                rendererEntered.Set();
+                rendererEntered.TrySetResult();
 
+                // Rendering is a synchronous provider contract. Hold this worker
+                // deliberately while the async test probes the concurrent caller.
                 return releaseRenderer.Wait(TimeSpan.FromSeconds(5))
                     ? [MySqlMigrationCommandSpec.Create("SELECT 1;")]
                     : throw new TimeoutException("The concurrent-render test did not release its first renderer.");
             });
 
-        var activeRender = Task.Run(() => context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 1;" }));
+        var activeRender = Task.Run(
+            () => context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 1;" }),
+            CancellationToken.None);
 
-        Assert.True(rendererEntered.Wait(TimeSpan.FromSeconds(5)));
+        await rendererEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
         var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
             context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 2;" }));
@@ -136,9 +230,9 @@ public sealed class MySqlMigrationOperationContractTests
     [Fact]
     public async Task Deactivation_waits_for_the_active_render_lease_and_blocks_new_rendering()
     {
-        using var rendererEntered = new ManualResetEventSlim();
+        var rendererEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var releaseRenderer = new ManualResetEventSlim();
-        using var deactivationStarted = new ManualResetEventSlim();
+        var deactivationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 11));
         var context = new MySqlMigrationOperationContext(
             new CustomOperation(),
@@ -150,8 +244,10 @@ public sealed class MySqlMigrationOperationContractTests
             "tests.deactivation",
             _ =>
             {
-                rendererEntered.Set();
+                rendererEntered.TrySetResult();
 
+                // Rendering is a synchronous provider contract. Hold this worker
+                // deliberately until the async test observes the expiring lease.
                 if (!releaseRenderer.Wait(TimeSpan.FromSeconds(5)))
                 {
                     throw new TimeoutException("The deactivation test did not release its renderer.");
@@ -160,18 +256,22 @@ public sealed class MySqlMigrationOperationContractTests
                 return [MySqlMigrationCommandSpec.Create("SELECT 1;")];
             });
 
-        var activeRender = Task.Run(() => context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 1;" }));
+        var activeRender = Task.Run(
+            () => context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 1;" }),
+            CancellationToken.None);
 
-        Assert.True(rendererEntered.Wait(TimeSpan.FromSeconds(5)));
+        await rendererEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
         var deactivation = Task.Run(() =>
         {
-            deactivationStarted.Set();
+            deactivationStarted.TrySetResult();
             context.Deactivate();
-        });
+        }, CancellationToken.None);
 
-        Assert.True(deactivationStarted.Wait(TimeSpan.FromSeconds(5)));
-        var prematureCompletion = await Task.WhenAny(deactivation, Task.Delay(TimeSpan.FromMilliseconds(100)));
+        await deactivationStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+        var prematureCompletion = await Task.WhenAny(
+            deactivation,
+            Task.Delay(TimeSpan.FromMilliseconds(100), CancellationToken.None));
 
         Assert.NotSame(deactivation, prematureCompletion);
 

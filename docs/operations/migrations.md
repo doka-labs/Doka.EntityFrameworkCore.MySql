@@ -41,6 +41,63 @@ after its handler has returned. Because the handler invocation and its span have
 already completed, this post-lifetime misuse is not attributed to the earlier
 invocation's log, metric, or activity.
 
+### Scoped command recovery
+
+Provider-rendered DDL comments containing a backslash require a temporary
+`NO_BACKSLASH_ESCAPES` session mode. During `Database.Migrate`, direct
+`IMigrator`, `dotnet ef`, and bundle runtime execution, Doka owns that scope in
+one specialized migration command:
+
+1. open and retain one physical connection when the caller did not already
+   open it;
+2. capture the exact original session mode client-side;
+3. enable the required mode without removing existing modes;
+4. execute the provider body;
+5. restore the captured value even after server failure or cancellation; and
+6. close only a connection opened by the scoped command.
+
+Async cleanup does not reuse the canceled caller token. If restoration fails,
+the provider forcibly closes the physical connection even when the caller
+opened it, clears the MySqlConnector pool, and keeps the cleanup failure
+visible. A connection-close failure is preserved through the same error path.
+If both the body and cleanup fail, both exceptions are retained below one
+terminal provider cleanup exception; investigate the body error first. EF's
+execution strategy does not retry this ambiguous DDL outcome.
+
+The same generated command exposes exact `Setup`, `Body`, and `Cleanup`
+fragments to migration-operation handlers. These roles remove SQL-parser
+coupling but do not turn a SQL script into a try/finally construct. If a normal
+or idempotent script fails inside such a scope, terminate its client session
+before retrying. Do not continue unrelated work on that session.
+
+### Column default grammar
+
+Migration default rendering resolves the effective relational type mapping even
+when an operation omits `ColumnType`. DateOnly and TimeOnly typed literals are
+expressions and are therefore emitted as parenthesized column defaults. The
+same policy covers expression-default forms for text, binary, JSON, and every
+spatial store type, including store types with modifiers.
+
+TimeOnly and TimeSpan literals are truncated to the declared fractional-second
+precision before SQL is generated. Precision is limited to the engine range of
+zero through six; an explicit `time` store type therefore emits no fractional
+digits, while the provider default `time(6)` emits microseconds. This avoids a
+result that depends on an engine's rounding mode. CLR `char` literals use the
+same SQL-mode-independent text encoding as provider string mappings, including
+backslash and NUL values.
+
+MariaDB JSON aliases and spatial column definitions retain literal or SQL
+defaults, comments, visibility, computed expressions, storage, and SRID
+metadata through their provider-specific rendering paths. The generator rejects
+a backslash comment combined with raw SQL whose interpretation would change
+under `NO_BACKSLASH_ESCAPES`; callers must rewrite that raw expression into a
+mode-independent form before generating the migration.
+
+The executable migration example proves create, add-on-populated-table, alter,
+existing-row preservation, and new-row defaults through every EF deployment
+path on all six active targets. Script generation additionally rejects any
+unparenthesized `DEFAULT DATE '...'` or `DEFAULT TIME '...'` form.
+
 <a id="mysql-migration-lock-failure"></a>
 
 ## Migration Lock Stuck Procedure
@@ -291,7 +348,21 @@ ADO.NET command.
   retrieved 2026-07-28.
 - Microsoft, [Managing Migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/managing),
   retrieved 2026-07-28.
+- Microsoft, [EF Core 10.0.8 `MigrationCommand` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationCommand.cs),
+  retrieved 2026-08-20.
+- Microsoft, [EF Core 10.0.8 migration command executor source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/Internal/MigrationCommandExecutor.cs),
+  retrieved 2026-08-20.
+- MySQL, [Data Type Default Values](https://dev.mysql.com/doc/refman/8.4/en/data-type-defaults.html),
+  retrieved 2026-08-20.
+- MySQL, [Fractional Seconds in Time Values](https://dev.mysql.com/doc/refman/8.4/en/fractional-seconds.html),
+  retrieved 2026-08-20.
+- MySQL, [`CREATE TABLE` Statement](https://dev.mysql.com/doc/refman/8.4/en/create-table.html),
+  retrieved 2026-08-20.
 - MySQL, [CREATE PROCEDURE and CREATE FUNCTION Statements](https://dev.mysql.com/doc/refman/8.4/en/create-procedure.html),
   retrieved 2026-08-11.
 - MariaDB, [mariadb Command-Line Client](https://mariadb.com/docs/server/clients-and-utilities/mariadb-client/mariadb-command-line-client),
   retrieved 2026-08-11.
+- MariaDB, [`CREATE TABLE`](https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/create-table),
+  retrieved 2026-08-20.
+- MariaDB, [`TIME`](https://mariadb.com/docs/server/reference/data-types/date-and-time-data-types/time),
+  retrieved 2026-08-20.

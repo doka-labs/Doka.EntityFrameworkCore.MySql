@@ -108,8 +108,8 @@ public sealed class MigrationProcessRecoveryTests
     )
     {
         using var process = StartMigrator(connectionString, serverVersion, "migrate", pauseFile);
-        var standardOutput = process.StandardOutput.ReadToEndAsync();
-        var standardError = process.StandardError.ReadToEndAsync();
+        var standardOutput = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var standardError = process.StandardError.ReadToEndAsync(CancellationToken.None);
 
         try
         {
@@ -156,14 +156,14 @@ public sealed class MigrationProcessRecoveryTests
     )
     {
         using var process = StartMigrator(connectionString, serverVersion, command, pauseFile: null);
-        var standardOutput = process.StandardOutput.ReadToEndAsync();
-        var standardError = process.StandardError.ReadToEndAsync();
+        var standardOutput = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var standardError = process.StandardError.ReadToEndAsync(CancellationToken.None);
 
         try
         {
             await process
-                .WaitForExitAsync()
-                .WaitAsync(TimeSpan.FromSeconds(30))
+                .WaitForExitAsync(CancellationToken.None)
+                .WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None)
                 .ConfigureAwait(false);
         }
         catch (TimeoutException exception)
@@ -283,8 +283,8 @@ public sealed class MigrationProcessRecoveryTests
         }
 
         await process
-            .WaitForExitAsync()
-            .WaitAsync(TimeSpan.FromSeconds(10))
+            .WaitForExitAsync(CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -295,7 +295,7 @@ public sealed class MigrationProcessRecoveryTests
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
@@ -304,7 +304,7 @@ public sealed class MigrationProcessRecoveryTests
 
         Assert.NotNull(
             await command
-                .ExecuteScalarAsync()
+                .ExecuteScalarAsync(CancellationToken.None)
                 .ConfigureAwait(false));
     }
 
@@ -319,7 +319,7 @@ public sealed class MigrationProcessRecoveryTests
         {
             await using var connection = new MySqlConnection(connectionString);
             await connection
-                .OpenAsync()
+                .OpenAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             await using var command = connection.CreateCommand();
@@ -327,7 +327,7 @@ public sealed class MigrationProcessRecoveryTests
             command.Parameters.AddWithValue("@name", lockName);
 
             var result = await command
-                .ExecuteScalarAsync()
+                .ExecuteScalarAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             if (Convert.ToInt64(result, CultureInfo.InvariantCulture) == 1L)
@@ -350,7 +350,7 @@ public sealed class MigrationProcessRecoveryTests
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         await using (var historyCommand = connection.CreateCommand())
@@ -358,10 +358,10 @@ public sealed class MigrationProcessRecoveryTests
             historyCommand.CommandText = "SELECT COUNT(*) FROM `__EFMigrationsHistory`;";
 
             Assert.Equal(
-                1L,
+                3L,
                 Convert.ToInt64(
                     await historyCommand
-                        .ExecuteScalarAsync()
+                        .ExecuteScalarAsync(CancellationToken.None)
                         .ConfigureAwait(false),
                     CultureInfo.InvariantCulture));
         }
@@ -369,13 +369,18 @@ public sealed class MigrationProcessRecoveryTests
         await using (var dataCommand = connection.CreateCommand())
         {
             dataCommand.CommandText = "SELECT COUNT(*) FROM `MigrationWorkflowItems` "
-                + "WHERE `Id` = 1 AND `Name` = 'migration-safety-readback';";
+                + "WHERE (`Id` IN (1, 2) "
+                + "AND `EffectiveDate` = DATE '2026-08-17' "
+                + "AND `EffectiveTime` = TIME '12:34:56.123456') "
+                + "OR (`Id` = 3 "
+                + "AND `EffectiveDate` = DATE '2028-02-03' "
+                + "AND `EffectiveTime` = TIME '04:05:06.654321');";
 
             Assert.Equal(
-                1L,
+                3L,
                 Convert.ToInt64(
                     await dataCommand
-                        .ExecuteScalarAsync()
+                        .ExecuteScalarAsync(CancellationToken.None)
                         .ConfigureAwait(false),
                     CultureInfo.InvariantCulture));
         }

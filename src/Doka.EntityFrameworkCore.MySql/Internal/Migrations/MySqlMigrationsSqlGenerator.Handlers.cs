@@ -9,16 +9,26 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         MigrationsSqlGenerationOptions options = MigrationsSqlGenerationOptions.Default
     )
     {
+        ArgumentNullException.ThrowIfNull(operations);
+
+        Options = options;
         _operationOrdinal = -1;
+        var builder = new MySqlMigrationCommandListBuilder(Dependencies);
 
         try
         {
-            return base.Generate(operations, model, options);
+            foreach (var operation in operations)
+            {
+                Generate(operation, model, builder);
+            }
         }
         finally
         {
+            Options = MigrationsSqlGenerationOptions.Default;
             _operationOrdinal = -1;
         }
+
+        return builder.GetCommandList();
     }
 
     /// <summary>
@@ -193,9 +203,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         foreach (var command in commands)
         {
-            builder
-                .Append(command.CommandText)
-                .EndCommand(command.TransactionSuppressed);
+            GetProviderCommandBuilder(builder).AppendCommandSpec(command);
         }
     }
 
@@ -204,18 +212,14 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         IModel? model
     )
     {
-        var builder = new MigrationCommandListBuilder(Dependencies);
+        var builder = new MySqlMigrationCommandListBuilder(Dependencies);
 
         // Calling the base implementation is the intentional bypass boundary:
         // EF Core still reaches Doka's typed overrides, while this custom
         // exact-type dispatcher cannot recursively select another plugin.
         base.Generate(operation, model, builder);
 
-        return Array.AsReadOnly(
-            builder
-                .GetCommandList()
-                .Select(command => MySqlMigrationCommandSpec.Create(command.CommandText, command.TransactionSuppressed))
-                .ToArray());
+        return builder.GetCommandSpecs();
     }
 
     private System.Collections.ObjectModel.ReadOnlyCollection<MySqlMigrationCommandSpec> ValidateResult(
