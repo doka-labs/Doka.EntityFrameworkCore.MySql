@@ -8,6 +8,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 runtime_smoke_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke"
 runtime_smoke_project+="/Doka.EntityFrameworkCore.MySql.RuntimeSmoke.csproj"
+runtime_provider_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql"
+runtime_provider_project+="/Doka.EntityFrameworkCore.MySql.csproj"
+runtime_spatial_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql.NetTopologySuite"
+runtime_spatial_project+="/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj"
 compose_file="${repo_root}/docker/compose.yml"
 runtime_run_id="${DOKA_RUNTIME_POSTURE_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 repo_fingerprint="$(printf '%s' "${repo_root}" | cksum | awk '{print $1}')"
@@ -359,6 +363,8 @@ run_runtime_posture() {
     local runtime_identifier
     local trimmed_executable
     local -a runtime_build_properties
+    local project_name
+    local project_path
 
     runtime_identifier="$(resolve_runtime_identifier)"
     trimmed_executable="$(runtime_smoke_executable_path "${trimmed_output_dir}")"
@@ -368,17 +374,26 @@ run_runtime_posture() {
 
     runtime_build_properties=(
         "-p:ArtifactsPath=${runtime_build_root}"
-        "-p:NuGetLockFilePath=${runtime_build_root}/locks/\$(MSBuildProjectName).packages.lock.json"
     )
 
-    # A RID restore adds RID targets to PackageReference locks. Keep the
-    # runtime-only graph and every intermediate under the disposable build
-    # root so the accepted, platform-neutral product locks remain immutable.
-    dotnet restore \
-        "${runtime_smoke_project}" \
-        --runtime "${runtime_identifier}" \
-        --disable-build-servers \
-        "${runtime_build_properties[@]}"
+    # NuGet applies a custom lock path only to the directly restored project;
+    # recursively restored ProjectReferences can still update their repository
+    # lock files with RID targets. Restore the graph in dependency order with
+    # recursion disabled and one explicit disposable lock per project.
+    for project_path in \
+        "${runtime_provider_project}" \
+        "${runtime_spatial_project}" \
+        "${runtime_smoke_project}"; do
+        project_name="$(basename "${project_path}" .csproj)"
+
+        dotnet restore \
+            "${project_path}" \
+            --runtime "${runtime_identifier}" \
+            --disable-build-servers \
+            "${runtime_build_properties[@]}" \
+            "-p:NuGetLockFilePath=${runtime_build_root}/locks/${project_name}.packages.lock.json" \
+            -p:RestoreRecursive=false
+    done
 
     dotnet run \
         --project "${runtime_smoke_project}" \

@@ -122,10 +122,15 @@ reported `treeState: dirty` and finalization rejected otherwise valid evidence.
 
 The runtime gate now captures source identity before execution, requires a
 clean source for release-candidate evidence, and verifies that execution adds
-no source change. Restore intermediates, build outputs, and the custom NuGet
-lock-file location share one disposable directory. Restore receives the RID
-explicitly and both run and publish use `--no-restore`, so every dependent
-command consumes the same resolved graph without touching accepted locks.
+no source change. Restore intermediates, build outputs, and custom NuGet lock
+files share one disposable directory. A graph restore does not propagate a
+custom lock path reliably to every `ProjectReference`; a RID restore can
+therefore add the RID to a referenced project's repository lock. The gate
+restores the provider, spatial extension, and runtime smoke project separately
+in dependency order with `RestoreRecursive=false` and one explicit disposable
+lock path per project. Every restore receives the same RID. Run and publish use
+`--no-restore`, so they consume that resolved graph without touching accepted
+locks.
 
 The same shared runtime gate now runs inside the existing `integration-smoke`
 job on every pull request and `main` push. That job already feeds
@@ -138,11 +143,17 @@ Primary-source basis:
 
 - [NuGet PackageReference lock-file contract][nuget-lock-files] defines
   `NuGetLockFilePath` as the supported custom lock-file location.
+- [NuGet RestoreTask source][nuget-restore-task] defines
+  `RestoreRecursive` as the switch controlling recursive project restore.
 - [.NET CLI publish contract][dotnet-publish] documents the implicit restore,
   the `--no-restore` boundary, and the requirement to pass an explicit artifacts
   path consistently to commands that consume earlier outputs.
 
 Retrieved 2026-08-17.
+
+The `RestoreRecursive` source contract was reverified on 2026-08-20 after a
+real RID restore demonstrated that one graph-level custom lock path does not
+isolate referenced-project locks.
 
 ## 2026-08-17 Amendment: Make finalization self-contained
 
@@ -1434,6 +1445,8 @@ manifest verification.
   (primary source; retrieved 2026-08-16)
 - [NuGet PackageReference lock-file contract][nuget-lock-files]
   (primary source; retrieved 2026-08-17)
+- [NuGet RestoreTask source][nuget-restore-task]
+  (primary source; retrieved 2026-08-20)
 - [.NET CLI publish contract][dotnet-publish]
   (primary source; retrieved 2026-08-17)
 - [BenchmarkDotNet good practices][bdn-good-practices]
@@ -1530,6 +1543,8 @@ manifest verification.
   https://learn.microsoft.com/en-us/nuget/nuget-org/policies/deleting-packages
 [nuget-lock-files]:
   https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#locking-dependencies
+[nuget-restore-task]:
+  https://github.com/NuGet/NuGet.Client/blob/dev/src/NuGet.Core/NuGet.Build.Tasks/RestoreTask.cs
 [nuget-publish-package]:
   https://learn.microsoft.com/en-us/nuget/nuget-org/publish-a-package
 [nuget-symbol-packages]:

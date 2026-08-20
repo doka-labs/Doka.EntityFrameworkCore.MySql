@@ -283,6 +283,9 @@ public sealed class AdrRepositoryValidatorTests
         var deploymentGate = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "testing", "test-migration-deployment.sh"));
 
+        var bundleBuilder = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "testing", "build-migration-bundle.sh"));
+
         var releaseCandidate = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
 
@@ -299,7 +302,12 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("database update", deploymentGate, StringComparison.Ordinal);
         Assert.Contains("execute_script", deploymentGate, StringComparison.Ordinal);
         Assert.Contains("MigrationWorkflowHandlerEvidence", deploymentGate, StringComparison.Ordinal);
-        Assert.Contains("migrations bundle", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains(
+            "bash \"${repo_root}/eng/testing/build-migration-bundle.sh\" \"${bundle_path}\"",
+            deploymentGate,
+            StringComparison.Ordinal);
+        Assert.Contains("migrations bundle", bundleBuilder, StringComparison.Ordinal);
+        Assert.Contains("DokaIsolatedNuGetLockRoot", bundleBuilder, StringComparison.Ordinal);
         Assert.Contains(
             "run_bundle_command \"${connection_string}\" \"${server_version}\" 0",
             deploymentGate,

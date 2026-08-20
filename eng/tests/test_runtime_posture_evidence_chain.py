@@ -57,17 +57,36 @@ class RuntimePostureEvidenceChainTests(unittest.TestCase):
         self.assertEqual("clean", self.git_state.read_text(encoding="ascii").strip())
 
         commands = self.command_log.read_text(encoding="ascii").splitlines()
-        self.assertEqual(["restore", "run", "publish"], [line.split("|", 1)[0] for line in commands])
-        restore_arguments = commands[0].split("|")[1:]
-        self.assertIn("--runtime", restore_arguments)
-        self.assertEqual("linux-x64", restore_arguments[restore_arguments.index("--runtime") + 1])
-        for command in commands[1:]:
+        self.assertEqual(
+            ["restore", "restore", "restore", "run", "publish"],
+            [line.split("|", 1)[0] for line in commands],
+        )
+        restore_commands = commands[:3]
+        expected_lock_names = {
+            "Doka.EntityFrameworkCore.MySql.packages.lock.json",
+            "Doka.EntityFrameworkCore.MySql.NetTopologySuite.packages.lock.json",
+            "Doka.EntityFrameworkCore.MySql.RuntimeSmoke.packages.lock.json",
+        }
+        actual_lock_names = set()
+        for command in restore_commands:
+            restore_arguments = command.split("|")[1:]
+            self.assertIn("--runtime", restore_arguments)
+            self.assertEqual("linux-x64", restore_arguments[restore_arguments.index("--runtime") + 1])
+            self.assertIn("-p:RestoreRecursive=false", restore_arguments)
+            lock_argument = next(
+                argument
+                for argument in restore_arguments
+                if argument.startswith("-p:NuGetLockFilePath=")
+            )
+            actual_lock_names.add(Path(lock_argument.split("=", 1)[1]).name)
+        self.assertEqual(expected_lock_names, actual_lock_names)
+
+        for command in commands[3:]:
             with self.subTest(no_restore_command=command):
                 self.assertIn("--no-restore", command.split("|")[1:])
         for command in commands:
             with self.subTest(command=command):
                 self.assertIn("-p:ArtifactsPath=", command)
-                self.assertIn("-p:NuGetLockFilePath=", command)
 
         artifact_paths = {
             argument.removeprefix("-p:ArtifactsPath=")
@@ -179,13 +198,30 @@ shift
 }} >> "${{DOKA_TEST_DOTNET_LOG}}"
 
 case "${{command_name}}" in
-    restore|run)
+    restore)
+        isolated_lock=0
+        non_recursive=0
+        for argument in "$@"; do
+            case "${{argument}}" in
+                -p:NuGetLockFilePath=*)
+                    isolated_lock=1
+                    ;;
+                -p:RestoreRecursive=false)
+                    non_recursive=1
+                    ;;
+            esac
+        done
+        if [[ "${{isolated_lock}}" == "0" || "${{non_recursive}}" == "0" ]]; then
+            printf 'dirty\n' > "${{DOKA_TEST_GIT_STATE}}"
+        fi
+        exit 0
+        ;;
+    run)
         exit 0
         ;;
     publish)
         output=""
         isolated_artifacts=0
-        isolated_lock=0
         while (( $# > 0 )); do
             case "$1" in
                 -o)
@@ -196,18 +232,13 @@ case "${{command_name}}" in
                     isolated_artifacts=1
                     shift
                     ;;
-                -p:NuGetLockFilePath=*)
-                    isolated_lock=1
-                    shift
-                    ;;
                 *)
                     shift
                     ;;
             esac
         done
         if [[ "${{DOKA_TEST_FORCE_DIRTY_AFTER_PUBLISH}}" == "1" \
-            || "${{isolated_artifacts}}" == "0" \
-            || "${{isolated_lock}}" == "0" ]]; then
+            || "${{isolated_artifacts}}" == "0" ]]; then
             printf 'dirty\n' > "${{DOKA_TEST_GIT_STATE}}"
         fi
         mkdir -p "${{output}}"

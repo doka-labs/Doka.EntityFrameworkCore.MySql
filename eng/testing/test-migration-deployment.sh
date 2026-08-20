@@ -450,15 +450,7 @@ generate_scripts "mariadb114" "mariadb:11.4"
 generate_scripts "mariadb118" "mariadb:11.8"
 generate_scripts "mariadb123" "mariadb:12.3"
 
-dotnet tool run dotnet-ef -- migrations bundle \
-    --project "${migration_project}" \
-    --startup-project "${migration_project}" \
-    --context "${migration_context}" \
-    --configuration Release \
-    --no-build \
-    --no-color \
-    --force \
-    --output "${bundle_path}"
+bash "${repo_root}/eng/testing/build-migration-bundle.sh" "${bundle_path}"
 
 export DOKA_MYSQL84_PORT="${DOKA_MYSQL84_PORT:-0}"
 export DOKA_MYSQL97_PORT="${DOKA_MYSQL97_PORT:-0}"
