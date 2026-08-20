@@ -32,6 +32,7 @@ internal enum EngineCapability
     JsonTableExistsRequiresWorkaround,
     SelfReferencingMutationRequiresIsolation,
     MariaDbSpatialSemantics,
+    ColumnCommentPrecedesVisibilityAttribute,
     CheckConstraintCatalogIncludesTableName,
     FunctionalIndexExpressionMetadata,
     CheckConstraints,

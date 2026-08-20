@@ -3,6 +3,7 @@ using Doka.EntityFrameworkCore.MySql;
 using Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow.Migrations
 {
     [DbContext(typeof(MigrationWorkflowContext))]
-    partial class MigrationWorkflowContextModelSnapshot : ModelSnapshot
+    [Migration("20260820120000_AddTemporalDefaults")]
+    partial class AddTemporalDefaults
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -29,13 +32,13 @@ namespace Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow.Migrations
                     b.Property<DateOnly>("EffectiveDate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("date")
-                        .HasDefaultValue(new DateOnly(2028, 2, 3));
+                        .HasDefaultValue(new DateOnly(2026, 8, 17));
 
                     b.Property<TimeOnly>("EffectiveTime")
                         .ValueGeneratedOnAdd()
                         .HasPrecision(6)
                         .HasColumnType("time(6)")
-                        .HasDefaultValue(new TimeOnly(4, 5, 6, 654, 321));
+                        .HasDefaultValue(new TimeOnly(12, 34, 56, 123, 456));
 
                     b.Property<string>("Name")
                         .IsRequired()

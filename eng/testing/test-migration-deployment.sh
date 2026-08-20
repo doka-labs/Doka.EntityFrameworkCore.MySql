@@ -153,6 +153,22 @@ generate_scripts() {
             echo "Migration handler evidence is missing from ${script_path}." >&2
             return 1
         fi
+
+        for expected_default in \
+            "DEFAULT (DATE '2026-08-17')" \
+            "DEFAULT (TIME '12:34:56.123456')" \
+            "DEFAULT (DATE '2028-02-03')" \
+            "DEFAULT (TIME '04:05:06.654321')"; do
+            if ! grep -Fq "${expected_default}" "${script_path}"; then
+                echo "Temporal migration default '${expected_default}' is missing from ${script_path}." >&2
+                return 1
+            fi
+        done
+
+        if grep -Eq "DEFAULT[[:space:]]+(DATE|TIME)[[:space:]]+'" "${script_path}"; then
+            echo "An unparenthesized temporal migration default exists in ${script_path}." >&2
+            return 1
+        fi
     done
 }
 

@@ -31,15 +31,26 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return;
         }
 
+        if (!string.IsNullOrWhiteSpace(operation.ComputedColumnSql))
+        {
+            base.ColumnDefinition(schema, table, name, operation, model, builder);
+            AppendCommonColumnOptions(operation, builder);
+            return;
+        }
+
         if (IsMariaDbJsonAliasColumn(operation))
         {
             AppendMariaDbJsonAliasColumnDefinition(name, operation, builder);
+            AppendCommonColumnOptions(operation, builder);
+            AppendMariaDbJsonAliasConstraint(name, builder);
             return;
         }
 
         if (IsSpatialColumn(operation))
         {
             AppendSpatialColumnDefinition(name, operation, builder);
+            AppendCommonColumnOptions(operation, builder);
+            AppendEmulatedSpatialReferenceSystemConstraint(name, operation, builder);
             return;
         }
 
@@ -62,18 +73,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             builder.Append(" AUTO_INCREMENT");
         }
 
-        if (operation.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value is true)
-        {
-            builder.Append(" INVISIBLE");
-        }
-
-        if (operation.Comment is not null
-            || operation is AlterColumnOperation { OldColumn.Comment: not null, })
-        {
-            builder
-                .Append(" COMMENT ")
-                .Append(MySqlSqlLiteralGenerator.GenerateDdlComment(operation.Comment ?? string.Empty));
-        }
+        AppendCommonColumnOptions(operation, builder);
     }
 
     protected override void Generate(
@@ -152,7 +152,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         bool terminate
     )
     {
-
+        ValidateDdlCommentSqlModeScope(operation);
         var requiresCommentSqlModeScope = RequiresDdlCommentSqlModeScope(operation.Comment);
         if (!requiresCommentSqlModeScope)
         {
@@ -203,19 +203,22 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     )
     {
         if (defaultValue is not null
-            && defaultValueSql is null
-            && RequiresParenthesizedDefault(columnType))
+            && defaultValueSql is null)
         {
             var mapping = columnType is null
                 ? Dependencies.TypeMappingSource.GetMappingForValue(defaultValue)
                 : Dependencies.TypeMappingSource.FindMapping(defaultValue.GetType(), columnType)
                 ?? Dependencies.TypeMappingSource.GetMappingForValue(defaultValue);
 
-            builder
-                .Append(" DEFAULT (")
-                .Append(mapping.GenerateSqlLiteral(defaultValue))
-                .Append(")");
-            return;
+            if (RequiresParenthesizedDefault(columnType ?? mapping.StoreType))
+            {
+                builder
+                    .Append(" DEFAULT (")
+                    .Append(mapping.GenerateSqlLiteral(defaultValue))
+                    .Append(")");
+
+                return;
+            }
         }
 
         base.DefaultValue(defaultValue, defaultValueSql, columnType, builder);
@@ -272,7 +275,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         MigrationCommandListBuilder builder
     )
     {
-
+        ValidateDdlCommentSqlModeScope(operation);
         if (RequiresGeneratedColumnRecreation(operation))
         {
             builder
@@ -471,6 +474,18 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             builder.Append(" NOT NULL");
         }
 
+        DefaultValue(
+            operation.DefaultValue,
+            operation.DefaultValueSql,
+            "longtext",
+            builder);
+    }
+
+    private void AppendMariaDbJsonAliasConstraint(
+        string name,
+        MigrationCommandListBuilder builder
+    )
+    {
         builder.Append(" CHECK (JSON_VALID(");
         builder.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(name));
         builder.Append("))");
@@ -506,6 +521,26 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         builder.Append(operation.IsNullable ? " NULL" : " NOT NULL");
 
+        DefaultValue(
+            operation.DefaultValue,
+            operation.DefaultValueSql,
+            columnType,
+            builder);
+    }
+
+    private void AppendEmulatedSpatialReferenceSystemConstraint(
+        string name,
+        ColumnOperation operation,
+        MigrationCommandListBuilder builder
+    )
+    {
+        var spatialReferenceSystemId = operation
+            .FindAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId)
+            ?.Value as int?;
+
+        var spatialReferenceSystemIdSupport = _mySqlSingletonOptions.Profile?.GetSupport(
+            ProviderCapability.SpatialColumnSridEnforcement);
+
         if (spatialReferenceSystemId is not null
             && spatialReferenceSystemIdSupport == ProviderSupportStatus.Emulated)
         {
@@ -515,6 +550,69 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 .Append(") = ")
                 .Append(spatialReferenceSystemId.Value.ToString(CultureInfo.InvariantCulture))
                 .Append(")");
+        }
+    }
+
+    private static void ValidateDdlCommentSqlModeScope(
+        ColumnOperation operation,
+        bool scopeRequired = false
+    )
+    {
+        if (!scopeRequired
+            && !RequiresDdlCommentSqlModeScope(operation.Comment))
+        {
+            return;
+        }
+
+        if (operation.DefaultValueSql?.Contains('\\') == true
+            || operation.ComputedColumnSql?.Contains('\\') == true)
+        {
+            throw new InvalidOperationException(
+                "A DDL comment containing a backslash cannot be combined with caller-authored SQL "
+                + "that also contains a backslash because NO_BACKSLASH_ESCAPES would change its semantics.");
+        }
+    }
+
+    private void AppendCommonColumnOptions(
+        ColumnOperation operation,
+        MigrationCommandListBuilder builder
+    )
+    {
+        var isInvisible = operation.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value is true;
+        var hasComment = operation.Comment is not null
+            || operation is AlterColumnOperation { OldColumn.Comment: not null, };
+
+        if (Profile.Engine.Has(EngineCapability.ColumnCommentPrecedesVisibilityAttribute))
+        {
+            AppendColumnComment(operation, builder, hasComment);
+
+            if (isInvisible)
+            {
+                builder.Append(" INVISIBLE");
+            }
+
+            return;
+        }
+
+        if (isInvisible)
+        {
+            builder.Append(" INVISIBLE");
+        }
+
+        AppendColumnComment(operation, builder, hasComment);
+    }
+
+    private static void AppendColumnComment(
+        ColumnOperation operation,
+        MigrationCommandListBuilder builder,
+        bool hasComment
+    )
+    {
+        if (hasComment)
+        {
+            builder
+                .Append(" COMMENT ")
+                .Append(MySqlSqlLiteralGenerator.GenerateDdlComment(operation.Comment ?? string.Empty));
         }
     }
 
@@ -800,16 +898,59 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
     private static bool RequiresParenthesizedDefault(
         string? columnType
-    ) => NormalizeStoreTypeName(columnType) is "blob"
-        or "tinyblob"
-        or "mediumblob"
-        or "longblob"
-        or "text"
-        or "tinytext"
-        or "mediumtext"
-        or "longtext"
-        or "json"
-        or "geometry";
+    )
+    {
+        var storeType = GetBaseStoreType(columnType);
+
+        return StoreTypeEquals(storeType, "blob")
+            || StoreTypeEquals(storeType, "tinyblob")
+            || StoreTypeEquals(storeType, "mediumblob")
+            || StoreTypeEquals(storeType, "longblob")
+            || StoreTypeEquals(storeType, "text")
+            || StoreTypeEquals(storeType, "tinytext")
+            || StoreTypeEquals(storeType, "mediumtext")
+            || StoreTypeEquals(storeType, "longtext")
+            || StoreTypeEquals(storeType, "json")
+            || StoreTypeEquals(storeType, "date")
+            || StoreTypeEquals(storeType, "time")
+            || StoreTypeEquals(storeType, "geometry")
+            || StoreTypeEquals(storeType, "point")
+            || StoreTypeEquals(storeType, "linestring")
+            || StoreTypeEquals(storeType, "polygon")
+            || StoreTypeEquals(storeType, "geometrycollection")
+            || StoreTypeEquals(storeType, "multipoint")
+            || StoreTypeEquals(storeType, "multilinestring")
+            || StoreTypeEquals(storeType, "multipolygon");
+    }
+
+    private static ReadOnlySpan<char> GetBaseStoreType(
+        string? storeType
+    )
+    {
+        if (string.IsNullOrWhiteSpace(storeType))
+        {
+            return default;
+        }
+
+        var value = storeType
+            .AsSpan()
+            .Trim();
+        var length = 0;
+
+        while (length < value.Length
+               && value[length] != '('
+               && !char.IsWhiteSpace(value[length]))
+        {
+            length++;
+        }
+
+        return value[..length];
+    }
+
+    private static bool StoreTypeEquals(
+        ReadOnlySpan<char> storeType,
+        string expected
+    ) => storeType.Equals(expected, StringComparison.OrdinalIgnoreCase);
 
     private static string? NormalizeStoreTypeName(
         string? storeType
@@ -820,10 +961,6 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return null;
         }
 
-        var parenthesisIndex = storeType.IndexOf('(');
-
-        return (parenthesisIndex >= 0 ? storeType[..parenthesisIndex] : storeType)
-            .Trim()
-            .ToLowerInvariant();
+        return GetBaseStoreType(storeType).ToString().ToLowerInvariant();
     }
 }

@@ -1,6 +1,9 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
-internal sealed class MySqlGuidStringTypeMapping : StringTypeMapping
+/// <summary>
+/// Maps textual GUID provider values to MySQL-family character columns.
+/// </summary>
+public sealed class MySqlGuidStringTypeMapping : StringTypeMapping
 {
     private static readonly CaseInsensitiveValueComparer s_caseInsensitiveComparer = new();
 
@@ -12,6 +15,22 @@ internal sealed class MySqlGuidStringTypeMapping : StringTypeMapping
             BindingFlags.NonPublic | BindingFlags.Static)
         ?? throw new InvalidOperationException("The Guid string reader method could not be resolved.");
 
+    /// <summary>
+    /// Gets the canonical mapping used as the cloning source for generated compiled models.
+    /// </summary>
+    public static new MySqlGuidStringTypeMapping Default { get; } = new(
+        "char(36)",
+        System.Data.DbType.StringFixedLength,
+        36,
+        useKeyComparison: false);
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MySqlGuidStringTypeMapping"/> class.
+    /// </summary>
+    /// <param name="storeType">The database type name.</param>
+    /// <param name="dbType">The ADO.NET parameter type.</param>
+    /// <param name="size">The fixed textual GUID length.</param>
+    /// <param name="useKeyComparison">Whether key comparison follows case-insensitive GUID text semantics.</param>
     public MySqlGuidStringTypeMapping(
         string storeType,
         DbType dbType,
@@ -34,14 +53,17 @@ internal sealed class MySqlGuidStringTypeMapping : StringTypeMapping
         RelationalTypeMappingParameters parameters
     ) : base(parameters) { }
 
+    /// <inheritdoc />
     protected override RelationalTypeMapping Clone(
         RelationalTypeMappingParameters parameters
     ) => new MySqlGuidStringTypeMapping(parameters);
 
+    /// <inheritdoc />
     protected override string GenerateNonNullSqlLiteral(
         object value
     ) => MySqlSqlLiteralGenerator.Generate((string)value);
 
+    /// <inheritdoc />
     public override Expression CustomizeDataReaderExpression(
         Expression expression
     )

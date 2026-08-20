@@ -1,3 +1,6 @@
+using System.Data;
+using System.Linq.Expressions;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
@@ -120,6 +123,191 @@ public sealed class MySqlTypeMappingBaselineTests
     }
 
     /// <summary>
+    /// Verifies that CLR char literals use the same SQL-mode-independent
+    /// encoding policy as provider text mappings.
+    /// </summary>
+    [Theory]
+    [InlineData('A', "'A'")]
+    [InlineData('\'', "''''")]
+    [InlineData('\\', "_utf8mb4 X'5C'")]
+    [InlineData('\0', "_utf8mb4 X'00'")]
+    public void Char_literals_are_sql_mode_independent(
+        char value,
+        string expectedLiteral
+    )
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var typeMapping = context
+            .GetService<IRelationalTypeMappingSource>()
+            .FindMapping(typeof(char));
+
+        Assert.NotNull(typeMapping);
+        Assert.Equal("char(1)", typeMapping.StoreType);
+        Assert.Equal(expectedLiteral, typeMapping.GenerateSqlLiteral(value));
+    }
+
+    /// <summary>
+    /// Verifies that the CLR char mapping exposes EF Core's compiled-model
+    /// default and that the mapping source uses that canonical instance.
+    /// </summary>
+    [Fact]
+    public void Char_mapping_exposes_the_compiled_model_default()
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var typeMapping = context
+            .GetService<IRelationalTypeMappingSource>()
+            .FindMapping(typeof(char));
+
+        Assert.Same(MySqlCharTypeMapping.Default, typeMapping);
+        Assert.Equal("char(1)", MySqlCharTypeMapping.Default.StoreType);
+    }
+
+    /// <summary>
+    /// Verifies the connector runtime shapes used for translated string
+    /// FirstOrDefault and LastOrDefault projections.
+    /// </summary>
+    [Theory]
+    [InlineData("A", 'A')]
+    [InlineData("AB", 'A')]
+    [InlineData("", '\0')]
+    [InlineData('Z', 'Z')]
+    public void Char_reader_materializes_connector_text_values(
+        object providerValue,
+        char expected
+    )
+    {
+        var actual = ReadCharProviderValue(MySqlCharTypeMapping.Default, providerValue);
+
+        Assert.Equal(expected, actual);
+    }
+
+    /// <summary>
+    /// Verifies that an incompatible connector value fails loudly instead of
+    /// being converted through culture-sensitive fallback behavior.
+    /// </summary>
+    [Fact]
+    public void Char_reader_rejects_an_unsupported_provider_value()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            ReadCharProviderValue(MySqlCharTypeMapping.Default, 65));
+
+        Assert.Contains("System.Int32", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that time literals are truncated to the declared store
+    /// precision before either engine can apply a different rounding policy.
+    /// </summary>
+    [Fact]
+    public void Time_literals_follow_the_declared_microsecond_precision()
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var typeMappingSource = context.GetService<IRelationalTypeMappingSource>();
+        var timeOnly = new TimeOnly(12, 34, 56).Add(TimeSpan.FromTicks(1_234_567));
+        var timeSpan = TimeSpan.FromHours(27) + TimeSpan.FromTicks(1_234_567);
+        var timeOnlyMapping = typeMappingSource.FindMapping(typeof(TimeOnly), "time(6)");
+        var timeOnlyMillisecondMapping = typeMappingSource.FindMapping(typeof(TimeOnly), "time(3)");
+        var timeOnlySecondMapping = typeMappingSource.FindMapping(typeof(TimeOnly), "time");
+        var timeSpanMapping = typeMappingSource.FindMapping(typeof(TimeSpan), "time(6)");
+        var timeSpanSecondMapping = typeMappingSource.FindMapping(typeof(TimeSpan), "time");
+
+        Assert.NotNull(timeOnlyMapping);
+        Assert.NotNull(timeOnlyMillisecondMapping);
+        Assert.NotNull(timeOnlySecondMapping);
+        Assert.NotNull(timeSpanMapping);
+        Assert.NotNull(timeSpanSecondMapping);
+        Assert.Equal("TIME '12:34:56.123456'", timeOnlyMapping.GenerateSqlLiteral(timeOnly));
+        Assert.Equal("TIME '12:34:56.123'", timeOnlyMillisecondMapping.GenerateSqlLiteral(timeOnly));
+        Assert.Equal("TIME '12:34:56'", timeOnlySecondMapping.GenerateSqlLiteral(timeOnly));
+        Assert.Equal("'27:00:00.123456'", timeSpanMapping.GenerateSqlLiteral(timeSpan));
+        Assert.Equal("'27:00:00'", timeSpanSecondMapping.GenerateSqlLiteral(timeSpan));
+    }
+
+    /// <summary>
+    /// Verifies that both CLR time mappings expose EF Core's compiled-model
+    /// defaults and preserve precision when cloned from those defaults.
+    /// </summary>
+    [Fact]
+    public void Time_mappings_expose_compiled_model_defaults_and_clone_precision()
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var typeMappingSource = context.GetService<IRelationalTypeMappingSource>();
+        var value = new TimeOnly(12, 34, 56).Add(TimeSpan.FromTicks(1_234_567));
+        var timeOnlyClone = MySqlTimeOnlyTypeMapping.Default.WithPrecisionAndScale(3, null);
+        var timeSpanClone = MySqlTimeSpanTypeMapping.Default.WithPrecisionAndScale(3, null);
+
+        Assert.Same(MySqlTimeOnlyTypeMapping.Default, typeMappingSource.FindMapping(typeof(TimeOnly)));
+        Assert.Same(MySqlTimeSpanTypeMapping.Default, typeMappingSource.FindMapping(typeof(TimeSpan)));
+        Assert.Equal(6, MySqlTimeOnlyTypeMapping.Default.Precision);
+        Assert.Equal(6, MySqlTimeSpanTypeMapping.Default.Precision);
+        Assert.Equal("TIME '12:34:56.123'", timeOnlyClone.GenerateSqlLiteral(value));
+        Assert.Equal("'12:34:56.123'", timeSpanClone.GenerateSqlLiteral(value.ToTimeSpan()));
+    }
+
+    /// <summary>
+    /// Verifies that both signed boundaries of the MySQL TIME domain remain
+    /// representable after microsecond truncation.
+    /// </summary>
+    [Fact]
+    public void TimeSpan_literals_accept_both_supported_server_boundaries()
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var typeMapping = context
+            .GetService<IRelationalTypeMappingSource>()
+            .FindMapping(typeof(TimeSpan), "time(6)");
+        var maximum = TimeSpan.FromHours(838)
+            + TimeSpan.FromMinutes(59)
+            + TimeSpan.FromSeconds(59);
+
+        Assert.NotNull(typeMapping);
+        Assert.Equal("'838:59:59.000000'", typeMapping.GenerateSqlLiteral(maximum));
+        Assert.Equal("'-838:59:59.000000'", typeMapping.GenerateSqlLiteral(-maximum));
+        Assert.Equal(
+            "'838:59:59.000000'",
+            typeMapping.GenerateSqlLiteral(maximum + TimeSpan.FromTicks(9)));
+        Assert.Equal(
+            "'-838:59:59.000000'",
+            typeMapping.GenerateSqlLiteral(-maximum - TimeSpan.FromTicks(9)));
+    }
+
+    /// <summary>
+    /// Verifies that neither signed side can generate a literal outside the
+    /// MySQL TIME domain.
+    /// </summary>
+    [Fact]
+    public void TimeSpan_literals_reject_values_outside_both_server_boundaries()
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var typeMapping = context
+            .GetService<IRelationalTypeMappingSource>()
+            .FindMapping(typeof(TimeSpan), "time(6)");
+        var maximum = TimeSpan.FromHours(838)
+            + TimeSpan.FromMinutes(59)
+            + TimeSpan.FromSeconds(59);
+        var outsideMaximum = maximum + TimeSpan.FromTicks(10);
+
+        Assert.NotNull(typeMapping);
+        Assert.Throws<InvalidOperationException>(() => typeMapping.GenerateSqlLiteral(outsideMaximum));
+        Assert.Throws<InvalidOperationException>(() => typeMapping.GenerateSqlLiteral(-outsideMaximum));
+    }
+
+    /// <summary>
+    /// Verifies that unsupported server precision is rejected before an
+    /// invalid temporal literal can enter generated SQL.
+    /// </summary>
+    [Fact]
+    public void Time_mappings_reject_fractional_precision_above_six()
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var typeMappingSource = context.GetService<IRelationalTypeMappingSource>();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            typeMappingSource.FindMapping(typeof(TimeOnly), "time(7)"));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            typeMappingSource.FindMapping(typeof(TimeSpan), "time(7)"));
+    }
+
+    /// <summary>
     /// Verifies that explicit model/property collation metadata remains intact through model building.
     /// </summary>
     [Fact]
@@ -221,6 +409,32 @@ public sealed class MySqlTypeMappingBaselineTests
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
         return builder.Options;
+    }
+
+    private static char ReadCharProviderValue(
+        RelationalTypeMapping mapping,
+        object value
+    )
+    {
+        var table = new DataTable();
+        table.Columns.Add("Value", value.GetType());
+        table.Rows.Add(value);
+
+        using var reader = table.CreateDataReader();
+
+        Assert.True(reader.Read());
+
+        var readerExpression = Expression.Parameter(typeof(DbDataReader), "reader");
+        var getCharExpression = Expression.Call(
+            readerExpression,
+            RelationalTypeMapping.GetDataReaderMethod(typeof(char)),
+            Expression.Constant(0));
+        var customizedExpression = mapping.CustomizeDataReaderExpression(getCharExpression);
+        var materialize = Expression
+            .Lambda<Func<DbDataReader, char>>(customizedExpression, readerExpression)
+            .Compile();
+
+        return materialize(reader);
     }
 
     private sealed class TypeMappingContext : DbContext
