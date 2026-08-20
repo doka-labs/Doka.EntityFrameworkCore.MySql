@@ -7,12 +7,15 @@ explicit and prevents their path inventories from drifting independently.
 
 from __future__ import annotations
 
-
 ACCEPTED_EVIDENCE_FILES = frozenset(
     {
         "benchmarks/baselines/doka-benchmark-baseline.json",
     }
 )
+
+NO_MEASUREMENT = "none"
+SMOKE_MEASUREMENT = "smoke"
+SCORECARD_MEASUREMENT = "scorecard"
 
 MEASUREMENT_INPUT_FILES = frozenset(
     {
@@ -34,6 +37,8 @@ MEASUREMENT_INPUT_FILES = frozenset(
         "eng/performance/environment.py",
         "eng/performance/evaluation.py",
         "eng/performance/host.py",
+        "eng/performance/host-preflight.sh",
+        "eng/performance/paired-benchmark.sh",
         "eng/performance/reports.py",
         "eng/performance/soak.py",
         "eng/performance/statistics.py",
@@ -47,11 +52,11 @@ MEASUREMENT_INPUT_PREFIXES = (
     "src/",
 )
 
-RELEASE_REUSE_INPUT_FILES = MEASUREMENT_INPUT_FILES | {
+SCORECARD_INPUT_FILES = MEASUREMENT_INPUT_FILES | {
     # The scorecard expands the matrix, the target workflow produces its
     # artifacts, and the sensitivity module validates their statistical claim.
-    # Release reuse also binds the endpoint estimator and bounded attempt
-    # selector because current policy consumes the statistics they persisted.
+    # It also binds the endpoint estimator and bounded attempt selector because
+    # current policy consumes the statistics they persist.
     # Smoke orchestration is intentionally absent because it has no release
     # authority and cannot change an accepted scorecard's meaning.
     ".github/workflows/benchmark-scorecard.yml",
@@ -62,6 +67,26 @@ RELEASE_REUSE_INPUT_FILES = MEASUREMENT_INPUT_FILES | {
     "eng/performance/paired.py",
     "eng/performance/sensitivity.py",
 }
+
+SMOKE_INPUT_FILES = frozenset(
+    {
+        ".github/workflows/benchmark-smoke.yml",
+    }
+)
+
+SCORECARD_INPUT_PREFIXES = (
+    "benchmarks/",
+    "docker/",
+)
+
+SCORECARD_SOURCE_SUFFIXES = (
+    ".csproj",
+    "/packages.lock.json",
+)
+
+SMOKE_INPUT_PREFIXES = (
+    "src/",
+)
 
 
 def affects_measurement(path: str) -> bool:
@@ -79,20 +104,28 @@ def affects_measurement(path: str) -> bool:
     )
 
 
-def invalidates_release_reuse(path: str) -> bool:
-    """Return whether ``path`` invalidates release-time evidence reuse.
+def measurement_tier(path: str) -> str:
+    """Return the least expensive measurement that safely covers ``path``.
 
-    Release reuse additionally binds the hosted workflow and admission policy.
-    Root build files are matched by shape so a newly introduced solution-wide
-    configuration file cannot escape the source-binding contract.
+    Provider source receives the complete six-target smoke because an ordinary
+    bug fix can break a target-specific benchmark path without changing the
+    measurement contract. Benchmark, evaluator, dependency, SDK, and database
+    inputs receive the complete scorecard. Accepted evidence is output and
+    never allocates a new measurement by itself.
+
+    ``Directory.Packages.props`` is conservatively scorecard-relevant here.
+    The Git-aware workflow resolver may lower a proven test-, analyzer-, or
+    example-only package update after comparing both revisions structurally.
     """
     if path in ACCEPTED_EVIDENCE_FILES:
-        return False
-    if path in RELEASE_REUSE_INPUT_FILES:
-        return True
-    if path.startswith(MEASUREMENT_INPUT_PREFIXES):
-        return True
+        return NO_MEASUREMENT
+    if path.startswith("src/") and path.endswith(SCORECARD_SOURCE_SUFFIXES):
+        return SCORECARD_MEASUREMENT
+    if path in SCORECARD_INPUT_FILES or path.startswith(
+        SCORECARD_INPUT_PREFIXES,
+    ):
+        return SCORECARD_MEASUREMENT
+    if path in SMOKE_INPUT_FILES or path.startswith(SMOKE_INPUT_PREFIXES):
+        return SMOKE_MEASUREMENT
 
-    return "/" not in path and (
-        path.startswith("Directory.Build.") or path.endswith((".sln", ".slnx"))
-    )
+    return NO_MEASUREMENT

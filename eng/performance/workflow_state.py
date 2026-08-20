@@ -11,23 +11,33 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
+from xml.etree import ElementTree
 
 if __package__:
     from . import cli as performance_evidence
     from .inputs import (
         MEASUREMENT_INPUT_FILES,
         MEASUREMENT_INPUT_PREFIXES,
+        NO_MEASUREMENT,
+        SCORECARD_MEASUREMENT,
+        SMOKE_MEASUREMENT,
         affects_measurement,
+        measurement_tier,
     )
 else:
     import cli as performance_evidence
     from inputs import (
         MEASUREMENT_INPUT_FILES,
         MEASUREMENT_INPUT_PREFIXES,
+        NO_MEASUREMENT,
+        SCORECARD_MEASUREMENT,
+        SMOKE_MEASUREMENT,
         affects_measurement,
+        measurement_tier,
     )
 
 
@@ -39,6 +49,22 @@ COMPARISON_MODES_BY_BASELINE_MODE = {
     "compare": "paired",
     "seed": "historical",
 }
+
+CENTRAL_PACKAGE_FILE = "Directory.Packages.props"
+SCORECARD_PACKAGE_GROUPS = frozenset(
+    {
+        "Benchmarks",
+        "Production",
+    }
+)
+NON_MEASUREMENT_PACKAGE_GROUPS = frozenset(
+    {
+        "Example hosts",
+        "Production analyzers",
+        "Tests",
+    }
+)
+KNOWN_PACKAGE_GROUPS = SCORECARD_PACKAGE_GROUPS | NON_MEASUREMENT_PACKAGE_GROUPS
 
 
 class WorkflowStateError(RuntimeError):
@@ -69,6 +95,29 @@ class ProposalState:
     source_commit: str | None = None
     relevant_changes: tuple[str, ...] = ()
     behind_current: bool = False
+
+
+@dataclass(frozen=True)
+class MeasurementChanges:
+    """Group changed inputs by the measurement they require."""
+
+    scorecard: tuple[str, ...] = ()
+    smoke: tuple[str, ...] = ()
+
+    @property
+    def tier(self) -> str:
+        """Return the strongest measurement required by this change set."""
+        if self.scorecard:
+            return SCORECARD_MEASUREMENT
+        if self.smoke:
+            return SMOKE_MEASUREMENT
+
+        return NO_MEASUREMENT
+
+    @property
+    def all(self) -> tuple[str, ...]:
+        """Return every measurement-relevant path in deterministic order."""
+        return tuple(sorted((*self.scorecard, *self.smoke)))
 
 
 def is_performance_input(path: str) -> bool:
@@ -104,14 +153,147 @@ def run_git(
     return result
 
 
-def relevant_changes(
+def revision_file(
+    repository: Path,
+    revision: str,
+    path: str,
+) -> str:
+    """Read one repository file from an exact revision."""
+    return run_git(
+        repository,
+        ["show", f"{revision}:{path}"],
+    ).stdout
+
+
+def central_package_contract(
+    document: str,
+) -> dict[str, tuple[str, tuple[tuple[str, str], ...]]]:
+    """Parse the centrally managed package inputs that can affect measurement.
+
+    The resolver consumes this file outside MSBuild, so it accepts only the
+    small contract the repository owns. Unknown items fail closed into a full
+    scorecard instead of being optimistically treated as tooling-only.
+    """
+    try:
+        root = ElementTree.fromstring(document)
+    except ElementTree.ParseError as error:
+        raise WorkflowStateError(
+            f"The central package contract is malformed: {error}",
+        ) from error
+
+    if root.tag != "Project":
+        raise WorkflowStateError(
+            "The central package contract must have a Project root.",
+        )
+
+    scorecard_inputs: dict[str, tuple[str, tuple[tuple[str, str], ...]]] = {}
+    package_ids: set[str] = set()
+
+    for group in root:
+        if group.tag == "PropertyGroup":
+            if group.attrib:
+                raise WorkflowStateError(
+                    "The central package contract contains an attributed "
+                    "PropertyGroup.",
+                )
+
+            for property_element in group:
+                if len(property_element):
+                    raise WorkflowStateError(
+                        "The central package contract contains a nested property.",
+                    )
+                input_name = f"property:{property_element.tag}"
+                if input_name in scorecard_inputs:
+                    raise WorkflowStateError(
+                        "The central package contract contains duplicate property "
+                        f"'{property_element.tag}'.",
+                    )
+                scorecard_inputs[input_name] = (
+                    (property_element.text or "").strip(),
+                    tuple(sorted(property_element.attrib.items())),
+                )
+            continue
+
+        if group.tag != "ItemGroup":
+            raise WorkflowStateError(
+                "The central package contract contains an unsupported root item "
+                f"'{group.tag}'.",
+            )
+
+        if set(group.attrib) != {"Label"}:
+            raise WorkflowStateError(
+                "Every central package ItemGroup requires only a Label.",
+            )
+
+        group_name = group.attrib["Label"]
+        if group_name not in KNOWN_PACKAGE_GROUPS:
+            raise WorkflowStateError(
+                "The central package contract contains an unclassified group "
+                f"'{group_name}'.",
+            )
+
+        for package_element in group:
+            if package_element.tag != "PackageVersion" or len(package_element):
+                raise WorkflowStateError(
+                    "The central package contract contains an unsupported item "
+                    f"'{package_element.tag}'.",
+                )
+
+            package_id = package_element.attrib.get("Include")
+            version = package_element.attrib.get("Version")
+            if not package_id or not version:
+                raise WorkflowStateError(
+                    "Every central PackageVersion requires Include and Version.",
+                )
+            if package_id in package_ids:
+                raise WorkflowStateError(
+                    "The central package contract contains duplicate package "
+                    f"'{package_id}'.",
+                )
+            package_ids.add(package_id)
+
+            if group_name in SCORECARD_PACKAGE_GROUPS:
+                scorecard_inputs[f"package:{package_id}"] = (
+                    version,
+                    tuple(sorted(package_element.attrib.items())),
+                )
+
+    return scorecard_inputs
+
+
+def central_package_change_requires_scorecard(
     repository: Path,
     before_revision: str,
     current_revision: str,
-) -> tuple[str, ...]:
-    """Return performance inputs changed between two repository revisions."""
+) -> bool:
+    """Return whether a central package edit can affect measured execution.
+
+    Production, benchmark, SDK-property, and unknown structural changes remain
+    fail-closed. Packages in the repository's classified test, analyzer, and
+    example groups do not allocate six long-running scorecards merely because
+    their CVE patch is centrally managed beside production dependencies.
+    """
+    try:
+        before_contract = central_package_contract(
+            revision_file(repository, before_revision, CENTRAL_PACKAGE_FILE),
+        )
+        current_contract = central_package_contract(
+            revision_file(repository, current_revision, CENTRAL_PACKAGE_FILE),
+        )
+    except WorkflowStateError:
+        return True
+
+    return before_contract != current_contract
+
+
+def changed_measurement_inputs(
+    repository: Path,
+    before_revision: str,
+    current_revision: str,
+) -> MeasurementChanges:
+    """Classify changed repository inputs into smoke and scorecard tiers."""
     if before_revision == ZERO_REVISION:
-        return ("<initial-push>",)
+        return MeasurementChanges(scorecard=("<initial-push>",))
 
     result = run_git(
         repository,
@@ -125,24 +307,55 @@ def relevant_changes(
             "--",
         ],
     )
-    return tuple(
-        sorted(
-            path
-            for path in result.stdout.splitlines()
-            if is_performance_input(path)
-        ),
+    scorecard: list[str] = []
+    smoke: list[str] = []
+
+    for path in result.stdout.splitlines():
+        tier = measurement_tier(path)
+        if path == CENTRAL_PACKAGE_FILE:
+            tier = (
+                SCORECARD_MEASUREMENT
+                if central_package_change_requires_scorecard(
+                    repository,
+                    before_revision,
+                    current_revision,
+                )
+                else NO_MEASUREMENT
+            )
+
+        if tier == SCORECARD_MEASUREMENT:
+            scorecard.append(path)
+        elif tier == SMOKE_MEASUREMENT:
+            smoke.append(path)
+
+    return MeasurementChanges(
+        scorecard=tuple(sorted(scorecard)),
+        smoke=tuple(sorted(smoke)),
     )
 
 
-def event_requires_scorecard(
+def relevant_changes(
+    repository: Path,
+    before_revision: str,
+    current_revision: str,
+) -> tuple[str, ...]:
+    """Return performance inputs changed between two repository revisions."""
+    return changed_measurement_inputs(
+        repository,
+        before_revision,
+        current_revision,
+    ).all
+
+
+def event_measurement_tier(
     repository: Path,
     event_name: str,
     before_revision: str | None,
     current_revision: str,
-) -> tuple[bool, tuple[str, ...]]:
-    """Resolve whether the current event requires fresh scorecard evidence."""
+) -> tuple[str, tuple[str, ...]]:
+    """Resolve the measurement tier requested by the current event."""
     if event_name in {"schedule", "workflow_dispatch"}:
-        return True, (f"<{event_name}>",)
+        return SCORECARD_MEASUREMENT, (f"<{event_name}>",)
 
     if event_name != "push":
         raise WorkflowStateError(
@@ -152,13 +365,13 @@ def event_requires_scorecard(
     if not before_revision:
         raise WorkflowStateError("A push event requires its before revision.")
 
-    changes = relevant_changes(
+    changes = changed_measurement_inputs(
         repository,
         before_revision,
         current_revision,
     )
 
-    return bool(changes), changes
+    return changes.tier, changes.all
 
 
 def matching_baseline_entries(
@@ -317,28 +530,42 @@ def inspect_proposal(
 
 def decide_work(
     baseline_mode: str,
-    event_requires_fresh_evidence: bool,
+    event_measurement: str,
     proposal: ProposalState,
-) -> tuple[bool, bool, bool]:
-    """Return scorecard, proposal-sync, and proposal-write decisions.
+) -> tuple[str, bool, bool]:
+    """Return measurement, proposal-sync, and proposal-write decisions.
 
     Compare runs are immutable evidence. Only an explicit or automatically
     selected seed run may mutate the reviewed accepted-baseline proposal.
+    Seed work upgrades a provider smoke request to a complete scorecard because
+    a reviewed baseline can only be produced from the full target contract.
     """
     if baseline_mode not in {"compare", "seed"}:
         raise WorkflowStateError(
             f"Unsupported resolved baseline mode: {baseline_mode}",
         )
+    if event_measurement not in {
+        NO_MEASUREMENT,
+        SMOKE_MEASUREMENT,
+        SCORECARD_MEASUREMENT,
+    }:
+        raise WorkflowStateError(
+            f"Unsupported event measurement tier: {event_measurement}",
+        )
 
-    if not event_requires_fresh_evidence:
+    if event_measurement == NO_MEASUREMENT:
         sync_required = (
             baseline_mode == "seed"
             and proposal.disposition == "current"
             and proposal.behind_current
         )
-        return False, sync_required, False
+        return NO_MEASUREMENT, sync_required, False
 
-    return True, False, baseline_mode == "seed"
+    selected_measurement = event_measurement
+    if baseline_mode == "seed":
+        selected_measurement = SCORECARD_MEASUREMENT
+
+    return selected_measurement, False, baseline_mode == "seed"
 
 
 def parse_args() -> argparse.Namespace:
@@ -369,7 +596,7 @@ def main() -> int:
     contract = performance_evidence.load_json(args.contract)
     performance_evidence.validate_contract(contract)
 
-    event_required, event_changes = event_requires_scorecard(
+    event_measurement, event_changes = event_measurement_tier(
         repository,
         args.event_name,
         args.before_revision,
@@ -385,16 +612,16 @@ def main() -> int:
         args.profile,
         args.runner_class,
     )
-    scorecard_required, sync_required, proposal_required = decide_work(
+    selected_measurement, sync_required, proposal_required = decide_work(
         args.baseline_mode,
-        event_required,
+        event_measurement,
         proposal,
     )
 
     payload = {
         "baselineMode": args.baseline_mode,
         "comparisonMode": comparison_mode_for_baseline_mode(args.baseline_mode),
-        "eventRequiresScorecard": event_required,
+        "eventMeasurementTier": event_measurement,
         "eventRelevantChanges": list(event_changes),
         "proposal": {
             "disposition": proposal.disposition,
@@ -403,7 +630,7 @@ def main() -> int:
             "relevantChanges": list(proposal.relevant_changes),
             "behindCurrent": proposal.behind_current,
         },
-        "scorecardRequired": scorecard_required,
+        "measurementTier": selected_measurement,
         "syncRequired": sync_required,
         "proposalRequired": proposal_required,
     }

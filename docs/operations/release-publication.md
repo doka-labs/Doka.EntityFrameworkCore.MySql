@@ -192,7 +192,8 @@ The same workflow run now:
    symbols in dependency order;
 8. immediately publishes and reads back the already complete GitHub draft as
    an immutable release; and
-9. polls NuGet.org and the symbol server, compares public bytes, verifies NuGet
+9. polls pending NuGet.org package and symbol subjects every 30 seconds for up
+   to one hour, retains already matching bytes between rounds, verifies NuGet
    repository signatures, and binds the results into workflow completion
    evidence.
 

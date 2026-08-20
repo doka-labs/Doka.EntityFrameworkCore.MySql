@@ -463,9 +463,14 @@ class BaselineRolloverTests(unittest.TestCase):
         self.assertIn("python3 -m eng.performance.cli resolve-baseline-mode", benchmark)
         self.assertIn("python3 -m eng.performance.workflow_state", benchmark)
 
-        # The resolver's verdict gates the expensive measurement.
+        # The resolver's verdict selects the least expensive sufficient lane.
         self.assertIn(
-            "if: needs.resolve-baseline-mode.outputs.scorecard-required == 'true'",
+            "if: needs.resolve-baseline-mode.outputs.measurement-tier == 'smoke'",
+            benchmark,
+        )
+        self.assertIn("uses: ./.github/workflows/benchmark-smoke.yml", benchmark)
+        self.assertIn(
+            "if: needs.resolve-baseline-mode.outputs.measurement-tier == 'scorecard'",
             benchmark,
         )
         self.assertIn("uses: ./.github/workflows/benchmark-scorecard.yml", benchmark)

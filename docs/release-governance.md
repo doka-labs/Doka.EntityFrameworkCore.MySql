@@ -76,7 +76,15 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/integration/<run-id>/test-database-evidence.json`
 - Dedicated benchmark scorecard:
   - workflow: `.github/workflows/benchmark.yml`
-  - cadence: monthly, on demand, and after relevant performance-input changes
+  - cadence: monthly, on demand, and after measurement-defining changes
+  - ordinary provider-source changes: complete six-target, non-qualifying
+    smoke lane
+  - full scorecard changes: benchmark and evaluator inputs, runtime package
+    versions and lock files, production project files, SDK/build inputs,
+    database images, and supported-engine contract
+  - no measurement: documentation, tests, unrelated Actions-only maintenance,
+    accepted baseline output, and known test-, analyzer-, or example-only
+    package bumps
   - targets: every key in `performance-contract.json.requiredTargets`; the
     workflow derives its matrix from that contract instead of duplicating it
   - local path for one selected target:
@@ -150,11 +158,12 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     the already complete draft is published and independently read back before
     availability probes begin
   - public completion: independently ordered package and symbol visibility is
-    polled until the bounded deadline; exact bytes that are visible before
-    their repository signature remain pending rather than becoming a false
-    terminal verdict; canonical byte comparison and cryptographic
-    repository-signature verification are retained as retry-varying workflow
-    evidence, never release assets
+    polled every 30 seconds until the one-hour deadline; an exact, signed
+    package or checksum-matching PDB is retained and omitted from later rounds,
+    while exact package bytes visible before their repository signature remain
+    pending rather than becoming a false terminal verdict; canonical byte
+    comparison and cryptographic repository-signature verification are
+    retained as retry-varying workflow evidence, never release assets
   - protocol discovery: package content is resolved from the configured V3
     service index's stable `PackageBaseAddress/3.0.0` capability and only a
     canonical lowercase NuGet release version can form a public readback URL

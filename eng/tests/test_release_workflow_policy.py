@@ -249,6 +249,11 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         sync = self.job(
             text,
             "sync-baseline-proposal",
+            "benchmark-smoke",
+        )
+        smoke = self.job(
+            text,
+            "benchmark-smoke",
             "benchmark-scorecard",
         )
         scorecard = self.job(
@@ -270,16 +275,25 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertIn('--requested-mode "${REQUESTED_MODE}"', resolver)
         self.assertIn("resolve-baseline-mode", resolver)
         self.assertIn("python3 -m eng.performance.workflow_state", resolver)
-        self.assertIn("scorecard-required", resolver)
+        self.assertIn("measurement-tier", resolver)
         self.assertIn("sync-required", resolver)
         self.assertIn("proposal-required", resolver)
         self.assertIn(
             "needs.resolve-baseline-mode.outputs.sync-required == 'true'",
             sync,
         )
+        self.assertIn("needs: resolve-baseline-mode", smoke)
+        self.assertIn(
+            "needs.resolve-baseline-mode.outputs.measurement-tier == 'smoke'",
+            smoke,
+        )
+        self.assertIn(
+            "uses: ./.github/workflows/benchmark-smoke.yml",
+            smoke,
+        )
         self.assertIn("needs: resolve-baseline-mode", scorecard)
         self.assertIn(
-            "needs.resolve-baseline-mode.outputs.scorecard-required == 'true'",
+            "needs.resolve-baseline-mode.outputs.measurement-tier == 'scorecard'",
             scorecard,
         )
         self.assertNotIn("github.event_name != 'push'", scorecard)
@@ -320,7 +334,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         sync = self.job(
             text,
             "sync-baseline-proposal",
-            "benchmark-scorecard",
+            "benchmark-smoke",
         )
         scorecard = self.job(
             text,
@@ -724,7 +738,9 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         )
 
         self.assertNotIn("paths:", push_paths)
-        self.assertIn("if is_performance_input(path)", resolver)
+        self.assertIn("changed_measurement_inputs(", resolver)
+        self.assertIn("tier = measurement_tier(path)", resolver)
+        self.assertIn("central_package_change_requires_scorecard(", resolver)
         self.assertNotIn("release_evidence.is_performance_input(path)", resolver)
         self.assertIn(
             '"benchmarks/baselines/doka-benchmark-baseline.json"',
@@ -739,11 +755,11 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("return bool(changes), changes", resolver)
-        self.assertIn("if not event_requires_fresh_evidence:", resolver)
+        self.assertIn("return changes.tier, changes.all", resolver)
+        self.assertIn("if event_measurement == NO_MEASUREMENT:", resolver)
         self.assertIn('proposal.disposition == "current"', resolver)
         self.assertNotIn(
-            "event_requires_fresh_evidence or proposal.disposition",
+            "event_measurement or proposal.disposition",
             resolver,
         )
 
@@ -769,7 +785,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         sync = self.job(
             benchmark,
             "sync-baseline-proposal",
-            "benchmark-scorecard",
+            "benchmark-smoke",
         )
         proposal = self.job(
             benchmark,
@@ -864,7 +880,7 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         sync = self.job(
             text,
             "sync-baseline-proposal",
-            "benchmark-scorecard",
+            "benchmark-smoke",
         )
 
         self.assertIn('git diff --name-only "${GITHUB_SHA}" HEAD', sync)
@@ -1227,6 +1243,8 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         self.assertLess(finalization, payload_readback)
         self.assertLess(payload_readback, signature_verification)
         self.assertLess(signature_verification, completion)
+        self.assertEqual(1, publish.count("--timeout-seconds 3600"))
+        self.assertEqual(1, publish.count("--poll-interval-seconds 30"))
         self.assertEqual(1, publish.count("--all"))
         self.assertIn("nuget-signature-verification.txt", publish)
 

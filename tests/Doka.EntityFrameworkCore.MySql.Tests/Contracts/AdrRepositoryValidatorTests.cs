@@ -479,6 +479,7 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("python3 -m eng.release.nuget readback", workflow, StringComparison.Ordinal);
         Assert.Contains("--symbol-manifest", workflow, StringComparison.Ordinal);
         Assert.Contains("--timeout-seconds 3600", workflow, StringComparison.Ordinal);
+        Assert.Contains("--poll-interval-seconds 30", workflow, StringComparison.Ordinal);
         Assert.Contains("test-nuget-readback.sh", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("secrets.NUGET_API_KEY", workflow, StringComparison.Ordinal);
         Assert.Contains(

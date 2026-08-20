@@ -23,6 +23,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path, PurePosixPath
@@ -38,6 +39,8 @@ SCHEMA_VERSION = 3
 SYMBOL_MANIFEST_SCHEMA_VERSION = 1
 CANDIDATE_RECEIPT_SCHEMA_VERSION = 1
 PUBLICATION_RECEIPT_SCHEMA_VERSION = 4
+PUBLICATION_READBACK_TIMEOUT_SECONDS = 3600
+PUBLICATION_READBACK_POLL_INTERVAL_SECONDS = 30
 CANDIDATE_RECEIPT_KIND = "release-candidate-receipt"
 PUBLICATION_RECEIPT_KIND = "release-publication-receipt"
 PROVIDER_PACKAGE_ID = "Doka.EntityFrameworkCore.MySql"
@@ -984,7 +987,7 @@ def fetch_remote_symbol(
 
 
 def observe_remote_symbols(
-    entries: list[dict[str, str]],
+    entries: Sequence[dict[str, str]],
     fetcher: Callable[[dict[str, str], float], bytes | None] = fetch_remote_symbol,
     timeout_seconds: float = 30,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, bytes]]:
@@ -1033,6 +1036,7 @@ def observe_remote_packages(
     package_base_address: str,
     fetcher: Callable[[str, float], bytes | None] = fetch_remote_package,
     timeout_seconds: float = 30,
+    roles: Sequence[str] = ("provider", "spatial"),
 ) -> tuple[dict[str, dict[str, Any]], dict[str, bytes]]:
     """Classify packages and retain the exact matching bytes observed."""
     version = str(receipt["releaseVersion"])
@@ -1046,7 +1050,15 @@ def observe_remote_packages(
     }
     states: dict[str, dict[str, Any]] = {}
     payloads: dict[str, bytes] = {}
-    for role, package_id in (("provider", PROVIDER_PACKAGE_ID), ("spatial", SPATIAL_PACKAGE_ID)):
+    package_ids = {
+        "provider": PROVIDER_PACKAGE_ID,
+        "spatial": SPATIAL_PACKAGE_ID,
+    }
+    for role in roles:
+        if role not in package_ids:
+            raise PublicationError(f"Unknown NuGet package role '{role}'.")
+
+        package_id = package_ids[role]
         candidate_path = package_map[role]
         candidate_digest = canonical_package_digest(candidate_path)
         url = remote_package_url(package_base_address, package_id, version)
@@ -1187,6 +1199,8 @@ def readback(args: argparse.Namespace) -> None:
     package_base_address: str | None = None
     package_payloads: dict[str, bytes] = {}
     symbol_payloads: dict[str, bytes] = {}
+    states: dict[str, dict[str, Any]] = {}
+    symbols: dict[str, dict[str, Any]] = {}
 
     while True:
         try:
@@ -1194,19 +1208,40 @@ def readback(args: argparse.Namespace) -> None:
                 package_base_address = resolve_package_base_address(
                     timeout_seconds=min(args.request_timeout_seconds, 30),
                 )
-            states, package_payloads = observe_remote_packages(
-                receipt,
-                args.candidate_root,
-                package_base_address,
-                timeout_seconds=min(args.request_timeout_seconds, 30),
+            pending_roles = tuple(
+                role
+                for role in ("provider", "spatial")
+                if states.get(role, {}).get("status") != "matching"
             )
-            symbols, symbol_payloads = observe_remote_symbols(
-                symbol_entries,
-                timeout_seconds=min(args.request_timeout_seconds, 30),
+            if pending_roles:
+                observed_states, observed_payloads = observe_remote_packages(
+                    receipt,
+                    args.candidate_root,
+                    package_base_address,
+                    timeout_seconds=min(args.request_timeout_seconds, 30),
+                    roles=pending_roles,
+                )
+                states.update(observed_states)
+                package_payloads.update(observed_payloads)
+
+            pending_symbols = tuple(
+                entry
+                for entry in symbol_entries
+                if symbols.get(entry["packageId"], {}).get("status") != "matching"
             )
+            if pending_symbols:
+                observed_symbols, observed_symbol_payloads = observe_remote_symbols(
+                    pending_symbols,
+                    timeout_seconds=min(args.request_timeout_seconds, 30),
+                )
+                symbols.update(observed_symbols)
+                symbol_payloads.update(observed_symbol_payloads)
+
             if (
                 all(state["status"] == "matching" for state in states.values())
                 and all(state["status"] == "matching" for state in symbols.values())
+                and len(states) == 2
+                and len(symbols) == 2
             ):
                 break
             pending = [
@@ -1374,9 +1409,17 @@ def parse_arguments() -> argparse.Namespace:
     readback_parser.add_argument("--symbol-manifest", type=Path, required=True)
     readback_parser.add_argument("--output-dir", type=Path, required=True)
     readback_parser.add_argument("--output", type=Path, required=True)
-    readback_parser.add_argument("--timeout-seconds", type=float, default=3600)
+    readback_parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=PUBLICATION_READBACK_TIMEOUT_SECONDS,
+    )
     readback_parser.add_argument("--request-timeout-seconds", type=float, default=30)
-    readback_parser.add_argument("--poll-interval-seconds", type=float, default=15)
+    readback_parser.add_argument(
+        "--poll-interval-seconds",
+        type=float,
+        default=PUBLICATION_READBACK_POLL_INTERVAL_SECONDS,
+    )
 
     restore = subparsers.add_parser(
         "verify-restore", help="Verify the isolated public-package consumer restore."

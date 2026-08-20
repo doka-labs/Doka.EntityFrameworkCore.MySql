@@ -532,19 +532,28 @@ starting services or either expensive matrix job:
   `eng/performance/workflow_state.py` form the inexpensive control plane;
 - control-plane-only changes run the resolver but do not allocate database
   services or benchmark runners;
-- the shared performance-input classifier treats provider source, benchmark
-  source and corpora, database images, build and SDK inputs, the evaluator,
-  the harness, the scorecard control plane, the target workflow that performs
-  and uploads each measurement, and the executable sensitivity assurance as
-  scorecard inputs;
+- provider source changes select the complete six-target smoke lane; smoke
+  remains non-qualifying and cannot update or invalidate accepted scorecard
+  evidence;
+- benchmark source and corpora, database images, build and SDK inputs,
+  production project and lock files, production and benchmark dependencies,
+  the evaluator, the harness, the scorecard control plane, the target workflow
+  that performs and uploads each measurement, and the executable sensitivity
+  assurance select the complete scorecard lane;
+- `Directory.Packages.props` is compared structurally between the two exact
+  revisions. Production and benchmark package changes select the scorecard;
+  packages in the classified test, analyzer, and example-only groups select no
+  benchmark. An unclassified group or unsupported XML shape fails closed into
+  the scorecard lane;
 - the evaluator binding includes the paired endpoint estimator and bounded
   attempt selector; changing either invalidates ancestor scorecard evidence
   before current family-level policy is applied to stored target statistics;
 - the non-qualifying scheduled smoke workflow remains outside that reuse
   classifier because changing its orchestration cannot change accepted
   scorecard evidence;
-- a `main` push that changes any measured provider or harness input runs the
-  complete contract-derived LTS performance matrix;
+- a `main` push selects the strongest tier required by its complete changed
+  path set, so a mixed provider and benchmark-contract change cannot be
+  downgraded to smoke;
 - changes confined to the parent workflow, resolver, documentation, tests, or
   accepted baseline output remain on the inexpensive resolver path;
 - an exact current-contract `github-ubuntu-latest-x64` matrix selects `compare`;
@@ -564,9 +573,10 @@ starting services or either expensive matrix job:
 - a current and up-to-date seed proposal is a no-op;
 - a current proposal behind only unrelated `main` changes is synchronized
   without another scorecard; and
-- proposal health cannot make an unrelated push allocate a scorecard, while a
-  relevant push, monthly run, or manual run replaces invalid or stale proposal
-  evidence on the same automation branch.
+- proposal health cannot make an unrelated push allocate a scorecard. A seed
+  requirement upgrades provider smoke to a complete scorecard because only a
+  complete scorecard may create baseline evidence; monthly and manual runs
+  likewise always select the complete scorecard.
 
 An automation branch that changes any path other than the canonical baseline
 fails in the resolver before the scorecard matrix starts. Remove or review the
@@ -964,13 +974,15 @@ value nothing compares against would describe nothing:
 
 ### Early warning on the default branch
 
-The dedicated `benchmark` workflow performs a paired same-run comparison for
-performance-relevant `main` changes and its monthly refresh. It is early
-warning: it never qualifies and never blocks a release. Because reference and
-candidate share one allocated runner, a new hosted CPU model cannot turn that
-comparison into a regression. Historical scorecards exist only when `seed`
-produces a reviewed replacement for a missing or incompatible accepted
-reference matrix.
+The dedicated `benchmark` workflow selects one of three outcomes for every
+`main` push: no measurement for unrelated changes, the complete six-target
+smoke for ordinary provider source, or the complete paired scorecard for
+measurement-defining inputs. Monthly and manual events always select the
+scorecard. Both measurement lanes are early warning: neither qualifies nor
+blocks a release. Because scorecard reference and candidate share one
+allocated runner, a new hosted CPU model cannot turn that comparison into a
+regression. Historical scorecards exist only when `seed` produces a reviewed
+replacement for a missing or incompatible accepted reference matrix.
 
 ### Timeouts and interruption
 

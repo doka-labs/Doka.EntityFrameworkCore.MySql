@@ -12,6 +12,27 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Expose provider-authored setup, body, and cleanup fragments through
   `MySqlMigrationCommandSpec.Fragments`, so migration-operation handlers can
   inspect exact command boundaries without parsing SQL.
+- Expose `MySqlCharTypeMapping`, `MySqlGuidStringTypeMapping`,
+  `MySqlTimeOnlyTypeMapping`, and `MySqlTimeSpanTypeMapping`, preserving
+  provider-specific reader, literal, and compiled-model behavior for direct
+  consumers.
+
+### Changed
+
+- Route ordinary provider-source changes through the complete six-target,
+  non-qualifying benchmark smoke lane. Benchmark harness, evaluator,
+  sensitivity, workload, production project and lock, runtime dependency,
+  build and SDK, database image, and supported-target changes still select the
+  complete scorecard, as do monthly and manual events. Documentation, tests,
+  examples, analyzers, unrelated Actions maintenance, accepted baseline
+  output, and proven tooling-only package bumps allocate no measurement.
+  Mixed changes select their strongest tier, unknown central-package shapes
+  fail closed into a scorecard, and seed mode upgrades provider smoke before
+  writing baseline evidence.
+- Poll pending NuGet package, symbol, and repository-signature visibility every
+  30 seconds while preserving the one-hour publication-readback deadline.
+  Subjects whose exact bytes and signatures already match are retained as
+  evidence instead of being downloaded again in later rounds.
 
 ### Fixed
 
@@ -22,6 +43,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Generate typed invariant defaults for character, JSON, spatial, date, time,
   and duration columns. Duration literals now reject values outside MySQL's
   `TIME` range instead of allowing the server to saturate them silently.
+- Isolate migration-bundle and RID-specific runtime restores behind disposable
+  lock files and artifact roots, preventing qualification from modifying or
+  depending on repository-owned package locks and shared build output.
 
 ## [10.0.0-rc.10] - 2026-08-19
 

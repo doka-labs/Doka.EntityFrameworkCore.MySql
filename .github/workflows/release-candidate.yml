@@ -645,7 +645,8 @@ jobs:
             --symbol-manifest "${publication_evidence}/symbol-readback-manifest.json" \
             --output-dir "${publication_evidence}/packages" \
             --output "${publication_evidence}/nuget-publication-readback.json" \
-            --timeout-seconds 3600
+            --timeout-seconds 3600 \
+            --poll-interval-seconds 30
 
       - name: Verify public NuGet repository signatures
         run: |
