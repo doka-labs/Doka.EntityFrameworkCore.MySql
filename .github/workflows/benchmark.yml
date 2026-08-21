@@ -44,7 +44,7 @@ jobs:
       mode: ${{ steps.resolve.outputs.mode }}
       baseline-branch: ${{ steps.resolve.outputs.baseline-branch }}
       comparison-mode: ${{ steps.resolve.outputs.comparison-mode }}
-      scorecard-required: ${{ steps.resolve.outputs.scorecard-required }}
+      measurement-tier: ${{ steps.resolve.outputs.measurement-tier }}
       sync-required: ${{ steps.resolve.outputs.sync-required }}
       proposal-required: ${{ steps.resolve.outputs.proposal-required }}
 
@@ -170,7 +170,7 @@ jobs:
             echo "mode=${mode}"
             echo "baseline-branch=${baseline_branch}"
             echo "comparison-mode=$(jq -er '.comparisonMode' artifacts/benchmark-workflow-state.json)"
-            echo "scorecard-required=$(jq -er '.scorecardRequired' artifacts/benchmark-workflow-state.json)"
+            echo "measurement-tier=$(jq -er '.measurementTier' artifacts/benchmark-workflow-state.json)"
             echo "sync-required=$(jq -er '.syncRequired' artifacts/benchmark-workflow-state.json)"
             echo "proposal-required=$(jq -er '.proposalRequired' artifacts/benchmark-workflow-state.json)"
           } >> "${GITHUB_OUTPUT}"
@@ -183,7 +183,7 @@ jobs:
             echo "- Comparison: $(jq -r '.comparisonMode' artifacts/benchmark-workflow-state.json)"
             echo "- Baseline: $(jq -r '.baselineDisposition' artifacts/baseline-mode.json)"
             echo "- Proposal: $(jq -r '.proposal.disposition' artifacts/benchmark-workflow-state.json)"
-            echo "- Scorecard required: $(jq -r '.scorecardRequired' artifacts/benchmark-workflow-state.json)"
+            echo "- Measurement tier: $(jq -r '.measurementTier' artifacts/benchmark-workflow-state.json)"
             echo "- Proposal sync required: $(jq -r '.syncRequired' artifacts/benchmark-workflow-state.json)"
             echo "- Proposal write required: $(jq -r '.proposalRequired' artifacts/benchmark-workflow-state.json)"
           } >> "${GITHUB_STEP_SUMMARY}"
@@ -276,8 +276,15 @@ jobs:
             echo "- Pull-request checks: queued for the updated proposal head"
           } >> "${GITHUB_STEP_SUMMARY}"
 
+  benchmark-smoke:
+    if: needs.resolve-baseline-mode.outputs.measurement-tier == 'smoke'
+    needs: resolve-baseline-mode
+    uses: ./.github/workflows/benchmark-smoke.yml
+    permissions:
+      contents: read
+
   benchmark-scorecard:
-    if: needs.resolve-baseline-mode.outputs.scorecard-required == 'true'
+    if: needs.resolve-baseline-mode.outputs.measurement-tier == 'scorecard'
     needs: resolve-baseline-mode
     uses: ./.github/workflows/benchmark-scorecard.yml
     with:

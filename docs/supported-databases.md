@@ -59,6 +59,23 @@ all six exact LTS targets from the performance contract. It remains a short,
 non-qualifying path and does not replace the hosted scorecard or release
 qualification.
 
+## Binary16 Default Metadata
+
+The provider emits and stores a Binary16 Guid default in RFC 4122 byte order on
+all six active targets. Catalog text is not a uniform semantic source:
+
+| Targets | Stored 16-byte value | `COLUMN_DEFAULT` / `SHOW CREATE` text |
+| --- | --- | --- |
+| MySQL 8.4 / 9.7 | Complete | The catalog default is truncated; `SHOW CREATE` retains the complete hexadecimal default |
+| MariaDB 10.11 / 11.4 | Complete | Connector-visible catalog and `SHOW CREATE` text do not expose a complete round-trippable hexadecimal literal |
+| MariaDB 11.8 / 12.3 | Complete | The complete textual hexadecimal expression is preserved |
+
+This is an engine metadata boundary, not a type-mapping defect. Provider tests
+separately verify generated DDL, inserted bytes, catalog representation, and
+`SHOW CREATE TABLE` on every target. Consumers performing strict schema
+comparison must fail closed where metadata is lossy; they must not rewrite the
+correct literal or infer equality from a truncated value.
+
 Compose is the Dependabot-maintained source for the exact container names and
 SHA-256 manifest-list digests. `TestDatabaseImages.cs` mirrors those pins for
 test-owned containers, and the image-pin gate reconciles every applicable
@@ -92,7 +109,11 @@ and their exact release-note pages were reverified on 2026-08-12.
 - [MySQL 9.7.0 GA release notes](https://dev.mysql.com/doc/relnotes/mysql/9.7/en/news-9-7-0.html)
 - [MySQL 9.7.2 release notes](https://dev.mysql.com/doc/relnotes/mysql/9.7/en/news-9-7-2.html)
 - [MySQL 9.7 LTS downloads](https://dev.mysql.com/downloads/mysql/9.7.html)
+- [MySQL 8.4 data type defaults](https://dev.mysql.com/doc/refman/8.4/en/data-type-defaults.html)
+- [MySQL 8.4 `INFORMATION_SCHEMA.COLUMNS`](https://dev.mysql.com/doc/refman/8.4/en/information-schema-columns-table.html)
 - [Oracle Lifetime Support Policy for Technology Products](https://www.oracle.com/us/support/library/lifetime-support-technology-069183.pdf)
 - [MariaDB Server maintenance policy](https://mariadb.org/about/)
 - [MariaDB Server release history](https://mariadb.org/mariadb/all-releases/)
 - [MariaDB 12.3 LTS announcement](https://mariadb.org/mariadb-server-12-3-lts-released/)
+- [MariaDB `INFORMATION_SCHEMA.COLUMNS`](https://mariadb.com/docs/server/reference/system-tables/information-schema/information-schema-tables/information-schema-columns-table)
+- [MariaDB `CREATE TABLE`](https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/create-table)

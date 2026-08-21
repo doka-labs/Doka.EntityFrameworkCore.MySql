@@ -102,8 +102,8 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                 ),
                 patch.object(
                     benchmark_workflow_state,
-                    "event_requires_scorecard",
-                    return_value=(True, ("src/Provider.cs",)),
+                    "event_measurement_tier",
+                    return_value=("smoke", ("src/Provider.cs",)),
                 ),
                 patch.object(
                     benchmark_workflow_state,
@@ -113,7 +113,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                 patch.object(
                     benchmark_workflow_state,
                     "decide_work",
-                    return_value=(True, False, False),
+                    return_value=("smoke", False, False),
                 ),
             ):
                 self.assertEqual(0, benchmark_workflow_state.main())
@@ -121,6 +121,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
             payload = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual("compare", payload["baselineMode"])
             self.assertEqual("paired", payload["comparisonMode"])
+            self.assertEqual("smoke", payload["measurementTier"])
 
     def test_performance_inputs_are_limited_to_measurement_inputs(
         self,
@@ -169,6 +170,146 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                     benchmark_workflow_state.is_performance_input(path),
                 )
 
+    def test_measurement_tiers_keep_smoke_non_qualifying(self) -> None:
+        """Reserve complete scorecards for inputs that define measurement."""
+        cases = {
+            "src/Doka.EntityFrameworkCore.MySql/Storage/Mapping.cs": "smoke",
+            ".github/workflows/benchmark-smoke.yml": "smoke",
+            "benchmarks/performance-contract.json": "scorecard",
+            ".github/workflows/benchmark-scorecard.yml": "scorecard",
+            ".github/workflows/benchmark-target.yml": "scorecard",
+            "eng/performance/paired.py": "scorecard",
+            "eng/performance/host-preflight.sh": "scorecard",
+            "eng/performance/paired-benchmark.sh": "scorecard",
+            "docker/compose.yml": "scorecard",
+            "Directory.Build.props": "scorecard",
+            "Directory.Packages.props": "scorecard",
+            "global.json": "scorecard",
+            "src/Doka.EntityFrameworkCore.MySql/Provider.csproj": "scorecard",
+            "src/Doka.EntityFrameworkCore.MySql/packages.lock.json": "scorecard",
+            "benchmarks/baselines/doka-benchmark-baseline.json": "none",
+            "docs/operations/performance-evidence.md": "none",
+            "tests/ProviderTests.cs": "none",
+        }
+
+        for path, expected in cases.items():
+            with self.subTest(path=path):
+                self.assertEqual(
+                    expected,
+                    benchmark_workflow_state.measurement_tier(path),
+                )
+
+    def test_tracked_performance_domain_is_fail_closed(self) -> None:
+        """Require an explicit decision for every performance-domain file."""
+        repository_root = Path(__file__).parents[2]
+        result = subprocess.run(
+            ["git", "ls-files", "eng/performance"],
+            cwd=repository_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        control_plane = {
+            "eng/performance/inputs.py",
+            "eng/performance/workflow_state.py",
+        }
+
+        for path in result.stdout.splitlines():
+            expected = "none" if path in control_plane else "scorecard"
+
+            with self.subTest(path=path):
+                self.assertEqual(
+                    expected,
+                    benchmark_workflow_state.measurement_tier(path),
+                )
+
+    def test_central_package_groups_bind_the_complete_measured_inventory(
+        self,
+    ) -> None:
+        """Bind production and benchmark packages without listing test tools."""
+        document = Path(__file__).parents[2] / "Directory.Packages.props"
+        contract = benchmark_workflow_state.central_package_contract(
+            document.read_text(encoding="utf-8"),
+        )
+
+        self.assertEqual(
+            {
+                "package:BenchmarkDotNet",
+                "package:Microsoft.EntityFrameworkCore.Design",
+                "package:Microsoft.EntityFrameworkCore.Relational",
+                "package:MySqlConnector",
+                "package:NetTopologySuite",
+                "package:System.IO.Hashing",
+                "property:DokaEfCoreVersion",
+                "property:DokaMySqlConnectorVersion",
+                "property:ManagePackageVersionsCentrally",
+            },
+            set(contract),
+        )
+
+    def test_central_package_changes_allocate_only_for_measured_inputs(
+        self,
+    ) -> None:
+        """Separate runtime and benchmark CVE bumps from tooling-only bumps."""
+        before = """\
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <DokaMySqlConnectorVersion>[2.5.0, 3.0.0)</DokaMySqlConnectorVersion>
+  </PropertyGroup>
+  <ItemGroup Label="Production">
+    <PackageVersion Include="MySqlConnector" Version="$(DokaMySqlConnectorVersion)" />
+  </ItemGroup>
+  <ItemGroup Label="Benchmarks">
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+  <ItemGroup Label="Tests">
+    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
+  </ItemGroup>
+</Project>
+"""
+        cases = (
+            (
+                before.replace("[2.5.0, 3.0.0)", "[2.5.1, 3.0.0)"),
+                True,
+            ),
+            (before.replace("0.15.8", "0.15.9"), True),
+            (before.replace("2026.0.0", "2026.0.1"), False),
+            (before.replace("<Project>", "<Project>\n  <!-- formatting -->"), False),
+            (
+                before.replace(
+                    '<ItemGroup Label="Tests">',
+                    '<ItemGroup Label="Unclassified">',
+                ),
+                True,
+            ),
+            (
+                before.replace(
+                    '<ItemGroup Label="Production">',
+                    '<ItemGroup Label="Tests">',
+                ),
+                True,
+            ),
+        )
+
+        for current, expected in cases:
+            with (
+                self.subTest(expected=expected, current=current),
+                patch.object(
+                    benchmark_workflow_state,
+                    "revision_file",
+                    side_effect=(before, current),
+                ),
+            ):
+                self.assertEqual(
+                    expected,
+                    benchmark_workflow_state.central_package_change_requires_scorecard(
+                        self.repo,
+                        "before-commit",
+                        "current-commit",
+                    ),
+                )
+
     @patch.object(benchmark_workflow_state, "run_git")
     def test_control_plane_changes_do_not_allocate_the_scorecard(
         self,
@@ -180,11 +321,9 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
             0,
             "\n".join(
                 (
-                    ".github/workflows/benchmark-scorecard.yml",
                     ".github/workflows/benchmark.yml",
                     "eng/performance/workflow_state.py",
-                    "eng/performance/check-benchmark-ratios.sh",
-                    "eng/performance/cli.py",
+                    "eng/performance/inputs.py",
                     "docs/operations/performance-evidence.md",
                 )
             ),
@@ -203,8 +342,8 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         """Keep periodic and operator-requested measurements unconditional."""
         for event_name in ("schedule", "workflow_dispatch"):
             with self.subTest(event_name=event_name):
-                required, changes = (
-                    benchmark_workflow_state.event_requires_scorecard(
+                tier, changes = (
+                    benchmark_workflow_state.event_measurement_tier(
                         self.repo,
                         event_name,
                         None,
@@ -212,25 +351,41 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                     )
                 )
 
-                self.assertTrue(required)
+                self.assertEqual("scorecard", tier)
                 self.assertEqual((f"<{event_name}>",), changes)
 
-    @patch.object(benchmark_workflow_state, "relevant_changes")
-    def test_push_runs_only_for_changed_performance_inputs(
+    @patch.object(benchmark_workflow_state, "changed_measurement_inputs")
+    def test_push_selects_the_strongest_changed_measurement_tier(
         self,
         changes: Mock,
     ) -> None:
-        """Measure relevant pushes and keep unrelated pushes inexpensive."""
+        """Route provider changes to smoke and measurement changes to scorecard."""
         cases = (
-            ((), False),
-            (("src/Doka.EntityFrameworkCore.MySql/Storage/Mapping.cs",), True),
+            (benchmark_workflow_state.MeasurementChanges(), "none"),
+            (
+                benchmark_workflow_state.MeasurementChanges(
+                    smoke=(
+                        "src/Doka.EntityFrameworkCore.MySql/Storage/Mapping.cs",
+                    ),
+                ),
+                "smoke",
+            ),
+            (
+                benchmark_workflow_state.MeasurementChanges(
+                    scorecard=("eng/benchmark.sh",),
+                    smoke=(
+                        "src/Doka.EntityFrameworkCore.MySql/Storage/Mapping.cs",
+                    ),
+                ),
+                "scorecard",
+            ),
         )
-        for observed_changes, expected in cases:
-            with self.subTest(changes=observed_changes, expected=expected):
+        for observed_changes, expected_tier in cases:
+            with self.subTest(changes=observed_changes, expected=expected_tier):
                 changes.return_value = observed_changes
 
-                required, observed = (
-                    benchmark_workflow_state.event_requires_scorecard(
+                tier, observed = (
+                    benchmark_workflow_state.event_measurement_tier(
                         self.repo,
                         "push",
                         "before-commit",
@@ -238,10 +393,10 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                     )
                 )
 
-                self.assertEqual(expected, required)
-                self.assertEqual(observed_changes, observed)
+                self.assertEqual(expected_tier, tier)
+                self.assertEqual(observed_changes.all, observed)
 
-        self.assertEqual(2, changes.call_count)
+        self.assertEqual(3, changes.call_count)
 
     def test_real_git_diff_allocates_only_for_performance_inputs(self) -> None:
         """Exercise the production Git diff path instead of a mocked result."""
@@ -280,8 +435,8 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                 "HEAD",
             ).stdout.strip()
 
-            documentation_required, documentation_changes = (
-                benchmark_workflow_state.event_requires_scorecard(
+            documentation_tier, documentation_changes = (
+                benchmark_workflow_state.event_measurement_tier(
                     repository,
                     "push",
                     initial_revision,
@@ -289,7 +444,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                 )
             )
 
-            self.assertFalse(documentation_required)
+            self.assertEqual("none", documentation_tier)
             self.assertEqual((), documentation_changes)
 
             source_path.write_text(
@@ -303,8 +458,8 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                 "HEAD",
             ).stdout.strip()
 
-            provider_required, provider_changes = (
-                benchmark_workflow_state.event_requires_scorecard(
+            provider_tier, provider_changes = (
+                benchmark_workflow_state.event_measurement_tier(
                     repository,
                     "push",
                     documentation_revision,
@@ -312,7 +467,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                 )
             )
 
-            self.assertTrue(provider_required)
+            self.assertEqual("smoke", provider_tier)
             self.assertEqual(
                 ("src/Provider/QueryGenerator.cs",),
                 provider_changes,
@@ -332,8 +487,8 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                 "HEAD",
             ).stdout.strip()
 
-            moved_required, moved_changes = (
-                benchmark_workflow_state.event_requires_scorecard(
+            moved_tier, moved_changes = (
+                benchmark_workflow_state.event_measurement_tier(
                     repository,
                     "push",
                     provider_revision,
@@ -341,7 +496,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                 )
             )
 
-            self.assertTrue(moved_required)
+            self.assertEqual("smoke", moved_tier)
             self.assertEqual(
                 ("src/Provider/QueryGenerator.cs",),
                 moved_changes,
@@ -366,8 +521,8 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                 "HEAD",
             ).stdout.strip()
 
-            deleted_required, deleted_changes = (
-                benchmark_workflow_state.event_requires_scorecard(
+            deleted_tier, deleted_changes = (
+                benchmark_workflow_state.event_measurement_tier(
                     repository,
                     "push",
                     added_revision,
@@ -375,7 +530,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
                 )
             )
 
-            self.assertTrue(deleted_required)
+            self.assertEqual("smoke", deleted_tier)
             self.assertEqual(
                 ("src/Provider/Deleted.cs",),
                 deleted_changes,
@@ -387,14 +542,14 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         run_git: Mock,
     ) -> None:
         """Treat initial branch creation as a complete measurement edge."""
-        required, changes = benchmark_workflow_state.event_requires_scorecard(
+        tier, changes = benchmark_workflow_state.event_measurement_tier(
             self.repo,
             "push",
             benchmark_workflow_state.ZERO_REVISION,
             "current-commit",
         )
 
-        self.assertTrue(required)
+        self.assertEqual("scorecard", tier)
         self.assertEqual(("<initial-push>",), changes)
         run_git.assert_not_called()
 
@@ -434,10 +589,10 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
             "scorecard",
             "github-ubuntu-latest-x64",
         )
-        scorecard_required, sync_required, proposal_required = (
+        measurement, sync_required, proposal_required = (
             benchmark_workflow_state.decide_work(
                 "seed",
-                False,
+                "none",
                 proposal,
             )
         )
@@ -445,7 +600,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         validate_baseline.assert_called_once()
         self.assertEqual("current", proposal.disposition)
         self.assertTrue(proposal.behind_current)
-        self.assertFalse(scorecard_required)
+        self.assertEqual("none", measurement)
         self.assertTrue(sync_required)
         self.assertFalse(proposal_required)
 
@@ -457,15 +612,15 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
             behind_current=False,
         )
 
-        scorecard_required, sync_required, proposal_required = (
+        measurement, sync_required, proposal_required = (
             benchmark_workflow_state.decide_work(
                 "seed",
-                True,
+                "scorecard",
                 proposal,
             )
         )
 
-        self.assertTrue(scorecard_required)
+        self.assertEqual("scorecard", measurement)
         self.assertFalse(sync_required)
         self.assertTrue(proposal_required)
 
@@ -509,8 +664,8 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         self.assertEqual("current", proposal.disposition)
         self.assertFalse(proposal.behind_current)
         self.assertEqual(
-            (False, False, False),
-            benchmark_workflow_state.decide_work("seed", False, proposal),
+            ("none", False, False),
+            benchmark_workflow_state.decide_work("seed", "none", proposal),
         )
         validate_baseline.assert_called_once()
 
@@ -550,10 +705,10 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
             "scorecard",
             "github-ubuntu-latest-x64",
         )
-        scorecard_required, sync_required, proposal_required = (
+        measurement, sync_required, proposal_required = (
             benchmark_workflow_state.decide_work(
                 "seed",
-                True,
+                "scorecard",
                 proposal,
             )
         )
@@ -561,7 +716,7 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         validate_baseline.assert_called_once()
         self.assertEqual("stale", proposal.disposition)
         self.assertEqual(("eng/benchmark.sh",), proposal.relevant_changes)
-        self.assertTrue(scorecard_required)
+        self.assertEqual("scorecard", measurement)
         self.assertFalse(sync_required)
         self.assertTrue(proposal_required)
 
@@ -603,8 +758,8 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         self.assertEqual("invalid", proposal.disposition)
         self.assertIn("not an ancestor", proposal.reason)
         self.assertEqual(
-            (False, False, False),
-            benchmark_workflow_state.decide_work("seed", False, proposal),
+            ("none", False, False),
+            benchmark_workflow_state.decide_work("seed", "none", proposal),
         )
         validate_baseline.assert_called_once()
         changes.assert_not_called()
@@ -634,8 +789,8 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
 
         self.assertEqual("invalid", proposal.disposition)
         self.assertEqual(
-            (False, False, False),
-            benchmark_workflow_state.decide_work("seed", False, proposal),
+            ("none", False, False),
+            benchmark_workflow_state.decide_work("seed", "none", proposal),
         )
         validate_baseline.assert_called_once()
 
@@ -647,8 +802,12 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            (True, False, True),
-            benchmark_workflow_state.decide_work("seed", True, proposal),
+            ("scorecard", False, True),
+            benchmark_workflow_state.decide_work(
+                "seed",
+                "scorecard",
+                proposal,
+            ),
         )
 
     def test_unrelated_push_does_not_seed_an_absent_proposal(self) -> None:
@@ -659,8 +818,8 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            (False, False, False),
-            benchmark_workflow_state.decide_work("seed", False, proposal),
+            ("none", False, False),
+            benchmark_workflow_state.decide_work("seed", "none", proposal),
         )
 
     def test_compare_mode_only_runs_when_the_event_requires_evidence(
@@ -673,18 +832,26 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            (False, False, False),
+            ("none", False, False),
             benchmark_workflow_state.decide_work(
                 "compare",
-                False,
+                "none",
                 proposal,
             ),
         )
         self.assertEqual(
-            (True, False, False),
+            ("smoke", False, False),
             benchmark_workflow_state.decide_work(
                 "compare",
-                True,
+                "smoke",
+                proposal,
+            ),
+        )
+        self.assertEqual(
+            ("scorecard", False, False),
+            benchmark_workflow_state.decide_work(
+                "compare",
+                "scorecard",
                 proposal,
             ),
         )
@@ -698,10 +865,26 @@ class BenchmarkWorkflowStateTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            (False, False, False),
+            ("none", False, False),
             benchmark_workflow_state.decide_work(
                 "compare",
-                False,
+                "none",
+                proposal,
+            ),
+        )
+
+    def test_seed_upgrades_provider_smoke_to_complete_scorecard(self) -> None:
+        """Permit baseline proposals only from the complete target contract."""
+        proposal = benchmark_workflow_state.ProposalState(
+            "absent",
+            "The active contract has no accepted baseline.",
+        )
+
+        self.assertEqual(
+            ("scorecard", False, True),
+            benchmark_workflow_state.decide_work(
+                "seed",
+                "smoke",
                 proposal,
             ),
         )

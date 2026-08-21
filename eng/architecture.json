@@ -75,7 +75,6 @@
         ".github/workflows/benchmark-smoke.yml",
         ".github/workflows/benchmark-target.yml",
         "CONTRIBUTING.md",
-        "README.md",
         "docs/operations/performance-evidence.md"
       ]
     },
@@ -90,7 +89,6 @@
       "outputs": "A pass or fail result with actionable diagnostics.",
       "sideEffects": "May refresh deterministic validation artifacts in the normal build output tree.",
       "consumers": [
-        "README.md",
         "docs/decisions/D-021-provider-completeness-and-spec-dispositions.md"
       ]
     },
@@ -165,7 +163,6 @@
       "outputs": "Build and behavior verification results for all examples.",
       "sideEffects": "Builds example projects and writes normal build intermediates.",
       "consumers": [
-        "README.md",
         "examples/README.md"
       ]
     },
@@ -183,7 +180,6 @@
         ".github/workflows/ci.yml",
         ".github/workflows/container-matrix.yml",
         "CONTRIBUTING.md",
-        "README.md",
         "docs/release-governance.md"
       ]
     },
@@ -247,7 +243,6 @@
       "consumers": [
         ".github/workflows/ci.yml",
         "CONTRIBUTING.md",
-        "README.md",
         "docs/release-governance.md"
       ]
     },

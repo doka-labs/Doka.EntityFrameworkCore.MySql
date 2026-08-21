@@ -451,7 +451,12 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         if (hasTemporaryDefault)
         {
-            DefaultValue(operation.DefaultValue, operation.DefaultValueSql, operation.ColumnType, builder);
+            var storeType = operation.ColumnType
+                ?? Dependencies.TypeMappingSource.FindMapping(operation.ClrType)?.StoreType
+                ?? throw new InvalidOperationException(
+                    $"Could not resolve the store type for temporal history column '{operation.Name}'.");
+
+            DefaultValue(operation.DefaultValue, operation.DefaultValueSql, storeType, builder);
         }
 
         builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);

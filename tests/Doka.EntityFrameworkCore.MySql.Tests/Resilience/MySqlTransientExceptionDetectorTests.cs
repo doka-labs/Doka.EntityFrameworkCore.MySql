@@ -37,6 +37,19 @@ public sealed class MySqlTransientExceptionDetectorTests
         Assert.False(_detector.ShouldRetryOn(exception));
     }
 
+    /// <summary>
+    /// A session cleanup failure is an ambiguous DDL outcome and must not be
+    /// retried even when its cause would normally be transient.
+    /// </summary>
+    [Fact]
+    public void Migration_session_cleanup_failure_is_not_retryable()
+    {
+        var exception = new MySqlMigrationSessionCleanupException(
+            new IOException("connection reset during cleanup"));
+
+        Assert.False(_detector.ShouldRetryOn(exception));
+    }
+
     /// <summary>A retryable connector error cannot hide an inner cancellation.</summary>
     [Fact]
     public void MySqlException_wrapping_cancellation_is_not_retryable()
@@ -144,6 +157,38 @@ public sealed class MySqlTransientExceptionDetectorTests
 
         Assert.True(_detector.ShouldRetryOn(outer));
     }
+
+    /// <summary>
+    /// A connector transport wrapper without a server error number must not
+    /// hide the retryable I/O cause observed after a commit acknowledgement is
+    /// lost.
+    /// </summary>
+    [Fact]
+    public void Number_zero_mysql_exception_wrapping_io_failure_is_retryable()
+    {
+        var exception = CreateMySqlException((MySqlErrorCode)0, new IOException("unexpected EOF"));
+
+        Assert.False(exception.IsTransient);
+        Assert.Equal(0, exception.Number);
+        Assert.True(_detector.ShouldRetryOn(exception));
+    }
+
+    /// <summary>
+    /// A concrete non-retryable server error remains terminal even when an
+    /// inner transport exception is attached.
+    /// </summary>
+    [Fact]
+    public void Non_retryable_server_error_wrapping_io_failure_is_not_retryable()
+    {
+        var exception = CreateMySqlException(MySqlErrorCode.AccessDenied, new IOException("transport detail"));
+
+        Assert.False(_detector.ShouldRetryOn(exception));
+    }
+
+    /// <summary>A number-zero connector wrapper without a retryable cause remains terminal.</summary>
+    [Fact]
+    public void Number_zero_mysql_exception_without_transport_cause_is_not_retryable() =>
+        Assert.False(_detector.ShouldRetryOn(CreateMySqlException((MySqlErrorCode)0)));
 
     private static MySqlException CreateMySqlException(MySqlErrorCode code)
         => CreateMySqlException(code, innerException: null);

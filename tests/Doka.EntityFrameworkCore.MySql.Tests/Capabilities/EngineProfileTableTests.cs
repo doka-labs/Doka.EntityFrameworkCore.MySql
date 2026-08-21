@@ -135,6 +135,8 @@ public sealed class EngineProfileTableTests
             (EngineFamily.MySql, "8.0.16", EngineCapability.CheckConstraints, true),
             (EngineFamily.MySql, "8.0.23", EngineCapability.SpatialCollectAggregate, false),
             (EngineFamily.MySql, "8.0.24", EngineCapability.SpatialCollectAggregate, true),
+            (EngineFamily.MySql, "9.7.2", EngineCapability.ColumnCommentPrecedesVisibilityAttribute, false),
+            (EngineFamily.MariaDb, "5.1.99", EngineCapability.ColumnCommentPrecedesVisibilityAttribute, true),
             (EngineFamily.MariaDb, "5.1.99", EngineCapability.VirtualGeneratedColumns, false),
             (EngineFamily.MariaDb, "5.2.0", EngineCapability.VirtualGeneratedColumns, true),
             (EngineFamily.MariaDb, "5.1.99", EngineCapability.StoredGeneratedColumns, false),

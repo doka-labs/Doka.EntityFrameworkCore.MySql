@@ -850,7 +850,10 @@ internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
         && HasComputedExpression(left.OldColumn) == HasComputedExpression(right.OldColumn)
         && left.OldColumn.IsStored == right.OldColumn.IsStored
         && (left.OldColumn.Comment is null) == (right.OldColumn.Comment is null)
-        && (!RequiresNullValueUpdate(left) || left.DefaultValue is not null || left.ClrType == right.ClrType)
+        && (!RequiresNullValueUpdate(left)
+            || left.DefaultValue is not null
+            || left.DefaultValueSql is not null
+            || left.ClrType == right.ClrType)
         && ProviderAnnotationsGenerateEquivalentSql(left, right);
 
     private static bool StoreTypesGenerateEquivalentSql(

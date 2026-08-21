@@ -16,6 +16,69 @@ doka-profile-version: "1.0"
 
 # D-026 -- Qualify releases from bound evidence and paired performance runs
 
+## 2026-08-20 Amendment: Bound routine benchmark and publication polling cost
+
+The complete hosted scorecard remains necessary when a change can alter the
+measurement system or its runtime environment. Running that lane after every
+ordinary provider-source merge, however, repeated the full paired population
+across all six supported targets even when a non-qualifying smoke run was
+sufficient to detect broken workload execution. NuGet publication likewise
+polled asynchronous package, symbol, and repository-signature visibility every
+15 seconds throughout a one-hour deadline, although the service documents
+validation and indexing on a minutes-scale operational window.
+
+The benchmark resolver now selects the strongest of three registered outcomes
+from the complete push diff. Provider source selects the contract-derived
+six-target smoke lane. Benchmark and evaluator code, workload corpora,
+production project and lock files, production or benchmark package versions,
+SDK and build inputs, database images, and supported-target contracts select
+the complete scorecard. Monthly and manual events also select the scorecard.
+Documentation, tests, unrelated Actions-only maintenance, accepted baseline
+output, and explicitly inventoried test-, analyzer-, and example-only
+package-group updates select no measurement. Unclassified central-package
+groups or unsupported central-package XML fail closed into a scorecard. A
+mixed change always receives its strongest required tier.
+
+Smoke has no qualification or baseline authority. If baseline resolution
+selects `seed`, a provider-source smoke request is upgraded to the full
+scorecard before any proposal can be written. The workflow keeps one serialized
+control plane because baseline proposal inspection and synchronization still
+share mutable branch state; this amendment reduces measurement allocation
+without weakening that ordering contract.
+
+NuGet public readback now waits 30 seconds between observations while retaining
+the existing one-hour deadline and every byte, symbol, and signature check.
+The workflow passes both values explicitly and the CLI carries the same
+defaults, so hosted and operator-invoked behavior cannot silently diverge. Once
+one exact package has matched candidate content and its repository signature,
+or one public PDB has matched its registered SHA-256, the readback retains that
+verified state and its exact bytes. Later rounds request only subjects that are
+absent or still awaiting a signature. A conflicting response remains terminal;
+the optimization does not convert an unverified observation into cached
+evidence.
+
+Primary-source basis:
+
+- [GitHub reusable workflows][github-reusable-workflows] document calling a
+  reusable workflow from a matrix-backed or conditional job, which permits one
+  resolver to select either complete target-derived lane without duplicating
+  their lifecycle.
+- [GitHub Actions billing][github-actions-billing] documents that hosted-runner
+  job execution consumes billable minutes, so avoiding measurement jobs rather
+  than merely shortening their reporting path is the relevant control.
+- [NuGet package publication][nuget-publish-package] documents asynchronous
+  validation and indexing, a normal delay below 15 minutes, and the one-hour
+  support threshold retained as the hard deadline.
+- [NuGet package publish API][nuget-package-publish-api] documents that
+  NuGet.org rejects a second package with the same ID and version, which makes
+  a completed exact-version observation immutable rather than a moving poll
+  target.
+- [NuGet symbol publication][nuget-symbol-packages] documents independent
+  validation and indexing under the same operational window, with a symbol
+  package bound to the ID and version of its primary package.
+
+Retrieved 2026-08-20.
+
 ## 2026-08-19 Amendment: Publish portable SLSA provenance
 
 GitHub's attestation API proves the candidate inside the hosted workflow, but
@@ -122,10 +185,15 @@ reported `treeState: dirty` and finalization rejected otherwise valid evidence.
 
 The runtime gate now captures source identity before execution, requires a
 clean source for release-candidate evidence, and verifies that execution adds
-no source change. Restore intermediates, build outputs, and the custom NuGet
-lock-file location share one disposable directory. Restore receives the RID
-explicitly and both run and publish use `--no-restore`, so every dependent
-command consumes the same resolved graph without touching accepted locks.
+no source change. Restore intermediates, build outputs, and custom NuGet lock
+files share one disposable directory. A graph restore does not propagate a
+custom lock path reliably to every `ProjectReference`; a RID restore can
+therefore add the RID to a referenced project's repository lock. The gate
+restores the provider, spatial extension, and runtime smoke project separately
+in dependency order with `RestoreRecursive=false` and one explicit disposable
+lock path per project. Every restore receives the same RID. Run and publish use
+`--no-restore`, so they consume that resolved graph without touching accepted
+locks.
 
 The same shared runtime gate now runs inside the existing `integration-smoke`
 job on every pull request and `main` push. That job already feeds
@@ -138,11 +206,17 @@ Primary-source basis:
 
 - [NuGet PackageReference lock-file contract][nuget-lock-files] defines
   `NuGetLockFilePath` as the supported custom lock-file location.
+- [NuGet RestoreTask source][nuget-restore-task] defines
+  `RestoreRecursive` as the switch controlling recursive project restore.
 - [.NET CLI publish contract][dotnet-publish] documents the implicit restore,
   the `--no-restore` boundary, and the requirement to pass an explicit artifacts
   path consistently to commands that consume earlier outputs.
 
 Retrieved 2026-08-17.
+
+The `RestoreRecursive` source contract was reverified on 2026-08-20 after a
+real RID restore demonstrated that one graph-level custom lock path does not
+isolate referenced-project locks.
 
 ## 2026-08-17 Amendment: Make finalization self-contained
 
@@ -1434,6 +1508,8 @@ manifest verification.
   (primary source; retrieved 2026-08-16)
 - [NuGet PackageReference lock-file contract][nuget-lock-files]
   (primary source; retrieved 2026-08-17)
+- [NuGet RestoreTask source][nuget-restore-task]
+  (primary source; retrieved 2026-08-20)
 - [.NET CLI publish contract][dotnet-publish]
   (primary source; retrieved 2026-08-17)
 - [BenchmarkDotNet good practices][bdn-good-practices]
@@ -1530,6 +1606,8 @@ manifest verification.
   https://learn.microsoft.com/en-us/nuget/nuget-org/policies/deleting-packages
 [nuget-lock-files]:
   https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#locking-dependencies
+[nuget-restore-task]:
+  https://github.com/NuGet/NuGet.Client/blob/dev/src/NuGet.Core/NuGet.Build.Tasks/RestoreTask.cs
 [nuget-publish-package]:
   https://learn.microsoft.com/en-us/nuget/nuget-org/publish-a-package
 [nuget-symbol-packages]:

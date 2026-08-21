@@ -41,6 +41,95 @@ after its handler has returned. Because the handler invocation and its span have
 already completed, this post-lifetime misuse is not attributed to the earlier
 invocation's log, metric, or activity.
 
+### Scoped command recovery
+
+Provider-rendered DDL comments containing a backslash require a temporary
+`NO_BACKSLASH_ESCAPES` session mode. During `Database.Migrate`, direct
+`IMigrator`, `dotnet ef`, and bundle runtime execution, Doka owns that scope in
+one specialized migration command:
+
+1. open and retain one physical connection when the caller did not already
+   open it;
+2. capture the exact original session mode client-side;
+3. enable the required mode without removing existing modes;
+4. execute the provider body;
+5. restore the captured value even after server failure or cancellation; and
+6. close only a connection opened by the scoped command.
+
+Async cleanup does not reuse the canceled caller token. If restoration fails,
+the provider forcibly closes the physical connection even when the caller
+opened it, clears the MySqlConnector pool, and keeps the cleanup failure
+visible. A connection-close failure is preserved through the same error path.
+If both the body and cleanup fail, both exceptions are retained below one
+terminal provider cleanup exception; investigate the body error first. EF's
+execution strategy does not retry this ambiguous DDL outcome.
+
+The same generated command exposes exact `Setup`, `Body`, and `Cleanup`
+fragments to migration-operation handlers. These roles remove SQL-parser
+coupling but do not turn a SQL script into a try/finally construct. If a normal
+or idempotent script fails inside such a scope, terminate its client session
+before retrying. Do not continue unrelated work on that session.
+
+Handlers that acquire their own session state use
+`MySqlMigrationCommandSpec.CreateScoped`. Runtime setup executes in declaration
+order, the body executes once, and cleanup is attempted in reverse declaration
+order after setup failure, body failure, success, or cancellation. Cleanup uses
+an independent cancellation token. It must be idempotent and should use
+server-side `IF EXISTS` forms where available. A cleanup failure closes the
+physical connection and clears the affected pool, including when the caller
+owned the open connection. The provider retains simultaneous body and cleanup
+failures rather than hiding either one.
+
+The repository deployment gate injects a deterministic failing scoped script
+on every supported target. It requires the process-owned database client to
+return failure and proves that a statement after that failure was not executed,
+so the documented stop-and-discard rule is executable rather than advisory.
+
+### Column default grammar
+
+Migration default rendering resolves the effective relational type mapping even
+when an operation omits `ColumnType`. DateOnly and TimeOnly typed literals are
+expressions and are therefore emitted as parenthesized column defaults. The
+same policy covers expression-default forms for text, binary, JSON, and every
+spatial store type, including store types with modifiers.
+
+TimeOnly and TimeSpan literals are truncated to the declared fractional-second
+precision before SQL is generated. Precision is limited to the engine range of
+zero through six; an explicit `time` store type therefore emits no fractional
+digits, while the provider default `time(6)` emits microseconds. This avoids a
+result that depends on an engine's rounding mode. CLR `char` literals use the
+same SQL-mode-independent text encoding as provider string mappings, including
+backslash and NUL values.
+
+MariaDB JSON aliases and spatial column definitions retain literal or SQL
+defaults, comments, visibility, computed expressions, storage, and SRID
+metadata through their provider-specific rendering paths. The generator rejects
+a backslash comment combined with raw SQL whose interpretation would change
+under `NO_BACKSLASH_ESCAPES`; callers must rewrite that raw expression into a
+mode-independent form before generating the migration.
+
+Changing any nullable column to required is a data migration. The provider
+repairs existing null rows only when the `AlterColumnOperation` declares an
+explicit `DefaultValue` or nonblank `DefaultValueSql`; otherwise SQL generation
+fails before an `UPDATE` or `ALTER TABLE` is emitted. This applies equally to
+ordinary scalar columns and to JSON, spatial, `ENUM`, and constrained columns.
+A CLR default cannot express arbitrary store constraints or application
+meaning.
+
+A nullable-to-required `timestamp` repair must use `DefaultValueSql`, not a CLR
+`DateTime` value. Both engine families interpret `TIMESTAMP` input through the
+executing session time zone before storing UTC, so validating or rendering an
+unspecified CLR wall-clock value in the design-time generator would not define
+a portable instant. Use an intentional server expression such as
+`CURRENT_TIMESTAMP(6)`, or run a separate application-owned data migration
+before changing nullability. The target server remains authoritative for the
+expression, timestamp range, fractional precision, and every table constraint.
+
+The executable migration example proves create, add-on-populated-table, alter,
+existing-row preservation, and new-row defaults through every EF deployment
+path on all six active targets. Script generation additionally rejects any
+unparenthesized `DEFAULT DATE '...'` or `DEFAULT TIME '...'` form.
+
 <a id="mysql-migration-lock-failure"></a>
 
 ## Migration Lock Stuck Procedure
@@ -291,7 +380,41 @@ ADO.NET command.
   retrieved 2026-07-28.
 - Microsoft, [Managing Migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/managing),
   retrieved 2026-07-28.
+- Microsoft, [EF Core 10.0.8 `MigrationCommand` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationCommand.cs),
+  retrieved 2026-08-20.
+- Microsoft, [EF Core 10.0.8 migration command executor source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/Internal/MigrationCommandExecutor.cs),
+  retrieved 2026-08-20.
+- Microsoft, [EF Core 10.0.10 migration command executor source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/Internal/MigrationCommandExecutor.cs),
+  retrieved 2026-08-21.
+- Microsoft, [EF Core 10.0.11 SQL Server migrations SQL generator source](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore.SqlServer/Migrations/SqlServerMigrationsSqlGenerator.cs),
+  retrieved 2026-08-21.
+- MySQL, [Data Type Default Values](https://dev.mysql.com/doc/refman/8.4/en/data-type-defaults.html),
+  retrieved 2026-08-20.
+- MySQL, [Fractional Seconds in Time Values](https://dev.mysql.com/doc/refman/8.4/en/fractional-seconds.html),
+  retrieved 2026-08-20.
+- MySQL, [Date and Time Data Type Syntax](https://dev.mysql.com/doc/refman/8.4/en/date-and-time-type-syntax.html),
+  retrieved 2026-08-21.
+- MySQL, [Geometry Well-Formedness and Validity](https://dev.mysql.com/doc/refman/8.4/en/geometry-well-formedness-validity.html),
+  retrieved 2026-08-21.
+- MySQL, [`CHECK` Constraints](https://dev.mysql.com/doc/refman/8.4/en/create-table-check-constraints.html),
+  retrieved 2026-08-21.
+- MySQL, [`CREATE TABLE` Statement](https://dev.mysql.com/doc/refman/8.4/en/create-table.html),
+  retrieved 2026-08-20.
+- MySQL, [`mysql` client options](https://dev.mysql.com/doc/refman/8.4/en/mysql-command-options.html),
+  retrieved 2026-08-21.
 - MySQL, [CREATE PROCEDURE and CREATE FUNCTION Statements](https://dev.mysql.com/doc/refman/8.4/en/create-procedure.html),
   retrieved 2026-08-11.
 - MariaDB, [mariadb Command-Line Client](https://mariadb.com/docs/server/clients-and-utilities/mariadb-client/mariadb-command-line-client),
   retrieved 2026-08-11.
+- MariaDB, [`CREATE TABLE`](https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/create-table),
+  retrieved 2026-08-20.
+- MariaDB, [`TIME`](https://mariadb.com/docs/server/reference/data-types/date-and-time-data-types/time),
+  retrieved 2026-08-20.
+- MariaDB, [`TIMESTAMP`](https://mariadb.com/docs/server/reference/data-types/date-and-time-data-types/timestamp),
+  retrieved 2026-08-21.
+- MariaDB, [Constraints](https://mariadb.com/docs/server/reference/sql-statements/data-definition/constraint),
+  retrieved 2026-08-21.
+- MySqlConnector, [connection options and pool reset behavior](https://mysqlconnector.net/connection-options/),
+  retrieved 2026-08-21.
+- MySqlConnector, [`MySqlConnection.ClearPoolAsync`](https://mysqlconnector.net/api/mysqlconnector/mysqlconnection/clearpoolasync/),
+  retrieved 2026-08-21.

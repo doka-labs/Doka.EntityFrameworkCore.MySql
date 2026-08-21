@@ -2,6 +2,38 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed class AdrRepositoryValidatorTests
 {
+    /// <summary>
+    /// Keeps the public migration-fragment contract and its runtime behavior
+    /// visible in its release notes instead of only in the API baseline.
+    /// </summary>
+    [Fact]
+    public void Rc11_changelog_describes_the_migration_fragment_contract()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var changelog = File.ReadAllText(Path.Combine(repositoryRoot, "CHANGELOG.md"));
+        var publicApi = File.ReadAllText(
+            Path.Combine(
+                repositoryRoot,
+                "src",
+                "Doka.EntityFrameworkCore.MySql",
+                "PublicAPI.Unshipped.txt"));
+
+        var releaseStart = changelog.IndexOf("## [10.0.0-rc.11]", StringComparison.Ordinal);
+        var nextReleaseStart = changelog.IndexOf(
+            "\n## [",
+            releaseStart + "## [10.0.0-rc.11]".Length,
+            StringComparison.Ordinal);
+        var release = changelog[releaseStart..nextReleaseStart];
+
+        Assert.Contains("MySqlMigrationCommandSpec.Fragments.get", publicApi, StringComparison.Ordinal);
+        Assert.Contains("### Added", release, StringComparison.Ordinal);
+        Assert.Contains("`MySqlMigrationCommandSpec.Fragments`", release, StringComparison.Ordinal);
+        Assert.Contains("setup, body, and cleanup fragments", release, StringComparison.Ordinal);
+        Assert.Contains("### Fixed", release, StringComparison.Ordinal);
+        Assert.Contains("`NO_BACKSLASH_ESCAPES`", release, StringComparison.Ordinal);
+        Assert.Contains("`TIME` range", release, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Functional_tests_define_a_portable_local_database_target()
     {
@@ -34,7 +66,7 @@ public sealed class AdrRepositoryValidatorTests
         var report = AdrRepositoryValidator.Validate(FindRepositoryRoot());
 
         Assert.True(report.IsValid, FormatErrors(report));
-        Assert.Equal(27, report.Documents.Count);
+        Assert.Equal(28, report.Documents.Count);
     }
 
     [Fact]
@@ -251,6 +283,9 @@ public sealed class AdrRepositoryValidatorTests
         var deploymentGate = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "testing", "test-migration-deployment.sh"));
 
+        var bundleBuilder = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "testing", "build-migration-bundle.sh"));
+
         var releaseCandidate = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
 
@@ -266,8 +301,15 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("migrate-direct", deploymentGate, StringComparison.Ordinal);
         Assert.Contains("database update", deploymentGate, StringComparison.Ordinal);
         Assert.Contains("execute_script", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains("assert_failed_script_terminates_session", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains("DokaFailedScopedScriptContinuation", deploymentGate, StringComparison.Ordinal);
         Assert.Contains("MigrationWorkflowHandlerEvidence", deploymentGate, StringComparison.Ordinal);
-        Assert.Contains("migrations bundle", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains(
+            "bash \"${repo_root}/eng/testing/build-migration-bundle.sh\" \"${bundle_path}\"",
+            deploymentGate,
+            StringComparison.Ordinal);
+        Assert.Contains("migrations bundle", bundleBuilder, StringComparison.Ordinal);
+        Assert.Contains("DokaIsolatedNuGetLockRoot", bundleBuilder, StringComparison.Ordinal);
         Assert.Contains(
             "run_bundle_command \"${connection_string}\" \"${server_version}\" 0",
             deploymentGate,
@@ -439,6 +481,7 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("python3 -m eng.release.nuget readback", workflow, StringComparison.Ordinal);
         Assert.Contains("--symbol-manifest", workflow, StringComparison.Ordinal);
         Assert.Contains("--timeout-seconds 3600", workflow, StringComparison.Ordinal);
+        Assert.Contains("--poll-interval-seconds 30", workflow, StringComparison.Ordinal);
         Assert.Contains("test-nuget-readback.sh", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("secrets.NUGET_API_KEY", workflow, StringComparison.Ordinal);
         Assert.Contains(

@@ -39,6 +39,8 @@ public class TemporalProviderBenchmarks
     private static readonly DateTime s_pointInTime =
         new(2026, 1, 15, 12, 0, 0, DateTimeKind.Utc);
 
+    private static readonly MigrationOperation[] s_columnDefaultOperations = CreateColumnDefaultOperations();
+
     private DbContextOptions<TemporalQueryBenchmarkContext> _mysqlQueryOptions = null!;
     private DbContextOptions<TemporalQueryBenchmarkContext> _mariaDbQueryOptions = null!;
     private DbContextOptions<EmptyMigrationContext> _mysqlEmptyOptions = null!;
@@ -78,7 +80,8 @@ public class TemporalProviderBenchmarks
     }
 
     /// <summary>
-    /// Generates native MariaDB and provider-emulated MySQL temporal-table DDL.
+    /// Generates native MariaDB and provider-emulated MySQL temporal-table DDL
+    /// plus create, add, and alter temporal column defaults.
     /// </summary>
     /// <returns>The aggregate command length, which prevents dead-code elimination.</returns>
     [Benchmark]
@@ -89,7 +92,10 @@ public class TemporalProviderBenchmarks
         using var mariaDbSource = new EmptyMigrationContext(_mariaDbEmptyOptions);
         using var mariaDbTarget = new TemporalMigrationBenchmarkContext(_mariaDbMigrationOptions);
 
-        return GenerateMigrationSql(mysqlSource, mysqlTarget) + GenerateMigrationSql(mariaDbSource, mariaDbTarget);
+        return GenerateMigrationSql(mysqlSource, mysqlTarget)
+            + GenerateColumnDefaultSql(mysqlTarget)
+            + GenerateMigrationSql(mariaDbSource, mariaDbTarget)
+            + GenerateColumnDefaultSql(mariaDbTarget);
     }
 
     private static int GenerateQuerySql(
@@ -166,6 +172,96 @@ public class TemporalProviderBenchmarks
             .Generate(operations, targetContext.Model)
             .Sum(command => command.CommandText.Length);
     }
+
+    private static int GenerateColumnDefaultSql(
+        DbContext context
+    ) => context
+        .GetService<IMigrationsSqlGenerator>()
+        .Generate(s_columnDefaultOperations, context.Model)
+        .Sum(command => command.CommandText.Length);
+
+    private static MigrationOperation[] CreateColumnDefaultOperations()
+    {
+        var createTable = new CreateTableOperation { Name = "DefaultBenchmarkEntries" };
+        createTable.Columns.Add(
+            CreateDefaultColumn<AddColumnOperation>(
+                "CreatedDate",
+                typeof(DateOnly),
+                "date",
+                new DateOnly(2026, 8, 17)));
+        createTable.Columns.Add(
+            CreateDefaultColumn<AddColumnOperation>(
+                "CreatedTime",
+                typeof(TimeOnly),
+                "time(6)",
+                new TimeOnly(12, 34, 56).Add(TimeSpan.FromTicks(1_234_567))));
+
+        return
+        [
+            createTable,
+            CreateDefaultColumn<AddColumnOperation>(
+                "AddedDate",
+                typeof(DateOnly),
+                columnType: null,
+                new DateOnly(2027, 1, 2)),
+            CreateDefaultColumn<AddColumnOperation>(
+                "AddedTime",
+                typeof(TimeOnly),
+                "time(6)",
+                new TimeOnly(3, 4, 5).Add(TimeSpan.FromTicks(7_654_321))),
+            CreateAlterDefaultColumn(
+                "AddedDate",
+                typeof(DateOnly),
+                "date",
+                new DateOnly(2028, 2, 3),
+                new DateOnly(2027, 1, 2)),
+            CreateAlterDefaultColumn(
+                "AddedTime",
+                typeof(TimeOnly),
+                "time(6)",
+                new TimeOnly(4, 5, 6).Add(TimeSpan.FromTicks(6_543_219)),
+                new TimeOnly(3, 4, 5).Add(TimeSpan.FromTicks(7_654_321))),
+        ];
+    }
+
+    private static TOperation CreateDefaultColumn<TOperation>(
+        string name,
+        Type clrType,
+        string? columnType,
+        object defaultValue
+    )
+        where TOperation : ColumnOperation, new() => new()
+        {
+        Table = "DefaultBenchmarkEntries",
+        Name = name,
+        ClrType = clrType,
+        ColumnType = columnType,
+        IsNullable = false,
+        DefaultValue = defaultValue,
+    };
+
+    private static AlterColumnOperation CreateAlterDefaultColumn(
+        string name,
+        Type clrType,
+        string columnType,
+        object defaultValue,
+        object oldDefaultValue
+    ) => new()
+    {
+        Table = "DefaultBenchmarkEntries",
+        Name = name,
+        ClrType = clrType,
+        ColumnType = columnType,
+        IsNullable = false,
+        DefaultValue = defaultValue,
+        OldColumn =
+        {
+            ClrType = clrType,
+            ColumnType = columnType,
+            IsNullable = false,
+            DefaultValue = oldDefaultValue,
+        },
+    };
 
     private static DbContextOptions<TContext> CreateOptions<TContext>(
         MySqlServerVersion serverVersion

@@ -19,8 +19,14 @@ response, migration safety, and release governance independently reviewable.
 - [Release Publication Operations](operations/release-publication.md) defines
   release-candidate qualification, trusted NuGet publication, readback, and
   evidence preservation.
-- [Performance Evidence](operations/performance-evidence.md) defines benchmark,
-  soak, baseline, and regression-budget evidence.
+- [Performance Evidence](operations/performance-evidence.md) owns benchmark
+  execution and failure triage.
+- [Performance Evidence Reference](operations/performance-evidence-reference.md)
+  defines profiles, schemas, termination states, and soak invariants.
+- [Paired Performance Methodology](operations/paired-performance-methodology.md)
+  defines statistical decisions, sensitivity, retries, and contract controls.
+- [Performance Baseline Operations](operations/performance-baseline-operations.md)
+  owns engine-image acceptance, historical seeding, and hosted proposals.
 
 ## Stable Alert Links
 

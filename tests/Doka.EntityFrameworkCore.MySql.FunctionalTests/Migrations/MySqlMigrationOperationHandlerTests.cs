@@ -269,6 +269,137 @@ public sealed class MySqlMigrationOperationHandlerTests
     }
 
     [Fact]
+    public void Baseline_renderer_exposes_provider_owned_command_fragments_without_parsing()
+    {
+        using var serviceProvider = CreateServiceProvider(
+            [typeof(BaselineRenderingHandler)],
+            registerBeforeProvider: true);
+
+        using var context = CreateContext(serviceProvider);
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var handler = context
+            .GetService<IEnumerable<IMySqlMigrationOperationHandler>>()
+            .OfType<BaselineRenderingHandler>()
+            .Single();
+
+        var operation = new AddColumnOperation
+        {
+            Table = "Entries",
+            Name = "Description",
+            ClrType = typeof(string),
+            ColumnType = "varchar(64)",
+            IsNullable = true,
+            Comment = "path\\segment; 'quoted' /* data */",
+        };
+
+        _ = generator.Generate(
+            [new FirstCustomOperation("structured-baseline", operation)],
+            context.Model);
+
+        var command = Assert.Single(handler.LastBaseline!);
+
+        Assert.Collection(
+            command.Fragments,
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Setup, fragment.Kind),
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Setup, fragment.Kind),
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Body, fragment.Kind),
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Cleanup, fragment.Kind));
+        Assert.Equal(
+            command.CommandText,
+            string.Concat(command.Fragments.Select(static fragment => fragment.CommandText.ToString())));
+        Assert.Contains(
+            "ALTER TABLE `Entries` ADD `Description` varchar(64) NULL COMMENT",
+            command.Fragments[2].CommandText.ToString(),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Ordinary_baseline_command_contains_one_body_fragment()
+    {
+        using var serviceProvider = CreateServiceProvider(
+            [typeof(BaselineRenderingHandler)],
+            registerBeforeProvider: true);
+
+        using var context = CreateContext(serviceProvider);
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var handler = context
+            .GetService<IEnumerable<IMySqlMigrationOperationHandler>>()
+            .OfType<BaselineRenderingHandler>()
+            .Single();
+
+        _ = generator.Generate(
+            [new FirstCustomOperation("ordinary", new SqlOperation { Sql = "SELECT 4;" })],
+            context.Model);
+
+        var command = Assert.Single(handler.LastBaseline!);
+        var fragment = Assert.Single(command.Fragments);
+
+        Assert.Equal(MySqlMigrationCommandFragmentKind.Body, fragment.Kind);
+        Assert.Equal(command.CommandText, fragment.CommandText.ToString());
+    }
+
+    [Fact]
+    public void Handler_scoped_command_materializes_provider_owned_executor()
+    {
+        using var serviceProvider = CreateServiceProvider([typeof(ScopedCommandHandler)], registerBeforeProvider: true);
+
+        using var context = CreateContext(serviceProvider);
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+
+        var command = Assert.Single(generator.Generate([new FirstCustomOperation("scoped")], context.Model));
+        var scopedCommand = Assert.IsType<MySqlScopedMigrationCommand>(command);
+
+        Assert.True(command.TransactionSuppressed);
+        Assert.Equal(MySqlMigrationCommandScopeKind.Handler, scopedCommand.Layout.ScopeKind);
+        Assert.Equal(2, scopedCommand.Layout.Setup.Count);
+        Assert.Equal(2, scopedCommand.Layout.Cleanup.Count);
+        Assert.Equal("SELECT @first + @second;\n", scopedCommand.Layout.Body.ToString());
+    }
+
+    [Theory]
+    [InlineData("create")]
+    [InlineData("add")]
+    [InlineData("alter-column")]
+    [InlineData("alter-table")]
+    [InlineData("rename-fallback")]
+    public void Every_comment_wrapper_path_exposes_the_same_structured_scope(
+        string path
+    )
+    {
+        using var serviceProvider = CreateServiceProvider(
+            [typeof(BaselineRenderingHandler)],
+            registerBeforeProvider: true);
+        var serverVersion = path == "rename-fallback"
+            ? MySqlServerVersion.MariaDb(
+                new Version(10, 5, 0),
+                MySqlServerVersionCompatibilityMode.AllowUnsupported)
+            : MySqlServerVersion.MySql(new Version(8, 4, 11));
+
+        using var context = CreateContext(serviceProvider, serverVersion);
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var handler = context
+            .GetService<IEnumerable<IMySqlMigrationOperationHandler>>()
+            .OfType<BaselineRenderingHandler>()
+            .Single();
+
+        var operation = CreateCommentWrapperOperation(path);
+        var model = context.GetService<IDesignTimeModel>().Model;
+
+        _ = generator.Generate(
+            [new FirstCustomOperation("comment-wrapper", operation)],
+            model);
+
+        var command = Assert.Single(handler.LastBaseline!);
+
+        Assert.Collection(
+            command.Fragments,
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Setup, fragment.Kind),
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Setup, fragment.Kind),
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Body, fragment.Kind),
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Cleanup, fragment.Kind));
+    }
+
+    [Fact]
     public void Baseline_renderer_preserves_every_reserved_operation_command_sequence()
     {
         foreach (var serverVersion in ActiveLtsServerVersions)
@@ -614,6 +745,83 @@ public sealed class MySqlMigrationOperationHandlerTests
         return operation;
     }
 
+    private static MigrationOperation CreateCommentWrapperOperation(
+        string path
+    )
+    {
+        const string comment = "path\\segment";
+
+        return path switch
+        {
+            "create" => CreateCommentedTable(comment),
+            "add" => new AddColumnOperation
+            {
+                Table = "Entries",
+                Name = "Value",
+                ClrType = typeof(string),
+                ColumnType = "varchar(64)",
+                IsNullable = true,
+                Comment = comment,
+            },
+            "alter-column" => CreateCommentedAlterColumn(comment),
+            "alter-table" => new AlterTableOperation
+            {
+                Name = "Entries",
+                Comment = comment,
+            },
+            "rename-fallback" => new RenameColumnOperation
+            {
+                Table = "HandlerRenameEntries",
+                Name = "OldValue",
+                NewName = "RenamedValue",
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(path), path, "Unknown comment-wrapper path."),
+        };
+    }
+
+    private static CreateTableOperation CreateCommentedTable(
+        string comment
+    )
+    {
+        var operation = new CreateTableOperation
+        {
+            Name = "Entries",
+            Comment = comment,
+        };
+        operation.Columns.Add(
+            new AddColumnOperation
+            {
+                Table = operation.Name,
+                Name = "Id",
+                ClrType = typeof(int),
+                ColumnType = "int",
+                IsNullable = false,
+            });
+
+        return operation;
+    }
+
+    private static AlterColumnOperation CreateCommentedAlterColumn(
+        string comment
+    )
+    {
+        return new AlterColumnOperation
+        {
+            Table = "Entries",
+            Name = "Value",
+            ClrType = typeof(string),
+            ColumnType = "varchar(64)",
+            IsNullable = true,
+            Comment = comment,
+            OldColumn =
+            {
+                ClrType = typeof(string),
+                ColumnType = "varchar(64)",
+                IsNullable = true,
+            },
+        };
+    }
+
     private static ServiceProvider CreateServiceProvider(
         IReadOnlyList<Type> handlerTypes,
         bool registerBeforeProvider
@@ -714,6 +922,8 @@ public sealed class MySqlMigrationOperationHandlerTests
 
         public MySqlMigrationOperationContext? LastContext { get; private set; }
 
+        public IReadOnlyList<MySqlMigrationCommandSpec>? LastBaseline { get; private set; }
+
         public MySqlMigrationOperationResult Generate(
             MySqlMigrationOperationContext context
         )
@@ -727,6 +937,8 @@ public sealed class MySqlMigrationOperationHandlerTests
                     Sql = "SELECT 1;",
                     SuppressTransaction = true,
                 });
+
+            LastBaseline = baseline;
 
             return MySqlMigrationOperationResult.Generated(
                 baseline.Append(MySqlMigrationCommandSpec.Create("SELECT 2;")),
@@ -751,6 +963,31 @@ public sealed class MySqlMigrationOperationHandlerTests
                 [MySqlMigrationCommandSpec.Create("SELECT 3;")],
                 "generated");
         }
+    }
+
+    private sealed class ScopedCommandHandler : IMySqlMigrationOperationHandler
+    {
+        public string HandlerId => "tests.scoped";
+
+        public Type OperationType => typeof(FirstCustomOperation);
+
+        public MySqlMigrationOperationResult Generate(
+            MySqlMigrationOperationContext context
+        ) => MySqlMigrationOperationResult.Generated(
+            [
+                MySqlMigrationCommandSpec.CreateScoped(
+                    [
+                        "SET @first = 1;\n",
+                        "SET @second = 2;\n",
+                    ],
+                    "SELECT @first + @second;\n",
+                    [
+                        "SET @first = NULL;\n",
+                        "SET @second = NULL;\n",
+                    ],
+                    transactionSuppressed: true),
+            ],
+            "generated");
     }
 
     private sealed class DuplicateIdHandler : IMySqlMigrationOperationHandler
@@ -960,6 +1197,28 @@ public sealed class MySqlMigrationOperationHandlerTests
         public HandlerContext(
             DbContextOptions<HandlerContext> options
         ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<HandlerRenameEntity>(entity =>
+            {
+                entity.ToTable("HandlerRenameEntries");
+                entity.HasKey(item => item.Id);
+                entity
+                    .Property(item => item.RenamedValue)
+                    .HasColumnType("varchar(64)")
+                    .HasComment("path\\segment");
+            });
+        }
+    }
+
+    private sealed class HandlerRenameEntity
+    {
+        public int Id { get; set; }
+
+        public string RenamedValue { get; set; } = string.Empty;
     }
 
     private sealed class HandlerOptionsExtension<THandler> : IDbContextOptionsExtension

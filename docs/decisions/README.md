@@ -34,6 +34,7 @@ validated ADR metadata. Manual edits are rejected by the governance gate.
 | [D-025](D-025-public-repository-verification-model.md) | accepted | 2026-08-08 | Verify on every event and harden the workflow surface for a public repository | supersedes D-023; amended by D-026 |
 | [D-026](D-026-release-qualification-and-paired-performance.md) | implemented | 2026-08-09 | Qualify releases from bound evidence and paired performance runs | amends D-019, D-025 |
 | [D-027](D-027-migration-operation-handler-spi.md) | implemented | 2026-08-11 | Expose exact-type migration operation handlers | - |
+| [D-028](D-028-explicit-nullability-backfills.md) | implemented | 2026-08-21 | Require explicit nullability backfills | - |
 
 ## Relationship Graph
 

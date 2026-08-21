@@ -49,7 +49,7 @@ internal static class EngineProfileTable
     // versions. Resolution is configuration-time work, so one short critical
     // section provides a strict bound for both the entries and FIFO ownership
     // metadata without putting a lock in query execution.
-    private static readonly object s_cacheLock = new();
+    private static readonly Lock s_cacheLock = new();
     private static readonly Dictionary<(EngineFamily Family, Version Version), EngineProfile> s_cache = [];
     private static readonly Queue<(EngineFamily Family, Version Version)> s_insertionOrder = [];
 
@@ -217,6 +217,7 @@ internal static class EngineProfileTable
     )
     {
         capabilities.Add(EngineCapability.MariaDbSpatialSemantics);
+        capabilities.Add(EngineCapability.ColumnCommentPrecedesVisibilityAttribute);
         capabilities.Add(EngineCapability.CheckConstraintCatalogIncludesTableName);
 
         if (IsAtLeast(version, s_mariaDb52))

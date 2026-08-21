@@ -3,108 +3,210 @@
 [![CI](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/workflows/ci.yml/badge.svg)](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/Doka.EntityFrameworkCore.MySql.svg)](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql)
 [![NuGet NetTopologySuite](https://img.shields.io/nuget/v/Doka.EntityFrameworkCore.MySql.NetTopologySuite.svg)](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql.NetTopologySuite)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/doka-labs/Doka.EntityFrameworkCore.MySql/badge)](https://scorecard.dev/viewer/?uri=github.com/doka-labs/Doka.EntityFrameworkCore.MySql)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13999/badge)](https://www.bestpractices.dev/projects/13999)
 
 `Doka.EntityFrameworkCore.MySql` is an Entity Framework Core 10 provider for
-MySQL and MariaDB. It targets the actively maintained MySQL 8.4 / 9.7 and
-MariaDB 10.11 / 11.4 / 11.8 / 12.3 LTS lines on top of the
-[`MySqlConnector`](https://mysqlconnector.net) ADO.NET driver.
+MySQL and MariaDB, built on the asynchronous
+[`MySqlConnector`](https://mysqlconnector.net/) ADO.NET driver. It provides one
+EF Core model across both database families while keeping engine differences
+explicit, testable, and observable.
 
-The main goal is release responsiveness for `.NET 10` and `EF Core 10`
-together with a maintainability- and performance-first architecture: separate
-engine-fact and provider-support contracts drive engine differences, the
-runtime is trim-aware with NativeAOT readiness deferred until upstream EF Core
-stabilizes its precompiled-query story (see ADR D-017), and every feature is
-test-backed against the supported engine matrix.
+Use it when an application needs current .NET and EF Core support, a small
+public API, portable MySQL/MariaDB behavior, and qualification against every
+advertised LTS line.
 
-## What This Project Solves
+## Packages
 
-This provider is designed for teams that need:
-
-- an EF Core provider aligned with the Microsoft release cadence for `.NET 10` / `EF Core 10`
-- dual MySQL and MariaDB support without provider-specific code branches in the application
-- a small, reviewable public API surface with opt-in features rather than implicit magic
-- trim-safe defaults from day one (NativeAOT readiness deferred per ADR D-017)
-- production-grade diagnostics, retry semantics, savepoint support, and advisory-lock-protected migrations
+| Package | Purpose |
+| --- | --- |
+| [`Doka.EntityFrameworkCore.MySql`](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql) | Core EF Core provider, migrations, scaffolding, type mappings, and query translation |
+| [`Doka.EntityFrameworkCore.MySql.NetTopologySuite`](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql.NetTopologySuite) | Optional NetTopologySuite mappings, spatial indexes, scaffolding, and spatial query translation |
 
 ## Requirements
 
-### Package Usage
+- An application targeting .NET 10 or later
+- EF Core 10.0.x; the supported package range is `>= 10.0.8` and `< 10.1.0`
+- MySqlConnector 2.x; the supported package range is `>= 2.5.0` and `< 3.0.0`
+- A supported MySQL or MariaDB server from the matrix below
 
-- .NET 10.0 or later
-- EF Core 10.x (`Microsoft.EntityFrameworkCore.Relational`)
-- One of:
-  - MySQL 8.4 LTS
-  - MySQL 9.7 LTS
-  - MariaDB 10.11 LTS, 11.4 LTS, 11.8 LTS, or 12.3 LTS
-- Transitive: [MySqlConnector](https://mysqlconnector.net) 2.5.0 through the latest stable 2.x release
-  on the 2.x line. The supported floor and latest compatible 2.x release are
-  validated separately by the scheduled live driver matrix.
+Building the repository itself requires the exact .NET SDK declared in
+[`global.json`][global-json]. Docker is required only for live integration,
+example, benchmark, and release-qualification runs.
 
-### Building From Source
+## Install
 
-- .NET SDK `10.0.302` (the exact version declared by `global.json`)
-- Docker -- required only for the live integration, live example, benchmark,
-  and release-candidate matrices
-
-## Installation
-
-Install prereleases with the exact version shown by the corresponding GitHub
-release and NuGet.org listing. Keeping the version explicit makes restores
-reproducible and avoids NuGet's stable-only default resolution.
-
-**Main provider:**
+The project currently publishes release candidates. The following .NET 10
+commands install the latest available prerelease and write its resolved version
+to the project file:
 
 ```bash
-release_version="<published-version>"
-dotnet add package Doka.EntityFrameworkCore.MySql --version "${release_version}"
+dotnet package add Doka.EntityFrameworkCore.MySql --prerelease
 ```
 
-**Optional spatial extension** (NetTopologySuite integration -- only install if you use spatial types):
+Add the spatial extension only when the model uses NetTopologySuite types:
 
 ```bash
-release_version="<published-version>"
-dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version "${release_version}"
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --prerelease
 ```
+
+For controlled upgrades, replace `--prerelease` with `--version` and the exact
+version from the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
+or NuGet.org package page.
+
+## Quick Start
+
+Configure the provider with the database family and server release line, then
+use the normal EF Core APIs:
+
+```csharp
+using Doka.EntityFrameworkCore.MySql;
+using Microsoft.EntityFrameworkCore;
+
+var connectionString =
+    "Server=localhost;Database=my_app;User ID=app;Password=secret;";
+
+var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
+
+var options = new DbContextOptionsBuilder<AppDbContext>()
+    .UseMySql(connectionString, serverVersion)
+    .Options;
+
+await using var context = new AppDbContext(options);
+
+await context.Database.EnsureCreatedAsync();
+context.Products.Add(new Product { Name = "Widget", Price = 9.99m });
+await context.SaveChangesAsync();
+
+var products = await context.Products
+    .AsNoTracking()
+    .OrderBy(product => product.Name)
+    .ToListAsync();
+```
+
+`EnsureCreatedAsync()` keeps this first-use example small. Applications whose
+schema evolves should use [EF Core migrations](#migrations) instead.
+
+MariaDB uses the same provider surface with a different version factory:
+
+```csharp
+var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
+```
+
+When the exact server version is not known during configuration, detect it from
+an open connection:
+
+<!-- readme-autodetect-snippet begin -->
+
+```csharp
+using Doka.EntityFrameworkCore.MySql;
+using MySqlConnector;
+
+var connectionString =
+    "Server=localhost;Database=my_app;User ID=app;Password=secret;";
+
+await using var connection = new MySqlConnection(connectionString);
+await connection.OpenAsync();
+
+var serverVersion = MySqlServerVersion.AutoDetect(connection);
+```
+
+<!-- readme-autodetect-snippet end -->
+
+## Dependency Injection
+
+Register a context with a connection string:
+
+```csharp
+services.AddDbContext<AppDbContext>(options =>
+    options.UseMySql(
+        connectionString,
+        MySqlServerVersion.MySql(new Version(8, 4, 0))));
+```
+
+For centralized pooling and connector logging, register a
+`MySqlDataSource` instead:
+
+```csharp
+var dataSource = new MySqlDataSourceBuilder(connectionString)
+    .UseLoggerFactory(loggerFactory)
+    .Build();
+
+services.AddDbContext<AppDbContext>(options =>
+    options.UseMySql(
+        dataSource,
+        MySqlServerVersion.MySql(new Version(8, 4, 0))));
+```
+
+The provider also accepts an existing `DbConnection`. See
+[Host Integration][host-integration] for connection ownership, pooling, retry,
+health-check, and telemetry guidance.
 
 ## Supported Engines
 
-| Engine | Versions | Native JSON | Native sequences | `RETURNING` | CTEs | Temporal tables |
-| --- | --- | --- | --- | --- | --- | --- |
-| MySQL | 8.4 LTS, 9.7 LTS | yes | emulated (table) | no (engine limitation) | native | emulated (InnoDB history and triggers) |
-| MariaDB | 10.11 LTS, 11.4 LTS, 11.8 LTS, 12.3 LTS | alias | yes (10.3+) | yes (10.5+) | native | native system, application, and bitemporal |
+| Engine | Supported line | JSON storage | Sequences | `RETURNING` | Temporal tables |
+| --- | --- | --- | --- | --- | --- |
+| MySQL | 8.4 LTS | native | emulated | unavailable in the engine | provider emulation |
+| MySQL | 9.7 LTS | native | emulated | unavailable in the engine | provider emulation |
+| MariaDB | 10.11 LTS | validated alias | native | native | native |
+| MariaDB | 11.4 LTS | validated alias | native | native | native |
+| MariaDB | 11.8 LTS | validated alias | native | native | native |
+| MariaDB | 12.3 LTS | validated alias | native | native | native |
 
-The pinned qualification matrix currently uses MySQL 8.4.11 / 9.7.2 and
-MariaDB 10.11.18 / 11.4.12 / 11.8.8 / 12.3.2. The project revalidates a line
-before moving its pin; support follows the LTS line rather than one patch.
+All six lines provide native CTE support. The exact qualified patch pins,
+lifecycle sources, live-test ownership, and unsupported-version policy are in
+[Supported Databases][supported-databases].
 
-Engine facts and provider support are separate internal contracts. Runtime
-diagnostics report each provider capability as `Native`, `Emulated`, or
-`UnsupportedByEngine`; application code does not branch on engine names.
+Runtime capability diagnostics classify provider behavior as `Native`,
+`Emulated`, or `UnsupportedByEngine`. Unsupported server releases are rejected
+by default. `MySqlServerVersionCompatibilityMode.AllowUnsupported` is an
+explicit escape hatch without a support guarantee and emits
+`MySqlEventId.UnsupportedServerVersion`.
 
-Only the release lines in this table are accepted by default. Legacy,
-unvalidated, and future versions are classified explicitly and rejected during
-provider-option validation. Unsupported execution remains available as an
-intentional compatibility path:
+## Feature Highlights
+
+- **Engine-aware migrations and scaffolding:** advisory-lock protection,
+  idempotent scripts, rename and sequence handling, generated and invisible
+  columns, spatial indexes, JSON aliases, and custom migration-operation
+  handlers.
+- **Portable temporal modeling:** native MariaDB system, application, and
+  bitemporal tables plus provider-owned MySQL history-table emulation behind
+  one model and query API.
+- **MySQL-family query translation:** JSON functions, regular expressions,
+  full-text search, CTE composition, bulk update/delete, and engine-specific
+  SQL selected from declared capabilities.
+- **Provider-owned type mappings:** JSON DOM types, `Binary16` and `Char36`
+  GUIDs, temporal CLR types, generated defaults, complex types, and optional
+  NetTopologySuite geometries.
+- **Production behavior:** transient-failure retries, savepoints, connection
+  pooling, structured diagnostics, trimming analysis, compiled models, and
+  precompiled query coverage.
+
+The [documentation index][documentation-index] owns the complete behavioral
+contracts and limitations. The sections below show only the main entry points.
+
+### Retry transient failures
 
 ```csharp
-var legacyVersion = MySqlServerVersion.MySql(
-    new Version(8, 0, 44),
-    MySqlServerVersionCompatibilityMode.AllowUnsupported);
+options.UseMySql(connectionString, serverVersion, mysql =>
+    mysql.EnableRetryOnFailure(maxRetryCount: 5));
 ```
 
-The opt-in carries no support guarantee and emits the structured
-`MySqlEventId.UnsupportedServerVersion` warning at runtime.
+### Choose GUID storage
 
-## Temporal Tables and CTEs
+```csharp
+options.UseMySql(connectionString, serverVersion, mysql =>
+    mysql.DefaultGuidFormat(
+        Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Char36));
 
-System-versioned temporal tables use one public model and query API on every
-supported engine. MariaDB uses native system versioning; MySQL uses a
-provider-owned InnoDB history table and transactional triggers. Temporal query
-roots include `TemporalAsOf`, `TemporalAll`, `TemporalFromTo`,
-`TemporalBetween`, and `TemporalContainedIn` and are always no-tracking.
+modelBuilder.Entity<OrderWithGuid>()
+    .Property(order => order.Id)
+    .HasMySqlGuidFormat(
+        Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Binary16);
+```
+
+### Configure temporal tables
 
 ```csharp
 modelBuilder.Entity<Employee>().ToTable(
@@ -122,447 +224,116 @@ var history = await context.Employees
     .ToListAsync();
 ```
 
-Table-split `OwnsOne` mappings inherit their owner's system-time contract.
-Separately stored owned collections must be temporal before an entity-shaped
-historical query can materialize them; otherwise, project only columns from the
-temporal table.
+See [Temporal Tables][temporal-tables] and
+[Common Table Expressions][common-table-expressions] for portability rules and
+complete query examples.
 
-Non-recursive and recursive CTEs compose through EF Core's parameterized
-`FromSql` and `SqlQuery` roots. MySQL 8.4 / 9.7 and MariaDB 12.3 also accept
-the documented CTE data-modification SQL. MariaDB 10.11 / 11.4 / 11.8 do not,
-which is reported as an engine boundary rather than a provider limitation.
+### Enable spatial support
 
-See [Temporal tables](docs/temporal-tables.md) and
-[Common table expressions](docs/ctes.md) for the complete contracts,
-schema-safety rules, examples, and primary sources.
-
-MariaDB application-time and bitemporal tables additionally expose typed
-model, migration, scaffolding, and `FOR PORTION OF` update / delete contracts.
-MySQL reports these exact operations as engine limitations rather than a
-provider limitation.
-
-Action-based application-time configuration applies the conventional
-`ValidFrom` and `ValidTo` endpoints only when the callback leaves an endpoint
-unspecified. Selecting explicit CLR or named properties therefore creates no
-unused shadow columns. Parameterless configuration retains both conventional
-defaults.
-
-## Quick Start
-
-```csharp
-using Doka.EntityFrameworkCore.MySql;
-using Microsoft.EntityFrameworkCore;
-
-var connectionString =
-    "Server=localhost;Database=my_app;User ID=app;Password=secret;";
-
-var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
-
-var options = new DbContextOptionsBuilder<AppDbContext>()
-    .UseMySql(connectionString, serverVersion)
-    .Options;
-
-using var context = new AppDbContext(options);
-
-context.Database.EnsureCreated();
-context.Products.Add(new Product { Name = "Widget", Price = 9.99m });
-context.SaveChanges();
-```
-
-MariaDB uses the same API with a different factory:
-
-```csharp
-var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
-```
-
-Or let the provider detect the engine from the server greeting:
-
-<!-- readme-autodetect-snippet begin -->
-
-```csharp
-using Doka.EntityFrameworkCore.MySql;
-using MySqlConnector;
-
-var connectionString = "Server=localhost;Database=app;User ID=app;Password=change-me";
-
-await using var connection = new MySqlConnection(connectionString);
-await connection.OpenAsync();
-
-var serverVersion = MySqlServerVersion.AutoDetect(connection);
-```
-
-<!-- readme-autodetect-snippet end -->
-
-## Registration
-
-### Connection string
-
-```csharp
-services.AddDbContext<AppDbContext>(options =>
-    options.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0))));
-```
-
-### Existing `DbConnection`
-
-```csharp
-services.AddDbContext<AppDbContext>(options =>
-    options.UseMySql(myConnection, MySqlServerVersion.MySql(new Version(8, 4, 0))));
-```
-
-### `MySqlDataSource` (recommended for pooling and logging control)
-
-```csharp
-var dataSource = new MySqlDataSourceBuilder(connectionString)
-    .UseLoggerFactory(loggerFactory)
-    .Build();
-
-services.AddDbContext<AppDbContext>(options =>
-    options.UseMySql(dataSource, MySqlServerVersion.MySql(new Version(8, 4, 0))));
-```
-
-## Core Features
-
-### Opt-in retry on transient failures
-
-```csharp
-options.UseMySql(connectionString, serverVersion, mysql =>
-    mysql.EnableRetryOnFailure(maxRetryCount: 5));
-```
-
-Transient detection covers `MySqlException` with known retryable error codes, `SocketException`, and `IOException`. `OperationCanceledException` and command timeouts are intentionally non-retryable.
-
-### GUID storage format
-
-```csharp
-// Default for the whole provider
-options.UseMySql(connectionString, serverVersion, mysql =>
-    mysql.DefaultGuidFormat(Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Char36));
-
-// Or per property
-modelBuilder.Entity<OrderWithGuid>()
-    .Property(o => o.Id)
-    .HasMySqlGuidFormat(Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Binary16);
-```
-
-Both `binary(16)` and `char(36)` round-trip through `Guid` CLR values without manual conversion.
-Context defaults behave consistently for connection strings, `DbConnection`,
-and `MySqlDataSource`. A property-level format may safely override the context
-default in either direction. When `Binary16` overrides a `Char36` context, the
-provider uses RFC 4122 big-endian bytes independently of the connector-wide GUID mode.
-Generated migration snapshots and designer models retain the `Guid` model type
-for `Char36` properties. When an existing principal/dependent relationship moves
-from an application-converted `varchar(36)` mapping to provider-native
-`Char36`, generated migrations temporarily remove the foreign key, alter both
-columns, and restore the same constraint after the dependent index is available.
-The reverse migration follows the same dependency-safe ordering.
-
-### Entity-splitting key generation
-
-For entity splitting, an auto-increment key belongs only to the principal
-table. The secondary table receives the same value as a non-generating shared
-primary/foreign key with its configured delete behavior.
-
-### HiLo value generation
-
-```csharp
-modelBuilder.Entity<Order>()
-    .Property(o => o.Id)
-    .UseHiLo("order_ids");
-```
-
-HiLo is backed by native `CREATE SEQUENCE` on MariaDB 10.3+ and by atomic table-based emulation (`UPDATE ... LAST_INSERT_ID(value + inc)`) on MySQL. Block allocation happens client-side to reduce round-trips.
-
-### JSON columns with native CLR types
-
-```csharp
-public class Document
-{
-    public int Id { get; set; }
-    public JsonNode? Payload { get; set; }
-    public string SearchDocument { get; set; } = "{}";
-}
-```
-
-`JsonElement`, `JsonDocument`, `JsonNode`, `JsonObject`, and `JsonArray` are preserved end-to-end with embedded value converters and deep-equality value comparers. MariaDB columns are automatically emitted as `longtext COLLATE utf8mb4_bin CHECK (JSON_VALID(...))`, and scaffolding detects the alias back to `json`.
-
-### Complex types
-
-EF Core 10 complex types are supported as flattened columns or JSON documents
-on every supported LTS line for CLR-backed shapes that EF Core can represent.
-Nested members, projections, materialization, updates, supported
-tracking shapes, reference-type JSON collections, compiled models, and
-precompiled `JSON_TABLE` expressions remain in the normal EF Core pipeline.
-The exact collection, property-value, shadow-property, inheritance, key, and
-index boundaries are documented separately so they are not confused with
-provider gaps.
-
-See [Complex types](docs/complex-types.md) for configuration examples, the
-support matrix, verification scope, and primary sources.
-
-### JSON, regex, and full-text functions
-
-```csharp
-var matches = context.Products
-    .Where(p => EF.Functions.Regexp(p.Sku, "^[A-Z]{3}[0-9]+$"))
-    .ToList();
-
-var articles = context.Articles
-    .Where(a => EF.Functions.MatchInBooleanMode(a.Body, "+mysql -aurora"))
-    .ToList();
-
-var depth = context.Documents
-    .Select(d => EF.Functions.JsonDepth(d.SearchDocument))
-    .FirstOrDefault();
-
-var summaries = context.Products
-    .Select(product => new
-    {
-        Values = EF.Functions.JsonArray(product.Sku, product.Name),
-        Fields = EF.Functions.JsonObject("sku", product.Sku, "name", product.Name),
-    });
-```
-
-Full set: `Regexp`, `Match`, `MatchInBooleanMode`, `JsonSet`, `JsonReplace`,
-`JsonRemove`, `JsonArray`, `JsonObject`, `JsonDepth`, `JsonLength`, `JsonType`,
-`JsonKeys`, `JsonContains`. Ordinary `params` calls to `JsonArray` and
-`JsonObject` are flattened into variadic server arguments; captured scalars
-remain parameters. `JsonObject` requires complete key/value pairs and rejects
-an odd argument count before execution. SQL `NULL` inputs become JSON `null`
-elements rather than making the constructor result SQL `NULL`. REGEXP uses
-`REGEXP_LIKE(...)` on MySQL and the infix `REGEXP` operator on MariaDB.
-
-### MySQL-family `INVISIBLE` columns
-
-```csharp
-modelBuilder.Entity<User>()
-    .Property(u => u.InternalNotes)
-    .IsInvisible();
-```
-
-The visibility annotation survives initial table creation, standalone column
-addition, migration snapshots, and changes in either direction. MySQL 8.0.23+
-and MariaDB 10.3.3+ omit an invisible column from `SELECT *` while retaining
-explicit access by name. See the MySQL and MariaDB invisible-column references
-in the [capability details](docs/complex-types.md#mysql-family-invisible-columns).
-
-### Spatial types (opt-in)
-
-Install `Doka.EntityFrameworkCore.MySql.NetTopologySuite` and activate the extension:
+After installing the NetTopologySuite package, activate it in provider
+options:
 
 ```csharp
 options.UseMySql(connectionString, serverVersion, mysql =>
     mysql.UseNetTopologySuite());
 
-// Model
 modelBuilder.Entity<Place>()
-    .Property(p => p.Location)
+    .Property(place => place.Location)
     .HasColumnType("point")
     .HasSrid(4326);
 
 modelBuilder.Entity<Place>()
-    .HasIndex(p => p.Location)
+    .HasIndex(place => place.Location)
     .IsSpatial();
-
-// Query
-var nearby = context.Places
-    .Where(p => EF.Functions.DistanceSphere(p.Location, origin) < 5000)
-    .ToList();
 ```
-
-Spatial indexes (`CREATE SPATIAL INDEX`) are supported through the standard `HasIndex(...)` fluent API with a provider annotation.
 
 ## Migrations
 
-Migrations work with the standard EF Core tooling:
+The provider uses the standard EF Core tooling:
 
 ```bash
 dotnet ef migrations add InitialCreate
 dotnet ef database update
 ```
 
-The provider ships with:
+Concurrent migrators are serialized with a dedicated advisory lock. Custom
+packages can add exact migration-operation handlers without replacing the
+provider SQL generator; see
+[Migration Operation Handlers][migration-operation-handlers].
 
-- **Advisory-lock protection.** Concurrent migration attempts are serialized through MySQL's `GET_LOCK` on a dedicated non-pooled connection, so only one process applies migrations at a time.
-- **Idempotent script generation.** `dotnet ef migrations script --idempotent` emits stored-procedure-wrapped DDL that is safe to re-run against partially-applied databases.
-- **Engine-aware DDL.** Rename, sequence, spatial index, generated column, JSON alias, and `INVISIBLE` column operations select the correct SQL per engine automatically.
-- **Custom operation handlers.** Extension packages can register exact-type
-  handlers while retaining the provider's engine-aware baseline renderer,
-  command boundaries, diagnostics, and fail-closed behavior. See the
-  [migration operation handler guide](docs/migration-operation-handlers.md).
+## Compatibility Boundaries
 
-## Project Layout
+- `MySqlConnector` is the only supported ADO.NET driver.
+- Azure Database for MySQL is not yet an advertised compatibility target.
+- Amazon Aurora MySQL is intentionally outside the supported scope.
+- Unsupported query translations fail instead of falling back to client
+  evaluation.
+- NativeAOT readiness remains blocked by upstream EF Core precompiled-query
+  constraints; trimming is continuously validated.
 
-- `src/Doka.EntityFrameworkCore.MySql`
-  Core runtime provider.
-- `src/Doka.EntityFrameworkCore.MySql.NetTopologySuite`
-  Optional spatial extension with NTS integration.
-- `tests/Doka.EntityFrameworkCore.MySql.Tests`
-  Unit tests for configuration, capability, and SQL-shape logic.
-- `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests`
-  EF-pipeline tests: model validation, SQL generation, type mapping, migrations, scaffolding.
-- `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests`
-  Self-provisioning live-database tests against all six supported LTS lines.
-- `tests/Doka.EntityFrameworkCore.MySql.SpecificationAdapters`
-  Engine-specific adapters for the upstream EF Core specification contracts.
-- `tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke`
-  Standalone trim, migration-bundle, and packaged-consumer runtime probes.
-- `tests/Doka.EntityFrameworkCore.MySql.TestUtilities`
-  Shared test helpers and log sinks.
-- `benchmarks/`
-  `BenchmarkDotNet` harness for independent performance characterization,
-  regression investigation, and reviewed historical scorecards.
-- [`examples/`](examples/README.md)
-  Seventeen runnable public-API samples. Fourteen participate in the supported
-  live engine matrix; ten also enforce explicit scenario invariants. The
-  catalog covers CRUD, inheritance patterns, JSON columns, generated columns,
-  GUID formats, relationships, retry / resilience, spatial queries, migrations
-  workflow, multi-tenancy, bulk operations, character sets, Docker integration,
-  temporal tables, recursive CTEs, performance guidance, and host observability.
-- `docker/compose.yml`
-  Optional debugging stack for all six supported LTS lines. The canonical
-  integration and specification tests own short-lived containers through
-  Testcontainers.
-- `eng/`
-  Developer scripts and executable quality contracts, including exact
-  specification discovery/TRX reconciliation, assembly-aware coverage,
-  runtime posture, benchmarks, and release readiness.
-- `docs/`
-  In-repo governance and host-integration documentation.
+See [External Limitations][external-limitations] for the canonical boundary
+ledger. Provider-owned gaps have a zero budget and do not belong in that ledger.
 
-## Building and Testing
+## Documentation and Support
 
-```bash
-dotnet build Doka.EntityFrameworkCore.MySql.slnx
-./eng/test.sh
-./eng/test-integration.sh   # requires Docker; owns and cleans up its databases
-./eng/test-examples.sh      # explicit live example matrix; owns its containers
-bash ./eng/check-publication-readiness.sh \
-  --ef-core-version 10.0.8 \
-  --mysqlconnector-version 2.5.0 # verifies provider completeness
-./eng/pre-tag-check.sh          # verifies candidate branch and signer prerequisites
-```
+- [Documentation index][documentation-index]
+- [Provider architecture][provider-architecture]
+- [Runnable examples][runnable-examples]
+- [Complex types][complex-types]
+- [Temporal tables][temporal-tables]
+- [Common table expressions][common-table-expressions]
+- [Host integration][host-integration]
+- [IDE integration][ide-integration]
+- [Provider configuration][provider-configuration]
+- [Query functions][query-functions]
+- [Support and issue reporting][support]
+- [Security policy][security-policy]
+- [Security assurance case][security-assurance-case]
+- [Release verification][release-verification]
+- [Project governance][project-governance]
+- [Project roadmap][project-roadmap]
+- [OpenSSF Best Practices evidence][openssf-best-practices]
+- [Changelog][changelog]
 
-## Performance and Memory Evidence
+Use [GitHub Issues](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/issues)
+for reproducible defects, feature requests, compatibility reports, and usage
+questions. Report suspected vulnerabilities privately through
+[SECURITY.md][security-policy].
 
-The hosted performance workflow executes 55 named provider workloads against
-every active MySQL and MariaDB LTS target in the support contract. Normal
-comparisons alternate a reference provider and the candidate provider for ten
-pre-registered blocks on one allocated runner. Reviewed baseline seeding uses
-the historical scorecard only when no compatible six-target runner matrix
-exists. The workloads cover sync and async execution, compiled queries, retry,
-diagnostic listeners, context and connection pooling, concurrency, data sizes,
-batch sizes, JSON, spatial materialization, migrations, and HiLo allocation.
+## Contributing
 
-Scorecard evidence includes raw and workload-local calibration samples,
-median, p95, p99, standard error, managed allocation, GC counts, retained
-memory diagnostics, exact environment identity, bounded interval host-CPU
-admission, and SHA-256 hashes. The CPU model and BenchmarkDotNet host must
-match within one run. Raw absolute limits, paired practical budgets or
-seed-only matching-runner historical budgets, allocation limits, and six
-sustained resource invariants must all pass.
-
-Performance evidence is independent engineering feedback. It is not consumed
-by the release-candidate qualification or publication jobs, and a failed,
-inconclusive, missing, or stale benchmark cannot block a release. Paired
-comparisons still apply the registered statistical policy, absolute ceilings,
-and sustained resource gates to identify changes that require investigation.
-Statistical overlap is reported as no detected regression and does not trigger
-result-driven resampling.
-
-Run a fast structural check:
-
-```bash
-DOKA_BENCHMARK_TARGET=mysql84 ./eng/benchmark.sh --up-run-down
-```
-
-Release baselines, full scorecard commands, evidence layout, failure triage,
-and hosted-runner acceptance are documented in the
-[performance evidence runbook](docs/operations/performance-evidence.md).
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for full test commands, integration-target selection, benchmark profiles, and code-style requirements.
-
-## Editor / IDE Tips
-
-### JetBrains Rider and ReSharper
-
-Rider and ReSharper ship an EF Core inspection that flags provider-specific `EF.Functions.*` extensions -- for example `EF.Functions.Regexp(...)`, `EF.Functions.Match(...)`, or `EF.Functions.DistanceSphere(...)` -- with:
-
-> Function is not convertible to SQL and must not be called in the database context.
-
-The message is a **static-analysis false positive**: the inspection uses a hard-coded allow-list of Microsoft- and Pomelo-origin methods and does not recognize third-party provider extensions. Translation works correctly at runtime (the provider's `IMethodCallTranslatorPlugin` emits the correct SQL).
-
-To silence it locally, pick whichever granularity fits:
-
-**Per call site**
-
-```csharp
-// ReSharper disable once EntityFramework.UnsupportedServerSideFunctionCall
-var results = context.Articles
-    .Where(a => EF.Functions.MatchInBooleanMode(a.Body, "+mysql -aurora"))
-    .ToList();
-```
-
-**Per file**
-
-```csharp
-// ReSharper disable EntityFramework.UnsupportedServerSideFunctionCall
-```
-
-**Per project** (recommended -- keeps the inspection active elsewhere)
-
-Place a `<YourProject>.csproj.DotSettings` alongside each consumer `.csproj` that writes LINQ queries against the provider:
-
-```xml
-<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml" xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
-    <s:String x:Key="/Default/CodeInspection/Highlighting/InspectionSeverities/=EntityFramework_002EUnsupportedServerSideFunctionCall/@EntryIndexedValue">DO_NOT_SHOW</s:String>
-</wpf:ResourceDictionary>
-```
-
-This repository ships that variant for each affected test/benchmark project, so contributors see a warning-free editor experience without silencing the inspection for unrelated code.
-
-## Compatibility and Hosted Targets
-
-The advertised support matrix covers the self-hosted MySQL 8.4 / 9.7 and
-MariaDB 10.11 / 11.4 / 11.8 / 12.3 LTS lines.
-
-**Azure Database for MySQL** is not in the advertised support matrix. It is a
-future external-canary target when test credentials become available; no
-compatibility guarantee is inferred from the self-hosted MySQL profile. Until
-that validation exists, a deployment whose reported engine version is outside
-the supported table must use the explicit `AllowUnsupported` compatibility
-path and receives no support guarantee. A branded API or dedicated mode would
-be introduced only if observed runtime behavior required one.
-
-**Amazon Aurora MySQL** is intentionally out of scope for this project.
-
-## Non-Goals
-
-This provider intentionally does **not** try to be:
-
-- a drop-in wrapper around a different ADO.NET driver -- `MySqlConnector` is the only supported driver
-- a feature-count-maximizing provider at the cost of maintainability or correctness
-- a source-generator or analyzer package
-- a branded managed-service API surface (`UseAurora(...)` / `UseAzureMySql(...)`)
-- a fallback to client-evaluation for supported queryable paths -- unsupported translations fail loudly
+Repository setup, test tiers, coding conventions, public API governance, and
+pull-request requirements are documented in [CONTRIBUTING.md][contributing].
+Performance evidence is independent engineering feedback and does not block
+release publication; its measurement and triage contract lives in the
+[Performance Evidence runbook][performance-evidence].
 
 ## License
 
-MIT -- see [LICENSE](LICENSE).
+MIT -- see [LICENSE][license].
 
-## Further Reading
-
-- [Documentation index](docs/README.md)
-- [Release governance and diagnostics catalog](docs/release-governance.md)
-- [Operations and release runbook](docs/operations-runbook.md)
-- [Release publication procedure](docs/operations/release-publication.md)
-- [Host integration examples](docs/host-integration-examples.md)
-- [External engine and EF Core limitations](docs/limitations.md)
-- [Complex types](docs/complex-types.md)
-- [Temporal tables](docs/temporal-tables.md)
-- [Common table expressions](docs/ctes.md)
-- [Contributing](CONTRIBUTING.md)
-- [Support](SUPPORT.md)
-- [Code of Conduct](CODE_OF_CONDUCT.md)
-- [Changelog](CHANGELOG.md)
-- [Security policy](SECURITY.md)
-- [Threat model](docs/security/threat-model.md)
+[changelog]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/CHANGELOG.md
+[common-table-expressions]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/ctes.md
+[complex-types]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/complex-types.md
+[contributing]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/CONTRIBUTING.md
+[documentation-index]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/README.md
+[external-limitations]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/limitations.md
+[global-json]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/global.json
+[host-integration]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/host-integration-examples.md
+[ide-integration]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/ide-integration.md
+[license]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/LICENSE
+[migration-operation-handlers]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/migration-operation-handlers.md
+[openssf-best-practices]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/openssf-best-practices.md
+[performance-evidence]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/performance-evidence.md
+[project-governance]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/GOVERNANCE.md
+[project-roadmap]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/ROADMAP.md
+[provider-architecture]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/architecture.md
+[provider-configuration]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/provider-configuration.md
+[query-functions]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/query-functions.md
+[release-verification]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/security/release-verification.md
+[runnable-examples]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/examples/README.md
+[security-assurance-case]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/security/assurance-case.md
+[security-policy]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/SECURITY.md
+[support]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/SUPPORT.md
+[supported-databases]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/supported-databases.md
+[temporal-tables]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/temporal-tables.md

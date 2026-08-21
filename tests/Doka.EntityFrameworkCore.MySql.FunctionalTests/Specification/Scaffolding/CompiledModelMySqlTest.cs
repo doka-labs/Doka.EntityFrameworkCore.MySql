@@ -38,6 +38,10 @@ public class CompiledModelMySqlTest : CompiledModelRelationalTestBase
 
         var manyTypes = modelBuilder.Entity<ManyTypes>();
 
+        manyTypes
+            .Property(item => item.Guid)
+            .HasColumnType("varchar(36)");
+
         foreach (var property in manyTypes.Metadata.GetProperties())
         {
             if (property.IsKey())
@@ -78,17 +82,23 @@ public class CompiledModelMySqlTest : CompiledModelRelationalTestBase
         base.AssertBigModel(model, jsonColumns);
 
         var data = model.FindEntityType(typeof(Data));
+        var manyTypes = model.FindEntityType(typeof(ManyTypes));
 
         Assert.NotNull(data);
+        Assert.NotNull(manyTypes);
 
         var point = data.FindProperty("Point");
+        var guid = manyTypes.FindProperty(nameof(ManyTypes.Guid));
 
         Assert.NotNull(point);
+        Assert.NotNull(guid);
         Assert.Equal(typeof(Point), point.ClrType);
         Assert.Equal("point", point.GetColumnType());
         Assert.Equal(4326, point.GetMySqlSpatialReferenceSystemId());
         Assert.NotNull(point.GetValueComparer());
         Assert.NotNull(point.GetKeyValueComparer());
+        Assert.Equal("varchar(36)", guid.GetColumnType());
+        Assert.IsType<MySqlGuidStringTypeMapping>(guid.GetRelationalTypeMapping());
     }
 
     protected override async Task UseBigModel(

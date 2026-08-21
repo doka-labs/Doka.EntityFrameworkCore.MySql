@@ -100,17 +100,18 @@ public sealed class MySqlMigrationDdlCoverageTests
     }
 
     /// <summary>
-    /// Verifies that changing a nullable column to required repairs existing null
-    /// rows with a store-compatible CLR default before issuing the column change.
+    /// Verifies that an application-selected value repairs existing null rows
+    /// before the provider makes the column required.
     /// </summary>
     [Theory]
-    [InlineData(typeof(string), "varchar(64)", "''")]
-    [InlineData(typeof(int), "int", "0")]
-    [InlineData(typeof(byte[]), "varbinary(16)", "X''")]
-    [InlineData(typeof(DateOnly), "date", "DATE '0001-01-01'")]
-    public void Nullable_column_becoming_required_repairs_existing_null_rows(
+    [InlineData(typeof(string), "varchar(64)", "ready", "'ready'")]
+    [InlineData(typeof(int), "int", 1, "1")]
+    [InlineData(typeof(string), "json", "{}", "'{}'")]
+    [InlineData(typeof(string), "enum('alpha','beta')", "alpha", "'alpha'")]
+    public void Nullable_column_becoming_required_uses_explicit_backfill(
         Type clrType,
         string columnType,
+        object defaultValue,
         string expectedLiteral
     )
     {
@@ -123,6 +124,7 @@ public sealed class MySqlMigrationDdlCoverageTests
             ClrType = clrType,
             ColumnType = columnType,
             IsNullable = false,
+            DefaultValue = defaultValue,
             OldColumn =
             {
                 ClrType = clrType,
@@ -139,6 +141,164 @@ public sealed class MySqlMigrationDdlCoverageTests
             StringComparison.Ordinal);
         Assert.Contains("MODIFY COLUMN `Value`", sql, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Prevents the provider from inventing data that may violate a store domain,
+    /// a check constraint, or application semantics.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(string), "varchar(64)")]
+    [InlineData(typeof(int), "int")]
+    [InlineData(typeof(byte[]), "varbinary(16)")]
+    [InlineData(typeof(DateOnly), "date")]
+    [InlineData(typeof(DateTime), "datetime(6)")]
+    [InlineData(typeof(string), "json")]
+    [InlineData(typeof(byte[]), "point")]
+    [InlineData(typeof(string), "enum('alpha','beta')")]
+    public void Nullable_column_becoming_required_rejects_an_implicit_backfill(
+        Type clrType,
+        string columnType
+    )
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterColumnOperation
+        {
+            Table = "Entries",
+            Name = "SecretColumn",
+            ClrType = clrType,
+            ColumnType = columnType,
+            IsNullable = false,
+            OldColumn =
+            {
+                ClrType = clrType,
+                ColumnType = columnType,
+                IsNullable = true,
+            },
+        };
+
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
+
+        Assert.Contains(nameof(AlterColumnOperation), exception.Message, StringComparison.Ordinal);
+        Assert.Contains("explicit DefaultValue or DefaultValueSql", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("application contract", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Entries", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("SecretColumn", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Nullable_timestamp_becoming_required_requires_explicit_backfill()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = CreateNullableTimestampRepair();
+
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
+
+        Assert.Contains(nameof(AlterColumnOperation), exception.Message, StringComparison.Ordinal);
+        Assert.Contains("timestamp(6)", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Entries", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("OccurredAt", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Nullable_timestamp_uses_the_effective_model_store_type_when_the_operation_omits_it()
+    {
+        using var context = CreateTimestampMappingContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = CreateNullableTimestampRepair();
+        operation.ColumnType = null;
+        operation.OldColumn.ColumnType = null;
+
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate(
+            [operation],
+            context.GetService<IDesignTimeModel>()
+                .Model));
+
+        Assert.Contains(nameof(AlterColumnOperation), exception.Message, StringComparison.Ordinal);
+        Assert.Contains("timestamp(6)", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Required_timestamp_that_was_already_required_needs_no_repair_backfill()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = CreateNullableTimestampRepair();
+        operation.OldColumn.IsNullable = false;
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.DoesNotContain("UPDATE `Entries`", sql, StringComparison.Ordinal);
+        Assert.Contains("MODIFY COLUMN `OccurredAt`", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Nullable_timestamp_becoming_required_rejects_an_explicit_clr_value()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = CreateNullableTimestampRepair();
+        operation.DefaultValue = new DateTime(
+            2026,
+            8,
+            21,
+            12,
+            34,
+            56,
+            789);
+
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
+
+        Assert.Contains("requires DefaultValueSql", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("session time zone", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Entries", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("OccurredAt", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Nullable_timestamp_becoming_required_accepts_explicit_sql_expression()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = CreateNullableTimestampRepair();
+        operation.DefaultValueSql = "CURRENT_TIMESTAMP(6)";
+
+        var sql = JoinSql(generator.Generate([operation], context.Model));
+
+        Assert.Contains(
+            "UPDATE `Entries` SET `OccurredAt` = CURRENT_TIMESTAMP(6) " + "WHERE `OccurredAt` IS NULL;",
+            sql,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Nullable_timestamp_becoming_required_rejects_whitespace_sql_expression()
+    {
+        using var context = CreateMySqlContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = CreateNullableTimestampRepair();
+        operation.DefaultValueSql = "   ";
+
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
+
+        Assert.Contains("explicit DefaultValue or DefaultValueSql", exception.Message, StringComparison.Ordinal);
+    }
+
+    private static AlterColumnOperation CreateNullableTimestampRepair() => new()
+    {
+        Table = "Entries",
+        Name = "OccurredAt",
+        ClrType = typeof(DateTime),
+        ColumnType = "timestamp(6)",
+        IsNullable = false,
+        OldColumn =
+        {
+            ClrType = typeof(DateTime),
+            ColumnType = "timestamp(6)",
+            IsNullable = true,
+        },
+    };
 
     [Fact]
     public void Qualified_table_operations_preserve_database_name()
@@ -753,12 +913,14 @@ public sealed class MySqlMigrationDdlCoverageTests
         return new DdlCoverageContext(builder.Options);
     }
 
-    private static DdlCoverageContext CreateMariaDbContext()
+    private static DdlCoverageContext CreateMariaDbContext(
+        Version? version = null
+    )
     {
         var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<DdlCoverageContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
+            MySqlServerVersion.MariaDb(version ?? new Version(11, 8, 0)));
         return new DdlCoverageContext(builder.Options);
     }
 
@@ -778,6 +940,16 @@ public sealed class MySqlMigrationDdlCoverageTests
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
         return new TemporalContext(builder.Options);
+    }
+
+    private static TimestampMappingContext CreateTimestampMappingContext()
+    {
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TimestampMappingContext>();
+        builder.UseMySql(
+            "Server=localhost;Database=doka;User ID=root;Password=password;",
+            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        return new TimestampMappingContext(builder.Options);
     }
 
     // -- Entities / Contexts --
@@ -839,6 +1011,30 @@ public sealed class MySqlMigrationDdlCoverageTests
     {
         public int Id { get; set; }
         public TimeOnly StartTime { get; set; }
+    }
+
+    private sealed class TimestampMappingContext : DbContext
+    {
+        public TimestampMappingContext(
+            DbContextOptions<TimestampMappingContext> options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => modelBuilder.Entity<TimestampMappingEntity>(entity =>
+        {
+            entity.ToTable("Entries");
+            entity.HasKey(candidate => candidate.Id);
+            entity
+                .Property(candidate => candidate.OccurredAt)
+                .HasColumnType("timestamp(6)");
+        });
+    }
+
+    private sealed class TimestampMappingEntity
+    {
+        public int Id { get; set; }
+        public DateTime OccurredAt { get; set; }
     }
 
     private sealed class ConstraintTestContext : DbContext

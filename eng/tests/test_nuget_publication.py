@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -659,7 +660,7 @@ class NuGetPublicationTests(unittest.TestCase):
                 nuget_publication,
                 "observe_remote_symbols",
                 side_effect=(absent_symbols, complete_symbols, complete_symbols),
-            ),
+            ) as observe_remote_symbols,
             mock.patch.object(
                 nuget_publication.time,
                 "monotonic",
@@ -670,7 +671,22 @@ class NuGetPublicationTests(unittest.TestCase):
             nuget_publication.readback(arguments)
 
         self.assertEqual(3, observe_remote_packages.call_count)
-        self.assertEqual("pending-signature", pending_signature_packages[0]["provider"]["status"])
+        self.assertEqual(
+            [
+                ("provider", "spatial"),
+                ("provider",),
+                ("provider",),
+            ],
+            [
+                call.kwargs["roles"]
+                for call in observe_remote_packages.call_args_list
+            ],
+        )
+        self.assertEqual(2, observe_remote_symbols.call_count)
+        self.assertEqual(
+            "pending-signature",
+            pending_signature_packages[0]["provider"]["status"],
+        )
         self.assertEqual([mock.call(1), mock.call(1)], sleep.call_args_list)
         evidence = json.loads(output.read_text(encoding="utf-8"))
         self.assertEqual(receipt["expectedReleaseTag"], evidence["expectedReleaseTag"])
@@ -689,6 +705,37 @@ class NuGetPublicationTests(unittest.TestCase):
             receipt,
             {entry["packageId"]: entry for entry in symbol_entries},
             require_matching=True,
+        )
+
+    def test_readback_command_registers_the_publication_poll_budget(self) -> None:
+        """Keep the one-hour deadline while polling NuGet every 30 seconds."""
+        with mock.patch.object(
+            sys,
+            "argv",
+            [
+                "nuget.py",
+                "readback",
+                "--receipt",
+                "receipt.json",
+                "--candidate-root",
+                "candidate",
+                "--symbol-manifest",
+                "symbols.json",
+                "--output-dir",
+                "packages",
+                "--output",
+                "readback.json",
+            ],
+        ):
+            arguments = nuget_publication.parse_arguments()
+
+        self.assertEqual(
+            nuget_publication.PUBLICATION_READBACK_TIMEOUT_SECONDS,
+            arguments.timeout_seconds,
+        )
+        self.assertEqual(
+            nuget_publication.PUBLICATION_READBACK_POLL_INTERVAL_SECONDS,
+            arguments.poll_interval_seconds,
         )
 
     def test_prepare_and_bind_preserve_identity_after_main_advances(self) -> None:

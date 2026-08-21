@@ -34,7 +34,6 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         DbType.UInt16);
 
     private static readonly RelationalTypeMapping s_uintMapping = new UIntTypeMapping("int unsigned", DbType.UInt32);
-
     private static readonly RelationalTypeMapping s_ulongMapping = new ULongTypeMapping(
         "bigint unsigned",
         DbType.UInt64);
@@ -59,18 +58,15 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         new MySqlRowVersionTypeMapping();
 
     private static readonly RelationalTypeMapping s_dateOnlyMapping = new DateOnlyTypeMapping("date", DbType.Date);
-    private static readonly RelationalTypeMapping s_timeOnlyMapping = new TimeOnlyTypeMapping("time(6)", DbType.Time);
-    private static readonly RelationalTypeMapping s_timeSpanMapping = new TimeSpanTypeMapping("time(6)", DbType.Time);
+    private static readonly MySqlTimeOnlyTypeMapping s_timeOnlyMapping = MySqlTimeOnlyTypeMapping.Default;
+    private static readonly MySqlTimeSpanTypeMapping s_timeSpanMapping = MySqlTimeSpanTypeMapping.Default;
+    private static readonly RelationalTypeMapping s_charClrMapping = MySqlCharTypeMapping.Default;
     private static readonly RelationalTypeMapping s_guidBinaryMapping = new MySqlGuidBinaryTypeMapping();
 
     // GUID text representations are ASCII-only (32 hex digits plus four hyphens), so
     // the column does not need utf8mb4 storage; Unicode: false keeps the on-disk and
     // wire footprint at one byte per character.
-    private static readonly RelationalTypeMapping s_guidChar36Mapping = new MySqlGuidStringTypeMapping(
-        "char(36)",
-        DbType.StringFixedLength,
-        36,
-        useKeyComparison: false);
+    private static readonly RelationalTypeMapping s_guidChar36Mapping = MySqlGuidStringTypeMapping.Default;
 
     private static readonly RelationalTypeMapping s_guidVarchar36Mapping =
         new MySqlGuidStringTypeMapping("varchar(36)", DbType.String, 36, useKeyComparison: false);
@@ -100,7 +96,6 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     private static readonly RelationalTypeMapping s_jsonObjectMapping = MySqlJsonTypeMapping.CreateJsonObjectMapping();
     private static readonly RelationalTypeMapping s_jsonArrayMapping = MySqlJsonTypeMapping.CreateJsonArrayMapping();
     private static readonly RelationalTypeMapping s_serverVersionMapping = new MySqlServerVersionTypeMapping();
-
     private static readonly RelationalTypeMapping s_stringMapping = new MySqlStringTypeMapping(
         "longtext",
         DbType.String,
@@ -177,6 +172,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         [typeof(DateOnly)] = s_dateOnlyMapping,
         [typeof(TimeOnly)] = s_timeOnlyMapping,
         [typeof(TimeSpan)] = s_timeSpanMapping,
+        [typeof(char)] = s_charClrMapping,
         [typeof(Guid)] = s_guidBinaryMapping,
         [typeof(string)] = s_stringMapping,
         [typeof(byte[])] = s_byteArrayMapping,
@@ -266,6 +262,13 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         if (clrType == typeof(Guid))
         {
             return CreateGuidMapping(mappingInfo);
+        }
+
+        if (clrType == typeof(char))
+        {
+            return string.IsNullOrWhiteSpace(mappingInfo.StoreTypeName)
+                ? s_charClrMapping
+                : new MySqlCharTypeMapping(mappingInfo.StoreTypeName);
         }
 
         if (clrType == typeof(JsonTypePlaceholder))
@@ -704,31 +707,70 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         return new MySqlDateTimeTypeMapping($"{storeTypeBase}({precision})");
     }
 
-    private static TimeOnlyTypeMapping CreateTimeOnlyMapping(
+    private static MySqlTimeOnlyTypeMapping CreateTimeOnlyMapping(
         RelationalTypeMappingInfo mappingInfo
     )
     {
         if (!string.IsNullOrWhiteSpace(mappingInfo.StoreTypeName))
         {
-            return new TimeOnlyTypeMapping(mappingInfo.StoreTypeName, DbType.Time);
+            return new MySqlTimeOnlyTypeMapping(
+                mappingInfo.StoreTypeName,
+                GetExplicitTimePrecision(mappingInfo.StoreTypeName));
+        }
+
+        if (mappingInfo.Precision is null)
+        {
+            return s_timeOnlyMapping;
         }
 
         var precision = mappingInfo.Precision ?? DefaultTimePrecision;
 
-        return new TimeOnlyTypeMapping($"time({precision})", DbType.Time);
+        return new MySqlTimeOnlyTypeMapping($"time({precision})", precision);
     }
 
-    private static TimeSpanTypeMapping CreateTimeSpanMapping(
+    private static MySqlTimeSpanTypeMapping CreateTimeSpanMapping(
         RelationalTypeMappingInfo mappingInfo
     )
     {
         if (!string.IsNullOrWhiteSpace(mappingInfo.StoreTypeName))
         {
-            return new TimeSpanTypeMapping(mappingInfo.StoreTypeName, DbType.Time);
+            return new MySqlTimeSpanTypeMapping(
+                mappingInfo.StoreTypeName,
+                GetExplicitTimePrecision(mappingInfo.StoreTypeName));
+        }
+
+        if (mappingInfo.Precision is null)
+        {
+            return s_timeSpanMapping;
         }
 
         var precision = mappingInfo.Precision ?? DefaultTimePrecision;
 
-        return new TimeSpanTypeMapping($"time({precision})", DbType.Time);
+        return new MySqlTimeSpanTypeMapping($"time({precision})", precision);
+    }
+
+    private static int GetExplicitTimePrecision(
+        string storeType
+    )
+    {
+        var openParenthesis = storeType.IndexOf('(');
+        if (openParenthesis < 0)
+        {
+            return 0;
+        }
+
+        var closeParenthesis = storeType.IndexOf(')', openParenthesis + 1);
+        if (closeParenthesis <= openParenthesis + 1
+            || !int.TryParse(
+                storeType.AsSpan(openParenthesis + 1, closeParenthesis - openParenthesis - 1),
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out var precision))
+        {
+            throw new InvalidOperationException(
+                $"The MySQL-family time store type '{storeType}' has an invalid fractional-seconds precision.");
+        }
+
+        return precision;
     }
 }

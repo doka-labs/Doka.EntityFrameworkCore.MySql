@@ -76,7 +76,15 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/integration/<run-id>/test-database-evidence.json`
 - Dedicated benchmark scorecard:
   - workflow: `.github/workflows/benchmark.yml`
-  - cadence: monthly, on demand, and after relevant performance-input changes
+  - cadence: monthly, on demand, and after measurement-defining changes
+  - ordinary provider-source changes: complete six-target, non-qualifying
+    smoke lane
+  - full scorecard changes: benchmark and evaluator inputs, runtime package
+    versions and lock files, production project files, SDK/build inputs,
+    database images, and supported-engine contract
+  - no measurement: documentation, tests, unrelated Actions-only maintenance,
+    accepted baseline output, and known test-, analyzer-, or example-only
+    package bumps
   - targets: every key in `performance-contract.json.requiredTargets`; the
     workflow derives its matrix from that contract instead of duplicating it
   - local path for one selected target:
@@ -150,11 +158,12 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     the already complete draft is published and independently read back before
     availability probes begin
   - public completion: independently ordered package and symbol visibility is
-    polled until the bounded deadline; exact bytes that are visible before
-    their repository signature remain pending rather than becoming a false
-    terminal verdict; canonical byte comparison and cryptographic
-    repository-signature verification are retained as retry-varying workflow
-    evidence, never release assets
+    polled every 30 seconds until the one-hour deadline; an exact, signed
+    package or checksum-matching PDB is retained and omitted from later rounds,
+    while exact package bytes visible before their repository signature remain
+    pending rather than becoming a false terminal verdict; canonical byte
+    comparison and cryptographic repository-signature verification are
+    retained as retry-varying workflow evidence, never release assets
   - protocol discovery: package content is resolved from the configured V3
     service index's stable `PackageBaseAddress/3.0.0` capability and only a
     canonical lowercase NuGet release version can form a public readback URL
@@ -236,10 +245,22 @@ provider cannot use the general `_utf8mb4 X'...'` expression form directly
 after `COMMENT`. For comment statements containing a backslash, generated SQL
 uses a server-executable comment to save the session mode, adds
 `NO_BACKSLASH_ESCAPES` without removing existing modes, emits the quoted DDL,
-and restores the exact previous mode. MySqlConnector treats the wrapper as a
-comment while MySQL and MariaDB execute its contents, so runtime migrations do
-not require `Allow User Variables=true`. Live readback verifies comment bytes,
-data-operation values, and exact mode restoration.
+and appends restoration of the exact previous mode. MySqlConnector treats the
+script wrapper as a comment while MySQL and MariaDB execute its contents, so
+generated scripts do not require `Allow User Variables=true`.
+
+Runtime migrations do not rely on sequential server statements for recovery.
+The provider keeps one physical connection open, captures `sql_mode`
+client-side, executes the DDL, and restores the captured value after success,
+failure, or cancellation. The runtime path neither overwrites nor consumes a
+caller-owned user variable. A failed restore forcibly closes the physical
+connection and clears the pool. Live readback verifies comment bytes, exact
+mode restoration, cancellation recovery, same-session reuse, forced eviction,
+and pool behavior. Cleanup failure is terminal for the provider execution
+strategy because DDL may already be committed and cannot be safely replayed.
+Generated scripts have no portable failure-finally mechanism; the repository
+gate executes them in a process-owned client and discards that session on any
+failure.
 
 JSON member names that are not identifiers are quoted and escaped at the JSON
 path layer. The complete static path, or each literal chunk of a dynamic path,

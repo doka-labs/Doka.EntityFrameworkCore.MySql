@@ -24,6 +24,19 @@ Defaults: `maxRetryCount` is 6, `maxRetryDelay` is the EF Core convention (30 se
 - Wrapped `SocketException` or `IOException` -- transport-level disconnect.
 - `MySqlException.IsTransient == true` -- driver-level classification.
 
+MySqlConnector also uses `MySqlException` for communication failures. Such a
+wrapper can have `Number == 0` and `IsTransient == false` while its bounded
+inner chain carries the retryable `SocketException` or `IOException`. The
+provider therefore continues through only error-number-zero wrappers. A real
+non-zero server error remains authoritative and cannot become retryable merely
+because an unrelated transport exception is nested below it. Cancellation,
+command timeout, and migration session-cleanup failure remain terminal across
+the complete bounded chain. The relevant exception contract is identical at
+the supported 2.5.0 floor and the current qualified 2.6.1 patch. The
+MySqlConnector floor/latest matrix executes the same detector tests against
+both ends of the supported `[2.5.0, 3.0.0)` range; 3.x is not part of that
+contract.
+
 `OperationCanceledException` and `CommandTimeoutExpired` are never retried -- the consumer's cancellation token wins, and a command-timeout is treated as a non-transient capacity signal.
 
 For Galera specifically, the retry budget should account for the worst-case re-routing latency after a node-evict event. Six attempts with linear-then-randomized backoff up to 30 seconds cover the majority of `wsrep_provider`-driven evict + re-elect cycles on Galera 4 and MariaDB 11.x.
@@ -109,25 +122,56 @@ For those cases, the application must reconcile through a separate idempotency t
 
 ## Connection Pooler / Load Balancer Compatibility
 
-The migration advisory lock and the commit-unknown verification both depend on **session stickiness**. The same connection that ran `GET_LOCK` must run `RELEASE_LOCK`; the same connection that committed the transaction must observe the side-effect of `verifySucceeded`. Connection poolers and load balancers that re-route mid-session break both contracts.
+The migration advisory lock depends on backend-session identity: the backend
+session that ran `GET_LOCK` must remain available until the provider runs
+`RELEASE_LOCK`. Commit-unknown verification has a separate routing requirement:
+the verification query must observe the same logical writer and must not be
+sent to a stale replica. A topology must satisfy both properties; generic
+claims such as "sticky" or "causal" are not sufficient evidence.
 
 ### Supported topologies
 
 - **Direct connection** to MySQL or MariaDB. Standard; no special configuration.
 - **MySqlConnector's built-in connection pool** (default). Per-application pool; sessions stay sticky for the lifetime of the leased connection. Lock + commit semantics unaffected.
-- **ProxySQL with session pinning**: configure `mysql-multiplexing=0` on the connection group fronted by the provider, OR set `default_session_track_gtids=OWN_GTID` and rely on session-pinning on transaction boundaries. Without one of these, ProxySQL multiplexes statements across backend sessions and the migration lock + commit-unknown verification both break silently.
-- **MaxScale (read-write splitter)** with `transaction_replication=true` and `causal_reads=true`: transaction routing pins the session; reads inside a transaction stay on the master. The migration advisory lock works on the master endpoint; commit-unknown verification works when the verifying `SELECT` is inside a `TransactionScope` or `ExecuteInTransactionAsync` callback (both pin to the master).
+- **ProxySQL with verified writer routing.** ProxySQL documents that executing
+  `GET_LOCK()` disables multiplexing permanently for that frontend session. It
+  does not disable routing, so query rules must still route `GET_LOCK`,
+  `IS_USED_LOCK`, `RELEASE_LOCK`, migration DDL, and commit verification to the
+  same writer hostgroup. Disabling the global `mysql-multiplexing` option is a
+  conservative alternative, but affects every session. GTID tracking is not a
+  substitute for advisory-lock session identity.
+- **MaxScale `readwritesplit` with verified primary routing.** Current MaxScale
+  routes `GET_LOCK()`, `RELEASE_LOCK()`, and the related lock functions to the
+  primary, and routes every statement in an open read-write transaction to the
+  primary. `ExecuteInTransactionAsync` therefore keeps the operation and its
+  transactional verification on the writer. `causal_reads` controls visibility
+  for reads routed to replicas; it is an enum and is not the advisory-lock
+  pinning mechanism. `transaction_replay` is likewise a failure-recovery option,
+  not a lock-ownership setting.
+- **L4 TCP load balancer to one logical writer.** A TCP proxy keeps an
+  established frontend connection on its selected backend. Health checks such
+  as HAProxy's `option mysql-check` affect backend eligibility, not persistence.
+  This topology is supported only when every application instance reaches the
+  same logical writer for advisory-lock operations and verification reads.
 
 ### NOT supported topologies
 
-- **PgBouncer-style transaction-pooling** -- semantically equivalent solutions for MySQL (e.g. ProxySQL with multiplexing on) recycle the backend session between statements. The advisory lock and the dedicated-connection contract both break. The provider does not detect this misconfiguration; the symptom is migrations either deadlocking or silently running concurrently.
-- **L4 load balancers** (HAProxy in TCP mode without `option mysql-check` source-IP-hash) -- without hash-based pinning, a re-connect routes to a different backend and the advisory lock is held against the wrong node.
+- **Transaction-level backend pooling** that can recycle the backend session
+  between `GET_LOCK` and `RELEASE_LOCK`. The advisory lock and dedicated-session
+  contract break even if transactions themselves are pinned.
+- **L4 balancing across independent writable servers.** TCP connection
+  persistence and source hashing do not create a cluster-wide advisory lock.
+  Different application hosts can acquire the same lock name on different
+  servers, and a reconnect can select another server.
+- **Read/write splitting that can send verification to a stale replica.** A
+  successful commit can then look absent and cause unsafe replay.
 
 ### Operator pre-deployment checklist
 
 1. Identify the topology between the application host and the database (direct, pooler, proxy, L4 balancer).
-2. For each layer, verify session stickiness during a single connection lifetime.
-3. Run a smoke test:
+2. For each layer, verify backend-session identity for the full advisory-lock
+   lifetime and writer visibility for commit verification.
+3. Run the smoke test from every distinct application source or proxy route:
    ```sql
    -- Open one session, do not close it.
    SELECT GET_LOCK('doka_smoke_test', 5) AS acquired;
@@ -135,6 +179,29 @@ The migration advisory lock and the commit-unknown verification both depend on *
    SELECT IS_USED_LOCK('doka_smoke_test') AS still_held_same_session;
    -- Open a SECOND session against the proxy:
    SELECT IS_USED_LOCK('doka_smoke_test') AS still_held_other_session;
+   -- Back on the first session:
+   SELECT RELEASE_LOCK('doka_smoke_test') AS released;
    ```
-   The first `IS_USED_LOCK` must return the original session's connection_id. The second must return the same connection_id from the other session's vantage point -- proving the lock is observable across sessions and pinned to a single backend. If either probe returns NULL, the topology multiplexes and migrations will misbehave.
-4. Document the verified topology in the runbook for the next operator on call.
+   Both `IS_USED_LOCK` calls must return the first backend session's
+   `CONNECTION_ID()`, and `RELEASE_LOCK` must return `1`. A `NULL`, a different
+   owner, or simultaneous acquisition from another application source means the
+   topology does not provide the provider's migration-lock contract.
+4. In a non-production database, interrupt one post-commit acknowledgement and
+   verify that the idempotency probe reads the writer result before retrying.
+5. Document the proxy version, routing rules, writer topology, and verification
+   evidence for the next operator on call.
+
+## Primary Sources
+
+Retrieved 2026-08-21:
+
+- [MySqlConnector 2.5.0 `MySqlException` source](https://github.com/mysql-net/MySqlConnector/blob/2.5.0/src/MySqlConnector/MySqlException.cs)
+- [MySqlConnector 2.6.1 `MySqlException` source](https://github.com/mysql-net/MySqlConnector/blob/2.6.1/src/MySqlConnector/MySqlException.cs)
+- [EF Core 10.0.10 execution strategy source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore/Storage/ExecutionStrategy.cs)
+- [EF Core 10.0.10 relational execution-strategy extensions](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Storage/RelationalExecutionStrategyExtensions.cs)
+- [ProxySQL multiplexing and `GET_LOCK()` behavior](https://proxysql.com/documentation/multiplexing/)
+- [ProxySQL MySQL variables](https://proxysql.com/documentation/global-variables/mysql-variables/)
+- [MariaDB MaxScale `readwritesplit` routing and options](https://mariadb.com/docs/maxscale/reference/maxscale-routers/maxscale-readwritesplit)
+- [HAProxy active health checks](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/reliability/health-checks/)
+- [MySQL locking functions](https://dev.mysql.com/doc/refman/8.4/en/locking-functions.html)
+- [MariaDB `GET_LOCK`](https://mariadb.com/docs/server/reference/sql-functions/secondary-functions/miscellaneous-functions/get_lock)

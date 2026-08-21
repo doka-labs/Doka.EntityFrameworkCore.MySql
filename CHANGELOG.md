@@ -7,6 +7,77 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.0.0-rc.11] - 2026-08-21
+
+This release candidate supersedes `10.0.0-rc.10`. It carries the migration
+scope, explicit backfill, typed-default, and transient-failure corrections
+found through SafeMigrations qualification, plus canonical provider guidance,
+lower-cost benchmark routing, bounded NuGet polling, and isolated
+qualification restores.
+
+Install the release candidate explicitly because NuGet excludes prerelease
+packages from normal stable-version resolution:
+
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.11
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.11
+```
+
+### Added
+
+- Add bounded handler-authored migration command scopes with ordered setup,
+  one body, reverse-order cleanup, cancellation-independent recovery, and pool
+  eviction when cleanup cannot restore a reusable session.
+- Expose exact provider-rendered setup, body, and cleanup fragments through
+  `MySqlMigrationCommandSpec.Fragments`, so migration-operation handlers can
+  inspect exact command boundaries without parsing SQL.
+- Expose `MySqlCharTypeMapping`, `MySqlGuidStringTypeMapping`,
+  `MySqlTimeOnlyTypeMapping`, and `MySqlTimeSpanTypeMapping`, preserving
+  provider-specific reader, literal, and compiled-model behavior for direct
+  consumers.
+
+### Changed
+
+- Nullable-to-required column transitions now require an application-authored
+  `DefaultValue` or nonblank `DefaultValueSql`; existing migrations that relied
+  on provider-synthesized CLR defaults must be edited before upgrading.
+  `TIMESTAMP` repairs require `DefaultValueSql` because CLR literals are
+  interpreted through the executing session time zone.
+- Reorganize the README and documentation corpus around canonical installation,
+  configuration, query, operations, architecture, governance, security,
+  performance, roadmap, and release-verification owners. The redundant combined
+  temporal-table and CTE guide is removed in favor of the focused references.
+- Route ordinary provider-source changes through the complete six-target,
+  non-qualifying benchmark smoke lane. Benchmark harness, evaluator,
+  sensitivity, workload, production project and lock, runtime dependency,
+  build and SDK, database image, and supported-target changes still select the
+  complete scorecard, as do monthly and manual events. Documentation, tests,
+  examples, analyzers, unrelated Actions maintenance, accepted baseline
+  output, and proven tooling-only package bumps allocate no measurement.
+  Mixed changes select their strongest tier, unknown central-package shapes
+  fail closed into a scorecard, and seed mode upgrades provider smoke before
+  writing baseline evidence.
+- Poll pending NuGet package, symbol, and repository-signature visibility every
+  30 seconds while preserving the one-hour publication-readback deadline.
+  Subjects whose exact bytes and signatures already match are retained as
+  evidence instead of being downloaded again in later rounds.
+
+### Fixed
+
+- Inspect bounded transport causes below error-number-zero MySqlConnector
+  wrappers while keeping real non-zero server errors, cancellation, command
+  timeout, and migration cleanup failures terminal.
+- Execute DDL comments that contain backslashes in a scoped
+  `NO_BACKSLASH_ESCAPES` session and restore the previous session `sql_mode`
+  after success, failure, or cancellation. Cleanup failures now clear the
+  affected MySqlConnector pool before the migration error is reported.
+- Generate typed invariant defaults for character, JSON, spatial, date, time,
+  and duration columns. Duration literals now reject values outside MySQL's
+  `TIME` range instead of allowing the server to saturate them silently.
+- Isolate migration-bundle and RID-specific runtime restores behind disposable
+  lock files and artifact roots, preventing qualification from modifying or
+  depending on repository-owned package locks and shared build output.
+
 ## [10.0.0-rc.10] - 2026-08-19
 
 This release candidate supersedes `10.0.0-rc.9`. It carries the NuGet readback
@@ -642,7 +713,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.10...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.11...HEAD
+[10.0.0-rc.11]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.11
 [10.0.0-rc.10]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.10
 [10.0.0-rc.9]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.9
 [10.0.0-rc.8]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.8

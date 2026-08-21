@@ -113,14 +113,18 @@ public sealed class MySqlMigrationRenameColumnTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         await using var context = new RenameContext(CreateOptions<RenameContext>(connectionString, serverVersion));
 
-        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `RenameItems`;");
+        await context.Database.ExecuteSqlRawAsync(
+            "DROP TABLE IF EXISTS `RenameItems`;",
+            CancellationToken.None);
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE `RenameItems` ("
             + "`Id` int NOT NULL AUTO_INCREMENT, "
             + "`Old` varchar(64) NOT NULL COMMENT 'rename\\\\comment ''quoted''', "
-            + "PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+            + "PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
+            CancellationToken.None);
         await context.Database.ExecuteSqlRawAsync(
-            "INSERT INTO `RenameItems` (`Old`) VALUES ('alpha'), ('beta'), ('gamma');");
+            "INSERT INTO `RenameItems` (`Old`) VALUES ('alpha'), ('beta'), ('gamma');",
+            CancellationToken.None);
 
         try
         {
@@ -151,18 +155,22 @@ public sealed class MySqlMigrationRenameColumnTests
                 Assert.DoesNotContain("CHANGE COLUMN", emitted, StringComparison.Ordinal);
             }
 
-            await context.Database.ExecuteSqlRawAsync(emitted);
+            await commands[0]
+                .ExecuteNonQueryAsync(
+                    context.GetService<IRelationalConnection>(),
+                    cancellationToken: CancellationToken.None)
+                .ConfigureAwait(false);
 
             await using var inspectionConnection = new MySqlConnection(connectionString);
-            await inspectionConnection.OpenAsync();
+            await inspectionConnection.OpenAsync(CancellationToken.None);
             await using var verifyCommand = inspectionConnection.CreateCommand();
             verifyCommand.CommandText =
                 "SELECT `Renamed` FROM `RenameItems` ORDER BY `Id`;";
 
             var roundtripped = new List<string>();
-            await using (var reader = await verifyCommand.ExecuteReaderAsync())
+            await using (var reader = await verifyCommand.ExecuteReaderAsync(CancellationToken.None))
             {
-                while (await reader.ReadAsync())
+                while (await reader.ReadAsync(CancellationToken.None))
                 {
                     roundtripped.Add(reader.GetString(0));
                 }
@@ -179,12 +187,14 @@ public sealed class MySqlMigrationRenameColumnTests
                 ColumnComment,
                 Assert.IsType<string>(
                     await verifyCommand
-                        .ExecuteScalarAsync()
+                        .ExecuteScalarAsync(CancellationToken.None)
                         .ConfigureAwait(false)));
         }
         finally
         {
-            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `RenameItems`;");
+            await context.Database.ExecuteSqlRawAsync(
+                "DROP TABLE IF EXISTS `RenameItems`;",
+                CancellationToken.None);
         }
     }
 

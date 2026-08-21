@@ -119,17 +119,26 @@ public static class Program
             ],
             context.Model);
 
-        if (commands.Count != 3
+        if (commands.Count != 4
             || !string.Equals(commands[0].CommandText.TrimEnd(), "SELECT 1;", StringComparison.Ordinal)
             || !commands[0].TransactionSuppressed
             || !string.Equals(commands[1].CommandText, "SELECT 2;", StringComparison.Ordinal)
             || commands[1].TransactionSuppressed
-            || !string.Equals(commands[2].CommandText, "SELECT 3;", StringComparison.Ordinal)
-            || commands[2].TransactionSuppressed)
+            || !string.Equals(
+                commands[2].CommandText,
+                "SET @runtime_smoke_scope = 1;"
+                + "SELECT @runtime_smoke_scope;"
+                + "SET @runtime_smoke_scope = NULL;",
+                StringComparison.Ordinal)
+            || commands[2].TransactionSuppressed
+            || !string.Equals(commands[3].CommandText, "SELECT 3;", StringComparison.Ordinal)
+            || commands[3].TransactionSuppressed)
         {
             throw new InvalidOperationException(
                 "The package-only migration-operation handlers did not preserve dispatch or command boundaries.");
         }
+
+        VerifyProviderCommandFragments(primaryHandler);
 
         VerifyExpectedHandlerFailure(
             generator,
@@ -161,6 +170,66 @@ public static class Program
 
         throw new InvalidOperationException(
             "The package-only migration-operation context remained usable after handler return.");
+    }
+
+    private static void VerifyProviderCommandFragments(
+        RuntimeSmokeMigrationHandler handler
+    )
+    {
+        var ordinary = handler.LastOrdinaryCommand
+            ?? throw new InvalidOperationException("The ordinary provider baseline command was not captured.");
+        var ordinaryFragment = ordinary.Fragments.Single();
+        if (ordinaryFragment.Kind != MySqlMigrationCommandFragmentKind.Body
+            || !ordinaryFragment.CommandText.Span.SequenceEqual(ordinary.CommandText))
+        {
+            throw new InvalidOperationException(
+                "The package-only provider baseline did not expose one exact body fragment.");
+        }
+
+        var scoped = handler.LastScopedCommand
+            ?? throw new InvalidOperationException("The scoped provider baseline command was not captured.");
+        var expectedKinds = new[]
+        {
+            MySqlMigrationCommandFragmentKind.Setup,
+            MySqlMigrationCommandFragmentKind.Setup,
+            MySqlMigrationCommandFragmentKind.Body,
+            MySqlMigrationCommandFragmentKind.Cleanup,
+        };
+        if (!scoped.Fragments.Select(fragment => fragment.Kind).SequenceEqual(expectedKinds)
+            || !string.Equals(
+                scoped.CommandText,
+                string.Concat(scoped.Fragments.Select(fragment => fragment.CommandText.ToString())),
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The package-only provider baseline did not expose the exact structured scope.");
+        }
+
+        if (handler.LastOpaqueCommand is null
+            || handler.LastOpaqueCommand.Fragments.Count != 0)
+        {
+            throw new InvalidOperationException(
+                "A package-only handler-authored command was incorrectly assigned provider semantics.");
+        }
+
+        var handlerScoped = handler.LastHandlerScopedCommand
+            ?? throw new InvalidOperationException("The handler-authored scope was not captured.");
+        if (!handlerScoped.Fragments
+                .Select(fragment => fragment.Kind)
+                .SequenceEqual(
+                [
+                    MySqlMigrationCommandFragmentKind.Setup,
+                    MySqlMigrationCommandFragmentKind.Body,
+                    MySqlMigrationCommandFragmentKind.Cleanup,
+                ])
+            || !string.Equals(
+                handlerScoped.CommandText,
+                string.Concat(handlerScoped.Fragments.Select(fragment => fragment.CommandText.ToString())),
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The package-only handler scope did not preserve its validated execution roles.");
+        }
     }
 
     [RequiresUnreferencedCode(
@@ -253,7 +322,7 @@ public static class Program
         if (supportsQueryExecution)
         {
             await context
-                .Database.EnsureCreatedAsync()
+                .Database.EnsureCreatedAsync(CancellationToken.None)
                 .ConfigureAwait(false);
         }
         else
@@ -268,7 +337,7 @@ public static class Program
                 Name = "runtime-smoke",
             });
         await context
-            .SaveChangesAsync()
+            .SaveChangesAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         if (!supportsQueryExecution)
@@ -309,6 +378,14 @@ public static class Program
 
         public MySqlMigrationOperationContext? LastContext { get; private set; }
 
+        public MySqlMigrationCommandSpec? LastHandlerScopedCommand { get; private set; }
+
+        public MySqlMigrationCommandSpec? LastOpaqueCommand { get; private set; }
+
+        public MySqlMigrationCommandSpec? LastOrdinaryCommand { get; private set; }
+
+        public MySqlMigrationCommandSpec? LastScopedCommand { get; private set; }
+
         public MySqlMigrationOperationResult Generate(
             MySqlMigrationOperationContext context
         )
@@ -320,9 +397,29 @@ public static class Program
                     Sql = "SELECT 1;",
                     SuppressTransaction = true,
                 });
+            var scopedBaseline = context.RenderStandardOperation(
+                new AddColumnOperation
+                {
+                    Table = "RuntimeSmokeEntries",
+                    Name = "Description",
+                    ClrType = typeof(string),
+                    ColumnType = "varchar(64)",
+                    IsNullable = true,
+                    Comment = "path\\segment",
+                });
+            var opaqueCommand = MySqlMigrationCommandSpec.Create("SELECT 2;");
+            var handlerScopedCommand = MySqlMigrationCommandSpec.CreateScoped(
+                ["SET @runtime_smoke_scope = 1;"],
+                "SELECT @runtime_smoke_scope;",
+                ["SET @runtime_smoke_scope = NULL;"]);
+
+            LastOrdinaryCommand = baseline.Single();
+            LastScopedCommand = scopedBaseline.Single();
+            LastOpaqueCommand = opaqueCommand;
+            LastHandlerScopedCommand = handlerScopedCommand;
 
             return MySqlMigrationOperationResult.Generated(
-                baseline.Append(MySqlMigrationCommandSpec.Create("SELECT 2;")),
+                baseline.Append(opaqueCommand).Append(handlerScopedCommand),
                 "runtime_smoke");
         }
     }
@@ -479,7 +576,7 @@ public static class Program
         if (supportsQueryExecution)
         {
             await context
-                .Database.EnsureCreatedAsync()
+                .Database.EnsureCreatedAsync(CancellationToken.None)
                 .ConfigureAwait(false);
         }
         else
@@ -497,7 +594,7 @@ public static class Program
                 },
             });
         await context
-            .SaveChangesAsync()
+            .SaveChangesAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         if (!supportsQueryExecution)
@@ -561,7 +658,7 @@ public static class Program
 
         await using var connection = new MySqlConnection(builder.ConnectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         await ExecuteServerCommandAsync(connection, $"DROP DATABASE IF EXISTS `{databaseName}`;")
@@ -579,7 +676,7 @@ public static class Program
         command.CommandText = commandText;
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -618,7 +715,7 @@ public static class Program
                               """;
 
         await context
-            .Database.ExecuteSqlRawAsync(createTableSql)
+            .Database.ExecuteSqlRawAsync(createTableSql, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -657,7 +754,7 @@ public static class Program
                               """;
 
         await context
-            .Database.ExecuteSqlRawAsync(createTableSql)
+            .Database.ExecuteSqlRawAsync(createTableSql, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -670,7 +767,7 @@ public static class Program
     )
     {
         await using var enumerator = GetRuntimeSmokeBasicEntities(context)
-            .GetAsyncEnumerator();
+            .GetAsyncEnumerator(CancellationToken.None);
 
         return await enumerator.MoveNextAsync();
     }
@@ -689,7 +786,7 @@ public static class Program
     )
     {
         await using var enumerator = GetRuntimeSmokeSpatialEntities(context)
-            .GetAsyncEnumerator();
+            .GetAsyncEnumerator(CancellationToken.None);
 
         return await enumerator.MoveNextAsync();
     }

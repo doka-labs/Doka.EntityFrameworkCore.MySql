@@ -2,8 +2,9 @@ name: benchmark-smoke
 
 # This internal workflow exercises the complete active LTS target contract with
 # the short, non-qualifying smoke profile. It has no dispatch trigger: CI owns
-# the cadence, while this workflow owns contract-derived fan-out and target
-# lifecycle so a support-line change cannot leave a second matrix behind.
+# scheduled early warning and the benchmark resolver owns provider-change
+# validation. This workflow owns contract-derived fan-out and target lifecycle
+# so a support-line change cannot leave a second matrix behind.
 on:
   workflow_call:
 

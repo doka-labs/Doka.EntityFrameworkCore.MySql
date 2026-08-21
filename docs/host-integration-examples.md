@@ -69,9 +69,8 @@ Two layered patterns cover the common cases:
 
 ```csharp
 builder.Services.AddHealthChecks()
-    // Liveness: cheap "can we still reach the database?" probe. Default
-    // runs `SELECT 1` against the DbContext-bound connection without
-    // opening a transaction.
+    // Liveness: cheap "can we still reach the database?" probe. The default
+    // delegates to EF Core's CanConnectAsync without opening a transaction.
     .AddDbContextCheck<MyDbContext>(
         name: "mysql-liveness",
         failureStatus: HealthStatus.Degraded,
@@ -121,3 +120,13 @@ dotnet build examples/Doka.EntityFrameworkCore.MySql.HostExamples/Doka.EntityFra
 ```
 
 The sample is intentionally outside the provider runtime package graph and exists only as a host-level integration reference.
+
+## Primary Sources
+
+Retrieved 2026-08-21:
+
+- [OpenTelemetry .NET tracing](https://opentelemetry.io/docs/languages/dotnet/traces/getting-started-aspnetcore/)
+- [OpenTelemetry .NET metrics](https://opentelemetry.io/docs/languages/dotnet/metrics/getting-started-console/)
+- [Serilog integration with `Microsoft.Extensions.Logging`](https://github.com/serilog/serilog-extensions-logging)
+- [ASP.NET Core health checks and `AddDbContextCheck`](https://learn.microsoft.com/aspnet/core/host-and-deploy/health-checks?view=aspnetcore-10.0)
+- [Kubernetes liveness, readiness, and startup probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)

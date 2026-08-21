@@ -65,34 +65,49 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
     )
     {
         var terminator = Dependencies.SqlGenerationHelper.StatementTerminator;
-
-        builder
+        var newLine = Environment.NewLine;
+        var setupCommands = new[]
+        {
             // The server executes MySQL-family executable comments, while
             // MySqlConnector's parameter parser leaves their contents alone.
-            // This keeps the generated SQL independent of Allow User Variables.
-            .Append("/*! SET ")
-            .Append(PreviousDdlCommentSqlModeVariable)
-            .Append(" = @@SESSION.sql_mode")
-            .Append(" */")
-            .AppendLine(terminator)
-            .Append("/*! SET SESSION sql_mode = IF(")
-            .Append("FIND_IN_SET('NO_BACKSLASH_ESCAPES', @@SESSION.sql_mode), ")
-            .Append("@@SESSION.sql_mode, ")
-            .Append("CONCAT_WS(',', NULLIF(@@SESSION.sql_mode, ''), 'NO_BACKSLASH_ESCAPES'))")
-            .Append(" */")
-            .AppendLine(terminator);
+            // This keeps generated script text independent of AllowUserVariables.
+            "/*! SET "
+            + PreviousDdlCommentSqlModeVariable
+            + " = @@SESSION.sql_mode */"
+            + terminator
+            + newLine,
+            "/*! SET SESSION sql_mode = IF("
+            + "FIND_IN_SET('NO_BACKSLASH_ESCAPES', @@SESSION.sql_mode), "
+            + "@@SESSION.sql_mode, "
+            + "CONCAT_WS(',', NULLIF(@@SESSION.sql_mode, ''), 'NO_BACKSLASH_ESCAPES')) */"
+            + terminator
+            + newLine,
+        };
+
+        GetProviderCommandBuilder(builder).BeginProviderScope(setupCommands);
     }
 
     private void AppendDdlCommentSqlModeScopeEnd(
         MigrationCommandListBuilder builder
     )
     {
-        builder
-            .Append("/*! SET SESSION sql_mode = ")
-            .Append(PreviousDdlCommentSqlModeVariable)
-            .Append(" */")
-            .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+        var cleanupCommands = new[]
+        {
+            "/*! SET SESSION sql_mode = "
+            + PreviousDdlCommentSqlModeVariable
+            + " */"
+            + Dependencies.SqlGenerationHelper.StatementTerminator
+            + Environment.NewLine,
+        };
+
+        GetProviderCommandBuilder(builder).CompleteProviderScope(cleanupCommands);
     }
+
+    private static MySqlMigrationCommandListBuilder GetProviderCommandBuilder(
+        MigrationCommandListBuilder builder
+    ) => builder as MySqlMigrationCommandListBuilder
+        ?? throw new InvalidOperationException(
+            "The Doka migrations generator requires its provider-owned command builder.");
 
     private static bool RequiresDdlCommentSqlModeScope(
         string? comment
