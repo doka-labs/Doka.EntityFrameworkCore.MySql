@@ -641,10 +641,9 @@ class EvaluateCliExitCodeTests(unittest.TestCase):
     def test_mistyped_test_structures_exit_seventy_eight(self) -> None:
         """Prove broken test and resource shapes leave as invalid evidence.
 
-        Building a set from `workloadId` before checking it raised a plain
+        Building a set from `workloadId` before checking it once raised a plain
         TypeError on a list, and a null block raised one on comparison. Both
-        leave the command line as exit 1 -- which the attempt recorder reads as
-        a regression about the provider.
+        structures must remain explicit invalid evidence.
         """
         for description, mutate in (
             ("null resource block",

@@ -7,7 +7,7 @@
 # this process. Statistical policy and evidence transformation remain in the
 # focused Python modules under eng.performance.
 
-set -euo pipefail
+set -Eeuo pipefail
 
 # The CLI otherwise attempts to contact a long-lived MSBuild server before it
 # emits build output. Disabling that server keeps local and CI qualification
@@ -15,6 +15,20 @@ set -euo pipefail
 export DOTNET_CLI_USE_MSBUILD_SERVER=0
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+INVALID_EVIDENCE_EXIT_CODE=78
+
+classify_unhandled_error() {
+    local status=$?
+
+    if (( status == 1 )); then
+        trap - ERR
+        echo "Benchmark infrastructure failed before producing a verdict." >&2
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
+    fi
+
+    return "${status}"
+}
+trap classify_unhandled_error ERR
 benchmark_project="${repo_root}/benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks"
 benchmark_project="${benchmark_project}/Doka.EntityFrameworkCore.MySql.Benchmarks.csproj"
 benchmark_assembly="${repo_root}/artifacts/bin/Doka.EntityFrameworkCore.MySql.Benchmarks/release"
@@ -30,6 +44,10 @@ evidence_module="eng.performance.cli"
 deadline_module="eng.common.deadline"
 compose_file="${repo_root}/docker/compose.yml"
 benchmark_profile="${DOKA_BENCHMARK_PROFILE:-smoke}"
+if [[ "${GITHUB_ACTIONS:-false}" == "true" && -z "${DOKA_BENCHMARK_TARGET:-}" ]]; then
+    echo "DOKA_BENCHMARK_TARGET is required in GitHub Actions." >&2
+    exit "${INVALID_EVIDENCE_EXIT_CODE}"
+fi
 benchmark_target="${DOKA_BENCHMARK_TARGET:-mysql84}"
 benchmark_run_id="${DOKA_BENCHMARK_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 repo_fingerprint="$(printf '%s' "${repo_root}" | cksum | awk '{print $1}')"
@@ -129,7 +147,7 @@ Modes:
   --up-run-down     Start the selected target, run the configured profile, then stop the stack.
 
 Environment:
-  DOKA_BENCHMARK_TARGET=<requiredTargets key>
+  DOKA_BENCHMARK_TARGET=<requiredTargets key; local default mysql84>
   DOKA_BENCHMARK_PROFILE=smoke|scorecard|stress
   DOKA_BENCHMARK_BASELINE_MODE=compare|seed
   DOKA_BENCHMARK_COMPARISON_MODE=historical|paired
@@ -154,7 +172,11 @@ cleanup() {
         # Cleanup is part of a successful owned-stack run. Preserve an earlier
         # benchmark failure, but surface teardown failure after a green run.
         if [[ "${exit_code}" -eq 0 && "${down_exit_code}" -ne 0 ]]; then
-            exit_code="${down_exit_code}"
+            if [[ "${down_exit_code}" -eq 1 ]]; then
+                exit_code="${INVALID_EVIDENCE_EXIT_CODE}"
+            else
+                exit_code="${down_exit_code}"
+            fi
         fi
     fi
 
@@ -166,7 +188,7 @@ trap 'cleanup "$?"' EXIT
 ensure_docker_available() {
     if ! command -v docker >/dev/null 2>&1; then
         echo "docker is required for the bundled benchmark path." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 }
 
@@ -175,7 +197,7 @@ ensure_docker_compose_available() {
 
     if ! docker compose version >/dev/null 2>&1; then
         echo "docker compose is required for the bundled benchmark path." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 }
 
@@ -203,7 +225,7 @@ configure_benchmark_target() {
         echo "Unsupported benchmark target '${benchmark_target}'." >&2
         echo "Supported targets:" >&2
         jq -r '.requiredTargets | keys[] | "  " + .' "${performance_contract}" >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 
     benchmark_target_display_name="$(
@@ -235,7 +257,7 @@ validate_configuration() {
             ;;
         *)
             echo "Unsupported benchmark profile '${benchmark_profile}'." >&2
-            exit 1
+            exit "${INVALID_EVIDENCE_EXIT_CODE}"
             ;;
     esac
 
@@ -244,44 +266,44 @@ validate_configuration() {
             ;;
         *)
             echo "Unsupported baseline mode '${baseline_mode}'." >&2
-            exit 1
+            exit "${INVALID_EVIDENCE_EXIT_CODE}"
             ;;
     esac
 
     if [[ "${resume_mode}" != "0" && "${resume_mode}" != "1" ]]; then
         echo "DOKA_BENCHMARK_RESUME must be 0 or 1." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 
     if [[ ! "${benchmark_run_id}" =~ ^[0-9A-Za-z._-]+$ ]]; then
         echo "Benchmark run ID '${benchmark_run_id}' contains unsupported characters." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 
     if [[ ! "${runner_class}" =~ ^[0-9A-Za-z._-]+$ ]]; then
         echo "Benchmark runner class '${runner_class}' contains unsupported characters." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 
     if [[ ! "${compose_project_name}" =~ ^[a-z0-9][a-z0-9_-]+$ ]]; then
         echo "Benchmark Compose project '${compose_project_name}' is invalid." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 
     if [[ ! "${benchmark_target_port}" =~ ^[0-9]+$ ]] \
         || (( 10#${benchmark_target_port} > 65535 )); then
         echo "Benchmark port '${benchmark_target_port}' is invalid." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 
     if [[ ! "${benchmark_source_hash}" =~ ^[0-9a-f]{64}$ ]]; then
         echo "Benchmark source hash must be a lower-case SHA-256 digest." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 
     if ! command -v jq >/dev/null 2>&1; then
         echo "jq is required to resolve the digest-pinned benchmark image." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 
     # Benchmark comparisons are meaningful only against the exact image named
@@ -295,7 +317,7 @@ validate_configuration() {
 
     if [[ ! "${verified_server_image}" =~ @sha256:[0-9a-f]{64}$ ]]; then
         echo "Benchmark target '${benchmark_target}' has no digest-pinned server image." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 }
 
@@ -335,7 +357,7 @@ wait_for_benchmark_target() {
 
         if (( elapsed_seconds >= wait_timeout_seconds )); then
             echo "Timed out waiting for ${benchmark_target_display_name} after ${wait_timeout_seconds} seconds." >&2
-            exit 1
+            exit "${INVALID_EVIDENCE_EXIT_CODE}"
         fi
 
         sleep "${wait_interval_seconds}"
@@ -372,7 +394,7 @@ verify_benchmark_container_identity() {
     # evidence under the selected target label.
     if [[ "${port_match_count}" -ne 1 ]]; then
         echo "Expected one benchmark container publishing port ${benchmark_target_port}." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 
     container_id="${port_matches}"
@@ -391,7 +413,7 @@ verify_benchmark_container_identity() {
         if ! grep -Fq "@${expected_digest}" <<< "${repo_digests}"; then
             echo "Benchmark container image '${actual_image}' does not match the contract." >&2
             echo "Expected '${verified_server_image}'." >&2
-            exit 1
+            exit "${INVALID_EVIDENCE_EXIT_CODE}"
         fi
     fi
 }
@@ -420,7 +442,7 @@ ensure_fresh_run_directory() {
         if [[ "${resume_mode}" != "1" ]]; then
             echo "Current-run benchmark directory '${benchmark_report_dir}' is not empty." >&2
             echo "Use a new run ID, or explicitly resume the same identity with DOKA_BENCHMARK_RESUME=1." >&2
-            exit 1
+            exit "${INVALID_EVIDENCE_EXIT_CODE}"
         fi
 
         echo "Resuming benchmark run ${benchmark_run_id}; checkpoints remain identity-validated."
@@ -429,7 +451,7 @@ ensure_fresh_run_directory() {
         && -n "$(find "${workload_checkpoint_dir}" -mindepth 1 -print -quit)" ]]; then
         echo "Workload checkpoints already exist for run ${benchmark_run_id}." >&2
         echo "Use a new run ID, or explicitly resume the same identity." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 
     mkdir -p "${benchmark_evidence_dir}"
@@ -463,7 +485,7 @@ run_benchmarkdotnet() {
     while IFS= read -r benchmark_name; do
         if [[ ! "${benchmark_name}" =~ ^[A-Za-z_][A-Za-z0-9_.]*$ ]]; then
             echo "Invalid BenchmarkDotNet control name '${benchmark_name}'." >&2
-            exit 1
+            exit "${INVALID_EVIDENCE_EXIT_CODE}"
         fi
 
         benchmark_filters+=("*${benchmark_name}*")
@@ -479,7 +501,7 @@ run_benchmarkdotnet() {
 
     if (( ${#benchmark_filters[@]} == 1 )); then
         echo "The performance contract defines no BenchmarkDotNet controls." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 
     dotnet "${benchmark_assembly}" \
@@ -603,7 +625,15 @@ evaluate_current_run() {
         command+=(--soak "${soak_evidence}")
     fi
 
-    "${command[@]}"
+    if "${command[@]}"; then
+        return 0
+    else
+        # The evaluator is the only process allowed to emit the semantic
+        # regression exit. The if-condition bypasses the ERR trap that maps
+        # ordinary command failures to invalid evidence.
+        local status=$?
+        exit "${status}"
+    fi
 }
 
 write_summary() {
@@ -674,7 +704,7 @@ export DOKA_BENCHMARK_DATABASE_PORT="${benchmark_target_port}"
 
 if (( $# > 1 )); then
     print_usage >&2
-    exit 1
+    exit "${INVALID_EVIDENCE_EXIT_CODE}"
 fi
 
 if (( $# == 1 )); then
@@ -696,7 +726,7 @@ if (( $# == 1 )); then
             ;;
         *)
             print_usage >&2
-            exit 1
+            exit "${INVALID_EVIDENCE_EXIT_CODE}"
             ;;
     esac
 fi
@@ -746,6 +776,6 @@ case "${comparison_mode}" in
         ;;
     *)
         echo "Unsupported comparison mode '${comparison_mode}'." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
         ;;
 esac

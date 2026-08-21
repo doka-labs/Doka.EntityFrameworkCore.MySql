@@ -351,7 +351,7 @@ class PerformanceReportTests(PerformanceEvidenceFixtureMixin, unittest.TestCase)
         workloads[0]["p99Nanoseconds"] = 1000000000000
 
         with self.assertRaisesRegex(
-            performance_evidence.PerformanceEvidenceError,
+            performance_evidence.PerformanceRegressionError,
             "Absolute budget failed",
         ):
             performance_evidence.validate_absolute_budgets(workloads, self.contract)

@@ -79,6 +79,10 @@ class PerformanceEvidenceError(RuntimeError):
     """Raised when performance evidence violates the versioned contract."""
 
 
+class PerformanceRegressionError(PerformanceEvidenceError):
+    """Raised when valid measurements conclusively exceed a hard budget."""
+
+
 class MeasurementQualityError(PerformanceEvidenceError):
     """Raised when environmental noise prevents a conclusive measurement."""
 

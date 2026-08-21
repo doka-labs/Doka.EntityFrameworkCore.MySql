@@ -34,6 +34,14 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
         }
     }
 
+    [Fact]
+    public async Task Benchmark_driver_reports_invalid_invocation_as_invalid_evidence()
+    {
+        var exitCode = await Doka.EntityFrameworkCore.MySql.Benchmarks.Program.Main(["--workloads"]);
+
+        Assert.Equal(78, exitCode);
+    }
+
     private static long MeasureAllocation(
         Func<long> operation
     )

@@ -16,6 +16,59 @@ doka-profile-version: "1.0"
 
 # D-026 -- Qualify releases from bound evidence and paired performance runs
 
+## 2026-08-21 Amendment: Bind the driver to its reference API surface
+
+The complete six-target run [32501167056][cross-version-driver-failure] failed
+before measurement because the candidate benchmark project compiled a new
+candidate-only migration-handler probe against the accepted older provider.
+That provider correctly lacked `MySqlMigrationCommandSpec.CreateScoped`, but
+the raw compiler exit was recorded as `regression` for every target. Ordinary
+pull-request builds could not detect the defect because they compiled the same
+probe against the current project reference.
+
+Paired candidate and reference publishes now select one identical
+cross-version source set. Candidate-only BenchmarkDotNet probes remain in the
+ordinary benchmark project and its direct allocation tests, but they do not
+enter either paired executable. Selecting a packaged provider structurally
+selects the compatible source set, so a future packaged-provider caller cannot
+compile candidate-only probes by omitting a separate flag. Repository tests
+fetch complete history and invoke the production paired runner in build-only
+mode. That mode packs the provider from the exact accepted reference commit,
+publishes both current driver variants, and verifies that the reference
+assemblies are byte-identical to the packages produced by that run. The gate
+therefore exercises the boundary that previously existed only after a merge
+to `main`.
+
+Exit code `1` is now reserved for a conclusive evaluator-backed regression.
+The paired shell accepts that code only with a written evaluation whose
+qualification is `regression`. Unexpected Python or .NET driver failures,
+build and startup failures, orchestration faults, and successful-run teardown
+failures leave as invalid evidence with code `78`. Measurement-quality and
+environment states retain their existing typed exits. No workload, baseline,
+statistical threshold, or retry policy changes in this amendment.
+
+Each hosted attempt streams its complete output into its report directory.
+Failed attempts additionally retain that log for the
+[repository-permitted thirty days][github-artifacts] as a dedicated diagnostic
+artifact. A compiler or startup failure therefore remains attached to the
+target and attempt that produced invalid evidence instead of existing only in
+the raw workflow log.
+
+Hosted attempts bind their target twice: the workflow carries the immutable
+input beside the benchmark environment and rejects any mismatch before running
+the benchmark. The benchmark entry point independently rejects a missing target
+whenever `GITHUB_ACTIONS` is true, while local operators retain the documented
+MySQL 8.4 default. GitHub documents `GITHUB_ACTIONS` as an immutable default
+variable that is always true inside a workflow.
+
+The failed workflow and its compiler diagnostic are the production evidence
+for the defect. The executable repository test against the accepted reference
+is the regression control. MSBuild documents that `Compile Remove` removes a
+specific file from the compile item set and that an `Or` condition selects an
+item when either registered property is true. `actions/checkout` documents
+that `fetch-depth: 0` fetches all branch and tag history. Those are the external
+mechanisms on which the gate relies.
+
 ## 2026-08-20 Amendment: Bound routine benchmark and publication polling cost
 
 The complete hosted scorecard remains necessary when a change can alter the
@@ -1416,6 +1469,9 @@ manifest verification.
   propagation, discovered package content from the V3 service index, required
   canonical NuGet release versions, and bound the readback writer directly to
   the completion validator's identity contract.
+- 2026-08-21: Separated candidate-only probes from the shared cross-version
+  driver, added an executable current-driver-to-accepted-provider repository
+  gate, and reserved exit code 1 for evaluator-backed regressions.
 
 ### Implementation References
 
@@ -1466,6 +1522,16 @@ manifest verification.
   (primary source; retrieved 2026-08-18)
 - [Six-target paired benchmark run 31903353665][failed-six-target-run]
   (primary source; retrieved 2026-08-15)
+- [Cross-version driver failure run 32501167056][cross-version-driver-failure]
+  (primary source; retrieved 2026-08-21)
+- [MSBuild item removal][msbuild-item-removal]
+  (primary source; retrieved 2026-08-21)
+- [MSBuild conditions][msbuild-conditions]
+  (primary source; retrieved 2026-08-21)
+- [`actions/checkout` history contract][actions-checkout]
+  (primary source; retrieved 2026-08-21)
+- [GitHub Actions default variables][github-actions-variables]
+  (primary source; retrieved 2026-08-21)
 - [Release-candidate run 31334669273][candidate-run]
   (primary source; retrieved 2026-08-10)
 - [Main benchmark resolver run 31332817720][benchmark-run]
@@ -1570,6 +1636,15 @@ manifest verification.
   https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31334669273
 [failed-six-target-run]:
   https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31903353665
+[cross-version-driver-failure]:
+  https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/32501167056
+[msbuild-item-removal]:
+  https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-items?view=visualstudio#remove-attribute
+[msbuild-conditions]:
+  https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-conditions?view=visualstudio
+[actions-checkout]: https://github.com/actions/checkout#fetch-all-history-for-all-tags-and-branches
+[github-actions-variables]:
+  https://docs.github.com/en/actions/reference/workflows-and-actions/variables
 [benchmark-run]:
   https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31332817720
 [capped-benchmark-run]:

@@ -1,10 +1,11 @@
 """Execute the guards that were only ever proven by hand.
 
-Three properties of the paired comparison were demonstrated once in a shell and
+Four properties of the paired comparison were demonstrated once in a shell and
 never guarded: the outer deadline classifying as a measurement condition, the
-driver hash binding the contents of untracked files, and the reference publish
-leaving the ordinary build intact. A property proven once is a property that
-regresses silently.
+driver hash binding the contents of untracked files, the reference publish
+leaving the ordinary build intact, and the current driver compiling against
+the accepted provider. A property proven once is a property that regresses
+silently.
 
 These tests run the real mechanisms, and none of them writes generated state
 into the repository it runs in. The build-isolation case performs the complete
@@ -37,6 +38,46 @@ BENCHMARK_PROJECT = (
     / "Doka.EntityFrameworkCore.MySql.Benchmarks"
     / "Doka.EntityFrameworkCore.MySql.Benchmarks.csproj"
 )
+
+
+class BenchmarkTargetBindingTests(unittest.TestCase):
+    """Keep the local default out of every hosted workflow."""
+
+    def test_github_actions_requires_an_explicit_target(self) -> None:
+        """Fail before a hosted run can silently measure MySQL 8.4."""
+        environment = dict(os.environ, GITHUB_ACTIONS="true")
+        environment.pop("DOKA_BENCHMARK_TARGET", None)
+
+        result = subprocess.run(
+            ["bash", str(BENCHMARK_SCRIPT), "--help"],
+            cwd=REPOSITORY_ROOT,
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+
+        self.assertEqual(78, result.returncode)
+        self.assertIn(
+            "DOKA_BENCHMARK_TARGET is required in GitHub Actions.",
+            result.stderr,
+        )
+
+    def test_a_local_operator_keeps_the_mysql84_default(self) -> None:
+        """Preserve the documented zero-configuration local entry point."""
+        environment = dict(os.environ)
+        environment.pop("DOKA_BENCHMARK_TARGET", None)
+        environment.pop("GITHUB_ACTIONS", None)
+
+        result = subprocess.run(
+            ["bash", str(BENCHMARK_SCRIPT), "--help"],
+            cwd=REPOSITORY_ROOT,
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("local default mysql84", result.stdout)
 
 
 class OuterDeadlineClassificationTests(unittest.TestCase):
@@ -401,6 +442,7 @@ class ReferenceBuildIsolationTests(unittest.TestCase):
                 "publish", str(BENCHMARK_PROJECT),
                 "--configuration", "Release", "--tl:off",
                 "--output", str(root / "candidate"),
+                "-p:DokaBenchmarkCrossVersionDriver=true",
                 f"-p:ArtifactsPath={root / 'artifacts-candidate'}",
             )
             self.run_dotnet(
@@ -429,6 +471,30 @@ class ReferenceBuildIsolationTests(unittest.TestCase):
                 "--configuration", "Release", "--tl:off", "--no-restore",
                 f"-p:ArtifactsPath={ordinary_artifacts}",
             )
+
+    @unittest.skipIf(shutil.which("dotnet") is None, "the .NET SDK is unavailable")
+    def test_the_current_driver_builds_against_the_accepted_reference(self) -> None:
+        """Execute the exact cross-version publish before a change can merge.
+
+        Building the current tree alone cannot catch a benchmark probe that
+        calls an API introduced after the accepted provider revision. The
+        production paired script owns that binding, so this test invokes its
+        build-only mode instead of recreating the package and publish sequence.
+        """
+        result = subprocess.run(
+            ["bash", str(PAIRED_SCRIPT), "--verify-driver-compatibility"],
+            cwd=REPOSITORY_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        output = "\n".join(
+            stream[-4000:]
+            for stream in (result.stdout, result.stderr)
+            if stream
+        )
+
+        self.assertEqual(0, result.returncode, output)
+        self.assertIn("Paired benchmark driver is compatible", result.stdout)
 
     def run_dotnet(self, *arguments: str) -> None:
         """Run one dotnet command and fail with its output."""

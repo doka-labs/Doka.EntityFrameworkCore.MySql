@@ -102,6 +102,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The repo-test suite builds the current paired driver against the
+          # accepted reference commit. A shallow PR checkout cannot materialize
+          # that exact provider tree and would silently skip the production
+          # compatibility boundary that failed on main.
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0

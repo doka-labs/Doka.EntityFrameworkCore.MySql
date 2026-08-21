@@ -7,10 +7,9 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 /// This is deliberately distinct from every other failure the driver can hit.
 /// A workload whose calibration would not settle says something about the
 /// machine it ran on, not about the provider, and the exit code below is what
-/// keeps the attempt path from recording it as a regression. Exit 1 -- an
-/// ordinary unhandled exception -- classifies as `regression`, which is a
-/// verdict about the code and is not retryable, so a busy runner could convict
-/// a provider it never measured.
+/// keeps the attempt path from recording it as a regression. The driver maps
+/// every other unhandled failure to invalid evidence, so a busy or broken
+/// runner cannot convict a provider it never measured.
 /// </remarks>
 internal sealed class MeasurementQualityException : Exception
 {

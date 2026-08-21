@@ -12,6 +12,7 @@ outgrown shows up as a lint finding rather than accumulating.
 
 import argparse
 import sys
+import traceback
 from pathlib import Path
 from typing import Sequence
 
@@ -27,6 +28,7 @@ if __package__:
         MeasurementQualityError,
         RecalibrationRequiredError,
         PerformanceEvidenceError,
+        PerformanceRegressionError,
         load_json,
         write_json,
         sha256,
@@ -114,6 +116,7 @@ else:
         MeasurementQualityError,
         RecalibrationRequiredError,
         PerformanceEvidenceError,
+        PerformanceRegressionError,
         load_json,
         write_json,
         sha256,
@@ -584,12 +587,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Performance comparator requires recalibration: {error}",
               file=sys.stderr)
         return RECALIBRATION_REQUIRED_EXIT_CODE
+    except PerformanceRegressionError as error:
+        print(f"Performance evidence failed: {error}", file=sys.stderr)
+        return 1
     except InvalidEvidenceError as error:
         print(f"Performance evidence is invalid: {error}", file=sys.stderr)
         return INVALID_EVIDENCE_EXIT_CODE
     except PerformanceEvidenceError as error:
-        print(f"Performance evidence failed: {error}", file=sys.stderr)
-        return 1
+        print(f"Performance evidence is invalid: {error}", file=sys.stderr)
+        return INVALID_EVIDENCE_EXIT_CODE
+    except Exception as error:
+        # Exit 1 is reserved for an evaluator-backed regression verdict. Keep
+        # an unexpected tooling defect loud through its traceback, but never
+        # let the process shell reinterpret it as a provider regression.
+        print(
+            f"Performance tooling failed before producing a verdict: "
+            f"{type(error).__name__}: {error}",
+            file=sys.stderr,
+        )
+        traceback.print_exc(file=sys.stderr)
+        return INVALID_EVIDENCE_EXIT_CODE
 
 
 if __name__ == "__main__":
