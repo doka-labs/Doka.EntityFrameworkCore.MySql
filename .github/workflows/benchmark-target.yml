@@ -70,10 +70,26 @@ jobs:
           DOKA_BENCHMARK_RUN_ID: ${{ steps.identity.outputs.run-id }}
           DOKA_BENCHMARK_COMMIT: ${{ github.sha }}
           DOKA_BENCHMARK_SOURCE_HASH: ${{ steps.identity.outputs.source-hash }}
+          WORKFLOW_TARGET: ${{ inputs.target }}
+          WORKFLOW_RUN_ID: ${{ steps.identity.outputs.run-id }}
         run: |
+          if [[ "${DOKA_BENCHMARK_TARGET:-}" != "${WORKFLOW_TARGET}" ]] \
+              || [[ "${DOKA_BENCHMARK_RUN_ID:-}" != "${WORKFLOW_RUN_ID}" ]]; then
+            echo "Benchmark attempt identity is not bound to its workflow inputs." >&2
+            exit 78
+          fi
+          attempt_log="artifacts/benchmarks/${WORKFLOW_TARGET}/reports/${WORKFLOW_RUN_ID}/attempt.log"
+          echo "diagnostic-log=${attempt_log}" >> "${GITHUB_OUTPUT}"
+          mkdir -p "$(dirname "${attempt_log}")"
+          set -o pipefail
           set +e
-          bash ./eng/benchmark.sh --up-run-down
-          exit_code=$?
+          bash ./eng/benchmark.sh --up-run-down 2>&1 | tee "${attempt_log}"
+          pipeline_status=("${PIPESTATUS[@]}")
+          exit_code="${pipeline_status[0]}"
+          if (( pipeline_status[1] != 0 )); then
+            echo "Benchmark output could not be retained at ${attempt_log}." >&2
+            exit_code=78
+          fi
           set -e
           echo "exit-code=${exit_code}" >> "${GITHUB_OUTPUT}"
 
@@ -113,6 +129,15 @@ jobs:
           path: artifacts/benchmarks/${{ inputs.target }}
           if-no-files-found: error
           retention-days: 7
+
+      - name: Retain attempt 1 failure diagnostics
+        if: always() && steps.benchmark.outcome == 'success' && steps.benchmark.outputs.exit-code != '0'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: benchmark-diagnostics-${{ inputs.target }}-1
+          path: ${{ steps.benchmark.outputs.diagnostic-log }}
+          if-no-files-found: error
+          retention-days: 30
 
       # Raw samples remain short-lived. The small observation is retained so
       # the selector can bind both fresh-runner attempts into the explicit
@@ -189,10 +214,26 @@ jobs:
           DOKA_BENCHMARK_RUN_ID: ${{ steps.identity.outputs.run-id }}
           DOKA_BENCHMARK_COMMIT: ${{ github.sha }}
           DOKA_BENCHMARK_SOURCE_HASH: ${{ steps.identity.outputs.source-hash }}
+          WORKFLOW_TARGET: ${{ inputs.target }}
+          WORKFLOW_RUN_ID: ${{ steps.identity.outputs.run-id }}
         run: |
+          if [[ "${DOKA_BENCHMARK_TARGET:-}" != "${WORKFLOW_TARGET}" ]] \
+              || [[ "${DOKA_BENCHMARK_RUN_ID:-}" != "${WORKFLOW_RUN_ID}" ]]; then
+            echo "Benchmark attempt identity is not bound to its workflow inputs." >&2
+            exit 78
+          fi
+          attempt_log="artifacts/benchmarks/${WORKFLOW_TARGET}/reports/${WORKFLOW_RUN_ID}/attempt.log"
+          echo "diagnostic-log=${attempt_log}" >> "${GITHUB_OUTPUT}"
+          mkdir -p "$(dirname "${attempt_log}")"
+          set -o pipefail
           set +e
-          bash ./eng/benchmark.sh --up-run-down
-          exit_code=$?
+          bash ./eng/benchmark.sh --up-run-down 2>&1 | tee "${attempt_log}"
+          pipeline_status=("${PIPESTATUS[@]}")
+          exit_code="${pipeline_status[0]}"
+          if (( pipeline_status[1] != 0 )); then
+            echo "Benchmark output could not be retained at ${attempt_log}." >&2
+            exit_code=78
+          fi
           set -e
           echo "exit-code=${exit_code}" >> "${GITHUB_OUTPUT}"
 
@@ -232,6 +273,15 @@ jobs:
           path: artifacts/benchmarks/${{ inputs.target }}
           if-no-files-found: error
           retention-days: 7
+
+      - name: Retain attempt 2 failure diagnostics
+        if: always() && steps.benchmark.outcome == 'success' && steps.benchmark.outputs.exit-code != '0'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: benchmark-diagnostics-${{ inputs.target }}-2
+          path: ${{ steps.benchmark.outputs.diagnostic-log }}
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Report attempt 2 dispersion
         env:

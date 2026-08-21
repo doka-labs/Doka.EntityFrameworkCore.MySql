@@ -664,15 +664,16 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         # still matching on `inconclusive`, simply stopped firing.
         self.assertEqual(1, target_workflow.count("outputs.retry == 'true'"))
         self.assertNotIn("outputs.status ==", target_workflow)
-        self.assertEqual(2, target_workflow.count("if: always()"))
+        self.assertEqual(4, target_workflow.count("if: always()"))
         self.assertIn(
             "if: always() && needs.attempt-2.result == 'success'",
             target_workflow,
         )
-        # Each attempt publishes its short-lived raw evidence and one small
-        # drift observation. Selection publishes the chosen target plus the
-        # digest-bound independent-attempt confirmation when both exist.
-        self.assertEqual(6, target_workflow.count("actions/upload-artifact@"))
+        # Each attempt publishes its short-lived raw evidence, one small drift
+        # observation, and a thirty-day diagnostic only on failure. Selection
+        # publishes the chosen target plus the digest-bound independent-attempt
+        # confirmation when both exist.
+        self.assertEqual(8, target_workflow.count("actions/upload-artifact@"))
         self.assertIn("benchmark-artifacts-${{ inputs.target }}", target_workflow)
         self.assertIn(
             "benchmark-dispersion-confirmation-${{ inputs.target }}",
@@ -699,6 +700,10 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
             ),
         )
         self.assertEqual(1, smoke.count("DOKA_BENCHMARK_PROFILE: smoke"))
+        self.assertEqual(
+            1,
+            smoke.count("DOKA_BENCHMARK_TARGET: ${{ matrix.target }}"),
+        )
         self.assertEqual(
             1,
             smoke.count("DOKA_BENCHMARK_BASELINE_MODE: compare"),

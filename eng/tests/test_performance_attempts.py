@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import io
 import json
 import tempfile
 import unittest
 from argparse import Namespace
+from contextlib import redirect_stderr
 from inspect import Parameter, signature
 from pathlib import Path
 from unittest.mock import patch
@@ -18,6 +20,7 @@ from eng.performance.contract import (
     RECALIBRATION_REQUIRED_EXIT_CODE,
     MeasurementQualityError,
     PerformanceEvidenceError,
+    PerformanceRegressionError,
     sha256,
     write_json,
 )
@@ -584,6 +587,54 @@ class PerformanceAttemptTests(unittest.TestCase):
                 "confirmed-drift",
                 json.loads(output.read_text(encoding="utf-8"))["state"],
             )
+
+    def test_untyped_cli_failure_is_invalid_evidence_not_a_regression(self) -> None:
+        """Do not let an ordinary tooling error consume the regression exit."""
+        error_output = io.StringIO()
+        with (
+            patch.object(cli, "load_json", side_effect=KeyError("broken tool")),
+            redirect_stderr(error_output),
+        ):
+            exit_code = cli.main(
+                [
+                    "attempt-profile",
+                    "--contract",
+                    "/unused/performance-contract.json",
+                    "--profile",
+                    "scorecard",
+                    "--comparison-mode",
+                    "paired",
+                ]
+            )
+
+        self.assertEqual(INVALID_EVIDENCE_EXIT_CODE, exit_code)
+        self.assertIn("KeyError: 'broken tool'", error_output.getvalue())
+
+    def test_typed_regression_uses_the_reserved_regression_exit(self) -> None:
+        """Keep conclusive hard-budget failures distinct from broken tooling."""
+        error_output = io.StringIO()
+        with (
+            patch.object(
+                cli,
+                "load_json",
+                side_effect=PerformanceRegressionError("hard budget exceeded"),
+            ),
+            redirect_stderr(error_output),
+        ):
+            exit_code = cli.main(
+                [
+                    "attempt-profile",
+                    "--contract",
+                    "/unused/performance-contract.json",
+                    "--profile",
+                    "scorecard",
+                    "--comparison-mode",
+                    "paired",
+                ]
+            )
+
+        self.assertEqual(1, exit_code)
+        self.assertIn("hard budget exceeded", error_output.getvalue())
 
     def test_one_stable_observation_does_not_confirm_drift(self) -> None:
         """Do not let one noisy runner create a governed drift event."""

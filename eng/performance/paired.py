@@ -90,10 +90,9 @@ SIDES = ("reference", "candidate")
 def _evidence_number(value: Any, label: str, *, minimum: float = 0.0) -> float:
     """Validate one measured value as evidence rather than as input.
 
-    The generic numeric guard raises the base error, which the command line
-    maps to exit 1 -- and the attempt recorder reads exit 1 as `regression`. A
-    sample that is not a number says nothing about the provider, so it is
-    re-raised in the invalid-evidence domain and leaves as exit 78.
+    The generic numeric guard raises the base contract error. A sample that is
+    not a number says nothing about the provider, so this trust boundary
+    re-raises it in the more specific invalid-evidence domain.
     """
     try:
         return finite_number(value, label, minimum=minimum)
@@ -721,8 +720,7 @@ def _block_ceiling_checks(
         checks = list(validate_absolute_budgets(resolved, contract, strict=False))
     except PerformanceEvidenceError as error:
         # A malformed candidate metric says nothing about the provider, so it
-        # must not leave through the general error domain the command line
-        # maps to exit 1 and the attempt recorder reads as a regression.
+        # leaves through the explicit invalid-evidence domain.
         raise InvalidEvidenceError(str(error)) from error
 
     if "gen2CollectionsPer1000" in policy["absoluteCeilings"]["metrics"]:
@@ -948,11 +946,10 @@ def validate_evidence_envelope(
 ) -> dict[str, Any]:
     """Reject anything that is not this run's evidence, before any statistic.
 
-    Every failure here is invalid evidence. That matters more than it reads:
-    an unguarded field access raises a plain `KeyError`, the command line maps
-    an uncaught error to exit 1, and the attempt recorder classifies exit 1 as
-    a regression. Without this gate, a truncated or foreign document convicts
-    the provider it never described.
+    Every failure here is invalid evidence. An unguarded field access raises a
+    plain `KeyError` rather than naming the broken contract. This gate keeps a
+    truncated or foreign document in the typed evidence domain before any
+    statistic runs.
     """
     if not isinstance(evidence, dict):
         raise InvalidEvidenceError("Paired evidence is not an object.")
@@ -1029,9 +1026,8 @@ def validate_candidate_ceiling_entry(
     family is the only one that may choose a budget, so a document that
     disagrees with the contract is not evidence about the provider.
 
-    The metrics are checked here as well. Reaching them through the general
-    number helper left a malformed value as exit 1, which the attempt recorder
-    reads as a regression.
+    The metrics are checked here as well so malformed values are attributed to
+    the evidence document rather than reaching the statistical procedure.
     """
     declared = workload.get("family")
     if declared != definition["family"]:
@@ -1245,10 +1241,9 @@ def validate_paired_evidence(
     )
 
     # Types before values, for the test structures too. Building a set from
-    # `workloadId` before checking it raised a plain TypeError on a list, and a
-    # null block raised one on comparison -- both leave the command line as
-    # exit 1, which the attempt recorder reads as a regression. Structurally
-    # broken evidence must never look like a verdict about the provider.
+    # `workloadId` before checking it raises a plain TypeError on a list, and a
+    # null block raises one on comparison. Structurally broken evidence stays
+    # in the explicit invalid-evidence domain.
     observed: list[str] = []
     for position, test in enumerate(tests):
         if not isinstance(test, dict):
@@ -1408,10 +1403,8 @@ def validate_paired_evidence(
             "Paired evidence carries no candidate workload measurements."
         )
     # Types before values, everywhere. Reading a field first and checking it
-    # afterwards raised a plain TypeError or AttributeError, which leaves the
-    # command line as exit 1 -- and the attempt recorder reads exit 1 as a
-    # regression. Structurally broken evidence must never look like a verdict
-    # about the provider.
+    # afterwards raises a plain TypeError or AttributeError. Structurally
+    # broken evidence stays in the explicit invalid-evidence domain.
     observed_ids: list[int] = []
     for position, entry in enumerate(candidate_blocks):
         if not isinstance(entry, dict):
@@ -1461,9 +1454,7 @@ def validate_paired_evidence(
             measured.append(identifier)
             # Exactly the projection, in both directions. A surplus field is a
             # second, unchecked record of the same measurement; a missing one
-            # would reach the comparison below as a `None` and leave the
-            # command line as exit 1, which the attempt recorder reads as a
-            # regression.
+            # would otherwise reach the comparison below as `None`.
             if set(workload) != set(CANDIDATE_PROJECTION_FIELDS):
                 surplus = sorted(set(workload) - set(CANDIDATE_PROJECTION_FIELDS))
                 missing = sorted(set(CANDIDATE_PROJECTION_FIELDS) - set(workload))
@@ -2086,10 +2077,9 @@ def assemble_evidence(
         except InvalidEvidenceError:
             raise
         except PerformanceEvidenceError as error:
-            # The canonical validator speaks the general error domain, which
-            # the command line maps to exit 1 and the attempt recorder reads
-            # as a regression. A malformed report says nothing about the
-            # provider, so it leaves as invalid evidence.
+            # The canonical validator speaks the general contract-error
+            # domain. A malformed report says nothing about the provider, so
+            # this boundary gives it the more specific invalid-evidence type.
             raise InvalidEvidenceError(f"{path.name}: {error}") from error
 
         entries = payload.get("workloads")

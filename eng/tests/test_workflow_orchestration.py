@@ -276,7 +276,7 @@ class ArtifactHandoffTests(unittest.TestCase):
             "name: benchmark-dispersion-${{ inputs.target }}-2",
             target_workflow,
         )
-        self.assertEqual(3, target_workflow.count("retention-days: 30"))
+        self.assertEqual(5, target_workflow.count("retention-days: 30"))
         self.assertEqual(
             2,
             target_workflow.count("title=Benchmark dispersion drift"),
@@ -842,11 +842,133 @@ class PairedProviderBindingTests(unittest.TestCase):
         Mixing a packaged provider with a project-referenced companion would
         measure two revisions at once and attribute the difference to neither.
         """
-        packaged = self.text.split("== 'true'")[1]
+        packaged = self.text.split(
+            "'$(DokaBenchmarkUsesPackagedProvider)' == 'true'",
+            1,
+        )[1]
         for package in ("Doka.EntityFrameworkCore.MySql",
                         "Doka.EntityFrameworkCore.MySql.NetTopologySuite"):
             with self.subTest(package=package):
                 self.assertIn(f'Include="{package}"', packaged)
+
+    def test_the_cross_version_driver_excludes_candidate_only_api_probes(self) -> None:
+        """Keep additive API probes out of both sides of a paired comparison."""
+        self.assertIn(
+            "'$(DokaBenchmarkCrossVersionDriver)' == 'true' Or "
+            "'$(DokaBenchmarkUsesPackagedProvider)' == 'true'",
+            self.text,
+        )
+        self.assertIn(
+            '<Compile Remove="MigrationOperationHandlerGenerationBenchmark.cs" />',
+            self.text,
+        )
+
+    def test_a_packaged_provider_forces_the_cross_version_source_set(self) -> None:
+        """Make compatibility independent of every future caller's flags."""
+        condition = self.text.split('<Compile Remove=', 1)[0].rsplit(
+            '<ItemGroup', 1
+        )[1]
+
+        self.assertIn("'$(DokaBenchmarkUsesPackagedProvider)' == 'true'", condition)
+
+    def test_candidate_driver_explicitly_selects_the_cross_version_source_set(
+        self,
+    ) -> None:
+        """Select the shared source set before swapping the candidate provider."""
+        runner = (
+            REPOSITORY_ROOT / "eng" / "performance" / "paired-benchmark.sh"
+        ).read_text(encoding="utf-8")
+
+        self.assertEqual(
+            1,
+            runner.count("-p:DokaBenchmarkCrossVersionDriver=true"),
+        )
+
+    def test_failed_attempts_retain_their_complete_diagnostic_log(self) -> None:
+        """Bind the retained diagnostic to the exact path each attempt writes."""
+        workflow = (WORKFLOW_ROOT / "benchmark-target.yml").read_text(
+            encoding="utf-8"
+        )
+
+        expected_log_path = (
+            'attempt_log="artifacts/benchmarks/${WORKFLOW_TARGET}/'
+            'reports/${WORKFLOW_RUN_ID}/attempt.log"'
+        )
+        self.assertNotIn(
+            'attempt_log="artifacts/benchmarks/${TARGET}/',
+            workflow,
+        )
+        for attempt in (1, 2):
+            with self.subTest(attempt=attempt):
+                run_step = workflow.split(
+                    f"      - name: Run scorecard attempt {attempt}\n",
+                    1,
+                )[1].split(f"\n      - name: Record attempt {attempt}\n", 1)[0]
+                diagnostic_step = workflow.split(
+                    f"      - name: Retain attempt {attempt} failure diagnostics\n",
+                    1,
+                )[1].split("\n      - name: Report attempt", 1)[0]
+
+                for expected in (
+                    "DOKA_BENCHMARK_TARGET: ${{ inputs.target }}",
+                    "DOKA_BENCHMARK_RUN_ID: "
+                    "${{ steps.identity.outputs.run-id }}",
+                    "WORKFLOW_TARGET: ${{ inputs.target }}",
+                    "WORKFLOW_RUN_ID: ${{ steps.identity.outputs.run-id }}",
+                    '"${DOKA_BENCHMARK_TARGET:-}" != "${WORKFLOW_TARGET}"',
+                    '"${DOKA_BENCHMARK_RUN_ID:-}" != "${WORKFLOW_RUN_ID}"',
+                    "Benchmark attempt identity is not bound to its workflow inputs.",
+                    expected_log_path,
+                    'echo "diagnostic-log=${attempt_log}" >> "${GITHUB_OUTPUT}"',
+                    '2>&1 | tee "${attempt_log}"',
+                    'pipeline_status=("${PIPESTATUS[@]}")',
+                    'exit_code="${pipeline_status[0]}"',
+                    "exit_code=78",
+                ):
+                    self.assertEqual(1, run_step.count(expected), expected)
+
+                self.assertEqual(
+                    1,
+                    diagnostic_step.count(
+                        "steps.benchmark.outcome == 'success' && "
+                        "steps.benchmark.outputs.exit-code != '0'"
+                    ),
+                )
+                self.assertEqual(
+                    1,
+                    diagnostic_step.count(
+                        "path: ${{ steps.benchmark.outputs.diagnostic-log }}"
+                    ),
+                )
+                self.assertIn(
+                    f"name: benchmark-diagnostics-${{{{ inputs.target }}}}-{attempt}",
+                    diagnostic_step,
+                )
+
+    def test_a_regression_exit_requires_a_regression_document(self) -> None:
+        """Do not classify an evaluator crash as a provider regression."""
+        runner = (
+            REPOSITORY_ROOT / "eng" / "performance" / "paired-benchmark.sh"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            "if (( status == 1 ))",
+            runner,
+        )
+        self.assertIn(
+            ".qualification == \"regression\"",
+            runner,
+        )
+
+    def test_repo_tests_fetch_the_accepted_reference_commit(self) -> None:
+        """Prevent a shallow PR checkout from disabling the executable gate."""
+        workflow = (WORKFLOW_ROOT / "ci.yml").read_text(encoding="utf-8")
+        repo_tests = workflow.split("  repo-tests:\n", 1)[1].split(
+            "\n  efcore-patch-matrix:",
+            1,
+        )[0]
+
+        self.assertIn("fetch-depth: 0", repo_tests)
 
 
 if __name__ == "__main__":

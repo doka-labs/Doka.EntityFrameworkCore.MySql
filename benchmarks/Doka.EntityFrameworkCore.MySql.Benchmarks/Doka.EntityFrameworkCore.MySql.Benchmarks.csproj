@@ -19,7 +19,22 @@
       Condition="'$(DokaBenchmarkProviderVersion)' != ''">true</DokaBenchmarkUsesPackagedProvider>
     <DokaBenchmarkUsesPackagedProvider
       Condition="'$(DokaBenchmarkUsesPackagedProvider)' == ''">false</DokaBenchmarkUsesPackagedProvider>
+    <DokaBenchmarkCrossVersionDriver
+      Condition="'$(DokaBenchmarkCrossVersionDriver)' == ''">false</DokaBenchmarkCrossVersionDriver>
   </PropertyGroup>
+
+  <!--
+    Paired measurements publish this project twice from the candidate tree and
+    swap only the provider reference. Candidate-only probes may use APIs that
+    the accepted reference predates, so they must not enter either paired
+    driver. The explicit cross-version flag selects the candidate side; a
+    packaged provider selects the same source set structurally, even if a new
+    caller forgets the flag. The ordinary build retains every probe.
+  -->
+  <ItemGroup
+    Condition="'$(DokaBenchmarkCrossVersionDriver)' == 'true' Or '$(DokaBenchmarkUsesPackagedProvider)' == 'true'">
+    <Compile Remove="MigrationOperationHandlerGenerationBenchmark.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />

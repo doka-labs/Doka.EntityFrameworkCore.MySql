@@ -617,9 +617,9 @@ class MeasurementQualityExitContractTests(unittest.TestCase):
     """Prove the driver and the attempt path agree on the typed exit code.
 
     A calibration that would not settle used to leave the driver as an ordinary
-    unhandled exception, which exits 1. The attempt path classifies 1 as
-    `regression`: a verdict about the provider, not retryable. A busy runner
-    could therefore convict a provider whose code it never finished measuring.
+    unhandled exception. Typed measurement and invalid-evidence exits now keep
+    both that condition and unrelated driver faults out of the regression
+    domain.
     """
 
     DRIVER_ROOT = REPOSITORY_ROOT / "benchmarks" / "Doka.EntityFrameworkCore.MySql.Benchmarks"
@@ -646,6 +646,18 @@ class MeasurementQualityExitContractTests(unittest.TestCase):
             program.index("catch (MeasurementQualityException"),
             program.index("catch (Exception exception)"),
         )
+
+    def test_the_driver_maps_unhandled_failures_to_invalid_evidence(self) -> None:
+        """Reserve exit 1 for a verdict produced by an evaluator."""
+        program = (self.DRIVER_ROOT / "Program.cs").read_text(encoding="utf-8")
+
+        self.assertIn(
+            f"private const int InvalidEvidenceExitCode = "
+            f"{contract_module.INVALID_EVIDENCE_EXIT_CODE};",
+            program,
+        )
+        general_handler = program.split("catch (Exception exception)", 1)[1]
+        self.assertIn("return InvalidEvidenceExitCode;", general_handler)
 
     def test_that_code_is_retryable_and_is_not_a_verdict(self) -> None:
         """Prove the classification the exit code buys."""

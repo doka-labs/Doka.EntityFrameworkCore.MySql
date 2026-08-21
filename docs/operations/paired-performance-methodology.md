@@ -23,6 +23,15 @@ instead of being matched across runs.
 The order is counterbalanced: the side that measures first alternates between
 blocks, so a warm-up advantage cannot accrue to one revision.
 
+The shared cross-version driver contains only sources that can compile against
+the accepted reference provider. Candidate-only BenchmarkDotNet probes remain
+part of the ordinary benchmark build but do not enter either side of a paired
+run. A packaged provider forces this compatible source set without depending
+on a caller to repeat a second flag. Repository tests execute the production
+build-only compatibility mode against the exact reference commit recorded by
+the accepted baseline, so an additive provider API cannot first break the
+driver after merge.
+
 ## What Decides the Run
 
 | Check | What it answers | Failure means |
@@ -99,6 +108,15 @@ Only `measurement-inconclusive` or an explicitly historical
 paired sample-cap observation are fixed-population results, not attempt states.
 A retry cannot select away a verdict about the code. The workflow reads the
 receipt decision rather than reproducing the state list.
+
+Exit code `1` is reserved for a conclusive evaluator-backed regression. The
+paired runner accepts it only when `paired-evaluation.json` also records
+`qualification: regression`. Driver compilation, startup, validation,
+orchestration, and unexpected tooling failures leave as invalid evidence with
+exit code `78`; they cannot be attributed to the provider under test.
+The full output of a failed hosted attempt is retained for thirty days in a
+target- and attempt-specific diagnostic artifact, including failures that
+occur before the evaluator can write structured evidence.
 
 ## Paired Evidence Layout
 

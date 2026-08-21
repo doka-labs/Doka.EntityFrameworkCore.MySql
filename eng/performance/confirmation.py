@@ -14,6 +14,7 @@ if __package__:
         LATENCY_METRICS,
         P99_CONFIRMATION_RUNS,
         PerformanceEvidenceError,
+        PerformanceRegressionError,
         close_enough,
         finite_number,
         load_json,
@@ -48,6 +49,7 @@ else:
         LATENCY_METRICS,
         P99_CONFIRMATION_RUNS,
         PerformanceEvidenceError,
+        PerformanceRegressionError,
         close_enough,
         finite_number,
         load_json,
@@ -844,7 +846,7 @@ def validate_historical_budgets(
             }
         )
         if not passed:
-            raise PerformanceEvidenceError(
+            raise PerformanceRegressionError(
                 f"Historical budget failed for '{workload_id}' {metric}: "
                 f"{observed_value} > {maximum} from baseline {baseline_value}."
             )
@@ -985,13 +987,13 @@ def validate_historical_budgets(
             if check["passed"]:
                 continue
             if metric == "normalizedP99":
-                raise PerformanceEvidenceError(
+                raise PerformanceRegressionError(
                     f"Historical budget failed for '{workload_id}' normalizedP99: "
                     f"{check['exceedanceCount']} of {check['sampleCount']} samples "
                     f"exceeded {check['maximum']}; p-value {check['pValue']} is "
                     f"below {check['significanceLevel']}."
                 )
-            raise PerformanceEvidenceError(
+            raise PerformanceRegressionError(
                 f"Historical budget failed for '{workload_id}' {metric}: "
                 f"{check['actual']} > {check['maximum']} from baseline "
                 f"{check['baseline']}."

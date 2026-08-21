@@ -64,6 +64,13 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
 
 ### Fixed
 
+- Keep candidate-only benchmark probes out of the shared cross-version driver,
+  structurally select that driver for every packaged provider, and build it
+  against the exact accepted reference provider during repository tests.
+  Benchmark build and orchestration failures now produce invalid evidence
+  instead of provider regressions, with complete failure output retained as a
+  thirty-day diagnostic artifact. Hosted workflows must bind their target
+  explicitly and cannot fall through to the local MySQL 8.4 default.
 - Inspect bounded transport causes below error-number-zero MySqlConnector
   wrappers while keeping real non-zero server errors, cancellation, command
   timeout, and migration cleanup failures terminal.

@@ -8,6 +8,7 @@ if __package__:
         HOST_ADMISSION_METRIC,
         MeasurementQualityError,
         PerformanceEvidenceError,
+        PerformanceRegressionError,
         SAMPLE_CAP_REACHED,
         TERMINATION_REASONS,
         applicable_workloads,
@@ -29,6 +30,7 @@ else:
         HOST_ADMISSION_METRIC,
         MeasurementQualityError,
         PerformanceEvidenceError,
+        PerformanceRegressionError,
         SAMPLE_CAP_REACHED,
         TERMINATION_REASONS,
         applicable_workloads,
@@ -769,7 +771,7 @@ def validate_absolute_budgets(
                 }
             )
             if not passed and strict:
-                raise PerformanceEvidenceError(
+                raise PerformanceRegressionError(
                     f"Absolute budget failed for '{workload['id']}' {metric_name}: "
                     f"{actual} > {maximum}."
                 )

@@ -9,29 +9,53 @@
 # the comparison would silently be between driver-and-provider pairs rather
 # than between providers.
 
-set -euo pipefail
+set -Eeuo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 performance_contract="${DOKA_BENCHMARK_CONTRACT_PATH:-${repo_root}/benchmarks/performance-contract.json}"
 baseline_manifest="${repo_root}/benchmarks/baselines/doka-benchmark-baseline.json"
 benchmark_project="${repo_root}/benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks"
 benchmark_project+="/Doka.EntityFrameworkCore.MySql.Benchmarks.csproj"
+INVALID_EVIDENCE_EXIT_CODE=78
 
-benchmark_target="${DOKA_BENCHMARK_TARGET:?DOKA_BENCHMARK_TARGET is required}"
-run_id="${DOKA_BENCHMARK_RUN_ID:?DOKA_BENCHMARK_RUN_ID is required}"
+driver_compatibility_only=0
+if (( $# > 1 )); then
+    echo "Usage: paired-benchmark.sh [--verify-driver-compatibility]" >&2
+    exit "${INVALID_EVIDENCE_EXIT_CODE}"
+fi
+if (( $# == 1 )); then
+    if [[ "$1" != "--verify-driver-compatibility" ]]; then
+        echo "Unknown paired benchmark option '$1'." >&2
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
+    fi
+
+    driver_compatibility_only=1
+fi
+
+if (( driver_compatibility_only == 1 )); then
+    benchmark_target="${DOKA_BENCHMARK_TARGET:-mysql84}"
+    run_id="${DOKA_BENCHMARK_RUN_ID:-paired-driver-compatibility-$$}"
+else
+    benchmark_target="${DOKA_BENCHMARK_TARGET:?DOKA_BENCHMARK_TARGET is required}"
+    run_id="${DOKA_BENCHMARK_RUN_ID:?DOKA_BENCHMARK_RUN_ID is required}"
+fi
 candidate_commit="${DOKA_BENCHMARK_COMMIT:-$(git -C "${repo_root}" rev-parse HEAD)}"
 reference_commit="${DOKA_PAIRED_REFERENCE_COMMIT:-}"
 # The attempt machinery binds a receipt to the evidence by identity, so the
 # same identity the caller established has to reach the evidence document.
-source_hash="${DOKA_BENCHMARK_SOURCE_HASH:?DOKA_BENCHMARK_SOURCE_HASH is required}"
-runner_class="${DOKA_BENCHMARK_RUNNER_CLASS:?DOKA_BENCHMARK_RUNNER_CLASS is required}"
+source_hash="${DOKA_BENCHMARK_SOURCE_HASH:-}"
+runner_class="${DOKA_BENCHMARK_RUNNER_CLASS:-}"
+if (( driver_compatibility_only == 0 )); then
+    source_hash="${source_hash:?DOKA_BENCHMARK_SOURCE_HASH is required}"
+    runner_class="${runner_class:?DOKA_BENCHMARK_RUNNER_CLASS is required}"
+fi
 
 # shellcheck source=eng/performance/host-preflight.sh
 source "${repo_root}/eng/performance/host-preflight.sh"
 
 command -v jq >/dev/null 2>&1 || {
     echo "jq is required to orchestrate a paired comparison." >&2
-    exit 1
+    exit "${INVALID_EVIDENCE_EXIT_CODE}"
 }
 
 # Both identity components are validated before they are used to build a path
@@ -43,7 +67,7 @@ for identity in "benchmark_target:${benchmark_target}" "run_id:${run_id}"; do
     value="${identity#*:}"
     if [[ ! "${value}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
         echo "${name} '${value}' is not a safe path segment." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 done
 
@@ -84,12 +108,12 @@ block_count="${DOKA_PAIRED_BLOCKS:-${registered_blocks}}"
 
 if [[ ! "${block_count}" =~ ^[0-9]+$ ]] || (( block_count < 1 )); then
     echo "Block count '${block_count}' is not a positive number." >&2
-    exit 1
+    exit "${INVALID_EVIDENCE_EXIT_CODE}"
 fi
 if (( block_count > registered_blocks )); then
     echo "Block count '${block_count}' is above the registered fixed count" \
         "${registered_blocks}." >&2
-    exit 1
+    exit "${INVALID_EVIDENCE_EXIT_CODE}"
 fi
 if (( block_count < registered_blocks )); then
     # Deliberately permitted so the orchestration can be exercised without
@@ -117,12 +141,16 @@ fi
 # across the two sides. Leaving it unset would let the driver record an empty
 # image on both sides, and a comparison across engine builds would pass a
 # check that was never actually made.
-server_image="${DOKA_BENCHMARK_SERVER_IMAGE:?DOKA_BENCHMARK_SERVER_IMAGE is required}"
-if [[ ! "${server_image}" =~ @sha256:[0-9a-f]{64}$ ]]; then
-    echo "Server image '${server_image}' is not pinned by digest." >&2
-    exit 1
+server_image="${DOKA_BENCHMARK_SERVER_IMAGE:-}"
+if (( driver_compatibility_only == 0 )); then
+    server_image="${server_image:?DOKA_BENCHMARK_SERVER_IMAGE is required}"
+    if [[ ! "${server_image}" =~ @sha256:[0-9a-f]{64}$ ]]; then
+        echo "Server image '${server_image}' is not pinned by digest." >&2
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
+    fi
+
+    export DOKA_BENCHMARK_SERVER_IMAGE="${server_image}"
 fi
-export DOKA_BENCHMARK_SERVER_IMAGE="${server_image}"
 
 # Exit 75 is the registered measurement-quality code: the run reached no
 # verdict about the provider and one bounded retry may follow.
@@ -154,8 +182,25 @@ finalization_reserve_seconds="$(
 
 cleanup() {
     git -C "${repo_root}" worktree remove --force "${worktree_dir}" 2>/dev/null || true
+
+    if (( driver_compatibility_only == 1 )); then
+        rm -rf "${work_root}" "${report_dir}"
+    fi
 }
 trap cleanup EXIT
+
+classify_unhandled_error() {
+    local status=$?
+
+    if (( status == 1 )); then
+        trap - ERR
+        echo "Paired benchmark infrastructure failed before producing a verdict." >&2
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
+    fi
+
+    return "${status}"
+}
+trap classify_unhandled_error ERR
 
 rm -rf "${work_root}"
 mkdir -p "${feed_dir}" "${blocks_dir}" "${report_dir}"
@@ -197,6 +242,7 @@ mkdir -p "${candidate_artifacts}" "${reference_artifacts}"
 
 dotnet publish "${benchmark_project}" \
     --configuration Release --tl:off --output "${candidate_output}" \
+    -p:DokaBenchmarkCrossVersionDriver=true \
     -p:ArtifactsPath="${candidate_artifacts}"
 
 # Same driver source, same contract, provider swapped for the packaged
@@ -216,20 +262,25 @@ for assembly in Doka.EntityFrameworkCore.MySql Doka.EntityFrameworkCore.MySql.Ne
     published="${reference_output}/${assembly}.dll"
     if [[ ! -f "${published}" ]]; then
         echo "The reference side published no ${assembly}.dll." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
     packed="${feed_dir}/${assembly}.${reference_version}.nupkg"
     if [[ ! -f "${packed}" ]]; then
         echo "No packed reference for ${assembly} at ${reference_version}." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
     if ! cmp -s \
         <(unzip -p "${packed}" "lib/*/${assembly}.dll") \
         "${published}"; then
         echo "The reference side did not publish the ${assembly} this run packed." >&2
-        exit 1
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
     fi
 done
+
+if (( driver_compatibility_only == 1 )); then
+    echo "Paired benchmark driver is compatible with reference ${reference_commit}."
+    exit 0
+fi
 
 # Both sides are published from the candidate project on purpose: only the
 # provider is swapped. Each side nevertheless records the working tree it was
@@ -339,6 +390,10 @@ run_side() {
             echo "Side ${side} of block ${block} exceeded ${effective}s." >&2
             exit "${MEASUREMENT_QUALITY_EXIT_CODE}"
         fi
+        if (( status == 1 )); then
+            echo "Side ${side} of block ${block} failed before producing a verdict." >&2
+            exit "${INVALID_EVIDENCE_EXIT_CODE}"
+        fi
         exit "${status}"
     }
     side_durations+=("$(( $(date +%s) - started ))")
@@ -358,7 +413,10 @@ side_for() {
     case "$1" in
         A) printf 'reference' ;;
         B) printf 'candidate' ;;
-        *) echo "Unknown execution-order side '$1'." >&2; exit 1 ;;
+        *)
+            echo "Unknown execution-order side '$1'." >&2
+            exit "${INVALID_EVIDENCE_EXIT_CODE}"
+            ;;
     esac
 }
 
@@ -452,6 +510,10 @@ DOKA_BENCHMARK_TARGET="${benchmark_target}" \
         echo "The sustained-use run exceeded the remaining ${soak_deadline}s." >&2
         exit "${MEASUREMENT_QUALITY_EXIT_CODE}"
     fi
+    if (( status == 1 )); then
+        echo "The sustained-use run failed before producing a verdict." >&2
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
+    fi
     exit "${status}"
 }
 
@@ -471,9 +533,22 @@ python3 -m eng.performance.cli assemble-paired-evidence \
     --soak "${soak_file}" \
     --output "${evidence_file}"
 
-python3 -m eng.performance.cli evaluate-paired \
-    --contract "${performance_contract}" \
-    --evidence "${evidence_file}" \
-    --output "${evaluation_file}"
+if python3 -m eng.performance.cli evaluate-paired \
+        --contract "${performance_contract}" \
+        --evidence "${evidence_file}" \
+        --output "${evaluation_file}"; then
+    :
+else
+    # This is the only command in the orchestration allowed to return the
+    # semantic regression exit. Running it as an if-condition bypasses the ERR
+    # trap that maps ordinary process failures to invalid evidence.
+    status=$?
+    if (( status == 1 )) \
+        && ! jq -e '.qualification == "regression"' "${evaluation_file}" >/dev/null 2>&1; then
+        echo "The paired evaluator returned regression without a regression document." >&2
+        exit "${INVALID_EVIDENCE_EXIT_CODE}"
+    fi
+    exit "${status}"
+fi
 
 echo "Paired comparison for ${benchmark_target} written to ${evaluation_file}."

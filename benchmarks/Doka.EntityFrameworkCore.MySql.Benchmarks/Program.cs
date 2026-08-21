@@ -2,6 +2,8 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 
 public static class Program
 {
+    private const int InvalidEvidenceExitCode = 78;
+
     public static async Task<int> Main(
         string[] args
     )
@@ -47,13 +49,13 @@ public static class Program
             if (summaries.Length == 0)
             {
                 await Console.Error.WriteLineAsync("BenchmarkDotNet did not execute any benchmark.");
-                return 1;
+                return InvalidEvidenceExitCode;
             }
 
             var failed = summaries.Any(summary =>
                 summary.HasCriticalValidationErrors || summary.Reports.Any(report => !report.Success));
 
-            return failed ? 1 : 0;
+            return failed ? InvalidEvidenceExitCode : 0;
         }
         catch (MeasurementQualityException exception)
         {
@@ -68,7 +70,7 @@ public static class Program
         catch (Exception exception)
         {
             Console.Error.WriteLine(exception);
-            return 1;
+            return InvalidEvidenceExitCode;
         }
     }
 

@@ -1612,8 +1612,8 @@ class CandidateCeilingBindingTests(unittest.TestCase):
     def test_a_family_the_contract_does_not_register_is_invalid_evidence(self) -> None:
         """Refuse an unknown family instead of failing to look it up.
 
-        The lookup raised a bare KeyError, which leaves the command line as
-        exit 1 -- the code the attempt recorder reads as a provider regression.
+        The lookup once raised a bare KeyError instead of identifying the
+        document as invalid evidence.
         """
         for family in ("write", "not-a-family", None, 7, ...):
             with self.subTest(family=family):
@@ -2490,9 +2490,8 @@ class AssembledEvidenceContractTests(unittest.TestCase):
     def test_a_mistyped_candidate_structure_is_invalid_evidence(self) -> None:
         """Refuse broken candidate structures as evidence, never as a verdict.
 
-        Reading a field before checking its type raised a plain `TypeError` or
-        `AttributeError`, which leaves the command line as exit 1 -- and the
-        attempt recorder reads exit 1 as a regression.
+        Reading a field before checking its type once raised a plain
+        `TypeError` or `AttributeError` instead of identifying invalid evidence.
         """
         cases = {
             "entry is not an object": lambda d: d["candidateWorkloads"].__setitem__(0, "text"),
@@ -2525,9 +2524,7 @@ class AssembledEvidenceContractTests(unittest.TestCase):
         """Refuse broken latency shapes as evidence, not as a verdict.
 
         The absolute ceilings read these samples, so a null entry or a missing
-        side used to reach the statistics as a plain TypeError -- and the
-        command line leaves that as exit 1, which the attempt recorder reads as
-        a regression.
+        side must be rejected before reaching the statistics.
         """
         cases = {
             "latencies is not a list": lambda d: d["tests"][0].__setitem__(
@@ -2947,10 +2944,9 @@ class MixedTerminationDecisionTests(unittest.TestCase):
 class SampleEvidenceGuardTests(unittest.TestCase):
     """Prove short or malformed evidence never reads as a provider verdict.
 
-    A sample that is not a number reached the base error class, which the
-    command line maps to exit 1 -- and the attempt recorder reads exit 1 as
-    `regression`. Broken evidence could therefore convict a provider it never
-    measured.
+    A sample that is not a number once reached only the base contract-error
+    class. This boundary gives malformed samples the explicit invalid-evidence
+    type before any statistical decision runs.
     """
 
     WORKLOADS = ("steady",)
