@@ -4,10 +4,10 @@ public sealed class AdrRepositoryValidatorTests
 {
     /// <summary>
     /// Keeps the public migration-fragment contract and its runtime behavior
-    /// visible in the next release notes instead of only in the API baseline.
+    /// visible in its release notes instead of only in the API baseline.
     /// </summary>
     [Fact]
-    public void Unreleased_changelog_describes_the_migration_fragment_contract()
+    public void Rc11_changelog_describes_the_migration_fragment_contract()
     {
         var repositoryRoot = FindRepositoryRoot();
         var changelog = File.ReadAllText(Path.Combine(repositoryRoot, "CHANGELOG.md"));
@@ -18,20 +18,20 @@ public sealed class AdrRepositoryValidatorTests
                 "Doka.EntityFrameworkCore.MySql",
                 "PublicAPI.Unshipped.txt"));
 
-        var unreleasedStart = changelog.IndexOf("## [Unreleased]", StringComparison.Ordinal);
+        var releaseStart = changelog.IndexOf("## [10.0.0-rc.11]", StringComparison.Ordinal);
         var nextReleaseStart = changelog.IndexOf(
             "\n## [",
-            unreleasedStart + "## [Unreleased]".Length,
+            releaseStart + "## [10.0.0-rc.11]".Length,
             StringComparison.Ordinal);
-        var unreleased = changelog[unreleasedStart..nextReleaseStart];
+        var release = changelog[releaseStart..nextReleaseStart];
 
         Assert.Contains("MySqlMigrationCommandSpec.Fragments.get", publicApi, StringComparison.Ordinal);
-        Assert.Contains("### Added", unreleased, StringComparison.Ordinal);
-        Assert.Contains("`MySqlMigrationCommandSpec.Fragments`", unreleased, StringComparison.Ordinal);
-        Assert.Contains("setup, body, and cleanup fragments", unreleased, StringComparison.Ordinal);
-        Assert.Contains("### Fixed", unreleased, StringComparison.Ordinal);
-        Assert.Contains("`NO_BACKSLASH_ESCAPES`", unreleased, StringComparison.Ordinal);
-        Assert.Contains("`TIME` range", unreleased, StringComparison.Ordinal);
+        Assert.Contains("### Added", release, StringComparison.Ordinal);
+        Assert.Contains("`MySqlMigrationCommandSpec.Fragments`", release, StringComparison.Ordinal);
+        Assert.Contains("setup, body, and cleanup fragments", release, StringComparison.Ordinal);
+        Assert.Contains("### Fixed", release, StringComparison.Ordinal);
+        Assert.Contains("`NO_BACKSLASH_ESCAPES`", release, StringComparison.Ordinal);
+        Assert.Contains("`TIME` range", release, StringComparison.Ordinal);
     }
 
     [Fact]

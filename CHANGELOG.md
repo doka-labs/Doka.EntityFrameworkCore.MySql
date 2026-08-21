@@ -7,6 +7,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.0.0-rc.11] - 2026-08-21
+
+This release candidate supersedes `10.0.0-rc.10`. It carries the migration
+scope, explicit backfill, typed-default, and transient-failure corrections
+found through SafeMigrations qualification, plus canonical provider guidance,
+lower-cost benchmark routing, bounded NuGet polling, and isolated
+qualification restores.
+
+Install the release candidate explicitly because NuGet excludes prerelease
+packages from normal stable-version resolution:
+
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.11
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.11
+```
+
 ### Added
 
 - Add bounded handler-authored migration command scopes with ordered setup,
@@ -27,6 +43,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   on provider-synthesized CLR defaults must be edited before upgrading.
   `TIMESTAMP` repairs require `DefaultValueSql` because CLR literals are
   interpreted through the executing session time zone.
+- Reorganize the README and documentation corpus around canonical installation,
+  configuration, query, operations, architecture, governance, security,
+  performance, roadmap, and release-verification owners. The redundant combined
+  temporal-table and CTE guide is removed in favor of the focused references.
 - Route ordinary provider-source changes through the complete six-target,
   non-qualifying benchmark smoke lane. Benchmark harness, evaluator,
   sensitivity, workload, production project and lock, runtime dependency,
@@ -693,7 +713,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.10...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.11...HEAD
+[10.0.0-rc.11]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.11
 [10.0.0-rc.10]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.10
 [10.0.0-rc.9]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.9
 [10.0.0-rc.8]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.8
