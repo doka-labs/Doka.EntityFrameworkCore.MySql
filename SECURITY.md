@@ -23,6 +23,11 @@ The maintained [threat model](docs/security/threat-model.md) defines the assets,
 trust boundaries, attacker stories, assumptions, and re-evaluation triggers for
 these properties.
 
+The [security assurance case](docs/security/assurance-case.md) maps each
+published requirement to its design argument, implementation controls, common
+weaknesses, and executable evidence. Users can independently verify release
+identity through the [release verification procedure](docs/security/release-verification.md).
+
 ## Supported Versions
 
 | Version | Supported | Notes |

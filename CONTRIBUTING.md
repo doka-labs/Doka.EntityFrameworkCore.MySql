@@ -7,7 +7,8 @@ questions and private reporting channels are routed through
 
 ## Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (version `10.0.300` or later -- pinned in `global.json`)
+- The exact [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+  pinned in [`global.json`](global.json)
 - [Docker](https://docs.docker.com/get-docker/) -- required for the MySQL / MariaDB integration test suites
 - [ShellCheck](https://www.shellcheck.net) -- required by the quality gate, which the `pre-commit` hook runs
 
@@ -280,6 +281,34 @@ changes to `docs/decisions/README.md` or `decision-index.json` are rejected.
 - Complete every governance, evidence, and validation row in the PR template.
   Use `not applicable` only with a change-specific rationale; an unchecked or
   unexplained validation surface is not a reviewable disposition.
+
+### Review Requirements
+
+Review is conducted on the exact pull-request head. An approval does not carry
+forward across a material source, test, dependency, workflow, generated-file,
+or evidence change.
+
+The reviewer checks, as applicable:
+
+- whether the change solves the stated problem without unrelated surface;
+- public API compatibility and package impact;
+- engine-family and supported-version behavior;
+- positive, negative, regression, and live-test coverage;
+- SQL safety, trust boundaries, privacy, dependency, and release implications;
+- performance and allocation impact on provider hot paths;
+- documentation, ADR, changelog, and operational consistency; and
+- whether the supplied validation evidence was produced by the reviewed bytes.
+
+A pull request is acceptable only when every applicable required check passes,
+the PR template has no pending row, requested changes and findings are
+resolved, and the reviewer records approval for the current head. A reviewer
+must not treat machine-generated confidence or a green check as a substitute
+for inspecting the affected contract.
+
+The repository does not claim the OpenSSF Gold two-person-review criterion
+until history demonstrates that at least half of proposed modifications were
+reviewed before release by someone other than the author. The current role and
+continuity status is recorded in [GOVERNANCE.md](GOVERNANCE.md).
 
 ## Public-API Changes
 

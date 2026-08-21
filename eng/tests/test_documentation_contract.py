@@ -118,6 +118,135 @@ class DocumentationContractTests(unittest.TestCase):
             result.errors[0].reason,
         )
 
+    def test_package_readme_accepts_absolute_links_and_local_anchors(self) -> None:
+        """Keep links portable across GitHub and the NuGet package page."""
+
+        readme = self.root / "README.md"
+        readme.write_text(
+            "# Project\n\n[Guide](https://example.test/guide)\n[Local](#project)\n",
+            encoding="ascii",
+        )
+
+        errors = documentation_contract.validate_package_readme_links(readme)
+
+        self.assertEqual((), errors)
+
+    def test_package_readme_rejects_a_repository_relative_link(self) -> None:
+        """Do not let NuGet.org render repository navigation as an empty href."""
+
+        readme = self.root / "README.md"
+        readme.write_text(
+            "# Project\n\n[Guide](docs/guide.md)\n",
+            encoding="ascii",
+        )
+
+        errors = documentation_contract.validate_package_readme_links(readme)
+
+        self.assertEqual(1, len(errors))
+        self.assertEqual("docs/guide.md", errors[0].target)
+
+    def test_canonical_guide_rejects_a_missing_evidence_section(self) -> None:
+        """Do not let a canonical guide lose the evidence its role requires."""
+
+        docs = self.root / "docs"
+        docs.mkdir()
+        (docs / "guide.md").write_text(
+            "# Guide\n\n## Contract\n",
+            encoding="ascii",
+        )
+
+        errors = documentation_contract.validate_canonical_guides(
+            self.root,
+            {"docs/guide.md": ("Contract", "Primary Sources")},
+        )
+
+        self.assertEqual(1, len(errors))
+        self.assertEqual("Primary Sources", errors[0].target)
+
+    def test_public_api_methods_require_a_canonical_document_owner(self) -> None:
+        """Fail when a new query or configuration method is undocumented."""
+
+        core = self.root / "src" / "Doka.EntityFrameworkCore.MySql"
+        spatial = self.root / "src" / "Doka.EntityFrameworkCore.MySql.NetTopologySuite"
+        docs = self.root / "docs"
+        core.mkdir(parents=True)
+        spatial.mkdir(parents=True)
+        docs.mkdir()
+        (core / "PublicAPI.Unshipped.txt").write_text(
+            "static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.JsonDepth(this object! functions, string! json) -> int\n"
+            "Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.CommandTimeout(int commandTimeout) -> object!\n",
+            encoding="ascii",
+        )
+        (spatial / "PublicAPI.Unshipped.txt").write_text(
+            "static Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDbFunctionsExtensions.DistanceSphere(this object! functions, object! left, object! right) -> double\n",
+            encoding="ascii",
+        )
+        (docs / "query-functions.md").write_text(
+            "# Query Functions\n\n`JsonDepth()`\n",
+            encoding="ascii",
+        )
+        (docs / "provider-configuration.md").write_text(
+            "# Provider Configuration\n\n`CommandTimeout()`\n",
+            encoding="ascii",
+        )
+
+        errors = documentation_contract.validate_public_api_documentation(self.root)
+
+        self.assertEqual(1, len(errors))
+        self.assertEqual("DistanceSphere", errors[0].target)
+
+    def test_performance_entry_point_routes_every_specialized_contract(self) -> None:
+        """Keep the split runbook discoverable without restoring the monolith."""
+
+        repository_root = Path(__file__).resolve().parents[2]
+        entry_point = (
+            repository_root / "docs" / "operations" / "performance-evidence.md"
+        ).read_text(encoding="ascii")
+        routed_documents = (
+            "performance-evidence-reference.md",
+            "paired-performance-methodology.md",
+            "performance-baseline-operations.md",
+        )
+        compatibility_anchors = (
+            '<a id="profiles"></a>',
+            '<a id="evidence-layout"></a>',
+            '<a id="measurement-quality-and-termination"></a>',
+            '<a id="accept-an-engine-image-update"></a>',
+            '<a id="seed-an-accepted-baseline"></a>',
+            '<a id="compare-with-the-accepted-baseline"></a>',
+            '<a id="hosted-runner-baseline"></a>',
+            '<a id="soak-interpretation"></a>',
+            '<a id="paired-scorecard-use"></a>',
+            '<a id="what-the-contract-controls"></a>',
+        )
+
+        for routed_document in routed_documents:
+            with self.subTest(routed_document=routed_document):
+                self.assertIn(routed_document, entry_point)
+
+        for compatibility_anchor in compatibility_anchors:
+            with self.subTest(compatibility_anchor=compatibility_anchor):
+                self.assertEqual(1, entry_point.count(compatibility_anchor))
+
+        self.assertLessEqual(len(entry_point.splitlines()), 250)
+
+    def test_document_navigation_rejects_an_orphaned_public_page(self) -> None:
+        """Require every public document to be reachable from the docs index."""
+
+        docs = self.root / "docs"
+        docs.mkdir()
+        (docs / "README.md").write_text(
+            "# Documentation\n\n[Guide](guide.md)\n",
+            encoding="ascii",
+        )
+        (docs / "guide.md").write_text("# Guide\n", encoding="ascii")
+        (docs / "orphan.md").write_text("# Orphan\n", encoding="ascii")
+
+        errors = documentation_contract.validate_document_navigation(self.root)
+
+        self.assertEqual(1, len(errors))
+        self.assertEqual("docs/orphan.md", errors[0].target)
+
 
 class PullRequestTemplateContractTests(unittest.TestCase):
     """Keep every review obligation explicit without ambiguous checkboxes."""

@@ -21,6 +21,11 @@ must pass bounded validation, hostile database metadata must not become
 executable generated code, and provider-owned telemetry must not expand access
 to credentials, SQL, customer identifiers, or database object names.
 
+The [security assurance case](assurance-case.md) maps these requirements and
+the trust boundaries below to implementation controls, countered weaknesses,
+and executable evidence. It is reviewed with this threat model whenever a
+re-evaluation trigger fires.
+
 ## Protected Assets
 
 - Confidentiality and integrity of data reachable through the application's

@@ -190,6 +190,12 @@ internal sealed class Article
     public string Body { get; set; } = string.Empty;
 }
 
+internal sealed class Document
+{
+    public int Id { get; set; }
+    public string SearchDocument { get; set; } = "{}";
+}
+
 internal sealed class Order
 {
     public long Id { get; set; }

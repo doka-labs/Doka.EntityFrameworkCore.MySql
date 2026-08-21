@@ -508,7 +508,10 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
         """Keep approval renewal and legacy-Actor retirement actionable."""
         runbook = " ".join(
             (
-                self.repo / "docs" / "operations" / "performance-evidence.md"
+                self.repo
+                / "docs"
+                / "operations"
+                / "performance-baseline-operations.md"
             )
             .read_text(encoding="utf-8")
             .split()
