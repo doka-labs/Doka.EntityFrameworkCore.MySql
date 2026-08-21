@@ -25,6 +25,13 @@ public partial class AddTemporalDefaults : Migration
             nullable: false,
             defaultValue: new TimeOnly(12, 34, 56, 123, 456));
 
+        migrationBuilder.AddColumn<DateTime>(
+            name: "OccurredAt",
+            table: "MigrationWorkflowItems",
+            type: "timestamp(6)",
+            precision: 6,
+            nullable: true);
+
         migrationBuilder.InsertData(
             table: "MigrationWorkflowItems",
             columns:
@@ -53,6 +60,10 @@ public partial class AddTemporalDefaults : Migration
 
         migrationBuilder.DropColumn(
             name: "EffectiveTime",
+            table: "MigrationWorkflowItems");
+
+        migrationBuilder.DropColumn(
+            name: "OccurredAt",
             table: "MigrationWorkflowItems");
     }
 }

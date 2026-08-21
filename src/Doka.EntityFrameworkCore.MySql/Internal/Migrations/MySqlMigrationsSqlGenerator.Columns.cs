@@ -796,7 +796,26 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         var columnType = operation.ColumnType
             ?? GetColumnType(operation.Schema, operation.Table, operation.Name, operation, model);
 
-        var defaultValue = operation.DefaultValue ?? GetClrDefaultValue(operation.ClrType);
+        var defaultValueSql = operation.DefaultValueSql;
+        var hasDefaultValueSql = !string.IsNullOrWhiteSpace(defaultValueSql);
+
+        if (!hasDefaultValueSql
+            && operation.DefaultValue is null)
+        {
+            throw new InvalidOperationException(
+                $"A nullable-to-required {nameof(AlterColumnOperation)} for store type '{columnType}' "
+                + "requires an explicit DefaultValue or DefaultValueSql because choosing replacement "
+                + "data is an application contract.");
+        }
+
+        if (!hasDefaultValueSql
+            && StoreTypeEquals(GetBaseStoreType(columnType), "timestamp"))
+        {
+            throw new InvalidOperationException(
+                $"A nullable-to-required {nameof(AlterColumnOperation)} for store type '{columnType}' "
+                + "requires DefaultValueSql because TIMESTAMP literals are interpreted using the "
+                + "session time zone.");
+        }
 
         builder
             .Append("UPDATE ")
@@ -805,12 +824,13 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
             .Append(" = ");
 
-        if (!string.IsNullOrWhiteSpace(operation.DefaultValueSql))
+        if (!string.IsNullOrWhiteSpace(defaultValueSql))
         {
-            builder.Append(operation.DefaultValueSql);
+            builder.Append(defaultValueSql);
         }
         else
         {
+            var defaultValue = operation.DefaultValue!;
             var mapping = Dependencies.TypeMappingSource.FindMapping(defaultValue.GetType(), columnType)
                 ?? Dependencies.TypeMappingSource.GetMappingForValue(defaultValue);
 
@@ -824,76 +844,6 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
 
         EndStatement(builder);
-    }
-
-    private static object GetClrDefaultValue(
-        Type clrType
-    )
-    {
-        var valueType = Nullable.GetUnderlyingType(clrType) ?? clrType;
-
-        if (valueType.IsEnum)
-        {
-            valueType = Enum.GetUnderlyingType(valueType);
-        }
-
-        if (valueType == typeof(string))
-        {
-            return string.Empty;
-        }
-
-        if (valueType == typeof(byte[]))
-        {
-            return Array.Empty<byte>();
-        }
-
-        if (valueType == typeof(Guid))
-        {
-            return Guid.Empty;
-        }
-
-        if (valueType == typeof(DateOnly))
-        {
-            return DateOnly.MinValue;
-        }
-
-        if (valueType == typeof(TimeOnly))
-        {
-            return TimeOnly.MinValue;
-        }
-
-        if (valueType == typeof(TimeSpan))
-        {
-            return TimeSpan.Zero;
-        }
-
-        if (valueType == typeof(char))
-        {
-            return '\0';
-        }
-
-        if (valueType == typeof(DateTime))
-        {
-            return default(DateTime);
-        }
-
-        var typeCode = Type.GetTypeCode(valueType);
-
-        if (typeCode == TypeCode.Boolean)
-        {
-            return false;
-        }
-
-        // Numeric TypeCode values are contiguous from SByte through Decimal.
-        // Convert.ChangeType preserves the exact boxed CLR type without reflection
-        // metadata requirements or a duplicated arm for every numeric width.
-        if (typeCode is >= TypeCode.SByte and <= TypeCode.Decimal)
-        {
-            return Convert.ChangeType(0, valueType, CultureInfo.InvariantCulture);
-        }
-
-        throw new InvalidOperationException(
-            $"No non-null store default is available for '{clrType.FullName ?? clrType.Name}'.");
     }
 
     private static bool RequiresParenthesizedDefault(

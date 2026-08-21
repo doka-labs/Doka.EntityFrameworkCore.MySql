@@ -40,6 +40,12 @@ namespace Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow.Migrations
                         .HasColumnType("time(6)")
                         .HasDefaultValue(new TimeOnly(4, 5, 6, 654, 321));
 
+                    b.Property<DateTime>("OccurredAt")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(6)
+                        .HasColumnType("timestamp(6)")
+                        .HasDefaultValueSql("'2026-08-21 12:34:56.000000'");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -56,7 +62,8 @@ namespace Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow.Migrations
                             Id = 1,
                             EffectiveDate = new DateOnly(2026, 8, 17),
                             EffectiveTime = new TimeOnly(12, 34, 56, 123, 456),
-                            Name = "migration-safety-readback"
+                            Name = "migration-safety-readback",
+                            OccurredAt = new DateTime(2026, 8, 21, 12, 34, 56, 0, DateTimeKind.Unspecified)
                         });
                 });
 #pragma warning restore 612, 618

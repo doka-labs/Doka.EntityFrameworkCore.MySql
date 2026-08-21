@@ -32,6 +32,18 @@ public partial class UpdateTemporalDefaults : Migration
             oldPrecision: 6,
             oldDefaultValue: new TimeOnly(12, 34, 56, 123, 456));
 
+        migrationBuilder.AlterColumn<DateTime>(
+            name: "OccurredAt",
+            table: "MigrationWorkflowItems",
+            type: "timestamp(6)",
+            precision: 6,
+            nullable: false,
+            defaultValueSql: "'2026-08-21 12:34:56.000000'",
+            oldClrType: typeof(DateTime),
+            oldType: "timestamp(6)",
+            oldPrecision: 6,
+            oldNullable: true);
+
         migrationBuilder.InsertData(
             table: "MigrationWorkflowItems",
             columns:
@@ -75,5 +87,16 @@ public partial class UpdateTemporalDefaults : Migration
             oldType: "time(6)",
             oldPrecision: 6,
             oldDefaultValue: new TimeOnly(4, 5, 6, 654, 321));
+
+        migrationBuilder.AlterColumn<DateTime>(
+            name: "OccurredAt",
+            table: "MigrationWorkflowItems",
+            type: "timestamp(6)",
+            precision: 6,
+            nullable: true,
+            oldClrType: typeof(DateTime),
+            oldType: "timestamp(6)",
+            oldPrecision: 6,
+            oldDefaultValueSql: "'2026-08-21 12:34:56.000000'");
     }
 }

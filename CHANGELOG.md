@@ -9,7 +9,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- Expose provider-authored setup, body, and cleanup fragments through
+- Add bounded handler-authored migration command scopes with ordered setup,
+  one body, reverse-order cleanup, cancellation-independent recovery, and pool
+  eviction when cleanup cannot restore a reusable session.
+- Expose exact provider-rendered setup, body, and cleanup fragments through
   `MySqlMigrationCommandSpec.Fragments`, so migration-operation handlers can
   inspect exact command boundaries without parsing SQL.
 - Expose `MySqlCharTypeMapping`, `MySqlGuidStringTypeMapping`,
@@ -19,6 +22,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Nullable-to-required column transitions now require an application-authored
+  `DefaultValue` or nonblank `DefaultValueSql`; existing migrations that relied
+  on provider-synthesized CLR defaults must be edited before upgrading.
+  `TIMESTAMP` repairs require `DefaultValueSql` because CLR literals are
+  interpreted through the executing session time zone.
 - Route ordinary provider-source changes through the complete six-target,
   non-qualifying benchmark smoke lane. Benchmark harness, evaluator,
   sensitivity, workload, production project and lock, runtime dependency,
@@ -36,6 +44,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Inspect bounded transport causes below error-number-zero MySqlConnector
+  wrappers while keeping real non-zero server errors, cancellation, command
+  timeout, and migration cleanup failures terminal.
 - Execute DDL comments that contain backslashes in a scoped
   `NO_BACKSLASH_ESCAPES` session and restore the previous session `sql_mode`
   after success, failure, or cancellation. Cleanup failures now clear the

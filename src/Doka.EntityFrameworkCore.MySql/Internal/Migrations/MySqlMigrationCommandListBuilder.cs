@@ -125,7 +125,7 @@ internal sealed class MySqlMigrationCommandListBuilder : MigrationCommandListBui
 
     public override IReadOnlyList<MigrationCommand> GetCommandList() => _commands;
 
-    public System.Collections.ObjectModel.ReadOnlyCollection<MySqlMigrationCommandSpec> GetCommandSpecs()
+    public ReadOnlyCollection<MySqlMigrationCommandSpec> GetCommandSpecs()
     {
         var specs = new MySqlMigrationCommandSpec[_commands.Count];
 

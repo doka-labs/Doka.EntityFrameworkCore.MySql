@@ -325,6 +325,17 @@
       "supersededBy": [],
       "amends": [],
       "amendedBy": []
+    },
+    {
+      "id": "D-028",
+      "title": "Require explicit nullability backfills",
+      "status": "implemented",
+      "date": "2026-08-21",
+      "path": "docs/decisions/D-028-explicit-nullability-backfills.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
     }
   ]
 }

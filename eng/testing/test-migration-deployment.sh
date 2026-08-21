@@ -116,6 +116,40 @@ idempotent_script_path_for() {
     printf '%s\n' "${scripts_dir}/${target_id}/migration-idempotent.sql"
 }
 
+assert_scoped_handler_script_order() {
+    local script_path="$1"
+    local scope_table_name="MigrationWorkflowHandlerScope"
+    local evidence_table_name="MigrationWorkflowHandlerEvidence"
+    local setup_table_line
+    local setup_row_line
+    local body_line
+    local cleanup_row_line
+    local cleanup_table_line
+
+    setup_table_line="$(grep -Fn -m 1 "CREATE TEMPORARY TABLE \`${scope_table_name}\`" "${script_path}" | cut -d: -f1 || true)"
+    setup_row_line="$(grep -Fn -m 1 "INSERT INTO \`${scope_table_name}\`" "${script_path}" | cut -d: -f1 || true)"
+    body_line="$(grep -Fn -m 1 "CREATE TABLE \`${evidence_table_name}\`" "${script_path}" | cut -d: -f1 || true)"
+    cleanup_row_line="$(grep -Fn -m 1 "DELETE FROM \`${scope_table_name}\`" "${script_path}" | cut -d: -f1 || true)"
+    cleanup_table_line="$(grep -Fn -m 1 "DROP TEMPORARY TABLE IF EXISTS \`${scope_table_name}\`" "${script_path}" | cut -d: -f1 || true)"
+
+    if [[ -z "${setup_table_line}" \
+        || -z "${setup_row_line}" \
+        || -z "${body_line}" \
+        || -z "${cleanup_row_line}" \
+        || -z "${cleanup_table_line}" ]]; then
+        echo "Handler scope setup, body, or cleanup is missing from ${script_path}." >&2
+        return 1
+    fi
+
+    if (( setup_table_line >= setup_row_line \
+        || setup_row_line >= body_line \
+        || body_line >= cleanup_row_line \
+        || cleanup_row_line >= cleanup_table_line )); then
+        echo "Handler scope setup, body, and reverse cleanup order is invalid in ${script_path}." >&2
+        return 1
+    fi
+}
+
 generate_scripts() {
     local target_id="$1"
     local server_version="$2"
@@ -149,10 +183,7 @@ generate_scripts() {
         --output "${idempotent_script_path}"
 
     for script_path in "${normal_script_path}" "${idempotent_script_path}"; do
-        if ! grep -Fq "CREATE TABLE \`MigrationWorkflowHandlerEvidence\`" "${script_path}"; then
-            echo "Migration handler evidence is missing from ${script_path}." >&2
-            return 1
-        fi
+        assert_scoped_handler_script_order "${script_path}"
 
         for expected_default in \
             "DEFAULT (DATE '2026-08-17')" \
@@ -188,6 +219,45 @@ execute_script() {
         "${client}" \
         --user=root \
         doka_provider < "${script_path}"
+}
+
+assert_failed_script_terminates_session() {
+    local target_id="$1"
+    local target_scripts_dir="${scripts_dir}/${target_id}"
+    local script_path="${target_scripts_dir}/failed-scope.sql"
+    local output_path="${target_scripts_dir}/failed-scope.out"
+    local marker_table="DokaFailedScopedScriptContinuation"
+    local container_id
+    local client
+    local marker_count
+
+    cat > "${script_path}" <<EOF
+CREATE TEMPORARY TABLE \`DokaFailedScopedScriptSession\` (\`Id\` int NOT NULL);
+SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO = 1644, MESSAGE_TEXT = 'expected scoped script failure';
+CREATE TABLE \`${marker_table}\` (\`Id\` int NOT NULL);
+EOF
+
+    if execute_script "${target_id}" "${script_path}" > "${output_path}" 2>&1; then
+        echo "The failed scoped-script probe unexpectedly succeeded on ${target_id}." >&2
+        return 1
+    fi
+
+    container_id="$("${compose_command[@]}" ps -q "${target_id}")"
+    client="$(database_client "${target_id}")"
+    marker_count="$(docker exec \
+        --env "MYSQL_PWD=root_password" \
+        "${container_id}" \
+        "${client}" \
+        --batch \
+        --skip-column-names \
+        --user=root \
+        --execute="SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${marker_table}';" \
+        doka_provider)"
+
+    if [[ "${marker_count}" != "0" ]]; then
+        echo "The script client continued after a scoped-command failure on ${target_id}." >&2
+        return 1
+    fi
 }
 
 run_dotnet_ef_update() {
@@ -376,6 +446,7 @@ write_evidence() {
 - dotnetEfDatabaseUpdate: pass
 - normalScriptExecution: pass
 - idempotentScriptExecution: pass
+- failedScopedScriptSessionTermination: pass
 - bundleGeneration: pass
 - mysql84Lifecycle: pass
 - mysql97Lifecycle: pass
@@ -401,6 +472,7 @@ EOF
   "dotnetEfDatabaseUpdate": "pass",
   "normalScriptExecution": "pass",
   "idempotentScriptExecution": "pass",
+  "failedScopedScriptSessionTermination": "pass",
   "bundleGeneration": "pass",
   "targets": {
     "mysql84": "pass",
@@ -470,6 +542,13 @@ should_stop_compose=1
     mariadb114 \
     mariadb118 \
     mariadb123
+
+assert_failed_script_terminates_session "mysql84"
+assert_failed_script_terminates_session "mysql97"
+assert_failed_script_terminates_session "mariadb1011"
+assert_failed_script_terminates_session "mariadb114"
+assert_failed_script_terminates_session "mariadb118"
+assert_failed_script_terminates_session "mariadb123"
 
 run_tooling_lifecycle "mysql84" "$(published_port mysql84)" "mysql:8.4"
 run_tooling_lifecycle "mysql97" "$(published_port mysql97)" "mysql:9.7"

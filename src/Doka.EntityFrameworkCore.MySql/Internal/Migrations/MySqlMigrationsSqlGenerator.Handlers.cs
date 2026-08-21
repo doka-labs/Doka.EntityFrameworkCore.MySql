@@ -207,7 +207,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         }
     }
 
-    private System.Collections.ObjectModel.ReadOnlyCollection<MySqlMigrationCommandSpec> RenderStandardOperation(
+    private ReadOnlyCollection<MySqlMigrationCommandSpec> RenderStandardOperation(
         MigrationOperation operation,
         IModel? model
     )
@@ -222,7 +222,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         return builder.GetCommandSpecs();
     }
 
-    private System.Collections.ObjectModel.ReadOnlyCollection<MySqlMigrationCommandSpec> ValidateResult(
+    private ReadOnlyCollection<MySqlMigrationCommandSpec> ValidateResult(
         MySqlMigrationOperationResult? result,
         MySqlMigrationOperationHandlerRegistry.Registration registration
     )

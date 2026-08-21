@@ -14,6 +14,7 @@ namespace Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow;
 internal static class MigrationWorkflowOperationHandlerExtensions
 {
     internal const string EvidenceTableName = "MigrationWorkflowHandlerEvidence";
+    internal const string ScopeTableName = "MigrationWorkflowHandlerScope";
 
     /// <summary>
     /// Registers the example handler in EF Core's internal service graph.
@@ -119,12 +120,50 @@ internal sealed class MigrationWorkflowOperationHandler
     )
     {
         var operation = (MigrationWorkflowOperation)context.Operation;
-        var commands = context.RenderStandardOperation(
-            operation.StandardOperation);
+        var commands = context
+            .RenderStandardOperation(operation.StandardOperation)
+            .Select(CreateScopedCommand)
+            .ToArray();
 
         return MySqlMigrationOperationResult.Generated(
             commands,
             "provider_baseline");
+    }
+
+    private static MySqlMigrationCommandSpec CreateScopedCommand(
+        MySqlMigrationCommandSpec standardCommand
+    )
+    {
+        var body = standardCommand.Fragments
+            .Single(fragment => fragment.Kind == MySqlMigrationCommandFragmentKind.Body);
+        var providerSetup = standardCommand.Fragments
+            .TakeWhile(fragment => fragment.Kind == MySqlMigrationCommandFragmentKind.Setup)
+            .Select(fragment => fragment.CommandText.ToString());
+        var providerCleanupInAcquisitionOrder = standardCommand.Fragments
+            .Reverse()
+            .TakeWhile(fragment => fragment.Kind == MySqlMigrationCommandFragmentKind.Cleanup)
+            .Select(fragment => fragment.CommandText.ToString());
+
+        // Compose the handler and provider scopes in acquisition order. The
+        // public factory reverses cleanup once, so provider cleanup still runs
+        // before the handler releases its earlier resources.
+        return MySqlMigrationCommandSpec.CreateScoped(
+            new[]
+            {
+                $"CREATE TEMPORARY TABLE `{MigrationWorkflowOperationHandlerExtensions.ScopeTableName}` "
+                + "(`Id` int NOT NULL);" + Environment.NewLine,
+                $"INSERT INTO `{MigrationWorkflowOperationHandlerExtensions.ScopeTableName}` (`Id`) VALUES (1);"
+                + Environment.NewLine,
+            }.Concat(providerSetup),
+            body.CommandText.ToString(),
+            new[]
+            {
+                $"DROP TEMPORARY TABLE IF EXISTS `{MigrationWorkflowOperationHandlerExtensions.ScopeTableName}`;"
+                + Environment.NewLine,
+                $"DELETE FROM `{MigrationWorkflowOperationHandlerExtensions.ScopeTableName}`;"
+                + Environment.NewLine,
+            }.Concat(providerCleanupInAcquisitionOrder),
+            standardCommand.TransactionSuppressed);
     }
 }
 

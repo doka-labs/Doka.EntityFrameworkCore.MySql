@@ -24,6 +24,19 @@ Defaults: `maxRetryCount` is 6, `maxRetryDelay` is the EF Core convention (30 se
 - Wrapped `SocketException` or `IOException` -- transport-level disconnect.
 - `MySqlException.IsTransient == true` -- driver-level classification.
 
+MySqlConnector also uses `MySqlException` for communication failures. Such a
+wrapper can have `Number == 0` and `IsTransient == false` while its bounded
+inner chain carries the retryable `SocketException` or `IOException`. The
+provider therefore continues through only error-number-zero wrappers. A real
+non-zero server error remains authoritative and cannot become retryable merely
+because an unrelated transport exception is nested below it. Cancellation,
+command timeout, and migration session-cleanup failure remain terminal across
+the complete bounded chain. The relevant exception contract is identical at
+the supported 2.5.0 floor and the current qualified 2.6.1 patch. The
+MySqlConnector floor/latest matrix executes the same detector tests against
+both ends of the supported `[2.5.0, 3.0.0)` range; 3.x is not part of that
+contract.
+
 `OperationCanceledException` and `CommandTimeoutExpired` are never retried -- the consumer's cancellation token wins, and a command-timeout is treated as a non-transient capacity signal.
 
 For Galera specifically, the retry budget should account for the worst-case re-routing latency after a node-evict event. Six attempts with linear-then-randomized backoff up to 30 seconds cover the majority of `wsrep_provider`-driven evict + re-elect cycles on Galera 4 and MariaDB 11.x.
@@ -182,6 +195,10 @@ claims such as "sticky" or "causal" are not sufficient evidence.
 
 Retrieved 2026-08-21:
 
+- [MySqlConnector 2.5.0 `MySqlException` source](https://github.com/mysql-net/MySqlConnector/blob/2.5.0/src/MySqlConnector/MySqlException.cs)
+- [MySqlConnector 2.6.1 `MySqlException` source](https://github.com/mysql-net/MySqlConnector/blob/2.6.1/src/MySqlConnector/MySqlException.cs)
+- [EF Core 10.0.10 execution strategy source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore/Storage/ExecutionStrategy.cs)
+- [EF Core 10.0.10 relational execution-strategy extensions](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Storage/RelationalExecutionStrategyExtensions.cs)
 - [ProxySQL multiplexing and `GET_LOCK()` behavior](https://proxysql.com/documentation/multiplexing/)
 - [ProxySQL MySQL variables](https://proxysql.com/documentation/global-variables/mysql-variables/)
 - [MariaDB MaxScale `readwritesplit` routing and options](https://mariadb.com/docs/maxscale/reference/maxscale-routers/maxscale-readwritesplit)

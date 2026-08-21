@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Identifies the execution role of provider-owned SQL inside a rendered
+/// Identifies the execution role of validated SQL inside a rendered
 /// migration command.
 /// </summary>
 public enum MySqlMigrationCommandFragmentKind
@@ -13,7 +13,7 @@ public enum MySqlMigrationCommandFragmentKind
     Unspecified = 0,
 
     /// <summary>
-    /// Initializes provider-required state before the operation body.
+    /// Initializes scoped state before the operation body.
     /// </summary>
     Setup = 1,
 
@@ -23,7 +23,7 @@ public enum MySqlMigrationCommandFragmentKind
     Body = 2,
 
     /// <summary>
-    /// Restores provider-managed state after the operation body.
+    /// Restores scoped state after the operation body.
     /// </summary>
     Cleanup = 3,
 }

@@ -98,6 +98,202 @@ public sealed class MySqlMigrationOperationContractTests
     }
 
     [Fact]
+    public void Scoped_command_snapshots_roles_and_caller_owned_collections()
+    {
+        var setup = new List<string>
+        {
+            "SET @first = 1;\n",
+            "SET @second = 2;\n",
+        };
+        var cleanup = new List<string>
+        {
+            "SET @first = NULL;\n",
+            "SET @second = NULL;\n",
+        };
+
+        var command = MySqlMigrationCommandSpec.CreateScoped(
+            setup,
+            "SELECT @first + @second;\n",
+            cleanup,
+            transactionSuppressed: true);
+
+        setup[0] = "SELECT 'mutated';";
+        cleanup.Clear();
+
+        Assert.Collection(
+            command.Fragments,
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Setup, fragment.Kind),
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Setup, fragment.Kind),
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Body, fragment.Kind),
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Cleanup, fragment.Kind),
+            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Cleanup, fragment.Kind));
+        Assert.Equal(
+            "SET @first = 1;\n"
+            + "SET @second = 2;\n"
+            + "SELECT @first + @second;\n"
+            + "SET @second = NULL;\n"
+            + "SET @first = NULL;\n",
+            command.CommandText);
+        Assert.True(command.TransactionSuppressed);
+
+        foreach (var fragment in command.Fragments)
+        {
+            Assert.True(MemoryMarshal.TryGetString(fragment.CommandText, out var backingString, out _, out _));
+            Assert.Same(command.CommandText, backingString);
+        }
+    }
+
+    [Theory]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    public void Scoped_command_rejects_every_empty_role(
+        bool emptySetup,
+        bool emptyBody,
+        bool emptyCleanup
+    )
+    {
+        var setup = emptySetup ? Array.Empty<string>() : ["SET @scope = 1;"];
+        var body = emptyBody ? " " : "SELECT @scope;";
+        var cleanup = emptyCleanup ? Array.Empty<string>() : ["SET @scope = NULL;"];
+
+        Assert.Throws<ArgumentException>(() => MySqlMigrationCommandSpec.CreateScoped(setup, body, cleanup));
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Scoped_command_rejects_whitespace_at_every_collection_boundary(
+        bool invalidSetup,
+        bool invalidCleanup
+    )
+    {
+        string[] setup = invalidSetup ? [" "] : ["SET @scope = 1;"];
+        string[] cleanup = invalidCleanup ? [" "] : ["SET @scope = NULL;"];
+
+        Assert.Throws<ArgumentException>(() =>
+            MySqlMigrationCommandSpec.CreateScoped(setup, "SELECT @scope;", cleanup));
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Scoped_command_rejects_null_at_every_collection_boundary(
+        bool invalidSetup,
+        bool invalidCleanup
+    )
+    {
+        string[] setup = invalidSetup ? [null!] : ["SET @scope = 1;"];
+        string[] cleanup = invalidCleanup ? [null!] : ["SET @scope = NULL;"];
+
+        Assert.Throws<ArgumentException>(() =>
+            MySqlMigrationCommandSpec.CreateScoped(setup, "SELECT @scope;", cleanup));
+    }
+
+    [Fact]
+    public void Scoped_command_enumerates_each_foreign_collection_once()
+    {
+        var setupEnumerations = 0;
+        var cleanupEnumerations = 0;
+
+        IEnumerable<string> Setup()
+        {
+            setupEnumerations++;
+            yield return "SET @scope = 1;";
+        }
+
+        IEnumerable<string> Cleanup()
+        {
+            cleanupEnumerations++;
+            yield return "SET @scope = NULL;";
+        }
+
+        var command = MySqlMigrationCommandSpec.CreateScoped(
+            Setup(),
+            "SELECT @scope;",
+            Cleanup());
+
+        Assert.Equal(3, command.Fragments.Count);
+        Assert.Equal(1, setupEnumerations);
+        Assert.Equal(1, cleanupEnumerations);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Scoped_command_wraps_collection_enumeration_failures_without_copying_the_payload(
+        bool failSetup
+    )
+    {
+        const string sensitivePayload = "server=private;password=do-not-log";
+
+        static IEnumerable<string> ThrowingCommands(
+            string message
+        )
+        {
+            yield return "SET @scope = 1;";
+            throw new InvalidOperationException(message);
+        }
+
+        var exception = Assert.Throws<ArgumentException>(() => MySqlMigrationCommandSpec.CreateScoped(
+            failSetup ? ThrowingCommands(sensitivePayload) : ["SET @scope = 1;"],
+            "SELECT @scope;",
+            failSetup ? ["SET @scope = NULL;"] : ThrowingCommands(sensitivePayload)));
+
+        Assert.Equal(failSetup ? "setupCommands" : "cleanupCommands", exception.ParamName);
+        Assert.DoesNotContain(sensitivePayload, exception.Message, StringComparison.Ordinal);
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+    }
+
+    [Fact]
+    public void Scoped_command_accepts_the_registered_fragment_and_payload_limits()
+    {
+        var setup = Enumerable.Repeat("S", 126);
+        var body = new string('B', 1_048_449);
+
+        var command = MySqlMigrationCommandSpec.CreateScoped(setup, body, ["C"]);
+
+        Assert.Equal(128, command.Fragments.Count);
+        Assert.Equal(1_048_576, command.CommandText.Length);
+    }
+
+    [Fact]
+    public void Scoped_command_rejects_more_than_the_registered_fragment_limit()
+    {
+        var setup = Enumerable.Repeat("S", 127);
+
+        var exception =
+            Assert.Throws<ArgumentException>(() => MySqlMigrationCommandSpec.CreateScoped(setup, "B", ["C"]));
+
+        Assert.Equal("setupCommands", exception.ParamName);
+        Assert.Contains("128 total fragments", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Scoped_command_rejects_cleanup_beyond_the_remaining_fragment_limit()
+    {
+        var cleanup = Enumerable.Repeat("C", 127);
+
+        var exception = Assert.Throws<ArgumentException>(() =>
+            MySqlMigrationCommandSpec.CreateScoped(["S"], "B", cleanup));
+
+        Assert.Equal("cleanupCommands", exception.ParamName);
+        Assert.Contains("128 total fragments", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Scoped_command_rejects_more_than_the_registered_payload_limit()
+    {
+        var body = new string('B', 1_048_575);
+
+        var exception = Assert.Throws<ArgumentException>(() =>
+            MySqlMigrationCommandSpec.CreateScoped(["S"], body, ["C"]));
+
+        Assert.Equal("bodyCommand", exception.ParamName);
+        Assert.Contains("1048576 characters", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Default_fragment_is_explicitly_unclassified()
     {
         var fragment = default(MySqlMigrationCommandFragment);

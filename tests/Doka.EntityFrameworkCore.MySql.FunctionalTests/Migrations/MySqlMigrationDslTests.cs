@@ -986,6 +986,56 @@ public sealed class MySqlMigrationDslTests
         Assert.Equal("longtext", alterColumn.OldColumn.ColumnType);
     }
 
+    /// <summary>
+    /// Verifies that an explicit SQL backfill makes different CLR projections
+    /// equivalent when they alter the same physical shared column.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_deduplicates_equivalent_sql_backfills()
+    {
+        using var target = new MigrationDslContext(CreateOptions<MigrationDslContext>());
+        var firstAlter = CreateRequiredJsonAlterColumn(typeof(string), "JSON_OBJECT()");
+        var secondAlter = CreateRequiredJsonAlterColumn(typeof(JsonDocument), "JSON_OBJECT()");
+        var differ = new MySqlMigrationsModelDiffer(new FixedMigrationsModelDiffer(firstAlter, secondAlter));
+        var operations = differ.GetDifferences(
+            null,
+            target
+                .GetService<IDesignTimeModel>()
+                .Model
+                .GetRelationalModel());
+
+        var alterColumn = Assert.Single(operations.OfType<AlterColumnOperation>());
+
+        Assert.Equal("JSON_OBJECT()", alterColumn.DefaultValueSql);
+    }
+
+    /// <summary>
+    /// Verifies that distinct application-authored backfills remain distinct
+    /// even when table-sharing maps them to the same physical column.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_preserves_distinct_sql_backfills()
+    {
+        using var target = new MigrationDslContext(CreateOptions<MigrationDslContext>());
+        var firstAlter = CreateRequiredJsonAlterColumn(typeof(string), "JSON_OBJECT()");
+        var secondAlter = CreateRequiredJsonAlterColumn(typeof(JsonDocument), "JSON_ARRAY()");
+        var differ = new MySqlMigrationsModelDiffer(new FixedMigrationsModelDiffer(firstAlter, secondAlter));
+        var operations = differ.GetDifferences(
+            null,
+            target
+                .GetService<IDesignTimeModel>()
+                .Model
+                .GetRelationalModel());
+
+        var alterColumns = operations
+            .OfType<AlterColumnOperation>()
+            .ToArray();
+
+        Assert.Equal(2, alterColumns.Length);
+        Assert.Contains(alterColumns, operation => operation.DefaultValueSql == "JSON_OBJECT()");
+        Assert.Contains(alterColumns, operation => operation.DefaultValueSql == "JSON_ARRAY()");
+    }
+
     private static List<MigrationOperation> GetDifferences(
         DbContext source,
         DbContext target
@@ -1472,6 +1522,19 @@ public sealed class MySqlMigrationDslTests
             IsNullable = true,
         },
     };
+
+    private static AlterColumnOperation CreateRequiredJsonAlterColumn(
+        Type clrType,
+        string defaultValueSql
+    )
+    {
+        var operation = CreateJsonAlterColumn(clrType, isUnicode: null, maxLength: null);
+        operation.IsNullable = false;
+        operation.DefaultValueSql = defaultValueSql;
+        operation.OldColumn.IsNullable = true;
+
+        return operation;
+    }
 
     private sealed class FixedMigrationsModelDiffer : IMigrationsModelDiffer
     {

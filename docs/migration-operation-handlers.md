@@ -183,24 +183,60 @@ dot-separated identifier segments, and match
 with the stable package ID and add a component suffix. The value is an
 ownership and diagnostics identifier, not proof that the package is trusted.
 
-Use `MySqlMigrationCommandSpec.Create` for every command boundary. One command
-may contain provider-rendered compound SQL; the SPI never splits SQL on
-semicolons. Set `transactionSuppressed` only when EF Core must execute that
-entire command outside its migration transaction.
+Use `MySqlMigrationCommandSpec.Create` for an ordinary opaque command boundary.
+Use `MySqlMigrationCommandSpec.CreateScoped` only when the handler acquires
+session state that requires finally-equivalent runtime cleanup. One command may
+contain compound SQL; the SPI never splits SQL on semicolons. Set
+`transactionSuppressed` only when EF Core must execute the entire ordinary
+command or scoped setup/body/cleanup boundary outside its migration
+transaction.
 
-Commands created by a handler are intentionally opaque:
-`MySqlMigrationCommandSpec.Create` returns an empty `Fragments` collection.
-Provider-rendered commands returned by `RenderStandardOperation` instead carry
-provider-owned structural metadata:
+`CreateScoped` requires non-empty setup and cleanup collections, exactly one
+non-empty body, no whitespace-only fragment, at most 128 total fragments, and
+at most 1,048,576 SQL characters. Inputs are enumerated once into private
+snapshots. Setup runs in declared order. Cleanup runs in reverse declared order
+and must be idempotent, because it is attempted after body success, failure, or
+cancellation with an independent cancellation token. All fragments share one
+physical connection and one transaction-suppression value. If cleanup fails,
+the provider closes that connection even when the caller opened it and clears
+its MySqlConnector pool before reporting the failure.
+
+For example, a handler that prepares one statement and creates one temporary
+table can describe resource acquisition order directly:
+
+```csharp
+var command = MySqlMigrationCommandSpec.CreateScoped(
+    setupCommands:
+    [
+        "CREATE TEMPORARY TABLE `__example_scope` (`Id` int NOT NULL);",
+        "PREPARE __example_body FROM 'INSERT INTO `__example_scope` VALUES (1)';",
+    ],
+    bodyCommand: "EXECUTE __example_body;",
+    cleanupCommands:
+    [
+        "DROP TEMPORARY TABLE IF EXISTS `__example_scope`;",
+        "DEALLOCATE PREPARE __example_body;",
+    ]);
+```
+
+The cleanup sequence is therefore `DEALLOCATE PREPARE` followed by `DROP
+TEMPORARY TABLE`. Commands created through `Create` remain opaque and return an
+empty `Fragments` collection. Provider-rendered commands returned by
+`RenderStandardOperation` and handler scopes created through `CreateScoped`
+carry validated structural metadata:
 
 - ordinary commands contain one `Body` fragment;
 - scoped commands contain `Setup*`, exactly one `Body`, and `Cleanup*`;
 - fragments are ordered, immutable, contiguous slices of `CommandText` and
   reproduce it exactly when concatenated;
 - the default struct value is `Unspecified` with empty text and is never
-  attached to a provider-rendered command;
+  attached to a validated command layout;
 - `TransactionSuppressed` applies to the complete command, not individual
   fragments.
+
+Fragment roles describe validated execution structure, not SQL provenance.
+Provider-rendered commands and handler-authored scopes can expose the same
+roles; the provider retains their origin through an internal scope kind.
 
 Use the `Body` fragment when an extension must embed the provider statement in
 its own guard or prepared-statement protocol. Do not split `CommandText`, search
@@ -210,15 +246,15 @@ owns that validation. Do not recreate a provider baseline with `Create`, because
 doing so deliberately discards provider structure and runtime recovery
 semantics.
 
-For runtime EF execution, Doka executes its own scoped baseline through a
-specialized migration command. It keeps one physical connection open, captures
-the original `sql_mode` client-side, restores it after success, failure, or
-cancellation, and forcibly closes the physical connection and clears the pool
-if cleanup itself fails. Generated SQL scripts still contain the setup, body,
-and cleanup statements in sequence because a
-portable SQL script has no cross-engine `finally`. A script runner must stop on
-failure and discard that connection. Doka's repository script gate does so by
-running each script in a process-owned client session.
+For runtime EF execution, Doka executes provider and handler scopes through a
+specialized migration command. This applies to `Database.Migrate`, direct
+`IMigrator` execution, `dotnet ef database update`, and migration bundles. The
+provider keeps one physical connection open and attempts cleanup after success,
+failure, or cancellation. Generated normal and idempotent SQL scripts contain
+setup, body, and cleanup in deterministic sequence because portable SQL has no
+cross-engine `finally`. A script runner must stop on failure and discard that
+connection; script text alone cannot promise cleanup after a failed body.
+Doka's repository script gate provides that process-owned session boundary.
 
 Use `MySqlMigrationOperationResult.Generated` to snapshot the completed
 sequence. Every result must contain at least one non-null command. The outcome
@@ -335,6 +371,11 @@ highest supported provider patch:
    internal reference.
 10. Opaque handler commands have no provider fragments, while provider
     baselines expose exact body and scoped fragment shapes without SQL parsing.
+11. Handler scopes clean up after synchronous and asynchronous success, body
+    failure, setup failure, and cancellation; a cleanup failure evicts the
+    physical session instead of returning it to the pool.
+12. Normal and idempotent script runners stop and discard their session after
+    failure because scripts cannot reproduce the runtime finally boundary.
 
 The provider repository verifies the general contract with two independent
 conformance handlers, an exhaustive 21-by-6 feature matrix, a local
@@ -355,6 +396,7 @@ recovery, and least-privilege behavior.
 - Microsoft, [EF Core 10.0.10 `IMigrationsSqlGenerator` source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/IMigrationsSqlGenerator.cs), retrieved 2026-08-11.
 - Microsoft, [EF Core 10.0.8 `MigrationCommand` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationCommand.cs), retrieved 2026-08-11.
 - Microsoft, [EF Core 10.0.8 migration command executor source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/Internal/MigrationCommandExecutor.cs), retrieved 2026-08-20.
+- Microsoft, [EF Core 10.0.10 migration command executor source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/Internal/MigrationCommandExecutor.cs), retrieved 2026-08-21.
 - Microsoft, [EF Core 10.0.10 `MigrationCommand` source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/MigrationCommand.cs), retrieved 2026-08-11.
 - Microsoft, [EF Core 10.0.8 `MigrationCommandListBuilder` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationCommandListBuilder.cs), retrieved 2026-08-11.
 - Microsoft, [EF Core 10.0.10 `MigrationCommandListBuilder` source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/MigrationCommandListBuilder.cs), retrieved 2026-08-11.
@@ -377,6 +419,8 @@ recovery, and least-privilege behavior.
 - MariaDB, [Atomic DDL](https://mariadb.com/docs/server/reference/sql-statements/data-definition/atomic-ddl), retrieved 2026-08-11.
 - MariaDB, [`PREPARE` statement](https://mariadb.com/docs/server/reference/sql-statements/prepared-statements/prepare-statement), retrieved 2026-08-11.
 - MariaDB, [`CREATE TABLE`](https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/create-table), retrieved 2026-08-11.
+- MySqlConnector, [connection options and pool reset behavior](https://mysqlconnector.net/connection-options/), retrieved 2026-08-21.
+- MySqlConnector, [`MySqlConnection.ClearPoolAsync`](https://mysqlconnector.net/api/mysqlconnector/mysqlconnection/clearpoolasync/), retrieved 2026-08-21.
 - MariaDB, [generated columns](https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/generated-columns), retrieved 2026-08-11.
 - MariaDB, [system-versioned tables](https://mariadb.com/docs/server/reference/sql-structure/temporal-tables/system-versioned-tables), retrieved 2026-08-11.
 - MariaDB, [application-time periods](https://mariadb.com/docs/server/reference/sql-structure/temporal-tables/application-time-periods), retrieved 2026-08-11.

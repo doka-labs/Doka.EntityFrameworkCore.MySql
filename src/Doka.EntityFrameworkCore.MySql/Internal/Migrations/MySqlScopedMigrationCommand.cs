@@ -3,11 +3,14 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed class MySqlScopedMigrationCommand : MigrationCommand
 {
     private const string PreviousSqlModeParameterName = "__doka_previous_sql_mode";
-    private readonly IRelationalCommand _captureCommand;
-    private readonly IRelationalCommand _enableCommand;
-    private readonly IRelationalCommand _bodyCommand;
+    private readonly IRelationalCommand? _captureCommand;
+    private readonly IRelationalCommand? _enableCommand;
+    private readonly IRelationalCommand? _bodyCommand;
     private readonly DbContext _context;
-    private readonly IRelationalCommand _restoreCommand;
+    private readonly IRelationalCommand[] _handlerCleanupCommands;
+    private readonly IRelationalCommand? _handlerBodyCommand;
+    private readonly IRelationalCommand[] _handlerSetupCommands;
+    private readonly IRelationalCommand? _restoreCommand;
 
     public MySqlScopedMigrationCommand(
         MySqlMigrationCommandLayout layout,
@@ -21,6 +24,37 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
     {
         Layout = layout;
         _context = dependencies.CurrentContext.Context;
+
+        if (layout.ScopeKind == MySqlMigrationCommandScopeKind.Handler)
+        {
+            _handlerSetupCommands = new IRelationalCommand[layout.Setup.Count];
+
+            for (var index = 0; index < layout.Setup.Count; index++)
+            {
+                _handlerSetupCommands[index] = BuildCommand(
+                    dependencies,
+                    layout
+                        .Setup[index]
+                        .ToString());
+            }
+
+            _handlerBodyCommand = BuildCommand(dependencies, layout.Body.ToString());
+            _handlerCleanupCommands = new IRelationalCommand[layout.Cleanup.Count];
+
+            for (var index = 0; index < layout.Cleanup.Count; index++)
+            {
+                _handlerCleanupCommands[index] = BuildCommand(
+                    dependencies,
+                    layout
+                        .Cleanup[index]
+                        .ToString());
+            }
+
+            return;
+        }
+
+        _handlerSetupCommands = [];
+        _handlerCleanupCommands = [];
         _captureCommand = BuildCommand(dependencies, "SELECT @@SESSION.sql_mode;");
         _enableCommand = BuildCommand(
             dependencies,
@@ -42,6 +76,11 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
     {
         ArgumentNullException.ThrowIfNull(connection);
 
+        if (_handlerBodyCommand is not null)
+        {
+            return ExecuteHandlerScope(connection, parameterValues);
+        }
+
         var openedConnection = connection.Open();
         string? originalSqlMode = null;
         Exception? primaryException = null;
@@ -50,8 +89,8 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         try
         {
             originalSqlMode = CaptureOriginalSqlMode(connection);
-            Execute(_enableCommand, connection);
-            result = Execute(_bodyCommand, connection, parameterValues);
+            Execute(_enableCommand!, connection);
+            result = Execute(_bodyCommand!, connection, parameterValues);
         }
         catch (Exception exception)
         {
@@ -78,6 +117,12 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
     {
         ArgumentNullException.ThrowIfNull(connection);
 
+        if (_handlerBodyCommand is not null)
+        {
+            return await ExecuteHandlerScopeAsync(connection, parameterValues, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         var openedConnection = await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -90,9 +135,9 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         {
             originalSqlMode = await CaptureOriginalSqlModeAsync(connection, cancellationToken)
                 .ConfigureAwait(false);
-            await ExecuteAsync(_enableCommand, connection, null, cancellationToken)
+            await ExecuteAsync(_enableCommand!, connection, null, cancellationToken)
                 .ConfigureAwait(false);
-            result = await ExecuteAsync(_bodyCommand, connection, parameterValues, cancellationToken)
+            result = await ExecuteAsync(_bodyCommand!, connection, parameterValues, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (Exception exception)
@@ -123,7 +168,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         IRelationalConnection connection
     )
     {
-        var value = _captureCommand.ExecuteScalar(CreateParameters(connection));
+        var value = _captureCommand!.ExecuteScalar(CreateParameters(connection));
 
         return value as string ?? throw new InvalidOperationException("The server returned no session sql_mode value.");
     }
@@ -133,7 +178,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         CancellationToken cancellationToken
     )
     {
-        var value = await _captureCommand
+        var value = await _captureCommand!
             .ExecuteScalarAsync(CreateParameters(connection), cancellationToken)
             .ConfigureAwait(false);
 
@@ -148,7 +193,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         try
         {
             Execute(
-                _restoreCommand,
+                _restoreCommand!,
                 connection,
                 new Dictionary<string, object?>
                 {
@@ -172,7 +217,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         {
             // Session cleanup must outlive caller cancellation so pooled state cannot leak.
             await ExecuteAsync(
-                    _restoreCommand,
+                    _restoreCommand!,
                     connection,
                     new Dictionary<string, object?>
                     {
@@ -187,6 +232,130 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         {
             return exception;
         }
+    }
+
+    private int ExecuteHandlerScope(
+        IRelationalConnection connection,
+        IReadOnlyDictionary<string, object?>? parameterValues
+    )
+    {
+        var openedConnection = connection.Open();
+        Exception? primaryException = null;
+        var result = 0;
+
+        try
+        {
+            foreach (var setupCommand in _handlerSetupCommands)
+            {
+                _ = Execute(setupCommand, connection);
+            }
+
+            result = Execute(_handlerBodyCommand!, connection, parameterValues);
+        }
+        catch (Exception exception)
+        {
+            primaryException = exception;
+        }
+
+        var cleanupException = ExecuteHandlerCleanup(connection);
+
+        if (openedConnection || cleanupException is not null)
+        {
+            cleanupException = CombineCleanupFailures(cleanupException, CloseConnection(connection));
+        }
+
+        ThrowIfFailed(connection, primaryException, cleanupException);
+
+        return result;
+    }
+
+    private async Task<int> ExecuteHandlerScopeAsync(
+        IRelationalConnection connection,
+        IReadOnlyDictionary<string, object?>? parameterValues,
+        CancellationToken cancellationToken
+    )
+    {
+        var openedConnection = await connection
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        Exception? primaryException = null;
+        var result = 0;
+
+        try
+        {
+            foreach (var setupCommand in _handlerSetupCommands)
+            {
+                _ = await ExecuteAsync(setupCommand, connection, parameterValues: null, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            result = await ExecuteAsync(_handlerBodyCommand!, connection, parameterValues, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            primaryException = exception;
+        }
+
+        var cleanupException = await ExecuteHandlerCleanupAsync(connection)
+            .ConfigureAwait(false);
+
+        if (openedConnection || cleanupException is not null)
+        {
+            cleanupException = CombineCleanupFailures(
+                cleanupException,
+                await CloseConnectionAsync(connection)
+                    .ConfigureAwait(false));
+        }
+
+        await ThrowIfFailedAsync(connection, primaryException, cleanupException)
+            .ConfigureAwait(false);
+
+        return result;
+    }
+
+    private Exception? ExecuteHandlerCleanup(
+        IRelationalConnection connection
+    )
+    {
+        Exception? cleanupException = null;
+
+        foreach (var cleanupCommand in _handlerCleanupCommands)
+        {
+            try
+            {
+                Execute(cleanupCommand, connection);
+            }
+            catch (Exception exception)
+            {
+                cleanupException = CombineCleanupFailures(cleanupException, exception);
+            }
+        }
+
+        return cleanupException;
+    }
+
+    private async Task<Exception?> ExecuteHandlerCleanupAsync(
+        IRelationalConnection connection
+    )
+    {
+        Exception? cleanupException = null;
+
+        foreach (var cleanupCommand in _handlerCleanupCommands)
+        {
+            try
+            {
+                await ExecuteAsync(cleanupCommand, connection, parameterValues: null, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                cleanupException = CombineCleanupFailures(cleanupException, exception);
+            }
+        }
+
+        return cleanupException;
     }
 
     private int Execute(
@@ -340,7 +509,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         }
 
         return new AggregateException(
-            "The migration session-state restore and connection close both failed.",
+            "Multiple migration cleanup actions failed.",
             firstException,
             secondException);
     }

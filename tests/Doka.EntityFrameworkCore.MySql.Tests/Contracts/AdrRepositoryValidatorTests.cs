@@ -66,7 +66,7 @@ public sealed class AdrRepositoryValidatorTests
         var report = AdrRepositoryValidator.Validate(FindRepositoryRoot());
 
         Assert.True(report.IsValid, FormatErrors(report));
-        Assert.Equal(27, report.Documents.Count);
+        Assert.Equal(28, report.Documents.Count);
     }
 
     [Fact]
@@ -301,6 +301,8 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("migrate-direct", deploymentGate, StringComparison.Ordinal);
         Assert.Contains("database update", deploymentGate, StringComparison.Ordinal);
         Assert.Contains("execute_script", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains("assert_failed_script_terminates_session", deploymentGate, StringComparison.Ordinal);
+        Assert.Contains("DokaFailedScopedScriptContinuation", deploymentGate, StringComparison.Ordinal);
         Assert.Contains("MigrationWorkflowHandlerEvidence", deploymentGate, StringComparison.Ordinal);
         Assert.Contains(
             "bash \"${repo_root}/eng/testing/build-migration-bundle.sh\" \"${bundle_path}\"",

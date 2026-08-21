@@ -130,19 +130,23 @@ internal static class MigrationWorkflowCommand
         var initialTime = new TimeOnly(12, 34, 56, 123, 456);
         var updatedDate = new DateOnly(2028, 2, 3);
         var updatedTime = new TimeOnly(4, 5, 6, 654, 321);
+        var repairedTimestamp = new DateTime(2026, 8, 21, 12, 34, 56);
 
         return items[0].Id == 1
             && items[0].Name == "migration-safety-readback"
             && items[0].EffectiveDate == initialDate
             && items[0].EffectiveTime == initialTime
+            && items[0].OccurredAt == repairedTimestamp
             && items[1].Id == 2
             && items[1].Name == "added-default-readback"
             && items[1].EffectiveDate == initialDate
             && items[1].EffectiveTime == initialTime
+            && items[1].OccurredAt == repairedTimestamp
             && items[2].Id == 3
             && items[2].Name == "altered-default-readback"
             && items[2].EffectiveDate == updatedDate
-            && items[2].EffectiveTime == updatedTime;
+            && items[2].EffectiveTime == updatedTime
+            && items[2].OccurredAt == repairedTimestamp;
     }
 
     private static async Task<int> VerifyRolledBackAsync()

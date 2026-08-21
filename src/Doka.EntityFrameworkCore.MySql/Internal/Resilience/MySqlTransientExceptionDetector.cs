@@ -39,13 +39,27 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
 
         var current = exception;
         var depth = 0;
+        var visited = new HashSet<Exception>(ReferenceEqualityComparer.Instance);
 
         while (current is not null
-               && depth < MaxInnerExceptionDepth)
+               && depth < MaxInnerExceptionDepth
+               && visited.Add(current))
         {
             if (current is MySqlException mySqlException)
             {
-                return IsKnownRetryableErrorCode(mySqlException.ErrorCode) || mySqlException.IsTransient;
+                if (IsKnownRetryableErrorCode(mySqlException.ErrorCode)
+                    || mySqlException.IsTransient)
+                {
+                    return true;
+                }
+
+                // Connector failures without a server error number are
+                // transport wrappers. Continue into their bounded cause chain;
+                // a real server error remains an authoritative terminal verdict.
+                if (mySqlException.Number != 0)
+                {
+                    return false;
+                }
             }
 
             if (current is SocketException or IOException)
@@ -66,9 +80,11 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
     {
         var current = exception;
         var depth = 0;
+        var visited = new HashSet<Exception>(ReferenceEqualityComparer.Instance);
 
         while (current is not null
-               && depth < MaxInnerExceptionDepth)
+               && depth < MaxInnerExceptionDepth
+               && visited.Add(current))
         {
             if (current is MySqlMigrationSessionCleanupException)
             {
@@ -91,17 +107,18 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
         var classification = TerminalCondition.None;
         var current = exception;
         var depth = 0;
+        var visited = new HashSet<Exception>(ReferenceEqualityComparer.Instance);
 
         while (current is not null
-               && depth < MaxInnerExceptionDepth)
+               && depth < MaxInnerExceptionDepth
+               && visited.Add(current))
         {
             if (current is OperationCanceledException)
             {
                 classification |= TerminalCondition.Cancellation;
             }
 
-            if (current is TimeoutException
-                || current is MySqlException { ErrorCode: MySqlErrorCode.CommandTimeoutExpired })
+            if (current is TimeoutException or MySqlException { ErrorCode: MySqlErrorCode.CommandTimeoutExpired })
             {
                 classification |= TerminalCondition.CommandTimeout;
             }

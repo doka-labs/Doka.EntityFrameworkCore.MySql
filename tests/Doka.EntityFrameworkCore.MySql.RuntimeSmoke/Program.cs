@@ -119,13 +119,20 @@ public static class Program
             ],
             context.Model);
 
-        if (commands.Count != 3
+        if (commands.Count != 4
             || !string.Equals(commands[0].CommandText.TrimEnd(), "SELECT 1;", StringComparison.Ordinal)
             || !commands[0].TransactionSuppressed
             || !string.Equals(commands[1].CommandText, "SELECT 2;", StringComparison.Ordinal)
             || commands[1].TransactionSuppressed
-            || !string.Equals(commands[2].CommandText, "SELECT 3;", StringComparison.Ordinal)
-            || commands[2].TransactionSuppressed)
+            || !string.Equals(
+                commands[2].CommandText,
+                "SET @runtime_smoke_scope = 1;"
+                + "SELECT @runtime_smoke_scope;"
+                + "SET @runtime_smoke_scope = NULL;",
+                StringComparison.Ordinal)
+            || commands[2].TransactionSuppressed
+            || !string.Equals(commands[3].CommandText, "SELECT 3;", StringComparison.Ordinal)
+            || commands[3].TransactionSuppressed)
         {
             throw new InvalidOperationException(
                 "The package-only migration-operation handlers did not preserve dispatch or command boundaries.");
@@ -203,6 +210,25 @@ public static class Program
         {
             throw new InvalidOperationException(
                 "A package-only handler-authored command was incorrectly assigned provider semantics.");
+        }
+
+        var handlerScoped = handler.LastHandlerScopedCommand
+            ?? throw new InvalidOperationException("The handler-authored scope was not captured.");
+        if (!handlerScoped.Fragments
+                .Select(fragment => fragment.Kind)
+                .SequenceEqual(
+                [
+                    MySqlMigrationCommandFragmentKind.Setup,
+                    MySqlMigrationCommandFragmentKind.Body,
+                    MySqlMigrationCommandFragmentKind.Cleanup,
+                ])
+            || !string.Equals(
+                handlerScoped.CommandText,
+                string.Concat(handlerScoped.Fragments.Select(fragment => fragment.CommandText.ToString())),
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The package-only handler scope did not preserve its validated execution roles.");
         }
     }
 
@@ -352,6 +378,8 @@ public static class Program
 
         public MySqlMigrationOperationContext? LastContext { get; private set; }
 
+        public MySqlMigrationCommandSpec? LastHandlerScopedCommand { get; private set; }
+
         public MySqlMigrationCommandSpec? LastOpaqueCommand { get; private set; }
 
         public MySqlMigrationCommandSpec? LastOrdinaryCommand { get; private set; }
@@ -380,13 +408,18 @@ public static class Program
                     Comment = "path\\segment",
                 });
             var opaqueCommand = MySqlMigrationCommandSpec.Create("SELECT 2;");
+            var handlerScopedCommand = MySqlMigrationCommandSpec.CreateScoped(
+                ["SET @runtime_smoke_scope = 1;"],
+                "SELECT @runtime_smoke_scope;",
+                ["SET @runtime_smoke_scope = NULL;"]);
 
             LastOrdinaryCommand = baseline.Single();
             LastScopedCommand = scopedBaseline.Single();
             LastOpaqueCommand = opaqueCommand;
+            LastHandlerScopedCommand = handlerScopedCommand;
 
             return MySqlMigrationOperationResult.Generated(
-                baseline.Append(opaqueCommand),
+                baseline.Append(opaqueCommand).Append(handlerScopedCommand),
                 "runtime_smoke");
         }
     }

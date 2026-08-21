@@ -338,6 +338,24 @@ public sealed class MySqlMigrationOperationHandlerTests
         Assert.Equal(command.CommandText, fragment.CommandText.ToString());
     }
 
+    [Fact]
+    public void Handler_scoped_command_materializes_provider_owned_executor()
+    {
+        using var serviceProvider = CreateServiceProvider([typeof(ScopedCommandHandler)], registerBeforeProvider: true);
+
+        using var context = CreateContext(serviceProvider);
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+
+        var command = Assert.Single(generator.Generate([new FirstCustomOperation("scoped")], context.Model));
+        var scopedCommand = Assert.IsType<MySqlScopedMigrationCommand>(command);
+
+        Assert.True(command.TransactionSuppressed);
+        Assert.Equal(MySqlMigrationCommandScopeKind.Handler, scopedCommand.Layout.ScopeKind);
+        Assert.Equal(2, scopedCommand.Layout.Setup.Count);
+        Assert.Equal(2, scopedCommand.Layout.Cleanup.Count);
+        Assert.Equal("SELECT @first + @second;\n", scopedCommand.Layout.Body.ToString());
+    }
+
     [Theory]
     [InlineData("create")]
     [InlineData("add")]
@@ -945,6 +963,31 @@ public sealed class MySqlMigrationOperationHandlerTests
                 [MySqlMigrationCommandSpec.Create("SELECT 3;")],
                 "generated");
         }
+    }
+
+    private sealed class ScopedCommandHandler : IMySqlMigrationOperationHandler
+    {
+        public string HandlerId => "tests.scoped";
+
+        public Type OperationType => typeof(FirstCustomOperation);
+
+        public MySqlMigrationOperationResult Generate(
+            MySqlMigrationOperationContext context
+        ) => MySqlMigrationOperationResult.Generated(
+            [
+                MySqlMigrationCommandSpec.CreateScoped(
+                    [
+                        "SET @first = 1;\n",
+                        "SET @second = 2;\n",
+                    ],
+                    "SELECT @first + @second;\n",
+                    [
+                        "SET @first = NULL;\n",
+                        "SET @second = NULL;\n",
+                    ],
+                    transactionSuppressed: true),
+            ],
+            "generated");
     }
 
     private sealed class DuplicateIdHandler : IMySqlMigrationOperationHandler

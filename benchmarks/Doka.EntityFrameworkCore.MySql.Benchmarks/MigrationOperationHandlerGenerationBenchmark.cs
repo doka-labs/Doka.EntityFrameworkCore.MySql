@@ -52,8 +52,9 @@ public class MigrationOperationHandlerGenerationBenchmark
     }
 
     /// <summary>
-    /// Generates opaque, ordinary baseline, and scoped baseline commands for
-    /// the complete operation-count and engine-family matrix.
+    /// Generates opaque, handler-scoped, ordinary baseline, and provider-scoped
+    /// baseline commands for the complete operation-count and engine-family
+    /// matrix.
     /// </summary>
     /// <returns>
     /// A checksum of command counts and SQL lengths that prevents dead-code
@@ -188,11 +189,18 @@ public class MigrationOperationHandlerGenerationBenchmark
                     Comment = "path\\segment",
                 });
 
+            var handlerOwned = operation.Ordinal % 2 == 0
+                ? MySqlMigrationCommandSpec.CreateScoped(
+                    ["SET @handler_benchmark_scope = 1;"],
+                    "SELECT @handler_benchmark_scope;",
+                    ["SET @handler_benchmark_scope = NULL;"])
+                : MySqlMigrationCommandSpec.Create("SELECT 1;");
+
             return MySqlMigrationOperationResult.Generated(
                 [
                     ordinary.Single(),
                     scoped.Single(),
-                    MySqlMigrationCommandSpec.Create("SELECT 1;"),
+                    handlerOwned,
                 ],
                 "generated");
         }

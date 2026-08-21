@@ -156,6 +156,13 @@ public sealed class MySqlColumnDefaultIntegrationTests
                     connection,
                     tableName)
                 .ConfigureAwait(false);
+            await AssertConstrainedNullableRepairAsync(
+                    generator,
+                    context.Model,
+                    relationalConnection,
+                    connection,
+                    tableName)
+                .ConfigureAwait(false);
 
             if (!serverVersion.IsMariaDb)
             {
@@ -168,6 +175,87 @@ public sealed class MySqlColumnDefaultIntegrationTests
             await ExecuteRawAsync(connection, $"DROP TABLE IF EXISTS `{tableName}`;")
                 .ConfigureAwait(false);
         }
+
+        await AssertFailedRuntimeMigrationDoesNotAdvanceHistoryAsync(connection, serverVersion, useDatabaseFacade: true)
+            .ConfigureAwait(false);
+        await AssertFailedRuntimeMigrationDoesNotAdvanceHistoryAsync(
+                connection,
+                serverVersion,
+                useDatabaseFacade: false)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task AssertFailedRuntimeMigrationDoesNotAdvanceHistoryAsync(
+        MySqlConnection connection,
+        MySqlServerVersion serverVersion,
+        bool useDatabaseFacade
+    )
+    {
+        await DropTimestampRepairMigrationObjectsAsync(connection)
+            .ConfigureAwait(false);
+
+        try
+        {
+            await using var context = new TimestampRepairMigrationContext(
+                IntegrationTestDbContextOptions
+                    .Create<TimestampRepairMigrationContext>()
+                    .UseMySql(
+                        connection,
+                        serverVersion,
+                        options => options
+                            .MigrationsAssembly(typeof(TimestampRepairMigrationContext).Assembly.FullName!)
+                            .MigrationsHistoryTable(TimestampRepairMigrationContract.HistoryTable))
+                    .Options);
+
+            var exception = useDatabaseFacade
+                ? await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                    context.Database.MigrateAsync(CancellationToken.None))
+                : await Assert.ThrowsAsync<InvalidOperationException>(() => context
+                    .GetService<IMigrator>()
+                    .MigrateAsync(cancellationToken: CancellationToken.None));
+
+            Assert.Contains(nameof(AlterColumnOperation), exception.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain(TimestampRepairMigrationContract.Table, exception.Message, StringComparison.Ordinal);
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT GROUP_CONCAT(`MigrationId` ORDER BY `MigrationId`) "
+                + $"FROM `{TimestampRepairMigrationContract.HistoryTable}`;";
+
+            Assert.Equal(
+                TimestampRepairMigrationContract.InitialMigration,
+                Convert.ToString(
+                    await command
+                        .ExecuteScalarAsync(CancellationToken.None)
+                        .ConfigureAwait(false),
+                    CultureInfo.InvariantCulture));
+
+            command.CommandText = "SELECT COUNT(*) "
+                + $"FROM `{TimestampRepairMigrationContract.Table}` "
+                + "WHERE `OccurredAt` IS NULL;";
+
+            Assert.Equal(
+                1L,
+                Convert.ToInt64(
+                    await command
+                        .ExecuteScalarAsync(CancellationToken.None)
+                        .ConfigureAwait(false),
+                    CultureInfo.InvariantCulture));
+        }
+        finally
+        {
+            await DropTimestampRepairMigrationObjectsAsync(connection)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private static async Task DropTimestampRepairMigrationObjectsAsync(
+        MySqlConnection connection
+    )
+    {
+        await ExecuteRawAsync(connection, $"DROP TABLE IF EXISTS `{TimestampRepairMigrationContract.Table}`;")
+            .ConfigureAwait(false);
+        await ExecuteRawAsync(connection, $"DROP TABLE IF EXISTS `{TimestampRepairMigrationContract.HistoryTable}`;")
+            .ConfigureAwait(false);
     }
 
     private static CreateTableOperation CreateTableOperation(
@@ -244,6 +332,67 @@ public sealed class MySqlColumnDefaultIntegrationTests
                 ClrType = typeof(DateTime),
                 ColumnType = "datetime(6)",
                 IsNullable = true,
+            });
+        operation.Columns.Add(
+            new AddColumnOperation
+            {
+                Table = tableName,
+                Name = "RepairTimestamp",
+                ClrType = typeof(DateTime),
+                ColumnType = "timestamp(6)",
+                IsNullable = true,
+            });
+        operation.Columns.Add(
+            new AddColumnOperation
+            {
+                Table = tableName,
+                Name = "InvalidRepairTimestamp",
+                ClrType = typeof(DateTime),
+                ColumnType = "timestamp(6)",
+                IsNullable = true,
+            });
+        operation.Columns.Add(
+            new AddColumnOperation
+            {
+                Table = tableName,
+                Name = "RepairJson",
+                ClrType = typeof(string),
+                ColumnType = "json",
+                IsNullable = true,
+            });
+        operation.Columns.Add(
+            new AddColumnOperation
+            {
+                Table = tableName,
+                Name = "RepairSpatial",
+                ClrType = typeof(byte[]),
+                ColumnType = "point",
+                IsNullable = true,
+            });
+        operation.Columns.Add(
+            new AddColumnOperation
+            {
+                Table = tableName,
+                Name = "RepairEnum",
+                ClrType = typeof(string),
+                ColumnType = "enum('alpha','beta')",
+                IsNullable = true,
+            });
+        operation.Columns.Add(
+            new AddColumnOperation
+            {
+                Table = tableName,
+                Name = "RepairChecked",
+                ClrType = typeof(int),
+                ColumnType = "int",
+                IsNullable = true,
+            });
+        operation.CheckConstraints.Add(
+            new AddCheckConstraintOperation
+            {
+                Name = $"CK_{tableName}_RepairChecked",
+                Table = tableName,
+                Sql = "`RepairChecked` > 0",
             });
         var spatialColumn = new AddColumnOperation
         {
@@ -457,10 +606,25 @@ public sealed class MySqlColumnDefaultIntegrationTests
         string tableName
     )
     {
+        var timestampRepair = CreateRequiredColumnRepair<DateTime>(
+            tableName,
+            "RepairTimestamp",
+            "timestamp(6)");
+        timestampRepair.DefaultValueSql = "CURRENT_TIMESTAMP(6)";
+
         MigrationOperation[] operations =
         [
-            CreateRequiredTemporalRepair<DateOnly>(tableName, "RepairDate", "date"),
-            CreateRequiredTemporalRepair<DateTime>(tableName, "RepairDateTime", "datetime(6)"),
+            CreateRequiredColumnRepair<DateOnly>(
+                tableName,
+                "RepairDate",
+                "date",
+                new DateOnly(2026, 8, 21)),
+            CreateRequiredColumnRepair<DateTime>(
+                tableName,
+                "RepairDateTime",
+                "datetime(6)",
+                new DateTime(2026, 8, 21, 12, 34, 56)),
+            timestampRepair,
         ];
 
         await ExecuteAsync(generator, model, relationalConnection, operations)
@@ -468,8 +632,100 @@ public sealed class MySqlColumnDefaultIntegrationTests
 
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT COUNT(*) FROM `{tableName}` "
-            + "WHERE `RepairDate` = DATE '0001-01-01' "
-            + "AND `RepairDateTime` = TIMESTAMP '0001-01-01 00:00:00';";
+            + "WHERE `RepairDate` = DATE '2026-08-21' "
+            + "AND `RepairDateTime` = TIMESTAMP '2026-08-21 12:34:56' "
+            + "AND `RepairTimestamp` IS NOT NULL;";
+
+        Assert.Equal(
+            2L,
+            Convert.ToInt64(
+                await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
+                CultureInfo.InvariantCulture));
+
+        var invalidRepair = CreateRequiredColumnRepair<DateTime>(
+            tableName,
+            "InvalidRepairTimestamp",
+            "timestamp(6)");
+
+        invalidRepair.DefaultValueSql = "TIMESTAMP '0001-01-01 00:00:00'";
+
+        var exception = await Assert.ThrowsAsync<MySqlException>(() =>
+            ExecuteAsync(generator, model, relationalConnection, [invalidRepair]));
+
+        Assert.Equal(1292, exception.Number);
+
+        command.CommandText = "SELECT IS_NULLABLE FROM information_schema.COLUMNS "
+            + "WHERE TABLE_SCHEMA = DATABASE() "
+            + $"AND TABLE_NAME = '{tableName}' "
+            + "AND COLUMN_NAME = 'InvalidRepairTimestamp';";
+
+        Assert.Equal(
+            "YES",
+            Convert.ToString(
+                await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
+                CultureInfo.InvariantCulture));
+    }
+
+    private static async Task AssertConstrainedNullableRepairAsync(
+        IMigrationsSqlGenerator generator,
+        IModel model,
+        IRelationalConnection relationalConnection,
+        MySqlConnection connection,
+        string tableName
+    )
+    {
+        AlterColumnOperation[] implicitRepairs =
+        [
+            CreateRequiredColumnRepair<string>(tableName, "RepairJson", "json"),
+            CreateRequiredColumnRepair<byte[]>(tableName, "RepairSpatial", "point"),
+            CreateRequiredColumnRepair<string>(tableName, "RepairEnum", "enum('alpha','beta')"),
+            CreateRequiredColumnRepair<int>(tableName, "RepairChecked", "int"),
+        ];
+
+        foreach (var implicitRepair in implicitRepairs)
+        {
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                generator.Generate([implicitRepair], model));
+
+            Assert.Contains("application contract", exception.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain(implicitRepair.Name, exception.Message, StringComparison.Ordinal);
+        }
+
+        var jsonRepair = CreateRequiredColumnRepair<string>(
+            tableName,
+            "RepairJson",
+            "json",
+            "{}");
+        var spatialRepair = CreateRequiredColumnRepair<byte[]>(
+            tableName,
+            "RepairSpatial",
+            "point");
+        spatialRepair.DefaultValueSql = "ST_GeomFromText('POINT(0 0)')";
+        var enumRepair = CreateRequiredColumnRepair<string>(
+            tableName,
+            "RepairEnum",
+            "enum('alpha','beta')",
+            "alpha");
+        var checkedRepair = CreateRequiredColumnRepair<int>(
+            tableName,
+            "RepairChecked",
+            "int",
+            1);
+
+        await ExecuteAsync(
+                generator,
+                model,
+                relationalConnection,
+                [jsonRepair, spatialRepair, enumRepair, checkedRepair])
+            .ConfigureAwait(false);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT COUNT(*) FROM `{tableName}` "
+            + "WHERE JSON_LENGTH(`RepairJson`) = 0 "
+            + "AND ST_X(`RepairSpatial`) = 0 "
+            + "AND ST_Y(`RepairSpatial`) = 0 "
+            + "AND `RepairEnum` = 'alpha' "
+            + "AND `RepairChecked` = 1;";
 
         Assert.Equal(
             2L,
@@ -478,10 +734,11 @@ public sealed class MySqlColumnDefaultIntegrationTests
                 CultureInfo.InvariantCulture));
     }
 
-    private static AlterColumnOperation CreateRequiredTemporalRepair<TValue>(
+    private static AlterColumnOperation CreateRequiredColumnRepair<TValue>(
         string tableName,
         string columnName,
-        string columnType
+        string columnType,
+        object? defaultValue = null
     )
     {
         return new AlterColumnOperation
@@ -491,6 +748,7 @@ public sealed class MySqlColumnDefaultIntegrationTests
             ClrType = typeof(TValue),
             ColumnType = columnType,
             IsNullable = false,
+            DefaultValue = defaultValue,
             OldColumn =
             {
                 ClrType = typeof(TValue),
@@ -538,4 +796,75 @@ public sealed class MySqlColumnDefaultIntegrationTests
             DbContextOptions<ColumnDefaultContext> options
         ) : base(options) { }
     }
+}
+
+internal static class TimestampRepairMigrationContract
+{
+    public const string HistoryTable = "__DokaTimestampRepairHistory";
+    public const string InitialMigration = "20260821000000_TimestampRepairInitial";
+    public const string InvalidMigration = "20260821000100_TimestampRepairInvalid";
+    public const string Table = "DokaTimestampRepairProbe";
+}
+
+internal sealed class TimestampRepairMigrationContext : DbContext
+{
+    public TimestampRepairMigrationContext(
+        DbContextOptions<TimestampRepairMigrationContext> options
+    ) : base(options) { }
+}
+
+[DbContext(typeof(TimestampRepairMigrationContext))]
+[Migration(TimestampRepairMigrationContract.InitialMigration)]
+internal sealed class TimestampRepairInitialMigration : Migration
+{
+    protected override void Up(
+        MigrationBuilder migrationBuilder
+    )
+    {
+        migrationBuilder.CreateTable(
+            name: TimestampRepairMigrationContract.Table,
+            columns: table => new
+            {
+                Id = table.Column<int>(type: "int", nullable: false),
+                OccurredAt = table.Column<DateTime>(type: "timestamp(6)", nullable: true),
+            },
+            constraints: table =>
+                table.PrimaryKey("PK_DokaTimestampRepairProbe", column => column.Id));
+
+        migrationBuilder.InsertData(
+            table: TimestampRepairMigrationContract.Table,
+            columns: ["Id", "OccurredAt"],
+            columnTypes: ["int", "timestamp(6)"],
+            values: [1, null]);
+    }
+
+    protected override void Down(
+        MigrationBuilder migrationBuilder
+    ) => migrationBuilder.DropTable(TimestampRepairMigrationContract.Table);
+}
+
+[DbContext(typeof(TimestampRepairMigrationContext))]
+[Migration(TimestampRepairMigrationContract.InvalidMigration)]
+internal sealed class TimestampRepairInvalidMigration : Migration
+{
+    protected override void Up(
+        MigrationBuilder migrationBuilder
+    ) => migrationBuilder.AlterColumn<DateTime>(
+        name: "OccurredAt",
+        table: TimestampRepairMigrationContract.Table,
+        type: "timestamp(6)",
+        nullable: false,
+        oldClrType: typeof(DateTime),
+        oldType: "timestamp(6)",
+        oldNullable: true);
+
+    protected override void Down(
+        MigrationBuilder migrationBuilder
+    ) => migrationBuilder.AlterColumn<DateTime>(
+        name: "OccurredAt",
+        table: TimestampRepairMigrationContract.Table,
+        type: "timestamp(6)",
+        nullable: true,
+        oldClrType: typeof(DateTime),
+        oldType: "timestamp(6)");
 }

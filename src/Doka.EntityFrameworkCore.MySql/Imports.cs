@@ -3,6 +3,7 @@ global using System.Buffers;
 global using System.Collections.Concurrent;
 global using System.Collections.Frozen;
 global using System.Collections.Generic;
+global using System.Collections.ObjectModel;
 global using System.Data;
 global using System.Data.Common;
 global using System.Diagnostics;

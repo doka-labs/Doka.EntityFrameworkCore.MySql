@@ -40,6 +40,10 @@ namespace Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow.Migrations
                         .HasColumnType("time(6)")
                         .HasDefaultValue(new TimeOnly(12, 34, 56, 123, 456));
 
+                    b.Property<DateTime?>("OccurredAt")
+                        .HasPrecision(6)
+                        .HasColumnType("timestamp(6)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)

@@ -148,6 +148,7 @@ Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder
 Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder.ScaffoldTextGuidsAsGuids() -> Doka.EntityFrameworkCore.MySql.MySqlReverseEngineeringOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping
 static Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec.Create(string! commandText, bool transactionSuppressed = false) -> Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec!
+static Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec.CreateScoped(System.Collections.Generic.IEnumerable<string!>! setupCommands, string! bodyCommand, System.Collections.Generic.IEnumerable<string!>! cleanupCommands, bool transactionSuppressed = false) -> Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec!
 static Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult.Generated(System.Collections.Generic.IEnumerable<Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec!>! commands, string! outcomeCode) -> Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult!
 static Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping.Default.get -> Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping!
 Doka.EntityFrameworkCore.MySql.MySqlRowVersionTypeMapping.MySqlRowVersionTypeMapping() -> void
