@@ -223,6 +223,59 @@ public sealed class MySqlTypeMappingBaselineTests
         Assert.Equal("'27:00:00'", timeSpanSecondMapping.GenerateSqlLiteral(timeSpan));
     }
 
+    [Theory]
+    [InlineData(0, "TIME '12:34:56'", "'27:00:00'", "'-27:00:00'")]
+    [InlineData(1, "TIME '12:34:56.1'", "'27:00:00.1'", "'-27:00:00.1'")]
+    [InlineData(2, "TIME '12:34:56.12'", "'27:00:00.12'", "'-27:00:00.12'")]
+    [InlineData(3, "TIME '12:34:56.123'", "'27:00:00.123'", "'-27:00:00.123'")]
+    [InlineData(4, "TIME '12:34:56.1234'", "'27:00:00.1234'", "'-27:00:00.1234'")]
+    [InlineData(5, "TIME '12:34:56.12345'", "'27:00:00.12345'", "'-27:00:00.12345'")]
+    [InlineData(6, "TIME '12:34:56.123456'", "'27:00:00.123456'", "'-27:00:00.123456'")]
+    public void Time_literals_cover_every_supported_precision(
+        int precision,
+        string expectedTimeOnly,
+        string expectedPositiveTimeSpan,
+        string expectedNegativeTimeSpan
+    )
+    {
+        var timeOnlyMapping = new MySqlTimeOnlyTypeMapping($"time({precision})", precision);
+        var timeSpanMapping = new MySqlTimeSpanTypeMapping($"time({precision})", precision);
+        var fraction = TimeSpan.FromTicks(1_234_567);
+        var timeOnly = new TimeOnly(12, 34, 56).Add(fraction);
+        var timeSpan = TimeSpan.FromHours(27) + fraction;
+
+        Assert.Equal(expectedTimeOnly, timeOnlyMapping.GenerateSqlLiteral(timeOnly));
+        Assert.Equal(expectedPositiveTimeSpan, timeSpanMapping.GenerateSqlLiteral(timeSpan));
+        Assert.Equal(expectedNegativeTimeSpan, timeSpanMapping.GenerateSqlLiteral(-timeSpan));
+    }
+
+    [Fact]
+    public void Temporal_literals_are_culture_independent_and_canonicalize_negative_zero()
+    {
+        var previousCulture = CultureInfo.CurrentCulture;
+        var previousUiCulture = CultureInfo.CurrentUICulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("ar-SA");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("de-DE");
+            var timeOnlyMapping = new MySqlTimeOnlyTypeMapping("time(6)", 6);
+            var timeSpanMapping = new MySqlTimeSpanTypeMapping("time(6)", 6);
+
+            Assert.Equal(
+                "TIME '23:59:59.999999'",
+                timeOnlyMapping.GenerateSqlLiteral(TimeOnly.MaxValue));
+            Assert.Equal(
+                "'00:00:00.000000'",
+                timeSpanMapping.GenerateSqlLiteral(TimeSpan.FromTicks(-9)));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+            CultureInfo.CurrentUICulture = previousUiCulture;
+        }
+    }
+
     /// <summary>
     /// Verifies that both CLR time mappings expose EF Core's compiled-model
     /// defaults and preserve precision when cloned from those defaults.
@@ -305,6 +358,8 @@ public sealed class MySqlTypeMappingBaselineTests
             typeMappingSource.FindMapping(typeof(TimeOnly), "time(7)"));
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             typeMappingSource.FindMapping(typeof(TimeSpan), "time(7)"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new MySqlTimeOnlyTypeMapping("time", -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new MySqlTimeSpanTypeMapping("time", -1));
     }
 
     /// <summary>

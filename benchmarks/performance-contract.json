@@ -1,6 +1,6 @@
 {
   "schemaVersion": 10,
-  "contractVersion": "2026-08-14",
+  "contractVersion": "2026-08-22",
   "evidenceMaximumAgeHours": 12,
   "hostPreconditions": {
     "admissionMetric": "interval-host-cpu-utilization",
@@ -661,6 +661,117 @@
       "method": "JsonElementEqualsLoop",
       "metric": "allocationRatio",
       "maximum": 0.2
+    },
+    {
+      "id": "bulk-sql-generation-allocation",
+      "type": "BulkInsertSqlGenerationBenchmark",
+      "method": "GenerateWriteOnly1000Rows",
+      "metric": "allocatedBytes",
+      "maximum": 64
+    },
+    {
+      "id": "bulk-sql-generation-throughput",
+      "type": "BulkInsertSqlGenerationBenchmark",
+      "baselineMethod": "GenerateWriteOnly1000RowsWithPerRowFiltering",
+      "method": "GenerateWriteOnly1000Rows",
+      "metric": "meanRatio",
+      "maximum": 0.5
+    },
+    {
+      "id": "bulk-shape-comparison-allocation",
+      "type": "BulkInsertSqlGenerationBenchmark",
+      "method": "CompareSameShape1000Times",
+      "metric": "allocatedBytes",
+      "maximum": 0
+    },
+    {
+      "id": "bulk-shape-comparison-throughput",
+      "type": "BulkInsertSqlGenerationBenchmark",
+      "baselineMethod": "CompareSameShape1000TimesWithLinq",
+      "method": "CompareSameShape1000Times",
+      "metric": "meanRatio",
+      "maximum": 0.25
+    },
+    {
+      "id": "json-node-equality-allocation",
+      "type": "JsonComparerBenchmark",
+      "method": "JsonNodeEqualsLoop",
+      "metric": "allocatedBytes",
+      "maximum": 0
+    },
+    {
+      "id": "json-node-hash-allocation",
+      "type": "JsonComparerBenchmark",
+      "method": "JsonNodeHashLoop",
+      "metric": "allocatedBytes",
+      "maximum": 0
+    },
+    {
+      "id": "json-node-equality-throughput",
+      "type": "JsonComparerBenchmark",
+      "baselineMethod": "SerializedJsonNodeEqualsLoop",
+      "method": "JsonNodeEqualsLoop",
+      "metric": "meanRatio",
+      "maximum": 0.85
+    },
+    {
+      "id": "json-node-equality-bidirectional-throughput",
+      "type": "JsonComparerBenchmark",
+      "baselineMethod": "BidirectionalJsonNodeDeepEqualsLoop",
+      "method": "JsonNodeEqualsLoop",
+      "metric": "meanRatio",
+      "maximum": 0.75
+    },
+    {
+      "id": "json-node-hash-throughput",
+      "type": "JsonComparerBenchmark",
+      "baselineMethod": "SerializedJsonNodeHashLoop",
+      "method": "JsonNodeHashLoop",
+      "metric": "meanRatio",
+      "maximum": 0.9
+    },
+    {
+      "id": "parameter-size-noop-allocation",
+      "type": "ParameterSizeInterceptorBenchmark",
+      "method": "Process1000WithinSizeParameters",
+      "metric": "allocatedBytes",
+      "maximum": 0
+    },
+    {
+      "id": "parameter-size-noop-throughput",
+      "type": "ParameterSizeInterceptorBenchmark",
+      "baselineMethod": "Process1000WithinSizeParametersWithValueWriteback",
+      "method": "Process1000WithinSizeParameters",
+      "metric": "meanRatio",
+      "maximum": 0.2
+    },
+    {
+      "id": "migration-sql-mode-scope-allocation",
+      "type": "MigrationOperationHandlerGenerationBenchmark",
+      "method": "Generate256DdlCommentSqlModeScopes",
+      "metric": "allocatedBytes",
+      "maximum": 950000
+    },
+    {
+      "id": "timeonly-literal-allocation",
+      "type": "TemporalLiteralBenchmark",
+      "method": "GenerateTimeOnlyPrecision6Literal",
+      "metric": "allocatedBytes",
+      "maximum": 96
+    },
+    {
+      "id": "timespan-literal-allocation",
+      "type": "TemporalLiteralBenchmark",
+      "method": "GeneratePositiveTimeSpanPrecision6Literal",
+      "metric": "allocatedBytes",
+      "maximum": 80
+    },
+    {
+      "id": "negative-boundary-timespan-literal-allocation",
+      "type": "TemporalLiteralBenchmark",
+      "method": "GenerateNegativeBoundaryTimeSpanPrecision6Literal",
+      "metric": "allocatedBytes",
+      "maximum": 88
     },
     {
       "id": "translation-corpus-allocation",

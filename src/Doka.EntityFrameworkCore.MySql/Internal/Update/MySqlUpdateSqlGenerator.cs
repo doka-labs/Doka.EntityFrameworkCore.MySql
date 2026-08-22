@@ -51,16 +51,16 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
         ArgumentNullException.ThrowIfNull(commandStringBuilder);
         ArgumentNullException.ThrowIfNull(command);
 
-        if (!command.ColumnModifications.Any(c => c.IsRead))
+        if (!HasReadOperations(command.ColumnModifications))
         {
+            var writeOperations = CreateOperations(command.ColumnModifications, OperationKind.Write);
+
             AppendInsertCommand(
                 commandStringBuilder,
                 command.TableName,
                 command.Schema,
-                command
-                    .ColumnModifications.Where(c => c.IsWrite)
-                    .ToList(),
-                []);
+                writeOperations,
+                Array.Empty<IColumnModification>());
 
             requiresTransaction = false;
             return ResultSetMapping.NoResults;
@@ -225,7 +225,33 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
             return;
         }
 
-        base.AppendValues(commandStringBuilder, name, schema, operations);
+        commandStringBuilder.Append('(');
+
+        for (var index = 0; index < operations.Count; index++)
+        {
+            if (index > 0)
+            {
+                commandStringBuilder.Append(", ");
+            }
+
+            var operation = operations[index];
+            if (!operation.IsWrite)
+            {
+                commandStringBuilder.Append("DEFAULT");
+            }
+            else if (operation.UseCurrentValueParameter)
+            {
+                SqlGenerationHelper.GenerateParameterNamePlaceholder(
+                    commandStringBuilder,
+                    operation.ParameterName!);
+            }
+            else
+            {
+                AppendSqlLiteral(commandStringBuilder, operation, name, schema);
+            }
+        }
+
+        commandStringBuilder.Append(')');
     }
 
     /// <summary>
@@ -298,14 +324,12 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
                 out requiresTransaction);
         }
 
-        var firstCommand = modificationCommands[0];
-        var readOperations = firstCommand
-            .ColumnModifications.Where(o => o.IsRead)
-            .ToList();
-
-        var writeOperations = firstCommand
-            .ColumnModifications.Where(o => o.IsWrite)
-            .ToList();
+        var firstModifications = modificationCommands[0].ColumnModifications;
+        var readOperations = CreateOperations(firstModifications, OperationKind.Read);
+        var writeOperations = CreateOperations(
+            firstModifications,
+            OperationKind.Write,
+            out var reusableWriteOperations);
 
         if (readOperations.Count == 0)
         {
@@ -313,6 +337,7 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
                 commandStringBuilder,
                 modificationCommands,
                 writeOperations,
+                reusableWriteOperations,
                 out requiresTransaction);
         }
 
@@ -323,6 +348,7 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
                 modificationCommands,
                 writeOperations,
                 readOperations,
+                reusableWriteOperations,
                 out requiresTransaction);
         }
 
@@ -351,7 +377,8 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
     private ResultSetMapping AppendInsertMultipleRowsInSingleStatementOperation(
         StringBuilder commandStringBuilder,
         IReadOnlyList<IReadOnlyModificationCommand> modificationCommands,
-        List<IColumnModification> writeOperations,
+        IReadOnlyList<IColumnModification> writeOperations,
+        IColumnModification[]? reusableWriteOperations,
         out bool requiresTransaction
     )
     {
@@ -367,13 +394,22 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
             commandStringBuilder
                 .Append(',')
                 .AppendLine();
+            var currentWriteOperations =
+                modificationCommands[index].ColumnModifications;
+            if (reusableWriteOperations is not null)
+            {
+                PopulateOperations(
+                    modificationCommands[index].ColumnModifications,
+                    reusableWriteOperations,
+                    OperationKind.Write);
+                currentWriteOperations = reusableWriteOperations;
+            }
+
             AppendValues(
                 commandStringBuilder,
                 name,
                 schema,
-                modificationCommands[index]
-                    .ColumnModifications.Where(o => o.IsWrite)
-                    .ToList());
+                currentWriteOperations);
         }
 
         commandStringBuilder
@@ -396,8 +432,9 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
     private ResultSetMapping AppendBulkInsertReturningOperation(
         StringBuilder commandStringBuilder,
         IReadOnlyList<IReadOnlyModificationCommand> modificationCommands,
-        List<IColumnModification> writeOperations,
-        List<IColumnModification> readOperations,
+        IReadOnlyList<IColumnModification> writeOperations,
+        IReadOnlyList<IColumnModification> readOperations,
+        IColumnModification[]? reusableWriteOperations,
         out bool requiresTransaction
     )
     {
@@ -413,13 +450,22 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
             commandStringBuilder
                 .Append(',')
                 .AppendLine();
+
+            var currentWriteOperations = modificationCommands[index].ColumnModifications;
+            if (reusableWriteOperations is not null)
+            {
+                PopulateOperations(
+                    modificationCommands[index].ColumnModifications,
+                    reusableWriteOperations,
+                    OperationKind.Write);
+                currentWriteOperations = reusableWriteOperations;
+            }
+
             AppendValues(
                 commandStringBuilder,
                 name,
                 schema,
-                modificationCommands[index]
-                    .ColumnModifications.Where(o => o.IsWrite)
-                    .ToList());
+                currentWriteOperations);
         }
 
         commandStringBuilder.AppendLine();
@@ -455,13 +501,9 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
         out bool requiresTransaction
     )
     {
-        var writeColumns = command
-            .ColumnModifications.Where(c => c.IsWrite)
-            .ToList();
-
-        var readColumns = command
-            .ColumnModifications.Where(c => c.IsRead)
-            .ToList();
+        var writeColumns = CreateOperations(command.ColumnModifications, OperationKind.Write);
+        var readColumns = CreateOperations(command.ColumnModifications, OperationKind.Read);
+        var conditionColumns = CreateOperations(command.ColumnModifications, OperationKind.Condition);
 
         Debug.Assert(
             readColumns.Count > 0,
@@ -472,9 +514,7 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
             command.TableName,
             command.Schema,
             writeColumns,
-            command
-                .ColumnModifications.Where(c => c.IsCondition)
-                .ToList());
+            conditionColumns);
 
         // Strip the trailing terminator the base AppendInsertCommand wrote so we can
         // splice in the RETURNING clause before the statement terminator.
@@ -496,6 +536,105 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
         commandStringBuilder.AppendLine(SqlGenerationHelper.StatementTerminator);
         requiresTransaction = false;
         return ResultSetMapping.LastInResultSet;
+    }
+
+    private static bool HasReadOperations(
+        IReadOnlyList<IColumnModification> modifications
+    )
+    {
+        for (var index = 0; index < modifications.Count; index++)
+        {
+            if (modifications[index].IsRead)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IReadOnlyList<IColumnModification> CreateOperations(
+        IReadOnlyList<IColumnModification> modifications,
+        OperationKind kind
+    ) => CreateOperations(modifications, kind, out _);
+
+    private static IReadOnlyList<IColumnModification> CreateOperations(
+        IReadOnlyList<IColumnModification> modifications,
+        OperationKind kind,
+        out IColumnModification[]? reusableOperations
+    )
+    {
+        var operationCount = 0;
+        for (var index = 0; index < modifications.Count; index++)
+        {
+            if (IsOperation(modifications[index], kind))
+            {
+                operationCount++;
+            }
+        }
+
+        if (operationCount == modifications.Count)
+        {
+            reusableOperations = null;
+            return modifications;
+        }
+
+        reusableOperations = operationCount == 0
+            ? []
+            : new IColumnModification[operationCount];
+
+        if (operationCount != 0)
+        {
+            PopulateOperations(modifications, reusableOperations, kind);
+        }
+
+        return reusableOperations;
+    }
+
+    private static void PopulateOperations(
+        IReadOnlyList<IColumnModification> modifications,
+        IColumnModification[] destination,
+        OperationKind kind
+    )
+    {
+        var destinationIndex = 0;
+        for (var index = 0; index < modifications.Count; index++)
+        {
+            var modification = modifications[index];
+
+            if (IsOperation(modification, kind))
+            {
+                if (destinationIndex == destination.Length)
+                {
+                    throw new InvalidOperationException("Modification command shapes do not match.");
+                }
+
+                destination[destinationIndex++] = modification;
+            }
+        }
+
+        if (destinationIndex != destination.Length)
+        {
+            throw new InvalidOperationException("Modification command shapes do not match.");
+        }
+    }
+
+    private static bool IsOperation(
+        IColumnModification modification,
+        OperationKind kind
+    ) => kind switch
+    {
+        OperationKind.Read => modification.IsRead,
+        OperationKind.Write => modification.IsWrite,
+        OperationKind.Condition => modification.IsCondition,
+        _ => throw new UnreachableException(),
+    };
+
+    private enum OperationKind
+    {
+        Read,
+        Write,
+        Condition,
     }
 
     private void TrimTrailingStatementTerminator(

@@ -17,15 +17,15 @@ internal sealed class MySqlParameterSizeCommandInterceptor : DbCommandIntercepto
         DbCommand result
     )
     {
-        foreach (DbParameter parameter in result.Parameters)
+        for (var index = 0; index < result.Parameters.Count; index++)
         {
-            TruncateInputValue(parameter);
+            TruncateInputValue(result.Parameters[index]);
         }
 
         return result;
     }
 
-    private static void TruncateInputValue(
+    internal static void TruncateInputValue(
         DbParameter parameter
     )
     {
@@ -35,12 +35,18 @@ internal sealed class MySqlParameterSizeCommandInterceptor : DbCommandIntercepto
             return;
         }
 
-        parameter.Value = parameter.Value switch
+        var value = parameter.Value;
+        switch (value)
         {
-            string value when value.Length > parameter.Size => value[..parameter.Size],
-            byte[] value when value.Length > parameter.Size => value[..parameter.Size],
-            char[] value when value.Length > parameter.Size => value[..parameter.Size],
-            _ => parameter.Value,
-        };
+            case string text when text.Length > parameter.Size:
+                parameter.Value = text[..parameter.Size];
+                break;
+            case byte[] bytes when bytes.Length > parameter.Size:
+                parameter.Value = bytes[..parameter.Size];
+                break;
+            case char[] characters when characters.Length > parameter.Size:
+                parameter.Value = characters[..parameter.Size];
+                break;
+        }
     }
 }

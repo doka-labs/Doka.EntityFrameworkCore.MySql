@@ -6,6 +6,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 public sealed class MySqlTimeOnlyTypeMapping : TimeOnlyTypeMapping
 {
     private readonly int _precision;
+    private readonly int _tickResolution;
+    private readonly int _fractionDivisor;
 
     /// <summary>
     /// Gets the canonical mapping used as the cloning source for generated compiled models.
@@ -23,15 +25,19 @@ public sealed class MySqlTimeOnlyTypeMapping : TimeOnlyTypeMapping
     ) : base(CreateParameters(storeType, precision))
     {
         _precision = precision;
+        _tickResolution = MySqlTemporalLiteralFormatter.Pow10(7 - precision);
+        _fractionDivisor = precision == 0 ? 0 : MySqlTemporalLiteralFormatter.Pow10(precision - 1);
     }
 
     private MySqlTimeOnlyTypeMapping(
         RelationalTypeMappingParameters parameters
     ) : base(parameters)
     {
-        _precision = ValidatePrecision(
+        _precision = MySqlTemporalLiteralFormatter.ValidatePrecision(
             parameters.Precision
             ?? throw new InvalidOperationException("A MySQL-family TimeOnly mapping clone requires a precision."));
+        _tickResolution = MySqlTemporalLiteralFormatter.Pow10(7 - _precision);
+        _fractionDivisor = _precision == 0 ? 0 : MySqlTemporalLiteralFormatter.Pow10(_precision - 1);
     }
 
     /// <inheritdoc />
@@ -39,10 +45,41 @@ public sealed class MySqlTimeOnlyTypeMapping : TimeOnlyTypeMapping
         object value
     )
     {
-        var time = Truncate((TimeOnly)value, _precision);
-        var format = _precision == 0 ? @"HH\:mm\:ss" : @"HH\:mm\:ss\." + new string('f', _precision);
+        var time = Truncate((TimeOnly)value, _tickResolution);
+        var literalLength = 15 + (_precision == 0 ? 0 : _precision + 1);
 
-        return "TIME '" + time.ToString(format, CultureInfo.InvariantCulture) + "'";
+        return string.Create(
+            literalLength,
+            (time, _precision, _tickResolution, _fractionDivisor),
+            static (
+                destination,
+                state
+            ) =>
+            {
+                "TIME '"
+                    .AsSpan()
+                    .CopyTo(destination);
+                var position = 6;
+                MySqlTemporalLiteralFormatter.WriteTwoDigits(destination, ref position, state.time.Hour);
+                destination[position++] = ':';
+                MySqlTemporalLiteralFormatter.WriteTwoDigits(destination, ref position, state.time.Minute);
+                destination[position++] = ':';
+                MySqlTemporalLiteralFormatter.WriteTwoDigits(destination, ref position, state.time.Second);
+
+                if (state._precision > 0)
+                {
+                    destination[position++] = '.';
+                    var fraction = (state.time.Ticks % TimeSpan.TicksPerSecond) / state._tickResolution;
+                    MySqlTemporalLiteralFormatter.WriteFraction(
+                        destination,
+                        ref position,
+                        fraction,
+                        state._precision,
+                        state._fractionDivisor);
+                }
+
+                destination[position] = '\'';
+            });
     }
 
     /// <inheritdoc />
@@ -57,7 +94,7 @@ public sealed class MySqlTimeOnlyTypeMapping : TimeOnlyTypeMapping
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(storeType);
 
-        var validatedPrecision = ValidatePrecision(precision);
+        var validatedPrecision = MySqlTemporalLiteralFormatter.ValidatePrecision(precision);
 
         return new RelationalTypeMappingParameters(
             new CoreTypeMappingParameters(typeof(TimeOnly), jsonValueReaderWriter: JsonTimeOnlyReaderWriter.Instance),
@@ -73,34 +110,6 @@ public sealed class MySqlTimeOnlyTypeMapping : TimeOnlyTypeMapping
 
     private static TimeOnly Truncate(
         TimeOnly value,
-        int precision
-    )
-    {
-        var resolution = Pow10(7 - precision);
-
-        return new TimeOnly(value.Ticks / resolution * resolution);
-    }
-
-    private static int Pow10(
-        int exponent
-    )
-    {
-        var value = 1;
-
-        for (var index = 0; index < exponent; index++)
-        {
-            value *= 10;
-        }
-
-        return value;
-    }
-
-    private static int ValidatePrecision(
-        int precision
-    ) => precision is >= 0 and <= 6
-        ? precision
-        : throw new ArgumentOutOfRangeException(
-            nameof(precision),
-            precision,
-            "MySQL-family time precision must be between zero and six.");
+        int resolution
+    ) => new(value.Ticks / resolution * resolution);
 }

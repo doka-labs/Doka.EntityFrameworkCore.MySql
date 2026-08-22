@@ -10,6 +10,8 @@ public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
         + (59L * TimeSpan.TicksPerSecond);
 
     private readonly int _precision;
+    private readonly int _tickResolution;
+    private readonly int _fractionDivisor;
 
     /// <summary>
     /// Gets the canonical mapping used as the cloning source for generated compiled models.
@@ -27,15 +29,20 @@ public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
     ) : base(CreateParameters(storeType, precision))
     {
         _precision = precision;
+        _tickResolution = MySqlTemporalLiteralFormatter.Pow10(7 - precision);
+        _fractionDivisor = precision == 0 ? 0 : MySqlTemporalLiteralFormatter.Pow10(precision - 1);
     }
 
     private MySqlTimeSpanTypeMapping(
         RelationalTypeMappingParameters parameters
     ) : base(parameters)
     {
-        _precision = ValidatePrecision(
+        _precision = MySqlTemporalLiteralFormatter.ValidatePrecision(
             parameters.Precision
             ?? throw new InvalidOperationException("A MySQL-family TimeSpan mapping clone requires a precision."));
+
+        _tickResolution = MySqlTemporalLiteralFormatter.Pow10(7 - _precision);
+        _fractionDivisor = _precision == 0 ? 0 : MySqlTemporalLiteralFormatter.Pow10(_precision - 1);
     }
 
     /// <inheritdoc />
@@ -44,8 +51,7 @@ public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
     )
     {
         var time = (TimeSpan)value;
-        var resolution = Pow10(7 - _precision);
-        var truncatedTicks = time.Ticks / resolution * resolution;
+        var truncatedTicks = time.Ticks / _tickResolution * _tickResolution;
 
         // Validate the emitted precision so discarded ticks do not reject an exact boundary.
         if (truncatedTicks is > MaximumTimeTicks or < -MaximumTimeTicks)
@@ -59,20 +65,47 @@ public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
         var remainder = absoluteTicks % TimeSpan.TicksPerHour;
         var minutes = remainder / TimeSpan.TicksPerMinute;
         remainder %= TimeSpan.TicksPerMinute;
+
         var seconds = remainder / TimeSpan.TicksPerSecond;
         var fraction = remainder % TimeSpan.TicksPerSecond;
+        var hourDigits = hours >= 100 ? 3 : 2;
+        var literalLength = 8 + hourDigits + (isNegative ? 1 : 0) + (_precision == 0 ? 0 : _precision + 1);
+        var fractionalValue = fraction / _tickResolution;
 
-        var literal = string.Create(
-            CultureInfo.InvariantCulture,
-            $"'{(isNegative ? "-" : string.Empty)}{hours:00}:{minutes:00}:{seconds:00}");
+        return string.Create(
+            literalLength,
+            (isNegative, hours, minutes, seconds, fractionalValue, _precision, _fractionDivisor),
+            static (
+                destination,
+                state
+            ) =>
+            {
+                var position = 0;
+                destination[position++] = '\'';
+                if (state.isNegative)
+                {
+                    destination[position++] = '-';
+                }
 
-        if (_precision > 0)
-        {
-            var fractionalValue = fraction / Pow10(7 - _precision);
-            literal += "." + fractionalValue.ToString(new string('0', _precision), CultureInfo.InvariantCulture);
-        }
+                WriteHours(destination, ref position, state.hours);
+                destination[position++] = ':';
+                MySqlTemporalLiteralFormatter.WriteTwoDigits(destination, ref position, state.minutes);
+                destination[position++] = ':';
+                MySqlTemporalLiteralFormatter.WriteTwoDigits(destination, ref position, state.seconds);
 
-        return literal + "'";
+                if (state._precision > 0)
+                {
+                    destination[position++] = '.';
+                    MySqlTemporalLiteralFormatter.WriteFraction(
+                        destination,
+                        ref position,
+                        state.fractionalValue,
+                        state._precision,
+                        state._fractionDivisor);
+                }
+
+                destination[position] = '\'';
+            });
     }
 
     /// <inheritdoc />
@@ -87,7 +120,7 @@ public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(storeType);
 
-        var validatedPrecision = ValidatePrecision(precision);
+        var validatedPrecision = MySqlTemporalLiteralFormatter.ValidatePrecision(precision);
 
         return new RelationalTypeMappingParameters(
             new CoreTypeMappingParameters(typeof(TimeSpan), jsonValueReaderWriter: JsonTimeSpanReaderWriter.Instance),
@@ -101,26 +134,19 @@ public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
             scale: null);
     }
 
-    private static int Pow10(
-        int exponent
+    private static void WriteHours(
+        Span<char> destination,
+        ref int position,
+        long hours
     )
     {
-        var value = 1;
-
-        for (var index = 0; index < exponent; index++)
+        if (hours >= 100)
         {
-            value *= 10;
+            destination[position++] = (char)('0' + (hours / 100));
         }
 
-        return value;
+        destination[position++] = (char)('0' + ((hours / 10) % 10));
+        destination[position++] = (char)('0' + (hours % 10));
     }
 
-    private static int ValidatePrecision(
-        int precision
-    ) => precision is >= 0 and <= 6
-        ? precision
-        : throw new ArgumentOutOfRangeException(
-            nameof(precision),
-            precision,
-            "MySQL-family time precision must be between zero and six.");
 }
