@@ -7,6 +7,44 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.0.0-rc.12] - 2026-08-23
+
+This release candidate supersedes `10.0.0-rc.11`. It reduces CPU work and
+memory pressure across bulk SQL generation, JSON change tracking, migration
+command handling, parameter truncation, and temporal literal formatting
+without changing public APIs or generated SQL semantics.
+
+Install the release candidate explicitly because NuGet excludes prerelease
+packages from normal stable-version resolution:
+
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.12
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.12
+```
+
+### Changed
+
+- Generate bulk insert SQL through indexed operation views and reusable
+  buffers, avoiding repeated filtered materialization while preserving column
+  order, result mappings, transaction behavior, and exact SQL output.
+- Compare, hash, and snapshot `JsonNode`, `JsonObject`, and `JsonArray` values
+  structurally without serialization or allocation on common DOM paths.
+  Case-insensitive property names, reparented objects, customized numeric
+  values, and EF Core change tracking retain symmetric equality and compatible
+  hash behavior.
+- Avoid redundant `DbParameter.Value` assignments for values that do not need
+  truncation, and format `TimeOnly` and `TimeSpan` literals through one final
+  invariant string.
+- Add enforced allocation and throughput contracts for bulk SQL generation,
+  JSON comparison and hashing, migration scopes, parameter interception, and
+  temporal literal formatting.
+
+### Fixed
+
+- Cache immutable migration command layouts lazily, preventing repeated scoped
+  command construction from amplifying allocations while preserving ordered
+  setup, body, and reverse cleanup execution.
+
 ## [10.0.0-rc.11] - 2026-08-21
 
 This release candidate supersedes `10.0.0-rc.10`. It carries the migration
@@ -720,7 +758,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.11...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.12...HEAD
+[10.0.0-rc.12]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.12
 [10.0.0-rc.11]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.11
 [10.0.0-rc.10]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.10
 [10.0.0-rc.9]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.9
