@@ -3,16 +3,19 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 /// <summary>
 /// Measures the change-tracking hot path for JSON-shaped properties. The previous
 /// implementation produced a fresh string per equals comparison and per hash; the
-/// optimized equality path delegates to the .NET JSON DOM's structural comparison.
-/// Run with MemoryDiagnoser to surface both the allocation drop and the per-comparison
-/// throughput against a representative payload size.
+/// optimized equality path performs one symmetric structural traversal. The benchmark
+/// retains both the serialized implementation and the bidirectional BCL traversal as
+/// explicit regression references. Run with MemoryDiagnoser to surface the allocation
+/// drop and per-comparison throughput against a representative payload size.
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob(launchCount: 1, warmupCount: 3, iterationCount: 5)]
 public class JsonComparerBenchmark
 {
     private const int PayloadCount = 1000;
+    private const int FreshPayloadCount = 10;
 
+    private readonly string _payload;
     private readonly JsonDocument _documentA;
     private readonly JsonDocument _documentB;
     private readonly JsonNode _nodeA;
@@ -20,11 +23,11 @@ public class JsonComparerBenchmark
 
     public JsonComparerBenchmark()
     {
-        var payload = BuildPayload();
-        _documentA = JsonDocument.Parse(payload);
-        _documentB = JsonDocument.Parse(payload);
-        _nodeA = JsonNode.Parse(payload)!;
-        _nodeB = JsonNode.Parse(payload)!;
+        _payload = BuildPayload();
+        _documentA = JsonDocument.Parse(_payload);
+        _documentB = JsonDocument.Parse(_payload);
+        _nodeA = JsonNode.Parse(_payload)!;
+        _nodeB = JsonNode.Parse(_payload)!;
     }
 
     /// <summary>
@@ -93,6 +96,20 @@ public class JsonComparerBenchmark
     }
 
     [Benchmark]
+    public bool BidirectionalJsonNodeDeepEqualsLoop()
+    {
+        var result = true;
+
+        for (var i = 0; i < PayloadCount; i++)
+        {
+            result &= JsonNode.DeepEquals(_nodeA, _nodeB)
+                && JsonNode.DeepEquals(_nodeB, _nodeA);
+        }
+
+        return result;
+    }
+
+    [Benchmark]
     public int JsonNodeHashLoop()
     {
         var comparer = MySqlJsonValueComparers.JsonNodeComparer;
@@ -104,6 +121,61 @@ public class JsonComparerBenchmark
         }
 
         return hash;
+    }
+
+    [Benchmark]
+    public bool SerializedJsonNodeEqualsLoop()
+    {
+        var result = true;
+
+        for (var i = 0; i < PayloadCount; i++)
+        {
+            result &= string.Equals(
+                _nodeA.ToJsonString(),
+                _nodeB.ToJsonString(),
+                StringComparison.Ordinal);
+        }
+
+        return result;
+    }
+
+    [Benchmark]
+    public int SerializedJsonNodeHashLoop()
+    {
+        var hash = 0;
+
+        for (var i = 0; i < PayloadCount; i++)
+        {
+            hash ^= _nodeA.ToJsonString().GetHashCode(StringComparison.Ordinal);
+        }
+
+        return hash;
+    }
+
+    [Benchmark]
+    public JsonNode FreshJsonNodeParseLoop()
+    {
+        JsonNode? node = null;
+        for (var index = 0; index < FreshPayloadCount; index++)
+        {
+            node = JsonNode.Parse(_payload);
+        }
+
+        return node!;
+    }
+
+    [Benchmark]
+    public bool FreshJsonNodeParseAndEqualsLoop()
+    {
+        var result = true;
+        for (var index = 0; index < FreshPayloadCount; index++)
+        {
+            var left = JsonNode.Parse(_payload)!;
+            var right = JsonNode.Parse(_payload)!;
+            result &= MySqlJsonValueComparers.JsonNodeComparer.Equals(left, right);
+        }
+
+        return result;
     }
 
     [Benchmark]

@@ -306,10 +306,11 @@ public sealed class MySqlMigrationOperationContractTests
     public void Provider_layout_preserves_exact_order_and_complete_coverage()
     {
         var setup = new[] { "SET @scope = 1;\n" };
+        var body = "ALTER TABLE `Entries` COMMENT 'safe';\n";
         var cleanup = new[] { "SET @scope = NULL;\n" };
-        var commandText = setup[0] + "ALTER TABLE `Entries` COMMENT 'safe';\n" + cleanup[0];
+        var commandText = setup[0] + body + cleanup[0];
 
-        var layout = MySqlMigrationCommandLayout.CreateScoped(commandText, setup, cleanup);
+        var layout = MySqlMigrationCommandLayout.CreateProviderScoped(setup, body, cleanup);
 
         Assert.Collection(
             layout.Fragments,
@@ -319,7 +320,7 @@ public sealed class MySqlMigrationOperationContractTests
         Assert.Equal(
             commandText,
             string.Concat(layout.Fragments.Select(static fragment => fragment.CommandText.ToString())));
-        Assert.Equal("ALTER TABLE `Entries` COMMENT 'safe';\n", layout.Body.ToString());
+        Assert.Equal("ALTER TABLE `Entries` COMMENT 'safe';\n", layout.BodyCommandText);
 
         foreach (var fragment in layout.Fragments)
         {
@@ -329,27 +330,34 @@ public sealed class MySqlMigrationOperationContractTests
                     out var backingString,
                     out _,
                     out _));
-            Assert.Same(commandText, backingString);
+            Assert.Same(layout.CommandText, backingString);
         }
     }
 
     [Fact]
-    public void Provider_layout_rejects_a_fragment_that_does_not_match_the_command()
+    public void Handler_layout_retains_validated_execution_strings()
     {
-        Assert.Throws<InvalidOperationException>(() =>
-            MySqlMigrationCommandLayout.CreateScoped(
-                "SET @scope = 1;\nSELECT 1;\nSET @scope = NULL;\n",
-                ["SET @scope = 2;\n"],
-                ["SET @scope = NULL;\n"]));
+        var setup = new[] { new string('S', 8), new string('T', 8) };
+        var body = new string('B', 32);
+        var cleanup = new[] { new string('C', 8), new string('D', 8) };
+
+        var spec = MySqlMigrationCommandSpec.CreateScoped(setup, body, cleanup);
+        var layout = Assert.IsType<MySqlMigrationCommandLayout>(spec.ProviderLayout);
+
+        Assert.Same(setup[0], layout.SetupCommandTexts[0]);
+        Assert.Same(setup[1], layout.SetupCommandTexts[1]);
+        Assert.Same(body, layout.BodyCommandText);
+        Assert.Same(cleanup[1], layout.CleanupCommandTexts[0]);
+        Assert.Same(cleanup[0], layout.CleanupCommandTexts[1]);
     }
 
     [Fact]
     public void Provider_layout_rejects_an_empty_body()
     {
-        Assert.Throws<InvalidOperationException>(() =>
-            MySqlMigrationCommandLayout.CreateScoped(
-                "SET @scope = 1;\n   SET @scope = NULL;\n",
+        Assert.Throws<ArgumentException>(() =>
+            MySqlMigrationCommandLayout.CreateProviderScoped(
                 ["SET @scope = 1;\n"],
+                "   ",
                 ["SET @scope = NULL;\n"]));
     }
 
@@ -357,9 +365,9 @@ public sealed class MySqlMigrationOperationContractTests
     public void Provider_layout_requires_setup_and_cleanup()
     {
         Assert.Throws<ArgumentException>(() =>
-            MySqlMigrationCommandLayout.CreateScoped("SELECT 1;", [], ["SET @scope = NULL;"]));
+            MySqlMigrationCommandLayout.CreateProviderScoped([], "SELECT 1;", ["SET @scope = NULL;"]));
         Assert.Throws<ArgumentException>(() =>
-            MySqlMigrationCommandLayout.CreateScoped("SELECT 1;", ["SET @scope = 1;"], []));
+            MySqlMigrationCommandLayout.CreateProviderScoped(["SET @scope = 1;"], "SELECT 1;", []));
     }
 
     [Fact]

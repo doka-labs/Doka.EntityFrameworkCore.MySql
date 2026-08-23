@@ -189,6 +189,77 @@ public sealed class MySqlJsonTypeMappingTests
         Assert.Equal(comparer.GetHashCode(a!), comparer.GetHashCode(b!));
     }
 
+    [Fact]
+    public void JsonNode_change_tracking_uses_structural_snapshot_equality()
+    {
+        using var context = CreateContext<JsonNodeContext>();
+        var entity = new JsonNodeEntity
+        {
+            Id = 1,
+            Data = JsonNode.Parse("""{"id":1,"nested":{"value":1}}"""),
+        };
+
+        var entry = context.Attach(entity);
+
+        entity.Data = JsonNode.Parse("""{"nested":{"value":1},"id":1}""");
+        context.ChangeTracker.DetectChanges();
+
+        Assert.False(
+            entry.Property(candidate => candidate.Data)
+                .IsModified);
+
+        entity.Data!["nested"]!["value"] = 2;
+        context.ChangeTracker.DetectChanges();
+
+        Assert.True(
+            entry.Property(candidate => candidate.Data)
+                .IsModified);
+    }
+
+    [Fact]
+    public void JsonObject_change_tracking_uses_structural_snapshot_equality()
+    {
+        using var context = CreateContext<JsonObjectContext>();
+        var entity = new JsonObjectEntity
+        {
+            Id = 1,
+            Data = JsonNode.Parse("""{"id":1,"nested":{"value":1}}""")!.AsObject(),
+        };
+        var entry = context.Attach(entity);
+
+        entity.Data = JsonNode.Parse("""{"nested":{"value":1},"id":1}""")!.AsObject();
+        context.ChangeTracker.DetectChanges();
+
+        Assert.False(entry.Property(candidate => candidate.Data).IsModified);
+
+        entity.Data["nested"]!["value"] = 2;
+        context.ChangeTracker.DetectChanges();
+
+        Assert.True(entry.Property(candidate => candidate.Data).IsModified);
+    }
+
+    [Fact]
+    public void JsonArray_change_tracking_uses_structural_snapshot_equality()
+    {
+        using var context = CreateContext<JsonArrayContext>();
+        var entity = new JsonArrayEntity
+        {
+            Id = 1,
+            Data = JsonNode.Parse("""[1,{"value":1},3]""")!.AsArray(),
+        };
+        var entry = context.Attach(entity);
+
+        entity.Data = JsonNode.Parse("""[1,{"value":1},3]""")!.AsArray();
+        context.ChangeTracker.DetectChanges();
+
+        Assert.False(entry.Property(candidate => candidate.Data).IsModified);
+
+        entity.Data[1]!["value"] = 2;
+        context.ChangeTracker.DetectChanges();
+
+        Assert.True(entry.Property(candidate => candidate.Data).IsModified);
+    }
+
     /// <summary>
     /// JsonDocument ValueComparer handles null correctly.
     /// </summary>

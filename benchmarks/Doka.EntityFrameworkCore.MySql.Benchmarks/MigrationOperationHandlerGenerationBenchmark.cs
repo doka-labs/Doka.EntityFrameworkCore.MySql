@@ -23,6 +23,7 @@ public class MigrationOperationHandlerGenerationBenchmark
     private DbContextOptions<HandlerGenerationContext> _mariaDbOptions = null!;
     private DbContextOptions<HandlerGenerationContext> _mySqlOptions = null!;
     private IReadOnlyList<MigrationOperation>[] _operationPopulations = null!;
+    private IReadOnlyList<MigrationOperation> _sqlModeScopeOperations = null!;
 
     /// <summary>
     /// Builds immutable operation populations and isolated engine service
@@ -34,6 +35,7 @@ public class MigrationOperationHandlerGenerationBenchmark
         _operationPopulations = s_operationCounts
             .Select(CreateOperations)
             .ToArray();
+        _sqlModeScopeOperations = CreateSqlModeScopeOperations(operationCount: 256);
 
         _mySqlServices = CreateServiceProvider();
         _mariaDbServices = CreateServiceProvider();
@@ -74,6 +76,18 @@ public class MigrationOperationHandlerGenerationBenchmark
         }
 
         return checksum;
+    }
+
+    /// <summary>
+    /// Generates many DDL comment scopes through one migrations generator so the
+    /// invariant sql_mode setup and cleanup fragment cache is measured directly.
+    /// </summary>
+    [Benchmark]
+    public long Generate256DdlCommentSqlModeScopes()
+    {
+        using var context = new HandlerGenerationContext(_mySqlOptions);
+
+        return Generate(context, _sqlModeScopeOperations);
     }
 
     internal long GenerateOperationPopulation(
@@ -118,6 +132,27 @@ public class MigrationOperationHandlerGenerationBenchmark
         for (var index = 0; index < operationCount; index++)
         {
             operations[index] = new HandlerGenerationOperation(index);
+        }
+
+        return operations;
+    }
+
+    private static MigrationOperation[] CreateSqlModeScopeOperations(
+        int operationCount
+    )
+    {
+        var operations = new MigrationOperation[operationCount];
+        for (var index = 0; index < operations.Length; index++)
+        {
+            operations[index] = new AddColumnOperation
+            {
+                Table = "SqlModeBenchmarkEntries",
+                Name = $"Value{index}",
+                ClrType = typeof(string),
+                ColumnType = "varchar(64)",
+                IsNullable = true,
+                Comment = "path\\segment",
+            };
         }
 
         return operations;

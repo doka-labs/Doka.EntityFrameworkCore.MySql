@@ -375,25 +375,67 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
     /// and the same read-column list. A shape mismatch forces a flush of the pending
     /// buffer before the new command joins a fresh buffer.
     /// </summary>
-    private static bool CanBeInsertedInSameStatement(
+    internal static bool CanBeInsertedInSameStatement(
         IReadOnlyModificationCommand firstCommand,
         IReadOnlyModificationCommand secondCommand
     ) => firstCommand.TableName == secondCommand.TableName
         && firstCommand.Schema == secondCommand.Schema
-        && firstCommand
-            .ColumnModifications.Where(o => o.IsWrite)
-            .Select(o => o.ColumnName)
-            .SequenceEqual(
-                secondCommand
-                    .ColumnModifications.Where(o => o.IsWrite)
-                    .Select(o => o.ColumnName))
-        && firstCommand
-            .ColumnModifications.Where(o => o.IsRead)
-            .Select(o => o.ColumnName)
-            .SequenceEqual(
-                secondCommand
-                    .ColumnModifications.Where(o => o.IsRead)
-                    .Select(o => o.ColumnName));
+        && HaveSameOrderedColumnShape(
+            firstCommand.ColumnModifications,
+            secondCommand.ColumnModifications,
+            compareWriteColumns: true)
+        && HaveSameOrderedColumnShape(
+            firstCommand.ColumnModifications,
+            secondCommand.ColumnModifications,
+            compareWriteColumns: false);
+
+    private static bool HaveSameOrderedColumnShape(
+        IReadOnlyList<IColumnModification> firstModifications,
+        IReadOnlyList<IColumnModification> secondModifications,
+        bool compareWriteColumns
+    )
+    {
+        var firstIndex = 0;
+        var secondIndex = 0;
+
+        while (true)
+        {
+            while (firstIndex < firstModifications.Count
+                   && !IsComparedOperation(firstModifications[firstIndex], compareWriteColumns))
+            {
+                firstIndex++;
+            }
+
+            while (secondIndex < secondModifications.Count
+                   && !IsComparedOperation(secondModifications[secondIndex], compareWriteColumns))
+            {
+                secondIndex++;
+            }
+
+            var firstEnded = firstIndex == firstModifications.Count;
+            var secondEnded = secondIndex == secondModifications.Count;
+            if (firstEnded || secondEnded)
+            {
+                return firstEnded && secondEnded;
+            }
+
+            if (!string.Equals(
+                    firstModifications[firstIndex].ColumnName,
+                    secondModifications[secondIndex].ColumnName,
+                    StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            firstIndex++;
+            secondIndex++;
+        }
+    }
+
+    private static bool IsComparedOperation(
+        IColumnModification modification,
+        bool compareWriteColumns
+    ) => compareWriteColumns ? modification.IsWrite : modification.IsRead;
 
     private static int CountCommandParameters(
         IReadOnlyModificationCommand modificationCommand

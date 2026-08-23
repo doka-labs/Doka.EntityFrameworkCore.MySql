@@ -351,9 +351,9 @@ public sealed class MySqlMigrationOperationHandlerTests
 
         Assert.True(command.TransactionSuppressed);
         Assert.Equal(MySqlMigrationCommandScopeKind.Handler, scopedCommand.Layout.ScopeKind);
-        Assert.Equal(2, scopedCommand.Layout.Setup.Count);
-        Assert.Equal(2, scopedCommand.Layout.Cleanup.Count);
-        Assert.Equal("SELECT @first + @second;\n", scopedCommand.Layout.Body.ToString());
+        Assert.Equal(2, scopedCommand.Layout.SetupCommandTexts.Count);
+        Assert.Equal(2, scopedCommand.Layout.CleanupCommandTexts.Count);
+        Assert.Equal("SELECT @first + @second;\n", scopedCommand.Layout.BodyCommandText);
     }
 
     [Theory]

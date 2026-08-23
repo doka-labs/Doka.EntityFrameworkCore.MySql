@@ -4,12 +4,15 @@ internal sealed class MySqlMigrationCommandListBuilder : MigrationCommandListBui
 {
     private readonly List<MigrationCommand> _commands = [];
     private IReadOnlyList<string>? _cleanupCommands;
-    private MySqlMigrationCommandLayout? _providedLayout;
+    private IRelationalCommandBuilder _commandBuilder;
     private IReadOnlyList<string>? _setupCommands;
 
     public MySqlMigrationCommandListBuilder(
         MigrationsSqlGeneratorDependencies dependencies
-    ) : base(dependencies) { }
+    ) : base(dependencies)
+    {
+        _commandBuilder = dependencies.CommandBuilderFactory.Create();
+    }
 
     public void BeginProviderScope(
         IReadOnlyList<string> setupCommands
@@ -18,18 +21,14 @@ internal sealed class MySqlMigrationCommandListBuilder : MigrationCommandListBui
         ArgumentNullException.ThrowIfNull(setupCommands);
 
         if (_setupCommands is not null
+            || _commandBuilder.CommandTextLength != 0
             || setupCommands.Count == 0)
         {
             throw new InvalidOperationException(
-                "A provider migration command scope is already active or has no setup commands.");
+                "A provider migration command scope is already active, has pending SQL, or has no setup commands.");
         }
 
         _setupCommands = setupCommands;
-
-        foreach (var setupCommand in setupCommands)
-        {
-            Append(setupCommand);
-        }
     }
 
     public void CompleteProviderScope(
@@ -47,11 +46,6 @@ internal sealed class MySqlMigrationCommandListBuilder : MigrationCommandListBui
         }
 
         _cleanupCommands = cleanupCommands;
-
-        foreach (var cleanupCommand in cleanupCommands)
-        {
-            Append(cleanupCommand);
-        }
     }
 
     public void AppendCommandSpec(
@@ -61,12 +55,27 @@ internal sealed class MySqlMigrationCommandListBuilder : MigrationCommandListBui
         ArgumentNullException.ThrowIfNull(command);
 
         if (_setupCommands is not null
-            || _providedLayout is not null)
+            || _commandBuilder.CommandTextLength != 0)
         {
-            throw new InvalidOperationException("A provider migration command scope is already active.");
+            throw new InvalidOperationException(
+                "A provider migration command scope is already active or ordinary SQL is pending.");
         }
 
-        _providedLayout = command.ProviderLayout;
+        if (command.ProviderLayout is { IsScoped: true } layout)
+        {
+            if (!string.Equals(command.CommandText, layout.CommandText, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("A provider-rendered command changed before it was appended.");
+            }
+
+            _commands.Add(
+                new MySqlScopedMigrationCommand(
+                    layout,
+                    Dependencies,
+                    command.TransactionSuppressed));
+
+            return;
+        }
 
         Append(command.CommandText);
         EndCommand(command.TransactionSuppressed);
@@ -76,47 +85,47 @@ internal sealed class MySqlMigrationCommandListBuilder : MigrationCommandListBui
         bool suppressTransaction = false
     )
     {
-        var commandCount = base.GetCommandList()
-            .Count;
-        base.EndCommand(suppressTransaction);
-        var baseCommands = base.GetCommandList();
-
-        if (baseCommands.Count == commandCount)
+        if (_commandBuilder.CommandTextLength == 0)
         {
-            return this;
+            return _setupCommands is not null
+                ? throw new InvalidOperationException("A provider migration command scope ended without a body command.")
+                : this;
         }
 
-        var command = baseCommands[^1];
-        if (_providedLayout is not null)
+        if (_setupCommands is not null
+            && _cleanupCommands is null)
         {
-            if (!string.Equals(command.CommandText, _providedLayout.CommandText, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException("A provider-rendered command changed before it was appended.");
-            }
-
-            if (_providedLayout.IsScoped)
-            {
-                command = new MySqlScopedMigrationCommand(_providedLayout, Dependencies, suppressTransaction);
-            }
+            throw new InvalidOperationException(
+                "A provider migration command scope ended without cleanup commands.");
         }
-        else if (_setupCommands is not null)
-        {
-            if (_cleanupCommands is null)
-            {
-                throw new InvalidOperationException(
-                    "A provider migration command scope ended without cleanup commands.");
-            }
 
-            var layout = MySqlMigrationCommandLayout.CreateScoped(
-                command.CommandText,
+        var relationalCommand = _commandBuilder.Build();
+        _commandBuilder = Dependencies.CommandBuilderFactory.Create();
+        MigrationCommand command;
+
+        if (_setupCommands is not null)
+        {
+            var layout = MySqlMigrationCommandLayout.CreateProviderScoped(
                 _setupCommands,
-                _cleanupCommands);
+                relationalCommand.CommandText,
+                _cleanupCommands!);
 
-            command = new MySqlScopedMigrationCommand(layout, Dependencies, suppressTransaction);
+            command = new MySqlScopedMigrationCommand(
+                layout,
+                Dependencies,
+                suppressTransaction,
+                relationalCommand);
+        }
+        else
+        {
+            command = new MigrationCommand(
+                relationalCommand,
+                Dependencies.CurrentContext.Context,
+                Dependencies.Logger,
+                suppressTransaction);
         }
 
         _commands.Add(command);
-        _providedLayout = null;
         _setupCommands = null;
         _cleanupCommands = null;
 
@@ -124,6 +133,65 @@ internal sealed class MySqlMigrationCommandListBuilder : MigrationCommandListBui
     }
 
     public override IReadOnlyList<MigrationCommand> GetCommandList() => _commands;
+
+    public override MigrationCommandListBuilder Append(
+        string value
+    )
+    {
+        _commandBuilder.Append(value);
+
+        return this;
+    }
+
+    public override MigrationCommandListBuilder AppendLine()
+    {
+        _commandBuilder.AppendLine();
+
+        return this;
+    }
+
+    public override MigrationCommandListBuilder AppendLine(
+        string value
+    )
+    {
+        _commandBuilder.AppendLine(value);
+
+        return this;
+    }
+
+    public override MigrationCommandListBuilder AppendLine(
+        FormattableString value
+    )
+    {
+        _commandBuilder.AppendLine(value);
+
+        return this;
+    }
+
+    public override MigrationCommandListBuilder AppendLines(
+        string value
+    )
+    {
+        _commandBuilder.AppendLines(value);
+
+        return this;
+    }
+
+    public override IDisposable Indent() => _commandBuilder.Indent();
+
+    public override MigrationCommandListBuilder IncrementIndent()
+    {
+        _commandBuilder.IncrementIndent();
+
+        return this;
+    }
+
+    public override MigrationCommandListBuilder DecrementIndent()
+    {
+        _commandBuilder.DecrementIndent();
+
+        return this;
+    }
 
     public ReadOnlyCollection<MySqlMigrationCommandSpec> GetCommandSpecs()
     {

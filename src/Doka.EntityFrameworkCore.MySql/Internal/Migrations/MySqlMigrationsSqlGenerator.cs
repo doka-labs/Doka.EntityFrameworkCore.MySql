@@ -6,6 +6,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
     private readonly MySqlSingletonOptions _mySqlSingletonOptions;
     private readonly MySqlMigrationFeatureSet _migrationFeatures;
     private readonly MySqlMigrationOperationHandlerRegistry _operationHandlerRegistry;
+    private DdlCommentSqlModeCommands? _ddlCommentSqlModeCommands;
     private int _operationOrdinal = -1;
 
     private ProviderProfile Profile => _mySqlSingletonOptions.Profile
@@ -62,45 +63,48 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
 
     private void AppendDdlCommentSqlModeScopeStart(
         MigrationCommandListBuilder builder
-    )
-    {
-        var terminator = Dependencies.SqlGenerationHelper.StatementTerminator;
-        var newLine = Environment.NewLine;
-        var setupCommands = new[]
-        {
-            // The server executes MySQL-family executable comments, while
-            // MySqlConnector's parameter parser leaves their contents alone.
-            // This keeps generated script text independent of AllowUserVariables.
-            "/*! SET "
-            + PreviousDdlCommentSqlModeVariable
-            + " = @@SESSION.sql_mode */"
-            + terminator
-            + newLine,
-            "/*! SET SESSION sql_mode = IF("
-            + "FIND_IN_SET('NO_BACKSLASH_ESCAPES', @@SESSION.sql_mode), "
-            + "@@SESSION.sql_mode, "
-            + "CONCAT_WS(',', NULLIF(@@SESSION.sql_mode, ''), 'NO_BACKSLASH_ESCAPES')) */"
-            + terminator
-            + newLine,
-        };
-
-        GetProviderCommandBuilder(builder).BeginProviderScope(setupCommands);
-    }
+    ) => GetProviderCommandBuilder(builder).BeginProviderScope(GetDdlCommentSqlModeCommands().Setup);
 
     private void AppendDdlCommentSqlModeScopeEnd(
         MigrationCommandListBuilder builder
-    )
-    {
-        var cleanupCommands = new[]
-        {
-            "/*! SET SESSION sql_mode = "
-            + PreviousDdlCommentSqlModeVariable
-            + " */"
-            + Dependencies.SqlGenerationHelper.StatementTerminator
-            + Environment.NewLine,
-        };
+    ) => GetProviderCommandBuilder(builder).CompleteProviderScope(GetDdlCommentSqlModeCommands().Cleanup);
 
-        GetProviderCommandBuilder(builder).CompleteProviderScope(cleanupCommands);
+    private DdlCommentSqlModeCommands GetDdlCommentSqlModeCommands()
+    {
+        var commands = _ddlCommentSqlModeCommands;
+        if (commands is not null)
+        {
+            return commands;
+        }
+
+        var terminator = Dependencies.SqlGenerationHelper.StatementTerminator;
+        var newLine = Environment.NewLine;
+        var created = new DdlCommentSqlModeCommands(
+            [
+                // The server executes MySQL-family executable comments, while
+                // MySqlConnector's parameter parser leaves their contents alone.
+                // This keeps generated script text independent of AllowUserVariables.
+                "/*! SET "
+                + PreviousDdlCommentSqlModeVariable
+                + " = @@SESSION.sql_mode */"
+                + terminator
+                + newLine,
+                "/*! SET SESSION sql_mode = IF("
+                + "FIND_IN_SET('NO_BACKSLASH_ESCAPES', @@SESSION.sql_mode), "
+                + "@@SESSION.sql_mode, "
+                + "CONCAT_WS(',', NULLIF(@@SESSION.sql_mode, ''), 'NO_BACKSLASH_ESCAPES')) */"
+                + terminator
+                + newLine,
+            ],
+            [
+                "/*! SET SESSION sql_mode = "
+                + PreviousDdlCommentSqlModeVariable
+                + " */"
+                + terminator
+                + newLine,
+            ]);
+
+        return Interlocked.CompareExchange(ref _ddlCommentSqlModeCommands, created, null) ?? created;
     }
 
     private static MySqlMigrationCommandListBuilder GetProviderCommandBuilder(
@@ -117,4 +121,14 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
         CreateTableOperation operation
     ) => RequiresDdlCommentSqlModeScope(operation.Comment)
         || operation.Columns.Any(column => RequiresDdlCommentSqlModeScope(column.Comment));
+
+    private sealed class DdlCommentSqlModeCommands(
+        IReadOnlyList<string> setup,
+        IReadOnlyList<string> cleanup
+    )
+    {
+        public IReadOnlyList<string> Setup { get; } = setup;
+
+        public IReadOnlyList<string> Cleanup { get; } = cleanup;
+    }
 }

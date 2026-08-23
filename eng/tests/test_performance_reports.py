@@ -455,7 +455,10 @@ class PerformanceReportTests(PerformanceEvidenceFixtureMixin, unittest.TestCase)
             )
 
             self.assertTrue(evidence["success"])
-            self.assertEqual(7, len(evidence["controls"]))
+            self.assertEqual(
+                len(self.contract["benchmarkDotNetControls"]),
+                len(evidence["controls"]),
+            )
             self.assertEqual(1, len(evidence["rawReports"]))
 
     def test_benchmarkdotnet_reports_reject_missing_statistics(self) -> None:

@@ -3,12 +3,14 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed class MySqlScopedMigrationCommand : MigrationCommand
 {
     private const string PreviousSqlModeParameterName = "__doka_previous_sql_mode";
+    private static readonly IReadOnlyList<IRelationalParameter> s_noParameters =
+        Array.Empty<IRelationalParameter>();
+
     private readonly IRelationalCommand? _captureCommand;
     private readonly IRelationalCommand? _enableCommand;
-    private readonly IRelationalCommand? _bodyCommand;
+    private readonly IRelationalCommand _bodyCommand;
     private readonly DbContext _context;
     private readonly IRelationalCommand[] _handlerCleanupCommands;
-    private readonly IRelationalCommand? _handlerBodyCommand;
     private readonly IRelationalCommand[] _handlerSetupCommands;
     private readonly IRelationalCommand? _restoreCommand;
 
@@ -16,58 +18,47 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         MySqlMigrationCommandLayout layout,
         MigrationsSqlGeneratorDependencies dependencies,
         bool transactionSuppressed
+    ) : this(
+        layout,
+        dependencies,
+        transactionSuppressed,
+        PrepareCommands(layout, dependencies, preparedBodyCommand: null)) { }
+
+    public MySqlScopedMigrationCommand(
+        MySqlMigrationCommandLayout layout,
+        MigrationsSqlGeneratorDependencies dependencies,
+        bool transactionSuppressed,
+        IRelationalCommand preparedBodyCommand
+    ) : this(
+        layout,
+        dependencies,
+        transactionSuppressed,
+        PrepareCommands(layout, dependencies, preparedBodyCommand)) { }
+
+    private MySqlScopedMigrationCommand(
+        MySqlMigrationCommandLayout layout,
+        MigrationsSqlGeneratorDependencies dependencies,
+        bool transactionSuppressed,
+        PreparedCommands commands
     ) : base(
-        BuildCommand(dependencies, layout.CommandText),
+        commands.BodyCommand,
         dependencies.CurrentContext.Context,
         dependencies.Logger,
         transactionSuppressed)
     {
         Layout = layout;
         _context = dependencies.CurrentContext.Context;
-
-        if (layout.ScopeKind == MySqlMigrationCommandScopeKind.Handler)
-        {
-            _handlerSetupCommands = new IRelationalCommand[layout.Setup.Count];
-
-            for (var index = 0; index < layout.Setup.Count; index++)
-            {
-                _handlerSetupCommands[index] = BuildCommand(
-                    dependencies,
-                    layout
-                        .Setup[index]
-                        .ToString());
-            }
-
-            _handlerBodyCommand = BuildCommand(dependencies, layout.Body.ToString());
-            _handlerCleanupCommands = new IRelationalCommand[layout.Cleanup.Count];
-
-            for (var index = 0; index < layout.Cleanup.Count; index++)
-            {
-                _handlerCleanupCommands[index] = BuildCommand(
-                    dependencies,
-                    layout
-                        .Cleanup[index]
-                        .ToString());
-            }
-
-            return;
-        }
-
-        _handlerSetupCommands = [];
-        _handlerCleanupCommands = [];
-        _captureCommand = BuildCommand(dependencies, "SELECT @@SESSION.sql_mode;");
-        _enableCommand = BuildCommand(
-            dependencies,
-            "SET SESSION sql_mode = IF("
-            + "FIND_IN_SET('NO_BACKSLASH_ESCAPES', @@SESSION.sql_mode), "
-            + "@@SESSION.sql_mode, "
-            + "CONCAT_WS(',', NULLIF(@@SESSION.sql_mode, ''), 'NO_BACKSLASH_ESCAPES'));");
-
-        _bodyCommand = BuildCommand(dependencies, layout.Body.ToString());
-        _restoreCommand = BuildRestoreCommand(dependencies);
+        _bodyCommand = commands.BodyCommand;
+        _handlerSetupCommands = commands.HandlerSetupCommands;
+        _handlerCleanupCommands = commands.HandlerCleanupCommands;
+        _captureCommand = commands.CaptureCommand;
+        _enableCommand = commands.EnableCommand;
+        _restoreCommand = commands.RestoreCommand;
     }
 
     internal MySqlMigrationCommandLayout Layout { get; }
+
+    public override string CommandText => Layout.CommandText;
 
     public override int ExecuteNonQuery(
         IRelationalConnection connection,
@@ -76,7 +67,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        if (_handlerBodyCommand is not null)
+        if (Layout.ScopeKind == MySqlMigrationCommandScopeKind.Handler)
         {
             return ExecuteHandlerScope(connection, parameterValues);
         }
@@ -90,7 +81,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         {
             originalSqlMode = CaptureOriginalSqlMode(connection);
             Execute(_enableCommand!, connection);
-            result = Execute(_bodyCommand!, connection, parameterValues);
+            result = Execute(_bodyCommand, connection, parameterValues);
         }
         catch (Exception exception)
         {
@@ -117,7 +108,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        if (_handlerBodyCommand is not null)
+        if (Layout.ScopeKind == MySqlMigrationCommandScopeKind.Handler)
         {
             return await ExecuteHandlerScopeAsync(connection, parameterValues, cancellationToken)
                 .ConfigureAwait(false);
@@ -137,7 +128,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
                 .ConfigureAwait(false);
             await ExecuteAsync(_enableCommand!, connection, null, cancellationToken)
                 .ConfigureAwait(false);
-            result = await ExecuteAsync(_bodyCommand!, connection, parameterValues, cancellationToken)
+            result = await ExecuteAsync(_bodyCommand, connection, parameterValues, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (Exception exception)
@@ -250,7 +241,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
                 _ = Execute(setupCommand, connection);
             }
 
-            result = Execute(_handlerBodyCommand!, connection, parameterValues);
+            result = Execute(_bodyCommand, connection, parameterValues);
         }
         catch (Exception exception)
         {
@@ -290,7 +281,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
                     .ConfigureAwait(false);
             }
 
-            result = await ExecuteAsync(_handlerBodyCommand!, connection, parameterValues, cancellationToken)
+            result = await ExecuteAsync(_bodyCommand, connection, parameterValues, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (Exception exception)
@@ -376,15 +367,65 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         IReadOnlyDictionary<string, object?>? parameterValues = null
     ) => new(connection, parameterValues, readerColumns: null, _context, CommandLogger, CommandSource.Migrations);
 
-    private static IRelationalCommand BuildCommand(
-        MigrationsSqlGeneratorDependencies dependencies,
+    private static RelationalCommand CreateParameterlessCommand(
+        RelationalCommandBuilderDependencies dependencies,
         string commandText
+    ) => new(dependencies, commandText, commandText, s_noParameters);
+
+    private static PreparedCommands PrepareCommands(
+        MySqlMigrationCommandLayout layout,
+        MigrationsSqlGeneratorDependencies dependencies,
+        IRelationalCommand? preparedBodyCommand
     )
     {
-        var builder = dependencies.CommandBuilderFactory.Create();
-        builder.Append(commandText);
+        if (preparedBodyCommand is not null
+            && !string.Equals(preparedBodyCommand.CommandText, layout.BodyCommandText, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("A prepared body command changed before scope construction.");
+        }
 
-        return builder.Build();
+        var commandDependencies = dependencies.CurrentContext.Context
+            .GetService<RelationalCommandBuilderDependencies>();
+
+        var bodyCommand = preparedBodyCommand
+            ?? CreateParameterlessCommand(commandDependencies, layout.BodyCommandText);
+
+        if (layout.ScopeKind == MySqlMigrationCommandScopeKind.Handler)
+        {
+            var setupCommands = new IRelationalCommand[layout.SetupCommandTexts.Count];
+
+            for (var index = 0; index < layout.SetupCommandTexts.Count; index++)
+            {
+                setupCommands[index] = CreateParameterlessCommand(commandDependencies, layout.SetupCommandTexts[index]);
+            }
+
+            var cleanupCommands = new IRelationalCommand[layout.CleanupCommandTexts.Count];
+
+            for (var index = 0; index < layout.CleanupCommandTexts.Count; index++)
+            {
+                cleanupCommands[index] = CreateParameterlessCommand(
+                    commandDependencies,
+                    layout.CleanupCommandTexts[index]);
+            }
+
+            return new PreparedCommands(bodyCommand, setupCommands, cleanupCommands, null, null, null);
+        }
+
+        var captureCommand = CreateParameterlessCommand(commandDependencies, "SELECT @@SESSION.sql_mode;");
+        var enableCommand = CreateParameterlessCommand(
+            commandDependencies,
+            "SET SESSION sql_mode = IF("
+            + "FIND_IN_SET('NO_BACKSLASH_ESCAPES', @@SESSION.sql_mode), "
+            + "@@SESSION.sql_mode, "
+            + "CONCAT_WS(',', NULLIF(@@SESSION.sql_mode, ''), 'NO_BACKSLASH_ESCAPES'));");
+
+        return new PreparedCommands(
+            bodyCommand,
+            [],
+            [],
+            captureCommand,
+            enableCommand,
+            BuildRestoreCommand(dependencies));
     }
 
     private static IRelationalCommand BuildRestoreCommand(
@@ -596,4 +637,13 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
             cleanupException.Data["DokaMySqlPoolClearFailure"] = poolException;
         }
     }
+
+    private readonly record struct PreparedCommands(
+        IRelationalCommand BodyCommand,
+        IRelationalCommand[] HandlerSetupCommands,
+        IRelationalCommand[] HandlerCleanupCommands,
+        IRelationalCommand? CaptureCommand,
+        IRelationalCommand? EnableCommand,
+        IRelationalCommand? RestoreCommand
+    );
 }

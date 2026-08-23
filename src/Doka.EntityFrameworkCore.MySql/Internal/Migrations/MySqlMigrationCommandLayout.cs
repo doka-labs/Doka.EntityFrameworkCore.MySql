@@ -2,23 +2,23 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlMigrationCommandLayout
 {
-    private static readonly ReadOnlyCollection<ReadOnlyMemory<char>> s_emptyCommands =
-        Array.AsReadOnly(Array.Empty<ReadOnlyMemory<char>>());
+    private static readonly ReadOnlyCollection<string> s_emptyCommandTexts =
+        Array.AsReadOnly(Array.Empty<string>());
 
     private MySqlMigrationCommandLayout(
         string commandText,
         ReadOnlyCollection<MySqlMigrationCommandFragment> fragments,
-        ReadOnlyMemory<char> body,
-        ReadOnlyCollection<ReadOnlyMemory<char>> setup,
-        ReadOnlyCollection<ReadOnlyMemory<char>> cleanup,
+        string bodyCommandText,
+        ReadOnlyCollection<string> setupCommandTexts,
+        ReadOnlyCollection<string> cleanupCommandTexts,
         MySqlMigrationCommandScopeKind scopeKind
     )
     {
         CommandText = commandText;
         Fragments = fragments;
-        Body = body;
-        Setup = setup;
-        Cleanup = cleanup;
+        BodyCommandText = bodyCommandText;
+        SetupCommandTexts = setupCommandTexts;
+        CleanupCommandTexts = cleanupCommandTexts;
         ScopeKind = scopeKind;
     }
 
@@ -26,11 +26,11 @@ internal sealed class MySqlMigrationCommandLayout
 
     public IReadOnlyList<MySqlMigrationCommandFragment> Fragments { get; }
 
-    public ReadOnlyMemory<char> Body { get; }
+    public string BodyCommandText { get; }
 
-    public IReadOnlyList<ReadOnlyMemory<char>> Setup { get; }
+    public IReadOnlyList<string> SetupCommandTexts { get; }
 
-    public IReadOnlyList<ReadOnlyMemory<char>> Cleanup { get; }
+    public IReadOnlyList<string> CleanupCommandTexts { get; }
 
     public MySqlMigrationCommandScopeKind ScopeKind { get; }
 
@@ -51,26 +51,37 @@ internal sealed class MySqlMigrationCommandLayout
         return new MySqlMigrationCommandLayout(
             commandText,
             fragments,
-            body,
-            s_emptyCommands,
-            s_emptyCommands,
+            commandText,
+            s_emptyCommandTexts,
+            s_emptyCommandTexts,
             MySqlMigrationCommandScopeKind.None);
     }
-
-    public static MySqlMigrationCommandLayout CreateScoped(
-        string commandText,
-        IReadOnlyList<string> setupCommands,
-        IReadOnlyList<string> cleanupCommands
-    ) => CreateScopedLayout(
-        commandText,
-        setupCommands,
-        cleanupCommands,
-        MySqlMigrationCommandScopeKind.ProviderSqlMode);
 
     public static MySqlMigrationCommandLayout CreateHandlerScoped(
         IReadOnlyList<string> setupCommands,
         string bodyCommand,
         IReadOnlyList<string> cleanupCommands
+    ) => CreateScopedFromCommands(
+        setupCommands,
+        bodyCommand,
+        cleanupCommands,
+        MySqlMigrationCommandScopeKind.Handler);
+
+    public static MySqlMigrationCommandLayout CreateProviderScoped(
+        IReadOnlyList<string> setupCommands,
+        string bodyCommand,
+        IReadOnlyList<string> cleanupCommands
+    ) => CreateScopedFromCommands(
+        setupCommands,
+        bodyCommand,
+        cleanupCommands,
+        MySqlMigrationCommandScopeKind.ProviderSqlMode);
+
+    private static MySqlMigrationCommandLayout CreateScopedFromCommands(
+        IReadOnlyList<string> setupCommands,
+        string bodyCommand,
+        IReadOnlyList<string> cleanupCommands,
+        MySqlMigrationCommandScopeKind scopeKind
     )
     {
         ArgumentNullException.ThrowIfNull(setupCommands);
@@ -83,24 +94,80 @@ internal sealed class MySqlMigrationCommandLayout
             throw new ArgumentException("A scoped migration command requires setup and cleanup commands.");
         }
 
-        var commandText = string.Concat(setupCommands) + bodyCommand + string.Concat(cleanupCommands);
+        var commandText = CreateCommandText(setupCommands, bodyCommand, cleanupCommands);
 
         return CreateScopedLayout(
             commandText,
             setupCommands,
+            bodyCommand,
             cleanupCommands,
-            MySqlMigrationCommandScopeKind.Handler);
+            scopeKind);
+    }
+
+    private static string CreateCommandText(
+        IReadOnlyList<string> setupCommands,
+        string bodyCommand,
+        IReadOnlyList<string> cleanupCommands
+    )
+    {
+        var totalLength = bodyCommand.Length;
+
+        for (var index = 0; index < setupCommands.Count; index++)
+        {
+            totalLength = checked(totalLength + setupCommands[index].Length);
+        }
+
+        for (var index = 0; index < cleanupCommands.Count; index++)
+        {
+            totalLength = checked(totalLength + cleanupCommands[index].Length);
+        }
+
+        return string.Create(
+            totalLength,
+            (Setup: setupCommands, Body: bodyCommand, Cleanup: cleanupCommands),
+            static (destination, state) =>
+            {
+                var offset = CopyCommands(state.Setup, destination, offset: 0);
+                state.Body.AsSpan().CopyTo(destination[offset..]);
+                offset += state.Body.Length;
+                offset = CopyCommands(state.Cleanup, destination, offset);
+
+                if (offset != destination.Length)
+                {
+                    throw new InvalidOperationException(
+                        "Provider-owned migration fragments changed while the command text was created.");
+                }
+            });
+    }
+
+    private static int CopyCommands(
+        IReadOnlyList<string> commands,
+        Span<char> destination,
+        int offset
+    )
+    {
+        for (var index = 0; index < commands.Count; index++)
+        {
+            var command = commands[index];
+
+            command.AsSpan().CopyTo(destination[offset..]);
+            offset += command.Length;
+        }
+
+        return offset;
     }
 
     private static MySqlMigrationCommandLayout CreateScopedLayout(
         string commandText,
         IReadOnlyList<string> setupCommands,
+        string bodyCommandText,
         IReadOnlyList<string> cleanupCommands,
         MySqlMigrationCommandScopeKind scopeKind
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(commandText);
         ArgumentNullException.ThrowIfNull(setupCommands);
+        ArgumentException.ThrowIfNullOrWhiteSpace(bodyCommandText);
         ArgumentNullException.ThrowIfNull(cleanupCommands);
 
         if (setupCommands.Count == 0
@@ -110,8 +177,8 @@ internal sealed class MySqlMigrationCommandLayout
         }
 
         var fragments = new MySqlMigrationCommandFragment[setupCommands.Count + cleanupCommands.Count + 1];
-        var setup = new ReadOnlyMemory<char>[setupCommands.Count];
-        var cleanup = new ReadOnlyMemory<char>[cleanupCommands.Count];
+        var setupCommandTexts = new string[setupCommands.Count];
+        var cleanupCommandTexts = new string[cleanupCommands.Count];
         var offset = 0;
         var fragmentIndex = 0;
 
@@ -122,34 +189,18 @@ internal sealed class MySqlMigrationCommandLayout
             ValidateFragment(commandText, setupCommand, offset, MySqlMigrationCommandFragmentKind.Setup);
             var commandSlice = commandText.AsMemory(offset, setupCommand.Length);
 
-            setup[index] = commandSlice;
+            setupCommandTexts[index] = setupCommand;
             fragments[fragmentIndex++] = new MySqlMigrationCommandFragment(
                 MySqlMigrationCommandFragmentKind.Setup,
                 commandSlice);
             offset += setupCommand.Length;
         }
 
-        var cleanupLength = 0;
-
-        foreach (var cleanupCommand in cleanupCommands)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(cleanupCommand);
-            cleanupLength = checked(cleanupLength + cleanupCommand.Length);
-        }
-
-        var bodyLength = commandText.Length - offset - cleanupLength;
-        if (bodyLength <= 0
-            || commandText
-                .AsSpan(offset, bodyLength)
-                .IsWhiteSpace())
-        {
-            throw new InvalidOperationException("A scoped migration command must contain one non-empty body fragment.");
-        }
-
-        var body = commandText.AsMemory(offset, bodyLength);
+        ValidateFragment(commandText, bodyCommandText, offset, MySqlMigrationCommandFragmentKind.Body);
+        var body = commandText.AsMemory(offset, bodyCommandText.Length);
 
         fragments[fragmentIndex++] = new MySqlMigrationCommandFragment(MySqlMigrationCommandFragmentKind.Body, body);
-        offset += bodyLength;
+        offset += bodyCommandText.Length;
 
         for (var index = 0; index < cleanupCommands.Count; index++)
         {
@@ -158,7 +209,7 @@ internal sealed class MySqlMigrationCommandLayout
             ValidateFragment(commandText, cleanupCommand, offset, MySqlMigrationCommandFragmentKind.Cleanup);
             var commandSlice = commandText.AsMemory(offset, cleanupCommand.Length);
 
-            cleanup[index] = commandSlice;
+            cleanupCommandTexts[index] = cleanupCommand;
             fragments[fragmentIndex++] = new MySqlMigrationCommandFragment(
                 MySqlMigrationCommandFragmentKind.Cleanup,
                 commandSlice);
@@ -174,9 +225,9 @@ internal sealed class MySqlMigrationCommandLayout
         return new MySqlMigrationCommandLayout(
             commandText,
             Array.AsReadOnly(fragments),
-            body,
-            Array.AsReadOnly(setup),
-            Array.AsReadOnly(cleanup),
+            bodyCommandText,
+            Array.AsReadOnly(setupCommandTexts),
+            Array.AsReadOnly(cleanupCommandTexts),
             scopeKind);
     }
 
