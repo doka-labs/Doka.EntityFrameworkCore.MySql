@@ -734,7 +734,8 @@ def bind_candidate(args: argparse.Namespace) -> None:
         or trust.get("tag") != tag
         or trust.get("commit") != source_commit
         or not SHA256.fullmatch(str(trust.get("policyDigest", "")))
-        or (trust.get("qualification") or {}).get("commit") != source_commit
+        or (trust.get("qualification") or {}).get("mergedCommit")
+        != source_commit
     ):
         raise PublicationError("Release tag trust-root receipt is invalid.")
     if trust.get("policyDigest") != qualification.get("policyDigest"):

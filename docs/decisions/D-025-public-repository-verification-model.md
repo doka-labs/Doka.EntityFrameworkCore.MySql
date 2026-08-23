@@ -16,6 +16,28 @@ doka-profile-version: "1.0"
 
 # D-025 -- Verify on every event and harden the workflow surface for a public repository
 
+## 2026-08-23 Amendment: Qualify the PR tree once
+
+Merge-authoritative product qualification now runs on pull requests, explicit
+manual CI, and the scheduled drift lane. The identical build, unit,
+specification, integration, and coverage work no longer runs automatically on
+`push main`. `repository-qualification` remains the single fail-closed
+aggregator for the five merge gates.
+
+Benchmark and OpenSSF scorecard workflows run only on schedule or explicit
+dispatch. No merge queue, `merge_group`, main-admission workflow, or new
+qualification policy is introduced.
+
+The release trust owner resolves the one merged PR associated with a main
+squash, requires its successful `repository-qualification` check, and compares
+the qualified PR-head Git tree with the main-squash Git tree. A bypass without
+an identical qualified tree is not releaseable. The hosted ruleset remains an
+external separately approved change after the new aggregator has reported
+success.
+
+Statements below that require the same product lanes on both PR and `push
+main`, or describe the retired `baseline-proposal` profile, are historical.
+
 ## 2026-08-17 Amendment: Make runtime posture commit-exact
 
 RID-specific restore and publish behavior is affected by repository changes and

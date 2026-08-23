@@ -141,15 +141,11 @@ public sealed class AdrRepositoryValidatorTests
             Path.Combine(repositoryRoot, "eng", "performance", "check-benchmark-ratios.sh"));
 
         Assert.Contains(
-            "report_dir=\"${benchmarks_root}/${target}/reports/${run_id}\"",
+            "reports=\"${root}/${target}/reports/${run_id}\"",
             benchmarkGateScript,
             StringComparison.Ordinal);
         Assert.Contains(
-            "--reports \"${report_dir}\"",
-            benchmarkGateScript,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "--run-id \"${run_id}\"",
+            "arguments=(--evaluate \"${contract}\" \"${reports}\" \"${target}\" \"${profile}\")",
             benchmarkGateScript,
             StringComparison.Ordinal);
 
@@ -157,11 +153,11 @@ public sealed class AdrRepositoryValidatorTests
             Path.Combine(repositoryRoot, "eng", "performance", "benchmark.sh"));
 
         Assert.Contains(
-            "\"${compose_command[@]}\" ps -q \"${benchmark_compose_service}\"",
+            "\"${compose[@]}\" ps -q \"${target}\"",
             benchmarkScript,
             StringComparison.Ordinal);
         Assert.Contains(
-            "compose_command=(docker compose -p \"${compose_project_name}\"",
+            "compose=(docker compose -p \"${compose_project}\"",
             benchmarkScript,
             StringComparison.Ordinal);
         Assert.Contains("DOKA_BENCHMARK_DATABASE_PORT", benchmarkScript, StringComparison.Ordinal);
@@ -171,86 +167,78 @@ public sealed class AdrRepositoryValidatorTests
             benchmarkScript,
             StringComparison.Ordinal);
         Assert.Contains(
-            "DOKA_BENCHMARK_SERVER_IMAGE",
+            "actual_image=\"$(docker inspect --format '{{.Config.Image}}' \"${container}\")\"",
             benchmarkScript,
             StringComparison.Ordinal);
         Assert.Contains(
-            "host-preflight",
+            "source \"${repo_root}/eng/performance/host-preflight.sh\"",
             benchmarkScript,
             StringComparison.Ordinal);
-        // The host identity export moved into a shared helper because two
-        // orchestrations need it. Asserting it here alone would have kept
-        // passing while the paired comparison launched a driver that could not
-        // assemble a report, which is exactly what happened. Both callers are
-        // therefore bound to the one implementation.
+
         var hostPreflightScript = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "performance", "host-preflight.sh"));
 
         Assert.Contains(
-            "DOKA_BENCHMARK_HOST_CPU_UTILIZATION",
+            "require_benchmark_host_headroom()",
             hostPreflightScript,
             StringComparison.Ordinal);
         Assert.Contains(
-            "DOKA_BENCHMARK_HOST_LOAD_AVERAGE_1M",
+            "maximumCpuUtilization",
             hostPreflightScript,
             StringComparison.Ordinal);
 
-        var pairedScript = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "performance", "paired-benchmark.sh"));
-
-        foreach (var caller in new[] { benchmarkScript, pairedScript })
+        Assert.Contains(
+            "filters=(--filter '*ProviderWorkloadBenchmarks*')",
+            benchmarkScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "dotnet \"${benchmark_assembly}\" \"${filters[@]}\" --artifacts \"${report_directory}\"",
+            benchmarkScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "dotnet \"${benchmark_assembly}\" \"${gate_arguments[@]}\"",
+            benchmarkScript,
+            StringComparison.Ordinal);
+        foreach (var retiredMechanism in new[]
+                 {
+                     "python3",
+                     "attempt-profile",
+                     "baseline-mode",
+                     "paired-benchmark",
+                     "promote-baseline",
+                     "workflow_state",
+                 })
         {
-            Assert.Contains(
-                "eng/performance/host-preflight.sh",
-                caller,
-                StringComparison.Ordinal);
-            Assert.Contains("capture_host_preflight", caller, StringComparison.Ordinal);
+            Assert.DoesNotContain(retiredMechanism, benchmarkScript, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(retiredMechanism, benchmarkGateScript, StringComparison.OrdinalIgnoreCase);
         }
 
-        Assert.Contains(
-            "--host \"${host_evidence}\"",
-            benchmarkGateScript,
-            StringComparison.Ordinal);
-
-        var hostPreflightIndex = benchmarkScript.IndexOf(
-            "    run_host_preflight\n",
-            StringComparison.Ordinal);
-
-        var workloadMatrixIndex = benchmarkScript.IndexOf(
-            "    run_workload_matrix\n",
-            StringComparison.Ordinal);
-
-        var tailConfirmationIndex = benchmarkScript.IndexOf(
-            "    confirm_historical_tail_if_required\n",
-            StringComparison.Ordinal);
-
-        var benchmarkDotNetIndex = benchmarkScript.IndexOf(
-            "    run_benchmarkdotnet\n",
-            StringComparison.Ordinal);
-
-        Assert.True(
-            hostPreflightIndex >= 0
-            && workloadMatrixIndex > hostPreflightIndex
-            && tailConfirmationIndex > workloadMatrixIndex
-            && benchmarkDotNetIndex > tailConfirmationIndex,
-            "Provider workloads and targeted tail confirmation must run after "
-            + "host preflight and before BenchmarkDotNet adds sustained host load.");
-        Assert.Contains("plan-tail-confirmation", benchmarkScript, StringComparison.Ordinal);
-        Assert.Contains("merge-tail-confirmations", benchmarkScript, StringComparison.Ordinal);
-        Assert.Contains("--workload \"${workload_id}\"", benchmarkScript, StringComparison.Ordinal);
-
-        var workloadRunner = File.ReadAllText(
+        var workloadBenchmarks = File.ReadAllText(
             Path.Combine(
                 repositoryRoot,
                 "benchmarks",
                 "Doka.EntityFrameworkCore.MySql.Benchmarks",
-                "PerformanceWorkloadRunner.cs"));
+                "ProviderWorkloadBenchmarks.cs"));
 
         Assert.Contains(
-            "performance-workload-diagnostic",
-            workloadRunner,
+            "[ParamsSource(nameof(WorkloadIds))]",
+            workloadBenchmarks,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("benchmark_container_name", benchmarkScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "PerformanceWorkloadCatalog.Create()",
+            workloadBenchmarks,
+            StringComparison.Ordinal);
+
+        var performanceGate = File.ReadAllText(
+            Path.Combine(
+                repositoryRoot,
+                "benchmarks",
+                "Doka.EntityFrameworkCore.MySql.Benchmarks",
+                "PerformanceGate.cs"));
+
+        Assert.Contains("OriginalValues", performanceGate, StringComparison.Ordinal);
+        Assert.Contains("InvalidEvidenceExitCode = 78", performanceGate, StringComparison.Ordinal);
+        Assert.DoesNotContain("HttpClient", performanceGate, StringComparison.Ordinal);
 
         var benchmarkTarget = File.ReadAllText(
             Path.Combine(
@@ -537,6 +525,164 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("CompiledModels", readback, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Prevents benchmark diagnostics from populating the run directory before
+    /// the benchmark runner applies its freshness guard.
+    /// </summary>
+    [Fact]
+    public void Benchmark_diagnostics_do_not_claim_the_report_directory()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var workflow = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "benchmark.yml"));
+
+        var benchmarkScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "performance", "benchmark.sh"));
+
+        var reportDirectory = NormalizeBenchmarkPathTemplate(
+            ExtractQuotedAssignment(
+                benchmarkScript.Split('\n').Single(static line =>
+                    line.StartsWith("report_directory=", StringComparison.Ordinal))));
+
+        var diagnosticPaths = workflow
+            .Split('\n')
+            .Select(static line => line.Trim())
+            .Where(static line => line.StartsWith("diagnostic=", StringComparison.Ordinal))
+            .Select(ExtractQuotedAssignment)
+            .Select(NormalizeBenchmarkPathTemplate)
+            .ToArray();
+
+        Assert.Single(diagnosticPaths);
+
+        foreach (var diagnosticPath in diagnosticPaths)
+        {
+            Assert.False(
+                IsPathOwnedBy(reportDirectory, diagnosticPath),
+                $"Diagnostic path '{diagnosticPath}' must be outside report directory '{reportDirectory}'.");
+        }
+    }
+
+    /// <summary>
+    /// Characterizes the release workflow DAG and least-privilege boundaries,
+    /// including the read scopes required to verify PR qualification.
+    /// </summary>
+    [Fact]
+    public void Release_candidate_preserves_its_stage_and_permission_boundaries()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var workflow = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "release-candidate.yml"));
+
+        Assert.Contains(
+            "permissions:\n  contents: read\n\nconcurrency:",
+            workflow,
+            StringComparison.Ordinal);
+
+        var preflight = GetWorkflowJob(workflow, "preflight");
+        var foundation = GetWorkflowJob(workflow, "foundation");
+        var engineContracts = GetWorkflowJob(workflow, "engine-contracts");
+        var sbom = GetWorkflowJob(workflow, "sbom");
+        var assemble = GetWorkflowJob(workflow, "assemble");
+        var attest = GetWorkflowJob(workflow, "attest");
+        var publish = GetWorkflowJob(workflow, "publish");
+
+        Assert.Contains(
+            "    permissions:\n      actions: read\n      contents: read\n",
+            preflight,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("\n    permissions:", foundation, StringComparison.Ordinal);
+        Assert.Contains("    needs: preflight\n", foundation, StringComparison.Ordinal);
+        Assert.DoesNotContain("\n    permissions:", engineContracts, StringComparison.Ordinal);
+        Assert.Contains("    needs: foundation\n", engineContracts, StringComparison.Ordinal);
+        Assert.Contains(
+            "    needs: foundation\n",
+            sbom,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "    permissions:\n      actions: read\n      contents: read\n",
+            sbom,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "    needs:\n      - foundation\n      - engine-contracts\n      - sbom\n",
+            assemble,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "    permissions:\n"
+            + "      actions: read\n"
+            + "      checks: read\n"
+            + "      contents: read\n"
+            + "      pull-requests: read\n",
+            assemble,
+            StringComparison.Ordinal);
+        Assert.Contains("    needs: assemble\n", attest, StringComparison.Ordinal);
+        Assert.Contains(
+            "    permissions:\n"
+            + "      actions: read\n"
+            + "      attestations: write\n"
+            + "      artifact-metadata: write\n"
+            + "      contents: read\n"
+            + "      id-token: write\n",
+            attest,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "    needs:\n      - assemble\n      - attest\n",
+            publish,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "    permissions:\n"
+            + "      actions: read\n"
+            + "      attestations: read\n"
+            + "      checks: read\n"
+            + "      contents: write\n"
+            + "      id-token: write\n"
+            + "      pull-requests: read\n",
+            publish,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Keeps merge-authoritative product qualification on pull requests and
+    /// prevents equivalent automatic work from running again after the merge.
+    /// </summary>
+    [Fact]
+    public void Merge_authoritative_workflows_do_not_repeat_on_main()
+    {
+        var workflowRoot = Path.Combine(FindRepositoryRoot(), ".github", "workflows");
+        var ci = File.ReadAllText(Path.Combine(workflowRoot, "ci.yml"));
+        var benchmark = File.ReadAllText(Path.Combine(workflowRoot, "benchmark.yml"));
+        var scorecard = File.ReadAllText(Path.Combine(workflowRoot, "scorecard.yml"));
+
+        var ciTriggers = GetWorkflowTriggers(ci);
+        var benchmarkTriggers = GetWorkflowTriggers(benchmark);
+        var scorecardTriggers = GetWorkflowTriggers(scorecard);
+
+        Assert.Contains("  pull_request:\n", ciTriggers, StringComparison.Ordinal);
+        Assert.DoesNotContain("  push:\n", ciTriggers, StringComparison.Ordinal);
+        Assert.DoesNotContain("  merge_group:\n", ciTriggers, StringComparison.Ordinal);
+        Assert.DoesNotContain("  main-admission:\n", ci, StringComparison.Ordinal);
+
+        var qualification = GetWorkflowJob(ci, "repository-qualification");
+        foreach (var requiredGate in new[]
+                 {
+                     "quality-gates",
+                     "repo-tests",
+                     "spec-test-suite",
+                     "integration-smoke",
+                     "coverage-gate",
+                 })
+        {
+            Assert.Contains($"      - {requiredGate}\n", qualification, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("  workflow_dispatch:\n", benchmarkTriggers, StringComparison.Ordinal);
+        Assert.Contains("  schedule:\n", benchmarkTriggers, StringComparison.Ordinal);
+        Assert.DoesNotContain("  push:\n", benchmarkTriggers, StringComparison.Ordinal);
+
+        Assert.Contains("  workflow_dispatch:\n", scorecardTriggers, StringComparison.Ordinal);
+        Assert.Contains("  schedule:\n", scorecardTriggers, StringComparison.Ordinal);
+        Assert.DoesNotContain("  push:\n", scorecardTriggers, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Tiered_ci_preserves_fast_and_exhaustive_verification_lanes()
     {
@@ -556,8 +702,7 @@ public sealed class AdrRepositoryValidatorTests
         const string exhaustiveCondition =
             "if: >-\n"
             + "      github.event_name == 'schedule'\n"
-            + "      || (github.event_name == 'workflow_dispatch'\n"
-            + "      && inputs.profile != 'baseline-proposal')";
+            + "      || github.event_name == 'workflow_dispatch'";
 
         Assert.Contains(
             "schedule:\n    - cron: \"15 1 * * 4\"",
@@ -574,9 +719,9 @@ public sealed class AdrRepositoryValidatorTests
         AssertFastLaneJob(workflow, "repo-tests");
         AssertFastLaneJob(workflow, "integration-smoke");
 
-        // D-025 moved specification conformance and the coverage gate into the
-        // per-event lane. They no longer carry the scheduled condition, and the
-        // baseline-proposal dispatch remains the only profile that skips them.
+        // Specification conformance and coverage are part of every PR and
+        // explicit CI execution. Expensive patch matrices remain scheduled or
+        // manual and are intentionally outside the merge qualification.
         Assert.DoesNotContain(
             $"  spec-test-suite:\n    {exhaustiveCondition}",
             workflow,
@@ -585,8 +730,8 @@ public sealed class AdrRepositoryValidatorTests
             $"  coverage-gate:\n    {exhaustiveCondition}",
             workflow,
             StringComparison.Ordinal);
-        AssertPerEventJob(workflow, "spec-test-suite");
-        AssertPerEventJob(workflow, "coverage-gate");
+        AssertFastLaneJob(workflow, "spec-test-suite");
+        AssertFastLaneJob(workflow, "coverage-gate");
 
         Assert.Contains("--filter \"Category=Spec|Category=Live\"", workflow, StringComparison.Ordinal);
         Assert.Equal(
@@ -622,29 +767,15 @@ public sealed class AdrRepositoryValidatorTests
             "bash ./eng/test-runtime-posture.sh --test-only",
             integration,
             StringComparison.Ordinal);
-        Assert.Contains(
-            $"  benchmark-smoke:\n    {exhaustiveCondition}",
-            workflow,
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("  benchmark-smoke:\n", workflow, StringComparison.Ordinal);
         // The required aggregator is the one job that must run under always():
         // GitHub reports a skipped job as success, so a check that merely
         // depended on the gates would pass in exactly the cases it exists to
         // catch. It inspects every producer result explicitly instead, which is
         // what makes it fail closed. Every other job still has to state a real
         // condition, so the prohibition holds outside that job.
-        var aggregatorStart = workflow.IndexOf(
-            "  repository-qualification:",
-            StringComparison.Ordinal);
-
-        Assert.True(aggregatorStart >= 0, "The required aggregator is missing.");
-        var aggregatorEnd = workflow.IndexOf(
-            "\n  benchmark-smoke:",
-            aggregatorStart,
-            StringComparison.Ordinal);
-
-        Assert.True(aggregatorEnd > aggregatorStart, "The aggregator has no successor job.");
-
-        var outsideAggregator = workflow[..aggregatorStart] + workflow[aggregatorEnd..];
+        var aggregator = GetWorkflowJob(workflow, "repository-qualification");
+        var outsideAggregator = workflow.Replace(aggregator, string.Empty, StringComparison.Ordinal);
 
         Assert.DoesNotContain(
             "    if: >-\n      always()",
@@ -652,11 +783,11 @@ public sealed class AdrRepositoryValidatorTests
             StringComparison.Ordinal);
         Assert.Contains(
             "always()",
-            workflow[aggregatorStart..aggregatorEnd],
+            aggregator,
             StringComparison.Ordinal);
         Assert.Contains(
             "Require every commit-exact gate to have succeeded",
-            workflow[aggregatorStart..aggregatorEnd],
+            aggregator,
             StringComparison.Ordinal);
         Assert.Contains(
             "Require successful coverage producers",
@@ -814,7 +945,7 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("git diff --cached --check", preCommit, StringComparison.Ordinal);
         Assert.Contains("exec \"${repo_root}/eng/quality-gates.sh\"", prePush, StringComparison.Ordinal);
         Assert.DoesNotContain("--fast", prePush, StringComparison.Ordinal);
-        Assert.Contains("eng.quality.commit_message", commitMessage, StringComparison.Ordinal);
+        Assert.Contains("eng/quality/commit-message.sh", commitMessage, StringComparison.Ordinal);
 
         Assert.Contains("hooks=(commit-msg pre-commit pre-push)", installer, StringComparison.Ordinal);
         Assert.Contains("config --local core.hooksPath", installer, StringComparison.Ordinal);
@@ -1504,6 +1635,70 @@ public sealed class AdrRepositoryValidatorTests
         AdrValidationReport report
     ) => string.Join(Environment.NewLine, report.Errors);
 
+    private static string ExtractQuotedAssignment(
+        string line
+    )
+    {
+        var valueStart = line.IndexOf("=\"", StringComparison.Ordinal);
+
+        Assert.True(valueStart >= 0 && line.EndsWith('"'), $"Invalid quoted assignment: {line}");
+
+        return line[(valueStart + 2)..^1];
+    }
+
+    private static string NormalizeBenchmarkPathTemplate(
+        string path
+    ) => path
+        .Replace("${repo_root}/", string.Empty, StringComparison.Ordinal)
+        .Replace("${target}", "{target}", StringComparison.Ordinal)
+        .Replace("${run_id}", "{run}", StringComparison.Ordinal)
+        .Replace("${benchmark_artifacts_dir}", "artifacts/benchmarks/{target}", StringComparison.Ordinal)
+        .Replace("${benchmark_run_id}", "{run}", StringComparison.Ordinal)
+        .Replace("${WORKFLOW_TARGET}", "{target}", StringComparison.Ordinal)
+        .Replace("${WORKFLOW_RUN_ID}", "{run}", StringComparison.Ordinal)
+        .Replace("${DOKA_BENCHMARK_TARGET}", "{target}", StringComparison.Ordinal)
+        .Replace("${DOKA_BENCHMARK_RUN_ID}", "{run}", StringComparison.Ordinal);
+
+    private static bool IsPathOwnedBy(
+        string ownerDirectory,
+        string candidatePath
+    ) => candidatePath.Equals(ownerDirectory, StringComparison.Ordinal)
+        || candidatePath.StartsWith(ownerDirectory + "/", StringComparison.Ordinal);
+
+    private static string GetWorkflowJob(
+        string workflow,
+        string jobName
+    )
+    {
+        var jobStart = workflow.IndexOf($"  {jobName}:\n", StringComparison.Ordinal);
+
+        Assert.True(jobStart >= 0, $"Workflow job '{jobName}' is missing.");
+
+        var nextJob = workflow.IndexOf("\n  ", jobStart + 1, StringComparison.Ordinal);
+
+        while (nextJob >= 0
+               && (nextJob + 3 >= workflow.Length
+                   || char.IsWhiteSpace(workflow[nextJob + 3])))
+        {
+            nextJob = workflow.IndexOf("\n  ", nextJob + 1, StringComparison.Ordinal);
+        }
+
+        return nextJob < 0 ? workflow[jobStart..] : workflow[jobStart..nextJob];
+    }
+
+    private static string GetWorkflowTriggers(
+        string workflow
+    )
+    {
+        var triggerStart = workflow.IndexOf("\non:\n", StringComparison.Ordinal);
+        var permissionsStart = workflow.IndexOf("\npermissions:\n", StringComparison.Ordinal);
+
+        Assert.True(triggerStart >= 0, "Workflow trigger block is missing.");
+        Assert.True(permissionsStart > triggerStart, "Workflow permissions must follow its triggers.");
+
+        return workflow[(triggerStart + 1)..permissionsStart];
+    }
+
     private static void AssertFastLaneJob(
         string workflow,
         string jobName
@@ -1517,31 +1712,17 @@ public sealed class AdrRepositoryValidatorTests
 
         Assert.True(runsOn > jobStart, $"Workflow job '{jobName}' has no runs-on declaration.");
 
-        Assert.DoesNotContain(
-            "\n    if:",
-            workflow[jobStart..runsOn],
-            StringComparison.Ordinal);
-    }
+        var jobConditions = workflow[jobStart..runsOn]
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Where(line => line.StartsWith("    if:", StringComparison.Ordinal))
+            .ToArray();
 
-    private static void AssertPerEventJob(
-        string workflow,
-        string jobName
-    )
-    {
-        var jobStart = workflow.IndexOf($"  {jobName}:", StringComparison.Ordinal);
-
-        Assert.True(jobStart >= 0, $"Workflow job '{jobName}' is missing.");
-
-        var steps = workflow.IndexOf("\n    steps:", jobStart, StringComparison.Ordinal);
-
-        Assert.True(steps > jobStart, $"Workflow job '{jobName}' has no steps.");
-
-        // Asserting inside the job header rather than across the whole file
-        // keeps one job's guard from covering for another job that lost its own.
-        Assert.Contains(
-            "\n    if: inputs.profile != 'baseline-proposal'\n",
-            workflow[jobStart..steps],
-            StringComparison.Ordinal);
+        Assert.True(
+            jobConditions.Length <= 1,
+            $"Workflow job '{jobName}' must not have multiple job conditions.");
+        Assert.All(
+            jobConditions,
+            condition => Assert.Equal("    if: github.event_name != 'schedule'", condition));
     }
 
     private static void AssertShellGate(

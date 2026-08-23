@@ -86,87 +86,15 @@ than a workflow check that could never receive the required permission.
 Primary source: [Preventing changes to your releases](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/establish-provenance-and-integrity/prevent-release-changes)
 and [REST API endpoints for repositories](https://docs.github.com/en/rest/repos/repos?apiVersion=2026-03-10#check-if-immutable-releases-are-enabled-for-a-repository).
 
-### Actions must be able to create the reviewed baseline proposal
+### Actions workflow permissions must remain read-only
 
-`default_workflow_permissions` must remain `read`, while
-`can_approve_pull_request_reviews` must be `true`.
+`default_workflow_permissions` must remain `read`. No current workflow creates,
+approves, or merges pull requests, so `can_approve_pull_request_reviews` is not
+required by repository automation and should remain disabled.
 
-GitHub couples pull-request creation and approving reviews in one repository
-setting; it does not expose a create-only variant. The baseline-proposal job in
-`benchmark.yml` needs that setting to open its single-file proposal. The job
-receives explicit `pull-requests: write` and `contents: write` permissions only
-on the trusted `main` workflow path.
-
-Enabling the setting does not itself approve a pull request. The workflow has
-no review command, refuses any proposal branch that changes more than the
-canonical baseline, and never performs an approval or administrative bypass.
-The `main` ruleset must still require an independent maintainer approval and
-the protected checks. Those controls are the review boundary because GitHub's
-combined setting cannot make creation available while technically forbidding
-approval.
-
-```bash
-gh api --method PUT "repos/${repo}/actions/permissions/workflow" \
-  --field default_workflow_permissions=read \
-  --field can_approve_pull_request_reviews=true
-```
-
-UI: Settings -> Actions -> General -> Workflow permissions -> enable "Allow
-GitHub Actions to create and approve pull requests".
-
-### Baseline auto-merge must use the organization GitHub App
-
-`GITHUB_TOKEN` remains responsible for the baseline branch, pull-request
-maintenance, and the restricted CI dispatch. That prevents the automation
-branch from starting an additional full pull-request workflow fan-out. It must
-not register auto-merge: GitHub suppresses workflow runs for events caused by
-that token, which can leave the merged `main` revision without commit-exact
-release qualification.
-
-The private GitHub App owned by `doka-labs` supplies the separate merge
-identity. Its registration and installation must retain this contract:
-
-- installation visibility: only the owning organization;
-- repository access: only `Doka.EntityFrameworkCore.MySql`;
-- repository permissions: `Contents: Read and write`, `Pull requests: Read and
-  write`, and the implicit read-only metadata permission;
-- organization and account permissions: none;
-- webhooks and event subscriptions: disabled;
-- ruleset bypass: none.
-
-Organization Actions configuration exposes the App credentials only to this
-repository:
-
-- variable `DOKA_AUTOMATION_APP_CLIENT_ID`: the App Client ID;
-- secret `DOKA_AUTOMATION_APP_PRIVATE_KEY`: the complete generated PEM private
-  key;
-- repository access for both values: `Doka.EntityFrameworkCore.MySql` only.
-
-`benchmark.yml` uses the full-SHA pinned official
-`actions/create-github-app-token` action. The cheap resolver first requests an
-unused preflight token and lets the action revoke it before scorecard runners
-are allocated. After a proposal update, a separate fresh token repeats the
-repository and permission restrictions and is consumed only by
-`gh pr merge --auto --squash`. It never reaches checkout, branch push,
-pull-request creation, review, or the CI dispatch. The action revokes each
-token when its job completes.
-
-The workflow distinguishes GitHub's two Actions identities deliberately:
-`github-actions[bot]` is the commit-bot name, while an existing auto-merge
-request reports the Actor login `app/github-actions`. That legacy Actor is
-rebound to the dedicated App, and the workflow reads GitHub's resulting Actor
-back before it reports success.
-
-Keep `DOKA_AUTOMATION_APP_PRIVATE_KEY` as an organization secret restricted to
-this repository. Do not add a nominal environment only to satisfy static
-auditing: without protection rules it creates no independent authorization
-boundary, while a required-review environment would add a second manual gate
-to every baseline-maintenance cycle. The independent authorization boundary
-is the protected workflow change itself, followed by the repository-only App
-installation and the job-level permission narrowing above. Reconsider an
-environment boundary only if GitHub provides a non-interactive protection rule
-that can authorize this exact maintenance job without weakening that model or
-adding another operator handoff.
+Benchmark budgets are ordinary reviewed repository changes. The scheduled and
+manual benchmark workflow has only `contents: read`; it uploads raw artifacts
+and never opens or promotes a proposal.
 
 ### The nuget environment must require a human reviewer
 
@@ -293,26 +221,24 @@ observed summaries and an update to D-025 in the same pull request.
 
 ### Required status checks must match the current lanes
 
-ADR D-026 adds a stable aggregator for the commit-exact release inputs. The
-individual specification and coverage jobs remain visible, but
+The CI workflow exposes a stable aggregator for the commit-exact release
+inputs. The individual specification and coverage jobs remain visible, but
 `repository-qualification` is the fail-closed contract: it runs with
 `always()`, inspects every dependency result, and fails when one was skipped or
-failed. The three inexpensive checks remain individually required because the
-restricted baseline-proposal profile deliberately runs only those checks.
+failed.
 
-Expected required checks on `main`:
+After the simplified workflow has reported hosted success, the intended
+required checks on `main` are:
 
 - `repository-qualification`
-- `quality-gates`
-- `repo-tests`
-- `integration-smoke`
 - `dependency-review`
 
 CodeQL remains enforced through the ruleset's `code_scanning` rule rather than
 as another status-check context.
 
-A check becomes selectable only after it has reported once, so this step
-follows the first complete run rather than preceding it.
+A check becomes selectable only after it has reported once. Updating the
+external ruleset therefore remains a separately approved operation after a
+complete hosted run; repository changes alone do not authorize it.
 
 UI: Settings -> Rules -> `main` -> Require status checks to pass.
 
@@ -331,9 +257,6 @@ jq '{
     if .type == "required_status_checks" then
       .parameters.required_status_checks = [
         {context: "repository-qualification", integration_id: 15368},
-        {context: "quality-gates", integration_id: 15368},
-        {context: "repo-tests", integration_id: 15368},
-        {context: "integration-smoke", integration_id: 15368},
         {context: "dependency-review", integration_id: 15368}
       ]
     else . end))
@@ -423,13 +346,6 @@ Unless noted otherwise, sources were retrieved on 2026-08-10.
   including the combined create-and-approve setting and fork-workflow approval.
 - GitHub, [GITHUB_TOKEN][github-token],
   including permissions, lifetime, and workflow-trigger behavior.
-- GitHub, [Registering a GitHub App][github-app-registration],
-  [Installing your own GitHub App][github-app-installation], and
-  [Choosing permissions for a GitHub App][github-app-permissions]
-  (retrieved 2026-08-14).
-- GitHub, [`actions/create-github-app-token`][github-app-token-action],
-  including explicit repository and permission scoping and automatic token
-  revocation (retrieved 2026-08-14).
 - GitHub, [Rules available for rulesets][github-ruleset-reviews], including
   stale-review dismissal and approval of the most recent reviewable push
   (retrieved 2026-08-14).
@@ -449,14 +365,6 @@ Unless noted otherwise, sources were retrieved on 2026-08-10.
   https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository
 [github-token]:
   https://docs.github.com/en/actions/concepts/security/github_token
-[github-app-registration]:
-  https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app
-[github-app-installation]:
-  https://docs.github.com/en/apps/using-github-apps/installing-your-own-github-app
-[github-app-permissions]:
-  https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app
-[github-app-token-action]:
-  https://github.com/actions/create-github-app-token
 [github-ruleset-reviews]:
   https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets
 [github-deployment-environments]:

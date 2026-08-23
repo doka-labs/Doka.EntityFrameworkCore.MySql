@@ -140,7 +140,7 @@ class QualificationChain:
         self.write_packages()
 
 
-def fake_check_receipt(commit: str) -> dict[str, Any]:
+def fake_check_receipt(commit: str, tree: str) -> dict[str, Any]:
     """Return the resolved protected-check receipt the forge would produce."""
     return {
         "name": "repository-qualification",
@@ -150,10 +150,15 @@ def fake_check_receipt(commit: str) -> dict[str, Any]:
         "workflowPath": ".github/workflows/ci.yml",
         "workflowRunId": 3131,
         "runAttempt": 1,
-        "event": "push",
-        "headBranch": "main",
-        "commit": commit,
+        "event": "pull_request",
+        "headBranch": "feature/provider-change",
+        "commit": "f" * 40,
         "workflowConclusion": "success",
+        "pullRequestNumber": 64,
+        "baseBranch": "main",
+        "mergedCommit": commit,
+        "mergedTreeId": tree,
+        "qualifiedTreeId": tree,
     }
 
 
@@ -191,7 +196,9 @@ class ReleaseQualificationChainTests(unittest.TestCase):
         # replaced at the single seam that reaches it. Everything else is real.
         self.original_fetch = gate_results.fetch_qualification_receipt
         gate_results.fetch_qualification_receipt = (
-            lambda repository, commit, check_name: fake_check_receipt(commit)
+            lambda repository, commit, check_name, **_: fake_check_receipt(
+                commit, self.tree
+            )
         )
 
     def tearDown(self) -> None:

@@ -25,7 +25,6 @@ from typing import Any, Sequence
 POLICY_PATH = Path(__file__).resolve().parent / "evidence-policy.json"
 
 MANIFEST_KIND = "release-qualification-manifest"
-RECEIPT_KIND = "protected-check-receipt"
 GATE_MANIFEST_KIND = "gate-evidence-manifest"
 
 
@@ -77,76 +76,6 @@ def policy_digest(policy: dict[str, Any]) -> str:
     canonical = json.dumps(policy, sort_keys=True, separators=(",", ":"))
 
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
-def protected_check_receipt(
-    response: dict[str, Any],
-    *,
-    gate: dict[str, Any],
-    commit: str,
-    repository: str,
-    digest_source: str,
-) -> dict[str, Any]:
-    """Normalize an authenticated API response into immutable evidence.
-
-    Repository qualification and code scanning run on GitHub rather than in
-    this repository, so no repository-owned artifact exists to hash. Without
-    this step the per-file digest contract would simply not apply to them, and
-    the strongest checks in the release would be the least bound.
-    """
-    for field in ("id", "name", "conclusion", "head_sha"):
-        if field not in response:
-            raise QualificationError(
-                f"Protected-check response for '{gate['id']}' lacks '{field}'."
-            )
-
-    expected_name = gate.get("checkName", gate["id"])
-    if response["name"] != expected_name:
-        raise QualificationError(
-            f"Protected-check response is '{response['name']}', not "
-            f"'{expected_name}'."
-        )
-    if response["head_sha"] != commit:
-        raise QualificationError(
-            f"Protected-check '{gate['id']}' describes commit "
-            f"{response['head_sha']}, not the candidate {commit}."
-        )
-    if response["conclusion"] != "success":
-        raise QualificationError(
-            f"Protected-check '{gate['id']}' concluded "
-            f"'{response['conclusion']}'."
-        )
-
-    required_event = gate.get("requiredEvent")
-    if required_event and response.get("event") != required_event:
-        raise QualificationError(
-            f"Protected-check '{gate['id']}' originated from "
-            f"'{response.get('event')}' rather than '{required_event}'. A "
-            "pull-request result for the same commit is not branch evidence."
-        )
-    required_ref = gate.get("requiredRef")
-    if required_ref and response.get("ref") != required_ref:
-        raise QualificationError(
-            f"Protected-check '{gate['id']}' originated from "
-            f"'{response.get('ref')}' rather than '{required_ref}'."
-        )
-
-    return {
-        "schemaVersion": 1,
-        "kind": RECEIPT_KIND,
-        "gate": gate["id"],
-        "repository": repository,
-        "commit": commit,
-        "apiResourceId": response["id"],
-        "responseDigest": hashlib.sha256(
-            digest_source.encode("utf-8")
-        ).hexdigest(),
-        "workflowPath": gate["producerWorkflow"],
-        "workflowRunId": response.get("workflow_run_id"),
-        "runAttempt": response.get("run_attempt"),
-        "event": response.get("event"),
-        "conclusion": response["conclusion"],
-    }
 
 
 def eligible_results(

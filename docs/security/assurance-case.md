@@ -170,7 +170,7 @@ tag movement, workflow impersonation, partial publication ambiguity, mutable
 release assets, and a dependency-confusion restore during consumer testing.
 
 **Evidence.** The
-[release-workflow policy tests](../../eng/tests/test_release_workflow_policy.py),
+[release workflow contracts](../../tests/Doka.EntityFrameworkCore.MySql.Tests/Contracts/AdrRepositoryValidatorTests.cs),
 [release trust tests](../../eng/tests/test_release_trust.py),
 [provenance tests](../../eng/tests/test_release_provenance.py),
 [publication tests](../../eng/tests/test_nuget_publication.py), and

@@ -16,6 +16,26 @@ doka-profile-version: "1.0"
 
 # D-026 -- Qualify releases from bound evidence and paired performance runs
 
+## 2026-08-23 Amendment: Preserve release trust without paired performance
+
+Paired performance is retired in favor of the direct BenchmarkDotNet gate
+defined by the D-019 amendment of the same date. Performance remains
+independent of release qualification.
+
+The release-candidate stages, package/SBOM ordering, attestation, publication,
+and public readback remain unchanged. The `assemble` and `publish` jobs gain
+only `checks: read` and `pull-requests: read`, which their qualification lookup
+and frozen-check verification require. No job gains a new write permission.
+The imported branch qualification binding changes: release trust accepts the
+successful `repository-qualification` check of the single merged PR only when
+the qualified PR-head tree is byte-for-byte the main-squash tree. The frozen
+qualification repeats that same association and tree check before publication.
+
+The release workflow does not rerun the removed `push main` product workflow,
+and it gains no new stage or policy file. Paired execution, benchmark attempts,
+confirmation artifacts, and baseline promotion described below are historical
+where they conflict with this amendment.
+
 ## 2026-08-21 Amendment: Bind the driver to its reference API surface
 
 The complete six-target run [32501167056][cross-version-driver-failure] failed

@@ -480,6 +480,7 @@ run_specification_gate() {
 }
 
 run_repository_test_gate() {
+    bash "${repo_root}/eng/release/test-tools.sh"
     DOKA_COVERAGE_RESULTS_DIR="${coverage_input_dir}/repo-tests" \
         bash "${repo_root}/eng/testing/test.sh"
 }

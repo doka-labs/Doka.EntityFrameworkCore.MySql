@@ -851,10 +851,15 @@ class NuGetPublicationTests(unittest.TestCase):
             "workflowPath": ".github/workflows/ci.yml",
             "workflowRunId": 9001,
             "runAttempt": 1,
-            "event": "push",
-            "headBranch": "main",
-            "commit": source_commit,
+            "event": "pull_request",
+            "headBranch": "feature/provider-change",
+            "commit": "f" * 40,
             "workflowConclusion": "success",
+            "pullRequestNumber": 64,
+            "baseBranch": "main",
+            "mergedCommit": source_commit,
+            "mergedTreeId": tree_id,
+            "qualifiedTreeId": tree_id,
         }
         qualification_manifest, policy = self._qualification_manifest(
             qualification_receipt,
@@ -1085,6 +1090,10 @@ class NuGetPublicationTests(unittest.TestCase):
                 "event": receipt["event"],
                 "conclusion": "success",
                 "apiResourceId": receipt["id"],
+                "pullRequestNumber": receipt["pullRequestNumber"],
+                "baseBranch": receipt["baseBranch"],
+                "qualifiedCommit": receipt["commit"],
+                "qualifiedTreeId": receipt["qualifiedTreeId"],
                 "responseDigest": hashlib.sha256(
                     json.dumps(
                         receipt,

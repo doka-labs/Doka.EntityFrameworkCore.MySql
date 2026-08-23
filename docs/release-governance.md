@@ -57,12 +57,6 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - merged source-coverage gate: `coverage-gate`
   - migration deployment lifecycle: `./eng/test-migration-deployment.sh`
   - runtime smoke: `./eng/test-runtime-posture.sh --test-only`
-  - benchmark smoke:
-    - targets: every key in `performance-contract.json.requiredTargets`
-    - execution: one isolated, target-owned Compose lifecycle per matrix job
-    - comparison: explicit single-revision `historical` orchestration with the
-      non-baselined `smoke` profile; this checks absolute contracts and creates
-      no release evidence
 - Scheduled container matrix:
   - workflow: `.github/workflows/container-matrix.yml`
   - cadence: weekly and on demand
@@ -76,15 +70,11 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/integration/<run-id>/test-database-evidence.json`
 - Dedicated benchmark scorecard:
   - workflow: `.github/workflows/benchmark.yml`
-  - cadence: monthly, on demand, and after measurement-defining changes
-  - ordinary provider-source changes: complete six-target, non-qualifying
-    smoke lane
-  - full scorecard changes: benchmark and evaluator inputs, runtime package
-    versions and lock files, production project files, SDK/build inputs,
-    database images, and supported-engine contract
-  - no measurement: documentation, tests, unrelated Actions-only maintenance,
-    accepted baseline output, and known test-, analyzer-, or example-only
-    package bumps
+  - cadence: monthly and on demand; never automatically after a merge
+  - profiles: `smoke`, `scorecard`, and `stress`
+  - evaluation: one C# gate reads the raw BenchmarkDotNet reports exactly once
+    and applies checked-in absolute budgets plus same-run controls
+  - no workflow attempts, confirmations, receipts, or baseline promotion
   - targets: every key in `performance-contract.json.requiredTargets`; the
     workflow derives its matrix from that contract instead of duplicating it
   - local path for one selected target:
@@ -96,9 +86,8 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     ```
 
   - retained evidence:
-    - `artifacts/benchmarks/<target>/benchmark-summary.md`
-    - `artifacts/benchmarks/<target>/benchmark-evidence.json`
     - `artifacts/benchmarks/<target>/reports/<run-id>/...`
+    - `artifacts/benchmarks/<target>/diagnostics/<run-id>.log`
   - authority: independent engineering evidence only; benchmark outcomes and
     artifacts are not release gates and are absent from candidate manifests
 - Hosted candidate and protected publication:
@@ -128,7 +117,7 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     their SHA-256 digests, compiles generated models, and executes basic and
     spatial runtime contracts against the pinned MySQL 8.4 image
   - performance boundary: candidate and publication code cannot invoke or read
-    benchmark workflows, contracts, baselines, artifacts, or verdicts
+    benchmark workflows, contracts, budgets, artifacts, or verdicts
   - candidate identity: `github.run_id` owns all stage artifacts; reruns may
     select only checksum-verified state from the same run and no future attempt
   - attestation boundary: the `attest` job alone receives attestation and
@@ -232,7 +221,7 @@ cannot prove:
 - a deliberately unreachable first address followed by the live test proxy
   proves ordered multi-host failover through an actual provider query
 
-The fast push lane excludes the three dedicated categories. The scheduled
+The pull-request lane excludes the three dedicated categories. The scheduled
 `container-matrix` workflow selects every active MySQL and MariaDB LTS target
 explicitly and runs without a filter. The shared runner persists its selected
 targets, filter, exit code, and full-matrix marker so the result remains
