@@ -42,8 +42,8 @@ and operational procedures.
   tagging, protected NuGet publication, and public readback.
 - [Performance Evidence](operations/performance-evidence.md) routes benchmark
   execution and failure triage to the profile/schema
-  [reference](operations/performance-evidence-reference.md), paired
-  [methodology](operations/paired-performance-methodology.md), and baseline
+  [reference](operations/performance-evidence-reference.md), retired paired
+  [methodology](operations/paired-performance-methodology.md), and budget
   [operations](operations/performance-baseline-operations.md).
 - [Repository Security Settings](operations/repository-security-settings.md)
   records the GitHub controls that cannot be verified from the repository tree.
@@ -108,9 +108,9 @@ catalog. Every change must preserve:
 Run the same dependency-free contract used by the quality gate:
 
 ```bash
-python3 -m eng.quality.documentation --root .
+./eng/quality-gates.sh --fast
 ```
 
-The validator checks local links and anchors, packaged-README portability,
+The dependency-free compiled validator checks local links and anchors, packaged-README portability,
 required evidence sections, performance-runbook routing, and canonical
 documentation of public query and configuration methods.

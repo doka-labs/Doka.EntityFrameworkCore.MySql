@@ -521,12 +521,3 @@ jobs:
             fi
           done
           exit "${status}"
-
-  benchmark-smoke:
-    if: >-
-      github.event_name == 'schedule'
-      || (github.event_name == 'workflow_dispatch'
-      && inputs.profile != 'baseline-proposal')
-    uses: ./.github/workflows/benchmark-smoke.yml
-    permissions:
-      contents: read

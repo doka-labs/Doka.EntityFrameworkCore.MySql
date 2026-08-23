@@ -16,6 +16,52 @@ doka-profile-version: "1.0"
 
 # D-019 -- Gate performance and resource behavior at the publication boundary
 
+## 2026-08-23 Amendment: Use one BenchmarkDotNet measurement path
+
+The Python performance evidence platform, custom sampler, historical baseline,
+paired runner, attempt selection, confirmation, receipts, checkpoints, and
+promotion workflow are retired. They added a second control plane behind the
+actual .NET workloads and failed independently of provider behavior.
+
+The current independent performance path is intentionally smaller:
+
+1. BenchmarkDotNet executes the contract-selected provider workloads and
+   same-run controls.
+2. Raw full JSON reports remain the authoritative measurement artifact.
+3. One C# `PerformanceGate` verifies completeness, finite values, target and
+   host identity, absolute family budgets, same-run controls, and required soak
+   invariants.
+4. Exit `0` means pass, exit `1` means a complete measured regression, and exit
+   `78` means that no performance verdict is possible.
+5. The monthly/manual workflow transports raw artifacts and owns no attempt,
+   retry, confirmation, or promotion state.
+
+Historical baseline and paired-comparison sections below are retained as
+decision history and are not current implementation where they conflict with
+this amendment.
+
+### Current false-negative re-evaluation trigger
+
+This amendment must be reopened when all of the following are true:
+
+1. A candidate revision passed the current absolute family budgets and
+   same-run controls.
+2. A later investigation compares that revision with the last known-good
+   revision in two independently started A/B runs.
+3. Both runs use the same runner identity, exact engine image, .NET SDK and
+   runtime, BenchmarkDotNet version, profile, and performance contract.
+4. The same named workload exceeds at least one retired historical tolerance
+   in both runs: `1.15` for median latency, `1.25` for p95 latency, `1.40` for
+   p99 latency, or `1.10` for allocated bytes. Any positive allocation also
+   exceeds the allocation tolerance when the known-good revision allocated
+   zero bytes.
+
+One confirmed false negative is sufficient to reopen this decision. Any
+historical comparison reintroduced in response starts with only the affected
+workload family. Restoring a generic baseline, attempt-selection, confirmation,
+checkpoint, receipt, or promotion platform requires separate evidence and a
+new amendment.
+
 ## 2026-08-15 Amendment: Retain evidence, retire release authority
 
 D-026 now excludes performance from release qualification. The benchmark
