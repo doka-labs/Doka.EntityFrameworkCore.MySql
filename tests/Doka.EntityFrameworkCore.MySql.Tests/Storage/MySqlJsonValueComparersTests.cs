@@ -355,7 +355,7 @@ public sealed class MySqlJsonValueComparersTests
     }
 
     [Fact]
-    public void JsonNode_primitive_equality_matches_bidirectional_deep_equals_for_supported_types()
+    public void JsonNode_primitive_equality_and_hashing_match_bidirectional_deep_equals_for_supported_types()
     {
         var guid = Guid.Parse("ebde3793-3e08-4a89-aa39-76b92c1c4c72");
         var timestamp = new DateTime(2026, 8, 22, 12, 34, 56, DateTimeKind.Utc);
@@ -398,8 +398,62 @@ public sealed class MySqlJsonValueComparersTests
 
                 Assert.Equal(expected, MySqlJsonValueComparers.JsonNodeComparer.Equals(left, right));
                 Assert.Equal(expected, MySqlJsonValueComparers.JsonNodeComparer.Equals(right, left));
+
+                if (expected)
+                {
+                    Assert.Equal(
+                        MySqlJsonValueComparers.JsonNodeComparer.GetHashCode(left),
+                        MySqlJsonValueComparers.JsonNodeComparer.GetHashCode(right));
+                }
             }
         }
+    }
+
+    [Fact]
+    public void JsonNode_container_edges_match_bidirectional_deep_equals()
+    {
+        var pairs = new (JsonNode Left, JsonNode Right)[]
+        {
+            (new JsonArray { null }, new JsonArray { null }),
+            (new JsonArray { null }, new JsonArray { 1 }),
+            (JsonNode.Parse("{}")!, JsonNode.Parse("[]")!),
+            (JsonNode.Parse("{}")!, JsonNode.Parse("true")!),
+            (JsonNode.Parse("[]")!, JsonNode.Parse("{}")!),
+            (JsonNode.Parse("[]")!, JsonNode.Parse("true")!),
+            (JsonNode.Parse("[1]")!, JsonNode.Parse("[1,2]")!),
+        };
+
+        foreach (var (left, right) in pairs)
+        {
+            var expected = JsonNode.DeepEquals(left, right)
+                && JsonNode.DeepEquals(right, left);
+
+            Assert.Equal(expected, MySqlJsonValueComparers.JsonNodeComparer.Equals(left, right));
+            Assert.Equal(expected, MySqlJsonValueComparers.JsonNodeComparer.Equals(right, left));
+
+            if (expected)
+            {
+                Assert.Equal(
+                    MySqlJsonValueComparers.JsonNodeComparer.GetHashCode(left),
+                    MySqlJsonValueComparers.JsonNodeComparer.GetHashCode(right));
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("1e100")]
+    [InlineData("1e9999")]
+    public void JsonElement_extreme_numbers_remain_equal_and_hash_compatible(
+        string json
+    )
+    {
+        using var first = JsonDocument.Parse(json);
+        using var second = JsonDocument.Parse(json);
+
+        Assert.True(MySqlJsonValueComparers.JsonElementComparer.Equals(first.RootElement, second.RootElement));
+        Assert.Equal(
+            MySqlJsonValueComparers.JsonElementComparer.GetHashCode(first.RootElement),
+            MySqlJsonValueComparers.JsonElementComparer.GetHashCode(second.RootElement));
     }
 
     [Fact]

@@ -129,6 +129,105 @@ public sealed class MySqlUpdateSqlGeneratorTests
             ignoreLineEndingDifferences: true);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public void Bulk_insert_rejects_mismatched_write_column_count(
+        int laterWriteColumnCount
+    )
+    {
+        using var context = new IdentityContext(CreateOptions());
+        var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
+        var builder = new StringBuilder();
+        var laterColumnNames = laterWriteColumnCount == 1
+            ? new[] { "WriteA", }
+            : ["WriteA", "WriteB", "WriteC"];
+        var laterModifications = laterColumnNames
+            .Select(
+                (
+                    columnName,
+                    index
+                ) => (IColumnModification)CreateWriteModification(columnName, $"p1_{index}"))
+            .ToArray();
+        IReadOnlyModificationCommand[] commands =
+        [
+            CreateMixedWriteCommand("Rows", "p0_a", "p0_b"),
+            new TestModificationCommand(
+                "Rows",
+                schema: null,
+                laterModifications),
+        ];
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => generator.AppendBulkInsertOperation(
+                builder,
+                commands,
+                commandPosition: 0,
+                out _));
+
+        Assert.Equal("Modification command shapes do not match.", exception.Message);
+    }
+
+    [Fact]
+    public void Bulk_insert_returning_preserves_columns_that_are_read_and_written()
+    {
+        using var context = new IdentityContext(
+            CreateOptions(MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
+        var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
+        var builder = new StringBuilder();
+        IReadOnlyModificationCommand[] commands =
+        [
+            CreateReadWriteCommand("Rows", "p0_value"),
+            CreateReadWriteCommand("Rows", "p1_value"),
+        ];
+
+        var mapping = generator.AppendBulkInsertOperation(
+            builder,
+            commands,
+            commandPosition: 0,
+            out var requiresTransaction);
+
+        Assert.Equal(ResultSetMapping.NotLastInResultSet, mapping);
+        Assert.False(requiresTransaction);
+        Assert.Equal(
+            """
+            INSERT INTO `Rows` (`Value`)
+            VALUES (@p0_value),
+            (@p1_value)
+            RETURNING `Value`;
+
+            """,
+            builder.ToString(),
+            ignoreLineEndingDifferences: true);
+    }
+
+    [Fact]
+    public void Bulk_insert_with_readback_rejects_an_uninitialized_provider_profile()
+    {
+        using var context = new IdentityContext(CreateOptions());
+        var generator = new MySqlUpdateSqlGenerator(
+            context.GetService<UpdateSqlGeneratorDependencies>(),
+            [new MySqlSingletonOptions()]);
+        var builder = new StringBuilder();
+        IReadOnlyModificationCommand[] commands =
+        [
+            CreateReadWriteCommand("Rows", "p0_value"),
+            CreateReadWriteCommand("Rows", "p1_value"),
+        ];
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => generator.AppendBulkInsertOperation(
+                builder,
+                commands,
+                commandPosition: 0,
+                out _));
+
+        Assert.Equal(
+            "The MySQL update SQL generator requires an initialized provider profile.",
+            exception.Message);
+        Assert.Empty(builder.ToString());
+    }
+
     [Fact]
     public void Batch_shape_comparison_preserves_filtered_column_order_contract()
     {
@@ -281,6 +380,14 @@ public sealed class MySqlUpdateSqlGeneratorTests
             CreateWriteModification("WriteB", secondParameterName),
         ]);
 
+    private static TestModificationCommand CreateReadWriteCommand(
+        string tableName,
+        string parameterName
+    ) => new(
+        tableName,
+        schema: null,
+        [CreateWriteModification("Value", parameterName, read: true)]);
+
     private static ColumnModification CreateIgnoredModification(
         string columnName
     ) => new(
@@ -300,7 +407,8 @@ public sealed class MySqlUpdateSqlGeneratorTests
 
     private static ColumnModification CreateWriteModification(
         string columnName,
-        string parameterName
+        string parameterName,
+        bool read = false
     )
     {
         var parameters = new ColumnModificationParameters(
@@ -310,7 +418,7 @@ public sealed class MySqlUpdateSqlGeneratorTests
             property: null,
             columnType: "int",
             typeMapping: IntTypeMapping.Default,
-            read: false,
+            read,
             write: true,
             key: false,
             condition: false,
@@ -323,10 +431,12 @@ public sealed class MySqlUpdateSqlGeneratorTests
         return new ColumnModification(parameters);
     }
 
-    private static DbContextOptions<IdentityContext> CreateOptions() => new DbContextOptionsBuilder<IdentityContext>()
+    private static DbContextOptions<IdentityContext> CreateOptions(
+        MySqlServerVersion? serverVersion = null
+    ) => new DbContextOptionsBuilder<IdentityContext>()
         .UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)))
+            serverVersion ?? MySqlServerVersion.MySql(new Version(8, 4, 0)))
         .Options;
 
     private sealed class IdentityContext : DbContext

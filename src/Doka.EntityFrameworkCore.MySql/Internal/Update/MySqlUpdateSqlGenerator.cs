@@ -66,8 +66,7 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
             return ResultSetMapping.NoResults;
         }
 
-        return _singletonOptions.Profile?.GetSupport(ProviderCapability.ReturningClause)
-                == ProviderSupportStatus.Native
+        return SupportsReturningClause()
             ? AppendInsertReturningOperation(commandStringBuilder, command, out requiresTransaction)
             : base.AppendInsertOperation(commandStringBuilder, command, commandPosition, out requiresTransaction);
     }
@@ -341,7 +340,7 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
                 out requiresTransaction);
         }
 
-        if (_singletonOptions.Profile?.GetSupport(ProviderCapability.ReturningClause) == ProviderSupportStatus.Native)
+        if (SupportsReturningClause())
         {
             return AppendBulkInsertReturningOperation(
                 commandStringBuilder,
@@ -551,6 +550,15 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
         }
 
         return false;
+    }
+
+    private bool SupportsReturningClause()
+    {
+        var profile = _singletonOptions.Profile
+            ?? throw new InvalidOperationException(
+                "The MySQL update SQL generator requires an initialized provider profile.");
+
+        return profile.GetSupport(ProviderCapability.ReturningClause) == ProviderSupportStatus.Native;
     }
 
     private static IReadOnlyList<IColumnModification> CreateOperations(
