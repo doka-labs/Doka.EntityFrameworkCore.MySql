@@ -160,10 +160,11 @@ content-addressed evidence. A signed tag, protected source check, candidate
 manifest, package digests, SLSA provenance, GitHub release assets, NuGet
 repository signatures, and public readback must converge on one identity.
 
-**Controls.** Commit-exact protected-check lookup, signed annotated tags,
-immutable GitHub releases, short-lived NuGet credentials, digest-bound
-manifests, exact asset reconciliation, portable SLSA bundles, isolated package
-consumer execution, and fail-closed duplicate handling.
+**Controls.** PR-bound protected-check lookup with exact qualified/merged Git
+tree equality, signed annotated tags, immutable GitHub releases, short-lived
+NuGet credentials, digest-bound manifests, exact asset reconciliation,
+portable SLSA bundles, isolated package consumer execution, and fail-closed
+duplicate handling.
 
 **Common weaknesses countered.** Artifact substitution, stale evidence reuse,
 tag movement, workflow impersonation, partial publication ambiguity, mutable

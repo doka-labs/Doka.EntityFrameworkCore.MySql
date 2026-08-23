@@ -5,7 +5,7 @@ date: 2026-05-18
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
 informed: [Provider contributors]
-scope: "Named performance workloads, reproducible baselines, budgets, and soak gates"
+scope: "Named performance workloads, raw BenchmarkDotNet evidence, budgets, and soak gates"
 supersedes: []
 superseded-by: []
 amends: []
@@ -14,7 +14,7 @@ madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
 
-# D-019 -- Gate performance and resource behavior at the publication boundary
+# D-019 -- Gate performance from direct BenchmarkDotNet evidence
 
 ## 2026-08-23 Amendment: Use one BenchmarkDotNet measurement path
 
@@ -653,28 +653,25 @@ A baseline update requires:
 - 2026-08-15: Retained the complete benchmark evidence architecture as an
   independent engineering system and removed all release-candidate and
   publication authority under the D-026 amendment.
+- 2026-08-23: Retired the Python evidence platform, paired comparisons,
+  historical baselines, attempts, confirmations, receipts, checkpoints, and
+  promotion workflow in favor of one C# gate over raw BenchmarkDotNet reports.
 
 ### Implementation References
 
 - `benchmarks/performance-contract.json`
-- `benchmarks/baselines/doka-benchmark-baseline.json`
-- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks`
+- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/PerformanceGate.cs`
+- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/PerformanceMeasurement.cs`
+- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/ProviderWorkloadBenchmarks.cs`
+- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/Program.cs`
 - `eng/benchmark.sh`
-- `eng/performance/workflow_state.py`
-- `eng/performance/sensitivity.py`
-- `eng/performance/cli.py`
+- `eng/performance/benchmark.sh`
 - `eng/performance/check-benchmark-ratios.sh`
-- `eng/tests/test_performance_contract.py`
-- `eng/tests/test_performance_confirmation.py`
-- `eng/tests/test_performance_host.py`
-- `eng/tests/test_performance_reports.py`
-- `eng/tests/test_performance_baseline.py`
-- `eng/tests/test_benchmark_ratio_gate.py`
-- `eng/tests/test_benchmark_workflow_state.py`
+- `eng/performance/host-preflight.sh`
+- `tests/Doka.EntityFrameworkCore.MySql.Tests/Performance/PerformanceGateTests.cs`
 - `.github/workflows/benchmark.yml`
-- `.github/workflows/benchmark-smoke.yml`
-- `.github/workflows/benchmark-scorecard.yml`
-- `.github/workflows/benchmark-target.yml`
+- `docs/operations/performance-evidence.md`
+- `docs/operations/performance-evidence-reference.md`
 
 ### Sources
 

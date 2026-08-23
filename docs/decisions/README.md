@@ -25,14 +25,14 @@ validated ADR metadata. Manual edits are rejected by the governance gate.
 | [D-016](D-016-scalar-convert-to-boolean-vocabulary.md) | implemented | 2026-05-18 | Keep scalar boolean parsing aligned with the BCL | - |
 | [D-017](D-017-nativeaot-smoke-deferred.md) | implemented | 2026-05-18 | Defer NativeAOT until the EF Core path is supportable | - |
 | [D-018](D-018-coverage-gate-calibration.md) | implemented | 2026-05-18 | Enforce coverage by shipped assembly and risk-critical class | amended by D-023 |
-| [D-019](D-019-performance-gate-architecture.md) | implemented | 2026-05-18 | Gate performance and resource behavior at the publication boundary | amended by D-026 |
+| [D-019](D-019-performance-gate-architecture.md) | implemented | 2026-05-18 | Gate performance from direct BenchmarkDotNet evidence | amended by D-026 |
 | [D-020](D-020-test-owned-database-lifecycle.md) | accepted | 2026-07-27 | Make live tests own their database lifecycle | - |
 | [D-021](D-021-provider-completeness-and-spec-dispositions.md) | implemented | 2026-07-27 | Enforce a zero provider-gap specification ledger | amends D-011 |
 | [D-022](D-022-madr-enterprise-profile.md) | implemented | 2026-07-27 | Adopt MADR 4.0.0 with the Doka enterprise profile | - |
 | [D-023](D-023-tiered-ci-verification.md) | superseded | 2026-07-31 | Use tiered CI verification under a fixed runner budget | superseded by D-025; amends D-009, D-018 |
 | [D-024](D-024-cte-and-temporal-table-contract.md) | accepted | 2026-08-04 | Support native CTEs and portable temporal tables | amends D-004 |
-| [D-025](D-025-public-repository-verification-model.md) | accepted | 2026-08-08 | Verify on every event and harden the workflow surface for a public repository | supersedes D-023; amended by D-026 |
-| [D-026](D-026-release-qualification-and-paired-performance.md) | implemented | 2026-08-09 | Qualify releases from bound evidence and paired performance runs | amends D-019, D-025 |
+| [D-025](D-025-public-repository-verification-model.md) | accepted | 2026-08-08 | Qualify pull-request changes once and harden public workflows | supersedes D-023; amended by D-026 |
+| [D-026](D-026-release-qualification-and-paired-performance.md) | implemented | 2026-08-09 | Qualify releases from PR-bound, tree-exact evidence | amends D-019, D-025 |
 | [D-027](D-027-migration-operation-handler-spi.md) | implemented | 2026-08-11 | Expose exact-type migration operation handlers | - |
 | [D-028](D-028-explicit-nullability-backfills.md) | implemented | 2026-08-21 | Require explicit nullability backfills | - |
 

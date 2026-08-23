@@ -59,8 +59,9 @@ Complete the dated `CHANGELOG.md` section, public API files, package metadata,
 and release notes. Prerelease candidates keep new declarations in
 `PublicAPI.Unshipped.txt`; the first stable release moves them to
 `PublicAPI.Shipped.txt` in this reviewed preparation commit before candidate
-dispatch. Merge through protected `main`, wait for `repository-qualification`
-and required code scanning to pass, then update the local checkout:
+dispatch. Merge through protected `main` only after the pull request's
+`repository-qualification` and required code scanning are green. The merge
+does not repeat those product lanes on `main`. Then update the local checkout:
 
 ```bash
 git fetch origin main --tags
@@ -82,15 +83,17 @@ by release qualification and cannot block a release.
 
 ### 2. Verify the pre-tag branch trust root
 
-Run the read-only lookup after the exact commit is green:
+Run the read-only lookup after the candidate is current on protected `main` and
+its merged pull request was green:
 
 ```bash
 ./eng/pre-tag-check.sh
 ```
 
 It verifies the clean source, protected-main reachability, configured signing
-material, and commit-exact `repository-qualification`. It creates no tag and
-allocates no hosted runner.
+material, and the successful pull-request `repository-qualification` whose
+qualified Git tree exactly matches the candidate commit's Git tree. It creates
+no tag and allocates no hosted runner.
 
 ### 3. Start one untagged candidate run
 
@@ -129,9 +132,11 @@ The runtime-posture stage requires clean release source before it allocates its
 database, restores the host RID into an isolated artifacts and lock directory,
 and rejects any source-tree change before writing evidence. Finalization then
 validates that exact evidence instead of trusting the runtime job conclusion.
-The same real Linux RID path runs inside the commit-exact `integration-smoke`
-job, so pull requests and `main` exercise the failure boundary before
-release-candidate execution without allocating another CI runner.
+The same real Linux RID path runs inside the pull-request `integration-smoke`
+job, so the change exercises the failure boundary before merge. Release trust
+accepts that evidence only after the qualified pull-request tree and merged
+`main` tree match exactly. Candidate runtime posture remains a separate
+retained release gate over the built package and deployment shape.
 
 The final `publish` job waits for approval on the `nuget` environment. Do not
 approve it yet. Review the completed qualification jobs, candidate summary,

@@ -202,11 +202,11 @@ DOKA_BENCHMARK_PROFILE=scorecard \
 
 See
 [Performance and memory evidence](docs/operations/performance-evidence.md) for
-runner identity, complete LTS baseline acceptance, strict comparison, and
-failure triage.
+runner identity, complete LTS target coverage, checked-in budgets, same-run
+controls, and failure triage.
 
-**Pre-tag qualification lookup** (run only after the exact commit is green on
-protected `main`):
+**Pre-tag qualification lookup** (run only after the candidate is current on
+protected `main` and its merged pull request was green):
 
 ```bash
 ./eng/pre-tag-check.sh
@@ -215,16 +215,17 @@ protected `main`):
 The lookup allocates no runner, writes no file, and creates no tag. It requires
 a clean worktree, verifies that the commit is reachable from protected `main`,
 checks the configured signing material, and resolves the successful
-commit-exact `repository-qualification` run that the candidate will import. A
-failure names the missing precondition; it must be resolved before allocating
-a hosted candidate run.
+pull-request `repository-qualification` whose qualified Git tree exactly
+matches the candidate commit's Git tree. A failure names the missing
+precondition; it must be resolved before allocating a hosted candidate run.
 
 Manually dispatch `release-candidate` from exact current `main` before creating
 the release tag. The workflow produces the package and SBOM, runs the
 candidate-owned migration, runtime, and dependency patch gates, executes an
-isolated local-package consumer, and imports commit-exact repository
-qualification. After those reversible jobs and attestations are green, push the
-signed tag on that exact SHA and approve the waiting `nuget` environment job.
+isolated local-package consumer, and imports the PR-bound, tree-exact repository
+qualification. After those reversible jobs and attestations are green, push
+the signed tag on that exact SHA and approve the waiting `nuget` environment
+job.
 Benchmarks remain an independent engineering signal and are neither invoked nor
 consumed by release qualification.
 

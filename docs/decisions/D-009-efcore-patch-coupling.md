@@ -68,17 +68,20 @@ exhaustive CI lane and every manual full-verification run validate both the
 supported floor and the floating "latest 10.0.x" tag against non-live tests,
 two-engine specification and live tests, and a representative two-engine
 integration matrix. The fast lane validates the deterministic floor on every
-push to `main` and every pull request. The provider's response to a detected
-break is either a minimum-version bump in the range or a hot-fix release.
+pull request and explicit manual CI run. The merge does not repeat that product
+lane on `main`. The provider's response to a detected break is either a
+minimum-version bump in the range or a hot-fix release.
 
 Release qualification does not repeat that complete floor suite serially. Its
-commit-exact `repository-qualification` input already proves the floor through
+PR-bound `repository-qualification` input already proves the floor through
 repository tests, the six-target specification suite, and representative
-integration tests. The candidate therefore re-resolves and records the exact
-floor dependency graph, validates its version-bound specification contracts,
-and reserves the additional live-test budget for the latest compatible patch.
-The retained floor and latest receipts declare those different scopes, and
-release-evidence verification rejects a missing, swapped, or widened row.
+integration tests. Release trust accepts that input only when the qualified
+pull-request tree exactly matches the candidate `main` tree. The candidate
+therefore re-resolves and records the exact floor dependency graph, validates
+its version-bound specification contracts, and reserves the additional
+live-test budget for the latest compatible patch. The retained floor and latest
+receipts declare those different scopes, and release-evidence verification
+rejects a missing, swapped, or widened row.
 
 ### Consequences
 
@@ -119,7 +122,8 @@ release-evidence verification rejects a missing, swapped, or widened row.
 - Run the `efcore-patch-matrix` CI job for the floor and latest 10.0.x patch.
 - Retain the resolved package JSON for both matrix entries.
 - Confirm that the fast lane restores and tests the deterministic floor on
-  every push to `main` and every pull request.
+  every pull request and explicit manual CI run, without a duplicate `main`
+  push run.
 
 ## Pros and Cons of the Options
 

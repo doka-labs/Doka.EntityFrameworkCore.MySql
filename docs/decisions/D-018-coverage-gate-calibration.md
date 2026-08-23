@@ -79,7 +79,7 @@ critical class.
 `eng/coverage-policy.json` is the authoritative machine-readable policy.
 `eng/quality/check-coverage-threshold.sh` accepts exactly one
 ReportGenerator-merged Cobertura union and delegates validation to
-`eng/quality/coverage.py`.
+the compiled `Doka.EntityFrameworkCore.MySql.CoverageGate` tool.
 
 The merged evidence must be no more than six hours old. The gate recomputes
 line and branch counters from Cobertura line records instead of trusting
@@ -261,14 +261,17 @@ The 2026-07-29 accepted union measured:
   `MySqlDiagnosticScopeId` and 98% line and branch floors for
   `MySqlSqlTokenValidator` after a fresh unit-test coverage run measured every
   instrumentable dimension at 100%.
+- 2026-08-23: Moved coverage evaluation from Python to the compiled C# owner
+  without changing the policy, thresholds, or evidence contract.
 
 ### Implementation References
 
 - `eng/coverage-policy.json`
-- `eng/quality/coverage.py`
 - `eng/quality/check-coverage-threshold.sh`
 - `eng/quality/merge-coverage.sh`
-- `eng/tests/test_coverage_policy.py`
+- `eng/tools/Doka.EntityFrameworkCore.MySql.CoverageGate/`
+- `tests/Doka.EntityFrameworkCore.MySql.Tests/Contracts/CoverageContractTests.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.Tests/Contracts/EngineeringToolContractTests.cs`
 - `.github/workflows/ci.yml`
 - `eng/release-candidate.sh`
 
