@@ -78,7 +78,6 @@ jobs:
             eng.tests.test_release_finalization_chain \
             eng.tests.test_release_provenance \
             eng.tests.test_release_stage_checkpoint \
-            eng.tests.test_release_workflow_policy \
             eng.tests.test_runtime_posture_evidence_chain
 
   foundation:

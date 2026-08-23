@@ -22,7 +22,9 @@
   <ItemGroup>
     <ProjectReference Include="../../benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks.csproj" />
     <ProjectReference Include="../../eng/tools/Doka.EntityFrameworkCore.MySql.AdrValidator/Doka.EntityFrameworkCore.MySql.AdrValidator.csproj" />
+    <ProjectReference Include="../../eng/tools/Doka.EntityFrameworkCore.MySql.CoverageGate/Doka.EntityFrameworkCore.MySql.CoverageGate.csproj" />
     <ProjectReference Include="../../eng/tools/Doka.EntityFrameworkCore.MySql.NuGetSymbolReadback/Doka.EntityFrameworkCore.MySql.NuGetSymbolReadback.csproj" />
+    <ProjectReference Include="../../eng/tools/Doka.EntityFrameworkCore.MySql.RepositoryContract/Doka.EntityFrameworkCore.MySql.RepositoryContract.csproj" />
     <ProjectReference Include="../../eng/tools/Doka.EntityFrameworkCore.MySql.SpecificationContract/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj" />
     <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj" />
     <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj" />

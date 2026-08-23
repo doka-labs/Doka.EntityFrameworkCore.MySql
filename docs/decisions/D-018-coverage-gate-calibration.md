@@ -16,6 +16,14 @@ doka-profile-version: "1.0"
 
 # D-018 -- Enforce coverage by shipped assembly and risk-critical class
 
+## 2026-08-23 Amendment: Move coverage evaluation to the compiled owner
+
+Coverage union, freshness, assembly floors, critical-class floors, partial
+class aggregation, and branch handling are now evaluated by the dependency-free
+C# `CoverageGate`. The Python coverage module and its self-tests are retired.
+The coverage policy and thresholds are unchanged; only their implementation
+owner moved into the existing .NET test and toolchain boundary.
+
 ## Context and Problem Statement
 
 An aggregate source-coverage percentage can stay green while an entire shipped
