@@ -37,22 +37,21 @@ example, benchmark, and release-qualification runs.
 
 ## Install
 
-The project currently publishes release candidates. The following .NET 10
-commands install the latest available prerelease and write its resolved version
-to the project file:
+The following .NET 10 command installs the latest stable provider package and
+writes its resolved version to the project file:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --prerelease
+dotnet package add Doka.EntityFrameworkCore.MySql
 ```
 
 Add the spatial extension only when the model uses NetTopologySuite types:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --prerelease
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite
 ```
 
-For controlled upgrades, replace `--prerelease` with `--version` and the exact
-version from the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
+For reproducible installs, add `--version` followed by the exact version from
+the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
 or NuGet.org package page.
 
 ## Quick Start
