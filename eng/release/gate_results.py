@@ -26,10 +26,16 @@ if __package__:
         TrustRootError,
         fetch_qualification_receipt,
         run_git,
+        verify_pull_request_qualification,
     )
 else:  # pragma: no cover - direct execution path
     from qualification import QualificationError, load_policy, policy_digest
-    from trust import TrustRootError, fetch_qualification_receipt, run_git
+    from trust import (
+        TrustRootError,
+        fetch_qualification_receipt,
+        run_git,
+        verify_pull_request_qualification,
+    )
 
 
 GATE_RESULT_KIND = "gate-evidence-result"
@@ -160,16 +166,18 @@ def protected_check_result(
     artifact to hash. The response the API returned is digested instead, which
     is what makes the per-file digest contract apply to it at all.
     """
-    if receipt.get("commit") != commit:
-        raise QualificationError(
-            f"Protected check for '{gate['id']}' describes commit "
-            f"{receipt.get('commit')}, not the candidate {commit}."
+    try:
+        verify_pull_request_qualification(
+            receipt,
+            commit=commit,
+            tree_id=tree,
+            expected_base_branch=str(gate.get("requiredBaseBranch", "main")),
+            expected_workflow=gate["producerWorkflow"],
         )
-    if receipt.get("conclusion") != "success":
+    except TrustRootError as error:
         raise QualificationError(
-            f"Protected check '{gate['id']}' concluded "
-            f"{receipt.get('conclusion')!r}."
-        )
+            f"Protected check '{gate['id']}' is not reusable: {error}"
+        ) from error
 
     canonical = json.dumps(receipt, sort_keys=True, separators=(",", ":"))
 
@@ -186,6 +194,10 @@ def protected_check_result(
         "event": receipt["event"],
         "conclusion": receipt["conclusion"],
         "apiResourceId": receipt["id"],
+        "pullRequestNumber": receipt["pullRequestNumber"],
+        "baseBranch": receipt["baseBranch"],
+        "qualifiedCommit": receipt["commit"],
+        "qualifiedTreeId": receipt["qualifiedTreeId"],
         "responseDigest": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
         "policyDigest": None,
     }
@@ -228,6 +240,9 @@ def derive(arguments: argparse.Namespace) -> list[dict[str, Any]]:
                         arguments.repository,
                         commit,
                         gate.get("checkName", identifier),
+                        expected_base_branch=str(
+                            gate.get("requiredBaseBranch", "main")
+                        ),
                     ),
                     repository=arguments.repository,
                     commit=commit,

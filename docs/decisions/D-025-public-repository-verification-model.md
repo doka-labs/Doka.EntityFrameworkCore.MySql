@@ -14,7 +14,51 @@ madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
 
-# D-025 -- Verify on every event and harden the workflow surface for a public repository
+# D-025 -- Qualify pull-request changes once and harden public workflows
+
+## 2026-08-23 Amendment: Qualify the PR tree once
+
+Product qualification now runs on pull requests and explicit manual CI. The
+scheduled event runs only migration and dependency-patch drift lanes; it does
+not run `repository-qualification`. The identical build, unit, specification,
+integration, and coverage work no longer runs automatically on `push main`.
+`repository-qualification` remains the single fail-closed aggregator for the
+five merge gates.
+
+Benchmark and OpenSSF scorecard workflows run only on schedule or explicit
+dispatch. No merge queue, `merge_group`, main-admission workflow, or new
+qualification policy is introduced.
+
+The release trust owner resolves the one merged PR associated with a main
+squash, requires its successful `repository-qualification` check, and compares
+the qualified PR-head Git tree with the main-squash Git tree. A bypass without
+an identical qualified tree is not releaseable. The hosted ruleset remains an
+external separately approved change after the new aggregator has reported
+success.
+
+Statements below that require the same product lanes on both PR and `push
+main`, describe the retired `baseline-proposal` profile, or require the removed
+repository-owned dependency-snapshot preflight are historical.
+
+```mermaid
+flowchart LR
+  PR["Pull-request head"] --> Q["repository-qualification"]
+  Q --> M["Protected squash merge"]
+  M --> T{"Qualified tree equals merged tree?"}
+  T -->|yes| RC["Release candidate may import evidence"]
+  T -->|no| R["Reject release trust"]
+```
+
+Current confirmation is intentionally small:
+
+- `.github/workflows/ci.yml` has no `push` trigger.
+- Product jobs and `repository-qualification` run for pull requests and manual
+  dispatch, while scheduled drift jobs remain separate.
+- `eng/release/trust.py` accepts only one merged pull request, one successful
+  qualification check and workflow, and exact equality between the qualified
+  pull-request tree and merged `main` tree.
+- Direct `main` pushes and ambiguous pull-request, check, or workflow
+  associations fail closed.
 
 ## 2026-08-17 Amendment: Make runtime posture commit-exact
 
@@ -218,6 +262,9 @@ default configuration.
 
 ### Confirmation
 
+The checks below confirm the original implementation and are historical where
+they conflict with the current confirmation in the 2026-08-23 amendment.
+
 - `./eng/quality/lint-workflows.sh` exits zero; actionlint reports no findings
   and zizmor reports no findings above informational for every workflow.
 - `python3 -m unittest discover -s eng/tests -p 'test_*.py'` passes, including
@@ -324,6 +371,9 @@ version control. They are documented in
 - 2026-08-17: Reclassified runtime posture as commit-exact after a hosted
   release run exposed RID-specific source mutation that scheduled execution had
   not prevented from reaching finalization.
+- 2026-08-23: Moved product qualification to the pull-request head, removed the
+  duplicate automatic `main` run, and bound release trust to the single merged
+  pull request through exact qualified/merged Git-tree equality.
 
 ### Implementation References
 
@@ -332,12 +382,13 @@ version control. They are documented in
 - `.github/workflows/scorecard.yml`
 - `eng/quality/lint-workflows.sh`
 - `eng/quality/check-vulnerability-audit.sh`
-- `eng/quality/dependency_snapshot_readiness.py`
+- `eng/release/evidence-policy.json`
+- `eng/release/trust.py`
 - `eng/performance/check-benchmark-ratios.sh`
 - `eng/testing/test-runtime-posture.sh`
-- `eng/tests/test_dependency_snapshot_readiness.py`
-- `eng/tests/test_engineering_structure.py`
+- `eng/tests/test_release_trust.py`
 - `eng/tests/test_runtime_posture_evidence_chain.py`
+- `tests/Doka.EntityFrameworkCore.MySql.Tests/Contracts/AdrRepositoryValidatorTests.cs`
 - `docs/operations/repository-security-settings.md`
 
 ### Sources

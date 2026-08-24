@@ -4,7 +4,7 @@
 # enter untagged hosted qualification and later receive the release tag.
 #
 # Under D-026 the hosted candidate runs before the semantic tag exists. This
-# lookup proves the source already carries the protected-branch evidence the
+# lookup proves the source has an exact-tree pull-request qualification the
 # candidate imports and that the operator's configured key is registered for
 # the tag that may be created only after qualification succeeds.
 #

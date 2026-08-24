@@ -22,9 +22,6 @@ restore_projects=(
 
 "${repo_root}/eng/common/verify-dotnet.sh"
 "${repo_root}/eng/quality/validate-adrs.sh"
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
-    --start-directory "${repo_root}/eng/tests" \
-    --pattern "test_*.py"
 restore_required=0
 # NuGet writes the resolved graph and the MSBuild imports as one restore unit.
 # Checking only project.assets.json can accept a partial obj tree in which

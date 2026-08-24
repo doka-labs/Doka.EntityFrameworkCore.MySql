@@ -5,7 +5,7 @@ date: 2026-05-18
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
 informed: [Provider contributors]
-scope: "Named performance workloads, reproducible baselines, budgets, and soak gates"
+scope: "Named performance workloads, raw BenchmarkDotNet evidence, budgets, and soak gates"
 supersedes: []
 superseded-by: []
 amends: []
@@ -14,7 +14,53 @@ madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
 
-# D-019 -- Gate performance and resource behavior at the publication boundary
+# D-019 -- Gate performance from direct BenchmarkDotNet evidence
+
+## 2026-08-23 Amendment: Use one BenchmarkDotNet measurement path
+
+The Python performance evidence platform, custom sampler, historical baseline,
+paired runner, attempt selection, confirmation, receipts, checkpoints, and
+promotion workflow are retired. They added a second control plane behind the
+actual .NET workloads and failed independently of provider behavior.
+
+The current independent performance path is intentionally smaller:
+
+1. BenchmarkDotNet executes the contract-selected provider workloads and
+   same-run controls.
+2. Raw full JSON reports remain the authoritative measurement artifact.
+3. One C# `PerformanceGate` verifies completeness, finite values, target and
+   host identity, absolute family budgets, same-run controls, and required soak
+   invariants.
+4. Exit `0` means pass, exit `1` means a complete measured regression, and exit
+   `78` means that no performance verdict is possible.
+5. The monthly/manual workflow transports raw artifacts and owns no attempt,
+   retry, confirmation, or promotion state.
+
+Historical baseline and paired-comparison sections below are retained as
+decision history and are not current implementation where they conflict with
+this amendment.
+
+### Current false-negative re-evaluation trigger
+
+This amendment must be reopened when all of the following are true:
+
+1. A candidate revision passed the current absolute family budgets and
+   same-run controls.
+2. A later investigation compares that revision with the last known-good
+   revision in two independently started A/B runs.
+3. Both runs use the same runner identity, exact engine image, .NET SDK and
+   runtime, BenchmarkDotNet version, profile, and performance contract.
+4. The same named workload exceeds at least one retired historical tolerance
+   in both runs: `1.15` for median latency, `1.25` for p95 latency, `1.40` for
+   p99 latency, or `1.10` for allocated bytes. Any positive allocation also
+   exceeds the allocation tolerance when the known-good revision allocated
+   zero bytes.
+
+One confirmed false negative is sufficient to reopen this decision. Any
+historical comparison reintroduced in response starts with only the affected
+workload family. Restoring a generic baseline, attempt-selection, confirmation,
+checkpoint, receipt, or promotion platform requires separate evidence and a
+new amendment.
 
 ## 2026-08-15 Amendment: Retain evidence, retire release authority
 
@@ -607,28 +653,25 @@ A baseline update requires:
 - 2026-08-15: Retained the complete benchmark evidence architecture as an
   independent engineering system and removed all release-candidate and
   publication authority under the D-026 amendment.
+- 2026-08-23: Retired the Python evidence platform, paired comparisons,
+  historical baselines, attempts, confirmations, receipts, checkpoints, and
+  promotion workflow in favor of one C# gate over raw BenchmarkDotNet reports.
 
 ### Implementation References
 
 - `benchmarks/performance-contract.json`
-- `benchmarks/baselines/doka-benchmark-baseline.json`
-- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks`
+- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/PerformanceGate.cs`
+- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/PerformanceMeasurement.cs`
+- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/ProviderWorkloadBenchmarks.cs`
+- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/Program.cs`
 - `eng/benchmark.sh`
-- `eng/performance/workflow_state.py`
-- `eng/performance/sensitivity.py`
-- `eng/performance/cli.py`
+- `eng/performance/benchmark.sh`
 - `eng/performance/check-benchmark-ratios.sh`
-- `eng/tests/test_performance_contract.py`
-- `eng/tests/test_performance_confirmation.py`
-- `eng/tests/test_performance_host.py`
-- `eng/tests/test_performance_reports.py`
-- `eng/tests/test_performance_baseline.py`
-- `eng/tests/test_benchmark_ratio_gate.py`
-- `eng/tests/test_benchmark_workflow_state.py`
+- `eng/performance/host-preflight.sh`
+- `tests/Doka.EntityFrameworkCore.MySql.Tests/Performance/PerformanceGateTests.cs`
 - `.github/workflows/benchmark.yml`
-- `.github/workflows/benchmark-smoke.yml`
-- `.github/workflows/benchmark-scorecard.yml`
-- `.github/workflows/benchmark-target.yml`
+- `docs/operations/performance-evidence.md`
+- `docs/operations/performance-evidence-reference.md`
 
 ### Sources
 

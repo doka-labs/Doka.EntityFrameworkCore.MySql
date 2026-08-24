@@ -24,9 +24,9 @@ response, migration safety, and release governance independently reviewable.
 - [Performance Evidence Reference](operations/performance-evidence-reference.md)
   defines profiles, schemas, termination states, and soak invariants.
 - [Paired Performance Methodology](operations/paired-performance-methodology.md)
-  defines statistical decisions, sensitivity, retries, and contract controls.
+  records the retired paired design and the current contract boundary.
 - [Performance Baseline Operations](operations/performance-baseline-operations.md)
-  owns engine-image acceptance, historical seeding, and hosted proposals.
+  owns engine-image acceptance and reviewed budget changes.
 
 ## Stable Alert Links
 

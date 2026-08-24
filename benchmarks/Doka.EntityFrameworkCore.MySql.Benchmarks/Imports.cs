@@ -14,6 +14,7 @@ global using System.Threading.Tasks;
 global using BenchmarkDotNet.Attributes;
 global using BenchmarkDotNet.Configs;
 global using BenchmarkDotNet.Exporters.Json;
+global using BenchmarkDotNet.Reports;
 global using BenchmarkDotNet.Running;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.Infrastructure;

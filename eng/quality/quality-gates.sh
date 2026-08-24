@@ -9,6 +9,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 solution="${repo_root}/Doka.EntityFrameworkCore.MySql.slnx"
 validator_assets="${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.AdrValidator/project.assets.json"
+repository_contract_project="${repo_root}/eng/tools/Doka.EntityFrameworkCore.MySql.RepositoryContract/Doka.EntityFrameworkCore.MySql.RepositoryContract.csproj"
 runtime_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj"
 spatial_project_root="${repo_root}/src/Doka.EntityFrameworkCore.MySql.NetTopologySuite"
 spatial_project="${spatial_project_root}/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj"
@@ -69,15 +70,8 @@ else
     "${repo_root}/eng/quality/lint-workflows.sh"
 fi
 
-echo "Verifying database image pins..."
-PYTHONDONTWRITEBYTECODE=1 python3 "${repo_root}/eng/quality/check-image-pins.py" \
-    --repo "${repo_root}"
-
 echo "Validating architecture decisions..."
 "${repo_root}/eng/quality/validate-adrs.sh"
-
-echo "Validating documentation links and anchors..."
-PYTHONDONTWRITEBYTECODE=1 python3 -m eng.quality.documentation --root "${repo_root}"
 
 echo "Verifying warning-level code style..."
 # Rider/ReSharper is the repository formatter and honors the overlay rules in
@@ -102,8 +96,14 @@ dotnet build "${solution}" \
     --tl:off \
     -m:1
 
-echo "Validating executable example contracts..."
-PYTHONDONTWRITEBYTECODE=1 python3 -m eng.quality.examples --root "${repo_root}"
+echo "Validating repository contracts..."
+dotnet run \
+    --project "${repository_contract_project}" \
+    --configuration Release \
+    --no-build \
+    --no-restore \
+    -- \
+    --root "${repo_root}"
 
 if [[ "${mode}" == "fast" ]]; then
     echo "Fast quality gates passed."

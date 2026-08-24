@@ -43,7 +43,11 @@ while IFS= read -r report; do
     fi
 done <<< "${reports}"
 
-PYTHONDONTWRITEBYTECODE=1 python3 -m eng.quality.coverage \
+coverage_gate_project="${repo_root}/eng/tools/Doka.EntityFrameworkCore.MySql.CoverageGate/Doka.EntityFrameworkCore.MySql.CoverageGate.csproj"
+dotnet run \
+    --project "${coverage_gate_project}" \
+    --configuration Release \
+    -- \
     freshness \
     "${repo_root}/eng/coverage-policy.json" \
     "${report_paths[@]}"

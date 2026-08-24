@@ -1,14 +1,6 @@
 {
   "schemaVersion": 10,
-  "contractVersion": "2026-08-22",
-  "evidenceMaximumAgeHours": 12,
-  "hostPreconditions": {
-    "admissionMetric": "interval-host-cpu-utilization",
-    "maximumCpuUtilization": 0.9,
-    "sampleIntervalMilliseconds": 1000,
-    "requiredConsecutivePassingSamples": 2,
-    "maximumSampleAttempts": 5
-  },
+  "contractVersion": "2026-08-23",
   "requiredTargets": {
     "mysql84": {
       "displayName": "MySQL 8.4",
@@ -53,146 +45,29 @@
       "serverImage": "mariadb:12.3.2@sha256:759869cb6f003234a95c6384cdee245b4bce7de26913fe607a8110362c0c007d"
     }
   },
+  "hostPreconditions": {
+    "admissionMetric": "interval-host-cpu-utilization",
+    "maximumCpuUtilization": 0.9,
+    "sampleIntervalMilliseconds": 1000,
+    "requiredConsecutivePassingSamples": 2,
+    "maximumSampleAttempts": 5
+  },
   "profiles": {
     "smoke": {
-      "warmupSamples": 1,
-      "measurementSamples": 3,
-      "expensiveMeasurementSamples": 1,
-      "minimumMeasurementDurationMilliseconds": 0,
-      "minimumValidSamples": 1,
-      "minimumBenchmarkDotNetSamples": 1,
-      "maximumRelativeStandardError": 1.0,
-      "maximumMeasurementSampleMultiplier": 1,
-      "adaptiveOperationsPerSample": false,
-      "operationBatchingDurationHeadroomPercent": 100,
-      "operationBatchingPilotSamples": 0,
-      "maximumOperationsPerSampleMultiplier": 1,
-      "measurementQualityPolicy": "observe",
-      "calibrationSamplesPerPulse": 3,
-      "calibrationIntervalSamples": 1,
-      "maximumCalibrationRelativeStandardError": 1.0,
-      "maximumWorkloadMatrixDurationSeconds": 300,
-      "maximumTotalDurationSeconds": 600,
-      "maximumWorkloadDurationSeconds": 60,
       "soakIterations": 64,
       "soakConcurrency": 4,
-      "baselineRequired": false,
       "soakRequired": false
     },
     "scorecard": {
-      "warmupSamples": 5,
-      "measurementSamples": 256,
-      "expensiveMeasurementSamples": 128,
-      "minimumMeasurementDurationMilliseconds": 2000,
-      "minimumValidSamples": 32,
-      "minimumBenchmarkDotNetSamples": 3,
-      "maximumRelativeStandardError": 0.25,
-      "maximumMeasurementSampleMultiplier": 64,
-      "adaptiveOperationsPerSample": false,
-      "operationBatchingDurationHeadroomPercent": 100,
-      "operationBatchingPilotSamples": 0,
-      "maximumOperationsPerSampleMultiplier": 1,
-      "measurementQualityPolicy": "enforce",
-      "calibrationSamplesPerPulse": 5,
-      "calibrationIntervalSamples": 32,
-      "maximumCalibrationRelativeStandardError": 0.5,
-      "maximumWorkloadMatrixDurationSeconds": 1200,
-      "maximumTotalDurationSeconds": 1800,
-      "maximumWorkloadDurationSeconds": 120,
       "soakIterations": 2048,
       "soakConcurrency": 16,
-      "baselineRequired": true,
       "soakRequired": true
     },
     "stress": {
-      "warmupSamples": 10,
-      "measurementSamples": 512,
-      "expensiveMeasurementSamples": 256,
-      "minimumMeasurementDurationMilliseconds": 5000,
-      "minimumValidSamples": 64,
-      "minimumBenchmarkDotNetSamples": 3,
-      "maximumRelativeStandardError": 0.15,
-      "maximumMeasurementSampleMultiplier": 64,
-      "adaptiveOperationsPerSample": false,
-      "operationBatchingDurationHeadroomPercent": 100,
-      "operationBatchingPilotSamples": 0,
-      "maximumOperationsPerSampleMultiplier": 1,
-      "measurementQualityPolicy": "enforce",
-      "calibrationSamplesPerPulse": 7,
-      "calibrationIntervalSamples": 32,
-      "maximumCalibrationRelativeStandardError": 0.35,
-      "maximumWorkloadMatrixDurationSeconds": 3600,
-      "maximumTotalDurationSeconds": 7200,
-      "maximumWorkloadDurationSeconds": 300,
       "soakIterations": 10000,
       "soakConcurrency": 32,
-      "baselineRequired": true,
-      "soakRequired": true
-    },
-    "paired-block": {
-      "warmupSamples": 5,
-      "measurementSamples": 16,
-      "expensiveMeasurementSamples": 16,
-      "minimumMeasurementDurationMilliseconds": 2000,
-      "minimumValidSamples": 16,
-      "minimumBenchmarkDotNetSamples": 3,
-      "maximumRelativeStandardError": 0.25,
-      "maximumMeasurementSampleMultiplier": 64,
-      "adaptiveOperationsPerSample": true,
-      "operationBatchingDurationHeadroomPercent": 120,
-      "operationBatchingPilotSamples": 3,
-      "maximumOperationsPerSampleMultiplier": 1024,
-      "measurementQualityPolicy": "observe",
-      "calibrationSamplesPerPulse": 5,
-      "calibrationIntervalSamples": 32,
-      "maximumCalibrationRelativeStandardError": 0.5,
-      "maximumWorkloadMatrixDurationSeconds": 600,
-      "maximumTotalDurationSeconds": 900,
-      "maximumWorkloadDurationSeconds": 120,
-      "soakIterations": 2048,
-      "soakConcurrency": 16,
-      "baselineRequired": false,
       "soakRequired": true
     }
-  },
-  "timeoutPolicies": {
-    "expensive-standard": {
-      "minimumWorkloadTimeoutSeconds": 180
-    },
-    "large-write": {
-      "minimumWorkloadTimeoutSeconds": 300
-    },
-    "hilo-contention": {
-      "minimumWorkloadTimeoutSeconds": 240
-    }
-  },
-  "calibration": {
-    "cpuFamilies": [
-      "json-comparer",
-      "migration",
-      "model",
-      "translation"
-    ],
-    "databaseFamilies": [
-      "concurrency",
-      "hilo",
-      "json-materialization",
-      "projection",
-      "query",
-      "resilience",
-      "spatial",
-      "write"
-    ]
-  },
-  "historicalBudgets": {
-    "normalizedMedianRatio": 1.15,
-    "normalizedP95Ratio": 1.25,
-    "normalizedP99Ratio": 1.4,
-    "allocatedBytesRatio": 1.1,
-    "genCollectionAllowancePer1000": 250,
-    "gen0Ratio": 1.25,
-    "gen1Ratio": 1.25,
-    "gen2Ratio": 1.25
   },
   "familyBudgets": {
     "model": {
@@ -280,65 +155,6 @@
       "gen2CollectionsPer1000": 250
     }
   },
-  "coverageRequirements": {
-    "execution": [
-      ".sync.",
-      ".async."
-    ],
-    "compilation": [
-      ".compiled.",
-      ".dynamic."
-    ],
-    "resilience": [
-      ".retry-off.",
-      ".retry-on.",
-      ".listener-off",
-      ".listener-on"
-    ],
-    "pooling": [
-      ".pool-none",
-      ".pool-context",
-      ".pool-connection",
-      ".pool-both"
-    ],
-    "concurrency": [
-      ".contexts-1.",
-      ".contexts-4.",
-      ".contexts-16."
-    ],
-    "sizes": [
-      ".rows-1",
-      ".rows-10",
-      ".rows-100",
-      ".rows-1000",
-      ".rows-10000",
-      ".bytes-1024",
-      ".bytes-65536",
-      ".bytes-1048576",
-      ".large-schema-256"
-    ],
-    "mismatch": [
-      ".equal.",
-      ".early-mismatch.",
-      ".late-mismatch."
-    ],
-    "batching": [
-      ".batch-default",
-      ".batch-32",
-      ".batch-256"
-    ],
-    "providerPaths": [
-      "model.",
-      "query.",
-      "projection.",
-      "json.",
-      "spatial.",
-      "write.",
-      "translation.",
-      "migration.",
-      "hilo."
-    ]
-  },
   "workloads": [
     {
       "id": "model.cold.small",
@@ -397,34 +213,24 @@
     },
     {
       "id": "query.materialize.async.compiled.rows-1000.pool-both",
-      "family": "query",
-      "cost": "expensive",
-      "timeoutPolicy": "expensive-standard"
+      "family": "query"
     },
     {
       "id": "resilience.query.async.retry-off.listener-off",
       "family": "resilience",
-      "smoke": true,
-      "minimumWarmupOperations": 512,
-      "measurementSamples": 8192
+      "smoke": true
     },
     {
       "id": "resilience.query.async.retry-on.listener-off",
-      "family": "resilience",
-      "minimumWarmupOperations": 512,
-      "measurementSamples": 8192
+      "family": "resilience"
     },
     {
       "id": "resilience.query.async.retry-off.listener-on",
-      "family": "resilience",
-      "minimumWarmupOperations": 512,
-      "measurementSamples": 8192
+      "family": "resilience"
     },
     {
       "id": "resilience.query.async.retry-on.listener-on",
-      "family": "resilience",
-      "minimumWarmupOperations": 512,
-      "measurementSamples": 8192
+      "family": "resilience"
     },
     {
       "id": "concurrency.query.async.contexts-1.pool-both",
@@ -438,15 +244,11 @@
     },
     {
       "id": "concurrency.query.async.contexts-16.pool-both",
-      "family": "concurrency",
-      "cost": "expensive",
-      "timeoutPolicy": "expensive-standard"
+      "family": "concurrency"
     },
     {
       "id": "concurrency.query.async.contexts-16.pool-none",
-      "family": "concurrency",
-      "cost": "expensive",
-      "timeoutPolicy": "expensive-standard"
+      "family": "concurrency"
     },
     {
       "id": "projection.full.sync.rows-100",
@@ -460,58 +262,43 @@
     {
       "id": "json.compare.element.equal.bytes-1024",
       "family": "json-comparer",
-      "operationsPerSample": 16384,
-      "minimumWarmupOperations": 4096,
-      "measurementSamples": 1024
+      "operationsPerSample": 16384
     },
     {
       "id": "json.compare.element.equal.bytes-65536",
       "family": "json-comparer",
       "smoke": true,
-      "operationsPerSample": 4096,
-      "minimumWarmupOperations": 4096,
-      "measurementSamples": 1024
+      "operationsPerSample": 4096
     },
     {
       "id": "json.compare.element.early-mismatch.bytes-65536",
       "family": "json-comparer",
-      "operationsPerSample": 32768,
-      "minimumWarmupOperations": 4096,
-      "measurementSamples": 1024
+      "operationsPerSample": 32768
     },
     {
       "id": "json.compare.element.late-mismatch.bytes-65536",
       "family": "json-comparer",
-      "operationsPerSample": 4096,
-      "minimumWarmupOperations": 4096,
-      "measurementSamples": 1024
+      "operationsPerSample": 4096
     },
     {
       "id": "json.compare.element.equal.bytes-1048576",
       "family": "json-comparer",
-      "cost": "expensive",
-      "timeoutPolicy": "expensive-standard",
-      "operationsPerSample": 256,
-      "minimumWarmupOperations": 4096,
-      "measurementSamples": 1024
+      "operationsPerSample": 256
     },
     {
       "id": "json.compare.node.equal.bytes-65536",
       "family": "json-comparer",
-      "operationsPerSample": 32,
-      "minimumWarmupOperations": 4096
+      "operationsPerSample": 32
     },
     {
       "id": "json.compare.node.early-mismatch.bytes-65536",
       "family": "json-comparer",
-      "operationsPerSample": 32,
-      "minimumWarmupOperations": 4096
+      "operationsPerSample": 32
     },
     {
       "id": "json.compare.node.late-mismatch.bytes-65536",
       "family": "json-comparer",
-      "operationsPerSample": 16,
-      "minimumWarmupOperations": 4096
+      "operationsPerSample": 16
     },
     {
       "id": "json.materialize.async.rows-1",
@@ -524,9 +311,7 @@
     },
     {
       "id": "json.materialize.async.rows-1000",
-      "family": "json-materialization",
-      "cost": "expensive",
-      "timeoutPolicy": "expensive-standard"
+      "family": "json-materialization"
     },
     {
       "id": "json.materialize.sync.rows-100",
@@ -543,9 +328,7 @@
     },
     {
       "id": "spatial.materialize.async.rows-1000",
-      "family": "spatial",
-      "cost": "expensive",
-      "timeoutPolicy": "expensive-standard"
+      "family": "spatial"
     },
     {
       "id": "spatial.materialize.sync.rows-100",
@@ -561,15 +344,11 @@
     },
     {
       "id": "write.savechanges.sync.rows-1000.batch-default",
-      "family": "write",
-      "cost": "expensive",
-      "timeoutPolicy": "expensive-standard"
+      "family": "write"
     },
     {
       "id": "write.savechanges.sync.rows-10000.batch-default",
-      "family": "write",
-      "cost": "expensive",
-      "timeoutPolicy": "large-write"
+      "family": "write"
     },
     {
       "id": "write.savechanges.async.rows-10.batch-default",
@@ -582,27 +361,19 @@
     },
     {
       "id": "write.savechanges.async.rows-1000.batch-default",
-      "family": "write",
-      "cost": "expensive",
-      "timeoutPolicy": "expensive-standard"
+      "family": "write"
     },
     {
       "id": "write.savechanges.async.rows-10000.batch-default",
-      "family": "write",
-      "cost": "expensive",
-      "timeoutPolicy": "large-write"
+      "family": "write"
     },
     {
       "id": "write.savechanges.async.rows-1000.batch-32",
-      "family": "write",
-      "cost": "expensive",
-      "timeoutPolicy": "expensive-standard"
+      "family": "write"
     },
     {
       "id": "write.savechanges.async.rows-1000.batch-256",
-      "family": "write",
-      "cost": "expensive",
-      "timeoutPolicy": "expensive-standard"
+      "family": "write"
     },
     {
       "id": "translation.corpus.full",
@@ -626,15 +397,11 @@
     },
     {
       "id": "hilo.insert.sync.contexts-10.rows-1000",
-      "family": "hilo",
-      "cost": "expensive",
-      "timeoutPolicy": "hilo-contention"
+      "family": "hilo"
     },
     {
       "id": "hilo.insert.async.contexts-10.rows-1000",
-      "family": "hilo",
-      "cost": "expensive",
-      "timeoutPolicy": "hilo-contention"
+      "family": "hilo"
     }
   ],
   "benchmarkDotNetControls": [
@@ -810,118 +577,5 @@
     "workingSetMaximumGrowthBytes": 67108864,
     "managedHeapMaximumGrowthBytes": 33554432,
     "minimumThroughputRetentionRatio": 0.7
-  },
-  "pairedPolicy": {
-    "executionOrder": {
-      "blockPatterns": [
-        "A-B",
-        "B-A"
-      ],
-      "startingSideAlternatesPerBlock": true
-    },
-    "primaryFamily": {
-      "workloadScope": "complete-matrix",
-      "metric": "normalizedMedian",
-      "role": "required",
-      "aggregation": "geometric-mean-across-workloads"
-    },
-    "secondaryFamilies": [
-      {
-        "metric": "normalizedP95",
-        "role": "observational",
-        "aggregation": "per-workload"
-      },
-      {
-        "metric": "normalizedP99",
-        "role": "observational",
-        "aggregation": "per-workload"
-      }
-    ],
-    "targetRoles": {
-      "mysql84": "required",
-      "mysql97": "required",
-      "mariadb1011": "required",
-      "mariadb114": "required",
-      "mariadb118": "required",
-      "mariadb123": "required"
-    },
-    "practicalBudgets": {
-      "normalizedMedian": 1.15,
-      "normalizedP95": 1.25,
-      "normalizedP99": 1.4
-    },
-    "interval": {
-      "sidedness": "two-sided",
-      "confidenceLevel": 0.95,
-      "method": "bca-bootstrap",
-      "resampleCount": 10000,
-      "resamplingSeed": 20260810
-    },
-    "blocks": {
-      "completeBlocks": 10,
-      "startingSamplesPerSidePerBlock": 16,
-      "maximumSampleCountRatio": 4.0,
-      "maximumRelativeStandardError": 0.25,
-      "profile": "paired-block"
-    },
-    "multipleComparison": {
-      "scope": "all-required-targets",
-      "procedure": "holm",
-      "familyWiseErrorRate": 0.05
-    },
-    "sensitivity": {
-      "method": "deterministic-lognormal-bca-exact-sign-flip",
-      "familyCase": "single-regression",
-      "minimumPower": 0.8,
-      "simulationConfidenceLevel": 0.95,
-      "simulationTrials": 200,
-      "simulationSeed": 20260813,
-      "maximumLogRatioStandardDeviation": 0.06048100249438095,
-      "minimumDetectableBudgetMultiple": 1.1,
-      "characterization": {
-        "path": "benchmarks/characterization/paired-dispersion-2026-08-13.json",
-        "sha256": "cffc2fdc4da51e0b8b100845bffeff7506e361837a5a7c803726996697fcf859"
-      }
-    },
-    "retry": {
-      "eligibleAttemptStates": [
-        "environment-not-comparable",
-        "measurement-inconclusive"
-      ],
-      "maximumRetries": 1,
-      "combination": "replace-attempt"
-    },
-    "durations": {
-      "maximumPairedRunSeconds": 7200,
-      "maximumWorkloadSeconds": 900,
-      "closingReserveSeconds": 180,
-      "finalizationReserveSeconds": 60
-    },
-    "absoluteCeilings": {
-      "appliesTo": "candidate",
-      "source": "familyBudgets",
-      "metrics": [
-        "medianNanoseconds",
-        "p95Nanoseconds",
-        "p99Nanoseconds",
-        "allocatedBytes",
-        "gen2CollectionsPer1000"
-      ]
-    },
-    "resourceFamilies": [
-      {
-        "metric": "allocatedBytesPerOperation",
-        "budget": 1.05
-      },
-      {
-        "metric": "gen2CollectionsPer1000",
-        "budget": 1.25
-      }
-    ],
-    "soak": {
-      "required": true,
-      "appliesTo": "candidate",
-      "source": "soakBudgets"
-    }
   }
 }

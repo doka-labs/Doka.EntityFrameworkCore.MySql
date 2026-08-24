@@ -6,9 +6,7 @@ name: scorecard
 # the release and publication posture described in the security documentation.
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
   schedule:
     - cron: "45 3 * * 1"
 

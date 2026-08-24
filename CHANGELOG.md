@@ -7,6 +7,47 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.0.0-rc.13] - 2026-08-24
+
+This release candidate supersedes `10.0.0-rc.12`. Provider runtime behavior,
+public APIs, and generated SQL remain unchanged. The release simplifies the
+repository engineering control plane, evaluates performance evidence in .NET,
+and removes the duplicate product qualification after merge.
+
+Install the release candidate explicitly because NuGet excludes prerelease
+packages from normal stable-version resolution:
+
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0-rc.13
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0-rc.13
+```
+
+### Changed
+
+- Replace the paired Python performance-evidence platform, custom sampler,
+  historical baselines, attempts, confirmations, and promotion state with one
+  C# gate over raw BenchmarkDotNet reports, checked-in absolute budgets,
+  same-run controls, and bounded soak evidence.
+- Replace Python coverage, documentation, example, image, commit-message, and
+  engineering-policy gates with compiled C# repository contracts and focused
+  contract tests. Shell remains the thin orchestration boundary around the
+  primary .NET toolchain.
+- Run complete repository qualification on the pull-request head and remove
+  the identical automatic product run after merge to `main`. Release trust now
+  resolves the single merged pull request, requires its successful
+  `repository-qualification` workflow, and accepts it only when the qualified
+  pull-request tree and merged `main` tree are byte-for-byte identical.
+- Keep benchmark evidence independent of release qualification. Monthly and
+  manually dispatched benchmark runs upload raw target evidence without
+  attempts, baseline promotion, or release authority.
+
+### Security
+
+- Reject release evidence from direct `main` pushes, unsuccessful workflows,
+  foreign events or base branches, mismatched merge commits or Git trees, and
+  ambiguous pull-request or check associations. Release jobs receive only the
+  additional read scopes required for those trust lookups.
+
 ## [10.0.0-rc.12] - 2026-08-23
 
 This release candidate supersedes `10.0.0-rc.11`. It reduces CPU work and

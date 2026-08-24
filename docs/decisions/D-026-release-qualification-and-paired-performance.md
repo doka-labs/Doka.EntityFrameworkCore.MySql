@@ -5,7 +5,7 @@ date: 2026-08-09
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
 informed: [Provider contributors]
-scope: "Which evidence qualifies a release and how performance is compared"
+scope: "Which pull-request evidence qualifies a release and how publication remains bound"
 supersedes: []
 superseded-by: []
 amends: [D-019, D-025]
@@ -14,7 +14,30 @@ madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
 
-# D-026 -- Qualify releases from bound evidence and paired performance runs
+# D-026 -- Qualify releases from PR-bound, tree-exact evidence
+
+## 2026-08-23 Amendment: Preserve release trust without paired performance
+
+Paired performance is retired in favor of the direct BenchmarkDotNet gate
+defined by the D-019 amendment of the same date. Performance remains
+independent of release qualification.
+
+The release-candidate stages, package/SBOM ordering, attestation, publication,
+and public readback remain unchanged. The `assemble` and `publish` jobs gain
+only `checks: read` and `pull-requests: read`, which their qualification lookup
+and frozen-check verification require. No job gains a new write permission.
+The imported branch qualification binding changes: release trust accepts the
+successful `repository-qualification` check of the single merged PR only when
+the qualified PR-head tree is byte-for-byte the main-squash tree. The frozen
+qualification repeats that same association and tree check before publication.
+
+The release workflow does not rerun the removed `push main` product workflow,
+and it gains no new stage or policy file. Paired execution, benchmark attempts,
+confirmation artifacts, and baseline promotion described below are historical
+where they conflict with this amendment.
+
+The filename remains stable for published links and the retained paired-design
+history. It does not describe the current release authority.
 
 ## 2026-08-21 Amendment: Bind the driver to its reference API surface
 
@@ -432,7 +455,7 @@ The correction is structural rather than a warning suppression:
 - the candidate manifest advances to schema version 2 because the removed
   `performanceEvidence` member changes its public evidence shape.
 
-Release qualification now consists of the imported commit-exact
+Release qualification now consists of the imported PR-bound, tree-exact
 `repository-qualification` result and four candidate-produced gates: migration
 deployment, runtime posture, the EF Core patch matrix, and the MySqlConnector
 patch matrix. Package and SBOM integrity remain bound into the candidate, and
@@ -1472,6 +1495,9 @@ manifest verification.
 - 2026-08-21: Separated candidate-only probes from the shared cross-version
   driver, added an executable current-driver-to-accepted-provider repository
   gate, and reserved exit code 1 for evaluator-backed regressions.
+- 2026-08-23: Retired paired performance and the duplicate `push main`
+  qualification, then bound release trust to one successful merged pull
+  request whose qualified and merged Git trees are identical.
 
 ### Implementation References
 
@@ -1479,27 +1505,23 @@ manifest verification.
 - `docs/decisions/D-025-public-repository-verification-model.md`
 - `.github/workflows/ci.yml`
 - `.github/workflows/benchmark.yml`
-- `.github/workflows/benchmark-smoke.yml`
-- `.github/workflows/benchmark-scorecard.yml`
-- `.github/workflows/benchmark-target.yml`
 - `.github/workflows/release-candidate.yml`
 - `benchmarks/performance-contract.json`
-- `benchmarks/characterization/paired-dispersion-2026-08-13.json`
-- `benchmarks/baselines/doka-benchmark-baseline.json`
-- `eng/performance/attempts.py`
-- `eng/performance/paired.py`
-- `eng/performance/sensitivity.py`
+- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/PerformanceGate.cs`
 - `eng/release/check-publication-readiness.sh`
+- `eng/release/evidence-policy.json`
+- `eng/release/pre-tag-check.sh`
+- `eng/release/trust.py`
 - `eng/testing/test-runtime-posture.sh`
 - `eng/tests/test_publication_readiness.py`
 - `eng/tests/test_release_finalization_chain.py`
+- `eng/tests/test_release_trust.py`
 - `eng/tests/test_runtime_posture_evidence_chain.py`
-- `eng/performance/environment.py`
 - `eng/release/gate_results.py`
 - `eng/release/qualification.py`
-- `eng/release/trust.py`
 - `eng/release/evidence.py`
 - `eng/release/release-candidate.sh`
+- `tests/Doka.EntityFrameworkCore.MySql.Tests/Contracts/AdrRepositoryValidatorTests.cs`
 - `docs/operations/release-publication.md`
 
 ### Sources

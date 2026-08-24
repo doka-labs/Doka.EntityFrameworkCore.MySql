@@ -10,21 +10,15 @@ public static class Program
     {
         try
         {
-            if (TryReadWorkloadDiagnosticArguments(
-                    args,
-                    out var workloadId,
-                    out var workloadDiagnosticOutput))
+            if (args.Length is 5 or 6
+                && string.Equals(args[0], "--evaluate", StringComparison.Ordinal))
             {
-                return await PerformanceWorkloadRunner
-                    .RunDiagnosticAsync(workloadDiagnosticOutput, workloadId)
-                    .ConfigureAwait(false);
-            }
-
-            if (TryReadOutputArgument(args, "--workloads", out var workloadOutput))
-            {
-                return await PerformanceWorkloadRunner
-                    .RunAsync(workloadOutput)
-                    .ConfigureAwait(false);
+                return PerformanceGate.Run(
+                    args[1],
+                    args[2],
+                    args[3],
+                    args[4],
+                    args.Length == 6 ? args[5] : null);
             }
 
             if (TryReadOutputArgument(args, "--soak", out var soakOutput))
@@ -32,13 +26,6 @@ public static class Program
                 return await PerformanceSoakRunner
                     .RunAsync(soakOutput)
                     .ConfigureAwait(false);
-            }
-
-            if (args.Length == 1
-                && string.Equals(args[0], "--list-workloads", StringComparison.Ordinal))
-            {
-                PerformanceWorkloadRunner.WriteApplicableWorkloadIds(Console.Out);
-                return 0;
             }
 
             var summaries = BenchmarkSwitcher
@@ -53,19 +40,10 @@ public static class Program
             }
 
             var failed = summaries.Any(summary =>
-                summary.HasCriticalValidationErrors || summary.Reports.Any(report => !report.Success));
+                summary.HasCriticalValidationErrors
+                || HasFailedBenchmarkReports(summary.Reports));
 
             return failed ? InvalidEvidenceExitCode : 0;
-        }
-        catch (MeasurementQualityException exception)
-        {
-            // A measurement condition leaves through its own exit code so the
-            // attempt path records `measurement-inconclusive` and may retry.
-            // Exit 1 would classify as a regression, which is a verdict about
-            // the provider that this run never reached.
-            Console.Error.WriteLine(exception.Message);
-
-            return MeasurementQualityException.ExitCode;
         }
         catch (Exception exception)
         {
@@ -73,6 +51,10 @@ public static class Program
             return InvalidEvidenceExitCode;
         }
     }
+
+    internal static bool HasFailedBenchmarkReports(
+        IEnumerable<BenchmarkReport> reports
+    ) => reports.Any(static report => !report.Success);
 
     private static bool TryReadOutputArgument(
         string[] args,
@@ -98,31 +80,4 @@ public static class Program
         return true;
     }
 
-    private static bool TryReadWorkloadDiagnosticArguments(
-        string[] args,
-        out string workloadId,
-        out string outputPath
-    )
-    {
-        workloadId = string.Empty;
-        outputPath = string.Empty;
-
-        if (args.Length == 0
-            || !string.Equals(args[0], "--workload", StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        if (args.Length != 3
-            || string.IsNullOrWhiteSpace(args[1])
-            || string.IsNullOrWhiteSpace(args[2]))
-        {
-            throw new ArgumentException(
-                "--workload requires exactly one workload ID and one output path.");
-        }
-
-        workloadId = args[1];
-        outputPath = Path.GetFullPath(args[2]);
-        return true;
-    }
 }

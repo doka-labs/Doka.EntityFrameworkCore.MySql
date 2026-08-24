@@ -18,7 +18,7 @@
     },
     "performance": {
       "owner": "performance",
-      "responsibility": "Benchmark execution, immutable evidence, budget evaluation, and reports.",
+      "responsibility": "Thin BenchmarkDotNet execution and deterministic budget evaluation.",
       "allowedDependencies": [
         "common",
         "performance"
@@ -37,7 +37,6 @@
       "responsibility": "Release candidate orchestration, artifacts, publication, SBOM, and evidence.",
       "allowedDependencies": [
         "common",
-        "performance",
         "quality",
         "release",
         "testing"
@@ -67,13 +66,12 @@
       "classification": "operator-command",
       "owner": "performance",
       "cost": "high",
-      "purpose": "Run the reviewed performance evidence workflow.",
-      "inputs": "Benchmark mode, optional engine lifecycle flags, and the versioned performance contract.",
-      "outputs": "BenchmarkDotNet results, normalized evidence, and policy reports below artifacts/.",
+      "purpose": "Run BenchmarkDotNet for one database target and evaluate its raw report once.",
+      "inputs": "Benchmark profile, engine lifecycle flag, and the versioned performance contract.",
+      "outputs": "Raw BenchmarkDotNet results, optional soak results, and diagnostics below artifacts/.",
       "sideEffects": "Builds projects, writes artifacts, and can start and stop database containers.",
       "consumers": [
-        ".github/workflows/benchmark-smoke.yml",
-        ".github/workflows/benchmark-target.yml",
+        ".github/workflows/benchmark.yml",
         "CONTRIBUTING.md",
         "docs/operations/performance-evidence.md"
       ]

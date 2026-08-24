@@ -78,7 +78,6 @@ jobs:
             eng.tests.test_release_finalization_chain \
             eng.tests.test_release_provenance \
             eng.tests.test_release_stage_checkpoint \
-            eng.tests.test_release_workflow_policy \
             eng.tests.test_runtime_posture_evidence_chain
 
   foundation:
@@ -245,7 +244,9 @@ jobs:
 
     permissions:
       actions: read
+      checks: read
       contents: read
+      pull-requests: read
 
     outputs:
       candidate_artifact_name: ${{ steps.names.outputs.candidate_artifact_name }}
@@ -442,8 +443,10 @@ jobs:
     permissions:
       actions: read
       attestations: read
+      checks: read
       contents: write
       id-token: write
+      pull-requests: read
 
     steps:
       - name: Checkout qualified source and fetch current main and release tags

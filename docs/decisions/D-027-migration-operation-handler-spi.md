@@ -292,7 +292,6 @@ contract.
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Migrations/MySqlMigrationOperationHandlerTests.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Migrations/MySqlScopedMigrationOperationIntegrationTests.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke/Program.cs`
-- `eng/tests/test_paired_runtime_guards.py`
 - `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/MigrationOperationHandlerGenerationBenchmark.cs`
 - `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/MigrationOperationHandlerDispatchBenchmark.cs`
 - `docs/migration-operation-handlers.md`

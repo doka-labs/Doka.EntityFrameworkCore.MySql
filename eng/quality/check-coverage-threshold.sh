@@ -33,4 +33,9 @@ if [[ "${report_count}" -ne 1 ]]; then
     exit 2
 fi
 
-python3 -m eng.quality.coverage "${reports}" "${policy_path}"
+dotnet run \
+    --project "${repo_root}/eng/tools/Doka.EntityFrameworkCore.MySql.CoverageGate/Doka.EntityFrameworkCore.MySql.CoverageGate.csproj" \
+    --configuration Release \
+    -- \
+    "${reports}" \
+    "${policy_path}"

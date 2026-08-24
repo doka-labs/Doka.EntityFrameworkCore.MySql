@@ -160,17 +160,18 @@ content-addressed evidence. A signed tag, protected source check, candidate
 manifest, package digests, SLSA provenance, GitHub release assets, NuGet
 repository signatures, and public readback must converge on one identity.
 
-**Controls.** Commit-exact protected-check lookup, signed annotated tags,
-immutable GitHub releases, short-lived NuGet credentials, digest-bound
-manifests, exact asset reconciliation, portable SLSA bundles, isolated package
-consumer execution, and fail-closed duplicate handling.
+**Controls.** PR-bound protected-check lookup with exact qualified/merged Git
+tree equality, signed annotated tags, immutable GitHub releases, short-lived
+NuGet credentials, digest-bound manifests, exact asset reconciliation,
+portable SLSA bundles, isolated package consumer execution, and fail-closed
+duplicate handling.
 
 **Common weaknesses countered.** Artifact substitution, stale evidence reuse,
 tag movement, workflow impersonation, partial publication ambiguity, mutable
 release assets, and a dependency-confusion restore during consumer testing.
 
 **Evidence.** The
-[release-workflow policy tests](../../eng/tests/test_release_workflow_policy.py),
+[release workflow contracts](../../tests/Doka.EntityFrameworkCore.MySql.Tests/Contracts/AdrRepositoryValidatorTests.cs),
 [release trust tests](../../eng/tests/test_release_trust.py),
 [provenance tests](../../eng/tests/test_release_provenance.py),
 [publication tests](../../eng/tests/test_nuget_publication.py), and

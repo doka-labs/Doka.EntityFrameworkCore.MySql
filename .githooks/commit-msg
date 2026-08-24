@@ -11,4 +11,4 @@ message_path="${1:?Git did not supply a commit-message path.}"
 
 export PYTHONDONTWRITEBYTECODE=1
 cd "${repo_root}"
-exec python3 -m eng.quality.commit_message "${message_path}"
+exec "${repo_root}/eng/quality/commit-message.sh" "${message_path}"

@@ -9,15 +9,14 @@ updates:
   # The Compose stack is therefore the one place an update lands, and it is the
   # source the other copies are held against. A proposal that changes it leaves
   # the workflows, the performance contract, and the C# constants behind until
-  # eng/quality/check-image-pins.py --fix carries it over; the same check fails
+  # The repository contract carries it over; the same check fails
   # the build while they disagree.
   - package-ecosystem: docker-compose
     directories:
       - /docker
     # Monthly rather than weekly, because accepting an engine image is not a
-    # file edit: the pin is what a measurement was taken against, so every
-    # accepted update invalidates the accepted baseline and costs a benchmark
-    # run. These images are rebuilt without a version change whenever their
+    # file edit: the pin is part of the measurement identity, so every
+    # accepted update requires a benchmark run. These images are rebuilt without a version change whenever their
     # base picks up patches, which at a weekly cadence would mean a rollover
     # for each rebuild. A published CVE is handled when it is published, not
     # by proposing more often.

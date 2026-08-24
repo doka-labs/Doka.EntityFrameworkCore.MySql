@@ -4,8 +4,7 @@ A tag is the immutable identity a published package is attributed to, and the
 release path previously accepted it on the strength of being annotated and
 pointing at the planned commit. That leaves the three questions these tests
 cover: who signed it, whether its commit ever reached the protected branch, and
-whether the branch evidence came from the branch rather than from a pull
-request against it.
+whether the same repository tree passed the expected pull-request workflow.
 
 The local preparation command checks the branch and signer prerequisites before
 hosted qualification. The write-capable job repeats the complete tag trust root
@@ -233,6 +232,8 @@ class ReachabilityTests(unittest.TestCase):
 
 
 COMMIT = "a" * 40
+QUALIFIED_COMMIT = "c" * 40
+TREE = "b" * 40
 
 
 def qualification(**overrides: object) -> dict[str, object]:
@@ -245,10 +246,15 @@ def qualification(**overrides: object) -> dict[str, object]:
         "workflowPath": ".github/workflows/ci.yml",
         "workflowRunId": 9001,
         "runAttempt": 1,
-        "event": "push",
-        "headBranch": "main",
-        "commit": COMMIT,
+        "event": "pull_request",
+        "headBranch": "feature/provider-change",
+        "commit": QUALIFIED_COMMIT,
         "workflowConclusion": "success",
+        "pullRequestNumber": 64,
+        "baseBranch": "main",
+        "mergedCommit": COMMIT,
+        "mergedTreeId": TREE,
+        "qualifiedTreeId": TREE,
     }
     receipt.update(overrides)
 
@@ -260,7 +266,7 @@ def qualification_manifest(
     *,
     repository: str = "doka-labs/Doka.EntityFrameworkCore.MySql",
     commit: str = COMMIT,
-    tree_id: str = "b" * 40,
+    tree_id: str = TREE,
     release_tag: str = "v10.0.0-rc.1",
 ) -> tuple[dict[str, object], dict[str, object]]:
     """Return a complete manifest whose protected entry binds ``receipt``."""
@@ -287,6 +293,10 @@ def qualification_manifest(
                 "event": receipt.get("event", "push"),
                 "conclusion": receipt.get("conclusion", "success"),
                 "apiResourceId": receipt.get("id", 5001),
+                "pullRequestNumber": receipt.get("pullRequestNumber", 64),
+                "baseBranch": receipt.get("baseBranch", "main"),
+                "qualifiedCommit": receipt.get("commit", QUALIFIED_COMMIT),
+                "qualifiedTreeId": receipt.get("qualifiedTreeId", tree_id),
                 "responseDigest": hashlib.sha256(
                     json.dumps(
                         receipt,
@@ -322,43 +332,49 @@ def qualification_manifest(
     )
 
 
-class BranchEvidenceOriginTests(unittest.TestCase):
-    """Prove branch evidence must come from the branch.
-
-    The event alone decides nothing: a workflow dispatched on main also reports
-    a branch, and a rerun of a different workflow can carry the same check
-    name. Every identity the receipt claims is therefore bound.
-    """
+class PullRequestQualificationTests(unittest.TestCase):
+    """Prove a release imports only the exact tree qualified in the PR."""
 
     def check(self, **overrides: object) -> None:
         """Run the origin check against the shipped bindings."""
-        trust.verify_branch_evidence_origin(
+        trust.verify_pull_request_qualification(
             qualification(**overrides),
             commit=COMMIT,
-            expected_branch="main",
+            tree_id=TREE,
+            expected_base_branch="main",
             expected_workflow=".github/workflows/ci.yml",
         )
 
-    def test_a_push_receipt_is_accepted(self) -> None:
-        """Accept qualification produced by a push on the protected branch."""
+    def test_an_exact_tree_pull_request_receipt_is_accepted(self) -> None:
+        """Accept a successful PR qualification for the merged tree."""
         self.check()
 
-    def test_a_pull_request_receipt_is_rejected(self) -> None:
-        """Reject qualification that only ever ran against the branch."""
-        for event in ("pull_request", "pull_request_target", "workflow_dispatch"):
+    def test_any_non_pull_request_event_is_rejected(self) -> None:
+        """Reject push, dispatch, and privileged pull-request-target evidence."""
+        for event in ("push", "pull_request_target", "workflow_dispatch"):
             with self.subTest(event=event):
                 with self.assertRaises(trust.TrustRootError):
                     self.check(event=event)
 
-    def test_a_receipt_from_another_branch_is_rejected(self) -> None:
-        """Reject a push on a branch whose protection produced no evidence."""
+    def test_a_receipt_for_another_base_branch_is_rejected(self) -> None:
+        """Reject a PR that did not target the protected branch."""
         with self.assertRaises(trust.TrustRootError):
-            self.check(headBranch="release/staging")
+            self.check(baseBranch="release/staging")
 
-    def test_a_receipt_for_another_commit_is_rejected(self) -> None:
-        """Reject evidence that describes a different commit."""
+    def test_a_receipt_for_another_merged_commit_is_rejected(self) -> None:
+        """Reject evidence imported for a different main commit."""
         with self.assertRaises(trust.TrustRootError):
-            self.check(commit="b" * 40)
+            self.check(mergedCommit="d" * 40)
+
+    def test_a_different_qualified_tree_is_rejected(self) -> None:
+        """Reject a green PR when the merged repository content changed."""
+        with self.assertRaises(trust.TrustRootError):
+            self.check(qualifiedTreeId="d" * 40)
+
+    def test_a_different_merged_tree_is_rejected(self) -> None:
+        """Reject a receipt whose main tree is not the release tree."""
+        with self.assertRaises(trust.TrustRootError):
+            self.check(mergedTreeId="d" * 40)
 
     def test_a_receipt_from_another_workflow_is_rejected(self) -> None:
         """Reject a same-named check produced by a workflow file we do not trust."""
@@ -371,6 +387,18 @@ class BranchEvidenceOriginTests(unittest.TestCase):
             with self.subTest(conclusion=conclusion):
                 with self.assertRaises(trust.TrustRootError):
                     self.check(conclusion=conclusion)
+
+    def test_an_unsuccessful_workflow_is_rejected(self) -> None:
+        """Reject a successful-looking job from an unsuccessful workflow run."""
+        with self.assertRaises(trust.TrustRootError):
+            self.check(workflowConclusion="failure")
+
+    def test_missing_pull_request_identity_is_rejected(self) -> None:
+        """Reject evidence that cannot be traced back to one merged PR."""
+        for field in ("pullRequestNumber", "commit", "qualifiedTreeId"):
+            with self.subTest(field=field):
+                with self.assertRaises(trust.TrustRootError):
+                    self.check(**{field: None})
 
     def test_a_receipt_without_a_run_identity_is_rejected(self) -> None:
         """Reject a receipt whose run identity could not be resolved."""
@@ -406,14 +434,28 @@ class QualificationResolutionTests(unittest.TestCase):
             {
                 "id": 9001,
                 "run_attempt": 2,
-                "event": "push",
-                "head_branch": "main",
-                "head_sha": COMMIT,
+                "event": "pull_request",
+                "head_branch": "feature/provider-change",
+                "head_sha": QUALIFIED_COMMIT,
                 "path": ".github/workflows/ci.yml",
                 "conclusion": "success",
             }
         ]
     }
+
+    PULL_REQUESTS = [
+        {
+            "number": 64,
+            "state": "closed",
+            "merged_at": "2026-08-23T01:27:14Z",
+            "merge_commit_sha": COMMIT,
+            "base": {"ref": "main"},
+            "head": {
+                "ref": "feature/provider-change",
+                "sha": QUALIFIED_COMMIT,
+            },
+        }
+    ]
 
     def test_the_named_check_run_is_selected(self) -> None:
         """Pick the check run by name rather than by position."""
@@ -451,19 +493,19 @@ class QualificationResolutionTests(unittest.TestCase):
         """Prove the resolved receipt states what the origin check needs."""
         receipt = trust.qualification_receipt(
             trust.select_check_run(
-                self.CHECK_RUNS, "repository-qualification", COMMIT
+                self.CHECK_RUNS, "repository-qualification", QUALIFIED_COMMIT
             ),
             trust.select_workflow_run(
-                self.WORKFLOW_RUNS, check_suite_id=7001, commit=COMMIT
+                self.WORKFLOW_RUNS, check_suite_id=7001, commit=QUALIFIED_COMMIT
             ),
         )
 
         self.assertEqual(".github/workflows/ci.yml", receipt["workflowPath"])
         self.assertEqual(9001, receipt["workflowRunId"])
         self.assertEqual(2, receipt["runAttempt"])
-        self.assertEqual("push", receipt["event"])
-        self.assertEqual("main", receipt["headBranch"])
-        self.assertEqual(COMMIT, receipt["commit"])
+        self.assertEqual("pull_request", receipt["event"])
+        self.assertEqual("feature/provider-change", receipt["headBranch"])
+        self.assertEqual(QUALIFIED_COMMIT, receipt["commit"])
 
     def test_an_incomplete_workflow_run_is_rejected(self) -> None:
         """Reject a workflow run that cannot answer what the receipt claims."""
@@ -475,28 +517,97 @@ class QualificationResolutionTests(unittest.TestCase):
                 with self.assertRaises(trust.TrustRootError):
                     trust.qualification_receipt({"name": "x"}, run)
 
-    def test_a_dispatch_on_main_is_not_branch_evidence(self) -> None:
-        """Close the case the previous derivation silently accepted.
-
-        A manual dispatch on main carries a branch name, which the old code
-        read as proof of a push. The workflow run states the event, and this is
-        the case that proves the difference is now decided correctly.
-        """
+    def test_a_dispatch_is_not_pull_request_evidence(self) -> None:
+        """Reject a manual run even when all other identities look valid."""
         run = dict(self.WORKFLOW_RUNS["workflow_runs"][0])
         run["event"] = "workflow_dispatch"
         receipt = trust.qualification_receipt(
             trust.select_check_run(
-                self.CHECK_RUNS, "repository-qualification", COMMIT
+                self.CHECK_RUNS, "repository-qualification", QUALIFIED_COMMIT
             ),
             run,
         )
+        receipt.update(
+            {
+                "pullRequestNumber": 64,
+                "baseBranch": "main",
+                "mergedCommit": COMMIT,
+                "mergedTreeId": TREE,
+                "qualifiedTreeId": TREE,
+            }
+        )
 
         with self.assertRaises(trust.TrustRootError):
-            trust.verify_branch_evidence_origin(
+            trust.verify_pull_request_qualification(
                 receipt,
                 commit=COMMIT,
-                expected_branch="main",
+                tree_id=TREE,
+                expected_base_branch="main",
                 expected_workflow=".github/workflows/ci.yml",
+            )
+
+    def test_the_merged_pull_request_is_selected_by_main_commit(self) -> None:
+        """Resolve the single merged PR that introduced the candidate commit."""
+        selected = trust.select_associated_pull_request(
+            self.PULL_REQUESTS,
+            commit=COMMIT,
+            expected_base_branch="main",
+        )
+
+        self.assertEqual(64, selected["number"])
+
+    def test_association_can_omit_merge_commit_sha(self) -> None:
+        """Use the commit-scoped endpoint rather than its nullable merge field."""
+        associated = json.loads(json.dumps(self.PULL_REQUESTS[0]))
+        associated["merge_commit_sha"] = None
+
+        selected = trust.select_associated_pull_request(
+            [associated],
+            commit=COMMIT,
+            expected_base_branch="main",
+        )
+
+        self.assertEqual(64, selected["number"])
+
+    def test_ambiguous_associations_are_rejected_before_readback(self) -> None:
+        """Refuse to choose a pull request by API ordering."""
+        associated = json.loads(json.dumps(self.PULL_REQUESTS[0]))
+        associated["merge_commit_sha"] = None
+
+        with self.assertRaises(trust.TrustRootError):
+            trust.select_associated_pull_request(
+                [associated, dict(associated)],
+                commit=COMMIT,
+                expected_base_branch="main",
+            )
+
+    def test_missing_or_ambiguous_merged_pull_requests_are_rejected(self) -> None:
+        """Make admin bypass and non-deterministic association non-releaseable."""
+        with self.assertRaises(trust.TrustRootError):
+            trust.select_associated_pull_request(
+                [], commit=COMMIT, expected_base_branch="main"
+            )
+        with self.assertRaises(trust.TrustRootError):
+            trust.select_associated_pull_request(
+                [*self.PULL_REQUESTS, dict(self.PULL_REQUESTS[0])],
+                commit=COMMIT,
+                expected_base_branch="main",
+            )
+
+    def test_an_unmerged_or_foreign_base_pull_request_is_rejected(self) -> None:
+        """Reject associations that do not represent a merge into main."""
+        changed = json.loads(json.dumps(self.PULL_REQUESTS[0]))
+        changed["state"] = "open"
+        with self.assertRaises(trust.TrustRootError):
+            trust.select_associated_pull_request(
+                [changed], commit=COMMIT, expected_base_branch="main"
+            )
+
+        changed = json.loads(json.dumps(self.PULL_REQUESTS[0]))
+        changed["base"]["ref"] = "release/staging"
+        with self.assertRaises(trust.TrustRootError):
+            trust.select_associated_pull_request(
+                [changed], commit=COMMIT, expected_base_branch="main"
             )
 
 
@@ -570,20 +681,42 @@ class FrozenQualificationTests(unittest.TestCase):
         workflow_run = {
             "id": 9001,
             "run_attempt": 1,
-            "event": "push",
-            "head_branch": "main",
-            "head_sha": COMMIT,
+            "event": "pull_request",
+            "head_branch": "feature/provider-change",
+            "head_sha": QUALIFIED_COMMIT,
             "path": ".github/workflows/ci.yml",
             "conclusion": "success",
             "check_suite_id": 7001,
+        }
+        pull_request = {
+            "number": 64,
+            "state": "closed",
+            "merged_at": "2026-08-23T01:27:14Z",
+            "merge_commit_sha": COMMIT,
+            "base": {"ref": "main"},
+            "head": {
+                "ref": "feature/provider-change",
+                "sha": QUALIFIED_COMMIT,
+            },
         }
         requested: list[str] = []
 
         def api(path: str) -> dict[str, object]:
             requested.append(path)
-            return check_run if "/check-runs/" in path else workflow_run
+            if "/check-runs/" in path:
+                return check_run
+            if "/attempts/" in path:
+                return workflow_run
+            return {"tree": {"sha": TREE}}
 
-        with mock.patch.object(trust, "_gh_json", side_effect=api):
+        def array_api(path: str) -> list[dict[str, object]]:
+            requested.append(path)
+            return [pull_request]
+
+        with (
+            mock.patch.object(trust, "_gh_json", side_effect=api),
+            mock.patch.object(trust, "_gh_array", side_effect=array_api),
+        ):
             observed = trust.fetch_frozen_qualification_receipt(
                 self.repository,
                 manifest=self.manifest,
@@ -598,6 +731,9 @@ class FrozenQualificationTests(unittest.TestCase):
             [
                 f"/repos/{self.repository}/check-runs/5001",
                 f"/repos/{self.repository}/actions/runs/9001/attempts/1",
+                f"/repos/{self.repository}/commits/{COMMIT}/pulls",
+                f"/repos/{self.repository}/git/commits/{COMMIT}",
+                f"/repos/{self.repository}/git/commits/{QUALIFIED_COMMIT}",
             ],
             requested,
         )
@@ -617,12 +753,23 @@ class FrozenQualificationTests(unittest.TestCase):
             {
                 "id": 9001,
                 "run_attempt": 1,
-                "event": "push",
-                "head_branch": "main",
-                "head_sha": COMMIT,
+                "event": "pull_request",
+                "head_branch": "feature/provider-change",
+                "head_sha": QUALIFIED_COMMIT,
                 "path": ".github/workflows/ci.yml",
                 "conclusion": "success",
                 "check_suite_id": 7002,
+            },
+            {
+                "number": 64,
+                "state": "closed",
+                "merged_at": "2026-08-23T01:27:14Z",
+                "merge_commit_sha": COMMIT,
+                "base": {"ref": "main"},
+                "head": {
+                    "ref": "feature/provider-change",
+                    "sha": QUALIFIED_COMMIT,
+                },
             },
         ]
         with (
@@ -802,6 +949,12 @@ class TrustRootCompletionTests(unittest.TestCase):
             capture_output=True,
             text=True,
         ).stdout.strip()
+        self.tree = subprocess.run(
+            ["git", "-C", str(self.repo), "rev-parse", "HEAD^{tree}"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
 
     def tearDown(self) -> None:
         """Release the fixture repository."""
@@ -815,7 +968,12 @@ class TrustRootCompletionTests(unittest.TestCase):
             commit=self.commit,
             api_verification={"verified": True, "reason": "valid"},
             policy=self.policy,
-            qualification_receipt=qualification(commit=self.commit, **overrides),
+            qualification_receipt=qualification(
+                mergedCommit=self.commit,
+                mergedTreeId=self.tree,
+                qualifiedTreeId=self.tree,
+                **overrides,
+            ),
             allowed_signers=self.allowed,
         )
 

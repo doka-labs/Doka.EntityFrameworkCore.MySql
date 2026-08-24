@@ -4,8 +4,8 @@
 A tag is the immutable identity a published package is attributed to. Treating
 it as trustworthy because it exists and is annotated leaves three questions
 unanswered: who created it, whether the commit it names ever passed through the
-protected branch, and whether the branch evidence for that commit came from the
-branch at all rather than from a pull request against it.
+protected branch, and whether the same repository tree passed the protected
+pull-request qualification before the merge.
 
 The signed tag intentionally does not exist until reversible candidate
 qualification has completed. The write-capable publication job repeats these
@@ -213,48 +213,72 @@ def verify_commit_is_on_protected_branch(
         )
 
 
-def verify_branch_evidence_origin(
+def verify_pull_request_qualification(
     receipt: dict[str, Any],
     *,
-    commit: str | None = None,
-    expected_branch: str = "main",
+    commit: str,
+    tree_id: str,
+    expected_base_branch: str = "main",
     expected_workflow: str | None = None,
 ) -> None:
-    """Require repository qualification to originate from a branch push.
-
-    A pull request against the protected branch produces a check for the same
-    commit without that check ever having run on the branch itself, so the
-    event alone decides nothing until it is bound to the branch, the commit,
-    and the workflow file that is allowed to produce this evidence.
-    """
+    """Require a successful PR qualification for the exact merged tree."""
     if receipt.get("conclusion") != "success":
         raise TrustRootError(
             f"Repository qualification concluded {receipt.get('conclusion')!r}."
         )
-    if receipt.get("event") != "push":
+    if receipt.get("workflowConclusion") != "success":
+        raise TrustRootError(
+            "Repository qualification belongs to a workflow that concluded "
+            f"{receipt.get('workflowConclusion')!r}."
+        )
+    if receipt.get("event") != "pull_request":
         raise TrustRootError(
             "Repository qualification originated from "
-            f"{receipt.get('event')!r} rather than a push on the protected "
-            "branch."
+            f"{receipt.get('event')!r} rather than a pull request."
         )
-    if receipt.get("headBranch") != expected_branch:
+    if receipt.get("baseBranch") != expected_base_branch:
         raise TrustRootError(
-            f"Repository qualification ran on branch "
-            f"{receipt.get('headBranch')!r} rather than {expected_branch!r}."
+            f"Repository qualification targeted branch "
+            f"{receipt.get('baseBranch')!r} rather than "
+            f"{expected_base_branch!r}."
         )
-    if commit is not None and receipt.get("commit") != commit:
+    if receipt.get("mergedCommit") != commit:
         raise TrustRootError(
-            f"Repository qualification describes commit "
-            f"{receipt.get('commit')!r}, not the tagged {commit}."
+            f"Repository qualification was merged as "
+            f"{receipt.get('mergedCommit')!r}, not the tagged {commit}."
         )
-    if expected_workflow is not None and receipt.get("workflowPath") != expected_workflow:
+    merged_tree = receipt.get("mergedTreeId")
+    qualified_tree = receipt.get("qualifiedTreeId")
+    if merged_tree != tree_id:
+        raise TrustRootError(
+            f"Repository qualification describes merged tree {merged_tree!r}, "
+            f"not the tagged tree {tree_id}."
+        )
+    if qualified_tree != tree_id:
+        raise TrustRootError(
+            f"Pull request qualified tree {qualified_tree!r}, not the merged "
+            f"tree {tree_id}."
+        )
+    qualified_commit = receipt.get("commit")
+    if not isinstance(qualified_commit, str) or not qualified_commit:
+        raise TrustRootError(
+            "Repository qualification carries no usable qualified commit."
+        )
+    if not isinstance(receipt.get("headBranch"), str) or not receipt["headBranch"]:
+        raise TrustRootError(
+            "Repository qualification carries no usable pull request branch."
+        )
+    if (
+        expected_workflow is not None
+        and receipt.get("workflowPath") != expected_workflow
+    ):
         raise TrustRootError(
             f"Repository qualification came from workflow "
             f"{receipt.get('workflowPath')!r} rather than {expected_workflow!r}."
         )
-    for field in ("workflowRunId", "runAttempt"):
+    for field in ("id", "workflowRunId", "runAttempt", "pullRequestNumber"):
         value = receipt.get(field)
-        if isinstance(value, bool) or not isinstance(value, int):
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
             raise TrustRootError(
                 f"Repository qualification carries no usable {field}."
             )
@@ -306,10 +330,14 @@ def verify_trust_root(
         ),
         {},
     )
-    verify_branch_evidence_origin(
+    tree = run_git(repo, "rev-parse", f"{commit}^{{tree}}")
+    if tree.returncode != 0 or not tree.stdout.strip():
+        raise TrustRootError(f"Tagged commit {commit} has no resolvable tree.")
+    verify_pull_request_qualification(
         qualification_receipt,
         commit=commit,
-        expected_branch=str(gate.get("requiredRef", "refs/heads/main")).rsplit("/", 1)[-1],
+        tree_id=tree.stdout.strip(),
+        expected_base_branch=str(gate.get("requiredBaseBranch", "main")),
         expected_workflow=gate.get("producerWorkflow"),
     )
 
@@ -331,8 +359,8 @@ def verify_trust_root(
         "qualification": qualification_receipt,
     }
 
-def _gh_json(*arguments: str) -> dict[str, Any]:
-    """Query the authenticated GitHub API and return one JSON object."""
+def _gh_payload(*arguments: str) -> Any:
+    """Query the authenticated GitHub API and return decoded JSON."""
     result = subprocess.run(
         (
             "gh",
@@ -355,8 +383,25 @@ def _gh_json(*arguments: str) -> dict[str, Any]:
         payload = json.loads(result.stdout)
     except json.JSONDecodeError as error:
         raise TrustRootError("GitHub returned invalid JSON.") from error
+    return payload
+
+
+def _gh_json(*arguments: str) -> dict[str, Any]:
+    """Query the authenticated GitHub API and require one JSON object."""
+    payload = _gh_payload(*arguments)
     if not isinstance(payload, dict):
-        raise TrustRootError("GitHub returned an unexpected API shape.")
+        raise TrustRootError("GitHub returned an unexpected object shape.")
+
+    return payload
+
+
+def _gh_array(*arguments: str) -> list[dict[str, Any]]:
+    """Query the authenticated GitHub API and require an object array."""
+    payload = _gh_payload(*arguments)
+    if not isinstance(payload, list) or not all(
+        isinstance(entry, dict) for entry in payload
+    ):
+        raise TrustRootError("GitHub returned an unexpected array shape.")
 
     return payload
 
@@ -400,6 +445,93 @@ def select_check_run(payload: dict[str, Any], check_name: str, commit: str) -> d
     return matches[0]
 
 
+def select_associated_pull_request(
+    payload: Sequence[dict[str, Any]],
+    *,
+    commit: str,
+    expected_base_branch: str,
+) -> dict[str, Any]:
+    """Select the single merged PR GitHub associates with a main commit."""
+    matches = [
+        pull_request
+        for pull_request in payload
+        if pull_request.get("state") == "closed"
+        and pull_request.get("merged_at")
+        and (pull_request.get("base") or {}).get("ref")
+        == expected_base_branch
+    ]
+    if len(matches) != 1:
+        raise TrustRootError(
+            f"Commit {commit} is associated with {len(matches)} merged pull "
+            f"requests targeting {expected_base_branch!r}; exactly one is "
+            "required."
+        )
+
+    pull_request = matches[0]
+    number = pull_request.get("number")
+    if isinstance(number, bool) or not isinstance(number, int) or number <= 0:
+        raise TrustRootError("Associated pull request carries no usable number.")
+    head = pull_request.get("head") or {}
+    for field in ("ref", "sha"):
+        if not isinstance(head.get(field), str) or not head[field]:
+            raise TrustRootError(
+                f"Associated pull request carries no usable head {field}."
+            )
+
+    return pull_request
+
+
+def fetch_commit_tree(repository: str, commit: str) -> str:
+    """Return a commit tree from the authenticated forge view."""
+    payload = _gh_json(f"/repos/{repository}/git/commits/{commit}")
+    tree = payload.get("tree") or {}
+    tree_id = tree.get("sha")
+    if not isinstance(tree_id, str) or not tree_id:
+        raise TrustRootError(f"Commit {commit} has no forge-resolvable tree.")
+
+    return tree_id
+
+
+def bind_pull_request_qualification(
+    receipt: dict[str, Any],
+    *,
+    pull_request: dict[str, Any],
+    merged_commit: str,
+    merged_tree: str,
+    qualified_tree: str,
+) -> dict[str, Any]:
+    """Bind a workflow receipt to the PR and trees it connects."""
+    head = pull_request.get("head") or {}
+    base = pull_request.get("base") or {}
+    if receipt.get("commit") != head.get("sha"):
+        raise TrustRootError(
+            "Repository qualification workflow did not run for the merged "
+            "pull request head commit."
+        )
+    if receipt.get("headBranch") != head.get("ref"):
+        raise TrustRootError(
+            "Repository qualification workflow branch does not match the "
+            "merged pull request head branch."
+        )
+
+    enriched = {
+        **receipt,
+        "pullRequestNumber": pull_request["number"],
+        "baseBranch": base.get("ref"),
+        "mergedCommit": merged_commit,
+        "mergedTreeId": merged_tree,
+        "qualifiedTreeId": qualified_tree,
+    }
+    verify_pull_request_qualification(
+        enriched,
+        commit=merged_commit,
+        tree_id=merged_tree,
+        expected_base_branch=str(base.get("ref", "")),
+    )
+
+    return enriched
+
+
 def qualification_receipt(
     check_run: dict[str, Any],
     workflow_run: dict[str, Any],
@@ -407,12 +539,18 @@ def qualification_receipt(
     """Normalize the check run and its workflow run into one receipt.
 
     The check run says a check with this name concluded. Only the workflow run
-    says which workflow file produced it, on which branch, from which event,
-    and at which attempt -- the facts that decide whether this is branch
-    evidence at all.
+    says which workflow file produced it, for which head branch and event, and
+    at which attempt -- the facts that decide whether this is PR evidence.
     """
-    for field in ("id", "run_attempt", "event", "head_branch", "head_sha", "path",
-                  "conclusion"):
+    for field in (
+        "id",
+        "run_attempt",
+        "event",
+        "head_branch",
+        "head_sha",
+        "path",
+        "conclusion",
+    ):
         if field not in workflow_run:
             raise TrustRootError(
                 f"Workflow run for '{check_run.get('name')}' lacks '{field}'."
@@ -457,18 +595,20 @@ def fetch_qualification_receipt(
     repository: str,
     commit: str,
     check_name: str,
+    *,
+    expected_base_branch: str = "main",
 ) -> dict[str, Any]:
-    """Resolve repository qualification down to the workflow run behind it.
-
-    The check-runs resource alone cannot answer whether the check ran on the
-    protected branch: it carries no workflow path, no run attempt, and its
-    event field is not the event the workflow was triggered by. The check suite
-    is the link to the workflow run that does carry all of them.
-    """
+    """Resolve one main commit to the exact PR qualification for its tree."""
+    pull_request = select_associated_pull_request(
+        _gh_array(f"/repos/{repository}/commits/{commit}/pulls"),
+        commit=commit,
+        expected_base_branch=expected_base_branch,
+    )
+    qualified_commit = pull_request["head"]["sha"]
     check_run = select_check_run(
-        _gh_json(f"/repos/{repository}/commits/{commit}/check-runs"),
+        _gh_json(f"/repos/{repository}/commits/{qualified_commit}/check-runs"),
         check_name,
-        commit,
+        qualified_commit,
     )
     suite_id = (check_run.get("check_suite") or {}).get("id")
     if suite_id is None:
@@ -478,10 +618,16 @@ def fetch_qualification_receipt(
     workflow_run = select_workflow_run(
         _gh_json(f"/repos/{repository}/actions/runs?check_suite_id={suite_id}"),
         check_suite_id=suite_id,
-        commit=commit,
+        commit=qualified_commit,
     )
 
-    return qualification_receipt(check_run, workflow_run)
+    return bind_pull_request_qualification(
+        qualification_receipt(check_run, workflow_run),
+        pull_request=pull_request,
+        merged_commit=commit,
+        merged_tree=fetch_commit_tree(repository, commit),
+        qualified_tree=fetch_commit_tree(repository, qualified_commit),
+    )
 
 
 def _frozen_protected_gate(
@@ -546,7 +692,11 @@ def verify_frozen_qualification_receipt(
         "runAttempt": receipt.get("runAttempt"),
         "event": receipt.get("event"),
         "conclusion": receipt.get("conclusion"),
-        "commit": receipt.get("commit"),
+        "pullRequestNumber": receipt.get("pullRequestNumber"),
+        "baseBranch": receipt.get("baseBranch"),
+        "qualifiedCommit": receipt.get("commit"),
+        "qualifiedTreeId": receipt.get("qualifiedTreeId"),
+        "commit": commit,
         "treeId": tree_id,
     }
     differing = sorted(
@@ -567,10 +717,11 @@ def verify_frozen_qualification_receipt(
             f"{gate.get('checkName', gate['id'])!r}."
         )
 
-    verify_branch_evidence_origin(
+    verify_pull_request_qualification(
         receipt,
         commit=commit,
-        expected_branch=str(gate.get("requiredRef", "refs/heads/main")).rsplit("/", 1)[-1],
+        tree_id=tree_id,
+        expected_base_branch=str(gate.get("requiredBaseBranch", "main")),
         expected_workflow=gate.get("producerWorkflow"),
     )
 
@@ -605,14 +756,16 @@ def fetch_frozen_qualification_receipt(
     except release_qualification.QualificationError as error:
         raise TrustRootError(f"Qualification manifest is invalid: {error}") from error
 
-    _, entry = _frozen_protected_gate(manifest, policy)
+    gate, entry = _frozen_protected_gate(manifest, policy)
     check_id = entry.get("apiResourceId")
     workflow_run_id = entry.get("workflowRunId")
     run_attempt = entry.get("runAttempt")
+    pull_request_number = entry.get("pullRequestNumber")
     for field, value in (
         ("apiResourceId", check_id),
         ("workflowRunId", workflow_run_id),
         ("runAttempt", run_attempt),
+        ("pullRequestNumber", pull_request_number),
     ):
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
             raise TrustRootError(
@@ -637,7 +790,25 @@ def fetch_frozen_qualification_receipt(
             "Frozen check run and workflow attempt do not belong to the same check suite."
         )
 
-    receipt = qualification_receipt(check_run, workflow_run)
+    pull_request = select_associated_pull_request(
+        _gh_array(f"/repos/{repository}/commits/{commit}/pulls"),
+        commit=commit,
+        expected_base_branch=str(gate.get("requiredBaseBranch", "main")),
+    )
+    if pull_request["number"] != pull_request_number:
+        raise TrustRootError(
+            "GitHub associates the release commit with a different pull "
+            "request than the frozen qualification."
+        )
+
+    qualified_commit = pull_request["head"]["sha"]
+    receipt = bind_pull_request_qualification(
+        qualification_receipt(check_run, workflow_run),
+        pull_request=pull_request,
+        merged_commit=commit,
+        merged_tree=fetch_commit_tree(repository, commit),
+        qualified_tree=fetch_commit_tree(repository, qualified_commit),
+    )
     verify_frozen_qualification_receipt(
         receipt,
         manifest=manifest,
@@ -760,13 +931,20 @@ def pre_tag_report(
     )
     check_name = gate.get("checkName", gate.get("id", "repository-qualification"))
     try:
-        receipt = fetch_qualification_receipt(repository, commit, check_name)
-        verify_branch_evidence_origin(
+        receipt = fetch_qualification_receipt(
+            repository,
+            commit,
+            check_name,
+            expected_base_branch=str(gate.get("requiredBaseBranch", "main")),
+        )
+        tree = run_git(repo, "rev-parse", f"{commit}^{{tree}}")
+        if tree.returncode != 0 or not tree.stdout.strip():
+            raise TrustRootError(f"Commit {commit} has no resolvable tree.")
+        verify_pull_request_qualification(
             receipt,
             commit=commit,
-            expected_branch=str(
-                gate.get("requiredRef", "refs/heads/main")
-            ).rsplit("/", 1)[-1],
+            tree_id=tree.stdout.strip(),
+            expected_base_branch=str(gate.get("requiredBaseBranch", "main")),
             expected_workflow=gate.get("producerWorkflow"),
         )
         lines.append(

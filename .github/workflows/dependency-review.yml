@@ -1,9 +1,8 @@
 name: dependency-review
 
 # Reviews the dependency delta of a pull request before it can merge. GitHub's
-# Automatic Dependency Submission owns the resolved NuGet graph; this workflow
-# waits for its exact base/head comparison instead of submitting a second,
-# competing snapshot for the same revision.
+# Automatic Dependency Submission owns the resolved NuGet graph, and the
+# official review action owns bounded retries while that graph propagates.
 
 on:
   pull_request:
@@ -20,57 +19,15 @@ concurrency:
 jobs:
   dependency-review:
     permissions:
-      checks: read
       contents: read
     runs-on: ubuntu-latest
-    # Five producer minutes, fifteen propagation minutes, three action-retry
-    # minutes, and two possible 30-second API overruns leave six runner minutes.
-    timeout-minutes: 30
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      # GitHub recommends ordering dependency submission before review. Its
-      # automatic producer is a separate dynamic workflow, so bind both exact
-      # SHA check receipts first and only then start graph-propagation retries.
-      - name: Require complete automatic dependency snapshots
-        if: >-
-          github.event.pull_request.head.repo.full_name == github.repository
-          && github.event.pull_request.user.login != 'dependabot[bot]'
-        env:
-          DOKA_BASE_REVISION: ${{ github.event.pull_request.base.sha }}
-          DOKA_HEAD_REVISION: ${{ github.event.pull_request.head.sha }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          python3 -m eng.quality.dependency_snapshot_readiness verify \
-            --base-revision "${DOKA_BASE_REVISION}" \
-            --head-revision "${DOKA_HEAD_REVISION}" \
-            --api-url "${GITHUB_API_URL}" \
-            --repository "${GITHUB_REPOSITORY}" \
-            --producer-wait-seconds 300 \
-            --propagation-wait-seconds 900 \
-            --output artifacts/dependency-snapshot-readiness.json
-
-      - name: Summarize automatic dependency readiness
-        if: >-
-          github.event.pull_request.head.repo.full_name == github.repository
-          && github.event.pull_request.user.login != 'dependabot[bot]'
-        run: |
-          {
-            echo "## Dependency snapshot readiness"
-            echo
-            jq -r '"- Base producer check: \(.automaticSubmission.base.checkId)"' \
-              artifacts/dependency-snapshot-readiness.json
-            jq -r '"- Head producer check: \(.automaticSubmission.head.checkId)"' \
-              artifacts/dependency-snapshot-readiness.json
-            jq -r '"- Producer wait: \(.observedWaitSeconds.producer) seconds"' \
-              artifacts/dependency-snapshot-readiness.json
-            jq -r '"- Propagation wait: \(.observedWaitSeconds.propagation) seconds"' \
-              artifacts/dependency-snapshot-readiness.json
-          } >> "${GITHUB_STEP_SUMMARY}"
 
       # The license set mirrors the repository dependency policy. Packages
       # whose license metadata is absent are reported separately rather than
@@ -90,8 +47,7 @@ jobs:
             Unlicense
           comment-summary-in-pr: never
           show-openssf-scorecard: true
-          # Trusted PRs normally arrive here after the stricter preflight.
-          # Retain the official retry for untrusted PRs, where write-capable
-          # head submission cannot be orchestrated by this workflow.
+          # A warning remains fail-closed after the official bounded retry;
+          # this workflow does not implement a second snapshot state machine.
           retry-on-snapshot-warnings: true
           retry-on-snapshot-warnings-timeout: 180
