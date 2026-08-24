@@ -91,14 +91,16 @@ history tables and triggers whose names, annotations, rollback behavior, and
 scaffolding contract are deterministic. Both routes share the same public
 metadata and query API.
 
-MariaDB introduced the dedicated period information-schema catalogs in 11.4,
-after application-time periods themselves. Reverse engineering therefore uses
-those catalogs on 11.4 and later. On 10.11 it reads `ROW START` / `ROW END` from
-`GENERATION_EXPRESSION` and parses only grammar tokens from canonical `SHOW
-CREATE TABLE` output. The missing bulk catalogs require one metadata round trip
-per selected table on 10.11. `SET STATEMENT` fixes the rendering SQL mode for
-each query without mutating the caller-owned session and clears `ANSI_QUOTES`,
-so server-rendered identifiers cannot be mistaken for quoted string literals.
+MariaDB introduced the dedicated [PERIODS][mariadb-periods] and
+[KEY_PERIOD_USAGE][mariadb-key-period-usage] information-schema catalogs in
+11.4, after application-time periods themselves. Reverse engineering therefore
+uses those catalogs on 11.4 and later. On 10.11 it reads `ROW START` / `ROW END`
+from `GENERATION_EXPRESSION` and parses only grammar tokens from canonical
+`SHOW CREATE TABLE` output. The missing bulk catalogs require one metadata
+round trip per selected table on 10.11. `SET STATEMENT` fixes the rendering SQL
+mode for each query without mutating the caller-owned session and clears
+`ANSI_QUOTES`, so server-rendered identifiers cannot be mistaken for quoted
+string literals.
 
 MariaDB application-time periods and bitemporal tables use a separate typed
 provider contract. Model-builder extensions configure the application period,
@@ -266,17 +268,15 @@ semantics instead of normalizing them into one approximate range operation.
   (primary source; retrieved 2026-08-04)
 - [MariaDB bitemporal tables](https://mariadb.com/docs/server/reference/sql-structure/temporal-tables/bitemporal-tables)
   (primary source; retrieved 2026-08-05)
-- [MariaDB PERIODS information-schema table](https://mariadb.com/docs/server/reference/system-tables/information-schema/information-schema-periods-table)
-  (primary source; retrieved 2026-08-05)
-- [MariaDB KEY_PERIOD_USAGE information-schema table](https://mariadb.com/docs/server/reference/system-tables/information-schema/information-schema-key_period_usage-table)
-  (primary source; retrieved 2026-08-05)
+- [MariaDB PERIODS information-schema table][mariadb-periods]
+  (primary source; retrieved 2026-08-24)
+- [MariaDB KEY_PERIOD_USAGE information-schema table][mariadb-key-period-usage]
+  (primary source; retrieved 2026-08-24)
 - [MariaDB SHOW CREATE TABLE](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/show/show-create-table)
   (primary source; retrieved 2026-08-11)
 - [MariaDB ALTER TABLE](https://mariadb.com/docs/server/reference/sql-statements/data-definition/alter/alter-table)
   (primary source; retrieved 2026-08-04)
 - [MariaDB SET STATEMENT](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/set-commands/set-statement)
-  (primary source; retrieved 2026-08-04)
-- [MariaDB and MySQL feature differences](https://mariadb.com/docs/release-notes/community-server/about/compatibility-and-differences/incompatibilities-and-feature-differences-between-mariadb-10-10-and-mysql-8)
   (primary source; retrieved 2026-08-04)
 - [EF Core SQL Server temporal tables](https://learn.microsoft.com/en-us/ef/core/providers/sql-server/temporal-tables)
   (primary source; retrieved 2026-08-04)
@@ -298,3 +298,8 @@ semantics instead of normalizing them into one approximate range operation.
   (primary source; retrieved 2026-08-18)
 - [EF Core issue 29303: temporal table splitting](https://github.com/dotnet/efcore/issues/29303)
   (primary source; retrieved 2026-08-18)
+
+[mariadb-periods]:
+  https://mariadb.com/docs/server/reference/system-tables/information-schema/information-schema-tables/information-schema-periods-table
+[mariadb-key-period-usage]:
+  https://mariadb.com/docs/server/reference/system-tables/information-schema/information-schema-tables/information-schema-key_period_usage-table

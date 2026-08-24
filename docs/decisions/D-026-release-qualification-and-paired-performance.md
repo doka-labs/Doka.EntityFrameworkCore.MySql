@@ -139,9 +139,6 @@ Primary-source basis:
   reusable workflow from a matrix-backed or conditional job, which permits one
   resolver to select either complete target-derived lane without duplicating
   their lifecycle.
-- [GitHub Actions billing][github-actions-billing] documents that hosted-runner
-  job execution consumes billable minutes, so avoiding measurement jobs rather
-  than merely shortening their reporting path is the relevant control.
 - [NuGet package publication][nuget-publish-package] documents asynchronous
   validation and indexing, a normal delay below 15 minutes, and the one-hour
   support threshold retained as the hard deadline.
@@ -1527,159 +1524,58 @@ manifest verification.
 ### Sources
 
 - [NuGet package publication][nuget-publish-package]
-  (primary source; retrieved 2026-08-18)
+  (primary source; retrieved 2026-08-24)
 - [NuGet symbol publication][nuget-symbol-packages]
-  (primary source; retrieved 2026-08-18)
+  (primary source; retrieved 2026-08-24)
 - [`dotnet nuget push`][dotnet-nuget-push]
-  (primary source; retrieved 2026-08-18)
+  (primary source; retrieved 2026-08-24)
 - [NuGet package publish API][nuget-package-publish-api]
-  (primary source; retrieved 2026-08-18)
-- [NuGet V3 service index][nuget-service-index]
-  (primary source; retrieved 2026-08-18)
+  (primary source; retrieved 2026-08-24)
 - [NuGet package content API][nuget-package-content-api]
-  (primary source; retrieved 2026-08-18)
+  (primary source; retrieved 2026-08-24)
 - [NuGet package versioning][nuget-package-versioning]
-  (primary source; retrieved 2026-08-18)
+  (primary source; retrieved 2026-08-24)
 - [NuGet repository signatures][nuget-repository-signatures]
-  (primary source; retrieved 2026-08-18)
-- [Six-target paired benchmark run 31903353665][failed-six-target-run]
-  (primary source; retrieved 2026-08-15)
+  (primary source; retrieved 2026-08-24)
 - [Cross-version driver failure run 32501167056][cross-version-driver-failure]
-  (primary source; retrieved 2026-08-21)
-- [MSBuild item removal][msbuild-item-removal]
-  (primary source; retrieved 2026-08-21)
-- [MSBuild conditions][msbuild-conditions]
-  (primary source; retrieved 2026-08-21)
-- [`actions/checkout` history contract][actions-checkout]
-  (primary source; retrieved 2026-08-21)
-- [GitHub Actions default variables][github-actions-variables]
-  (primary source; retrieved 2026-08-21)
-- [Release-candidate run 31334669273][candidate-run]
-  (primary source; retrieved 2026-08-10)
-- [Main benchmark resolver run 31332817720][benchmark-run]
-  (primary source; retrieved 2026-08-10)
-- [Repeated capped benchmark run 31568808053][capped-benchmark-run]
-  (primary source; retrieved 2026-08-12)
+  (primary source; retrieved 2026-08-24)
 - [GitHub-hosted runners reference][github-runners]
-  (primary source; retrieved 2026-08-17)
-- [GitHub workflow runs API][github-runs-api]
-  (primary source; retrieved 2026-08-10)
-- [GitHub Actions workflow syntax][github-workflow-syntax]
-  (primary source; retrieved 2026-08-10)
-- [GitHub Actions billing][github-actions-billing]
-  (primary source; retrieved 2026-08-10)
-- [GitHub Git tags API][github-tags-api]
-  (primary source; retrieved 2026-08-10)
-- [Git tag signature verification][git-verify-tag]
-  (primary source; retrieved 2026-08-10)
+  (primary source; retrieved 2026-08-24)
 - [GitHub artifact storage and digest validation][github-artifacts]
-  (primary source; retrieved 2026-08-17)
+  (primary source; retrieved 2026-08-24)
 - [GitHub artifact attestations][github-attestations]
-  (primary source; retrieved 2026-08-10)
+  (primary source; retrieved 2026-08-24)
 - [`actions/attest`][actions-attest]
-  (primary source; retrieved 2026-08-19)
+  (primary source; retrieved 2026-08-24)
 - [GitHub offline attestation verification][github-offline-attestations]
-  (primary source; retrieved 2026-08-19)
-- [OpenSSF Signed-Releases][openssf-signed-releases]
-  (primary source; retrieved 2026-08-19)
+  (primary source; retrieved 2026-08-24)
+- [OpenSSF Signed-Releases snapshot (commit-bound)][openssf-signed-releases]
+  (primary source; retrieved 2026-08-24)
 - [GitHub deployment environments][github-deployment-environments]
-  (primary source; retrieved 2026-08-16)
+  (primary source; retrieved 2026-08-24)
 - [GitHub immutable releases][github-immutable-releases]
-  (primary source; retrieved 2026-08-16)
+  (primary source; retrieved 2026-08-24)
 - [GitHub releases REST API][github-releases-api]
-  (primary source; retrieved 2026-08-17)
-- [GitHub required status checks][github-required-checks]
-  (primary source; retrieved 2026-08-10)
+  (primary source; retrieved 2026-08-24)
 - [NuGet Trusted Publishing][nuget-trusted-publishing]
-  (primary source; retrieved 2026-08-16)
+  (primary source; retrieved 2026-08-24)
 - [NuGet package deletion policy][nuget-package-deletion]
-  (primary source; retrieved 2026-08-16)
+  (primary source; retrieved 2026-08-24)
 - [NuGet PackageReference lock-file contract][nuget-lock-files]
-  (primary source; retrieved 2026-08-17)
+  (primary source; retrieved 2026-08-24)
 - [NuGet RestoreTask source][nuget-restore-task]
-  (primary source; retrieved 2026-08-20)
+  (primary source; retrieved 2026-08-24)
 - [.NET CLI publish contract][dotnet-publish]
-  (primary source; retrieved 2026-08-17)
-- [BenchmarkDotNet good practices][bdn-good-practices]
-  (primary source; retrieved 2026-08-10)
-- [BenchmarkDotNet baselines][bdn-baselines]
-  (primary source; retrieved 2026-08-10)
-- [BenchmarkDotNet console arguments][bdn-console-arguments]
-  (primary source; retrieved 2026-08-12)
-- [BenchmarkDotNet measurement stages][bdn-how-it-works]
-  (primary source; retrieved 2026-08-12)
-- [BenchmarkDotNet job characteristics][bdn-jobs]
-  (primary source; retrieved 2026-08-13)
-- [BenchmarkDotNet memory-diagnoser metrics][bdn-diagnosers]
-  (primary source; retrieved 2026-08-16)
-- [.NET `GC.CollectionCount`][dotnet-gc-collection-count]
-  (primary source; retrieved 2026-08-16)
+  (primary source; retrieved 2026-08-24)
 - [Benchmark stability run 31903353665][benchmark-stability-run]
-  (primary source; retrieved 2026-08-16)
-- [Go benchmark runner source][go-benchmark-source]
-  (primary source; retrieved 2026-08-12)
-- [Go benchstat guidance][go-benchstat]
-  (primary source; retrieved 2026-08-13)
-- [NIST sample sizes required][nist-sample-sizes]
-  (primary source; retrieved 2026-08-13)
-- [NIST proportion confidence intervals][nist-proportion-intervals]
-  (primary source; retrieved 2026-08-13)
-- [NIST one-sided confidence limits for a standard deviation][nist-sigma-limit]
-  (primary source; retrieved 2026-08-14)
-- [NIST chi-square critical values][nist-chi-square]
-  (primary source; retrieved 2026-08-14)
-- [NIST measurement-process characterization][nist-measurement-process]
-  (primary source; retrieved 2026-08-14)
-- [NIST standard-deviation control chart][nist-standard-deviation-chart]
-  (primary source; retrieved 2026-08-14)
-- [FDA multiple-endpoints guidance][fda-multiple-endpoints]
-  (primary source; retrieved 2026-08-14)
-- [SPEC HPC 2021 result-computation rules][spec-hpc-result-computation]
-  (primary source; retrieved 2026-08-14)
-- [SciPy exact paired permutation-test contract][scipy-permutation-test]
-  (primary source; retrieved 2026-08-14)
-- [GitHub matrix jobs][github-matrix]
-  (primary source; retrieved 2026-08-13)
+  (primary source; retrieved 2026-08-24)
 - [GitHub reusable workflows][github-reusable-workflows]
-  (primary source; retrieved 2026-08-13)
-- [MySQL release model][mysql-release-model]
-  (primary source; retrieved 2026-08-13)
-- [rustc-perf deployment documentation][rustc-perf-deployment]
-  (primary source; retrieved 2026-08-10)
-- [rustc-perf collector documentation][rustc-perf-collector]
-  (primary source; retrieved 2026-08-10)
-- [Henning et al., cloud performance variability for application
-  benchmarks][cloud-variability]
-  (primary source; retrieved 2026-08-10)
-- [Mytkowicz et al., measurement bias in systems experiments][measurement-bias]
-  (primary source; retrieved 2026-08-10)
+  (primary source; retrieved 2026-08-24)
 
-[candidate-run]:
-  https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31334669273
-[failed-six-target-run]:
-  https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31903353665
 [cross-version-driver-failure]:
   https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/32501167056
-[msbuild-item-removal]:
-  https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-items?view=visualstudio#remove-attribute
-[msbuild-conditions]:
-  https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-conditions?view=visualstudio
-[actions-checkout]: https://github.com/actions/checkout#fetch-all-history-for-all-tags-and-branches
-[github-actions-variables]:
-  https://docs.github.com/en/actions/reference/workflows-and-actions/variables
-[benchmark-run]:
-  https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31332817720
-[capped-benchmark-run]:
-  https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31568808053
 [github-runners]:
   https://docs.github.com/en/actions/reference/runners/github-hosted-runners
-[github-runs-api]: https://docs.github.com/en/rest/actions/workflow-runs
-[github-workflow-syntax]:
-  https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax
-[github-actions-billing]:
-  https://docs.github.com/en/billing/concepts/product-billing/github-actions
-[github-tags-api]: https://docs.github.com/en/rest/git/tags
-[git-verify-tag]: https://git-scm.com/docs/git-verify-tag
 [github-artifacts]:
   https://docs.github.com/en/actions/tutorials/store-and-share-data
 [github-attestations]:
@@ -1688,15 +1584,13 @@ manifest verification.
   https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/verify-attestations-offline
 [actions-attest]: https://github.com/actions/attest
 [openssf-signed-releases]:
-  https://github.com/ossf/scorecard/blob/main/docs/checks/internal/checks.yaml
+  https://github.com/ossf/scorecard/blob/d1fab88f54636ff366076edfc5c239f97b3c8e66/docs/checks.md#signed-releases
 [github-deployment-environments]:
   https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments
 [github-immutable-releases]:
   https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases
 [github-releases-api]:
   https://docs.github.com/en/rest/releases/releases
-[github-required-checks]:
-  https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks
 [nuget-trusted-publishing]:
   https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing
 [nuget-package-deletion]:
@@ -1704,7 +1598,7 @@ manifest verification.
 [nuget-lock-files]:
   https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#locking-dependencies
 [nuget-restore-task]:
-  https://github.com/NuGet/NuGet.Client/blob/dev/src/NuGet.Core/NuGet.Build.Tasks/RestoreTask.cs
+  https://github.com/NuGet/NuGet.Client/blob/ebc9615813b3d475f848339310f1ced8e9fc1182/src/NuGet.Core/NuGet.Build.Tasks/RestoreTask.cs
 [nuget-publish-package]:
   https://learn.microsoft.com/en-us/nuget/nuget-org/publish-a-package
 [nuget-symbol-packages]:
@@ -1713,8 +1607,6 @@ manifest verification.
   https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-nuget-push
 [nuget-package-publish-api]:
   https://learn.microsoft.com/en-us/nuget/api/package-publish-resource
-[nuget-service-index]:
-  https://learn.microsoft.com/en-us/nuget/api/service-index
 [nuget-package-content-api]:
   https://learn.microsoft.com/en-us/nuget/api/package-base-address-resource
 [nuget-package-versioning]:
@@ -1722,47 +1614,7 @@ manifest verification.
 [nuget-repository-signatures]:
   https://learn.microsoft.com/en-us/nuget/api/repository-signatures-resource
 [dotnet-publish]: https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-publish
-[bdn-good-practices]:
-  https://benchmarkdotnet.org/articles/guides/good-practices.html
-[bdn-baselines]: https://benchmarkdotnet.org/articles/features/baselines.html
-[bdn-console-arguments]:
-  https://benchmarkdotnet.org/articles/guides/console-args.html
-[bdn-how-it-works]: https://benchmarkdotnet.org/articles/guides/how-it-works.html
-[bdn-jobs]: https://benchmarkdotnet.org/articles/configs/jobs.html
-[bdn-diagnosers]: https://benchmarkdotnet.org/articles/configs/diagnosers.html
-[dotnet-gc-collection-count]:
-  https://learn.microsoft.com/en-us/dotnet/api/system.gc.collectioncount?view=net-10.0
 [benchmark-stability-run]:
   https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/runs/31903353665
-[go-benchmark-source]: https://go.dev/src/testing/benchmark.go
-[go-benchstat]: https://pkg.go.dev/golang.org/x/perf/cmd/benchstat
-[nist-sample-sizes]:
-  https://www.itl.nist.gov/div898/handbook/prc/section2/prc222.htm
-[nist-proportion-intervals]:
-  https://www.itl.nist.gov/div898/software/dataplot/refman1/auxillar/propconf.htm
-[nist-sigma-limit]:
-  https://www.itl.nist.gov/div898/handbook/prc/section2/prc231.htm
-[nist-chi-square]:
-  https://www.itl.nist.gov/div898/handbook/eda/section3/eda3674.htm
-[nist-measurement-process]:
-  https://www.itl.nist.gov/div898/handbook/mpc/section2/mpc2.htm
-[nist-standard-deviation-chart]:
-  https://www.itl.nist.gov/div898/handbook/mpc/section2/mpc22.htm
-[fda-multiple-endpoints]:
-  https://www.fda.gov/regulatory-information/search-fda-guidance-documents/multiple-endpoints-clinical-trials
-[spec-hpc-result-computation]:
-  https://www.spec.org/hpc2021/docs/runrules.html
-[scipy-permutation-test]:
-  https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.permutation_test.html
-[github-matrix]:
-  https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
 [github-reusable-workflows]:
   https://docs.github.com/en/actions/sharing-automations/reusing-workflows
-[mysql-release-model]:
-  https://dev.mysql.com/doc/refman/9.7/en/mysql-releases.html
-[rustc-perf-deployment]:
-  https://github.com/rust-lang/rustc-perf/blob/main/docs/deployment.md
-[rustc-perf-collector]:
-  https://github.com/rust-lang/rustc-perf/blob/master/collector/README.md
-[cloud-variability]: https://arxiv.org/abs/2504.11826
-[measurement-bias]: https://dl.acm.org/doi/10.1145/1508244.1508275

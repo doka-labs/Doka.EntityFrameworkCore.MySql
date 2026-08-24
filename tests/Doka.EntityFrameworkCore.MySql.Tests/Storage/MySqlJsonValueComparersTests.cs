@@ -471,6 +471,11 @@ public sealed class MySqlJsonValueComparersTests
         var comparer = MySqlJsonValueComparers.JsonNodeComparer;
         var result = comparer.Equals(left, right);
 
+        for (var index = 0; index < 1000; index++)
+        {
+            result &= comparer.Equals(left, right);
+        }
+
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var index = 0; index < 1000; index++)
         {
@@ -519,6 +524,11 @@ public sealed class MySqlJsonValueComparersTests
         var node = JsonNode.Parse(json)!;
         var comparer = MySqlJsonValueComparers.JsonNodeComparer;
         var hash = comparer.GetHashCode(node);
+
+        for (var index = 0; index < 1000; index++)
+        {
+            hash ^= comparer.GetHashCode(node);
+        }
 
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var index = 0; index < 1000; index++)

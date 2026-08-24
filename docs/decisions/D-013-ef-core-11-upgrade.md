@@ -134,7 +134,8 @@ indefinitely; consumers on net11.0 (or who consume both) adopt v2.0.
 
 ### Confirmation
 
-- Check the official .NET release index and EF Core NuGet status before each release.
+- Check the [official .NET support policy][dotnet-support-policy] and
+  [EF Core package versions][efcore-package-versions] before each release.
 - When a trigger fires, establish the EF Core 11 release line before changing target
   frameworks.
 
@@ -163,10 +164,12 @@ The trigger has not fired, so no EF Core 11 implementation is active.
 
 ### Current source snapshot
 
-As retrieved on 2026-07-27, .NET 11 is still a preview and its final release
-is expected in November 2026. The GA trigger has therefore not fired. The
-official sources below replace the time-sensitive preview number recorded in
-the historical text.
+As retrieved on 2026-08-24, [.NET 11 remains a preview][dotnet-11-whats-new],
+and the official [EF Core package index][efcore-package-versions] contains EF
+Core 11 previews but no stable `11.0.0`. The GA trigger has therefore not
+fired. The [official .NET release index][dotnet-release-index] captures the
+support-window state at retrieval. Future checks use the living
+[.NET support policy][dotnet-support-policy].
 
 ### Additional Alternative Rationale
 
@@ -208,5 +211,20 @@ the historical text.
 
 ### Sources
 
-- [.NET release index](https://github.com/dotnet/core) (primary source; retrieved 2026-07-27)
-- [What's new in .NET 11](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-11/overview) (primary source; retrieved 2026-07-27)
+- [.NET release index snapshot (commit-bound)][dotnet-release-index]
+  (primary source; retrieved 2026-08-24)
+- [.NET support policy (living support-window trigger)][dotnet-support-policy]
+  (primary source; retrieved 2026-08-24)
+- [What's new in .NET 11 (living release trigger)][dotnet-11-whats-new]
+  (primary source; retrieved 2026-08-24)
+- [EF Core package versions (living GA trigger)][efcore-package-versions]
+  (primary source; retrieved 2026-08-24)
+
+[dotnet-release-index]:
+  https://github.com/dotnet/core/blob/ca8df8aff093a8c024b3042b85e3063a607b57fb/release-notes/releases-index.json
+[dotnet-support-policy]:
+  https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core
+[dotnet-11-whats-new]:
+  https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-11/overview
+[efcore-package-versions]:
+  https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore/index.json
