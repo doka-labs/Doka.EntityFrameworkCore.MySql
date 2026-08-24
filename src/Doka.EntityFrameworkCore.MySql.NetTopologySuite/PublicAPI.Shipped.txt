@@ -1,1 +1,21 @@
 #nullable enable
+Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDbContextOptionsBuilderExtensions
+Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDbFunctionsExtensions
+Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDesignTimeServices
+Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDesignTimeServices.ConfigureDesignTimeServices(Microsoft.Extensions.DependencyInjection.IServiceCollection! serviceCollection) -> void
+Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDesignTimeServices.MySqlNetTopologySuiteDesignTimeServices() -> void
+Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteIndexBuilderExtensions
+Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuitePropertyBuilderExtensions
+Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteServiceCollectionExtensions
+static Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDbContextOptionsBuilderExtensions.UseNetTopologySuite(this Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder! builder) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDbFunctionsExtensions.DistanceSphere(this Microsoft.EntityFrameworkCore.DbFunctions! _, NetTopologySuite.Geometries.Point! left, NetTopologySuite.Geometries.Point! right) -> double
+static Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDbFunctionsExtensions.MbrContains(this Microsoft.EntityFrameworkCore.DbFunctions! _, NetTopologySuite.Geometries.Geometry! left, NetTopologySuite.Geometries.Geometry! right) -> bool
+static Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDbFunctionsExtensions.MbrDisjoint(this Microsoft.EntityFrameworkCore.DbFunctions! _, NetTopologySuite.Geometries.Geometry! left, NetTopologySuite.Geometries.Geometry! right) -> bool
+static Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDbFunctionsExtensions.MbrIntersects(this Microsoft.EntityFrameworkCore.DbFunctions! _, NetTopologySuite.Geometries.Geometry! left, NetTopologySuite.Geometries.Geometry! right) -> bool
+static Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDbFunctionsExtensions.MbrOverlaps(this Microsoft.EntityFrameworkCore.DbFunctions! _, NetTopologySuite.Geometries.Geometry! left, NetTopologySuite.Geometries.Geometry! right) -> bool
+static Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDbFunctionsExtensions.MbrWithin(this Microsoft.EntityFrameworkCore.DbFunctions! _, NetTopologySuite.Geometries.Geometry! left, NetTopologySuite.Geometries.Geometry! right) -> bool
+static Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteIndexBuilderExtensions.IsSpatial(this Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder! indexBuilder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteIndexBuilderExtensions.IsSpatial<TEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder<TEntity!>! indexBuilder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder<TEntity!>!
+static Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuitePropertyBuilderExtensions.HasSrid(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder! propertyBuilder, int srid) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuitePropertyBuilderExtensions.HasSrid<TGeometry>(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TGeometry!>! propertyBuilder, int srid) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TGeometry!>!
+static Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteServiceCollectionExtensions.AddEntityFrameworkDokaMySqlNetTopologySuite(this Microsoft.Extensions.DependencyInjection.IServiceCollection! serviceCollection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

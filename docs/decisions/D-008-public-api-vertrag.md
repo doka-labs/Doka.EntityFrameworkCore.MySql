@@ -18,7 +18,7 @@ doka-profile-version: "1.0"
 
 ## Context and Problem Statement
 
-v1.0 is the starting point for long-term SemVer discipline on this
+10.0.0 is the starting point for long-term SemVer discipline on this
 provider. Today the project has:
 
 - no recorded snapshot of the public API surface,
@@ -28,7 +28,7 @@ provider. Today the project has:
 
 The premortem flagged this as a high-impact medium-probability risk: a
 contributor (human or otherwise) adds, renames or removes a public type
-between v1.0.0 and v1.0.1 without realizing it is a SemVer breaking
+between 10.0.0 and 10.0.1 without realizing it is a SemVer breaking
 change. The change lands, downstream consumers break on the patch
 upgrade, and the project is reduced to a manual changelog discipline
 nobody enforces consistently.
@@ -49,7 +49,8 @@ nobody enforces consistently.
 
 Chosen option: "PublicApiAnalyzers baselines", because compiler-enforced baselines provide the strongest low-friction SemVer guard.
 
-Adopt `Microsoft.CodeAnalysis.PublicApiAnalyzers` (3.3.4) project-wide.
+Adopt `Microsoft.CodeAnalysis.PublicApiAnalyzers` project-wide. The centrally
+managed analyzer version is currently 5.6.0.
 Each source project gains two text files:
 
 - `PublicAPI.Shipped.txt` -- the immutable record of the stable public API.
@@ -61,11 +62,12 @@ Each source project gains two text files:
 
 Build-level enforcement:
 
-- `EnforceExtendedAnalyzerRules` in `Directory.Build.props`.
+- The analyzer package discovers the `PublicAPI.Shipped.txt` and
+  `PublicAPI.Unshipped.txt` files in each source project.
 - `RS0016` (declared API not present in shipped or unshipped) becomes
   an error.
 - `RS0017` (shipped API removed) becomes an error.
-- `RS0036` (annotation drift) becomes a warning.
+- `RS0036` (annotation drift) becomes an error.
 
 The stable-release process gains one step: the reviewed release-preparation
 commit moves `PublicAPI.Unshipped.txt` to `PublicAPI.Shipped.txt` and resets the
@@ -88,7 +90,7 @@ signed stable tag points to the already qualified commit.
 - The shipped/unshipped split makes the difference between "added in
   this release" and "stable since at least version N" textually visible
   in source control.
-- v1.0 is the right moment to start the discipline; pre-v1.0 the
+- 10.0.0 is the right moment to start the discipline; before 10.0.0 the
   surface was explicitly unstable.
 
 #### Negative
@@ -133,27 +135,45 @@ signed stable tag points to the already qualified commit.
 
 ### Implementation Snapshot
 
-- `Microsoft.CodeAnalysis.PublicApiAnalyzers` 3.3.4 wired through `Directory.Build.props`; `PublicAPI.Shipped.txt` (empty) and `PublicAPI.Unshipped.txt` (current surface) per src project; CONTRIBUTING.md documents the contributor workflow.
+- `Microsoft.CodeAnalysis.PublicApiAnalyzers` 5.6.0 is wired through
+  `Directory.Build.props`. Each source project records the initial 10.0.0
+  stable surface in `PublicAPI.Shipped.txt`; `PublicAPI.Unshipped.txt` is reset
+  to `#nullable enable`. CONTRIBUTING.md documents the contributor workflow.
 
 ### Implementation Notes
 
-- `Microsoft.CodeAnalysis.PublicApiAnalyzers` 3.3.4 is referenced as a build-time analyzer (`PrivateAssets=all`) on both src projects via a conditional `ItemGroup` in `Directory.Build.props`. The same `ItemGroup` registers the two `AdditionalFiles` entries so the analyzer sees the per-project `PublicAPI.{Shipped,Unshipped}.txt` pair.
+- `Microsoft.CodeAnalysis.PublicApiAnalyzers` 5.6.0 is referenced as a
+  build-time analyzer (`PrivateAssets=all`) on both source projects via a
+  conditional `ItemGroup` in `Directory.Build.props`. The analyzer targets
+  discover the per-project `PublicAPI.{Shipped,Unshipped}.txt` pair without
+  duplicate `AdditionalFiles` registration.
 - `EnforceExtendedAnalyzerRules` is **not** set: that property activates the RS1xxx rules meant for analyzer authors (we ship a library, not an analyzer) and would surface unrelated false positives on every `Environment.NewLine` call inside the provider. The global `TreatWarningsAsErrors=true` from `Directory.Build.props` already promotes RS0016 / RS0017 / RS0036 to errors, which is the structurally relevant gate.
 - `RS0026` ("Do not add multiple overloads with optional parameters") fires on the `UseMySql` extension family because each overload carries the optional `mySqlOptionsAction = null` parameter. The pattern is the EF Core community standard; the rule is demoted to a warning via `WarningsNotAsErrors` with an explicit rationale comment. A future overload addition still surfaces as a warning and demands explicit reviewer attention.
 - Initial surface population ran via `dotnet format analyzers <csproj> --diagnostics RS0016 --severity info`, which applies the analyzer's auto-fix and writes the exact PublicApiAnalyzer-formatted lines into `PublicAPI.Unshipped.txt`.
 
-### Post-v1.0 follow-up: PackageValidation
+### Post-10.0.0 follow-up: PackageValidation
 
-Per operator decision (belt-and-suspenders): after the first NuGet release of `Doka.EntityFrameworkCore.MySql` v1.0, the project additionally activates `PackageValidation` (built into the .NET 8+ SDK) so the released `.nupkg` is compared against the previous baseline at every `dotnet pack` time. This complements PublicApiAnalyzers (which guards pre-release surface drift commit-by-commit) with a package-level baseline check that catches assembly-binary-compat regressions PublicApiAnalyzers cannot see (for example, attribute-only changes that affect runtime binding).
+Per operator decision (belt-and-suspenders): after 10.0.0 is available on
+nuget.org, a separate reviewed post-release change activates
+`PackageValidation` (built into the .NET SDK) so subsequent packages are
+compared against the 10.0.0 baseline at `dotnet pack` time. This complements
+PublicApiAnalyzers, which guards source-level surface drift commit-by-commit,
+with a package-level baseline check that catches assembly-binary-compat
+regressions PublicApiAnalyzers cannot see, such as attribute-only changes that
+affect runtime binding.
 
-The activation is a `Directory.Build.props` edit at release time:
+The post-release activation is a `Directory.Build.props` edit:
 
 ```xml
 <EnablePackageValidation>true</EnablePackageValidation>
 <PackageValidationBaselineVersion>10.0.0</PackageValidationBaselineVersion>
 ```
 
-Until the first release publishes a baseline `.nupkg` on nuget.org, PackageValidation has nothing to compare against; PublicApiAnalyzers carries the entire SemVer-discipline load during the pre-v1.0 phase.
+The activation does not belong in the 10.0.0 release-preparation commit:
+qualification runs before publication, when the baseline package does not yet
+exist on nuget.org. PublicApiAnalyzers remains the mechanical API gate for that
+commit; publishing 10.0.0 establishes the package baseline consumed by the
+post-release change.
 
 ### Naming choice vs the Pomelo MySQL provider
 
@@ -193,7 +213,7 @@ The `EnableRetryOnFailure(int, TimeSpan?)` signature matches Pomelo by coinciden
 - A future EF Core or .NET release introduces a richer first-party
   drift-detection mechanism (for example, `Microsoft.DotNet.ApiCompat`
   becomes standard); the project would migrate to the upstream choice.
-- An operator report from the v1.0 release cycle documents a SemVer
+- An operator report from the 10.0.0 release cycle documents a SemVer
   break that PublicApiAnalyzers did not catch (for example, a behavioral
   break that has no API-surface signal); the discipline would extend to
   include a behavior-snapshot complement.
@@ -210,11 +230,17 @@ The `EnableRetryOnFailure(int, TimeSpan?)` signature matches Pomelo by coinciden
 - 2026-08-16: Clarified that prerelease surfaces remain unshipped and that the
   stable baseline moves in the reviewed release-preparation commit before
   qualification rather than in a tag commit.
+- 2026-08-24: Promoted the 10.0.0 public surface to the shipped baselines and
+  clarified that PackageValidation activation follows publication of the
+  baseline package.
 
 ### Implementation References
 
 - `Directory.Build.props`
+- `Directory.Packages.props`
+- `src/Doka.EntityFrameworkCore.MySql/PublicAPI.Shipped.txt`
 - `src/Doka.EntityFrameworkCore.MySql/PublicAPI.Unshipped.txt`
+- `src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/PublicAPI.Shipped.txt`
 - `src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/PublicAPI.Unshipped.txt`
 
 ### Sources
