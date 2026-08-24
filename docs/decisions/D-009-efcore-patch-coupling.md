@@ -160,7 +160,10 @@ rejects a missing, swapped, or widened row.
   patch-only variant. The minor-tolerance variant `[10.0.8, 11.0.0)` from the
   alternatives section was rejected because the EF1001 surface drift across
   10.x minors would double the exhaustive compatibility surface.
-- The `efcore-patch-matrix` job overrides `DokaEfCoreVersion` at MSBuild evaluation time. It does not edit source files. Central Package Management floating versions remain disabled by default and are enabled only inside this matrix job, as documented by [NuGet error NU1011 (see Sources).
+- The `efcore-patch-matrix` job overrides `DokaEfCoreVersion` at MSBuild
+  evaluation time. It does not edit source files. Central Package Management
+  floating versions remain disabled by default and are enabled only inside
+  this matrix job, as documented by [NuGet error NU1011][nuget-nu1011].
 - Every matrix restore is followed by a machine-readable `dotnet package list` readback. The job fails unless Design, Relational, and Relational.Specification.Tests resolve to one version matching the matrix contract. The JSON readback is retained as an artifact.
 - Each entry runs `eng/test.sh`, specification plus live functional tests against MySQL 8.4 and MariaDB 11.8, and the representative MySQL 8.4 plus MariaDB 11.8 integration matrix. Test-owned containers make the live paths identical locally and in CI.
 - Before expensive tests begin, `check-spec-version-contract.sh` requires an
@@ -231,4 +234,8 @@ rejects a missing, swapped, or widened row.
 
 ### Sources
 
-- [NuGet warning NU1011](https://learn.microsoft.com/nuget/reference/errors-and-warnings/nu1011) (primary source; retrieved 2026-07-27)
+- [NuGet error NU1011][nuget-nu1011]
+  (primary source; retrieved 2026-08-24)
+
+[nuget-nu1011]:
+  https://learn.microsoft.com/nuget/reference/errors-and-warnings/nu1011

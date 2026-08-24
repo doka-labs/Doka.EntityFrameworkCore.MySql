@@ -183,8 +183,9 @@ and cannot qualify a release.
 BenchmarkDotNet remains the isolated microbenchmark layer for same-run
 controls. The scorecard selects only the methods named by the checked-in
 control contract; the complete benchmark suite remains available for manual
-investigation. It uses the full JSON exporter, the memory diagnoser, Release
-builds, and stop-on-first-error behavior. The host process also returns
+investigation. It uses the [full JSON exporter][bdn-json],
+[memory diagnoser][bdn-diagnosers], Release builds, and the
+[stop-on-first-error option][bdn-config]. The host process also returns
 non-zero for:
 
 - no benchmark summaries;
@@ -232,11 +233,12 @@ full evidence profile therefore retains at least 100 individual observations
 for p99 without forcing stable large database writes to repeat at the same
 population as cheap in-process work.
 
-Managed allocation uses the precise process allocation counter around the
-measured operation. Preparation and cleanup are outside that window. Garbage
-collection counts cover the same operation window. Retained bytes are measured
-after forced full collections before and after the workload series. That
-process-global heap delta is retained as a diagnostic, not a per-workload
+Managed allocation uses the precise
+[`GC.GetTotalAllocatedBytes(Boolean)`][dotnet-allocated] process counter around
+the measured operation. Preparation and cleanup are outside that window.
+Garbage collection counts cover the same operation window. Retained bytes are
+measured after forced full collections before and after the workload series.
+That process-global heap delta is retained as a diagnostic, not a per-workload
 budget, because unrelated finalization and runtime activity can change it. The
 sustained managed-heap and working-set soak invariant is the hard
 retained-memory gate. These metrics describe managed process behavior; they do
@@ -699,30 +701,6 @@ A baseline update requires:
   (primary source; retrieved 2026-08-06)
 - [Apple `host_cpu_load_info_t`][apple-host-cpu-load]
   (primary source; retrieved 2026-08-06)
-- [GitHub automatic token authentication][github-token-authentication]
-  (primary source; retrieved 2026-08-07)
-- [GitHub workflow-trigger behavior][github-workflow-events]
-  (primary source; retrieved 2026-08-07)
-- [GitHub required status checks][github-required-checks]
-  (primary source; retrieved 2026-08-07)
-- [GitHub skipped-workflow status behavior][github-skipped-workflows]
-  (primary source; retrieved 2026-08-07)
-- [GitHub Actions policy settings][github-actions-policy]
-  (primary source; retrieved 2026-08-07)
-- [GitHub pull-request auto-merge][github-auto-merge]
-  (primary source; retrieved 2026-08-07)
-- [GitHub CLI `pr merge`][github-cli-pr-merge]
-  (primary source; retrieved 2026-08-07)
-- [GitHub App installation authentication][github-app-authentication]
-  (primary source; retrieved 2026-08-14)
-- [GitHub `create-github-app-token` action][github-app-token-action]
-  (primary source; retrieved 2026-08-14)
-- [GitHub ruleset pull-request review rules][github-ruleset-reviews]
-  (primary source; retrieved 2026-08-14)
-- [GitHub deployment environments][github-deployment-environments]
-  (primary source; retrieved 2026-08-14)
-- [Repository baseline PR 42 Actor evidence][baseline-pr-42]
-  (primary source; retrieved 2026-08-14)
 
 [bdn-config]: https://benchmarkdotnet.org/articles/configs/configoptions.html
 [bdn-diagnosers]: https://benchmarkdotnet.org/articles/configs/diagnosers.html
@@ -742,26 +720,3 @@ A baseline update requires:
   https://developer.apple.com/documentation/kernel/1502863-host_statistics64
 [apple-host-cpu-load]:
   https://developer.apple.com/documentation/kernel/host_cpu_load_info_t
-[github-actions-policy]:
-  https://docs.github.com/en/organizations/managing-organization-settings/disabling-or-limiting-github-actions-for-your-organization
-[github-required-checks]:
-  https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks
-[github-token-authentication]:
-  https://docs.github.com/en/actions/concepts/security/github_token
-[github-workflow-events]:
-  https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow
-[github-skipped-workflows]:
-  https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs
-[github-auto-merge]:
-  https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-auto-merge-for-pull-requests-in-your-repository
-[github-cli-pr-merge]: https://cli.github.com/manual/gh_pr_merge
-[github-app-authentication]:
-  https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation
-[github-app-token-action]:
-  https://github.com/actions/create-github-app-token
-[github-ruleset-reviews]:
-  https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets
-[github-deployment-environments]:
-  https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments
-[baseline-pr-42]:
-  https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/pull/42

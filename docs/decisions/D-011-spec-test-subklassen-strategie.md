@@ -223,9 +223,9 @@ probes, and re-evaluation triggers.
   (primary source; retrieved 2026-08-16)
 - [EF Core RelationalComplianceTestBase 10.0.11][ef-relational-compliance]
   (primary source; retrieved 2026-08-16)
-- [Relational specification package versions][ef-relational-spec-versions]
-  (primary source; retrieved 2026-08-16)
+- [Relational specification package 10.0.11][ef-relational-spec-package]
+  (primary source; retrieved 2026-08-24)
 
 [ef-compliance]: https://github.com/dotnet/efcore/blob/v10.0.11/test/EFCore.Specification.Tests/ComplianceTestBase.cs
 [ef-relational-compliance]: https://github.com/dotnet/efcore/blob/v10.0.11/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs
-[ef-relational-spec-versions]: https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.relational.specification.tests/index.json
+[ef-relational-spec-package]: https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Relational.Specification.Tests/10.0.11

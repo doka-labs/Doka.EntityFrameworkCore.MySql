@@ -47,11 +47,14 @@ Skip the NativeAOT publish + smoke run in `eng/test-runtime-posture.sh`. The mat
 
 The runtime-smoke project also enables the trim analyzer during an ordinary
 Release build. Generic service registration preserves public constructors for
-the handler implementation, matching the `ServiceDescriptor` factory
-contract. The migration-context construction path is explicitly marked as
-requiring unreferenced and dynamic code because this smoke intentionally
-exercises EF Core's runtime migrations service graph; the compiled-model basic
-and spatial paths remain the supported trimmed execution proof.
+the handler implementation, matching the
+[`ServiceDescriptor` factory contract][dotnet-service-descriptor]. The
+migration-context construction path is explicitly marked as requiring
+unreferenced and dynamic code because this smoke intentionally exercises EF
+Core's runtime migrations service graph; the compiled-model basic and spatial
+paths remain the supported trimmed execution proof. The
+[.NET trim-warning guidance][dotnet-trim-warnings] defines the annotation and
+call-site analysis applied by this gate.
 
 The PublishAot pass is not invoked; the script carries a comment that points readers at this ADR.
 
@@ -78,7 +81,8 @@ The PublishAot pass is not invoked; the script carries a comment that points rea
 ### Confirmation
 
 - Run `eng/test-runtime-posture.sh` for JIT and PublishTrimmed.
-- Re-probe the official EF Core NativeAOT workflow when the linked issue or support status changes.
+- Re-probe the official EF Core NativeAOT workflow when its support status
+  changes.
 
 ## Pros and Cons of the Options
 
@@ -108,17 +112,12 @@ The PublishAot pass is not invoked; the script carries a comment that points rea
 
 ### Primary-Source Evidence
 
-Microsoft Learn's NativeAOT support page for EF Core 10 (NativeAOT Support and Precompiled Queries (see Sources), retrieved 2026-05-18) states verbatim:
-
-> NativeAOT and query precompilation are highly experimental features that are not yet suited for production use, and support should be viewed as infrastructure towards the final feature which will be released in a future version.
-
-The same page documents the precompiled-queries prerequisite:
-
-> EF's support for LINQ query execution under NativeAOT relies on query precompilation, which statically identifies EF LINQ queries and generates C# interceptors containing code to execute each specific query.
-
-> EF providers may need to build in support for precompiled queries; you should check your provider's documentation to know whether it is compatible with EF's NativeAOT support.
-
-Open upstream issue dotnet/efcore#35945 (see Sources) "AOT `dotnet ef dbcontext optimize --precompile-queries --nativeaot` fails with error CS9137" (April 2025) shows that Microsoft's own canonical AOT workflow is still broken on the EF Core side.
+The official [EF Core NativeAOT documentation][efcore-nativeaot], retrieved on
+2026-08-24, still classifies NativeAOT and query precompilation as highly
+experimental and unsuitable for production. It explains that NativeAOT query
+execution depends on statically discovered LINQ queries and generated C#
+interceptors, and that each provider must document whether it supports that
+workflow.
 
 ### Cross-Provider Empirical Check
 
@@ -137,19 +136,12 @@ No mainstream EF Core provider ships a Design-assembly split today; the structur
 - **Add Design as a non-private PackageReference in RuntimeSmoke.** Rejected: would move the failure deeper (Design itself is not AOT-friendly -- `[RequiresUnreferencedCode]` everywhere); papers over the structural issue without fixing it.
 - **Keep the AOT pass + accept the failure as a documented expected-fail.** Rejected: a red CI job is operator-confusing; the AOT pass should be re-introduced when it has a real chance of passing.
 
-### References
-
-- Microsoft Learn: NativeAOT Support and Precompiled Queries (see Sources)
-- dotnet/efcore#35945 -- AOT precompile-queries fails with CS9137 (see Sources)
-- State of Native AOT in .NET 10 (see Sources)
-
 ### Re-evaluation Triggers
 
 - Microsoft Learn's NativeAOT support page removes the "experimental, not yet suited for production use" framing. The trigger predicate is the verbatim phrasing changing in the upstream doc; the response is to re-enable the AOT pass with whatever precompiled-queries integration EF Core requires at that point.
 - EF Core ships a stable precompiled-queries workflow that the provider can opt into. The trigger predicate is the upstream `dotnet ef dbcontext optimize --precompile-queries --nativeaot` workflow completing without error in a canonical sample; the response is the same as above.
 - The provider acquires a customer ask for NativeAOT support that motivates a deeper investigation (e.g. provider-side precompiled queries, AOT-friendly service registration). The trigger predicate is a documented customer request; the response is a new ADR scoped to the requested deliverable.
 - EF Core documents NativeAOT as supported for the provider workflow.
-- The upstream NativeAOT tooling issue closes with a consumable release.
 
 ### Decision History
 
@@ -166,7 +158,16 @@ No mainstream EF Core provider ships a Design-assembly split today; the structur
 
 ### Sources
 
-- [EF Core NativeAOT and precompiled queries](https://learn.microsoft.com/en-us/ef/core/performance/nativeaot-and-precompiled-queries) (primary source; retrieved 2026-07-27)
-- [dotnet/efcore issue 35945](https://github.com/dotnet/efcore/issues/35945) (primary source; retrieved 2026-07-27)
-- [.NET trim warnings](https://learn.microsoft.com/en-us/dotnet/core/deploying/trimming/fixing-warnings) (primary source; retrieved 2026-08-16)
-- [.NET dependency injection service descriptors](https://github.com/dotnet/runtime/blob/v10.0.0/src/libraries/Microsoft.Extensions.DependencyInjection.Abstractions/src/ServiceDescriptor.cs) (primary source; retrieved 2026-08-16)
+- [EF Core NativeAOT and precompiled queries][efcore-nativeaot]
+  (primary source; retrieved 2026-08-24)
+- [.NET trim warnings][dotnet-trim-warnings]
+  (primary source; retrieved 2026-08-24)
+- [.NET dependency injection service descriptors][dotnet-service-descriptor]
+  (primary source; retrieved 2026-08-24)
+
+[efcore-nativeaot]:
+  https://learn.microsoft.com/en-us/ef/core/performance/nativeaot-and-precompiled-queries
+[dotnet-trim-warnings]:
+  https://learn.microsoft.com/en-us/dotnet/core/deploying/trimming/fixing-warnings
+[dotnet-service-descriptor]:
+  https://github.com/dotnet/runtime/blob/v10.0.0/src/libraries/Microsoft.Extensions.DependencyInjection.Abstractions/src/ServiceDescriptor.cs
