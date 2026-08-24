@@ -7,6 +7,29 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.0.0] - 2026-08-24
+
+First stable release of `Doka.EntityFrameworkCore.MySql` for Entity Framework
+Core 10. This release contains all changes documented from `10.0.0-rc.1`
+through `10.0.0-rc.13` and promotes the final release candidate without
+changing provider runtime behavior, public API shape, generated SQL, supported
+engine policy, or package dependency ranges.
+
+Install the stable packages through normal NuGet version resolution:
+
+```bash
+dotnet add package Doka.EntityFrameworkCore.MySql --version 10.0.0
+dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.0.0
+```
+
+### Changed
+
+- Promote the complete initial provider and NetTopologySuite public API
+  surfaces from the prerelease working baseline to the immutable shipped
+  baseline.
+- Publish the qualified `10.0.0` package line as stable after public RC.13
+  consumption completed without provider findings.
+
 ## [10.0.0-rc.13] - 2026-08-24
 
 This release candidate supersedes `10.0.0-rc.12`. Provider runtime behavior,
@@ -799,7 +822,9 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0-rc.12...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0...HEAD
+[10.0.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0
+[10.0.0-rc.13]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.13
 [10.0.0-rc.12]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.12
 [10.0.0-rc.11]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.11
 [10.0.0-rc.10]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.10

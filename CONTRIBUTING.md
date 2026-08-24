@@ -330,7 +330,10 @@ Workflow for changes that add or remove public API:
 
 `RS0026` ("Do not add multiple overloads with optional parameters") fires on the `UseMySql`, `UseHiLo`, and `IsInvisible` extension overloads because each carries an optional default (`mySqlOptionsAction = null`, `name = null`, `invisible = true`). The optional pattern is the EF Core community standard and part of the documented public surface. The suppression is scoped per-method via `[SuppressMessage("ApiDesign", "RS0026:Do not add multiple overloads with optional parameters", Justification = "...")]` on each affected declaration; the project-wide `TreatWarningsAsErrors=true` still applies so any **new** overload that introduces the same pattern fails the build until the author adds the explicit `SuppressMessage` attribute. The added optional parameter is still a SemVer break and demands reviewer attention.
 
-Post-v1.0 the project will additionally adopt `PackageValidation` (built-in to .NET 8+) so the released NuGet packages are compared against the previous baseline at `dotnet pack` time -- see ADR D-008 for the deferred-activation trigger.
+After 10.0.0 is available on nuget.org, a separate reviewed post-release change
+will enable `PackageValidation` against the 10.0.0 package baseline. It cannot
+run in the stable release-preparation commit because qualification precedes
+publication of that baseline. See ADR D-008 for the activation contract.
 
 ## Migration-Operation Handler Changes
 

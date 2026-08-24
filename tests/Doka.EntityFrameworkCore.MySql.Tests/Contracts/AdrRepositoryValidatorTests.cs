@@ -11,12 +11,12 @@ public sealed class AdrRepositoryValidatorTests
     {
         var repositoryRoot = FindRepositoryRoot();
         var changelog = File.ReadAllText(Path.Combine(repositoryRoot, "CHANGELOG.md"));
-        var publicApi = File.ReadAllText(
+        var shippedPublicApi = File.ReadAllText(
             Path.Combine(
                 repositoryRoot,
                 "src",
                 "Doka.EntityFrameworkCore.MySql",
-                "PublicAPI.Unshipped.txt"));
+                "PublicAPI.Shipped.txt"));
 
         var releaseStart = changelog.IndexOf("## [10.0.0-rc.11]", StringComparison.Ordinal);
         var nextReleaseStart = changelog.IndexOf(
@@ -25,7 +25,7 @@ public sealed class AdrRepositoryValidatorTests
             StringComparison.Ordinal);
         var release = changelog[releaseStart..nextReleaseStart];
 
-        Assert.Contains("MySqlMigrationCommandSpec.Fragments.get", publicApi, StringComparison.Ordinal);
+        Assert.Contains("MySqlMigrationCommandSpec.Fragments.get", shippedPublicApi, StringComparison.Ordinal);
         Assert.Contains("### Added", release, StringComparison.Ordinal);
         Assert.Contains("`MySqlMigrationCommandSpec.Fragments`", release, StringComparison.Ordinal);
         Assert.Contains("setup, body, and cleanup fragments", release, StringComparison.Ordinal);
