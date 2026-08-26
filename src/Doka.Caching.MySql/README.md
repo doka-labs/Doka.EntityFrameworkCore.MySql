@@ -9,10 +9,10 @@ is required. The package targets .NET 10.
 
 ## Install the Release Candidate
 
-Pin the first 10.1.0 candidate explicitly for consumer validation:
+Pin the current 10.1.0 candidate explicitly for consumer validation:
 
 ```bash
-dotnet package add Doka.Caching.MySql --version 10.1.0-rc.1
+dotnet package add Doka.Caching.MySql --version 10.1.0-rc.2
 ```
 
 This package is introduced in 10.1.0-rc.1; it is not part of the 10.0.0 release.
@@ -52,6 +52,8 @@ updates can continue to share the same table.
 Both interfaces resolve the same singleton. Registration preserves foreign
 registrations while selecting Doka as the default; repeated registration does
 not duplicate Doka's aliases. Apply decorators after choosing the backend.
+Every cache statement qualifies `SchemaName`; the connection string does not
+need to select a default database.
 
 Alternatively, set `options.DataSource` to an existing `MySqlDataSource`
 instead of `ConnectionString`. The supplied source must use `AutoEnlist=false`
@@ -96,6 +98,9 @@ to continue immediately, even if concurrent renewals reduce actual deletions.
 A drained or failed attempt restarts the interval. Each
 call remains bounded to one batch; no background task or runtime schema management is added.
 Idle instances do not clean up rows. Monitor table growth independently.
+An optional DI-registered `TimeProvider` controls only this cleanup cadence;
+without one the cache uses `TimeProvider.System`. Entry expiration remains based
+on database UTC.
 
 Cache keys, values, and connection strings are never written to Doka logs.
 Keys are case-sensitive, limited to 1,024 UTF-8 bytes, and preserve trailing

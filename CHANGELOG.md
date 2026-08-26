@@ -7,6 +7,29 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.1.0-rc.2] - 2026-08-27
+
+Second release candidate for 10.1.0, correcting distributed-cache cleanup
+configuration and execution discovered during consumer verification of rc.1.
+
+Install the candidate explicitly to test the published packages rather than
+project references. Add the spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.0-rc.2
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.0-rc.2
+dotnet package add Doka.Caching.MySql --version 10.1.0-rc.2
+```
+
+### Fixed
+
+- Forward a DI-registered `TimeProvider` to `Doka.Caching.MySql` so consumers
+  can deterministically exercise the bounded cleanup cadence. Continue using
+  system time when no provider is registered; cache-entry expiration remains
+  based on database UTC.
+- Fully qualify bounded cleanup deletion so it remains operational when the
+  connection string does not select a default database.
+
 ## [10.1.0-rc.1] - 2026-08-26
 
 First release candidate for 10.1.0, adding connection-string server discovery,
@@ -878,7 +901,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.1.0-rc.1...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.1.0-rc.2...HEAD
+[10.1.0-rc.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.0-rc.2
 [10.1.0-rc.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.0-rc.1
 [10.0.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0
 [10.0.0-rc.13]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.13

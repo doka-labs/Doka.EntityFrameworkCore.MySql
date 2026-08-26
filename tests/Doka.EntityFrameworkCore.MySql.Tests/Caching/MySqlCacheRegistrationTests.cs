@@ -263,10 +263,30 @@ public sealed class MySqlCacheRegistrationTests
     }
 
     /// <summary>
-    /// Verifies that configuring and resolving the cache never opens a database connection.
+    /// Verifies that cache resolution forwards the DI-provided cleanup clock.
     /// </summary>
     [Fact]
-    public void Startup_and_resolution_do_not_connect_or_create_the_schema()
+    public void Resolution_forwards_registered_time_provider_to_the_cache_singleton()
+    {
+        var timeProvider = new RecordingTimeProvider();
+        var services = new ServiceCollection();
+        services.AddSingleton<TimeProvider>(timeProvider);
+        services.AddDistributedMySqlCache(MySqlCacheTestFactory.ConfigureValidOptions);
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Equal(0, timeProvider.TimestampReadCount);
+
+        _ = provider.GetRequiredService<IDistributedCache>();
+        _ = provider.GetRequiredService<IBufferDistributedCache>();
+
+        Assert.Equal(1, timeProvider.TimestampReadCount);
+    }
+
+    /// <summary>
+    /// Verifies that the system-time fallback resolves without requiring a clock or database connection.
+    /// </summary>
+    [Fact]
+    public void Startup_and_resolution_without_a_time_provider_do_not_connect_or_create_the_schema()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -278,6 +298,7 @@ public sealed class MySqlCacheRegistrationTests
         _ = provider.GetRequiredService<IDistributedCache>();
         _ = provider.GetRequiredService<IBufferDistributedCache>();
 
+        Assert.Null(provider.GetService<TimeProvider>());
         Assert.False(listener.Pending());
     }
 
@@ -316,6 +337,15 @@ public sealed class MySqlCacheRegistrationTests
 
         Assert.Same(dataSource, provider.GetRequiredService<IOptions<MySqlCacheOptions>>().Value.DataSource);
         Assert.False(listener.Pending());
+    }
+
+    private sealed class RecordingTimeProvider : TimeProvider
+    {
+        private int _timestampReadCount;
+
+        public int TimestampReadCount => Volatile.Read(ref _timestampReadCount);
+
+        public override long GetTimestamp() => Interlocked.Increment(ref _timestampReadCount);
     }
 
     private sealed class UnusedCache : IBufferDistributedCache

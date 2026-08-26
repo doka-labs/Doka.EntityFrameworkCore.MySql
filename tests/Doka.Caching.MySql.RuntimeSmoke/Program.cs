@@ -20,6 +20,7 @@ internal static class Program
         }
 
         await DeploySchemaAsync(connectionString);
+        await VerifyInjectedTimeProviderAsync(connectionString);
         await using var services = CreateServices(connectionString);
 
         var cache = services.GetRequiredService<IDistributedCache>();
@@ -31,22 +32,33 @@ internal static class Program
         await VerifyConcurrentOperationsAsync(cache);
         await VerifyExternalDataSourceAsync(connectionString);
 
-        Console.WriteLine("Cache runtime smoke OK (sync, async, buffer, cancellation, concurrency, external pool).");
+        Console.WriteLine(
+            "Cache runtime smoke OK (sync, async, buffer, cancellation, concurrency, external pool, time provider).");
         return 0;
     }
 
     private static ServiceProvider CreateServices(
         string connectionString,
-        MySqlDataSource? dataSource = null
+        MySqlDataSource? dataSource = null,
+        TimeProvider? timeProvider = null
     )
     {
         var services = new ServiceCollection();
+        if (timeProvider is not null)
+        {
+            services.AddSingleton<TimeProvider>(timeProvider);
+        }
+
         services.AddDistributedMySqlCache(options =>
         {
             options.ConnectionString = dataSource is null ? connectionString : string.Empty;
             options.DataSource = dataSource;
             options.SchemaName = DatabaseName;
             options.TableName = TableName;
+            if (timeProvider is not null)
+            {
+                options.ExpiredItemsDeletionInterval = TimeSpan.FromMinutes(5);
+            }
         });
         return services.BuildServiceProvider(
             new ServiceProviderOptions
@@ -98,6 +110,77 @@ internal static class Program
         }
 
         throw new InvalidOperationException("Invalid cache options passed startup validation.");
+    }
+
+    private static async Task VerifyInjectedTimeProviderAsync(
+        string connectionString
+    )
+    {
+        var time = new ManualTimeProvider();
+        await using var services = CreateServices(connectionString, timeProvider: time);
+        var cache = services.GetRequiredService<IDistributedCache>();
+
+        await using var connection = new MySqlConnection(connectionString);
+        await connection.OpenAsync(CancellationToken.None);
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            $"""
+             DELETE FROM `{DatabaseName}`.`{TableName}`;
+             INSERT INTO `{DatabaseName}`.`{TableName}`
+                 (`Id`, `Value`, `ExpiresAtUtc`, `SlidingExpirationMicroseconds`, `AbsoluteExpirationUtc`, `Revision`)
+             VALUES
+                 ('runtime-clock-renewed', X'01', TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6)), NULL, NULL, 1),
+                 ('runtime-clock-expired', X'01', TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6)), NULL, NULL, 2);
+             """;
+        await command.ExecuteNonQueryAsync(CancellationToken.None);
+
+        try
+        {
+            await cache.SetAsync(
+                "runtime-clock-renewed",
+                [2],
+                new DistributedCacheEntryOptions(),
+                CancellationToken.None);
+            await cache.SetAsync(
+                "runtime-clock-live",
+                [3],
+                new DistributedCacheEntryOptions(),
+                CancellationToken.None);
+
+            command.CommandText =
+                $"SELECT COUNT(*) FROM `{DatabaseName}`.`{TableName}` WHERE `ExpiresAtUtc` <= UTC_TIMESTAMP(6);";
+            Require(
+                Convert.ToInt64(
+                    await command.ExecuteScalarAsync(CancellationToken.None),
+                    CultureInfo.InvariantCulture) == 1,
+                "The cleanup clock fixture did not contain exactly one expired row.");
+
+            time.Advance(TimeSpan.FromMinutes(5));
+            Require(
+                await cache.GetAsync("runtime-clock-miss", CancellationToken.None) is null,
+                "The cleanup trigger unexpectedly returned a value.");
+
+            Require(
+                Convert.ToInt64(
+                    await command.ExecuteScalarAsync(CancellationToken.None),
+                    CultureInfo.InvariantCulture) == 0,
+                "The DI-provided time source did not trigger expired-row cleanup.");
+            Require(
+                (await cache.GetAsync("runtime-clock-renewed", CancellationToken.None))
+                .AsSpan()
+                .SequenceEqual(new byte[] { 2 }),
+                "Cleanup deleted the renewed entry.");
+            Require(
+                (await cache.GetAsync("runtime-clock-live", CancellationToken.None))
+                .AsSpan()
+                .SequenceEqual(new byte[] { 3 }),
+                "Cleanup deleted the live entry.");
+        }
+        finally
+        {
+            command.CommandText = $"DELETE FROM `{DatabaseName}`.`{TableName}`;";
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
     }
 
     private static async Task DeploySchemaAsync(
@@ -309,5 +392,17 @@ internal static class Program
             Next = next;
             return next;
         }
+    }
+
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        private long _timestamp;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => Volatile.Read(ref _timestamp);
+
+        public void Advance(
+            TimeSpan elapsed
+        ) => Interlocked.Add(ref _timestamp, elapsed.Ticks);
     }
 }

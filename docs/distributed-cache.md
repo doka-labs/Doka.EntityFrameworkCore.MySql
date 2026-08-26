@@ -13,7 +13,7 @@ This package is introduced in
 Install the release candidate explicitly for consumer validation:
 
 ```bash
-dotnet package add Doka.Caching.MySql --version 10.1.0-rc.1
+dotnet package add Doka.Caching.MySql --version 10.1.0-rc.2
 ```
 
 ## Deployment and Registration
@@ -84,10 +84,12 @@ services.AddDistributedMySqlCache(options =>
 ```
 
 `SchemaName` means the MySQL-family database containing the table. It is not
-the unsupported EF Core schema option. Grant the runtime identity `SELECT`,
-`INSERT`, `UPDATE`, and `DELETE` on this table; it needs no `CREATE`, `ALTER`,
-or `DROP` privilege. Keep credentials in the application's secret/configuration
-system and configure transport security through MySqlConnector.
+the unsupported EF Core schema option. Cache statements fully qualify this
+database, so the connection string does not need to select a default database.
+Grant the runtime identity `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on this
+table; it needs no `CREATE`, `ALTER`, or `DROP` privilege. Keep credentials in
+the application's secret/configuration system and configure transport security
+through MySqlConnector.
 
 Registration selects the same Doka instance for `IDistributedCache` and
 `IBufferDistributedCache` without deleting foreign registrations. Earlier
@@ -95,6 +97,12 @@ registrations remain available through `IEnumerable<T>`. Repeated Doka
 registration does not duplicate its aliases. Register only the intended cache
 backend, then apply decorators; a later backend registration can override the
 default selection again.
+
+When the service collection contains a `TimeProvider`, the cache singleton uses
+it to schedule the best-effort expired-row cleanup interval. Without that
+registration it uses `TimeProvider.System`. This clock controls only when cleanup
+is attempted; entry expiration and relative or sliding deadlines continue to use
+database UTC.
 
 The service provider owns the singleton. With `ConnectionString`, the cache
 creates and owns its MySqlConnector data source. Alternatively, supply an

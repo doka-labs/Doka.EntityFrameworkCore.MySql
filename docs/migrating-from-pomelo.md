@@ -22,7 +22,7 @@ Replace the `Pomelo.EntityFrameworkCore.MySql` package reference with
 candidate package:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.0-rc.1
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.0-rc.2
 ```
 
 Use:
