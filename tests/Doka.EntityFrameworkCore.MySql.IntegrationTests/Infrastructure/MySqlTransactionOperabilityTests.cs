@@ -147,9 +147,10 @@ public sealed class MySqlTransactionOperabilityTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Transaction_scope_async_flow_commits_when_completed()
     {
-        await AssertTransactionScopeAsyncFlowCommitsAsync(
+        await AssertTransactionScopeAsyncFlowAsync(
                 IntegrationDatabaseTarget.MySql84,
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                MySqlServerVersion.MySql(new Version(8, 4, 0)),
+                complete: true)
             .ConfigureAwait(false);
     }
 
@@ -159,9 +160,10 @@ public sealed class MySqlTransactionOperabilityTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_transaction_scope_async_flow_commits_when_completed()
     {
-        await AssertTransactionScopeAsyncFlowCommitsAsync(
+        await AssertTransactionScopeAsyncFlowAsync(
                 IntegrationDatabaseTarget.MariaDb114,
-                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+                complete: true)
             .ConfigureAwait(false);
     }
 
@@ -171,10 +173,24 @@ public sealed class MySqlTransactionOperabilityTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_transaction_scope_async_flow_commits_when_completed()
     {
-        await AssertTransactionScopeAsyncFlowCommitsAsync(
+        await AssertTransactionScopeAsyncFlowAsync(
                 IntegrationDatabaseTarget.MariaDb118,
-                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                complete: true)
             .ConfigureAwait(false);
+    }
+
+    [Fact]
+    public async Task Transaction_scope_async_flow_rolls_back_when_not_completed()
+    {
+        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
+        {
+            await AssertTransactionScopeAsyncFlowAsync(
+                    target,
+                    IntegrationTestEnvironment.GetServerVersion(target),
+                    complete: false)
+                .ConfigureAwait(true);
+        }
     }
 
     private static async Task AssertTransactionOperabilityContractAsync(
@@ -189,7 +205,7 @@ public sealed class MySqlTransactionOperabilityTests
             .ConfigureAwait(false);
         await AssertVerifySucceededPatternAsync(target, serverVersion)
             .ConfigureAwait(false);
-        await AssertTransactionScopeAsyncFlowCommitsAsync(target, serverVersion)
+        await AssertTransactionScopeAsyncFlowAsync(target, serverVersion, complete: true)
             .ConfigureAwait(false);
     }
 
@@ -344,9 +360,10 @@ public sealed class MySqlTransactionOperabilityTests
         }
     }
 
-    private static async Task AssertTransactionScopeAsyncFlowCommitsAsync(
+    private static async Task AssertTransactionScopeAsyncFlowAsync(
         IntegrationDatabaseTarget target,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        bool complete
     )
     {
         var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(target);
@@ -377,10 +394,13 @@ public sealed class MySqlTransactionOperabilityTests
                                 Name = "ambient-transaction",
                             });
                         await context
-                            .SaveChangesAsync()
+                            .SaveChangesAsync(CancellationToken.None)
                             .ConfigureAwait(false);
 
-                        scope.Complete();
+                        if (complete)
+                        {
+                            scope.Complete();
+                        }
                     })
                     .ConfigureAwait(false);
             }
@@ -388,9 +408,10 @@ public sealed class MySqlTransactionOperabilityTests
             await using var verificationContext = new TransactionOperabilityContext(
                 CreateOptions(connectionString, serverVersion));
 
-            Assert.True(
+            Assert.Equal(
+                complete,
                 await verificationContext
-                    .Entities.AnyAsync(entity => entity.Name == "ambient-transaction")
+                    .Entities.AnyAsync(entity => entity.Name == "ambient-transaction", CancellationToken.None)
                     .ConfigureAwait(false));
         }
         finally

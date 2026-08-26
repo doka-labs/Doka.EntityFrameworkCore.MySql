@@ -170,19 +170,27 @@ provider mapping baseline, fixtures, and discovered test IDs. The TRX command
 rejects missing, duplicate, failed, unexpected, or undeclared skipped results.
 
 Coverage is measured across unit, functional, specification, and integration
-tests. Both shipped assemblies and risk-critical classes have independent
-line and branch floors:
+tests. The provider, spatial, and cache assemblies have independent line and
+branch floors in `eng/coverage-policy.json`, with additional floors for
+risk-critical provider and spatial classes:
 
 ```bash
 bash eng/quality/merge-coverage.sh artifacts/coverage artifacts/coverage-merged
 bash eng/quality/check-coverage-threshold.sh artifacts/coverage-merged
 ```
 
-**Runtime-posture smoke** (JIT + trim smoke tests; the NativeAOT pass is deferred per ADR D-017 while upstream EF Core NativeAOT support remains experimental):
+**Runtime-posture smoke** executes provider/spatial ordinary and full-trim
+builds, and standalone-cache ordinary, full-trim, and NativeAOT builds:
 
 ```bash
 ./eng/test-runtime-posture.sh --up-test-down
 ```
+
+The cache's native publish requires the host platform's NativeAOT toolchain.
+Every published smoke binary is executed against MySQL 8.4 before runtime
+evidence is accepted. Provider NativeAOT remains deferred under
+[D-017](docs/decisions/D-017-nativeaot-smoke-deferred.md); the EF-free cache's
+separate success does not establish provider NativeAOT support.
 
 **Benchmark smoke** (fast harness and contract check, MySQL 8.4 or MariaDB
 11.8):

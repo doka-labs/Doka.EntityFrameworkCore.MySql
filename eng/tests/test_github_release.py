@@ -249,7 +249,7 @@ class GitHubReleaseTests(unittest.TestCase):
                     (
                         json.dumps(
                             {
-                                "schemaVersion": 1,
+                                "schemaVersion": 2,
                                 "kind": "local-package-runtime-qualification",
                                 "releaseTag": self._TAG,
                                 "releaseVersion": self._VERSION,
@@ -258,6 +258,8 @@ class GitHubReleaseTests(unittest.TestCase):
                                 "consumerBoundary": "isolated-local-package",
                                 "projectReferences": 0,
                                 "runtimeSmoke": "pass",
+                                "cacheRuntimeSmoke": "pass",
+                                "cacheEfCoreDependencies": 0,
                             }
                         )
                         + "\n"
@@ -839,36 +841,31 @@ class GitHubReleaseTests(unittest.TestCase):
             )
 
     def test_plan_rejects_failed_local_package_runtime_evidence(self) -> None:
-        """Require local package runtime correctness before publication."""
+        """Require provider and independent cache runtime correctness before publication."""
         relative = "local-package-consumer/local-package-runtime.json"
         path = self.candidate / relative
         receipt = json.loads(path.read_text(encoding="utf-8"))
-        receipt["runtimeSmoke"] = "fail"
-        path.write_text(json.dumps(receipt) + "\n", encoding="utf-8")
         manifest_path = self.candidate / release_evidence.MANIFEST_NAME
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        artifact = next(
-            entry for entry in manifest["artifacts"] if entry["path"] == relative
-        )
-        artifact["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
-        artifact["sizeBytes"] = path.stat().st_size
-        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-        checksum = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
-        (self.candidate / release_evidence.CHECKSUM_NAME).write_text(
-            f"{checksum}  {release_evidence.MANIFEST_NAME}\n",
-            encoding="ascii",
-        )
+        for field, value in (("runtimeSmoke", "fail"), ("cacheRuntimeSmoke", "fail"), ("cacheEfCoreDependencies", 1)):
+            with self.subTest(field=field):
+                invalid_receipt = {**receipt, field: value}
+                path.write_text(json.dumps(invalid_receipt) + "\n", encoding="utf-8")
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                artifact = next(entry for entry in manifest["artifacts"] if entry["path"] == relative)
+                artifact["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+                artifact["sizeBytes"] = path.stat().st_size
+                manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+                checksum = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+                (self.candidate / release_evidence.CHECKSUM_NAME).write_text(
+                    f"{checksum}  {release_evidence.MANIFEST_NAME}\n", encoding="ascii"
+                )
 
-        with self.assertRaisesRegex(
-            github_release.GitHubReleaseError,
-            "Local package runtime qualification is invalid",
-        ):
-            github_release.build_release_plan(
-                self._REPOSITORY,
-                self.candidate,
-                self.publication,
-                self.changelog,
-            )
+                with self.assertRaisesRegex(
+                    github_release.GitHubReleaseError, "Local package runtime qualification is invalid"
+                ):
+                    github_release.build_release_plan(
+                        self._REPOSITORY, self.candidate, self.publication, self.changelog
+                    )
 
     def test_plan_rejects_tampered_retained_public_package(self) -> None:
         """Bind completion evidence to the persisted NuGet readback bytes."""

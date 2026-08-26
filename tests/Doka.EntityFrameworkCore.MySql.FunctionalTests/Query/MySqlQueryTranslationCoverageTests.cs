@@ -455,6 +455,228 @@ public sealed class MySqlQueryTranslationCoverageTests
     }
 
     /// <summary>
+    /// Verifies that numeric and temporal generic LIKE operands retain their
+    /// native SQL expressions without a provider-side text conversion.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Generic_Like_translates_numeric_and_datetime_values_directly(
+        bool isMariaDb
+    )
+    {
+        using var context = CreateContext(isMariaDb);
+        var sql = context
+            .Set<CoverageEntity>()
+            .Where(entity => EF.Functions.Like(entity.SignedValue, "%12%")
+                && EF.Functions.Like(entity.CreatedAt, "2025-08%"))
+            .ToQueryString();
+
+        Assert.Contains("`c`.`SignedValue` LIKE '%12%'", sql, StringComparison.Ordinal);
+        Assert.Contains("`c`.`CreatedAt` LIKE '2025-08%'", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("CAST(`c`.`SignedValue`", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("CAST(`c`.`CreatedAt`", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies that nullable operands retain SQL null semantics and that the
+    /// escape overload forwards the declared escape character.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Generic_Like_translates_nullable_values_and_escape_character(
+        bool isMariaDb
+    )
+    {
+        using var context = CreateContext(isMariaDb);
+        var sql = context
+            .Set<CoverageEntity>()
+            .Where(entity => EF.Functions.Like(entity.OptionalNumber, "12!_%", "!")
+                || EF.Functions.Like(entity.OptionalCreatedAt, "2025-08%"))
+            .ToQueryString();
+
+        Assert.Contains("`c`.`OptionalNumber` LIKE '12!_%' ESCAPE '!'", sql, StringComparison.Ordinal);
+        Assert.Contains("`c`.`OptionalCreatedAt` LIKE '2025-08%'", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("COALESCE(", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies that binary GUID LIKE reuses canonical GUID formatting while a
+    /// text GUID remains a direct LIKE operand.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Generic_Like_honors_binary_and_text_guid_mappings(
+        bool isMariaDb
+    )
+    {
+        using var context = CreateContext(isMariaDb);
+        var sql = context
+            .Set<CoverageEntity>()
+            .Where(entity => EF.Functions.Like(entity.Token, "00112233-%")
+                && EF.Functions.Like(entity.TextToken, "00112233-%"))
+            .ToQueryString();
+
+        Assert.Contains("HEX(`c`.`Token`)", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("LOWER(CONCAT(", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("`c`.`TextToken` LIKE '00112233-%'", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("HEX(`c`.`TextToken`)", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies that an explicitly generic string call retains the standard
+    /// server-side string LIKE behavior.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Explicit_generic_string_Like_translates_directly(
+        bool isMariaDb
+    )
+    {
+        using var context = CreateContext(isMariaDb);
+        var sql = context
+            .Set<CoverageEntity>()
+            .Where(entity => MySqlDbFunctionsExtensions.Like<string>(EF.Functions, entity.Name, "A%"))
+            .ToQueryString();
+
+        Assert.Contains("`c`.`Name` LIKE 'A%'", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that the generic API rejects unsupported scalar types instead
+    /// of falling back to object formatting or client evaluation.
+    /// </summary>
+    [Fact]
+    public void Generic_Like_rejects_unsupported_types()
+    {
+        using var context = CreateContext();
+
+        AssertUnsupportedLike<DateOnly>(context, nameof(CoverageEntity.BirthDate));
+        AssertUnsupportedLike<TimeOnly>(context, nameof(CoverageEntity.StartTime));
+        AssertUnsupportedLike<TimeSpan>(context, nameof(CoverageEntity.Duration));
+        AssertUnsupportedLike<bool>(context, nameof(CoverageEntity.IsActive));
+        AssertUnsupportedLike<byte[]>(context, nameof(CoverageEntity.BinaryData));
+        AssertUnsupportedLike<UnsupportedLikeValue>(context, nameof(CoverageEntity.CustomValue));
+        AssertUnsupportedLike<object>(context, nameof(CoverageEntity.Name));
+    }
+
+    /// <summary>
+    /// Verifies that the generic API cannot execute an accidental client-side call.
+    /// </summary>
+    [Fact]
+    public void Generic_Like_rejects_client_side_execution()
+    {
+        Assert.Throws<InvalidOperationException>(() => EF.Functions.Like(123, "%23%"));
+        Assert.Throws<InvalidOperationException>(() => EF.Functions.Like<int?>(null, "%"));
+        Assert.Throws<InvalidOperationException>(() => EF.Functions.Like(Guid.Empty, "%", "!"));
+        Assert.Throws<InvalidOperationException>(() => EF.Functions.Like<string?>(null, "%", null));
+    }
+
+    /// <summary>
+    /// Verifies that explicit generic string calls produce the same SQL as
+    /// EF Core's non-generic string API, including nullable strings.
+    /// </summary>
+    [Fact]
+    public void String_Like_generic_and_non_generic_calls_produce_the_same_SQL()
+    {
+        System.Linq.Expressions.Expression<Func<CoverageEntity, bool>> standard =
+            entity => DbFunctionsExtensions.Like(EF.Functions, entity.Name, "A%");
+
+        System.Linq.Expressions.Expression<Func<CoverageEntity, bool>> nullable =
+            entity => DbFunctionsExtensions.Like(EF.Functions, entity.OptionalText!, "A%", "!");
+
+        using var context = CreateContext();
+        Assert.Equal(
+            context.Set<CoverageEntity>().Where(standard).ToQueryString(),
+            context.Set<CoverageEntity>().Where(entity => EF.Functions.Like<string>(entity.Name, "A%")).ToQueryString());
+        Assert.Equal(
+            context.Set<CoverageEntity>().Where(nullable).ToQueryString(),
+            context.Set<CoverageEntity>()
+                .Where(entity => EF.Functions.Like<string?>(entity.OptionalText, "A%", "!"))
+                .ToQueryString());
+    }
+
+    /// <summary>
+    /// Verifies parameter mapping without applying numeric or GUID converters
+    /// to a string pattern or escape parameter.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Generic_Like_parameterizes_patterns_and_escape_characters(
+        bool isMariaDb
+    )
+    {
+        using var context = CreateContext(isMariaDb);
+        var pattern = "%' OR 1=1 --";
+        var escapeCharacter = "!";
+        var sql = context.Set<CoverageEntity>()
+            .Where(entity => EF.Functions.Like(entity.OptionalToken, pattern, escapeCharacter)
+                || EF.Functions.Like(entity.TextToken, pattern, escapeCharacter)
+                || EF.Functions.Like(entity.SignedValue, pattern, escapeCharacter))
+            .ToQueryString();
+
+        Assert.Contains("LIKE @pattern", sql, StringComparison.Ordinal);
+        Assert.Contains("ESCAPE @escapeCharacter", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("LIKE '%", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("COALESCE(", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("HEX(`c`.`OptionalToken`)", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies that GUID parameters use canonical text even when the pattern
+    /// is a column and the match operand is not a mapped property.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Generic_Like_formats_a_guid_parameter_before_a_column_pattern(
+        bool isMariaDb
+    )
+    {
+        using var context = CreateContext(isMariaDb);
+        var token = new Guid("00112233-4455-6677-8899-aabbccddeeff");
+        var sql = context.Set<CoverageEntity>()
+            .Where(entity => EF.Functions.Like(token, entity.Name))
+            .Select(entity => entity.Id)
+            .ToQueryString();
+
+        Assert.Contains("HEX(@token)", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("LOWER(CONCAT(", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("LIKE `c`.`Name`", sql, StringComparison.Ordinal);
+        Assert.InRange(sql.Length, 1, 1024);
+
+        Guid? optionalToken = token;
+        var nullableSql = context.Set<CoverageEntity>()
+            .Where(entity => EF.Functions.Like(optionalToken, entity.Name))
+            .Select(entity => entity.Id)
+            .ToQueryString();
+
+        Assert.Contains("HEX(@optionalToken)", nullableSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("LIKE `c`.`Name`", nullableSql, StringComparison.Ordinal);
+        Assert.InRange(nullableSql.Length, 1, 1024);
+    }
+
+    private static void AssertUnsupportedLike<T>(
+        CoverageContext context,
+        string propertyName
+    )
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() => context
+            .Set<CoverageEntity>()
+            .Where(entity => EF.Functions.Like(EF.Property<T>(entity, propertyName), "%"))
+            .ToQueryString());
+
+        Assert.Contains(
+            $"The generic LIKE translation does not support CLR type '{typeof(T).FullName}'.",
+            exception.ToString(),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies that signed and unsigned shifts apply CLR width masks and that
     /// complement operations do not leak the engines' unsigned 64-bit results.
     /// </summary>
@@ -607,12 +829,16 @@ public sealed class MySqlQueryTranslationCoverageTests
 
     // -- Helpers --
 
-    private static CoverageContext CreateContext()
+    private static CoverageContext CreateContext(
+        bool isMariaDb = false
+    )
     {
         var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<CoverageContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+            isMariaDb
+                ? MySqlServerVersion.MariaDb(new Version(11, 4, 0))
+                : MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
         return new CoverageContext(builder.Options);
     }
@@ -621,6 +847,7 @@ public sealed class MySqlQueryTranslationCoverageTests
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
+        public string? OptionalText { get; set; }
         public string Category { get; set; } = string.Empty;
         public double Score { get; set; }
         public double AltScore { get; set; }
@@ -631,10 +858,23 @@ public sealed class MySqlQueryTranslationCoverageTests
         public ulong UnsignedLongValue { get; set; }
         public int ShiftCount { get; set; }
         public Guid Token { get; set; }
+        public Guid TextToken { get; set; }
+        public Guid? OptionalToken { get; set; }
+        public int? OptionalNumber { get; set; }
+        public DateTime? OptionalCreatedAt { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateOnly BirthDate { get; set; }
         public TimeOnly StartTime { get; set; }
         public TimeSpan Duration { get; set; }
+        public bool IsActive { get; set; }
+        public byte[] BinaryData { get; set; } = [];
+        public UnsupportedLikeValue CustomValue { get; set; }
+    }
+
+    private enum UnsupportedLikeValue
+    {
+        First,
+        Second,
     }
 
     private sealed class CoverageContext : DbContext
@@ -651,6 +891,10 @@ public sealed class MySqlQueryTranslationCoverageTests
             {
                 e.ToTable("CoverageEntities");
                 e.HasKey(x => x.Id);
+                e.Property(x => x.CustomValue).HasConversion<int>();
+                e
+                    .Property(x => x.TextToken)
+                    .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
             });
         }
     }

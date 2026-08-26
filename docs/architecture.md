@@ -42,6 +42,11 @@ the wire protocol, authentication, TLS, pooling, and command transport.
 
 ## Shipped Packages
 
+The release package set contains the core provider, its optional spatial
+extension, and the independent cache. The cache is introduced in
+[10.1.0-rc.1](../CHANGELOG.md#1010-rc1---2026-08-26); earlier releases contain
+only the two EF Core packages.
+
 ### Core provider
 
 `src/Doka.EntityFrameworkCore.MySql` contains the runtime and design-time
@@ -73,6 +78,21 @@ depends on the core provider; the core provider does not depend on it.
 
 This one-way dependency keeps spatial allocations and public dependencies out
 of applications that do not use spatial data.
+
+### Standalone cache
+
+`src/Doka.Caching.MySql` implements the .NET 10 `IDistributedCache` and
+`IBufferDistributedCache` contracts through one singleton and a MySqlConnector
+data source. A connection string creates a cache-owned source; an explicitly
+supplied source remains caller-owned. Neither the cache nor the EF Core provider depends
+on the other. The cache's runtime dependencies are MySqlConnector and
+Microsoft.Extensions packages; it does not depend on EF Core.
+
+Cache registration uses `AddDistributedMySqlCache(...)` and
+`MySqlCacheOptions`, not EF Core services. Deployment explicitly creates its
+versioned table; runtime operations perform no DDL. The
+[Distributed Cache guide](distributed-cache.md) owns expiration, concurrency,
+buffer ownership, and bounded-cleanup details.
 
 ## Runtime Composition
 
@@ -178,9 +198,24 @@ decisions without exposing connection or database payloads.
 
 ### Trimming and deployment
 
-Both packages enable trim and AOT analyzers. Runtime-posture tests validate
-trimmed consumption, while NativeAOT execution remains subject to the explicit
-upstream EF Core limitation recorded in ADR D-017.
+All three packages enable trim and AOT analyzers. The existing
+`./eng/test-runtime-posture.sh --up-test-down` command exercises separate
+consumers against the pinned MySQL 8.4 target:
+
+| Consumer | Ordinary execution | Full-trim publish and execution | NativeAOT publish and execution |
+| --- | --- | --- | --- |
+| EF Core provider and spatial extension | Required | Required | Deferred under [D-017](decisions/D-017-nativeaot-smoke-deferred.md) |
+| Standalone cache, without EF Core | Required | Required | Required |
+
+The runtime receipt records the host RID, target image, source identity, and
+published executable hashes. A successful publish without executing the
+resulting binary is insufficient. Cache NativeAOT execution does not change
+the provider's deferred upstream EF Core boundary.
+
+Before publication, isolated package-only consumers separately exercise the
+provider/spatial pair and `Doka.Caching.MySql`. The cache consumer's resolved
+graph must remain independent of EF Core and the provider packages; a
+project-reference build alone cannot establish this package boundary.
 
 ## Verification Architecture
 
@@ -205,8 +240,10 @@ block package publication.
 - Engine differences flow through the canonical capability model.
 - The optional spatial package depends on the core; the core never depends on
   the optional package.
-- Public configuration enters through EF Core options or model annotations,
-  not process-wide mutable state.
+- The standalone cache and EF Core packages do not depend on each other.
+- Provider configuration enters through EF Core options or model annotations;
+  cache configuration enters through its own validated options, not
+  process-wide mutable state.
 - Ordinary data remains parameterized; identifiers and literals use their
   owning encoders.
 - Built-in migration operations cannot be claimed by third-party handlers.
@@ -218,6 +255,7 @@ block package publication.
 
 - [Provider configuration](provider-configuration.md)
 - [Query functions](query-functions.md)
+- [Distributed cache](distributed-cache.md)
 - [Migration operation handlers](migration-operation-handlers.md)
 - [Supported databases](supported-databases.md)
 - [Threat model](security/threat-model.md)
@@ -236,3 +274,9 @@ block package publication.
   provider-specific functions.
 - OpenSSF Best Practices, [Silver architecture criterion](https://www.bestpractices.dev/en/criteria/1),
   retrieved 2026-08-21.
+- Microsoft, [EF Core NativeAOT and precompiled queries](https://learn.microsoft.com/en-us/ef/core/performance/nativeaot-and-precompiled-queries),
+  retrieved 2026-08-26. The EF Core path remains experimental; the independent
+  cache does not use it.
+- Microsoft, [Native AOT deployment](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/),
+  retrieved 2026-08-26. Native binaries target a specific runtime environment
+  and require its native compiler toolchain at publish time.

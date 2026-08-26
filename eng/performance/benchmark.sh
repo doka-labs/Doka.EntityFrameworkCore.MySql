@@ -208,7 +208,7 @@ if ! dotnet "${benchmark_assembly}" "${filters[@]}" --artifacts "${report_direct
     exit 78
 fi
 
-soak_required="$(jq -er --arg profile "${profile}" '.profiles[$profile].soakRequired' "${contract}")"
+soak_required="$(jq -er --arg profile "${profile}" '.profiles[$profile].soakRequired | tostring' "${contract}")"
 gate_arguments=(
     --evaluate
     "${contract}"

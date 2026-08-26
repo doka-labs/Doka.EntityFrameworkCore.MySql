@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 10,
-  "contractVersion": "2026-08-23",
+  "schemaVersion": 11,
+  "contractVersion": "2026-08-26",
   "requiredTargets": {
     "mysql84": {
       "displayName": "MySQL 8.4",
@@ -405,6 +405,142 @@
     }
   ],
   "benchmarkDotNetControls": [
+    {
+      "id": "cache-sliding-get-allocation",
+      "type": "DistributedCacheBenchmark",
+      "method": "GetSliding",
+      "metric": "allocatedBytes",
+      "maximum": 32768
+    },
+    {
+      "id": "cache-sliding-buffer-allocation",
+      "type": "DistributedCacheBenchmark",
+      "method": "BufferSliding",
+      "metric": "allocatedBytes",
+      "maximum": 32768
+    },
+    {
+      "id": "cache-small-get-allocation",
+      "type": "DistributedCacheBenchmark",
+      "method": "GetSmall",
+      "metric": "allocatedBytes",
+      "maximum": 16384
+    },
+    {
+      "id": "cache-large-get-allocation",
+      "type": "DistributedCacheBenchmark",
+      "method": "GetLarge",
+      "metric": "allocatedBytes",
+      "maximum": 2162688
+    },
+    {
+      "id": "cache-small-buffer-allocation",
+      "type": "DistributedCacheBenchmark",
+      "method": "BufferSmall",
+      "metric": "allocatedBytes",
+      "maximum": 16384
+    },
+    {
+      "id": "cache-large-buffer-allocation",
+      "type": "DistributedCacheBenchmark",
+      "method": "BufferLarge",
+      "metric": "allocatedBytes",
+      "maximum": 1114112
+    },
+    {
+      "id": "cache-large-buffer-relative-allocation",
+      "type": "DistributedCacheBenchmark",
+      "baselineMethod": "GetLarge",
+      "method": "BufferLarge",
+      "metric": "allocationRatio",
+      "maximum": 0.55
+    },
+    {
+      "id": "cache-large-buffer-throughput",
+      "type": "DistributedCacheBenchmark",
+      "baselineMethod": "GetLarge",
+      "method": "BufferLarge",
+      "metric": "meanRatio",
+      "maximum": 1.5
+    },
+    {
+      "id": "cache-miss-allocation",
+      "type": "DistributedCacheBenchmark",
+      "method": "GetMissing",
+      "metric": "allocatedBytes",
+      "maximum": 16384
+    },
+    {
+      "id": "cache-buffer-miss-allocation",
+      "type": "DistributedCacheBenchmark",
+      "method": "BufferMissingAsync",
+      "metric": "allocatedBytes",
+      "maximum": 16384
+    },
+    {
+      "id": "cache-small-write-allocation",
+      "type": "DistributedCacheBenchmark",
+      "method": "SetSmallAsync",
+      "metric": "allocatedBytes",
+      "maximum": 16384
+    },
+    {
+      "id": "cache-large-write-allocation",
+      "type": "DistributedCacheBenchmark",
+      "method": "SetLargeAsync",
+      "metric": "allocatedBytes",
+      "maximum": 1114112
+    },
+    {
+      "id": "cache-segmented-write-allocation",
+      "type": "DistributedCacheBenchmark",
+      "method": "SetLargeMultiSegmentAsync",
+      "metric": "allocatedBytes",
+      "maximum": 1114112
+    },
+    {
+      "id": "cache-parallel-buffer-allocation",
+      "type": "DistributedCacheBenchmark",
+      "method": "ParallelBufferReadsAsync",
+      "metric": "allocatedBytes",
+      "maximum": 262144
+    },
+    {
+      "id": "cache-parallel-sliding-buffer-allocation",
+      "type": "DistributedCacheBenchmark",
+      "method": "ParallelSlidingBufferReadsAsync",
+      "metric": "allocatedBytes",
+      "maximum": 524288
+    },
+    {
+      "id": "cache-parallel-sliding-buffer-throughput",
+      "type": "DistributedCacheBenchmark",
+      "baselineMethod": "ParallelBufferReadsAsync",
+      "method": "ParallelSlidingBufferReadsAsync",
+      "metric": "meanRatio",
+      "maximumByTarget": {
+        "mysql84": 17,
+        "mysql97": 19,
+        "mariadb1011": 11,
+        "mariadb114": 9,
+        "mariadb118": 11,
+        "mariadb123": 9
+      }
+    },
+    {
+      "id": "generic-like-cached-query-allocation",
+      "type": "GenericLikeBenchmark",
+      "method": "CachedScalarQueryToQueryString",
+      "metric": "allocatedBytes",
+      "maximum": 23552
+    },
+    {
+      "id": "generic-like-compilation-allocation",
+      "type": "GenericLikeBenchmark",
+      "method": "CompileScalarQueryToQueryString",
+      "metric": "allocatedBytes",
+      "maximum": 256000
+    },
     {
       "id": "identifier-quoting-throughput",
       "type": "IdentifierQuotingBenchmark",

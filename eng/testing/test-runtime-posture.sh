@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Proves the provider's ordinary and fully trimmed self-contained runtime paths
+# Proves provider trimming and the standalone cache's trim/NativeAOT paths
 # against MySQL 8.4 while keeping container ownership explicit per invocation.
 
 set -euo pipefail
@@ -12,6 +12,8 @@ runtime_provider_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql"
 runtime_provider_project+="/Doka.EntityFrameworkCore.MySql.csproj"
 runtime_spatial_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql.NetTopologySuite"
 runtime_spatial_project+="/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj"
+cache_project="${repo_root}/src/Doka.Caching.MySql/Doka.Caching.MySql.csproj"
+cache_smoke_project="${repo_root}/tests/Doka.Caching.MySql.RuntimeSmoke/Doka.Caching.MySql.RuntimeSmoke.csproj"
 compose_file="${repo_root}/docker/compose.yml"
 runtime_run_id="${DOKA_RUNTIME_POSTURE_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 repo_fingerprint="$(printf '%s' "${repo_root}" | cksum | awk '{print $1}')"
@@ -27,6 +29,8 @@ runtime_smoke_name="Doka.EntityFrameworkCore.MySql.RuntimeSmoke"
 runtime_artifacts_root="${DOKA_RUNTIME_POSTURE_ARTIFACTS_ROOT:-${repo_root}/artifacts/runtime-smoke}"
 runtime_evidence_dir="${DOKA_RUNTIME_POSTURE_EVIDENCE_DIR:-${runtime_artifacts_root}/${runtime_run_id}}"
 trimmed_output_dir="${DOKA_RUNTIME_POSTURE_PUBLISH_DIR:-${runtime_evidence_dir}/trimmed}"
+cache_trimmed_output_dir="$(dirname "${trimmed_output_dir}")/cache-trimmed"
+cache_aot_output_dir="$(dirname "${trimmed_output_dir}")/cache-aot"
 runtime_summary_file="${runtime_evidence_dir}/runtime-posture-summary.md"
 runtime_evidence_file="${runtime_evidence_dir}/runtime-posture-evidence.json"
 require_clean_source="${DOKA_RUNTIME_REQUIRE_CLEAN_SOURCE:-0}"
@@ -249,12 +253,15 @@ resolve_runtime_target_image() {
 }
 
 prepare_runtime_output() {
-    if [[ -d "${trimmed_output_dir}" \
-        && -n "$(find "${trimmed_output_dir}" -mindepth 1 -print -quit)" ]]; then
-        echo "Runtime publish directory already contains artifacts: ${trimmed_output_dir}" >&2
-        echo "Use a new DOKA_RUNTIME_POSTURE_RUN_ID so stale binaries cannot enter the evidence." >&2
-        exit 1
-    fi
+    local publish_dir
+    for publish_dir in "${trimmed_output_dir}" "${cache_trimmed_output_dir}" "${cache_aot_output_dir}"; do
+        if [[ -d "${publish_dir}" \
+            && -n "$(find "${publish_dir}" -mindepth 1 -print -quit)" ]]; then
+            echo "Runtime publish directory already contains artifacts: ${publish_dir}" >&2
+            echo "Use a new DOKA_RUNTIME_POSTURE_RUN_ID so stale binaries cannot enter the evidence." >&2
+            exit 1
+        fi
+    done
 
     runtime_build_root="$(
         mktemp -d "${TMPDIR:-/tmp}/doka-runtime-posture.XXXXXX"
@@ -262,7 +269,9 @@ prepare_runtime_output() {
     mkdir -p \
         "${runtime_build_root}/locks" \
         "${runtime_evidence_dir}" \
-        "${trimmed_output_dir}"
+        "${trimmed_output_dir}" \
+        "${cache_trimmed_output_dir}" \
+        "${cache_aot_output_dir}"
 }
 
 capture_source_identity() {
@@ -303,6 +312,8 @@ write_runtime_evidence() {
     local executable_sha256
     local executable_size
     local target_image
+    local cache_trimmed_executable="${cache_trimmed_output_dir}/Doka.Caching.MySql.RuntimeSmoke"
+    local cache_aot_executable="${cache_aot_output_dir}/Doka.Caching.MySql.RuntimeSmoke"
 
     executable_sha256="$(sha256_file "${trimmed_executable}")"
     executable_size="$(wc -c < "${trimmed_executable}" | tr -d ' ')"
@@ -322,14 +333,19 @@ write_runtime_evidence() {
 - fullTrimPublish: pass
 - trimmedExecution: pass
 - executableSha256: ${executable_sha256}
+- cacheOrdinaryExecution: pass
+- cacheTrimmedExecution: pass
+- cacheNativeAotExecution: pass
 
 The ordinary application and the self-contained binary published with
 PublishTrimmed=true and TrimMode=full both executed the provider smoke contract.
+The standalone cache executed synchronous, asynchronous, buffered, cancellation,
+and concurrent operations in ordinary, fully trimmed, and NativeAOT builds.
 EOF
 
     cat > "${runtime_evidence_file}" <<EOF
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "generatedUtc": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
   "runId": "${runtime_run_id}",
   "source": {
@@ -354,6 +370,19 @@ EOF
   "executable": {
     "sha256": "${executable_sha256}",
     "sizeBytes": ${executable_size}
+  },
+  "cache": {
+    "ordinaryExecution": "pass",
+    "trimmedExecution": "pass",
+    "nativeAotExecution": "pass",
+    "trimmedExecutable": {
+      "sha256": "$(sha256_file "${cache_trimmed_executable}")",
+      "sizeBytes": $(wc -c < "${cache_trimmed_executable}" | tr -d ' ')
+    },
+    "nativeAotExecutable": {
+      "sha256": "$(sha256_file "${cache_aot_executable}")",
+      "sizeBytes": $(wc -c < "${cache_aot_executable}" | tr -d ' ')
+    }
   }
 }
 EOF
@@ -383,7 +412,9 @@ run_runtime_posture() {
     for project_path in \
         "${runtime_provider_project}" \
         "${runtime_spatial_project}" \
-        "${runtime_smoke_project}"; do
+        "${runtime_smoke_project}" \
+        "${cache_project}" \
+        "${cache_smoke_project}"; do
         project_name="$(basename "${project_path}" .csproj)"
 
         dotnet restore \
@@ -392,7 +423,8 @@ run_runtime_posture() {
             --disable-build-servers \
             "${runtime_build_properties[@]}" \
             "-p:NuGetLockFilePath=${runtime_build_root}/locks/${project_name}.packages.lock.json" \
-            -p:RestoreRecursive=false
+            -p:RestoreRecursive=false \
+            -p:PublishAot="$([[ "${project_path}" == "${cache_smoke_project}" ]] && echo true || echo false)"
     done
 
     dotnet run \
@@ -417,10 +449,40 @@ run_runtime_posture() {
 
     "${trimmed_executable}"
 
+    dotnet run \
+        --project "${cache_smoke_project}" \
+        --configuration Release \
+        --no-restore \
+        --disable-build-servers \
+        "${runtime_build_properties[@]}"
+
+    dotnet publish "${cache_smoke_project}" \
+        --configuration Release \
+        --runtime "${runtime_identifier}" \
+        --self-contained true \
+        -p:PublishTrimmed=true \
+        -p:TrimMode=full \
+        -o "${cache_trimmed_output_dir}" \
+        --no-restore \
+        --disable-build-servers \
+        "${runtime_build_properties[@]}"
+    "${cache_trimmed_output_dir}/Doka.Caching.MySql.RuntimeSmoke"
+
+    dotnet publish "${cache_smoke_project}" \
+        --configuration Release \
+        --runtime "${runtime_identifier}" \
+        --self-contained true \
+        -p:PublishAot=true \
+        -o "${cache_aot_output_dir}" \
+        --no-restore \
+        --disable-build-servers \
+        "${runtime_build_properties[@]}"
+    "${cache_aot_output_dir}/Doka.Caching.MySql.RuntimeSmoke"
+
     require_unchanged_source
     write_runtime_evidence "${runtime_identifier}" "${trimmed_executable}"
 
-    # NativeAOT publish + smoke is intentionally not run. EF Core 10 NativeAOT
+    # Provider NativeAOT publish + smoke is intentionally not run. EF Core 10 NativeAOT
     # is upstream-experimental (Microsoft Learn); the provider's Design.Internal
     # assembly reference forces the AOT publish to load Microsoft.EntityFrameworkCore.Design
     # which is not AOT-friendly (heavy reflection, [RequiresUnreferencedCode]

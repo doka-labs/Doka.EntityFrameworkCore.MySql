@@ -7,6 +7,62 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.1.0-rc.1] - 2026-08-26
+
+First release candidate for 10.1.0, adding connection-string server discovery,
+generic scalar `LIKE`, and the standalone MySQL distributed cache. The minor
+version reflects additive Doka features; the supported .NET, EF Core,
+MySqlConnector, and database release lines remain unchanged.
+
+Install the candidate explicitly to test the published packages rather than
+project references. Add the spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.0-rc.1
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.0-rc.1
+dotnet package add Doka.Caching.MySql --version 10.1.0-rc.1
+```
+
+The cache can be installed independently of the EF Core provider. This is a
+prerelease for consumer validation, not a stable release. New public API
+declarations remain in `PublicAPI.Unshipped.txt` until stable preparation.
+
+### Added
+
+- Add `MySqlServerVersion.AutoDetect(string)` for connection-string-only
+  configuration, with one internally owned synchronous connection and the
+  existing supported-engine policy. Keep discovery outside ambient transactions.
+- Add generic `EF.Functions.Like<T>` overloads for native numeric types,
+  `DateTime`, `Guid`, and nullable values. Binary GUIDs use the same canonical
+  text translation as `Guid.ToString()`; normal string overload binding and
+  SQL null semantics remain unchanged.
+- Add the standalone .NET 10 `Doka.Caching.MySql` package with one singleton
+  implementing `IDistributedCache` and `IBufferDistributedCache`, explicit
+  versioned schema deployment, database-UTC expiration, atomic writes, and
+  bounded, primary-key-first expired-row cleanup with renewal-safe deletion
+  and candidate-based backlog continuation. Accept an optional
+  caller-owned MySqlConnector data source for shared pools and driver-managed
+  authentication. The cache does not require EF Core.
+- Document the observed Pomelo migration paths, including configuration,
+  GUID storage, generated migration metadata, designers, snapshots, queries,
+  and cold-cache table replacement.
+- Guard parallel sliding-cache reads with a same-run timing ratio and
+  engine-specific budgets alongside the existing allocation limit. Document
+  separate-table rollout and rollback for future incompatible cache schemas.
+- Include the standalone cache in package validation, dependency auditing,
+  SBOM generation, provenance, and isolated local-package and NuGet readback.
+  Execute its ordinary, fully trimmed, and NativeAOT runtime checks as part of
+  the existing release-qualification path.
+
+### Fixed
+
+- Format `Guid.ToString()` according to the effective `Binary16` or `Char36`
+  mapping. Preserve the GUID converter for text-mapped constants, parameters,
+  and server-generated `Guid.NewGuid()` values; reject unsupported GUID text
+  conversions instead of silently generating incorrect values.
+- Wait for process readiness in deadline signal tests before exercising
+  termination forwarding and forced cleanup.
+
 ## [10.0.0] - 2026-08-24
 
 First stable release of `Doka.EntityFrameworkCore.MySql` for Entity Framework
@@ -822,7 +878,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.1.0-rc.1...HEAD
+[10.1.0-rc.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.0-rc.1
 [10.0.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0
 [10.0.0-rc.13]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.13
 [10.0.0-rc.12]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.12

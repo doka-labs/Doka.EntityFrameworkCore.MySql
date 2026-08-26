@@ -160,9 +160,9 @@ def release_subjects(
     packages_root = candidate_root / "packages"
     primary_packages = sorted(packages_root.glob("*.nupkg"))
     symbol_packages = sorted(packages_root.glob("*.snupkg"))
-    if len(primary_packages) != 2 or len(symbol_packages) != 2:
+    if len(primary_packages) != 3 or len(symbol_packages) != 3:
         raise ProvenanceError(
-            "Release provenance requires two primary and two symbol packages."
+            "Release provenance requires three primary and three symbol packages."
         )
 
     checkpoints = sorted(checkpoint_root.glob("*.json"))

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Candidate package version, for example 10.0.0-rc.1
+        description: Candidate package version, for example 10.1.0-rc.1
         required: true
         type: string
 
@@ -624,6 +624,25 @@ jobs:
         env:
           NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
           PACKAGE: ${{ steps.preflight.outputs.spatial_symbols }}
+        run: |
+          dotnet nuget push "${PACKAGE}" \
+            --source https://api.nuget.org/v3/index.json --skip-duplicate --timeout 300
+
+      - name: Publish cache package
+        if: steps.preflight.outputs.cache_published != 'true'
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          PACKAGE: ${{ steps.preflight.outputs.cache_package }}
+        run: |
+          dotnet nuget push "${PACKAGE}" \
+            --source https://api.nuget.org/v3/index.json --no-symbols \
+            --skip-duplicate --timeout 300
+
+      - name: Publish cache symbols
+        if: steps.preflight.outputs.cache_symbols_published != 'true'
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          PACKAGE: ${{ steps.preflight.outputs.cache_symbols }}
         run: |
           dotnet nuget push "${PACKAGE}" \
             --source https://api.nuget.org/v3/index.json --skip-duplicate --timeout 300

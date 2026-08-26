@@ -3,6 +3,7 @@
 [![CI](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/workflows/ci.yml/badge.svg)](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/Doka.EntityFrameworkCore.MySql.svg)](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql)
 [![NuGet NetTopologySuite](https://img.shields.io/nuget/v/Doka.EntityFrameworkCore.MySql.NetTopologySuite.svg)](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql.NetTopologySuite)
+[![NuGet Caching](https://img.shields.io/nuget/vpre/Doka.Caching.MySql.svg?label=NuGet%20Caching)](https://www.nuget.org/packages/Doka.Caching.MySql)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/doka-labs/Doka.EntityFrameworkCore.MySql/badge)](https://scorecard.dev/viewer/?uri=github.com/doka-labs/Doka.EntityFrameworkCore.MySql)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13999/badge)](https://www.bestpractices.dev/projects/13999)
@@ -23,11 +24,17 @@ advertised LTS line.
 | --- | --- |
 | [`Doka.EntityFrameworkCore.MySql`](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql) | Core EF Core provider, migrations, scaffolding, type mappings, and query translation |
 | [`Doka.EntityFrameworkCore.MySql.NetTopologySuite`](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql.NetTopologySuite) | Optional NetTopologySuite mappings, spatial indexes, scaffolding, and spatial query translation |
+| [`Doka.Caching.MySql`](https://www.nuget.org/packages/Doka.Caching.MySql) | Standalone .NET 10 `IDistributedCache` and `IBufferDistributedCache` implementation; introduced in 10.1.0-rc.1 |
+
+The cache package, connection-string detection, and scalar `Like<T>` are
+introduced in [10.1.0-rc.1][changelog]. They are not present in the `10.0.0`
+packages. Use the explicit release-candidate versions below to test them.
 
 ## Requirements
 
 - An application targeting .NET 10 or later
-- EF Core 10.0.x; the supported package range is `>= 10.0.8` and `< 10.1.0`
+- EF Core 10.0.x for the provider and spatial extension; the supported package
+  range is `>= 10.0.8` and `< 10.1.0`
 - MySqlConnector 2.x; the supported package range is `>= 2.5.0` and `< 3.0.0`
 - A supported MySQL or MariaDB server from the matrix below
 
@@ -53,6 +60,24 @@ dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite
 For reproducible installs, add `--version` followed by the exact version from
 the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
 or NuGet.org package page.
+
+### Test the Release Candidate
+
+Pin the candidate version explicitly to test the new 10.1.0 provider APIs:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.0-rc.1
+```
+
+Add the optional packages only when needed, using the same candidate version:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.0-rc.1
+dotnet package add Doka.Caching.MySql --version 10.1.0-rc.1
+```
+
+The cache can be used on its own without the EF Core provider. The RC is for
+consumer validation and is not selected by normal stable-version resolution.
 
 ## Quick Start
 
@@ -112,6 +137,17 @@ var serverVersion = MySqlServerVersion.AutoDetect(connection);
 ```
 
 <!-- readme-autodetect-snippet end -->
+
+The new connection-string overload manages the temporary connection itself:
+
+```csharp
+var serverVersion = MySqlServerVersion.AutoDetect(connectionString);
+```
+
+It opens synchronously once and disposes the connection on success or failure.
+Reuse the descriptor for an unchanged server target instead of detecting it
+for every context. Both detection paths use `SupportedOnly` by default; see
+[Provider Configuration][provider-configuration].
 
 ## Dependency Injection
 
@@ -173,14 +209,17 @@ explicit escape hatch without a support guarantee and emits
   bitemporal tables plus provider-owned MySQL history-table emulation behind
   one model and query API.
 - **MySQL-family query translation:** JSON functions, regular expressions,
-  full-text search, CTE composition, bulk update/delete, and engine-specific
-  SQL selected from declared capabilities.
+  full-text search, scalar `Like<T>`, CTE composition, bulk update/delete, and
+  engine-specific SQL selected from declared capabilities.
 - **Provider-owned type mappings:** JSON DOM types, `Binary16` and `Char36`
   GUIDs, temporal CLR types, generated defaults, complex types, and optional
   NetTopologySuite geometries.
 - **Production behavior:** transient-failure retries, savepoints, connection
   pooling, structured diagnostics, trimming analysis, compiled models, and
   precompiled query coverage.
+- **Standalone distributed caching:** standard .NET cache contracts,
+  database-UTC expiration, buffer-based reads, and bounded expired-row cleanup
+  without an EF Core dependency.
 
 The [documentation index][documentation-index] owns the complete behavioral
 contracts and limitations. The sections below show only the main entry points.
@@ -260,6 +299,76 @@ packages can add exact migration-operation handlers without replacing the
 provider SQL generator; see
 [Migration Operation Handlers][migration-operation-handlers].
 
+Existing Pomelo applications should start with
+[Migrating from Pomelo][migrating-from-pomelo]. It distinguishes API changes
+from schema changes and preserves deployed migration history.
+
+## Distributed Caching
+
+`Doka.Caching.MySql` provides `IDistributedCache` and
+`IBufferDistributedCache` for MySQL and MariaDB. It is a standalone .NET 10
+package: neither the EF Core provider nor a `DbContext` is required.
+
+Install the release candidate explicitly:
+
+```bash
+dotnet package add Doka.Caching.MySql --version 10.1.0-rc.1
+```
+
+First, generate the cache table script for an existing database:
+
+```csharp
+using Doka.Caching.MySql;
+
+var script = MySqlCacheSchema.GetCreateScript("app_cache", "DistributedCache");
+Console.WriteLine(script);
+```
+
+Review and execute the script separately during deployment. Registration and
+cache operations never create or upgrade database objects. When replacing
+another cache implementation, provision a new Doka cache table.
+
+Register the cache with the application's connection string:
+
+```csharp
+using Doka.Caching.MySql;
+using Microsoft.Extensions.DependencyInjection;
+
+services.AddDistributedMySqlCache(options =>
+{
+    options.ConnectionString = connectionString;
+    options.SchemaName = "app_cache";
+    options.TableName = "DistributedCache";
+});
+```
+
+Inject `IDistributedCache` and pass the operation's cancellation token:
+
+```csharp
+using Microsoft.Extensions.Caching.Distributed;
+
+await cache.SetStringAsync(
+    "greeting",
+    "Hello from Doka",
+    new DistributedCacheEntryOptions
+    {
+        AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
+        SlidingExpiration = TimeSpan.FromMinutes(2),
+    },
+    cancellationToken);
+
+var greeting = await cache.GetStringAsync("greeting", cancellationToken);
+```
+
+Both interfaces resolve the same singleton. Expiration uses database UTC;
+absolute deadlines cap sliding refreshes. For binary payloads,
+`IBufferDistributedCache` reads into caller-owned buffers without an extra
+value-sized result array. The application identity needs only `SELECT`,
+`INSERT`, `UPDATE`, and `DELETE` on the deployed table.
+
+See [Distributed Cache][distributed-cache] for data-source ownership,
+concurrency, cleanup, schema deployment, and buffer usage.
+
 ## Compatibility Boundaries
 
 - `MySqlConnector` is the only supported ADO.NET driver.
@@ -267,8 +376,9 @@ provider SQL generator; see
 - Amazon Aurora MySQL is intentionally outside the supported scope.
 - Unsupported query translations fail instead of falling back to client
   evaluation.
-- NativeAOT readiness remains blocked by upstream EF Core precompiled-query
-  constraints; trimming is continuously validated.
+- EF provider NativeAOT readiness remains blocked by upstream EF Core
+  precompiled-query constraints; trimming is continuously validated. The
+  standalone cache has no EF Core dependency and is verified separately.
 
 See [External Limitations][external-limitations] for the canonical boundary
 ledger. Provider-owned gaps have a zero budget and do not belong in that ledger.
@@ -285,6 +395,8 @@ ledger. Provider-owned gaps have a zero budget and do not belong in that ledger.
 - [IDE integration][ide-integration]
 - [Provider configuration][provider-configuration]
 - [Query functions][query-functions]
+- [Migrating from Pomelo][migrating-from-pomelo]
+- [Distributed cache][distributed-cache]
 - [Support and issue reporting][support]
 - [Security policy][security-policy]
 - [Security assurance case][security-assurance-case]
@@ -316,12 +428,14 @@ MIT -- see [LICENSE][license].
 [complex-types]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/complex-types.md
 [contributing]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/CONTRIBUTING.md
 [documentation-index]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/README.md
+[distributed-cache]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/distributed-cache.md
 [external-limitations]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/limitations.md
 [global-json]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/global.json
 [host-integration]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/host-integration-examples.md
 [ide-integration]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/ide-integration.md
 [license]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/LICENSE
 [migration-operation-handlers]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/migration-operation-handlers.md
+[migrating-from-pomelo]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/migrating-from-pomelo.md
 [openssf-best-practices]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/openssf-best-practices.md
 [performance-evidence]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/performance-evidence.md
 [project-governance]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/GOVERNANCE.md

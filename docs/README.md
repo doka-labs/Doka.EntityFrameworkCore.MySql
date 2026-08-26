@@ -18,6 +18,12 @@ and operational procedures.
   ReSharper inspection behavior and scoped consumer-project configuration.
 - [Provider Configuration](provider-configuration.md) maps connection,
   context-option, model, reverse-engineering, and optional-package setup.
+- [Migrating from Pomelo](migrating-from-pomelo.md) maps the known configuration,
+  query, cache, migration, designer, and snapshot changes without claiming an
+  exhaustive inventory of consumer applications.
+- [Distributed Cache](distributed-cache.md) covers the standalone
+  `Doka.Caching.MySql` package, explicit table deployment, expiration,
+  low-allocation buffers, and bounded cleanup.
 - [Query Functions](query-functions.md) defines every provider-specific
   `EF.Functions` translation, activation rule, and failure boundary.
 - [Complex Types](complex-types.md) covers mapping, querying, updates, JSON,

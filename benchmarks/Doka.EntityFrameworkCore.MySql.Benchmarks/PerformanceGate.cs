@@ -58,9 +58,9 @@ internal static class PerformanceGate
         var contract = contractDocument.RootElement;
         var invalid = new List<string>();
         var regressions = new List<string>();
-        if (RequiredInt(contract, "schemaVersion") != 10)
+        if (RequiredInt(contract, "schemaVersion") != 11)
         {
-            invalid.Add("Performance contract schemaVersion must be 10.");
+            invalid.Add("Performance contract schemaVersion must be 11.");
         }
 
         var contractVersion = RequiredString(contract, "contractVersion");
@@ -141,7 +141,9 @@ internal static class PerformanceGate
             regressions);
         var controlCount = ValidateControls(
             contract.GetProperty("benchmarkDotNetControls"),
+            targets,
             observations,
+            target,
             invalid,
             regressions);
 
@@ -281,7 +283,9 @@ internal static class PerformanceGate
 
     private static int ValidateControls(
         JsonElement controls,
+        JsonElement requiredTargets,
         IReadOnlyList<BenchmarkObservation> observations,
+        string target,
         List<string> invalid,
         List<string> regressions
     )
@@ -298,16 +302,16 @@ internal static class PerformanceGate
                 continue;
             }
 
+            var maximum = ReadControlMaximum(control, requiredTargets, target, id, invalid);
             var type = RequiredString(control, "type");
             var method = RequiredString(control, "method");
             var measured = SelectSingleObservation(observations, type, method, id, invalid);
-            if (measured is null)
+            if (measured is null || maximum is null)
             {
                 continue;
             }
 
             var metric = RequiredString(control, "metric");
-            var maximum = RequiredDouble(control, "maximum");
             double actual;
             switch (metric)
             {
@@ -346,10 +350,98 @@ internal static class PerformanceGate
                     continue;
             }
 
-            AddMaximumRegression(id, metric, actual, maximum, regressions);
+            AddMaximumRegression(id, metric, actual, maximum.Value, regressions);
         }
 
         return count;
+    }
+
+    private static double? ReadControlMaximum(
+        JsonElement control,
+        JsonElement requiredTargets,
+        string target,
+        string id,
+        List<string> invalid
+    )
+    {
+        var maximum = default(JsonProperty);
+        var maximumCount = 0;
+        foreach (var property in control.EnumerateObject())
+        {
+            if (property.Name is "maximum" or "maximumByTarget")
+            {
+                maximum = property;
+                maximumCount++;
+            }
+        }
+
+        if (maximumCount != 1)
+        {
+            invalid.Add($"Control '{id}' requires exactly one maximum or maximumByTarget property.");
+            return null;
+        }
+
+        if (maximum.NameEquals("maximum"))
+        {
+            return ReadMaximum(maximum.Value, id, "maximum", invalid);
+        }
+
+        if (maximum.Value.ValueKind != JsonValueKind.Object)
+        {
+            invalid.Add($"Control '{id}' maximumByTarget must be an object.");
+            return null;
+        }
+
+        var initialErrorCount = invalid.Count;
+        var targetNames = new HashSet<string>(StringComparer.Ordinal);
+        double? selectedMaximum = null;
+        foreach (var entry in maximum.Value.EnumerateObject())
+        {
+            if (!targetNames.Add(entry.Name))
+            {
+                invalid.Add($"Control '{id}' maximumByTarget repeats target '{entry.Name}'.");
+            }
+
+            if (!requiredTargets.TryGetProperty(entry.Name, out _))
+            {
+                invalid.Add($"Control '{id}' maximumByTarget declares unknown target '{entry.Name}'.");
+            }
+
+            var value = ReadMaximum(entry.Value, id, $"maximumByTarget/{entry.Name}", invalid);
+            if (entry.NameEquals(target))
+            {
+                selectedMaximum = value;
+            }
+        }
+
+        foreach (var requiredTarget in requiredTargets.EnumerateObject())
+        {
+            if (!targetNames.Contains(requiredTarget.Name))
+            {
+                invalid.Add($"Control '{id}' maximumByTarget is missing target '{requiredTarget.Name}'.");
+            }
+        }
+
+        return invalid.Count == initialErrorCount ? selectedMaximum : null;
+    }
+
+    private static double? ReadMaximum(
+        JsonElement element,
+        string id,
+        string property,
+        List<string> invalid
+    )
+    {
+        if (element.ValueKind == JsonValueKind.Number
+            && element.TryGetDouble(out var maximum)
+            && double.IsFinite(maximum)
+            && maximum >= 0)
+        {
+            return maximum;
+        }
+
+        invalid.Add($"Control '{id}' {property} must be a finite nonnegative number.");
+        return null;
     }
 
     private static void ValidateSoak(

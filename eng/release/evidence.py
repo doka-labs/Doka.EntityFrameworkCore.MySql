@@ -491,7 +491,7 @@ def validate_runtime_posture(
     except (OSError, json.JSONDecodeError) as exception:
         raise EvidenceError(f"Unable to read runtime posture evidence: {path}") from exception
 
-    if payload.get("schemaVersion") != 1 or payload.get("runId") != run_id:
+    if payload.get("schemaVersion") != 2 or payload.get("runId") != run_id:
         raise EvidenceError("Runtime posture evidence does not match the release-candidate run.")
 
     source = payload.get("source", {})
@@ -528,6 +528,22 @@ def validate_runtime_posture(
     ):
         raise EvidenceError("Runtime posture evidence does not bind the executed trimmed binary.")
 
+    cache = payload.get("cache", {})
+    if not isinstance(cache, dict) or any(
+        cache.get(mode) != "pass"
+        for mode in ("ordinaryExecution", "trimmedExecution", "nativeAotExecution")
+    ):
+        raise EvidenceError("Runtime posture evidence does not prove the standalone cache trim/AOT contract.")
+    for mode in ("trimmedExecutable", "nativeAotExecutable"):
+        binary = cache.get(mode)
+        if (
+            not isinstance(binary, dict)
+            or not SHA256_DIGEST.fullmatch(str(binary.get("sha256", "")))
+            or not isinstance(binary.get("sizeBytes"), int)
+            or binary["sizeBytes"] <= 0
+        ):
+            raise EvidenceError("Runtime posture evidence does not bind the executed cache binaries.")
+
     runtime_identifier = payload.get("runtimeIdentifier")
     dotnet_sdk = payload.get("dotnetSdk")
     if not isinstance(runtime_identifier, str) or not runtime_identifier:
@@ -547,6 +563,7 @@ def validate_runtime_posture(
         "trimmedExecution": "pass",
         "executableSha256": executable["sha256"],
         "executableSizeBytes": executable["sizeBytes"],
+        "cache": cache,
     }
 
 
@@ -589,7 +606,7 @@ def validate_reconciliation(
 
 
 def validate_release_packages(artifacts: list[dict[str, Any]], release_version: str) -> None:
-    """Require exactly the two version-aligned packages and symbol packages.
+    """Require exactly the three version-aligned packages and symbol packages.
 
     Exact inventory matching prevents stale packages from an earlier run from
     acquiring the current source and workflow identity.
@@ -600,6 +617,8 @@ def validate_release_packages(artifacts: list[dict[str, Any]], release_version: 
         f"{package_prefix}Doka.EntityFrameworkCore.MySql.{release_version}.snupkg",
         f"{package_prefix}Doka.EntityFrameworkCore.MySql.NetTopologySuite.{release_version}.nupkg",
         f"{package_prefix}Doka.EntityFrameworkCore.MySql.NetTopologySuite.{release_version}.snupkg",
+        f"{package_prefix}Doka.Caching.MySql.{release_version}.nupkg",
+        f"{package_prefix}Doka.Caching.MySql.{release_version}.snupkg",
     }
     actual = {
         artifact["path"]
@@ -793,8 +812,8 @@ def write_manifest(args: argparse.Namespace) -> None:
     roles: dict[str, int] = {}
     for artifact in artifacts:
         roles[artifact["role"]] = roles.get(artifact["role"], 0) + 1
-    if roles.get("package", 0) < 2 or roles.get("symbol-package", 0) < 2:
-        raise EvidenceError("Both release packages and both symbol packages are required.")
+    if roles.get("package", 0) != 3 or roles.get("symbol-package", 0) != 3:
+        raise EvidenceError("Three release packages and three symbol packages are required.")
     if roles.get("sbom", 0) < 1:
         raise EvidenceError("At least one SBOM artifact is required.")
 

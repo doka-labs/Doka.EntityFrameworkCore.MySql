@@ -498,7 +498,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
 
         var size = mappingInfo.Size;
 
-        return normalizedStoreType switch
+        var mapping = normalizedStoreType switch
         {
             "char" => size == 36
                 ? s_guidChar36Mapping
@@ -517,6 +517,10 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
                 ? s_guidChar36Mapping
                 : s_guidBinaryMapping
         };
+
+        return mapping.ClrType == typeof(string)
+            ? (RelationalTypeMapping)mapping.WithComposedConverter(new GuidToStringConverter())
+            : mapping;
     }
 
     private static StringTypeMapping CreateStringMapping(

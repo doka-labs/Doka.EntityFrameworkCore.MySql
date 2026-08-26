@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Stage and finalize one candidate as an immutable GitHub release.
 
-The complete release asset set is staged before NuGet publication. After both
+The complete release asset set is staged before NuGet publication. After all
 primary package pushes succeed, the same immutable plan publishes immediately.
 Availability and repository-signature evidence is then validated and retained
 as workflow completion evidence rather than added to the immutable release.
@@ -55,10 +55,7 @@ RELEASE_CANDIDATE_EVIDENCE_FILES = (
     "local-package-consumer/local-package-consumer.json",
     "local-package-consumer/local-package-runtime.json",
 )
-PACKAGE_IDENTITIES = (
-    ("provider", nuget_publication.PROVIDER_PACKAGE_ID),
-    ("spatial", nuget_publication.SPATIAL_PACKAGE_ID),
-)
+PACKAGE_IDENTITIES = tuple(nuget_publication.PACKAGE_IDENTITIES.items())
 
 
 class GitHubReleaseError(RuntimeError):
@@ -601,7 +598,7 @@ def validate_staged_evidence(
         "local package runtime qualification",
     )
     if (
-        runtime.get("schemaVersion") != 1
+        runtime.get("schemaVersion") != 2
         or runtime.get("kind") != "local-package-runtime-qualification"
         or runtime.get("releaseTag") != receipt["expectedReleaseTag"]
         or runtime.get("releaseVersion") != receipt["releaseVersion"]
@@ -610,6 +607,8 @@ def validate_staged_evidence(
         or runtime.get("consumerBoundary") != "isolated-local-package"
         or runtime.get("projectReferences") != 0
         or runtime.get("runtimeSmoke") != "pass"
+        or runtime.get("cacheRuntimeSmoke") != "pass"
+        or runtime.get("cacheEfCoreDependencies") != 0
     ):
         raise GitHubReleaseError("Local package runtime qualification is invalid.")
 

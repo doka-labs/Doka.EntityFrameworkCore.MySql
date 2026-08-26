@@ -37,6 +37,8 @@
     <Compile Remove="BulkInsertSqlGenerationBenchmark.cs" />
     <Compile Remove="ParameterSizeInterceptorBenchmark.cs" />
     <Compile Remove="TemporalLiteralBenchmark.cs" />
+    <Compile Remove="DistributedCacheBenchmark.cs" />
+    <Compile Remove="GenericLikeBenchmark.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -45,6 +47,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(DokaBenchmarkUsesPackagedProvider)' == 'false'">
+    <ProjectReference Include="../../src/Doka.Caching.MySql/Doka.Caching.MySql.csproj" />
     <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj" />
     <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj" />
   </ItemGroup>

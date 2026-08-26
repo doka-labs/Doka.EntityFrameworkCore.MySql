@@ -1,0 +1,10 @@
+global using System;
+global using System.Buffers;
+global using System.Globalization;
+global using System.Linq;
+global using System.Threading;
+global using System.Threading.Tasks;
+global using Microsoft.Extensions.Caching.Distributed;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.Options;
+global using MySqlConnector;

@@ -1,8 +1,13 @@
 {
   "schemaVersion": 1,
-  "measuredAt": "2026-08-01",
+  "measuredAt": "2026-08-26",
   "evidenceMaxAgeSeconds": 21600,
   "assemblies": [
+    {
+      "name": "Doka.Caching.MySql",
+      "minimumLinePercent": 90,
+      "minimumBranchPercent": 85
+    },
     {
       "name": "Doka.EntityFrameworkCore.MySql",
       "minimumLinePercent": 84,

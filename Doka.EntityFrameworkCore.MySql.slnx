@@ -2,8 +2,10 @@
   <Folder Name="/src/">
     <Project Path="src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj" />
     <Project Path="src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj" />
+    <Project Path="src/Doka.Caching.MySql/Doka.Caching.MySql.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Doka.Caching.MySql.RuntimeSmoke/Doka.Caching.MySql.RuntimeSmoke.csproj" />
     <Project Path="tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj" />
     <Project Path="tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Doka.EntityFrameworkCore.MySql.IntegrationTests.csproj" />
     <Project Path="tests/Doka.EntityFrameworkCore.MySql.SpecificationAdapters/SpecificationAdapters.csproj" />

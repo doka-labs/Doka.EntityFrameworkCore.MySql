@@ -2,7 +2,7 @@
 
 # README C# fences are customer-facing source, not illustrative pseudocode.
 # This gate extracts every fence, maps compiler diagnostics back to the README
-# line, and compiles them together against both current provider projects.
+# line, and compiles them together against all current package projects.
 
 set -euo pipefail
 
@@ -11,6 +11,7 @@ readme_file="${repo_root}/README.md"
 runtime_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj"
 spatial_project_root="${repo_root}/src/Doka.EntityFrameworkCore.MySql.NetTopologySuite"
 spatial_project="${spatial_project_root}/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj"
+cache_project="${repo_root}/src/Doka.Caching.MySql/Doka.Caching.MySql.csproj"
 scratch_dir="$(mktemp -d "${TMPDIR:-/tmp}/doka-readme-snippets.XXXXXX")"
 snippet_dir="${scratch_dir}/snippets"
 manifest_file="${scratch_dir}/manifest.tsv"
@@ -76,6 +77,7 @@ cat > "${scratch_dir}/ReadmeSnippets.csproj" <<'EOF'
     <Compile Include="ReadmeSnippets.cs" />
     <ProjectReference Include="$(ProviderProject)" />
     <ProjectReference Include="$(SpatialProject)" />
+    <ProjectReference Include="$(CacheProject)" />
   </ItemGroup>
 </Project>
 EOF
@@ -85,10 +87,13 @@ using System;
 using System.Data.Common;
 using System.Linq;
 using System.Text.Json.Nodes;
+using System.Threading;
 using System.Threading.Tasks;
+using Doka.Caching.MySql;
 using Doka.EntityFrameworkCore.MySql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -118,9 +123,9 @@ while IFS=$'\t' read -r snippet_file start_line; do
     snippet_index=$(( snippet_index + 1 ))
     body_file="${scratch_dir}/body-${snippet_index}.cs"
 
-    # Namespace imports belong at compilation-unit scope. `using var` remains
-    # in the body because the capitalized-name pattern matches directives only.
-    sed -E '/^using [A-Z][A-Za-z0-9_.]*;$/d' "${snippet_file}" > "${body_file}"
+    # Blank namespace imports to preserve README line numbers. `using var`
+    # remains because the capitalized-name pattern matches directives only.
+    sed -E 's/^using [A-Z][A-Za-z0-9_.]*;$//' "${snippet_file}" > "${body_file}"
 
     if grep -Eq '^(public|internal|protected|private).*(class|record|struct|interface) ' "${body_file}"; then
         printf '%s\t%s\n' "${body_file}" "${start_line}" >> "${type_manifest_file}"
@@ -129,7 +134,10 @@ while IFS=$'\t' read -r snippet_file start_line; do
 
     {
         echo
-        echo "    private static async Task Snippet${snippet_index}Async()"
+        echo "    private static async Task Snippet${snippet_index}Async("
+        echo "        IDistributedCache cache,"
+        echo "        CancellationToken cancellationToken"
+        echo "    )"
         echo "    {"
         echo "#line ${start_line} \"${readme_file}\""
         sed 's/^/        /' "${body_file}"
@@ -229,7 +237,8 @@ dotnet build "${scratch_dir}/ReadmeSnippets.csproj" \
     --configuration Release \
     -p:ProviderProject="${runtime_project}" \
     -p:SpatialProject="${spatial_project}" \
+    -p:CacheProject="${cache_project}" \
     --tl:off \
     -m:1
 
-echo "Compiled ${snippet_index} README C# snippets against the current provider packages."
+echo "Compiled ${snippet_index} README C# snippets against the current package projects."

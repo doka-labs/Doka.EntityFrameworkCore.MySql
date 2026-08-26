@@ -4,6 +4,33 @@ public sealed class EngineeringToolContractTests
 {
     private static readonly string[] s_auditSources = ["https://api.nuget.org/v3/index.json"];
 
+    [Theory]
+    [InlineData("smoke", "false")]
+    [InlineData("scorecard", "true")]
+    [InlineData("stress", "true")]
+    public void Benchmark_soak_selection_preserves_false_without_aborting_the_runner(
+        string profile,
+        string expected
+    )
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var assignment = File
+            .ReadLines(Path.Combine(repositoryRoot, "eng/performance/benchmark.sh"))
+            .Single(static line => line.StartsWith("soak_required=", StringComparison.Ordinal));
+
+        var result = Run(
+            repositoryRoot,
+            "-c",
+            default,
+            "set -euo pipefail\ncontract=\"$1\"\nprofile=\"$2\"\n" + assignment + "\nprintf '%s\\n' \"$soak_required\"",
+            "benchmark-soak-selection",
+            Path.Combine(repositoryRoot, "benchmarks/performance-contract.json"),
+            profile);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal(expected, result.StandardOutput.Trim());
+    }
+
     [Fact]
     public void Dotnet_guard_accepts_only_the_exact_repository_SDK()
     {
