@@ -91,8 +91,8 @@ internal sealed class MySqlCacheSql
 
         // Read candidates without locks, then acquire primary records before changing their expiration-index entries.
         DeleteExpiredPrefix = $"""
-                               DELETE cache_entry FROM {qualifiedTableName} AS cache_entry FORCE INDEX (PRIMARY)
-                               WHERE cache_entry.`ExpiresAtUtc` <= UTC_TIMESTAMP(6) AND (
+                               DELETE {qualifiedTableName} FROM {qualifiedTableName} FORCE INDEX (PRIMARY)
+                               WHERE {qualifiedTableName}.`ExpiresAtUtc` <= UTC_TIMESTAMP(6) AND (
                                """;
     }
 

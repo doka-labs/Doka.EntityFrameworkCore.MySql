@@ -39,7 +39,8 @@ public static class MySqlCacheServiceCollectionExtensions
         services.TryAddSingleton(static provider => new MySqlDistributedCache(
             provider.GetRequiredService<IOptions<MySqlCacheOptions>>(),
             provider.GetService<ILogger<MySqlDistributedCache>>()
-            ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<MySqlDistributedCache>.Instance));
+            ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<MySqlDistributedCache>.Instance,
+            provider.GetService<TimeProvider>()));
 
         services.Remove(s_cacheRegistration);
         services.Remove(s_bufferCacheRegistration);

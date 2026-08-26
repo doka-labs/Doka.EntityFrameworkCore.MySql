@@ -3,6 +3,16 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlCacheCleanupIntegrationTests
 {
+    [Fact]
+    public async Task Registered_time_provider_controls_public_DI_cleanup_schedule()
+    {
+        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
+        {
+            await AssertPublicDiCleanupScheduleAsync(target)
+                .ConfigureAwait(true);
+        }
+    }
+
     [Theory]
     [InlineData(false, 2, false)]
     [InlineData(true, 2, false)]
@@ -124,6 +134,99 @@ public sealed class MySqlCacheCleanupIntegrationTests
         }
 
         Assert.Empty(logger.Entries);
+    }
+
+    private static async Task AssertPublicDiCleanupScheduleAsync(
+        IntegrationDatabaseTarget target
+    )
+    {
+        await using var store = await CacheIntegrationStore
+            .CreateAsync(target)
+            .ConfigureAwait(false);
+
+        await store
+            .ExecuteAsync(MySqlCacheSchema.GetCreateScript(store.SchemaName, store.TableName))
+            .ConfigureAwait(false);
+
+        await store
+            .InsertExpiredEntriesAsync(1006)
+            .ConfigureAwait(false);
+
+        var time = new CacheManualTimeProvider();
+        var cacheConnectionString = new MySqlConnectionStringBuilder(store.ConnectionString)
+        {
+            Database = string.Empty,
+        }.ConnectionString;
+
+        var services = new ServiceCollection();
+        services.AddSingleton<TimeProvider>(time);
+        services.AddDistributedMySqlCache(options =>
+        {
+            options.ConnectionString = cacheConnectionString;
+            options.SchemaName = store.SchemaName;
+            options.TableName = store.TableName;
+            options.ExpiredItemsDeletionInterval = TimeSpan.FromMinutes(5);
+        });
+
+        await using var provider = services.BuildServiceProvider();
+        var cache = provider.GetRequiredService<IBufferDistributedCache>();
+
+        await cache
+            .SetAsync(
+                "live",
+                [1],
+                new DistributedCacheEntryOptions(),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        await cache
+            .SetAsync(
+                "expired-0",
+                [2],
+                new DistributedCacheEntryOptions(),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.Equal(
+            1005L,
+            await store
+                .CountExpiredAsync()
+                .ConfigureAwait(false));
+
+        time.Advance(TimeSpan.FromMinutes(5));
+
+        // WHY: The public synchronous contract must consume the first bounded cleanup batch.
+        // ReSharper disable once MethodHasAsyncOverload
+        Assert.Null(cache.Get("cleanup-miss"));
+
+        Assert.Equal(
+            5L,
+            await store
+                .CountExpiredAsync()
+                .ConfigureAwait(false));
+
+        Assert.Null(
+            await cache
+                .GetAsync("cleanup-miss", CancellationToken.None)
+                .ConfigureAwait(false));
+
+        Assert.Equal(
+            0L,
+            await store
+                .CountExpiredAsync()
+                .ConfigureAwait(false));
+
+        Assert.Equal(
+            new byte[] { 1 },
+            await cache
+                .GetAsync("live", CancellationToken.None)
+                .ConfigureAwait(false));
+
+        Assert.Equal(
+            new byte[] { 2 },
+            await cache
+                .GetAsync("expired-0", CancellationToken.None)
+                .ConfigureAwait(false));
     }
 
     private static async Task AssertConcurrentUpsertAsync(

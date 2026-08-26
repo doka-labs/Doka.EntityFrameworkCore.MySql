@@ -339,8 +339,9 @@ internal sealed class MySqlCacheDatabaseOperations
 
             var parameterName = "@key" + index.ToString(CultureInfo.InvariantCulture);
             sql
-                .Append("cache_entry.`Id` = ")
+                .Append("`Id` = ")
                 .Append(parameterName);
+
             command.Parameters.Add(parameterName, MySqlDbType.VarBinary).Value = candidates[index];
         }
 

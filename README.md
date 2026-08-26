@@ -1,10 +1,10 @@
 # Doka.EntityFrameworkCore.MySql
 
 [![CI](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/workflows/ci.yml/badge.svg)](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/workflows/ci.yml)
-[![NuGet](https://img.shields.io/nuget/v/Doka.EntityFrameworkCore.MySql.svg)](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql)
-[![NuGet NetTopologySuite](https://img.shields.io/nuget/v/Doka.EntityFrameworkCore.MySql.NetTopologySuite.svg)](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql.NetTopologySuite)
+[![NuGet MySQL / MariaDB](https://img.shields.io/nuget/v/Doka.EntityFrameworkCore.MySql.svg?label=NuGet%20MySQL%20%2F%20MariaDB)](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql)
+[![NuGet NetTopologySuite](https://img.shields.io/nuget/v/Doka.EntityFrameworkCore.MySql.NetTopologySuite.svg?label=NuGet%20NetTopologySuite)](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql.NetTopologySuite)
 [![NuGet Caching](https://img.shields.io/nuget/vpre/Doka.Caching.MySql.svg?label=NuGet%20Caching)](https://www.nuget.org/packages/Doka.Caching.MySql)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/doka-labs/Doka.EntityFrameworkCore.MySql/badge)](https://scorecard.dev/viewer/?uri=github.com/doka-labs/Doka.EntityFrameworkCore.MySql)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13999/badge)](https://www.bestpractices.dev/projects/13999)
 
@@ -66,14 +66,14 @@ or NuGet.org package page.
 Pin the candidate version explicitly to test the new 10.1.0 provider APIs:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.0-rc.1
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.0-rc.2
 ```
 
 Add the optional packages only when needed, using the same candidate version:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.0-rc.1
-dotnet package add Doka.Caching.MySql --version 10.1.0-rc.1
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.0-rc.2
+dotnet package add Doka.Caching.MySql --version 10.1.0-rc.2
 ```
 
 The cache can be used on its own without the EF Core provider. The RC is for
@@ -312,7 +312,7 @@ package: neither the EF Core provider nor a `DbContext` is required.
 Install the release candidate explicitly:
 
 ```bash
-dotnet package add Doka.Caching.MySql --version 10.1.0-rc.1
+dotnet package add Doka.Caching.MySql --version 10.1.0-rc.2
 ```
 
 First, generate the cache table script for an existing database:
