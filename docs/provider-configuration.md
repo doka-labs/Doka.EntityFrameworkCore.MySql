@@ -37,8 +37,8 @@ options.UseMySql(
 | `AutoDetect(string connectionString)` | Creates one temporary `MySqlConnection`, opens it synchronously once, reads the version, and disposes it on success or failure. |
 | `AutoDetect(DbConnection)` | Reads the supplied connection's `ServerVersion`; does not open or dispose the caller-owned connection. Open it before detection. |
 
-The connection-string overload is part of
-[Unreleased](../CHANGELOG.md#unreleased), not the published `10.0.0` package:
+The connection-string overload is introduced in
+[10.1.0-rc.1](../CHANGELOG.md#1010-rc1---2026-08-26), not the `10.0.0` package:
 
 ```csharp
 var serverVersion = MySqlServerVersion.AutoDetect(connectionString);

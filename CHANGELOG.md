@@ -7,6 +7,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.1.0-rc.1] - 2026-08-26
+
+First release candidate for 10.1.0, adding connection-string server discovery,
+generic scalar `LIKE`, and the standalone MySQL distributed cache. The minor
+version reflects additive Doka features; the supported .NET, EF Core,
+MySqlConnector, and database release lines remain unchanged.
+
+Install the candidate explicitly to test the published packages rather than
+project references. Add the spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.0-rc.1
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.0-rc.1
+dotnet package add Doka.Caching.MySql --version 10.1.0-rc.1
+```
+
+The cache can be installed independently of the EF Core provider. This is a
+prerelease for consumer validation, not a stable release. New public API
+declarations remain in `PublicAPI.Unshipped.txt` until stable preparation.
+
 ### Added
 
 - Add `MySqlServerVersion.AutoDetect(string)` for connection-string-only
@@ -29,6 +49,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Guard parallel sliding-cache reads with a same-run timing ratio and
   engine-specific budgets alongside the existing allocation limit. Document
   separate-table rollout and rollback for future incompatible cache schemas.
+- Include the standalone cache in package validation, dependency auditing,
+  SBOM generation, provenance, and isolated local-package and NuGet readback.
+  Execute its ordinary, fully trimmed, and NativeAOT runtime checks as part of
+  the existing release-qualification path.
 
 ### Fixed
 
@@ -36,6 +60,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   mapping. Preserve the GUID converter for text-mapped constants, parameters,
   and server-generated `Guid.NewGuid()` values; reject unsupported GUID text
   conversions instead of silently generating incorrect values.
+- Wait for process readiness in deadline signal tests before exercising
+  termination forwarding and forced cleanup.
 
 ## [10.0.0] - 2026-08-24
 
@@ -852,7 +878,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.0.0...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.1.0-rc.1...HEAD
+[10.1.0-rc.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.0-rc.1
 [10.0.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0
 [10.0.0-rc.13]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.13
 [10.0.0-rc.12]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0-rc.12

@@ -7,8 +7,8 @@ authoritative in [Release Governance](../release-governance.md).
 The current release package set is `Doka.EntityFrameworkCore.MySql`,
 `Doka.EntityFrameworkCore.MySql.NetTopologySuite`, and `Doka.Caching.MySql` at
 one version: three primary packages and three symbol packages. The cache is
-part of the current [Unreleased](../../CHANGELOG.md#unreleased) changes, not a
-retroactive addition to older two-package releases.
+introduced in [10.1.0-rc.1](../../CHANGELOG.md#1010-rc1---2026-08-26), not
+retroactively added to older two-package releases.
 
 ## One-time configuration
 

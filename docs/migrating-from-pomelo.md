@@ -6,9 +6,9 @@ that every application migrates without changes. New, reproducible findings
 can extend it without blocking the already documented paths.
 
 The connection-string `AutoDetect`, scalar `Like<T>`, and `Doka.Caching.MySql`
-features described here are part of [Unreleased](../CHANGELOG.md#unreleased),
-not the published `10.0.0` packages. Use a build containing these additions
-until a release includes them.
+features described here are introduced in
+[10.1.0-rc.1](../CHANGELOG.md#1010-rc1---2026-08-26), not the `10.0.0` packages.
+Use the explicit candidate version while validating the migration.
 
 ## Scope and Preparation
 
@@ -18,7 +18,14 @@ and applied migration IDs before editing generated files. Work against a
 disposable database or a restored copy, not production.
 
 Replace the `Pomelo.EntityFrameworkCore.MySql` package reference with
-`Doka.EntityFrameworkCore.MySql` and remove Pomelo namespaces. Use:
+`Doka.EntityFrameworkCore.MySql` and remove Pomelo namespaces. Install the
+candidate package:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.0-rc.1
+```
+
+Use:
 
 ```csharp
 using Doka.EntityFrameworkCore.MySql;
