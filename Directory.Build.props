@@ -71,7 +71,7 @@
     -->
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Doka.EntityFrameworkCore.MySql' OR '$(MSBuildProjectName)' == 'Doka.EntityFrameworkCore.MySql.NetTopologySuite'">
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Doka.EntityFrameworkCore.MySql' OR '$(MSBuildProjectName)' == 'Doka.EntityFrameworkCore.MySql.NetTopologySuite' OR '$(MSBuildProjectName)' == 'Doka.Caching.MySql'">
     <!-- The package targets discover PublicAPI.*.txt automatically; duplicate
          AdditionalFiles entries make Roslyn workspaces report loader warnings. -->
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers">

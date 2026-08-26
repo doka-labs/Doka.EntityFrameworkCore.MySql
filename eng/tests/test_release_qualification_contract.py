@@ -129,7 +129,8 @@ class QualificationChain:
     def write_packages(self) -> None:
         """Write the payload the manifest inventory binds."""
         for name in ("Doka.EntityFrameworkCore.MySql.10.0.0.nupkg",
-                     "Doka.EntityFrameworkCore.MySql.NetTopologySuite.10.0.0.nupkg"):
+                     "Doka.EntityFrameworkCore.MySql.NetTopologySuite.10.0.0.nupkg",
+                     "Doka.Caching.MySql.10.0.0.nupkg"):
             (self.packages / name).write_bytes(name.encode("utf-8"))
 
     def complete(self) -> None:

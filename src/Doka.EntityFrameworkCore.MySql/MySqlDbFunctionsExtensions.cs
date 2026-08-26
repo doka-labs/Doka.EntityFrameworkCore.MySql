@@ -6,6 +6,47 @@ namespace Doka.EntityFrameworkCore.MySql;
 public static class MySqlDbFunctionsExtensions
 {
     /// <summary>
+    /// Translates a supported scalar value to the MySQL <c>LIKE</c> operator.
+    /// </summary>
+    /// <typeparam name="T">The scalar value type.</typeparam>
+    /// <param name="functions">The <see cref="DbFunctions"/> instance.</param>
+    /// <param name="matchExpression">The value to match.</param>
+    /// <param name="pattern">The pattern, including any <c>%</c> or <c>_</c> wildcards.</param>
+    /// <returns><c>true</c> if the value matches the pattern.</returns>
+    /// <remarks>
+    /// Supported types are strings, numeric CLR types, <see cref="DateTime"/>,
+    /// <see cref="Guid"/>, and their nullable value-type forms. This method has
+    /// no in-memory implementation and may only be used in EF Core queries.
+    /// </remarks>
+    public static bool Like<T>(
+        this DbFunctions functions,
+        T matchExpression,
+        string? pattern
+    ) => throw new InvalidOperationException("This method is for use with EF Core LINQ queries only.");
+
+    /// <summary>
+    /// Translates a supported scalar value to the MySQL <c>LIKE</c> operator
+    /// with an explicit escape character.
+    /// </summary>
+    /// <typeparam name="T">The scalar value type.</typeparam>
+    /// <param name="functions">The <see cref="DbFunctions"/> instance.</param>
+    /// <param name="matchExpression">The value to match.</param>
+    /// <param name="pattern">The pattern, including any <c>%</c> or <c>_</c> wildcards.</param>
+    /// <param name="escapeCharacter">The character used to escape wildcard characters.</param>
+    /// <returns><c>true</c> if the value matches the pattern.</returns>
+    /// <remarks>
+    /// Supported types are strings, numeric CLR types, <see cref="DateTime"/>,
+    /// <see cref="Guid"/>, and their nullable value-type forms. This method has
+    /// no in-memory implementation and may only be used in EF Core queries.
+    /// </remarks>
+    public static bool Like<T>(
+        this DbFunctions functions,
+        T matchExpression,
+        string? pattern,
+        string? escapeCharacter
+    ) => throw new InvalidOperationException("This method is for use with EF Core LINQ queries only.");
+
+    /// <summary>
     /// Translates to <c>REGEXP_LIKE(input, pattern)</c> on MySQL 8.0+ or
     /// <c>input REGEXP pattern</c> on MariaDB.
     /// </summary>

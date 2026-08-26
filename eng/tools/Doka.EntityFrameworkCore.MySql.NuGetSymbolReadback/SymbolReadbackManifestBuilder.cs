@@ -8,12 +8,14 @@ internal static class SymbolReadbackManifestBuilder
 {
     private const string ProviderPackageId = "Doka.EntityFrameworkCore.MySql";
     private const string SpatialPackageId = "Doka.EntityFrameworkCore.MySql.NetTopologySuite";
+    private const string CachePackageId = "Doka.Caching.MySql";
     private const string SymbolServer = "https://symbols.nuget.org/download/symbols";
 
     private static readonly string[] s_packageIds =
     [
         ProviderPackageId,
         SpatialPackageId,
+        CachePackageId,
     ];
 
     /// <summary>

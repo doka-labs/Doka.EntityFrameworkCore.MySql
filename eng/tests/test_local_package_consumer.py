@@ -18,6 +18,7 @@ class LocalPackageConsumerTests(unittest.TestCase):
     _VERSION = "10.0.0-test.1"
     _PROVIDER_ID = "Doka.EntityFrameworkCore.MySql"
     _SPATIAL_ID = "Doka.EntityFrameworkCore.MySql.NetTopologySuite"
+    _CACHE_ID = "Doka.Caching.MySql"
 
     def setUp(self) -> None:
         """Create candidate packages and a deterministic dotnet test double."""
@@ -38,6 +39,7 @@ class LocalPackageConsumerTests(unittest.TestCase):
         (self.packages / f"{self._SPATIAL_ID}.{self._VERSION}.nupkg").write_bytes(
             b"spatial-candidate-bytes\n"
         )
+        (self.packages / f"{self._CACHE_ID}.{self._VERSION}.nupkg").write_bytes(b"cache-candidate-bytes\n")
         self._write_fake_dotnet()
 
     def tearDown(self) -> None:
@@ -75,7 +77,22 @@ class LocalPackageConsumerTests(unittest.TestCase):
         )
         self.assertEqual(0, evidence["projectReferences"])
         self.assertEqual(self._VERSION, evidence["releaseVersion"])
-        self.assertEqual(2, len(evidence["packages"]))
+        self.assertEqual(3, len(evidence["packages"]))
+        self.assertEqual("pass", evidence["cacheRegistration"])
+        self.assertEqual(0, evidence["cacheEfCoreDependencies"])
+
+    def test_rejects_a_cache_consumer_with_an_ef_core_dependency(self) -> None:
+        """The standalone package must not be validated inside an EF graph."""
+        result = self._run_gate(tamper=False, inject_ef=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse((self.evidence / "local-package-consumer.json").exists())
+
+    def test_rejects_changed_cache_package_bytes(self) -> None:
+        """A successful provider restore cannot hide stale cache bytes."""
+        result = self._run_gate(tamper=False, tamper_cache=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("did not restore the exact candidate package bytes", result.stderr)
+        self.assertFalse((self.evidence / "local-package-consumer.json").exists())
 
     def test_rejects_restored_package_bytes_that_do_not_match_candidate(self) -> None:
         """Reject a remote or stale package masquerading as the candidate version."""
@@ -88,12 +105,16 @@ class LocalPackageConsumerTests(unittest.TestCase):
         )
         self.assertFalse((self.evidence / "local-package-consumer.json").exists())
 
-    def _run_gate(self, *, tamper: bool) -> subprocess.CompletedProcess[str]:
+    def _run_gate(
+        self, *, tamper: bool, inject_ef: bool = False, tamper_cache: bool = False
+    ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment.update(
             {
                 "DOKA_TEST_PACKAGES_DIR": str(self.packages),
                 "DOKA_TEST_TAMPER": "1" if tamper else "0",
+                "DOKA_TEST_INJECT_EF": "1" if inject_ef else "0",
+                "DOKA_TEST_TAMPER_CACHE": "1" if tamper_cache else "0",
                 "DOKA_TEST_VERSION": self._VERSION,
                 "PATH": f"{self.bin_directory}{os.pathsep}{environment['PATH']}",
             }
@@ -140,7 +161,7 @@ class LocalPackageConsumerTests(unittest.TestCase):
                 fi
 
                 if [[ "${{1:-}}" == "run" ]]; then
-                    if [[ " $* " != *" --migration-handler-only "* ]]; then
+                    if [[ " $* " != *" --migration-handler-only "* && " $* " != *" --registration-only "* ]]; then
                         printf 'The package consumer did not request the handler dispatch.\n' >&2
                         exit 65
                     fi
@@ -154,6 +175,23 @@ class LocalPackageConsumerTests(unittest.TestCase):
                 fi
 
                 consumer_root="$(dirname "$2")"
+                if [[ "$2" == *"CacheConsumer.csproj" ]]; then
+                    cache_id='doka.caching.mysql'
+                    cache_source="${{DOKA_TEST_PACKAGES_DIR}}/Doka.Caching.MySql.${{DOKA_TEST_VERSION}}.nupkg"
+                    cache_target="${{NUGET_PACKAGES}}/${{cache_id}}/${{DOKA_TEST_VERSION}}/${{cache_id}}.${{DOKA_TEST_VERSION}}.nupkg"
+                    mkdir -p "${{consumer_root}}/obj" "$(dirname "${{cache_target}}")"
+                    cp "${{cache_source}}" "${{cache_target}}"
+                    if [[ "${{DOKA_TEST_TAMPER_CACHE}}" == "1" ]]; then
+                        printf 'different-cache-source\\n' >> "${{cache_target}}"
+                    fi
+                    extra_library=""
+                    if [[ "${{DOKA_TEST_INJECT_EF}}" == "1" ]]; then
+                        extra_library=',"Microsoft.EntityFrameworkCore/10.0.11":{{"type":"package"}}'
+                    fi
+                    printf '{{"libraries":{{"Doka.Caching.MySql/%s":{{"type":"package"}}%s}}}}\\n' \\
+                        "${{DOKA_TEST_VERSION}}" "${{extra_library}}" > "${{consumer_root}}/obj/project.assets.json"
+                    exit 0
+                fi
                 provider_id='doka.entityframeworkcore.mysql'
                 spatial_id='doka.entityframeworkcore.mysql.nettopologysuite'
                 provider_source="${{DOKA_TEST_PACKAGES_DIR}}/Doka.EntityFrameworkCore.MySql.${{DOKA_TEST_VERSION}}.nupkg"

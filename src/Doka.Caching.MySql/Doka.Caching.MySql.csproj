@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Doka.Caching.MySql</AssemblyName>
+    <RootNamespace>Doka.Caching.MySql</RootNamespace>
+    <PackageId>Doka.Caching.MySql</PackageId>
+    <Title>Doka.Caching.MySql</Title>
+    <Description>Production-grade .NET distributed cache for MySQL and MariaDB with IDistributedCache and allocation-aware IBufferDistributedCache support.</Description>
+    <PackageTags>dotnet;aspnetcore;caching;distributed-cache;mysql;mariadb</PackageTags>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="MySqlConnector" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Doka.EntityFrameworkCore.MySql.Tests" />
+    <InternalsVisibleTo Include="Doka.EntityFrameworkCore.MySql.IntegrationTests" />
+    <InternalsVisibleTo Include="Doka.EntityFrameworkCore.MySql.Benchmarks" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

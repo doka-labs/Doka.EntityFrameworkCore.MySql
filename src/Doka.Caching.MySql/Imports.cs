@@ -1,0 +1,17 @@
+global using System;
+global using System.Buffers;
+global using System.Buffers.Binary;
+global using System.Collections.Generic;
+global using System.Data;
+global using System.Globalization;
+global using System.IO;
+global using System.Security.Cryptography;
+global using System.Text;
+global using System.Threading;
+global using System.Threading.Tasks;
+global using Microsoft.Extensions.Caching.Distributed;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.DependencyInjection.Extensions;
+global using Microsoft.Extensions.Logging;
+global using Microsoft.Extensions.Options;
+global using MySqlConnector;

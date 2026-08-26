@@ -27,6 +27,7 @@
     <ProjectReference Include="../../eng/tools/Doka.EntityFrameworkCore.MySql.RepositoryContract/Doka.EntityFrameworkCore.MySql.RepositoryContract.csproj" />
     <ProjectReference Include="../../eng/tools/Doka.EntityFrameworkCore.MySql.SpecificationContract/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj" />
     <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj" />
+    <ProjectReference Include="../../src/Doka.Caching.MySql/Doka.Caching.MySql.csproj" />
     <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj" />
     <ProjectReference Include="../../tests/Doka.EntityFrameworkCore.MySql.TestUtilities/Doka.EntityFrameworkCore.MySql.TestUtilities.csproj" />
   </ItemGroup>

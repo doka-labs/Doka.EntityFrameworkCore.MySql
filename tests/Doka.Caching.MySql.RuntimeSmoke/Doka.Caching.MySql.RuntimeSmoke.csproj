@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Doka.Caching.MySql.RuntimeSmoke</AssemblyName>
+    <RootNamespace>Doka.Caching.MySql.RuntimeSmoke</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../src/Doka.Caching.MySql/Doka.Caching.MySql.csproj" />
+  </ItemGroup>
+</Project>

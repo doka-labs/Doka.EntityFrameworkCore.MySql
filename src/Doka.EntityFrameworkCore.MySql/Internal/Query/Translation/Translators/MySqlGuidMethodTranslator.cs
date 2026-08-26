@@ -1,8 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Translates GUID generation and binary GUID formatting without routing the
-/// provider's <c>BINARY(16)</c> representation through a text cast.
+/// Translates GUID generation and formatting according to the mapped binary
+/// or textual storage representation.
 /// </summary>
 internal sealed class MySqlGuidMethodTranslator : IMethodCallTranslator
 {
@@ -15,15 +15,18 @@ internal sealed class MySqlGuidMethodTranslator : IMethodCallTranslator
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly RelationalTypeMapping _guidTypeMapping;
     private readonly RelationalTypeMapping _stringTypeMapping;
+    private readonly MySqlGuidTextExpressionFactory _guidTextExpressionFactory;
 
     public MySqlGuidMethodTranslator(
         ISqlExpressionFactory sqlExpressionFactory,
-        IRelationalTypeMappingSource typeMappingSource
+        IRelationalTypeMappingSource typeMappingSource,
+        MySqlGuidTextExpressionFactory guidTextExpressionFactory
     )
     {
         _sqlExpressionFactory = sqlExpressionFactory;
         _guidTypeMapping = MySqlTranslationTypeMapping.GetRequired(typeMappingSource, typeof(Guid));
         _stringTypeMapping = MySqlTranslationTypeMapping.GetRequired(typeMappingSource, typeof(string));
+        _guidTextExpressionFactory = guidTextExpressionFactory;
     }
 
     /// <inheritdoc />
@@ -36,6 +39,17 @@ internal sealed class MySqlGuidMethodTranslator : IMethodCallTranslator
     {
         if (method == s_newGuidMethod)
         {
+            if (_guidTypeMapping.Converter is GuidToStringConverter)
+            {
+                return _sqlExpressionFactory.Function(
+                    "UUID",
+                    Array.Empty<SqlExpression>(),
+                    nullable: false,
+                    argumentsPropagateNullability: Array.Empty<bool>(),
+                    typeof(Guid),
+                    _guidTypeMapping);
+            }
+
             var uuid = _sqlExpressionFactory.Function(
                 "UUID",
                 Array.Empty<SqlExpression>(),
@@ -79,20 +93,6 @@ internal sealed class MySqlGuidMethodTranslator : IMethodCallTranslator
             return null;
         }
 
-        var hex = _sqlExpressionFactory.Function(
-            "HEX",
-            [instance],
-            nullable: true,
-            argumentsPropagateNullability: s_singleArgumentNullPropagation,
-            typeof(string),
-            _stringTypeMapping);
-
-        return _sqlExpressionFactory.Function(
-            MySqlSentinelContract.GetName(MySqlSentinelKind.GuidToString),
-            [hex],
-            nullable: true,
-            argumentsPropagateNullability: s_singleArgumentNullPropagation,
-            typeof(string),
-            _stringTypeMapping);
+        return _guidTextExpressionFactory.Create(instance);
     }
 }

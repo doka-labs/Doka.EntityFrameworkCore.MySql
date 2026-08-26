@@ -30,11 +30,37 @@ options.UseMySql(
 
 `MySqlServerVersion.MySql(...)` and `MariaDb(...)` avoid family inference.
 `Parse(...)` accepts a server version string, including MariaDB's legacy
-`5.5.5-...-MariaDB` prefix. `AutoDetect(DbConnection)` reads the supplied
-connection's `ServerVersion`; it is useful during setup but performs no hidden
-network operation on a closed connection. Unsupported lines fail option
-validation by default. `AllowUnsupported` is an explicit compatibility escape
-hatch, not a support promise; see [Supported Databases](supported-databases.md).
+`5.5.5-...-MariaDB` prefix. Detection has two ownership contracts:
+
+| Entry point | I/O and lifetime |
+| --- | --- |
+| `AutoDetect(string connectionString)` | Creates one temporary `MySqlConnection`, opens it synchronously once, reads the version, and disposes it on success or failure. |
+| `AutoDetect(DbConnection)` | Reads the supplied connection's `ServerVersion`; does not open or dispose the caller-owned connection. Open it before detection. |
+
+The connection-string overload is part of
+[Unreleased](../CHANGELOG.md#unreleased), not the published `10.0.0` package:
+
+```csharp
+var serverVersion = MySqlServerVersion.AutoDetect(connectionString);
+options.UseMySql(connectionString, serverVersion);
+```
+
+Reuse the returned immutable descriptor for an unchanged target rather than
+detecting it every time a context is created. Doka does not cache or log the
+connection string or add discovery retries. The temporary connection forces
+`AutoEnlist=false`, even if the supplied string explicitly enables it, so
+discovery does not join the caller's ambient transaction. Normal provider
+connections and caller-owned detection connections keep their transaction
+behavior. Pooling remains owned by MySqlConnector; the effective connection
+options can select a pool distinct from normal provider connections.
+Connection failures remain observable; detection is not an offline fallback.
+
+`UseMySql(string, ...)` and `AutoDetect(string)` reject null, empty, or
+whitespace input. Detection uses `SupportedOnly`; unsupported lines fail
+provider option validation by default. `AllowUnsupported` remains an explicit
+compatibility escape hatch on the existing descriptor and connection APIs,
+not a support promise. See [Supported Databases](supported-databases.md) and
+[Migrating from Pomelo](migrating-from-pomelo.md) for replacement examples.
 
 ## Context Options
 
@@ -80,6 +106,11 @@ configuration is part of that same contract. Custom migration-operation
 registration is documented in
 [Migration Operation Handlers](migration-operation-handlers.md).
 
+The separate `Doka.Caching.MySql` package registers
+`AddDistributedMySqlCache(...)` without a `DbContext` or provider dependency.
+Its `MySqlCacheOptions`, deployment-time `MySqlCacheSchema.GetCreateScript(...)`,
+and runtime lifetime are owned by [Distributed Cache](distributed-cache.md).
+
 ## Reverse Engineering and Services
 
 `AddEntityFrameworkDokaMySql(...)` registers runtime provider services for
@@ -124,6 +155,9 @@ parameter, literal, migration, and materialization contract together.
 `./eng/test-examples.sh` builds and verifies the public examples. Unit,
 functional, and integration suites pin option validation, metadata precedence,
 generated SQL, reverse engineering, and every supported engine line.
+The server-version unit and driver integration tests cover both detection
+entry points; the connection-string path is exercised against the supported
+MySQL and MariaDB targets.
 
 ## Primary Sources
 
@@ -135,3 +169,8 @@ Retrieved 2026-08-21:
 - [EF Core efficient querying and split queries](https://learn.microsoft.com/ef/core/performance/efficient-querying)
 - [EF Core value generation](https://learn.microsoft.com/ef/core/modeling/generated-properties)
 - [MySqlConnector data sources](https://mysqlconnector.net/overview/)
+
+Retrieved 2026-08-26 for connection-string detection:
+
+- [MySqlConnector connection opening](https://mysqlconnector.net/api/mysqlconnector/mysqlconnection/open/)
+- [MySqlConnector connection reuse](https://mysqlconnector.net/troubleshooting/connection-reuse/)

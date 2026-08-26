@@ -1,13 +1,15 @@
 {
   "schemaVersion": 1,
-  "policyVersion": "2026-08-23.1",
+  "policyVersion": "2026-08-26.1",
   "documentation": [
     "Candidate-produced release gates describe the candidate commit directly.",
     "Repository qualification is imported from the single merged pull request",
     "only when its successful workflow ran for a head commit whose tree is",
     "identical to the candidate tree. Commit ancestry, age, and path classifiers",
     "do not authorize reuse. Performance evidence is produced independently",
-    "for engineering feedback and has no release-qualification authority."
+    "for engineering feedback and has no release-qualification authority.",
+    "Release qualification covers the provider, spatial plugin, and standalone",
+    "Doka.Caching.MySql package, including cache trim and NativeAOT execution."
   ],
   "selectionRule": {
     "version": 1,

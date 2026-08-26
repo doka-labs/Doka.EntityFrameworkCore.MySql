@@ -13,6 +13,7 @@ repository_contract_project="${repo_root}/eng/tools/Doka.EntityFrameworkCore.MyS
 runtime_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj"
 spatial_project_root="${repo_root}/src/Doka.EntityFrameworkCore.MySql.NetTopologySuite"
 spatial_project="${spatial_project_root}/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj"
+cache_project="${repo_root}/src/Doka.Caching.MySql/Doka.Caching.MySql.csproj"
 # Release candidates override this path so the exact audit outputs that passed
 # the shared quality contract are retained inside the immutable evidence root.
 audit_dir="${DOKA_QUALITY_AUDIT_DIR:-${repo_root}/artifacts/ci-audit}"
@@ -134,6 +135,7 @@ audit_project() {
 
 audit_project "${runtime_project}" "runtime"
 audit_project "${spatial_project}" "spatial"
+audit_project "${cache_project}" "cache"
 
 echo "Building standalone example projects..."
 example_build_failed=0

@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from eng.release.evidence import validate_runtime_posture
+from eng.release.evidence import EvidenceError, validate_runtime_posture
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -58,14 +58,16 @@ class RuntimePostureEvidenceChainTests(unittest.TestCase):
 
         commands = self.command_log.read_text(encoding="ascii").splitlines()
         self.assertEqual(
-            ["restore", "restore", "restore", "run", "publish"],
+            ["restore"] * 5 + ["run", "publish", "run", "publish", "publish"],
             [line.split("|", 1)[0] for line in commands],
         )
-        restore_commands = commands[:3]
+        restore_commands = commands[:5]
         expected_lock_names = {
             "Doka.EntityFrameworkCore.MySql.packages.lock.json",
             "Doka.EntityFrameworkCore.MySql.NetTopologySuite.packages.lock.json",
             "Doka.EntityFrameworkCore.MySql.RuntimeSmoke.packages.lock.json",
+            "Doka.Caching.MySql.packages.lock.json",
+            "Doka.Caching.MySql.RuntimeSmoke.packages.lock.json",
         }
         actual_lock_names = set()
         for command in restore_commands:
@@ -81,7 +83,7 @@ class RuntimePostureEvidenceChainTests(unittest.TestCase):
             actual_lock_names.add(Path(lock_argument.split("=", 1)[1]).name)
         self.assertEqual(expected_lock_names, actual_lock_names)
 
-        for command in commands[3:]:
+        for command in commands[5:]:
             with self.subTest(no_restore_command=command):
                 self.assertIn("--no-restore", command.split("|")[1:])
         for command in commands:
@@ -96,6 +98,37 @@ class RuntimePostureEvidenceChainTests(unittest.TestCase):
         }
         self.assertEqual(1, len(artifact_paths))
         self.assertFalse(Path(artifact_paths.pop()).exists())
+
+    def test_release_rejects_missing_cache_aot_execution(self) -> None:
+        """Do not accept provider trimming as proof of the standalone cache."""
+        result = self._run_posture()
+        self.assertEqual(0, result.returncode, result.stderr)
+        path = self._evidence_file()
+        evidence = json.loads(path.read_text(encoding="ascii"))
+        evidence["cache"]["nativeAotExecution"] = "fail"
+        path.write_text(json.dumps(evidence), encoding="ascii")
+
+        with self.assertRaisesRegex(EvidenceError, "standalone cache trim/AOT"):
+            validate_runtime_posture(self.evidence_root, "test-run", SOURCE_COMMIT)
+
+    def test_failed_cache_binary_does_not_produce_passing_evidence(self) -> None:
+        """Fail before evidence if the published native cache executable fails."""
+        result = self._run_posture(fail_cache_aot=True)
+        self.assertEqual(23, result.returncode, result.stderr)
+        self.assertFalse(self._evidence_file().exists())
+
+    def test_stale_cache_binary_is_rejected_before_execution(self) -> None:
+        """Do not reuse a native cache binary from an earlier run."""
+        cache_output = self.publish_directory.parent / "cache-aot"
+        cache_output.mkdir()
+        (cache_output / "Doka.Caching.MySql.RuntimeSmoke").write_bytes(b"old binary")
+
+        result = self._run_posture()
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("Runtime publish directory already contains artifacts", result.stderr)
+        self.assertFalse(self.command_log.exists())
+        self.assertFalse(self._evidence_file().exists())
 
     def test_dirty_source_is_rejected_before_dotnet_executes(self) -> None:
         """Do not let generated evidence relabel an initially dirty tree clean."""
@@ -116,7 +149,9 @@ class RuntimePostureEvidenceChainTests(unittest.TestCase):
         self.assertIn("changed the source tree", result.stderr)
         self.assertFalse(self._evidence_file().exists())
 
-    def _run_posture(self, *, force_dirty_after_publish: bool = False) -> subprocess.CompletedProcess[str]:
+    def _run_posture(
+        self, *, force_dirty_after_publish: bool = False, fail_cache_aot: bool = False
+    ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment.update(
             {
@@ -131,6 +166,7 @@ class RuntimePostureEvidenceChainTests(unittest.TestCase):
                 "DOKA_TEST_FORCE_DIRTY_AFTER_PUBLISH": (
                     "1" if force_dirty_after_publish else "0"
                 ),
+                "DOKA_TEST_FAIL_CACHE_AOT": "1" if fail_cache_aot else "0",
                 "TMPDIR": str(self.root),
             }
         )
@@ -220,6 +256,7 @@ case "${{command_name}}" in
         exit 0
         ;;
     publish)
+        smoke_name="$(basename "$1" .csproj)"
         output=""
         isolated_artifacts=0
         while (( $# > 0 )); do
@@ -242,8 +279,12 @@ case "${{command_name}}" in
             printf 'dirty\n' > "${{DOKA_TEST_GIT_STATE}}"
         fi
         mkdir -p "${{output}}"
-        executable="${{output}}/Doka.EntityFrameworkCore.MySql.RuntimeSmoke"
-        printf '#!/usr/bin/env bash\nexit 0\n' > "${{executable}}"
+        executable="${{output}}/${{smoke_name}}"
+        exit_code=0
+        if [[ "${{output}}" == *"/cache-aot" && "${{DOKA_TEST_FAIL_CACHE_AOT}}" == "1" ]]; then
+            exit_code=23
+        fi
+        printf '#!/usr/bin/env bash\nexit %s\n' "${{exit_code}}" > "${{executable}}"
         chmod +x "${{executable}}"
         ;;
     *)

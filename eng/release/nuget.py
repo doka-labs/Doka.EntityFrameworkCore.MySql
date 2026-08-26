@@ -45,6 +45,12 @@ CANDIDATE_RECEIPT_KIND = "release-candidate-receipt"
 PUBLICATION_RECEIPT_KIND = "release-publication-receipt"
 PROVIDER_PACKAGE_ID = "Doka.EntityFrameworkCore.MySql"
 SPATIAL_PACKAGE_ID = "Doka.EntityFrameworkCore.MySql.NetTopologySuite"
+CACHE_PACKAGE_ID = "Doka.Caching.MySql"
+PACKAGE_IDENTITIES = {
+    "provider": PROVIDER_PACKAGE_ID,
+    "spatial": SPATIAL_PACKAGE_ID,
+    "cache": CACHE_PACKAGE_ID,
+}
 CANDIDATE_WORKFLOW = "release-candidate"
 CANDIDATE_WORKFLOW_PATH = ".github/workflows/release-candidate.yml"
 NUGET_SOURCE = "https://api.nuget.org/v3/index.json"
@@ -178,17 +184,14 @@ def package_file_name(package_id: str, version: str, extension: str) -> str:
 
 
 def package_paths(root: Path, version: str) -> dict[str, dict[str, Path]]:
-    """Resolve the two primary and symbol packages without using globs."""
+    """Resolve the exact primary and symbol packages without using globs."""
     packages = root / "packages"
     return {
-        "provider": {
-            "package": packages / package_file_name(PROVIDER_PACKAGE_ID, version, "nupkg"),
-            "symbols": packages / package_file_name(PROVIDER_PACKAGE_ID, version, "snupkg"),
-        },
-        "spatial": {
-            "package": packages / package_file_name(SPATIAL_PACKAGE_ID, version, "nupkg"),
-            "symbols": packages / package_file_name(SPATIAL_PACKAGE_ID, version, "snupkg"),
-        },
+        role: {
+            "package": packages / package_file_name(package_id, version, "nupkg"),
+            "symbols": packages / package_file_name(package_id, version, "snupkg"),
+        }
+        for role, package_id in PACKAGE_IDENTITIES.items()
     }
 
 
@@ -378,7 +381,7 @@ def validate_package_metadata(
     candidate_root = require_candidate_root(root)
     resolved = package_paths(candidate_root, version)
     result: dict[str, dict[str, str]] = {}
-    for role, package_id in (("provider", PROVIDER_PACKAGE_ID), ("spatial", SPATIAL_PACKAGE_ID)):
+    for role, package_id in PACKAGE_IDENTITIES.items():
         primary = resolved[role]["package"]
         symbols = resolved[role]["symbols"]
         if not primary.is_file() or primary.is_symlink() or not symbols.is_file() or symbols.is_symlink():
@@ -432,6 +435,11 @@ def validate_package_metadata(
                 raise PublicationError(
                     "The spatial package must depend on the exact provider release version."
                 )
+        elif role == "cache" and any(
+            dependency["id"].casefold().startswith(("doka.entityframeworkcore.", "microsoft.entityframeworkcore", "pomelo."))
+            for dependency in metadata["dependencies"]
+        ):
+            raise PublicationError("The cache package must remain independent of EF Core and Pomelo.")
 
     return result
 
@@ -468,7 +476,7 @@ def validate_candidate_receipt(
         raise PublicationError("Candidate receipt identity is invalid.")
 
     packages = receipt.get("packages")
-    expected_roles = {"provider": PROVIDER_PACKAGE_ID, "spatial": SPATIAL_PACKAGE_ID}
+    expected_roles = PACKAGE_IDENTITIES
     if not isinstance(packages, dict) or set(packages) != set(expected_roles):
         raise PublicationError("Candidate receipt package inventory is invalid.")
 
@@ -673,6 +681,8 @@ def prepare_candidate(args: argparse.Namespace) -> None:
             "provider_symbols": str(resolved_packages["provider"]["symbols"]),
             "spatial_package": str(resolved_packages["spatial"]["package"]),
             "spatial_symbols": str(resolved_packages["spatial"]["symbols"]),
+            "cache_package": str(resolved_packages["cache"]["package"]),
+            "cache_symbols": str(resolved_packages["cache"]["symbols"]),
         },
     )
 
@@ -938,7 +948,7 @@ def validated_symbol_entries(
             )
         entries.append(entry)
 
-    expected_ids = {PROVIDER_PACKAGE_ID, SPATIAL_PACKAGE_ID}
+    expected_ids = set(PACKAGE_IDENTITIES.values())
     actual_ids = [entry["packageId"] for entry in entries]
     if len(entries) != len(expected_ids) or set(actual_ids) != expected_ids:
         raise PublicationError(f"Symbol readback package set is invalid: {actual_ids}")
@@ -1037,7 +1047,7 @@ def observe_remote_packages(
     package_base_address: str,
     fetcher: Callable[[str, float], bytes | None] = fetch_remote_package,
     timeout_seconds: float = 30,
-    roles: Sequence[str] = ("provider", "spatial"),
+    roles: Sequence[str] = tuple(PACKAGE_IDENTITIES),
 ) -> tuple[dict[str, dict[str, Any]], dict[str, bytes]]:
     """Classify packages and retain the exact matching bytes observed."""
     version = str(receipt["releaseVersion"])
@@ -1047,14 +1057,11 @@ def observe_remote_packages(
             receipt["packages"][role]["package"],
             f"{role} package",
         )
-        for role in ("provider", "spatial")
+        for role in PACKAGE_IDENTITIES
     }
     states: dict[str, dict[str, Any]] = {}
     payloads: dict[str, bytes] = {}
-    package_ids = {
-        "provider": PROVIDER_PACKAGE_ID,
-        "spatial": SPATIAL_PACKAGE_ID,
-    }
+    package_ids = PACKAGE_IDENTITIES
     for role in roles:
         if role not in package_ids:
             raise PublicationError(f"Unknown NuGet package role '{role}'.")
@@ -1138,8 +1145,10 @@ def preflight(args: argparse.Namespace) -> None:
             for name, state in (
                 ("provider package", states["provider"]),
                 ("spatial package", states["spatial"]),
+                ("cache package", states["cache"]),
                 ("provider symbols", symbols[PROVIDER_PACKAGE_ID]),
                 ("spatial symbols", symbols[SPATIAL_PACKAGE_ID]),
+                ("cache symbols", symbols[CACHE_PACKAGE_ID]),
             )
             if state["status"] != "absent"
         ]
@@ -1171,17 +1180,23 @@ def preflight(args: argparse.Namespace) -> None:
         {
             "provider_published": str(states["provider"]["status"] == "matching").lower(),
             "spatial_published": str(states["spatial"]["status"] == "matching").lower(),
+            "cache_published": str(states["cache"]["status"] == "matching").lower(),
             "provider_symbols_published": str(
                 symbols[PROVIDER_PACKAGE_ID]["status"] == "matching"
             ).lower(),
             "spatial_symbols_published": str(
                 symbols[SPATIAL_PACKAGE_ID]["status"] == "matching"
             ).lower(),
+            "cache_symbols_published": str(
+                symbols[CACHE_PACKAGE_ID]["status"] == "matching"
+            ).lower(),
             "publication_required": str(publication_required).lower(),
             "provider_package": str(package_map["provider"]["package"]),
             "provider_symbols": str(package_map["provider"]["symbols"]),
             "spatial_package": str(package_map["spatial"]["package"]),
             "spatial_symbols": str(package_map["spatial"]["symbols"]),
+            "cache_package": str(package_map["cache"]["package"]),
+            "cache_symbols": str(package_map["cache"]["symbols"]),
         },
     )
 
@@ -1211,7 +1226,7 @@ def readback(args: argparse.Namespace) -> None:
                 )
             pending_roles = tuple(
                 role
-                for role in ("provider", "spatial")
+                for role in PACKAGE_IDENTITIES
                 if states.get(role, {}).get("status") != "matching"
             )
             if pending_roles:
@@ -1241,8 +1256,8 @@ def readback(args: argparse.Namespace) -> None:
             if (
                 all(state["status"] == "matching" for state in states.values())
                 and all(state["status"] == "matching" for state in symbols.values())
-                and len(states) == 2
-                and len(symbols) == 2
+                and len(states) == len(PACKAGE_IDENTITIES)
+                and len(symbols) == len(PACKAGE_IDENTITIES)
             ):
                 break
             pending = [
@@ -1276,7 +1291,7 @@ def readback(args: argparse.Namespace) -> None:
     # bytes retained as evidence. Persisting that same response avoids a second
     # CDN request reintroducing an ordering race after the complete observation
     # has already passed.
-    for role, package_id in (("provider", PROVIDER_PACKAGE_ID), ("spatial", SPATIAL_PACKAGE_ID)):
+    for role, package_id in PACKAGE_IDENTITIES.items():
         remote = package_payloads[role]
         readback_digest = canonical_package_digest(remote)
         if readback_digest != states[role]["candidateContentDigest"]:
@@ -1323,30 +1338,40 @@ def readback(args: argparse.Namespace) -> None:
 
 
 def verify_restore(args: argparse.Namespace) -> None:
-    """Prove the consumer resolved both exact packages only from NuGet.org."""
-    assets = read_json(args.assets.resolve(), "consumer restore assets")
+    """Prove isolated provider and standalone cache restores from NuGet.org."""
     package_cache = args.package_cache.resolve()
     # packageFolders is stronger evidence than environment variables alone: it
     # records where NuGet actually resolved packages for this restore graph.
-    package_folders = [Path(path).resolve() for path in assets.get("packageFolders", {})]
-    if package_folders != [package_cache]:
-        raise PublicationError(
-            f"Consumer restore escaped its isolated package cache: {package_folders}"
-        )
-
-    restore = (assets.get("project") or {}).get("restore") or {}
-    sources = {source.rstrip("/") for source in restore.get("sources", {})}
-    if sources != {NUGET_SOURCE.rstrip("/")}:
-        raise PublicationError(f"Consumer restore used unexpected package sources: {sorted(sources)}")
-
-    libraries = {name.casefold() for name in assets.get("libraries", {})}
-    expected = {
-        f"{PROVIDER_PACKAGE_ID}/{args.version}".casefold(),
-        f"{SPATIAL_PACKAGE_ID}/{args.version}".casefold(),
-    }
-    missing = sorted(expected - libraries)
-    if missing:
-        raise PublicationError(f"Consumer restore did not resolve exact release packages: {missing}")
+    expected: set[str] = set()
+    for path, package_ids in (
+        (args.assets, (PROVIDER_PACKAGE_ID, SPATIAL_PACKAGE_ID)),
+        (args.cache_assets, (CACHE_PACKAGE_ID,)),
+    ):
+        assets = read_json(path.resolve(), "consumer restore assets")
+        package_folders = [Path(folder).resolve() for folder in assets.get("packageFolders", {})]
+        if package_folders != [package_cache]:
+            raise PublicationError(
+                f"Consumer restore escaped its isolated package cache: {package_folders}"
+            )
+        restore = (assets.get("project") or {}).get("restore") or {}
+        sources = {source.rstrip("/") for source in restore.get("sources", {})}
+        if sources != {NUGET_SOURCE.rstrip("/")}:
+            raise PublicationError(f"Consumer restore used unexpected package sources: {sorted(sources)}")
+        libraries = {name.casefold(): entry for name, entry in assets.get("libraries", {}).items()}
+        required = {f"{package_id}/{args.version}".casefold() for package_id in package_ids}
+        expected.update(required)
+        missing = sorted(required - libraries.keys())
+        if missing:
+            raise PublicationError(f"Consumer restore did not resolve exact release packages: {missing}")
+        if any(libraries[name].get("type") != "package" for name in required) or any(
+            entry.get("type") == "project" for entry in libraries.values()
+        ):
+            raise PublicationError("Consumer restore contains project references instead of package bytes.")
+        if package_ids == (CACHE_PACKAGE_ID,) and any(
+            name.startswith(("doka.entityframeworkcore.", "microsoft.entityframeworkcore", "pomelo."))
+            for name in libraries
+        ):
+            raise PublicationError("The standalone cache consumer restored an EF Core or Pomelo dependency.")
 
     receipt = {
         "schemaVersion": SCHEMA_VERSION,
@@ -1360,6 +1385,8 @@ def verify_restore(args: argparse.Namespace) -> None:
         "dotnetSdk": args.dotnet_sdk,
         "engineImage": args.engine_image,
         "runtimeSmoke": "pass",
+        "cacheRuntimeSmoke": "pass",
+        "cacheEfCoreDependencies": 0,
     }
     write_json(args.output.resolve(), receipt)
 
@@ -1426,6 +1453,7 @@ def parse_arguments() -> argparse.Namespace:
         "verify-restore", help="Verify the isolated public-package consumer restore."
     )
     restore.add_argument("--assets", type=Path, required=True)
+    restore.add_argument("--cache-assets", type=Path, required=True)
     restore.add_argument("--package-cache", type=Path, required=True)
     restore.add_argument("--version", required=True)
     restore.add_argument("--release-tag", required=True)

@@ -9,6 +9,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 runtime_smoke_root="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke"
+cache_smoke_root="${repo_root}/tests/Doka.Caching.MySql.RuntimeSmoke"
 project_template="${repo_root}/eng/templates/nuget-readback.csproj"
 compose_file="${repo_root}/docker/compose.yml"
 release_version="${1:-}"
@@ -32,8 +33,8 @@ print_usage() {
 Usage:
   ./eng/testing/test-nuget-readback.sh VERSION TAG COMMIT ENGINE_IMAGE EVIDENCE_DIR [PACKAGE_SOURCE]
 
-Restores both Doka provider packages with an empty cache and runs their
-compiled-model basic and spatial contracts against MySQL 8.4. PACKAGE_SOURCE
+Restores all Doka packages with an empty cache and runs their provider and
+standalone cache contracts against MySQL 8.4. PACKAGE_SOURCE
 defaults to NuGet.org; pass the candidate package directory before publish.
 EOF
 }
@@ -85,10 +86,11 @@ fi
 
 temporary_root="$(mktemp -d)"
 consumer_root="${temporary_root}/consumer"
+cache_consumer_root="${temporary_root}/cache-consumer"
 package_cache="${temporary_root}/packages"
 http_cache="${temporary_root}/http-cache"
 cli_home="${temporary_root}/dotnet-home"
-mkdir -p "${consumer_root}" "${package_cache}" "${http_cache}" "${cli_home}" "${evidence_dir}"
+mkdir -p "${consumer_root}" "${cache_consumer_root}" "${package_cache}" "${http_cache}" "${cli_home}" "${evidence_dir}"
 
 cp "${project_template}" "${consumer_root}/NuGetReadback.csproj"
 # Copy only consumer source into the temporary project. A ProjectReference
@@ -97,6 +99,9 @@ cp "${runtime_smoke_root}/Imports.cs" "${consumer_root}/Imports.cs"
 cp "${runtime_smoke_root}/Program.cs" "${consumer_root}/Program.cs"
 cp "${runtime_smoke_root}/CompiledModelAccessor.cs" "${consumer_root}/CompiledModelAccessor.cs"
 cp -R "${runtime_smoke_root}/CompiledModels" "${consumer_root}/CompiledModels"
+cp "${repo_root}/eng/templates/cache-readback.csproj" "${cache_consumer_root}/CacheConsumer.csproj"
+cp "${cache_smoke_root}/Imports.cs" "${cache_consumer_root}/Imports.cs"
+cp "${cache_smoke_root}/Program.cs" "${cache_consumer_root}/Program.cs"
 
 export DOTNET_CLI_HOME="${cli_home}"
 export NUGET_HTTP_CACHE_PATH="${http_cache}"
@@ -117,10 +122,29 @@ dotnet restore "${consumer_project}" \
     --tl:off \
     -p:DokaPackageVersion="${release_version}"
 
+cache_consumer_project="${cache_consumer_root}/CacheConsumer.csproj"
+dotnet restore "${cache_consumer_project}" \
+    "${restore_sources[@]}" \
+    --packages "${package_cache}" \
+    --force --no-cache --tl:off \
+    -p:DokaPackageVersion="${release_version}"
+dotnet build "${cache_consumer_project}" \
+    --configuration Release --no-restore --tl:off \
+    -p:DokaPackageVersion="${release_version}"
+
+jq -e --arg cacheKey "Doka.Caching.MySql/${release_version}" '
+    .libraries[$cacheKey].type == "package"
+    and all(.libraries | to_entries[];
+      .value.type != "project"
+      and (.key | ascii_downcase | startswith("microsoft.entityframeworkcore") or startswith("doka.entityframeworkcore")
+        or startswith("pomelo.") | not))
+    ' "${cache_consumer_root}/obj/project.assets.json" >/dev/null
+
 if [[ "${package_source}" != "https://api.nuget.org/v3/index.json" ]]; then
     for package_id in \
         "Doka.EntityFrameworkCore.MySql" \
-        "Doka.EntityFrameworkCore.MySql.NetTopologySuite"; do
+        "Doka.EntityFrameworkCore.MySql.NetTopologySuite" \
+        "Doka.Caching.MySql"; do
         package_id_lower="$(printf '%s' "${package_id}" | tr '[:upper:]' '[:lower:]')"
         source_package="${package_source}/${package_id}.${release_version}.nupkg"
         cache_package="${package_cache}/${package_id_lower}/${release_version}/"
@@ -196,9 +220,14 @@ dotnet run \
     --no-restore \
     -p:DokaPackageVersion="${release_version}"
 
+dotnet run --project "${cache_consumer_project}" \
+    --configuration Release --no-build --no-restore \
+    -p:DokaPackageVersion="${release_version}"
+
 if [[ "${package_source}" == "https://api.nuget.org/v3/index.json" ]]; then
     python3 -m eng.release.nuget verify-restore \
         --assets "${consumer_root}/obj/project.assets.json" \
+        --cache-assets "${cache_consumer_root}/obj/project.assets.json" \
         --package-cache "${package_cache}" \
         --version "${release_version}" \
         --release-tag "${release_tag}" \
@@ -225,7 +254,7 @@ else
         --arg dotnetSdk "$(dotnet --version)" \
         --arg engineImage "${actual_engine_image}" \
         '{
-          schemaVersion: 1,
+          schemaVersion: 2,
           kind: "local-package-runtime-qualification",
           verifiedUtc: $verifiedUtc,
           releaseTag: $releaseTag,
@@ -236,7 +265,9 @@ else
           projectReferences: 0,
           dotnetSdk: $dotnetSdk,
           engineImage: $engineImage,
-          runtimeSmoke: "pass"
+          runtimeSmoke: "pass",
+          cacheRuntimeSmoke: "pass",
+          cacheEfCoreDependencies: 0
         }' > "${evidence_dir}/local-package-runtime.json"
 fi
 

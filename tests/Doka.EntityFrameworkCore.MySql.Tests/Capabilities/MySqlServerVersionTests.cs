@@ -125,12 +125,107 @@ public sealed class MySqlServerVersionTests
     [Fact]
     public void AutoDetect_connection_rejects_missing_server_version()
     {
-        var connection = new StubDbConnection(string.Empty);
+        using var connection = new StubDbConnection(string.Empty);
 
         var exception = Assert.Throws<InvalidOperationException>(() => MySqlServerVersion.AutoDetect(connection));
 
         Assert.Equal("The supplied connection did not expose a server version.", exception.Message);
+        Assert.Equal(ConnectionState.Open, connection.State);
+        Assert.False(connection.WasDisposed);
     }
+
+    /// <summary>
+    /// Verifies that both connection overloads reject a closed driver connection
+    /// without opening it or taking ownership of it.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AutoDetect_connection_rejects_closed_driver_connection(
+        bool useExplicitCompatibilityMode
+    )
+    {
+        await using var connection = new MySqlConnection();
+
+        Assert.Throws<InvalidOperationException>(() => useExplicitCompatibilityMode
+            ? MySqlServerVersion.AutoDetect(connection, MySqlServerVersionCompatibilityMode.AllowUnsupported)
+            : MySqlServerVersion.AutoDetect(connection));
+
+        Assert.Equal(ConnectionState.Closed, connection.State);
+        Assert.Throws<InvalidOperationException>(() => connection.ServerVersion);
+    }
+
+    /// <summary>
+    /// Verifies that both connection overloads preserve the caller's open
+    /// connection and the selected compatibility mode.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AutoDetect_connection_preserves_caller_ownership_and_compatibility_mode(
+        bool useExplicitCompatibilityMode
+    )
+    {
+        using var connection = new StubDbConnection("8.4.9");
+
+        var detected = useExplicitCompatibilityMode
+            ? MySqlServerVersion.AutoDetect(connection, MySqlServerVersionCompatibilityMode.AllowUnsupported)
+            : MySqlServerVersion.AutoDetect(connection);
+
+        Assert.Equal(new Version(8, 4, 9), detected.Version);
+        Assert.Equal(
+            useExplicitCompatibilityMode
+                ? MySqlServerVersionCompatibilityMode.AllowUnsupported
+                : MySqlServerVersionCompatibilityMode.SupportedOnly,
+            detected.CompatibilityMode);
+        Assert.Equal(ConnectionState.Open, connection.State);
+        Assert.False(connection.WasDisposed);
+    }
+
+    /// <summary>
+    /// Verifies that both connection overloads reject a missing connection.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AutoDetect_connection_rejects_null(
+        bool useExplicitCompatibilityMode
+    )
+    {
+        var exception = Assert.Throws<ArgumentNullException>(() => useExplicitCompatibilityMode
+            ? MySqlServerVersion.AutoDetect(null!, MySqlServerVersionCompatibilityMode.AllowUnsupported)
+            : MySqlServerVersion.AutoDetect((DbConnection)null!));
+
+        Assert.Equal("connection", exception.ParamName);
+    }
+
+    /// <summary>
+    /// Verifies that connection-string auto-detection rejects unusable input
+    /// before constructing or opening a connection.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AutoDetect_connection_string_rejects_missing_input(
+        string? connectionString
+    )
+    {
+        var exception = Assert.ThrowsAny<ArgumentException>(() => MySqlServerVersion.AutoDetect(connectionString!));
+
+        Assert.Equal("connectionString", exception.ParamName);
+    }
+
+    /// <summary>
+    /// Verifies that malformed connection options fail before network I/O.
+    /// </summary>
+    [Theory]
+    [InlineData("this is not a connection string")]
+    [InlineData("Server=localhost;UnsupportedDokaOption=true")]
+    [InlineData("Server=localhost;Port=not-a-number")]
+    public void AutoDetect_connection_string_rejects_malformed_options(
+        string connectionString
+    ) => Assert.ThrowsAny<ArgumentException>(() => MySqlServerVersion.AutoDetect(connectionString));
 
     /// <summary>
     /// Verifies every support-policy boundary by release line rather than patch.
@@ -278,6 +373,8 @@ public sealed class MySqlServerVersionTests
 
     private sealed class StubDbConnection : DbConnection
     {
+        private ConnectionState _state = ConnectionState.Open;
+
         public StubDbConnection(
             string serverVersion
         )
@@ -286,6 +383,8 @@ public sealed class MySqlServerVersionTests
         }
 
         private string ServerVersionValue { get; }
+
+        public bool WasDisposed { get; private set; }
 
         [AllowNull]
         public override string ConnectionString { get; set; } = string.Empty;
@@ -296,13 +395,13 @@ public sealed class MySqlServerVersionTests
 
         public override string ServerVersion => ServerVersionValue;
 
-        public override ConnectionState State => ConnectionState.Closed;
+        public override ConnectionState State => _state;
 
         public override void ChangeDatabase(
             string databaseName
         ) => throw new NotSupportedException();
 
-        public override void Close() { }
+        public override void Close() => _state = ConnectionState.Closed;
 
         public override void Open() => throw new NotSupportedException();
 
@@ -311,5 +410,14 @@ public sealed class MySqlServerVersionTests
         ) => throw new NotSupportedException();
 
         protected override DbCommand CreateDbCommand() => throw new NotSupportedException();
+
+        protected override void Dispose(
+            bool disposing
+        )
+        {
+            WasDisposed = true;
+
+            base.Dispose(disposing);
+        }
     }
 }

@@ -166,6 +166,12 @@ NuGet credentials, digest-bound manifests, exact asset reconciliation,
 portable SLSA bundles, isolated package consumer execution, and fail-closed
 duplicate handling.
 
+The current package set includes the provider, spatial extension, and
+`Doka.Caching.MySql`. Each contributes its locked/audited dependency graph to
+the SBOM and its package/symbol bytes to provenance and public readback. The
+cache-only package consumer also rejects EF Core and Pomelo dependencies;
+success of the provider consumer is not evidence for that isolated graph.
+
 **Common weaknesses countered.** Artifact substitution, stale evidence reuse,
 tag movement, workflow impersonation, partial publication ambiguity, mutable
 release assets, and a dependency-confusion restore during consumer testing.

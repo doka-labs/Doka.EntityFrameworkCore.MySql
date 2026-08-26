@@ -628,6 +628,25 @@ jobs:
           dotnet nuget push "${PACKAGE}" \
             --source https://api.nuget.org/v3/index.json --skip-duplicate --timeout 300
 
+      - name: Publish cache package
+        if: steps.preflight.outputs.cache_published != 'true'
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          PACKAGE: ${{ steps.preflight.outputs.cache_package }}
+        run: |
+          dotnet nuget push "${PACKAGE}" \
+            --source https://api.nuget.org/v3/index.json --no-symbols \
+            --skip-duplicate --timeout 300
+
+      - name: Publish cache symbols
+        if: steps.preflight.outputs.cache_symbols_published != 'true'
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          PACKAGE: ${{ steps.preflight.outputs.cache_symbols }}
+        run: |
+          dotnet nuget push "${PACKAGE}" \
+            --source https://api.nuget.org/v3/index.json --skip-duplicate --timeout 300
+
       - name: Publish and read back immutable GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

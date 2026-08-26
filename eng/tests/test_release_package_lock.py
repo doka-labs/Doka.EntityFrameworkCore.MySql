@@ -37,6 +37,7 @@ class ReleasePackageLockTests(unittest.TestCase):
             / "src"
             / "Doka.EntityFrameworkCore.MySql.NetTopologySuite"
             / "packages.lock.json",
+            self.repository_root / "src" / "Doka.Caching.MySql" / "packages.lock.json",
         )
 
     def test_candidate_package_restores_use_locked_mode(self) -> None:
@@ -50,8 +51,8 @@ class ReleasePackageLockTests(unittest.TestCase):
             run_pack,
         )
 
-    def test_shared_gate_restores_both_shipped_projects_in_locked_mode(self) -> None:
-        """Fail every qualification path when either closure has drifted."""
+    def test_shared_gate_restores_all_shipped_projects_in_locked_mode(self) -> None:
+        """Fail every qualification path when a shipped closure has drifted."""
         self.assertIn(
             'dotnet restore "${runtime_project}" --locked-mode --tl:off',
             self.lock_gate,
@@ -60,7 +61,8 @@ class ReleasePackageLockTests(unittest.TestCase):
             'dotnet restore "${spatial_project}" --locked-mode --tl:off',
             self.lock_gate,
         )
-        self.assertEqual(2, self.lock_gate.count("--locked-mode"))
+        self.assertIn('dotnet restore "${cache_project}" --locked-mode --tl:off', self.lock_gate)
+        self.assertEqual(3, self.lock_gate.count("--locked-mode"))
 
     def test_quality_gate_checks_locks_before_the_solution_restore(self) -> None:
         """Catch stale committed locks before an ordinary restore can rewrite them."""
@@ -87,6 +89,7 @@ class ReleasePackageLockTests(unittest.TestCase):
             for project_name in (
                 "Doka.EntityFrameworkCore.MySql",
                 "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
+                "Doka.Caching.MySql",
             ):
                 project_root = root / "src" / project_name
                 project_root.mkdir(parents=True)

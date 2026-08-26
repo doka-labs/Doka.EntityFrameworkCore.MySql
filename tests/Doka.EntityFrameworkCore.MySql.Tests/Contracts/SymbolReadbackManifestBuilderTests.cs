@@ -18,10 +18,15 @@ public sealed class SymbolReadbackManifestBuilderTests
                 candidateRoot,
                 "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
                 typeof(MySqlNetTopologySuiteDbContextOptionsBuilderExtensions).Assembly.Location);
+            WritePackagePair(
+                candidateRoot,
+                "Doka.Caching.MySql",
+                typeof(Caching.MySql.MySqlCacheSchema).Assembly.Location);
 
             var manifest = NuGetSymbolReadbackManifestBuilder.Build(candidateRoot, Version);
 
-            Assert.Equal(2, manifest.Symbols.Count);
+            Assert.Equal(3, manifest.Symbols.Count);
+            Assert.Contains(manifest.Symbols, symbol => symbol.PackageId == "Doka.Caching.MySql");
             Assert.All(
                 manifest.Symbols,
                 symbol =>
@@ -34,6 +39,31 @@ public sealed class SymbolReadbackManifestBuilderTests
                         symbol.SymbolUrl,
                         StringComparison.Ordinal);
                 });
+        }
+        finally
+        {
+            Directory.Delete(candidateRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Cache_symbols_must_match_the_cache_assembly_checksum()
+    {
+        var candidateRoot = CreateCandidateRoot();
+        try
+        {
+            WritePackagePair(candidateRoot, "Doka.EntityFrameworkCore.MySql",
+                typeof(MySqlDbContextOptionsBuilderExtensions).Assembly.Location);
+            WritePackagePair(candidateRoot, "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
+                typeof(MySqlNetTopologySuiteDbContextOptionsBuilderExtensions).Assembly.Location);
+            WritePackagePair(candidateRoot, "Doka.Caching.MySql",
+                typeof(Caching.MySql.MySqlCacheSchema).Assembly.Location, corruptSymbols: true);
+
+            var exception = Assert.Throws<InvalidDataException>(() =>
+                NuGetSymbolReadbackManifestBuilder.Build(candidateRoot, Version));
+            Assert.Contains("Doka.Caching.MySql.pdb", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("does not match the checksum sealed into its assembly", exception.Message,
+                StringComparison.Ordinal);
         }
         finally
         {

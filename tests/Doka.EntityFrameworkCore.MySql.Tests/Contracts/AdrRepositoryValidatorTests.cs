@@ -104,11 +104,21 @@ public sealed class AdrRepositoryValidatorTests
             normalizedReleaseCandidateScript,
             StringComparison.Ordinal);
         Assert.Contains(
+            "cp \"${repo_root}/artifacts/obj/Doka.Caching.MySql/project.assets.json\" "
+            + "\"${sbom_components_dir}/cache/project.assets.json\"",
+            normalizedReleaseCandidateScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "--assets \"${cache_assets}\" --project \"${cache_project}\" "
+            + "--output-directory \"${repo_root}/artifacts/obj/Doka.Caching.MySql\"",
+            normalizedReleaseCandidateScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
             "python3 -m eng.release.sbom",
             normalizedReleaseCandidateScript,
             StringComparison.Ordinal);
         Assert.Equal(
-            2,
+            3,
             normalizedReleaseCandidateScript.Split(
                 "python3 -m eng.release.sbom",
                 StringSplitOptions.None).Length - 1);
@@ -483,12 +493,20 @@ public sealed class AdrRepositoryValidatorTests
         var providerSymbolsStep = workflow.IndexOf("- name: Publish provider symbols", StringComparison.Ordinal);
         var spatialPackageStep = workflow.IndexOf("- name: Publish spatial package", StringComparison.Ordinal);
         var spatialSymbolsStep = workflow.IndexOf("- name: Publish spatial symbols", StringComparison.Ordinal);
+        var cachePackageStep = workflow.IndexOf("- name: Publish cache package", StringComparison.Ordinal);
+        var cacheSymbolsStep = workflow.IndexOf("- name: Publish cache symbols", StringComparison.Ordinal);
+        var publishReleaseStep = workflow.IndexOf(
+            "- name: Publish and read back immutable GitHub release",
+            StringComparison.Ordinal);
 
         Assert.True(
             providerPackageStep >= 0
             && providerSymbolsStep > providerPackageStep
             && spatialPackageStep > providerSymbolsStep
-            && spatialSymbolsStep > spatialPackageStep);
+            && spatialSymbolsStep > spatialPackageStep
+            && cachePackageStep > spatialSymbolsStep
+            && cacheSymbolsStep > cachePackageStep
+            && publishReleaseStep > cacheSymbolsStep);
         Assert.Contains(
             "--skip-duplicate",
             workflow[providerPackageStep..providerSymbolsStep],
@@ -498,8 +516,18 @@ public sealed class AdrRepositoryValidatorTests
             workflow[spatialPackageStep..spatialSymbolsStep],
             StringComparison.Ordinal);
         Assert.Equal(
-            4,
+            6,
             workflow.Split("--skip-duplicate", StringSplitOptions.None).Length - 1);
+        var cachePackage = workflow[cachePackageStep..cacheSymbolsStep];
+        var cacheSymbols = workflow[cacheSymbolsStep..publishReleaseStep];
+        Assert.Contains("steps.preflight.outputs.cache_published != 'true'", cachePackage, StringComparison.Ordinal);
+        Assert.Contains("steps.preflight.outputs.cache_package", cachePackage, StringComparison.Ordinal);
+        Assert.Contains("--no-symbols", cachePackage, StringComparison.Ordinal);
+        Assert.Contains("--skip-duplicate", cachePackage, StringComparison.Ordinal);
+        Assert.Contains("steps.preflight.outputs.cache_symbols_published != 'true'", cacheSymbols, StringComparison.Ordinal);
+        Assert.Contains("steps.preflight.outputs.cache_symbols", cacheSymbols, StringComparison.Ordinal);
+        Assert.Contains("--skip-duplicate", cacheSymbols, StringComparison.Ordinal);
+        Assert.DoesNotContain("--no-symbols", cacheSymbols, StringComparison.Ordinal);
 
         Assert.Contains(
             "The qualified candidate is no longer on current remote main history",
@@ -938,6 +966,8 @@ public sealed class AdrRepositoryValidatorTests
         Assert.Contains("dotnet restore \"${solution}\"", qualityGates, StringComparison.Ordinal);
         Assert.Contains("dotnet build \"${solution}\"", qualityGates, StringComparison.Ordinal);
         Assert.Contains("--vulnerable", qualityGates, StringComparison.Ordinal);
+        Assert.Contains("audit_project \"${cache_project}\" \"cache\"", qualityGates, StringComparison.Ordinal);
+        Assert.Contains("src/Doka.Caching.MySql/Doka.Caching.MySql.csproj", qualityGates, StringComparison.Ordinal);
         Assert.Contains("examples/*/*.csproj", qualityGates, StringComparison.Ordinal);
         Assert.Contains("eng/quality/check-migration-model.sh", qualityGates, StringComparison.Ordinal);
 

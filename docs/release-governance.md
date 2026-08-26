@@ -20,6 +20,11 @@ publication is maintained in the
 This document defines the underlying evidence and policy contracts; it does not
 replace that ordered release procedure.
 
+The current package contract includes `Doka.EntityFrameworkCore.MySql`,
+`Doka.EntityFrameworkCore.MySql.NetTopologySuite`, and the new standalone
+`Doka.Caching.MySql`, all at one release version. Earlier release manifests
+remain immutable records of their original two-package set.
+
 ## Verification and Evidence Paths
 
 The release-hardening evidence model is intentionally explicit and repeatable:
@@ -109,6 +114,13 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - candidate-produced gates: migration deployment, runtime posture, both
     patch matrices, package, and SBOM produce exactly six stage receipts while
     the source is still untagged
+  - dependency evidence: locked restore and vulnerability audit include all
+    three release projects; SBOM generation consumes the exact candidate-local
+    runtime, spatial, and cache dependency assets captured by the package stage
+  - runtime scope: ordinary and fully trimmed provider/spatial execution, plus
+    ordinary, fully trimmed, and NativeAOT standalone-cache execution; runtime
+    evidence binds the cache executable hashes as well as the provider binary,
+    without changing the provider NativeAOT deferral in D-017
   - EF Core patch scope: the candidate re-resolves and records the exact floor
     graph already behavior-qualified by the tree-exact pull-request
     `repository-qualification`, then fully executes the latest compatible
@@ -118,10 +130,12 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - EF Core version preflight: exact inventory, complete baseline membership,
     and six-target discovery contracts are required immediately after restore,
     before the full repository and live latest-patch matrix begins
-  - local consumer boundary: before publication, an isolated project restores
-    the exact local provider and spatial packages into an empty cache, binds
-    their SHA-256 digests, compiles generated models, and executes basic and
-    spatial runtime contracts against the pinned MySQL 8.4 image
+  - local consumer boundary: before publication, isolated projects restore
+    the exact local provider, spatial, and cache packages into an empty package
+    cache and bind their SHA-256 digests. The provider/spatial consumer compiles
+    generated models; the separate cache consumer rejects EF Core or Pomelo
+    dependencies. Both consumers execute their runtime contracts against the
+    pinned MySQL 8.4 image
   - performance boundary: candidate and publication code cannot invoke or read
     benchmark workflows, contracts, budgets, artifacts, or verdicts
   - candidate identity: `github.run_id` owns all stage artifacts; reruns may
@@ -145,11 +159,11 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     back before the first NuGet push
   - safe retry: existing primary packages are accepted only when canonical
     content matches after excluding NuGet.org's repository-owned
-    `.signature.p7s`; provider, provider symbols, spatial, and spatial symbols
-    publish in dependency order; every push tolerates a duplicate response so
-    an accepted but not yet indexed package can resume, while the later public
-    readback rejects conflicting bytes
-  - immutable identity: after all four NuGet submissions return successfully,
+    `.signature.p7s`; provider, provider symbols, spatial, spatial symbols,
+    cache, and cache symbols publish in that order; every push tolerates a
+    duplicate response so an accepted but not yet indexed package can resume,
+    while the later public readback rejects conflicting bytes
+  - immutable identity: after all six NuGet submissions return successfully,
     the already complete draft is published and independently read back before
     availability probes begin
   - public completion: independently ordered package and symbol visibility is
@@ -159,6 +173,10 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     pending rather than becoming a false terminal verdict; canonical byte
     comparison and cryptographic repository-signature verification are
     retained as retry-varying workflow evidence, never release assets
+  - package completeness: provenance and publication receipts cover all three
+    package IDs and their symbols. Public primary packages require repository
+    signature verification; symbol manifests bind each assembly to its exact
+    Portable PDB readback. The cache is not an optional release subject
   - protocol discovery: package content is resolved from the configured V3
     service index's stable `PackageBaseAddress/3.0.0` capability and only a
     canonical lowercase NuGet release version can form a public readback URL

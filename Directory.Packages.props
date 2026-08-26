@@ -8,12 +8,13 @@
 
   <!--
     Production packages. Consumed by the shipped Doka.EntityFrameworkCore.MySql
-    surface and its NetTopologySuite plugin; surfaces in customer NuGet
+    surface, its NetTopologySuite plugin, and Doka.Caching.MySql; surfaces in customer NuGet
     downloads and is the highest-priority slice for security-advisory triage.
 
     Consumers:
       src/Doka.EntityFrameworkCore.MySql
       src/Doka.EntityFrameworkCore.MySql.NetTopologySuite
+      src/Doka.Caching.MySql
 
     EF Core packages float across patch releases on the 10.0.x line so
     downstream consumers can pick up Microsoft patch updates without waiting
@@ -31,6 +32,13 @@
     <PackageVersion Include="MySqlConnector" Version="$(DokaMySqlConnectorVersion)" />
     <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
     <PackageVersion Include="System.IO.Hashing" Version="10.0.11" />
+  </ItemGroup>
+
+  <ItemGroup Label="Cache production" Condition="'$(MSBuildProjectName)' == 'Doka.Caching.MySql'">
+    <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.11" />
   </ItemGroup>
 
   <!--

@@ -171,7 +171,7 @@ class ReleaseSubjectSelectionTests(unittest.TestCase):
     """Execute the hosted selector against the real four-package shape."""
 
     def setUp(self) -> None:
-        """Create two primary packages, two symbol packages, and gate inputs."""
+        """Create three primary packages, three symbol packages, and gate inputs."""
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
         self.candidate = self.root / "candidate"
@@ -187,6 +187,8 @@ class ReleaseSubjectSelectionTests(unittest.TestCase):
             "Doka.EntityFrameworkCore.MySql.NetTopologySuite.1.0.0.nupkg",
             "Doka.EntityFrameworkCore.MySql.1.0.0.snupkg",
             "Doka.EntityFrameworkCore.MySql.NetTopologySuite.1.0.0.snupkg",
+            "Doka.Caching.MySql.1.0.0.nupkg",
+            "Doka.Caching.MySql.1.0.0.snupkg",
         ):
             (packages / name).write_bytes(f"{name}\n".encode("ascii"))
 
@@ -205,7 +207,7 @@ class ReleaseSubjectSelectionTests(unittest.TestCase):
         self.temporary_directory.cleanup()
 
     def test_release_selector_includes_primary_and_symbol_packages(self) -> None:
-        """Select the same four package files that actions/attest receives."""
+        """Select the same six package files that actions/attest receives."""
         subjects = provenance.release_subjects(
             self.candidate,
             self.publication,
@@ -223,6 +225,8 @@ class ReleaseSubjectSelectionTests(unittest.TestCase):
                 "Doka.EntityFrameworkCore.MySql.NetTopologySuite.1.0.0.nupkg",
                 "Doka.EntityFrameworkCore.MySql.1.0.0.snupkg",
                 "Doka.EntityFrameworkCore.MySql.NetTopologySuite.1.0.0.snupkg",
+                "Doka.Caching.MySql.1.0.0.nupkg",
+                "Doka.Caching.MySql.1.0.0.snupkg",
             },
             package_names,
         )
@@ -233,7 +237,7 @@ class ReleaseSubjectSelectionTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             provenance.ProvenanceError,
-            "two primary and two symbol packages",
+            "three primary and three symbol packages",
         ):
             provenance.release_subjects(
                 self.candidate,

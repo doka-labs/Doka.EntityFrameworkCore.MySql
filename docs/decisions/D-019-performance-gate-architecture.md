@@ -40,6 +40,11 @@ Historical baseline and paired-comparison sections below are retained as
 decision history and are not current implementation where they conflict with
 this amendment.
 
+The [sliding-cache ratio calibration](../operations/performance-evidence-reference.md#sliding-cache-ratio-calibration)
+records the eighteen-run local evidence, target ceilings, measurement limits,
+and manual re-evaluation and tightening triggers. These reviewed contract
+values do not restore historical baseline machinery or automatic budget updates.
+
 ### Current false-negative re-evaluation trigger
 
 This amendment must be reopened when all of the following are true:

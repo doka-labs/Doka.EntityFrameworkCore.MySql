@@ -4,6 +4,12 @@ This runbook defines the only supported path from a reviewed `main` commit to
 NuGet.org and an immutable GitHub release. Release evidence requirements remain
 authoritative in [Release Governance](../release-governance.md).
 
+The current release package set is `Doka.EntityFrameworkCore.MySql`,
+`Doka.EntityFrameworkCore.MySql.NetTopologySuite`, and `Doka.Caching.MySql` at
+one version: three primary packages and three symbol packages. The cache is
+part of the current [Unreleased](../../CHANGELOG.md#unreleased) changes, not a
+retroactive addition to older two-package releases.
+
 ## One-time configuration
 
 The GitHub environment is named `nuget`. It is restricted to deployments from
@@ -35,6 +41,11 @@ Before the first publication, verify these controls in the hosted repository:
 - the environment review is requested only for the `publish` job; and
 - the NuGet Trusted Publishing policy names the exact workflow and environment
   above.
+
+Confirm that the selected NuGet owner can publish each of the three package
+IDs, including the new cache ID. Repository configuration and this procedure
+do not prove the account's hosted permissions; no such permission check is
+implied by a green local build.
 
 Verify the repository-level release control with an administrator token before
 starting a candidate. A successful response contains `"enabled": true`; GitHub
@@ -118,9 +129,12 @@ matrix.
   specification-contract preflight;
 - full MySqlConnector floor/latest patch matrices;
 - package and symbol generation;
-- locked dependency restore and SBOM generation;
-- isolated consumer build against the exact local `.nupkg` files;
-- basic and spatial runtime execution against the pinned MySQL 8.4 image;
+- locked dependency restore, vulnerability audit, and SBOM coverage for all
+  three release projects, including the standalone cache's dependency graph;
+- isolated consumer builds against the exact local `.nupkg` files, with a
+  separate cache-only project that rejects EF Core and Pomelo dependencies;
+- basic, spatial, and standalone cache runtime execution against the pinned
+  MySQL 8.4 image;
 - publication completeness rebuilt on the clean finalization runner against
   the exact EF Core and MySqlConnector patches selected by the matrices;
 - canonical evidence assembly; and
@@ -137,6 +151,15 @@ job, so the change exercises the failure boundary before merge. Release trust
 accepts that evidence only after the qualified pull-request tree and merged
 `main` tree match exactly. Candidate runtime posture remains a separate
 retained release gate over the built package and deployment shape.
+
+Runtime posture executes ordinary and full-trim provider/spatial builds, plus
+ordinary, full-trim, and NativeAOT builds of the standalone cache. The cache's
+trimmed and native executable hashes are part of the runtime receipt. Provider
+NativeAOT remains deferred under
+[D-017](../decisions/D-017-nativeaot-smoke-deferred.md); the cache's separate
+execution does not reopen that claim. Adding the cache extends the existing
+package, SBOM, consumer, and runtime stages; the six-receipt gate set is
+unchanged.
 
 The final `publish` job waits for approval on the `nuget` environment. Do not
 approve it yet. Review the completed qualification jobs, candidate summary,
@@ -193,8 +216,9 @@ The same workflow run now:
    are separate states, so absence does not authorize assumptions about push
    history;
 6. requests the short-lived NuGet key;
-7. publishes provider, provider symbols, spatial extension, and spatial
-   symbols in dependency order;
+7. publishes provider, provider symbols, spatial extension, spatial symbols,
+   cache, and cache symbols; the provider precedes its dependent spatial
+   extension, while the cache has no dependency on either;
 8. immediately publishes and reads back the already complete GitHub draft as
    an immutable release; and
 9. polls pending NuGet.org package and symbol subjects every 30 seconds for up
@@ -233,8 +257,9 @@ attestation manually.
 Before considering the release complete, confirm:
 
 - all workflow jobs are green;
-- both primary and symbol packages have matching public readback;
-- both public packages carry valid NuGet repository signatures;
+- all three primary packages and all three symbol packages have matching
+  public readback;
+- all three public primary packages carry valid NuGet repository signatures;
 - the GitHub release points at `release_tag` and is immutable;
 - the GitHub release contains `release-provenance.intoto.jsonl`;
 - prereleases are marked prerelease and are not `latest`;

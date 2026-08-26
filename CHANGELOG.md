@@ -7,6 +7,36 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Add `MySqlServerVersion.AutoDetect(string)` for connection-string-only
+  configuration, with one internally owned synchronous connection and the
+  existing supported-engine policy. Keep discovery outside ambient transactions.
+- Add generic `EF.Functions.Like<T>` overloads for native numeric types,
+  `DateTime`, `Guid`, and nullable values. Binary GUIDs use the same canonical
+  text translation as `Guid.ToString()`; normal string overload binding and
+  SQL null semantics remain unchanged.
+- Add the standalone .NET 10 `Doka.Caching.MySql` package with one singleton
+  implementing `IDistributedCache` and `IBufferDistributedCache`, explicit
+  versioned schema deployment, database-UTC expiration, atomic writes, and
+  bounded, primary-key-first expired-row cleanup with renewal-safe deletion
+  and candidate-based backlog continuation. Accept an optional
+  caller-owned MySqlConnector data source for shared pools and driver-managed
+  authentication. The cache does not require EF Core.
+- Document the observed Pomelo migration paths, including configuration,
+  GUID storage, generated migration metadata, designers, snapshots, queries,
+  and cold-cache table replacement.
+- Guard parallel sliding-cache reads with a same-run timing ratio and
+  engine-specific budgets alongside the existing allocation limit. Document
+  separate-table rollout and rollback for future incompatible cache schemas.
+
+### Fixed
+
+- Format `Guid.ToString()` according to the effective `Binary16` or `Char36`
+  mapping. Preserve the GUID converter for text-mapped constants, parameters,
+  and server-generated `Guid.NewGuid()` values; reject unsupported GUID text
+  conversions instead of silently generating incorrect values.
+
 ## [10.0.0] - 2026-08-24
 
 First stable release of `Doka.EntityFrameworkCore.MySql` for Entity Framework

@@ -12,6 +12,11 @@ mechanisms:
 These checks prove different properties. Passing one is not evidence that the
 others passed.
 
+The commands below describe the current three-package release contract,
+including `Doka.Caching.MySql`. For an older release predating that package,
+use the verification guide and manifest from its signed tag; do not require
+new package subjects that were not part of that historical release.
+
 ## Prerequisites
 
 - Git with SSH signature verification support;
@@ -63,8 +68,9 @@ gh release download "${release_tag}" \
 
 The GitHub release must include:
 
-- two primary `.nupkg` packages;
-- two `.snupkg` symbol packages;
+- three primary `.nupkg` packages: the provider, NetTopologySuite extension,
+  and `Doka.Caching.MySql`;
+- three matching `.snupkg` symbol packages;
 - `release-provenance.intoto.jsonl`;
 - the release-candidate manifest and detached checksum; and
 - the published SBOM and release evidence listed by the release manifest.
@@ -109,7 +115,7 @@ offline trust root.
 ## Verify NuGet Repository Signatures
 
 Discover NuGet.org's package-content endpoint from its V3 service index, then
-download the two exact public package versions:
+download the three exact public package versions:
 
 ```bash
 mkdir -p "${nuget_root}"
@@ -124,7 +130,8 @@ package_base="$(
 
 for package_id in \
   Doka.EntityFrameworkCore.MySql \
-  Doka.EntityFrameworkCore.MySql.NetTopologySuite; do
+  Doka.EntityFrameworkCore.MySql.NetTopologySuite \
+  Doka.Caching.MySql; do
   lower_id="$(printf '%s' "${package_id}" | tr '[:upper:]' '[:lower:]')"
   package_file="${lower_id}.${release_version}.nupkg"
 
@@ -158,6 +165,10 @@ signature verification as completion evidence.
 The `.snupkg` files are covered by SLSA provenance and exact release-asset
 readback. NuGet symbol-server indexing is asynchronous and is separately
 verified by the publication workflow.
+
+The standalone cache's assembly and Portable PDB are separate symbol subjects,
+not part of the provider's symbol identity. A successful provider or spatial
+readback does not satisfy a missing cache package, signature, or PDB.
 
 ## Interpreting the Result
 

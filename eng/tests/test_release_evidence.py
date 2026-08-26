@@ -508,6 +508,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         for package_id in (
             "Doka.EntityFrameworkCore.MySql",
             "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
+            "Doka.Caching.MySql",
         ):
             (packages / f"{package_id}.1.2.3.nupkg").write_bytes(
                 f"{package_id} package".encode("ascii")
@@ -605,7 +606,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         (runtime_directory / "runtime-posture-evidence.json").write_text(
             json.dumps(
                 {
-                    "schemaVersion": 1,
+                    "schemaVersion": 2,
                     "runId": "test-run",
                     "source": {
                         "commit": source_commit,
@@ -633,6 +634,13 @@ class ReleaseEvidenceTests(unittest.TestCase):
                     "executable": {
                         "sha256": "a" * 64,
                         "sizeBytes": 4096,
+                    },
+                    "cache": {
+                        "ordinaryExecution": "pass",
+                        "trimmedExecution": "pass",
+                        "nativeAotExecution": "pass",
+                        "trimmedExecutable": {"sha256": "b" * 64, "sizeBytes": 4096},
+                        "nativeAotExecutable": {"sha256": "c" * 64, "sizeBytes": 8192},
                     },
                 }
             ),

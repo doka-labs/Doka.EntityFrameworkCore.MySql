@@ -14,6 +14,7 @@ restore_projects=(
     "Doka.EntityFrameworkCore.MySql.FunctionalTests"
     "Doka.EntityFrameworkCore.MySql"
     "Doka.EntityFrameworkCore.MySql.NetTopologySuite"
+    "Doka.Caching.MySql"
     "Doka.EntityFrameworkCore.MySql.AdrValidator"
     "Doka.EntityFrameworkCore.MySql.SpecificationContract"
     "Doka.EntityFrameworkCore.MySql.TestUtilities"

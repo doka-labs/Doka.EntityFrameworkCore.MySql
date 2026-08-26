@@ -18,6 +18,7 @@ stage_checkpoint_module="eng.release.checkpoint"
 runtime_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj"
 spatial_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql.NetTopologySuite"
 spatial_project="${spatial_project}/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj"
+cache_project="${repo_root}/src/Doka.Caching.MySql/Doka.Caching.MySql.csproj"
 functional_test_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.FunctionalTests"
 functional_test_project="${functional_test_project}/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj"
 specification_contract_project="${repo_root}/eng/tools/Doka.EntityFrameworkCore.MySql.SpecificationContract"
@@ -58,6 +59,7 @@ release_source_ref=""
 expected_release_tag=""
 release_version=""
 spatial_release_version=""
+cache_release_version=""
 
 if (( $# > 0 )); then
     if [[ "$#" != "2" || "$1" != "--stage" ]]; then
@@ -380,7 +382,7 @@ run_pack() {
     local local_release_version
 
     mkdir -p "${packages_dir}"
-    mkdir -p "${sbom_components_dir}/runtime" "${sbom_components_dir}/spatial"
+    mkdir -p "${sbom_components_dir}/runtime" "${sbom_components_dir}/spatial" "${sbom_components_dir}/cache"
 
     # Reuse the same dependency-closure gate as CI and pre-push. It runs before
     # candidate bytes exist and does not narrow the ranges shipped to consumers.
@@ -395,16 +397,24 @@ run_pack() {
     cp \
         "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.NetTopologySuite/project.assets.json" \
         "${sbom_components_dir}/spatial/project.assets.json"
+    cp \
+        "${repo_root}/artifacts/obj/Doka.Caching.MySql/project.assets.json" \
+        "${sbom_components_dir}/cache/project.assets.json"
 
     run_with_release_version \
         dotnet build "${runtime_project}" --configuration Release --no-restore --tl:off -m:1
     run_with_release_version \
         dotnet build "${spatial_project}" --configuration Release --no-restore --tl:off -m:1
     run_with_release_version \
+        dotnet build "${cache_project}" --configuration Release --no-restore --tl:off -m:1
+    run_with_release_version \
         dotnet pack "${runtime_project}" --configuration Release --no-build --no-restore \
         --output "${packages_dir}" --tl:off
     run_with_release_version \
         dotnet pack "${spatial_project}" --configuration Release --no-build --no-restore \
+        --output "${packages_dir}" --tl:off
+    run_with_release_version \
+        dotnet pack "${cache_project}" --configuration Release --no-build --no-restore \
         --output "${packages_dir}" --tl:off
 
     local_release_version="$(package_version_from_file "Doka.EntityFrameworkCore.MySql")"
@@ -624,10 +634,11 @@ run_sbom() {
     local sbom_timeout="${DOKA_SBOM_TIMEOUT:-300}"
     local runtime_assets="${sbom_components_dir}/runtime/project.assets.json"
     local spatial_assets="${sbom_components_dir}/spatial/project.assets.json"
+    local cache_assets="${sbom_components_dir}/cache/project.assets.json"
 
     mkdir -p "${sbom_dir}"
 
-    if [[ ! -f "${runtime_assets}" || ! -f "${spatial_assets}" ]]; then
+    if [[ ! -f "${runtime_assets}" || ! -f "${spatial_assets}" || ! -f "${cache_assets}" ]]; then
         echo "Release package dependency assets are missing; run_pack must complete before SBOM generation." >&2
         exit 1
     fi
@@ -646,8 +657,13 @@ run_sbom() {
         --assets "${spatial_assets}" \
         --project "${spatial_project}" \
         --output-directory "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.NetTopologySuite"
+    python3 -m eng.release.sbom \
+        --repository-root "${repo_root}" \
+        --assets "${cache_assets}" \
+        --project "${cache_project}" \
+        --output-directory "${repo_root}/artifacts/obj/Doka.Caching.MySql"
 
-    # Component detection consumes the exact restored graphs of the two
+    # Component detection consumes the exact restored graphs of the three
     # released packages. This excludes stale, test, and benchmark graphs while
     # retaining all direct and transitive package dependencies.
     dotnet tool restore
@@ -691,6 +707,7 @@ write_changelog() {
         echo
         echo "- Doka.EntityFrameworkCore.MySql ${release_version}"
         echo "- Doka.EntityFrameworkCore.MySql.NetTopologySuite ${release_version}"
+        echo "- Doka.Caching.MySql ${release_version}"
         echo
         echo "## Repo-local release-hardening note"
         echo
@@ -861,9 +878,15 @@ resolve_release_version() {
     spatial_release_version="$(
         package_version_from_file "Doka.EntityFrameworkCore.MySql.NetTopologySuite"
     )"
+    cache_release_version="$(package_version_from_file "Doka.Caching.MySql")"
 
     if [[ "${spatial_release_version}" != "${release_version}" ]]; then
         echo "Provider package version ${release_version} does not match spatial package ${spatial_release_version}." >&2
+        exit 1
+    fi
+
+    if [[ "${cache_release_version}" != "${release_version}" ]]; then
+        echo "Provider package version ${release_version} does not match cache package ${cache_release_version}." >&2
         exit 1
     fi
 
@@ -916,8 +939,8 @@ run_finalization_stage() {
     local sbom_file_count
     sbom_file_count="$(find "${sbom_dir}" -type f | wc -l | tr -d ' ')"
 
-    if [[ "${package_count}" -lt 2 ]]; then
-        echo "Expected release-candidate packaging to produce both provider packages." >&2
+    if [[ "${package_count}" -ne 3 ]]; then
+        echo "Expected release-candidate packaging to produce exactly three packages." >&2
         exit 1
     fi
 

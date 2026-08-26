@@ -44,6 +44,7 @@ public sealed record MySqlServerVersion
         Profile = new ProviderProfile(EngineProfileTable.Resolve(isMariaDb
             ? EngineFamily.MariaDb
             : EngineFamily.MySql, version));
+
         SupportStatus = ServerVersionSupportPolicy.Classify(Profile.Engine.Family, version);
         CompatibilityMode = compatibilityMode;
     }
@@ -148,22 +149,61 @@ public sealed record MySqlServerVersion
     }
 
     /// <summary>
-    /// Reads and parses the server version from a connection into a descriptor that
+    /// Reads and parses the server version from an open connection into a descriptor that
     /// permits only supported release lines during provider-option validation.
     /// </summary>
-    /// <param name="connection">The database connection.</param>
+    /// <param name="connection">An already open, caller-owned database connection.</param>
     /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="connection"/> is <see langword="null"/>.</exception>
-    /// <exception cref="InvalidOperationException">The connection does not expose a server version.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The connection is not open or does not expose a server version.
+    /// </exception>
+    /// <remarks>
+    /// The caller must open the connection before calling this method. This
+    /// method does not open, close, or dispose the supplied connection.
+    /// </remarks>
     public static MySqlServerVersion AutoDetect(
         DbConnection connection
     ) => AutoDetect(connection, MySqlServerVersionCompatibilityMode.SupportedOnly);
 
     /// <summary>
-    /// Reads and parses the server version from an existing database connection
+    /// Opens a connection for the supplied connection string, reads the server
+    /// version, and returns a descriptor that permits only supported release
+    /// lines during provider-option validation.
+    /// </summary>
+    /// <param name="connectionString">The MySQL connection string.</param>
+    /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="connectionString"/> is empty or whitespace.
+    /// </exception>
+    /// <remarks>
+    /// This method performs one synchronous database connection. Cache the
+    /// returned descriptor instead of calling this method for every context.
+    /// The temporary connection does not enlist in ambient transactions,
+    /// even if the supplied connection string enables automatic enlistment.
+    /// </remarks>
+    public static MySqlServerVersion AutoDetect(
+        string connectionString
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        var builder = new MySqlConnectionStringBuilder(connectionString)
+        {
+            AutoEnlist = false,
+        };
+
+        using var connection = new MySqlConnection(builder.ConnectionString);
+        connection.Open();
+
+        return AutoDetect(connection);
+    }
+
+    /// <summary>
+    /// Reads and parses the server version from an open database connection
     /// with an explicit compatibility mode.
     /// </summary>
-    /// <param name="connection">The database connection.</param>
+    /// <param name="connection">An already open, caller-owned database connection.</param>
     /// <param name="compatibilityMode">
     /// The compatibility mode controlling unsupported release lines.
     /// </param>
@@ -172,7 +212,13 @@ public sealed record MySqlServerVersion
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="compatibilityMode"/> is not a defined value.
     /// </exception>
-    /// <exception cref="InvalidOperationException">The connection does not expose a server version.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The connection is not open or does not expose a server version.
+    /// </exception>
+    /// <remarks>
+    /// The caller must open the connection before calling this method. This
+    /// method does not open, close, or dispose the supplied connection.
+    /// </remarks>
     public static MySqlServerVersion AutoDetect(
         DbConnection connection,
         MySqlServerVersionCompatibilityMode compatibilityMode

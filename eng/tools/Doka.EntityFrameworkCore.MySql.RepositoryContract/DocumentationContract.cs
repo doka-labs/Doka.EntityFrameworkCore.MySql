@@ -35,6 +35,26 @@ internal static partial class DocumentationContract
                 "Documentation Contract",
             ],
             ["docs/complex-types.md"] = ["Support Matrix", "Verification", "Primary Sources"],
+            ["docs/distributed-cache.md"] =
+            [
+                "Deployment and Registration",
+                "Configuration Contract",
+                "Operations and Expiration",
+                "Buffer Ownership and Memory",
+                "Cleanup and Operational Boundaries",
+                "Runnable Verification",
+                "Primary Sources",
+            ],
+            ["docs/migrating-from-pomelo.md"] =
+            [
+                "Scope and Preparation",
+                "Connection and Server Configuration",
+                "Model Configuration",
+                "Historical Migrations, Designers, and Snapshots",
+                "Queries and Distributed Cache",
+                "Runnable Verification",
+                "Primary Sources",
+            ],
             ["docs/ctes.md"] =
             [
                 "Support Matrix",

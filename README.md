@@ -23,6 +23,11 @@ advertised LTS line.
 | --- | --- |
 | [`Doka.EntityFrameworkCore.MySql`](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql) | Core EF Core provider, migrations, scaffolding, type mappings, and query translation |
 | [`Doka.EntityFrameworkCore.MySql.NetTopologySuite`](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql.NetTopologySuite) | Optional NetTopologySuite mappings, spatial indexes, scaffolding, and spatial query translation |
+| [`Doka.Caching.MySql`][distributed-cache] | Standalone .NET 10 `IDistributedCache` and `IBufferDistributedCache` implementation; part of Unreleased |
+
+The new cache package, connection-string detection, and scalar `Like<T>` are
+listed under [Unreleased][changelog] and are not present in the published
+`10.0.0` packages. Use a build containing these additions until they are released.
 
 ## Requirements
 
@@ -113,6 +118,17 @@ var serverVersion = MySqlServerVersion.AutoDetect(connection);
 
 <!-- readme-autodetect-snippet end -->
 
+The new connection-string overload manages the temporary connection itself:
+
+```csharp
+var serverVersion = MySqlServerVersion.AutoDetect(connectionString);
+```
+
+It opens synchronously once and disposes the connection on success or failure.
+Reuse the descriptor for an unchanged server target instead of detecting it
+for every context. Both detection paths use `SupportedOnly` by default; see
+[Provider Configuration][provider-configuration].
+
 ## Dependency Injection
 
 Register a context with a connection string:
@@ -173,8 +189,8 @@ explicit escape hatch without a support guarantee and emits
   bitemporal tables plus provider-owned MySQL history-table emulation behind
   one model and query API.
 - **MySQL-family query translation:** JSON functions, regular expressions,
-  full-text search, CTE composition, bulk update/delete, and engine-specific
-  SQL selected from declared capabilities.
+  full-text search, scalar `Like<T>`, CTE composition, bulk update/delete, and
+  engine-specific SQL selected from declared capabilities.
 - **Provider-owned type mappings:** JSON DOM types, `Binary16` and `Char36`
   GUIDs, temporal CLR types, generated defaults, complex types, and optional
   NetTopologySuite geometries.
@@ -260,6 +276,10 @@ packages can add exact migration-operation handlers without replacing the
 provider SQL generator; see
 [Migration Operation Handlers][migration-operation-handlers].
 
+Existing Pomelo applications should start with
+[Migrating from Pomelo][migrating-from-pomelo]. It distinguishes API changes
+from schema changes and preserves deployed migration history.
+
 ## Compatibility Boundaries
 
 - `MySqlConnector` is the only supported ADO.NET driver.
@@ -267,8 +287,9 @@ provider SQL generator; see
 - Amazon Aurora MySQL is intentionally outside the supported scope.
 - Unsupported query translations fail instead of falling back to client
   evaluation.
-- NativeAOT readiness remains blocked by upstream EF Core precompiled-query
-  constraints; trimming is continuously validated.
+- EF provider NativeAOT readiness remains blocked by upstream EF Core
+  precompiled-query constraints; trimming is continuously validated. The
+  standalone cache has no EF Core dependency and is verified separately.
 
 See [External Limitations][external-limitations] for the canonical boundary
 ledger. Provider-owned gaps have a zero budget and do not belong in that ledger.
@@ -285,6 +306,8 @@ ledger. Provider-owned gaps have a zero budget and do not belong in that ledger.
 - [IDE integration][ide-integration]
 - [Provider configuration][provider-configuration]
 - [Query functions][query-functions]
+- [Migrating from Pomelo][migrating-from-pomelo]
+- [Distributed cache][distributed-cache]
 - [Support and issue reporting][support]
 - [Security policy][security-policy]
 - [Security assurance case][security-assurance-case]
@@ -316,12 +339,14 @@ MIT -- see [LICENSE][license].
 [complex-types]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/complex-types.md
 [contributing]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/CONTRIBUTING.md
 [documentation-index]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/README.md
+[distributed-cache]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/distributed-cache.md
 [external-limitations]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/limitations.md
 [global-json]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/global.json
 [host-integration]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/host-integration-examples.md
 [ide-integration]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/ide-integration.md
 [license]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/LICENSE
 [migration-operation-handlers]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/migration-operation-handlers.md
+[migrating-from-pomelo]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/migrating-from-pomelo.md
 [openssf-best-practices]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/openssf-best-practices.md
 [performance-evidence]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/performance-evidence.md
 [project-governance]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/GOVERNANCE.md

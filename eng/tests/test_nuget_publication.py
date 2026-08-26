@@ -57,6 +57,26 @@ class NuGetPublicationTests(unittest.TestCase):
             nuget_publication.SPATIAL_PACKAGE_ID,
             result["spatial"]["id"],
         )
+        self.assertEqual(nuget_publication.CACHE_PACKAGE_ID, result["cache"]["id"])
+
+    def test_package_metadata_rejects_cache_dependency_on_ef_core(self) -> None:
+        """Keep the independently consumable cache free from a provider dependency."""
+        self._write_package(
+            nuget_publication.CACHE_PACKAGE_ID,
+            dependencies=[(nuget_publication.PROVIDER_PACKAGE_ID, self._VERSION)],
+        )
+        with self.assertRaisesRegex(nuget_publication.PublicationError, "independent of EF Core"):
+            nuget_publication.validate_package_metadata(
+                self.root, self._VERSION, self._REPOSITORY, self._COMMIT
+            )
+
+    def test_package_metadata_rejects_missing_cache_package(self) -> None:
+        """Do not let the two existing package pairs satisfy the new release."""
+        (self.packages / f"{nuget_publication.CACHE_PACKAGE_ID}.{self._VERSION}.nupkg").unlink()
+        with self.assertRaisesRegex(nuget_publication.PublicationError, "Doka.Caching.MySql"):
+            nuget_publication.validate_package_metadata(
+                self.root, self._VERSION, self._REPOSITORY, self._COMMIT
+            )
 
     def test_package_metadata_rejects_spatial_dependency_version_drift(self) -> None:
         """Reject a plugin that could restore a different provider release."""
@@ -421,6 +441,12 @@ class NuGetPublicationTests(unittest.TestCase):
                 "url": "https://example.invalid/spatial",
                 "candidateContentDigest": "2" * 64,
             },
+            "cache": {
+                "id": nuget_publication.CACHE_PACKAGE_ID,
+                "status": "matching",
+                "url": "https://example.invalid/cache",
+                "candidateContentDigest": "3" * 64,
+            },
         }
         symbols = nuget_publication.symbol_states(
             symbol_entries,
@@ -574,6 +600,12 @@ class NuGetPublicationTests(unittest.TestCase):
 
         def package_fetcher(url: str, _: float) -> bytes | None:
             if url == nuget_publication.remote_package_url(
+                self._PACKAGE_BASE_ADDRESS, nuget_publication.CACHE_PACKAGE_ID, self._VERSION
+            ):
+                return self._package_bytes(
+                    nuget_publication.CACHE_PACKAGE_ID, signature=b"repository signature"
+                )
+            if url == nuget_publication.remote_package_url(
                 self._PACKAGE_BASE_ADDRESS,
                 nuget_publication.PROVIDER_PACKAGE_ID,
                 self._VERSION,
@@ -673,7 +705,7 @@ class NuGetPublicationTests(unittest.TestCase):
         self.assertEqual(3, observe_remote_packages.call_count)
         self.assertEqual(
             [
-                ("provider", "spatial"),
+                ("provider", "spatial", "cache"),
                 ("provider",),
                 ("provider",),
             ],
@@ -780,6 +812,7 @@ class NuGetPublicationTests(unittest.TestCase):
             source_commit,
             [(nuget_publication.PROVIDER_PACKAGE_ID, self._VERSION)],
         )
+        self._write_package_at(candidate_packages, nuget_publication.CACHE_PACKAGE_ID, source_commit)
 
         manifest = {
             "releaseCandidateRunId": "github-123",
@@ -987,14 +1020,15 @@ class NuGetPublicationTests(unittest.TestCase):
         """Reject a consumer proof that could have resolved repository-local bytes."""
         package_cache = self.root / "consumer-packages"
         assets = self.root / "project.assets.json"
+        cache_assets = self.root / "cache.assets.json"
         output = self.root / "consumer-readback.json"
         assets.write_text(
             json.dumps(
                 {
                     "packageFolders": {f"{package_cache}/": {}},
                     "libraries": {
-                        f"{nuget_publication.PROVIDER_PACKAGE_ID}/{self._VERSION}": {},
-                        f"{nuget_publication.SPATIAL_PACKAGE_ID}/{self._VERSION}": {},
+                        f"{nuget_publication.PROVIDER_PACKAGE_ID}/{self._VERSION}": {"type": "package"},
+                        f"{nuget_publication.SPATIAL_PACKAGE_ID}/{self._VERSION}": {"type": "package"},
                     },
                     "project": {
                         "restore": {
@@ -1006,20 +1040,37 @@ class NuGetPublicationTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-        nuget_publication.verify_restore(
-            SimpleNamespace(
-                assets=assets,
-                package_cache=package_cache,
-                version=self._VERSION,
-                release_tag=f"v{self._VERSION}",
-                source_commit=self._COMMIT,
-                dotnet_sdk="10.0.302",
-                engine_image="mysql:8.4@example",
-                output=output,
-            )
+        cache_graph = json.loads(assets.read_text(encoding="utf-8"))
+        cache_graph["libraries"] = {
+            f"{nuget_publication.CACHE_PACKAGE_ID}/{self._VERSION}": {"type": "package"}
+        }
+        cache_assets.write_text(json.dumps(cache_graph), encoding="utf-8")
+
+        arguments = SimpleNamespace(
+            assets=assets,
+            cache_assets=cache_assets,
+            package_cache=package_cache,
+            version=self._VERSION,
+            release_tag=f"v{self._VERSION}",
+            source_commit=self._COMMIT,
+            dotnet_sdk="10.0.302",
+            engine_image="mysql:8.4@example",
+            output=output,
         )
+        nuget_publication.verify_restore(arguments)
 
         self.assertEqual("pass", json.loads(output.read_text(encoding="utf-8"))["runtimeSmoke"])
+        self.assertEqual("pass", json.loads(output.read_text(encoding="utf-8"))["cacheRuntimeSmoke"])
+
+        for invalid_name in ("Microsoft.EntityFrameworkCore/10.0.11", "pomelo.entityframeworkcore.mysql/9.0.0"):
+            with self.subTest(invalid_name=invalid_name):
+                invalid_graph = {
+                    **cache_graph,
+                    "libraries": {**cache_graph["libraries"], invalid_name: {"type": "package"}},
+                }
+                cache_assets.write_text(json.dumps(invalid_graph), encoding="utf-8")
+                with self.assertRaisesRegex(nuget_publication.PublicationError, "EF Core or Pomelo"):
+                    nuget_publication.verify_restore(arguments)
 
     def _receipt(self) -> dict[str, object]:
         """Return the validated-candidate shape consumed by remote checks."""
@@ -1039,6 +1090,9 @@ class NuGetPublicationTests(unittest.TestCase):
                 "nupkg",
             )
         )
+        cache_package = Path("packages") / nuget_publication.package_file_name(
+            nuget_publication.CACHE_PACKAGE_ID, self._VERSION, "nupkg"
+        )
         return {
             "releaseTag": f"v{self._VERSION}",
             "expectedReleaseTag": f"v{self._VERSION}",
@@ -1056,6 +1110,10 @@ class NuGetPublicationTests(unittest.TestCase):
                     "contentDigest": nuget_publication.canonical_package_digest(
                         self.root / spatial_package
                     ),
+                },
+                "cache": {
+                    "package": cache_package.as_posix(),
+                    "contentDigest": nuget_publication.canonical_package_digest(self.root / cache_package),
                 },
             },
         }
@@ -1129,10 +1187,11 @@ class NuGetPublicationTests(unittest.TestCase):
         return manifest, {"policyDigest": policy_digest}
 
     def _symbol_manifest(self) -> tuple[dict[str, object], dict[str, bytes]]:
-        """Return two exact public symbol probes and their candidate payloads."""
+        """Return exact public symbol probes and their candidate payloads."""
         payloads = {
             nuget_publication.PROVIDER_PACKAGE_ID: b"BSJB provider portable PDB",
             nuget_publication.SPATIAL_PACKAGE_ID: b"BSJB spatial portable PDB",
+            nuget_publication.CACHE_PACKAGE_ID: b"BSJB cache portable PDB",
         }
         symbols = []
         for index, (package_id, payload) in enumerate(payloads.items(), start=1):
@@ -1160,12 +1219,13 @@ class NuGetPublicationTests(unittest.TestCase):
         }, payloads
 
     def _write_candidate_packages(self) -> None:
-        """Write both exact package and symbol file pairs."""
+        """Write all exact package and symbol file pairs."""
         self._write_package(nuget_publication.PROVIDER_PACKAGE_ID)
         self._write_package(
             nuget_publication.SPATIAL_PACKAGE_ID,
             dependencies=[(nuget_publication.PROVIDER_PACKAGE_ID, self._VERSION)],
         )
+        self._write_package(nuget_publication.CACHE_PACKAGE_ID)
 
     def _write_package(
         self,
