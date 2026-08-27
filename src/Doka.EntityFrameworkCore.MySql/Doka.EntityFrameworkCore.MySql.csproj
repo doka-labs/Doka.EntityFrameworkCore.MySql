@@ -11,6 +11,12 @@
     <IsTrimmable>true</IsTrimmable>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion>10.0.0</PackageValidationBaselineVersion>
+    <!-- Private design-time dependencies are not part of the shipped package
+         contract. Compare package metadata without recursively treating that
+         build-only graph as consumer references. -->
+    <RunPackageValidationWithoutReferences>true</RunPackageValidationWithoutReferences>
   </PropertyGroup>
 
   <ItemGroup>

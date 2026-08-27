@@ -43,8 +43,8 @@ the wire protocol, authentication, TLS, pooling, and command transport.
 ## Shipped Packages
 
 The release package set contains the core provider, its optional spatial
-extension, and the independent cache. The cache is introduced in
-[10.1.0-rc.1](../CHANGELOG.md#1010-rc1---2026-08-26); earlier releases contain
+extension, and the independent cache. The cache is available from
+[10.1.0](../CHANGELOG.md#1010---2026-08-27); earlier releases contain
 only the two EF Core packages.
 
 ### Core provider

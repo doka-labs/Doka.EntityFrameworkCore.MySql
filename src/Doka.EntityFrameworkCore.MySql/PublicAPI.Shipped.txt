@@ -345,3 +345,6 @@ virtual Doka.EntityFrameworkCore.MySql.MySqlApplicationTimeTableBuilder.HasPerio
 virtual Doka.EntityFrameworkCore.MySql.MySqlApplicationTimeTableBuilder.UseWithoutOverlaps(bool enabled = true) -> Doka.EntityFrameworkCore.MySql.MySqlApplicationTimeTableBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlApplicationTimeTableBuilder<TEntity>.HasPeriodEnd(System.Linq.Expressions.Expression<System.Func<TEntity!, System.DateTime>!>! propertyExpression) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<System.DateTime>!
 Doka.EntityFrameworkCore.MySql.MySqlApplicationTimeTableBuilder<TEntity>.HasPeriodStart(System.Linq.Expressions.Expression<System.Func<TEntity!, System.DateTime>!>! propertyExpression) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<System.DateTime>!
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.Like<T>(this Microsoft.EntityFrameworkCore.DbFunctions! functions, T matchExpression, string? pattern) -> bool
+static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.Like<T>(this Microsoft.EntityFrameworkCore.DbFunctions! functions, T matchExpression, string? pattern, string? escapeCharacter) -> bool
+static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.AutoDetect(string! connectionString) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!

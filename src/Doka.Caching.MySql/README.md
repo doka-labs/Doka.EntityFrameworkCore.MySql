@@ -7,15 +7,15 @@ MySqlConnector.
 It is independent of Entity Framework Core: no provider package or `DbContext`
 is required. The package targets .NET 10.
 
-## Install the Release Candidate
+## Install
 
-Pin the current 10.1.0 candidate explicitly for consumer validation:
+Install the latest stable package:
 
 ```bash
-dotnet package add Doka.Caching.MySql --version 10.1.0-rc.2
+dotnet package add Doka.Caching.MySql
 ```
 
-This package is introduced in 10.1.0-rc.1; it is not part of the 10.0.0 release.
+This package is available from 10.1.0; it is not part of the 10.0.0 release.
 
 ## Deploy and Register
 

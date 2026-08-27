@@ -7,7 +7,7 @@ authoritative in [Release Governance](../release-governance.md).
 The current release package set is `Doka.EntityFrameworkCore.MySql`,
 `Doka.EntityFrameworkCore.MySql.NetTopologySuite`, and `Doka.Caching.MySql` at
 one version: three primary packages and three symbol packages. The cache is
-introduced in [10.1.0-rc.1](../../CHANGELOG.md#1010-rc1---2026-08-26), not
+available from [10.1.0](../../CHANGELOG.md#1010---2026-08-27), not
 retroactively added to older two-package releases.
 
 ## One-time configuration
@@ -68,7 +68,7 @@ version with a leading `v`. Select an unused version before starting.
 
 Complete the dated `CHANGELOG.md` section, public API files, package metadata,
 and release notes. Prerelease candidates keep new declarations in
-`PublicAPI.Unshipped.txt`; the first stable release moves them to
+`PublicAPI.Unshipped.txt`; each stable release moves accumulated additions to
 `PublicAPI.Shipped.txt` in this reviewed preparation commit before candidate
 dispatch. Merge through protected `main` only after the pull request's
 `repository-qualification` and required code scanning are green. The merge

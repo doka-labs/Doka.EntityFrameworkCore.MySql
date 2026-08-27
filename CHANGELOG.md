@@ -7,6 +7,31 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.1.0] - 2026-08-27
+
+First stable release of the 10.1 package line. It contains all changes from
+`10.1.0-rc.1` and `10.1.0-rc.2` and promotes the final release candidate
+without changing runtime behavior, generated SQL, supported-engine policy, or
+package dependency ranges.
+
+Install the stable packages through normal NuGet version resolution. Add the
+spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.0
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.0
+dotnet package add Doka.Caching.MySql --version 10.1.0
+```
+
+### Changed
+
+- Promote the 10.1 provider additions and the initial cache public API from
+  prerelease working baselines to immutable shipped baselines.
+- Validate the provider and NetTopologySuite packages against their published
+  10.0.0 package baselines during `dotnet pack`.
+- Publish the stable 10.1 package line after public rc.2 consumer verification
+  confirmed the distributed-cache cleanup correction.
+
 ## [10.1.0-rc.2] - 2026-08-27
 
 Second release candidate for 10.1.0, correcting distributed-cache cleanup
@@ -901,7 +926,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.1.0-rc.2...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.1.0...HEAD
+[10.1.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.0
 [10.1.0-rc.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.0-rc.2
 [10.1.0-rc.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.0-rc.1
 [10.0.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.0.0

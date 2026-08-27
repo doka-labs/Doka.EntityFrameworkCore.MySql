@@ -331,17 +331,20 @@ Workflow for changes that add or remove public API:
 1. Make the source change. The build will fail with `RS0016` (declared API not in shipped or unshipped) or `RS0017` (shipped API removed from source).
 2. Apply the analyzer code-fix in your IDE or run `dotnet format analyzers <csproj> --diagnostics RS0016 --severity info` from the repository root to populate `PublicAPI.Unshipped.txt` automatically.
 3. Removals require an explicit `*REMOVED*` line in `PublicAPI.Unshipped.txt` plus removal of the symbol from `PublicAPI.Shipped.txt`. The diff makes the SemVer-breaking nature of the change visible in PR review.
-4. Prerelease tags leave additions in `Unshipped.txt`. Before the first stable
-   release, move the contents of `Unshipped.txt` to `Shipped.txt` and reset the
-   unshipped file to `#nullable enable` in the reviewed release-preparation
-   commit. The signed tag then points to that already qualified commit.
+4. Prerelease tags leave additions in `Unshipped.txt`. Before each stable
+   release, move the accumulated contents of `Unshipped.txt` to `Shipped.txt`
+   and reset the unshipped file to `#nullable enable` in the reviewed
+   release-preparation commit. The signed tag then points to that already
+   qualified commit.
 
 `RS0026` ("Do not add multiple overloads with optional parameters") fires on the `UseMySql`, `UseHiLo`, and `IsInvisible` extension overloads because each carries an optional default (`mySqlOptionsAction = null`, `name = null`, `invisible = true`). The optional pattern is the EF Core community standard and part of the documented public surface. The suppression is scoped per-method via `[SuppressMessage("ApiDesign", "RS0026:Do not add multiple overloads with optional parameters", Justification = "...")]` on each affected declaration; the project-wide `TreatWarningsAsErrors=true` still applies so any **new** overload that introduces the same pattern fails the build until the author adds the explicit `SuppressMessage` attribute. The added optional parameter is still a SemVer break and demands reviewer attention.
 
-After 10.0.0 is available on nuget.org, a separate reviewed post-release change
-will enable `PackageValidation` against the 10.0.0 package baseline. It cannot
-run in the stable release-preparation commit because qualification precedes
-publication of that baseline. See ADR D-008 for the activation contract.
+`dotnet pack` validates the provider and NetTopologySuite packages against the
+published 10.0.0 package baseline. The cache has no 10.0.0 package to compare;
+its package validation baseline can be enabled only after its first stable
+10.1.0 package is published. After each stable publication, update the baseline
+version in a separate reviewed change so the next package retains every API
+from the most recent stable release. See ADR D-008 for the activation contract.
 
 ## Migration-Operation Handler Changes
 

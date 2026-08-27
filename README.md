@@ -3,7 +3,7 @@
 [![CI](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/workflows/ci.yml/badge.svg)](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/actions/workflows/ci.yml)
 [![NuGet MySQL / MariaDB](https://img.shields.io/nuget/v/Doka.EntityFrameworkCore.MySql.svg?label=NuGet%20MySQL%20%2F%20MariaDB)](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql)
 [![NuGet NetTopologySuite](https://img.shields.io/nuget/v/Doka.EntityFrameworkCore.MySql.NetTopologySuite.svg?label=NuGet%20NetTopologySuite)](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql.NetTopologySuite)
-[![NuGet Caching](https://img.shields.io/nuget/vpre/Doka.Caching.MySql.svg?label=NuGet%20Caching)](https://www.nuget.org/packages/Doka.Caching.MySql)
+[![NuGet Caching](https://img.shields.io/nuget/v/Doka.Caching.MySql.svg?label=NuGet%20Caching)](https://www.nuget.org/packages/Doka.Caching.MySql)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/doka-labs/Doka.EntityFrameworkCore.MySql/badge)](https://scorecard.dev/viewer/?uri=github.com/doka-labs/Doka.EntityFrameworkCore.MySql)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13999/badge)](https://www.bestpractices.dev/projects/13999)
@@ -24,11 +24,11 @@ advertised LTS line.
 | --- | --- |
 | [`Doka.EntityFrameworkCore.MySql`](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql) | Core EF Core provider, migrations, scaffolding, type mappings, and query translation |
 | [`Doka.EntityFrameworkCore.MySql.NetTopologySuite`](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql.NetTopologySuite) | Optional NetTopologySuite mappings, spatial indexes, scaffolding, and spatial query translation |
-| [`Doka.Caching.MySql`](https://www.nuget.org/packages/Doka.Caching.MySql) | Standalone .NET 10 `IDistributedCache` and `IBufferDistributedCache` implementation; introduced in 10.1.0-rc.1 |
+| [`Doka.Caching.MySql`](https://www.nuget.org/packages/Doka.Caching.MySql) | Standalone .NET 10 `IDistributedCache` and `IBufferDistributedCache` implementation; available from 10.1.0 |
 
 The cache package, connection-string detection, and scalar `Like<T>` are
-introduced in [10.1.0-rc.1][changelog]. They are not present in the `10.0.0`
-packages. Use the explicit release-candidate versions below to test them.
+available from [10.1.0][changelog]. They are not present in the `10.0.0`
+packages.
 
 ## Requirements
 
@@ -57,27 +57,16 @@ Add the spatial extension only when the model uses NetTopologySuite types:
 dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite
 ```
 
+Install the standalone distributed cache only when the application needs a
+MySQL or MariaDB-backed `IDistributedCache`:
+
+```bash
+dotnet package add Doka.Caching.MySql
+```
+
 For reproducible installs, add `--version` followed by the exact version from
 the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
 or NuGet.org package page.
-
-### Test the Release Candidate
-
-Pin the candidate version explicitly to test the new 10.1.0 provider APIs:
-
-```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.0-rc.2
-```
-
-Add the optional packages only when needed, using the same candidate version:
-
-```bash
-dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.0-rc.2
-dotnet package add Doka.Caching.MySql --version 10.1.0-rc.2
-```
-
-The cache can be used on its own without the EF Core provider. The RC is for
-consumer validation and is not selected by normal stable-version resolution.
 
 ## Quick Start
 
@@ -309,10 +298,10 @@ from schema changes and preserves deployed migration history.
 `IBufferDistributedCache` for MySQL and MariaDB. It is a standalone .NET 10
 package: neither the EF Core provider nor a `DbContext` is required.
 
-Install the release candidate explicitly:
+Install the package:
 
 ```bash
-dotnet package add Doka.Caching.MySql --version 10.1.0-rc.2
+dotnet package add Doka.Caching.MySql
 ```
 
 First, generate the cache table script for an existing database:
