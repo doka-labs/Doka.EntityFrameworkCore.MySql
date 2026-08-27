@@ -5,15 +5,15 @@ MariaDB through MySqlConnector. It implements `IDistributedCache` and
 `IBufferDistributedCache` on the same singleton. It does not depend on the EF
 Core provider or an application `DbContext`.
 
-This package is introduced in
-[10.1.0-rc.1](../CHANGELOG.md#1010-rc1---2026-08-26); it is not part of the
+This package is available from
+[10.1.0](../CHANGELOG.md#1010---2026-08-27); it is not part of the
 `10.0.0` release. The tested database lines are listed in
 [Supported Databases](supported-databases.md).
 
-Install the release candidate explicitly for consumer validation:
+Install the latest stable package:
 
 ```bash
-dotnet package add Doka.Caching.MySql --version 10.1.0-rc.2
+dotnet package add Doka.Caching.MySql
 ```
 
 ## Deployment and Registration

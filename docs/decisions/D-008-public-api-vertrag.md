@@ -5,7 +5,7 @@ date: 2026-05-16
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
 informed: [Provider contributors]
-scope: "Provider and spatial package public API governance"
+scope: "Provider, spatial, and cache package public API governance"
 supersedes: []
 superseded-by: []
 amends: []
@@ -51,11 +51,12 @@ Chosen option: "PublicApiAnalyzers baselines", because compiler-enforced baselin
 
 Adopt `Microsoft.CodeAnalysis.PublicApiAnalyzers` project-wide. The centrally
 managed analyzer version is currently 5.6.0.
-Each source project gains two text files:
+Each package source project gains two text files:
 
 - `PublicAPI.Shipped.txt` -- the immutable record of the stable public API.
-  It remains empty through the 10.0.0 prereleases and is populated by merging
-  `PublicAPI.Unshipped.txt` before the first stable release.
+  A new package keeps it empty through prereleases and populates it by merging
+  `PublicAPI.Unshipped.txt` before its first stable release. Later stable
+  releases append their accumulated additions in the same way.
 - `PublicAPI.Unshipped.txt` -- the working set of public-API additions
   since the last release. Pre-release contributions add their
   declarations here.
@@ -111,7 +112,7 @@ signed stable tag points to the already qualified commit.
 
 ### Confirmation
 
-- Build both source projects with warnings treated as errors.
+- Build all package source projects with warnings treated as errors.
 - Run package validation before a release candidate is tagged.
 
 ## Pros and Cons of the Options
@@ -136,14 +137,16 @@ signed stable tag points to the already qualified commit.
 ### Implementation Snapshot
 
 - `Microsoft.CodeAnalysis.PublicApiAnalyzers` 5.6.0 is wired through
-  `Directory.Build.props`. Each source project records the initial 10.0.0
-  stable surface in `PublicAPI.Shipped.txt`; `PublicAPI.Unshipped.txt` is reset
-  to `#nullable enable`. CONTRIBUTING.md documents the contributor workflow.
+  `Directory.Build.props`. The provider and spatial projects record their
+  stable public surfaces from 10.0.0 onward. The cache project records its
+  initial stable surface in 10.1.0. Each `PublicAPI.Unshipped.txt` is reset to
+  `#nullable enable` during stable preparation. CONTRIBUTING.md documents the
+  contributor workflow.
 
 ### Implementation Notes
 
 - `Microsoft.CodeAnalysis.PublicApiAnalyzers` 5.6.0 is referenced as a
-  build-time analyzer (`PrivateAssets=all`) on both source projects via a
+  build-time analyzer (`PrivateAssets=all`) on all package source projects via a
   conditional `ItemGroup` in `Directory.Build.props`. The analyzer targets
   discover the per-project `PublicAPI.{Shipped,Unshipped}.txt` pair without
   duplicate `AdditionalFiles` registration.
@@ -151,29 +154,32 @@ signed stable tag points to the already qualified commit.
 - `RS0026` ("Do not add multiple overloads with optional parameters") fires on the `UseMySql` extension family because each overload carries the optional `mySqlOptionsAction = null` parameter. The pattern is the EF Core community standard; the rule is demoted to a warning via `WarningsNotAsErrors` with an explicit rationale comment. A future overload addition still surfaces as a warning and demands explicit reviewer attention.
 - Initial surface population ran via `dotnet format analyzers <csproj> --diagnostics RS0016 --severity info`, which applies the analyzer's auto-fix and writes the exact PublicApiAnalyzer-formatted lines into `PublicAPI.Unshipped.txt`.
 
-### Post-10.0.0 follow-up: PackageValidation
+### PackageValidation after the first stable package
 
-Per operator decision (belt-and-suspenders): after 10.0.0 is available on
-nuget.org, a separate reviewed post-release change activates
-`PackageValidation` (built into the .NET SDK) so subsequent packages are
-compared against the 10.0.0 baseline at `dotnet pack` time. This complements
-PublicApiAnalyzers, which guards source-level surface drift commit-by-commit,
-with a package-level baseline check that catches assembly-binary-compat
-regressions PublicApiAnalyzers cannot see, such as attribute-only changes that
-affect runtime binding.
-
-The post-release activation is a `Directory.Build.props` edit:
+The provider and NetTopologySuite projects enable the .NET SDK's package
+validation against their published 10.0.0 packages:
 
 ```xml
 <EnablePackageValidation>true</EnablePackageValidation>
 <PackageValidationBaselineVersion>10.0.0</PackageValidationBaselineVersion>
+<RunPackageValidationWithoutReferences>true</RunPackageValidationWithoutReferences>
 ```
 
-The activation does not belong in the 10.0.0 release-preparation commit:
-qualification runs before publication, when the baseline package does not yet
-exist on nuget.org. PublicApiAnalyzers remains the mechanical API gate for that
-commit; publishing 10.0.0 establishes the package baseline consumed by the
-post-release change.
+This complements PublicApiAnalyzers, which guards source-level surface drift
+commit-by-commit, with the SDK's package-level compatibility checks during
+`dotnet pack`. The provider's private EF design-time graph is not part of the
+shipped dependency contract, and the spatial project does not consume that
+private graph through its project reference. Package validation therefore
+compares the package assemblies directly instead of recursively resolving
+build-only references. The isolated package consumer separately validates the
+dependencies consumers actually restore.
+
+A project can activate the baseline only after that package has a published
+stable version. The cache is therefore guarded by
+PublicApiAnalyzers while preparing 10.1.0; after 10.1.0 is published, a separate
+reviewed change enables its package baseline and advances the provider and
+NetTopologySuite baselines to 10.1.0. The same post-publication update keeps
+future validation anchored to the most recent stable release.
 
 ### Naming choice vs the Pomelo MySQL provider
 
@@ -233,6 +239,9 @@ The `EnableRetryOnFailure(int, TimeSpan?)` signature matches Pomelo by coinciden
 - 2026-08-24: Promoted the 10.0.0 public surface to the shipped baselines and
   clarified that PackageValidation activation follows publication of the
   baseline package.
+- 2026-08-27: Promoted the 10.1.0 additions and initial cache surface to the
+  shipped baselines. Enabled package validation for the provider and spatial
+  packages against 10.0.0; the cache baseline follows publication of 10.1.0.
 
 ### Implementation References
 
@@ -242,7 +251,14 @@ The `EnableRetryOnFailure(int, TimeSpan?)` signature matches Pomelo by coinciden
 - `src/Doka.EntityFrameworkCore.MySql/PublicAPI.Unshipped.txt`
 - `src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/PublicAPI.Shipped.txt`
 - `src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/PublicAPI.Unshipped.txt`
+- `src/Doka.Caching.MySql/PublicAPI.Shipped.txt`
+- `src/Doka.Caching.MySql/PublicAPI.Unshipped.txt`
 
 ### Sources
 
-- No external sources; repository evidence only.
+- [.NET package validation](https://learn.microsoft.com/en-us/dotnet/fundamentals/apicompat/package-validation/overview)
+  (primary source; retrieved 2026-08-27)
+- [Baseline package validator](https://learn.microsoft.com/en-us/dotnet/fundamentals/apicompat/package-validation/baseline-version-validator)
+  (primary source; retrieved 2026-08-27)
+- [.NET SDK 10.0.400 package-validation target](https://github.com/dotnet/sdk/blob/v10.0.400/src/Tasks/Microsoft.NET.Build.Tasks/targets/Microsoft.NET.ApiCompat.ValidatePackage.targets)
+  (primary source; retrieved 2026-08-27)

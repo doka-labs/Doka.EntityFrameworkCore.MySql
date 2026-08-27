@@ -1,1 +1,20 @@
 #nullable enable
+Doka.Caching.MySql.MySqlCacheOptions
+Doka.Caching.MySql.MySqlCacheOptions.MySqlCacheOptions() -> void
+Doka.Caching.MySql.MySqlCacheOptions.ConnectionString.get -> string!
+Doka.Caching.MySql.MySqlCacheOptions.ConnectionString.set -> void
+Doka.Caching.MySql.MySqlCacheOptions.DataSource.get -> MySqlConnector.MySqlDataSource?
+Doka.Caching.MySql.MySqlCacheOptions.DataSource.set -> void
+Doka.Caching.MySql.MySqlCacheOptions.DefaultSlidingExpiration.get -> System.TimeSpan
+Doka.Caching.MySql.MySqlCacheOptions.DefaultSlidingExpiration.set -> void
+Doka.Caching.MySql.MySqlCacheOptions.ExpiredItemsDeletionInterval.get -> System.TimeSpan
+Doka.Caching.MySql.MySqlCacheOptions.ExpiredItemsDeletionInterval.set -> void
+Doka.Caching.MySql.MySqlCacheOptions.SchemaName.get -> string!
+Doka.Caching.MySql.MySqlCacheOptions.SchemaName.set -> void
+Doka.Caching.MySql.MySqlCacheOptions.TableName.get -> string!
+Doka.Caching.MySql.MySqlCacheOptions.TableName.set -> void
+Doka.Caching.MySql.MySqlCacheSchema
+const Doka.Caching.MySql.MySqlCacheSchema.Version = 1 -> int
+Doka.Caching.MySql.MySqlCacheServiceCollectionExtensions
+static Doka.Caching.MySql.MySqlCacheSchema.GetCreateScript(string! schemaName, string! tableName) -> string!
+static Doka.Caching.MySql.MySqlCacheServiceCollectionExtensions.AddDistributedMySqlCache(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Doka.Caching.MySql.MySqlCacheOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

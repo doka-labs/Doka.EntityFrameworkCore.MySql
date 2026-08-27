@@ -75,8 +75,8 @@ server execution plan before treating a search query as indexed.
 
 ## Scalar LIKE
 
-The generic overloads are introduced in
-[10.1.0-rc.1](../CHANGELOG.md#1010-rc1---2026-08-26), not the `10.0.0` provider.
+The generic overloads are available from
+[10.1.0](../CHANGELOG.md#1010---2026-08-27), not the `10.0.0` provider.
 The supported CLR types are `byte`,
 `sbyte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `float`, `double`,
 `decimal`, `DateTime`, and `Guid`, plus their nullable forms.
