@@ -339,12 +339,10 @@ Workflow for changes that add or remove public API:
 
 `RS0026` ("Do not add multiple overloads with optional parameters") fires on the `UseMySql`, `UseHiLo`, and `IsInvisible` extension overloads because each carries an optional default (`mySqlOptionsAction = null`, `name = null`, `invisible = true`). The optional pattern is the EF Core community standard and part of the documented public surface. The suppression is scoped per-method via `[SuppressMessage("ApiDesign", "RS0026:Do not add multiple overloads with optional parameters", Justification = "...")]` on each affected declaration; the project-wide `TreatWarningsAsErrors=true` still applies so any **new** overload that introduces the same pattern fails the build until the author adds the explicit `SuppressMessage` attribute. The added optional parameter is still a SemVer break and demands reviewer attention.
 
-`dotnet pack` validates the provider and NetTopologySuite packages against the
-published 10.0.0 package baseline. The cache has no 10.0.0 package to compare;
-its package validation baseline can be enabled only after its first stable
-10.1.0 package is published. After each stable publication, update the baseline
-version in a separate reviewed change so the next package retains every API
-from the most recent stable release. See ADR D-008 for the activation contract.
+`dotnet pack` validates all three packages against the published 10.1.0 package
+baseline. After each stable publication, update the baseline version in a
+separate reviewed change so the next package retains every API from the most
+recent stable release. See ADR D-008 for the activation contract.
 
 ## Migration-Operation Handler Changes
 

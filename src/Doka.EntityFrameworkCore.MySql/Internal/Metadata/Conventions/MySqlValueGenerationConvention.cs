@@ -23,24 +23,34 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         ArgumentNullException.ThrowIfNull(modelBuilder);
         ArgumentNullException.ThrowIfNull(context);
 
-        foreach (var entityType in modelBuilder.Metadata.GetEntityTypes().ToArray())
+        var properties = modelBuilder
+            .Metadata
+            .GetEntityTypes()
+            .SelectMany(entityType => entityType
+                .GetProperties()
+                .Select(property => (EntityType: entityType, Property: property)))
+            .ToArray();
+
+        var guidProperties = properties
+            .Select(item => item.Property)
+            .Where(IsGuidProperty)
+            .ToArray();
+
+        var applicationConversionProperties = FindApplicationConversionProperties(guidProperties);
+
+        foreach (var (entityType, property) in properties)
         {
-            foreach (var property in entityType.GetProperties().ToArray())
-            {
-                ApplyGuidFormat(property);
-                ApplyValueGenerationStrategy(entityType, property);
-            }
+            ApplyGuidFormat(property, applicationConversionProperties.Contains(property));
+            ApplyValueGenerationStrategy(entityType, property);
         }
     }
 
     private void ApplyGuidFormat(
-        IConventionProperty property
+        IConventionProperty property,
+        bool hasApplicationConversionContract
     )
     {
-        var clrType = Nullable.GetUnderlyingType(property.ClrType)
-            ?? property.ClrType;
-
-        if (clrType != typeof(Guid))
+        if (!IsGuidProperty(property))
         {
             return;
         }
@@ -52,9 +62,7 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         // A converter or provider CLR type is an application-level storage
         // contract. Replacing it would let nullable and non-nullable members of
         // the same FK resolve to different physical representations.
-        if (format is null
-            && (property.GetValueConverter() is not null
-                || property.GetProviderClrType() is not null))
+        if (format is null && hasApplicationConversionContract)
         {
             return;
         }
@@ -75,10 +83,7 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
                 mutableProperty.SetMaxLength(16);
                 mutableProperty.SetIsFixedLength(true);
                 mutableProperty.SetColumnType("binary(16)");
-                mutableProperty.SetProviderClrType(
-                    _singletonOptions.DefaultGuidFormat == MySqlGuidFormat.Char36
-                        ? typeof(byte[])
-                        : null);
+                mutableProperty.SetProviderClrType(null);
                 mutableProperty.SetValueConverter(
                     _singletonOptions.DefaultGuidFormat == MySqlGuidFormat.Char36
                         ? MySqlGuidToBytesConverter.Default
@@ -88,8 +93,8 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
                 mutableProperty.SetMaxLength(36);
                 mutableProperty.SetIsFixedLength(true);
                 mutableProperty.SetColumnType("char(36)");
-                mutableProperty.SetProviderClrType(typeof(string));
-                mutableProperty.SetValueConverter(new GuidToStringConverter());
+                mutableProperty.SetProviderClrType(null);
+                mutableProperty.SetValueConverter((ValueConverter?)null);
                 break;
             default:
                 ThrowUnsupportedGuidFormat(format.Value);
@@ -118,8 +123,8 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
                 property.SetMaxLength(36);
                 property.SetIsFixedLength(true);
                 property.SetColumnType("char(36)");
-                property.SetProviderClrType(typeof(string));
-                property.SetValueConverter(new GuidToStringConverter());
+                property.SetProviderClrType(null);
+                property.SetValueConverter((ValueConverter?)null);
 
                 return true;
 
@@ -127,8 +132,8 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
                 property.SetMaxLength(36);
                 property.SetIsFixedLength(false);
                 property.SetColumnType("varchar(36)");
-                property.SetProviderClrType(typeof(string));
-                property.SetValueConverter(new GuidToStringConverter());
+                property.SetProviderClrType(null);
+                property.SetValueConverter((ValueConverter?)null);
 
                 return true;
 
@@ -137,10 +142,7 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
                 property.SetMaxLength(16);
                 property.SetIsFixedLength(true);
                 property.SetColumnType("binary(16)");
-                property.SetProviderClrType(
-                    _singletonOptions.DefaultGuidFormat == MySqlGuidFormat.Char36
-                        ? typeof(byte[])
-                        : null);
+                property.SetProviderClrType(null);
                 property.SetValueConverter(
                     _singletonOptions.DefaultGuidFormat == MySqlGuidFormat.Char36
                         ? MySqlGuidToBytesConverter.Default
@@ -152,6 +154,34 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
                 return false;
         }
     }
+
+    private static HashSet<IConventionProperty> FindApplicationConversionProperties(
+        IReadOnlyList<IConventionProperty> guidProperties
+    )
+    {
+        var applicationConversionProperties = new HashSet<IConventionProperty>();
+
+        foreach (var property in guidProperties)
+        {
+            // Resolve every pre-existing relationship contract before provider
+            // metadata is added. EF Core remains the authority for rejecting
+            // genuinely conflicting application conversions.
+            var converter = property.GetValueConverter();
+            var providerClrType = property.GetProviderClrType();
+
+            if (property.GetMySqlGuidFormat() is null
+                && (converter is not null || providerClrType is not null))
+            {
+                applicationConversionProperties.Add(property);
+            }
+        }
+
+        return applicationConversionProperties;
+    }
+
+    private static bool IsGuidProperty(
+        IReadOnlyProperty property
+    ) => (Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType) == typeof(Guid);
 
     private static void ThrowUnsupportedGuidFormat(
         MySqlGuidFormat format

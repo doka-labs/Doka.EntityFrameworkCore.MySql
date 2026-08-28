@@ -22,9 +22,10 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
         }
 
         // EF Core snapshots normally declare a converted property through the
-        // converter's provider CLR type. The provider Guid-format fluent API
-        // reinstalls its format-specific converter, so its declaration must retain
-        // the model CLR type instead of becoming Property<string> or Property<byte[]>.
+        // converter's provider CLR type. A Binary16 override under a Char36
+        // connection still needs a byte converter, while the provider Guid-format
+        // fluent API reinstalls the mapping. The declaration must therefore retain
+        // the model CLR type instead of becoming Property<byte[]>.
         // This branch mirrors EF Core 10.0.11
         // CSharpSnapshotGenerator.GenerateProperty except for that CLR-type choice.
         // Diff it against upstream whenever the supported EF Core range changes.

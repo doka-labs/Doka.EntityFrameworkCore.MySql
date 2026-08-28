@@ -217,8 +217,8 @@ public static class MySqlPropertyBuilderExtensions
                 propertyBuilder.IsFixedLength();
                 propertyBuilder.HasMaxLength(36);
                 propertyBuilder.HasColumnType("char(36)");
-                propertyBuilder.Metadata.SetProviderClrType(typeof(string));
-                propertyBuilder.Metadata.SetValueConverter(new GuidToStringConverter());
+                propertyBuilder.Metadata.SetProviderClrType(null);
+                propertyBuilder.Metadata.SetValueConverter((ValueConverter?)null);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(format));

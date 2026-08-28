@@ -7,6 +7,38 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.1.1-rc.1] - 2026-08-28
+
+First release candidate for the 10.1.1 patch release. It corrects
+provider-owned `Char36` conversion metadata discovered while validating a
+relationship-heavy consumer model against the published 10.1.0 packages.
+
+Install the candidate explicitly to test the published packages rather than
+project references. Add the spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.1-rc.1
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.1-rc.1
+dotnet package add Doka.Caching.MySql --version 10.1.1-rc.1
+```
+
+### Changed
+
+- Validate all three packages against their published 10.1.0 package baselines
+  during `dotnet pack`.
+
+### Fixed
+
+- Keep provider-owned `Char36` properties as `Guid` or `Guid?` throughout
+  relationship finalization while leaving the relational type mapping solely
+  responsible for converting values to `char(36)`.
+- Preserve application-owned value converters and provider CLR types before
+  applying provider GUID metadata so compatible relationship chains remain
+  valid and genuinely conflicting application conversions still fail closed.
+- Preserve GUID model types through designers, snapshots, and migration
+  round-trips instead of producing `AlterColumn<string>(...)` and unintended
+  `varchar(36)` schema drift.
+
 ## [10.1.0] - 2026-08-27
 
 First stable release of the 10.1 package line. It contains all changes from
@@ -926,7 +958,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.1.0...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.1.1-rc.1...HEAD
+[10.1.1-rc.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.1-rc.1
 [10.1.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.0
 [10.1.0-rc.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.0-rc.2
 [10.1.0-rc.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.0-rc.1

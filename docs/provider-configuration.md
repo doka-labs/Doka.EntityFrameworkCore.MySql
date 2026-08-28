@@ -138,6 +138,13 @@ Do not set connector GUID conversion options behind the provider. The
 provider's `DefaultGuidFormat(...)` and `HasMySqlGuidFormat(...)` own the model,
 parameter, literal, migration, and materialization contract together.
 
+For provider-owned `Char36`, keep the model CLR type as `Guid` or `Guid?`.
+The relational type mapping owns the conversion to `char(36)`; adding an
+application `GuidToStringConverter` or provider CLR type of `string` duplicates
+that responsibility and can create conflicting relationship conversions.
+Application-owned conversions remain authoritative, but every property in a
+relationship chain must use a compatible conversion contract.
+
 ## Runnable Verification
 
 - [HostExamples](../examples/Doka.EntityFrameworkCore.MySql.HostExamples/README.md)

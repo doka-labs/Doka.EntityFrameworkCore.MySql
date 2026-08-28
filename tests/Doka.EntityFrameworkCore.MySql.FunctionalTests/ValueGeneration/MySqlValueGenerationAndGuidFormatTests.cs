@@ -119,6 +119,9 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
 
         Assert.Equal(MySqlGuidFormat.Char36, property.GetMySqlGuidFormat());
         Assert.Equal("char(36)", property.GetColumnType());
+        Assert.Null(property.GetValueConverter());
+        Assert.Null(property.GetProviderClrType());
+        Assert.IsType<GuidToStringConverter>(property.GetRelationalTypeMapping().Converter);
         Assert.Equal(MySqlValueGenerationStrategy.ClientGuid, property.GetMySqlValueGenerationStrategy());
         Assert.Equal(ValueGenerated.OnAdd, property.ValueGenerated);
     }
@@ -143,7 +146,8 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
         Assert.Equal("00112233445566778899AABBCCDDEEFF", Convert.ToHexString(providerValue));
         Assert.Equal(value, converter.ConvertFromProvider(providerValue));
         Assert.Throws<InvalidOperationException>(() => _ = converter.ConvertFromProvider(new byte[15]));
-        Assert.Equal(typeof(byte[]), property.GetProviderClrType());
+        Assert.Equal(typeof(byte[]), converter.ProviderClrType);
+        Assert.Null(property.GetProviderClrType());
         Assert.Equal("binary(16)", property.FindAnnotation(RelationalAnnotationNames.ColumnType)?.Value);
         Assert.Equal("binary(16)", property.GetColumnType());
     }

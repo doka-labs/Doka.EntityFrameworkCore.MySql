@@ -161,6 +161,33 @@ public sealed class MySqlDesignTimeRoundTripTests
     }
 
     /// <summary>
+    /// A context-level Char36 default remains a Guid model contract when one
+    /// property participates in multiple relationship chains.
+    /// </summary>
+    [Fact]
+    public void Default_char36_branching_relationships_roundtrip_without_string_model_drift()
+    {
+        using var context = new DefaultChar36RelationshipDesignContext(
+            CreateOptions<DefaultChar36RelationshipDesignContext>(
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                MySqlGuidFormat.Char36));
+
+        var generated = GenerateAndCompile(context);
+
+        Assert.Contains(".Property<System.Guid>(\"ReferenceId\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".Property<System.Guid?>(\"OptionalReferenceId\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Property<string>(\"ReferenceId\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Property<string>(\"OptionalReferenceId\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".HasColumnType(\"varchar(36)\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".Property<System.Guid>(\"ReferenceId\")", generated.DesignerCode, StringComparison.Ordinal);
+        Assert.Contains(".Property<System.Guid?>(\"OptionalReferenceId\")", generated.DesignerCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Property<string>(\"ReferenceId\")", generated.DesignerCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Property<string>(\"OptionalReferenceId\")", generated.DesignerCode, StringComparison.Ordinal);
+        AssertRoundTripsWithoutOperations(context, generated.SnapshotModel);
+        AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
+    }
+
+    /// <summary>
     /// A context-level Char36 default and an explicit Binary16 override retain
     /// Guid model types and byte-order annotations through generated models.
     /// </summary>
@@ -838,6 +865,166 @@ public sealed class Char36DesignRevision
     /// Gets or sets the principal navigation.
     /// </summary>
     public Char36DesignDocument Document { get; set; } = null!;
+}
+
+/// <summary>
+/// Test context for generated relationship models using a context-level Char36 default.
+/// </summary>
+public sealed class DefaultChar36RelationshipDesignContext : DbContext
+{
+    /// <summary>
+    /// Creates the relationship design context.
+    /// </summary>
+    public DefaultChar36RelationshipDesignContext(
+        DbContextOptions<DefaultChar36RelationshipDesignContext> options
+    ) : base(options) { }
+
+    /// <inheritdoc />
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
+    {
+        modelBuilder.Entity<DefaultChar36RelationshipARoot>(entity => entity.HasKey(item => item.Id));
+
+        modelBuilder.Entity<DefaultChar36RelationshipBLeft>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity
+                .HasOne(item => item.Root)
+                .WithOne()
+                .HasForeignKey<DefaultChar36RelationshipBLeft>(item => item.Id);
+        });
+
+        modelBuilder.Entity<DefaultChar36RelationshipCRight>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity
+                .HasOne(item => item.Root)
+                .WithOne()
+                .HasForeignKey<DefaultChar36RelationshipCRight>(item => item.Id);
+        });
+
+        modelBuilder.Entity<DefaultChar36RelationshipZLeaf>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity
+                .HasOne(item => item.Left)
+                .WithMany()
+                .HasForeignKey(item => item.ReferenceId);
+            entity
+                .HasOne(item => item.Right)
+                .WithMany()
+                .HasForeignKey(item => item.ReferenceId);
+        });
+
+        modelBuilder.Entity<DefaultChar36RelationshipZNullableLeaf>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity
+                .HasOne(item => item.Left)
+                .WithMany()
+                .HasForeignKey(item => item.OptionalReferenceId);
+            entity
+                .HasOne(item => item.Right)
+                .WithMany()
+                .HasForeignKey(item => item.OptionalReferenceId);
+        });
+    }
+}
+
+/// <summary>
+/// Root entity for the generated context-level Char36 relationship model.
+/// </summary>
+public sealed class DefaultChar36RelationshipARoot
+{
+    /// <summary>
+    /// Gets or sets the key.
+    /// </summary>
+    public Guid Id { get; set; }
+}
+
+/// <summary>
+/// Left relationship branch for the generated context-level Char36 model.
+/// </summary>
+public sealed class DefaultChar36RelationshipBLeft
+{
+    /// <summary>
+    /// Gets or sets the shared primary and foreign key.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the root navigation.
+    /// </summary>
+    public DefaultChar36RelationshipARoot Root { get; set; } = null!;
+}
+
+/// <summary>
+/// Right relationship branch for the generated context-level Char36 model.
+/// </summary>
+public sealed class DefaultChar36RelationshipCRight
+{
+    /// <summary>
+    /// Gets or sets the shared primary and foreign key.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the root navigation.
+    /// </summary>
+    public DefaultChar36RelationshipARoot Root { get; set; } = null!;
+}
+
+/// <summary>
+/// Leaf entity whose GUID participates in both relationship branches.
+/// </summary>
+public sealed class DefaultChar36RelationshipZLeaf
+{
+    /// <summary>
+    /// Gets or sets the key.
+    /// </summary>
+    public int Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the GUID shared by both foreign keys.
+    /// </summary>
+    public Guid ReferenceId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the left branch navigation.
+    /// </summary>
+    public DefaultChar36RelationshipBLeft Left { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the right branch navigation.
+    /// </summary>
+    public DefaultChar36RelationshipCRight Right { get; set; } = null!;
+}
+
+/// <summary>
+/// Optional leaf entity whose nullable GUID participates in both relationship branches.
+/// </summary>
+public sealed class DefaultChar36RelationshipZNullableLeaf
+{
+    /// <summary>
+    /// Gets or sets the key.
+    /// </summary>
+    public int Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional GUID shared by both foreign keys.
+    /// </summary>
+    public Guid? OptionalReferenceId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional left branch navigation.
+    /// </summary>
+    public DefaultChar36RelationshipBLeft? Left { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional right branch navigation.
+    /// </summary>
+    public DefaultChar36RelationshipCRight? Right { get; set; }
 }
 
 /// <summary>
