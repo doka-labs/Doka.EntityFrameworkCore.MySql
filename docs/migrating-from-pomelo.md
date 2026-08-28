@@ -150,6 +150,13 @@ optionsBuilder.UseMySql(connectionString, serverVersion, mysql =>
 Use `HasMySqlGuidFormat(...)` to preserve mixed per-property formats. Changing
 `char(36)` to `binary(16)` is a data and schema migration, not namespace cleanup.
 
+Provider-owned `Char36` properties remain `Guid` or `Guid?` in the model,
+designer, and snapshot. Do not add `GuidToStringConverter` or configure a
+provider CLR type of `string` merely because the store column is `char(36)`.
+When a no-schema-change migration instead emits `AlterColumn<string>(...)` or
+changes `char(36)` to `varchar(36)`, treat it as model-metadata drift and fix the
+configuration before applying the migration.
+
 Doka `Binary16` uses big-endian GUID bytes. An existing `binary(16)` column
 alone does not prove compatibility: old little-endian or time-swapped layouts
 need an explicit, tested conversion. Round-trip known preexisting GUID values

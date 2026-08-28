@@ -12,6 +12,9 @@
     <IsTrimmable>true</IsTrimmable>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion>10.1.0</PackageValidationBaselineVersion>
+    <RunPackageValidationWithoutReferences>true</RunPackageValidationWithoutReferences>
   </PropertyGroup>
 
   <ItemGroup>

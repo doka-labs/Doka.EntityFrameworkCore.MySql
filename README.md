@@ -68,6 +68,22 @@ For reproducible installs, add `--version` followed by the exact version from
 the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
 or NuGet.org package page.
 
+### Test the Release Candidate
+
+`10.1.1-rc.1` corrects provider-owned `Char36` metadata across relationship
+graphs so GUID properties remain `Guid` or `Guid?` in snapshots, designers,
+and migrations. Install the candidate explicitly when validating an affected
+model against the published packages:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.1-rc.1
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.1-rc.1
+dotnet package add Doka.Caching.MySql --version 10.1.1-rc.1
+```
+
+The spatial and cache packages remain optional. Use normal NuGet resolution
+above for applications that should stay on the latest stable release.
+
 ## Quick Start
 
 Configure the provider with the database family and server release line, then

@@ -156,12 +156,12 @@ signed stable tag points to the already qualified commit.
 
 ### PackageValidation after the first stable package
 
-The provider and NetTopologySuite projects enable the .NET SDK's package
-validation against their published 10.0.0 packages:
+All three package projects enable the .NET SDK's package validation against
+their published 10.1.0 packages:
 
 ```xml
 <EnablePackageValidation>true</EnablePackageValidation>
-<PackageValidationBaselineVersion>10.0.0</PackageValidationBaselineVersion>
+<PackageValidationBaselineVersion>10.1.0</PackageValidationBaselineVersion>
 <RunPackageValidationWithoutReferences>true</RunPackageValidationWithoutReferences>
 ```
 
@@ -175,11 +175,10 @@ build-only references. The isolated package consumer separately validates the
 dependencies consumers actually restore.
 
 A project can activate the baseline only after that package has a published
-stable version. The cache is therefore guarded by
-PublicApiAnalyzers while preparing 10.1.0; after 10.1.0 is published, a separate
-reviewed change enables its package baseline and advances the provider and
-NetTopologySuite baselines to 10.1.0. The same post-publication update keeps
-future validation anchored to the most recent stable release.
+stable version. The cache baseline was therefore activated after publication
+of 10.1.0, at the same time the provider and NetTopologySuite baselines advanced
+to 10.1.0. The same post-publication update keeps future validation anchored to
+the most recent stable release.
 
 ### Naming choice vs the Pomelo MySQL provider
 
@@ -242,6 +241,8 @@ The `EnableRetryOnFailure(int, TimeSpan?)` signature matches Pomelo by coinciden
 - 2026-08-27: Promoted the 10.1.0 additions and initial cache surface to the
   shipped baselines. Enabled package validation for the provider and spatial
   packages against 10.0.0; the cache baseline follows publication of 10.1.0.
+- 2026-08-28: Advanced the provider and spatial package baselines to 10.1.0 and
+  enabled the cache baseline after publication of its first stable package.
 
 ### Implementation References
 
