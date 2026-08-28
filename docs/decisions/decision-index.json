@@ -328,7 +328,7 @@
     },
     {
       "id": "D-028",
-      "title": "Require explicit nullability backfills",
+      "title": "Require explicit migration data transformations",
       "status": "implemented",
       "date": "2026-08-21",
       "path": "docs/decisions/D-028-explicit-nullability-backfills.md",

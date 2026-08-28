@@ -207,23 +207,59 @@ public sealed class FullMigrationsMySqlTest
         Add_required_primitve_collection_with_custom_default_value_sql_to_existing_table_core(
             "JSON_ARRAY()");
 
-    /// <summary>
-    /// Activates the upstream-skipped custom-converter migration fact because
-    /// the provider preserves the converted required-column default correctly.
-    /// </summary>
-    [Fact]
-    public override Task
-        Add_required_primitive_collection_with_custom_converter_to_existing_table() =>
-        base.Add_required_primitive_collection_with_custom_converter_to_existing_table();
+    /// <inheritdoc />
+    public override Task Add_column_with_required() =>
+        AssertExplicitBackfillRequired(base.Add_column_with_required);
 
-    /// <summary>
-    /// Activates the legacy misspelled variant of the same passing migration
-    /// contract so it cannot remain hidden by the upstream skip.
-    /// </summary>
+    /// <inheritdoc />
+    public override Task Add_column_with_check_constraint() =>
+        AssertExplicitBackfillRequired(base.Add_column_with_check_constraint);
+
+    /// <inheritdoc />
+    public override Task Add_json_columns_to_existing_table() =>
+        AssertExplicitBackfillRequired(base.Add_json_columns_to_existing_table);
+
+    /// <inheritdoc />
+    public override Task Add_primary_key_with_name() =>
+        AssertExplicitBackfillRequired(base.Add_primary_key_with_name);
+
+    /// <inheritdoc />
+    public override Task Add_required_primitive_collection_to_existing_table() =>
+        AssertExplicitBackfillRequired(base.Add_required_primitive_collection_to_existing_table);
+
+    /// <inheritdoc />
     [Fact]
-    public override Task
-        Add_required_primitve_collection_with_custom_converter_to_existing_table() =>
-        base.Add_required_primitve_collection_with_custom_converter_to_existing_table();
+    public override Task Add_required_primitive_collection_with_custom_converter_to_existing_table() =>
+        AssertExplicitBackfillRequired(base.Add_required_primitive_collection_with_custom_converter_to_existing_table);
+
+    /// <inheritdoc />
+    public override Task Add_required_primitve_collection_to_existing_table() =>
+        AssertExplicitBackfillRequired(base.Add_required_primitve_collection_to_existing_table);
+
+    /// <inheritdoc />
+    [Fact]
+    public override Task Add_required_primitve_collection_with_custom_converter_to_existing_table() =>
+        AssertExplicitBackfillRequired(base.Add_required_primitve_collection_with_custom_converter_to_existing_table);
+
+    /// <inheritdoc />
+    public override Task Alter_column_make_required() =>
+        AssertExplicitBackfillRequired(base.Alter_column_make_required);
+
+    /// <inheritdoc />
+    public override Task Alter_column_make_required_with_composite_index() =>
+        AssertExplicitBackfillRequired(base.Alter_column_make_required_with_composite_index);
+
+    /// <inheritdoc />
+    public override Task Alter_column_make_required_with_index() =>
+        AssertExplicitBackfillRequired(base.Alter_column_make_required_with_index);
+
+    /// <inheritdoc />
+    public override Task Alter_column_make_required_with_null_data() =>
+        AssertExplicitBackfillRequired(base.Alter_column_make_required_with_null_data);
+
+    /// <inheritdoc />
+    public override Task Convert_string_column_to_a_json_column_containing_required_reference() =>
+        AssertExplicitBackfillRequired(base.Convert_string_column_to_a_json_column_containing_required_reference);
 
     /// <summary>
     /// Verifies every sequence option while adapting the relational schema assertion to
@@ -272,6 +308,19 @@ public sealed class FullMigrationsMySqlTest
                 Assert.Equal("TestSequence", sequence.Name);
                 Assert.Null(sequence.Schema);
             });
+
+    private static async Task AssertExplicitBackfillRequired(
+        Func<Task> migrationTest
+    )
+    {
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(migrationTest);
+
+        Assert.Contains(
+            "requires an explicit DefaultValue or DefaultValueSql",
+            exception.Message,
+            StringComparison.Ordinal);
+        Assert.Contains("application contract", exception.Message, StringComparison.Ordinal);
+    }
 
     /// <summary>
     /// Extends the official migration harness with MySQL's schema-as-database

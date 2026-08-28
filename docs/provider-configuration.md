@@ -138,12 +138,15 @@ Do not set connector GUID conversion options behind the provider. The
 provider's `DefaultGuidFormat(...)` and `HasMySqlGuidFormat(...)` own the model,
 parameter, literal, migration, and materialization contract together.
 
-For provider-owned `Char36`, keep the model CLR type as `Guid` or `Guid?`.
-The relational type mapping owns the conversion to `char(36)`; adding an
-application `GuidToStringConverter` or provider CLR type of `string` duplicates
-that responsibility and can create conflicting relationship conversions.
-Application-owned conversions remain authoritative, but every property in a
-relationship chain must use a compatible conversion contract.
+For provider-owned `Char36` and `Binary16`, keep the model CLR type as `Guid` or
+`Guid?`. The relational type mapping owns conversion to `char(36)` or the
+provider's big-endian `binary(16)` layout; adding an application converter or
+provider CLR type duplicates that responsibility and can create conflicting
+relationship conversions. Application-owned conversions remain authoritative,
+but every property in a relationship chain must use a compatible conversion
+contract. Changing between text and binary storage, or adopting native
+`Binary16` from an application byte converter, requires the staged data
+migration described in [Migration Operations](operations/migrations.md#guid-representation-changes).
 
 ## Runnable Verification
 

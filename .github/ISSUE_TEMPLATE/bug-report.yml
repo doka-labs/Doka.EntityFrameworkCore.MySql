@@ -28,7 +28,7 @@ body:
     attributes:
       label: Provider version
       description: Provide the exact Doka.EntityFrameworkCore.MySql package version.
-      placeholder: 10.1.1-rc.1
+      placeholder: 10.1.1-rc.2
     validations:
       required: true
 

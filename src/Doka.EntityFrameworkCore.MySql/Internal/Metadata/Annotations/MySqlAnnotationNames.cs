@@ -28,6 +28,8 @@ internal static class MySqlAnnotationNames
 
     public const string Comment = Prefix + nameof(Comment);
 
+    public const string RequiresExplicitBackfill = Prefix + nameof(RequiresExplicitBackfill);
+
     public const string ScaffoldingCheckConstraints = Prefix + nameof(ScaffoldingCheckConstraints);
 
     public const string ScaffoldingIndexParts = Prefix + nameof(ScaffoldingIndexParts);

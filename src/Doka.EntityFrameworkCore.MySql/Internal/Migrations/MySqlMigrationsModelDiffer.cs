@@ -38,6 +38,8 @@ internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
             .GetDifferences(source, target)
             .ToList();
 
+        RemoveEfCoreSyntheticBackfillDefaults(operations, target);
+        NormalizeProviderColumnOperations(operations, source, target);
         ApplyTemporalOperationAnnotations(operations, source, target);
         ApplyApplicationTimeOperationAnnotations(operations, source, target);
         EnsureApplicationTimePrimaryKeyTransitions(operations, source, target);
@@ -60,6 +62,178 @@ internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
 
         return operations;
     }
+
+    private static void RemoveEfCoreSyntheticBackfillDefaults(
+        IEnumerable<MigrationOperation> operations,
+        IRelationalModel? target
+    )
+    {
+        if (target is null)
+        {
+            return;
+        }
+
+        foreach (var operation in operations)
+        {
+            if (operation is AlterColumnOperation
+                {
+                    IsNullable: false,
+                    OldColumn.IsNullable: true,
+                } alterColumn
+                && string.IsNullOrWhiteSpace(alterColumn.ComputedColumnSql)
+                && !TargetDeclaresDefault(target, alterColumn))
+            {
+                alterColumn.DefaultValue = null;
+                alterColumn.SetAnnotation(MySqlAnnotationNames.RequiresExplicitBackfill, true);
+                continue;
+            }
+
+            if (operation is AddColumnOperation
+                {
+                    IsNullable: false,
+                } addColumn
+                && string.IsNullOrWhiteSpace(addColumn.ComputedColumnSql)
+                && !TargetDeclaresDefault(target, addColumn))
+            {
+                addColumn.DefaultValue = null;
+                addColumn.SetAnnotation(MySqlAnnotationNames.RequiresExplicitBackfill, true);
+            }
+        }
+    }
+
+    private static bool TargetDeclaresDefault(
+        IRelationalModel target,
+        ColumnOperation operation
+    )
+    {
+        var column = target
+            .FindTable(operation.Table, operation.Schema)
+            ?.FindColumn(operation.Name);
+
+        if (column is null)
+        {
+            return true;
+        }
+
+        return column.TryGetDefaultValue(out var defaultValue) && defaultValue is not null
+            || !string.IsNullOrWhiteSpace(column.DefaultValueSql);
+    }
+
+    private static void NormalizeProviderColumnOperations(
+        IEnumerable<MigrationOperation> operations,
+        IRelationalModel? source,
+        IRelationalModel? target
+    )
+    {
+        foreach (var operation in operations)
+        {
+            switch (operation)
+            {
+                case CreateTableOperation createTable:
+                    foreach (var column in createTable.Columns)
+                    {
+                        NormalizeProviderGuidColumnOperation(column);
+                        NormalizeProviderOwnedConverterColumnOperation(column, target);
+                    }
+
+                    break;
+                case AlterColumnOperation alterColumn:
+                    NormalizeProviderGuidColumnOperation(alterColumn);
+                    NormalizeProviderOwnedConverterColumnOperation(alterColumn, target);
+                    NormalizeProviderGuidColumnOperation(alterColumn.OldColumn);
+                    NormalizeProviderOwnedConverterColumnOperation(alterColumn.OldColumn, source);
+                    break;
+                case ColumnOperation column:
+                    NormalizeProviderGuidColumnOperation(column);
+                    NormalizeProviderOwnedConverterColumnOperation(column, target);
+                    break;
+            }
+        }
+    }
+
+    private static void NormalizeProviderOwnedConverterColumnOperation(
+        ColumnOperation operation,
+        IRelationalModel? relationalModel
+    )
+    {
+        var mappedProperties = relationalModel
+            ?.FindTable(operation.Table, operation.Schema)
+            ?.FindColumn(operation.Name)
+            ?.PropertyMappings.Select(mapping => mapping.Property)
+            .ToArray();
+
+        if (mappedProperties is not { Length: > 0 })
+        {
+            return;
+        }
+
+        Type? modelClrType = null;
+
+        foreach (var property in mappedProperties)
+        {
+            if (property.GetRelationalTypeMapping() is not (MySqlJsonTypeMapping or MySqlRowVersionTypeMapping))
+            {
+                return;
+            }
+
+            var propertyClrType = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
+
+            if (modelClrType is not null
+                && modelClrType != propertyClrType)
+            {
+                return;
+            }
+
+            modelClrType = propertyClrType;
+        }
+
+        operation.ClrType = modelClrType!;
+    }
+
+    private static void NormalizeProviderGuidColumnOperation(
+        ColumnOperation operation
+    )
+    {
+        if (operation.FindAnnotation(MySqlAnnotationNames.GuidFormat)
+                ?.Value is not MySqlGuidFormat format)
+        {
+            return;
+        }
+
+        operation.ClrType = typeof(Guid);
+        operation.DefaultValue = format switch
+        {
+            MySqlGuidFormat.Char36 => NormalizeChar36Default(operation),
+            MySqlGuidFormat.Binary16 => NormalizeBinary16Default(operation),
+            _ => throw new InvalidOperationException($"Unsupported provider-owned GUID format '{format}'."),
+        };
+    }
+
+    private static object? NormalizeChar36Default(
+        ColumnOperation operation
+    ) => operation.DefaultValue switch
+    {
+        null or Guid => operation.DefaultValue,
+        "" => Guid.Empty,
+        string value when Guid.TryParseExact(value, "D", out var guid) => guid,
+        _ => ThrowInvalidProviderGuidDefault(operation, MySqlGuidFormat.Char36),
+    };
+
+    private static object? NormalizeBinary16Default(
+        ColumnOperation operation
+    ) => operation.DefaultValue switch
+    {
+        null or Guid => operation.DefaultValue,
+        byte[] { Length: 16 } value => new Guid(value, bigEndian: true),
+        _ => ThrowInvalidProviderGuidDefault(operation, MySqlGuidFormat.Binary16),
+    };
+
+    private static object ThrowInvalidProviderGuidDefault(
+        ColumnOperation operation,
+        MySqlGuidFormat format
+    ) => throw new InvalidOperationException(
+        $"Provider-owned {format} column '{operation.Table}.{operation.Name}' has an invalid "
+        + $"migration default value of type '{operation.DefaultValue?.GetType()}'.");
 
     private static void MarkTemporalDeactivationsDestructive(
         IReadOnlyList<MigrationOperation> operations

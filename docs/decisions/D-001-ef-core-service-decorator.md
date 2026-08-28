@@ -27,8 +27,8 @@ they can layer MySQL-specific behavior:
 - `IModelCodeGenerator` is wrapped with `MySqlModelCodeGenerator` (scaffolding
   output that emits MySQL annotations).
 - `ICSharpSnapshotGenerator` is replaced with
-  `MySqlCSharpSnapshotGenerator` so provider-native `Char36` properties retain
-  their `Guid` model type in snapshots and migration designer models.
+  `MySqlCSharpSnapshotGenerator` so provider-owned converted properties retain
+  their model CLR type in snapshots and migration designer models.
 
 The current implementation walks the `IServiceCollection` with
 `LastOrDefault(d => d.ServiceType == typeof(IMigrationsModelDiffer))`, captures
@@ -92,10 +92,17 @@ through the same `Decorate<...>(...)` boundary.
 
 The design-time entry point separately replaces EF Core's singleton
 `ICSharpSnapshotGenerator` with a provider subclass. EF Core otherwise declares
-a converted property through the converter's provider CLR type; for `Char36`,
-that would generate `Property<string>` before the provider fluent API installs a
-`GuidToStringConverter`. The provider override retains `Guid` only for this
-provider-native mapping and delegates every other property to EF Core.
+a converted property through the converter's provider CLR type. The provider
+override retains the model CLR type only for provider-owned `Char36`,
+provider-owned `Binary16`, JSON DOM, and `byte[]` row-version mappings, whose
+provider metadata reinstalls the converter. Application-owned converters remain
+delegated to EF Core.
+
+The migrations model-differ decorator applies the same boundary to generated
+column operations. Provider-owned GUID, JSON DOM, and row-version operations
+retain their model CLR types, while arbitrary application converters retain
+their provider CLR types. This prevents snapshots, designers, and migrations
+from disagreeing about one provider-owned model.
 
 The migrations model-differ decorator also owns dependency ordering when an
 existing constrained column changes store type. Stable foreign keys touching
@@ -200,6 +207,10 @@ migration.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
 - 2026-08-18: Added the provider snapshot-generator replacement and the
   dependency-safe foreign-key lifecycle for native `Char36` migrations.
+- 2026-08-29: Extended model-type preservation to provider-owned JSON DOM and
+  row-version mappings in snapshots, designers, and migration operations.
+- 2026-08-29: Extended GUID operation normalization to explicit `Binary16`
+  mappings under a `Char36` default.
 
 ### Implementation References
 

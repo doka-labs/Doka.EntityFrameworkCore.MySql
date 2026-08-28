@@ -70,15 +70,16 @@ or NuGet.org package page.
 
 ### Test the Release Candidate
 
-`10.1.1-rc.1` corrects provider-owned `Char36` metadata across relationship
-graphs so GUID properties remain `Guid` or `Guid?` in snapshots, designers,
-and migrations. Install the candidate explicitly when validating an affected
-model against the published packages:
+`10.1.1-rc.2` completes the provider-owned GUID conversion correction across
+relationship graphs, snapshots, designers, and every generated column
+operation. It also rejects direct text/binary GUID representation changes that
+require an explicit staged data migration. Install the candidate explicitly
+when validating an affected model against the published packages:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.1-rc.1
-dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.1-rc.1
-dotnet package add Doka.Caching.MySql --version 10.1.1-rc.1
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.1-rc.2
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.1-rc.2
+dotnet package add Doka.Caching.MySql --version 10.1.1-rc.2
 ```
 
 The spatial and cache packages remain optional. Use normal NuGet resolution

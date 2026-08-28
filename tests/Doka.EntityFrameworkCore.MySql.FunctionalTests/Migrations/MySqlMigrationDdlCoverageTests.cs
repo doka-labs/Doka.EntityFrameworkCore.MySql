@@ -91,6 +91,7 @@ public sealed class MySqlMigrationDdlCoverageTests
             ClrType = typeof(string),
             ColumnType = "varchar(64)",
             IsRowVersion = true,
+            DefaultValue = "initial",
         };
 
         var sql = JoinSql(generator.Generate([operation], context.Model));

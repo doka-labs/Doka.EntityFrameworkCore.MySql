@@ -14,18 +14,16 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
         IndentedStringBuilder stringBuilder
     )
     {
-        if (property.GetMySqlGuidFormat() is null
-            || (Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType) != typeof(Guid))
+        if (!RequiresModelClrType(property))
         {
             base.GenerateProperty(entityTypeBuilderName, property, stringBuilder);
             return;
         }
 
-        // EF Core snapshots normally declare a converted property through the
-        // converter's provider CLR type. A Binary16 override under a Char36
-        // connection still needs a byte converter, while the provider Guid-format
-        // fluent API reinstalls the mapping. The declaration must therefore retain
-        // the model CLR type instead of becoming Property<byte[]>.
+        // EF Core snapshots declare converted properties through the converter's
+        // provider CLR type. Provider-owned fluent metadata or type mapping restores
+        // these mappings, so their declarations must retain the model CLR type.
+        // Application-owned converters continue through the base implementation.
         // This branch mirrors EF Core 10.0.11
         // CSharpSnapshotGenerator.GenerateProperty except for that CLR-type choice.
         // Diff it against upstream whenever the supported EF Core range changes.
@@ -75,7 +73,31 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
     private static Type MakeNullable(
         Type clrType,
         bool nullable
-    ) => nullable && clrType == typeof(Guid) ? typeof(Guid?) : clrType;
+    ) => nullable
+        ? clrType == typeof(Guid)
+            ? typeof(Guid?)
+            : clrType == typeof(JsonElement)
+                ? typeof(JsonElement?)
+                : clrType
+        : clrType;
+
+    private static bool RequiresModelClrType(
+        IProperty property
+    )
+    {
+        var modelClrType = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
+
+        if (modelClrType == typeof(Guid)
+            && property.GetMySqlGuidFormat() is not null)
+        {
+            return true;
+        }
+
+        var typeMapping = property.GetRelationalTypeMapping();
+
+        return typeMapping is MySqlJsonTypeMapping or MySqlRowVersionTypeMapping
+            && typeMapping.Converter?.ProviderClrType != property.ClrType;
+    }
 
     private static bool IsNullableType(
         Type clrType

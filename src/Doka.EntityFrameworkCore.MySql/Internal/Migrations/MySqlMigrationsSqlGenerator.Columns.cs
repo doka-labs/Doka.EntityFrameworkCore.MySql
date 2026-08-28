@@ -152,6 +152,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         bool terminate
     )
     {
+        ValidateRequiredColumnAddition(operation);
         ValidateDdlCommentSqlModeScope(operation);
         var requiresCommentSqlModeScope = RequiresDdlCommentSqlModeScope(operation.Comment);
         if (!requiresCommentSqlModeScope)
@@ -275,6 +276,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         MigrationCommandListBuilder builder
     )
     {
+        ValidateGuidStorageFormatTransition(operation);
         ValidateDdlCommentSqlModeScope(operation);
         if (RequiresGeneratedColumnRecreation(operation))
         {
@@ -333,6 +335,143 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         }
 
         EndStatement(builder);
+    }
+
+    private static void ValidateGuidStorageFormatTransition(
+        AlterColumnOperation operation
+    )
+    {
+        var sourceNativeFormat = GetNativeGuidFormat(operation.OldColumn);
+        var targetNativeFormat = GetNativeGuidFormat(operation);
+
+        if (sourceNativeFormat is null
+            && targetNativeFormat is null)
+        {
+            return;
+        }
+
+        var sourceFormat = sourceNativeFormat ?? InferGuidStorageFormat(operation.OldColumn);
+        var targetFormat = targetNativeFormat ?? InferGuidStorageFormat(operation);
+
+        if (sourceNativeFormat is not null
+            && targetNativeFormat is not null
+            && sourceFormat == targetFormat)
+        {
+            return;
+        }
+
+        // The documented text migration path is limited to canonical
+        // 36-character values. An unannotated binary converter carries no
+        // byte-order contract, so an equal binary(16) store type cannot prove
+        // representation equivalence.
+        if ((sourceNativeFormat == MySqlGuidFormat.Char36
+                && targetNativeFormat is null
+                && targetFormat == MySqlGuidFormat.Char36)
+            || (targetNativeFormat == MySqlGuidFormat.Char36
+                && sourceNativeFormat is null
+                && sourceFormat == MySqlGuidFormat.Char36))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            "A transition between provider-owned GUID storage and a different or unproven value representation requires "
+            + "an explicit data migration. Add a nullable destination column, backfill and verify every value, "
+            + "then replace the source column and restore its constraints.");
+    }
+
+    private static MySqlGuidFormat? GetNativeGuidFormat(
+        ColumnOperation operation
+    ) => operation.FindAnnotation(MySqlAnnotationNames.GuidFormat)?.Value is MySqlGuidFormat format
+        ? format
+        : null;
+
+    private static MySqlGuidFormat? InferGuidStorageFormat(
+        ColumnOperation operation
+    )
+    {
+        if (MatchesGuidStoreType(operation, "char", 36)
+            || MatchesGuidStoreType(operation, "varchar", 36))
+        {
+            return MySqlGuidFormat.Char36;
+        }
+
+        if (MatchesGuidStoreType(operation, "binary", 16)
+            || MatchesGuidStoreType(operation, "varbinary", 16))
+        {
+            return MySqlGuidFormat.Binary16;
+        }
+
+        return null;
+    }
+
+    private static bool MatchesGuidStoreType(
+        ColumnOperation operation,
+        string typeName,
+        int expectedSize
+    )
+    {
+        var storeType = operation.ColumnType.AsSpan().Trim();
+
+        if (!storeType.StartsWith(typeName, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var suffix = storeType[typeName.Length..];
+
+        if (!suffix.IsEmpty
+            && !char.IsWhiteSpace(suffix[0])
+            && suffix[0] != '(')
+        {
+            return false;
+        }
+
+        suffix = suffix.TrimStart();
+
+        if (suffix.IsEmpty
+            || suffix[0] != '(')
+        {
+            return operation.MaxLength == expectedSize;
+        }
+
+        var closingParenthesis = suffix.IndexOf(')');
+
+        return closingParenthesis > 1
+            && int.TryParse(
+                suffix[1..closingParenthesis].Trim(),
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out var declaredSize)
+            && declaredSize == expectedSize;
+    }
+
+    private static void ValidateRequiredColumnAddition(
+        AddColumnOperation operation
+    )
+    {
+        if (operation.FindAnnotation(MySqlAnnotationNames.RequiresExplicitBackfill)?.Value is not true
+            || operation.IsNullable
+            || operation.DefaultValue is not null
+            || !string.IsNullOrWhiteSpace(operation.DefaultValueSql)
+            || !string.IsNullOrWhiteSpace(operation.ComputedColumnSql)
+            || IsAutoIncrementColumn(operation)
+            || IsTemporalPeriodColumn(
+                operation.Name,
+                operation,
+                MySqlAnnotationNames.TemporalPeriodStartColumn)
+            || IsTemporalPeriodColumn(
+                operation.Name,
+                operation,
+                MySqlAnnotationNames.TemporalPeriodEndColumn)
+            || (operation.IsRowVersion && IsTemporalRowVersionColumn(operation)))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"A required {nameof(AddColumnOperation)} requires an explicit DefaultValue or DefaultValueSql "
+            + "because choosing replacement data for existing rows is an application contract.");
     }
 
     protected override void Generate(

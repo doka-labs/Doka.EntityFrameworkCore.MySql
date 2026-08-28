@@ -116,6 +116,15 @@ ordinary scalar columns and to JSON, spatial, `ENUM`, and constrained columns.
 A CLR default cannot express arbitrary store constraints or application
 meaning.
 
+EF Core scaffolding can also place a CLR default on a newly required column
+when the target model declares no default. Doka removes that synthetic value
+for required `AddColumn` operations and nullable-to-required `AlterColumn`
+operations, then requires the migration author to choose a real backfill.
+Initial table creation has no existing rows and is unaffected. Explicit model
+or migration defaults remain authoritative; computed, auto-increment,
+temporal-period, and server-generated row-version columns retain their normal
+generation contracts.
+
 A nullable-to-required `timestamp` repair must use `DefaultValueSql`, not a CLR
 `DateTime` value. Both engine families interpret `TIMESTAMP` input through the
 executing session time zone before storing UTC, so validating or rendering an
@@ -129,6 +138,40 @@ The executable migration example proves create, add-on-populated-table, alter,
 existing-row preservation, and new-row defaults through every EF deployment
 path on all six active targets. Script generation additionally rejects any
 unparenthesized `DEFAULT DATE '...'` or `DEFAULT TIME '...'` form.
+
+### GUID representation changes
+
+Do not apply a generated in-place alteration between text GUID storage and
+`Binary16`. Doka rejects native `Char36`/`Binary16` changes and also rejects a
+transition where only one side is provider-owned but the other side resolves
+to a different physical representation. An application converter backed by
+`binary(16)` is not proof of native `Binary16` compatibility: its byte order is
+not represented by the SQL type.
+
+Use an application-reviewed staged migration:
+
+1. Confirm the source text format or binary byte order from representative
+   existing values.
+2. Add a nullable destination column without dropping the source.
+3. Validate every source value before invoking `UNHEX`, `HEX`, or another
+   conversion expression. Strict server modes can reject malformed input
+   instead of returning a value that a later check could detect.
+4. Backfill the destination and verify source-to-destination and
+   destination-to-source equality.
+5. Make the destination required only after validation succeeds.
+6. Replace the source column and recreate its keys, indexes, and foreign keys.
+7. Verify the EF model and representative stored values after deployment.
+
+Canonical application-owned `char(36)` or `varchar(36)` and native `Char36`
+remain a text-equivalent transition. Provider-owned `Char36` and `Binary16`
+remain `Guid`-typed in generated `CreateTable`, `AddColumn`, and `AlterColumn`
+operations; a generated `string` or `byte[]` at those native surfaces is a
+stop-the-line signal.
+
+MySQL atomic DDL does not make surrounding data transformations generally
+transactional, and MariaDB DDL causes an implicit commit. Back up the affected
+data, make every stage independently restartable, and define rollback as a
+reviewed reverse data migration rather than assuming transaction rollback.
 
 <a id="mysql-migration-lock-failure"></a>
 
@@ -379,7 +422,9 @@ ADO.NET command.
 - Microsoft, [Applying Migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying),
   retrieved 2026-07-28.
 - Microsoft, [Managing Migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/managing),
-  retrieved 2026-07-28.
+  retrieved 2026-08-29.
+- Microsoft, [EF Core 10.0.8 `MigrationsModelDiffer` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/Internal/MigrationsModelDiffer.cs),
+  retrieved 2026-08-29.
 - Microsoft, [EF Core 10.0.8 `MigrationCommand` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationCommand.cs),
   retrieved 2026-08-20.
 - Microsoft, [EF Core 10.0.8 migration command executor source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/Internal/MigrationCommandExecutor.cs),
@@ -400,6 +445,12 @@ ADO.NET command.
   retrieved 2026-08-21.
 - MySQL, [`CREATE TABLE` Statement](https://dev.mysql.com/doc/refman/8.4/en/create-table.html),
   retrieved 2026-08-20.
+- MySQL, [`ALTER TABLE` Statement](https://dev.mysql.com/doc/refman/8.4/en/alter-table.html),
+  retrieved 2026-08-29.
+- MySQL, [Atomic Data Definition Statement Support](https://dev.mysql.com/doc/refman/8.4/en/atomic-ddl.html),
+  retrieved 2026-08-29.
+- MySQL, [String Functions including `HEX` and `UNHEX`](https://dev.mysql.com/doc/refman/8.4/en/string-functions.html),
+  retrieved 2026-08-29.
 - MySQL, [`mysql` client options](https://dev.mysql.com/doc/refman/8.4/en/mysql-command-options.html),
   retrieved 2026-08-21.
 - MySQL, [CREATE PROCEDURE and CREATE FUNCTION Statements](https://dev.mysql.com/doc/refman/8.4/en/create-procedure.html),
@@ -414,6 +465,10 @@ ADO.NET command.
   retrieved 2026-08-21.
 - MariaDB, [Constraints](https://mariadb.com/docs/server/reference/sql-statements/data-definition/constraint),
   retrieved 2026-08-21.
+- MariaDB, [Statements That Cause an Implicit Commit](https://mariadb.com/docs/server/reference/sql-statements/transactions/sql-statements-that-cause-an-implicit-commit),
+  retrieved 2026-08-29.
+- MySqlConnector, [GUID formats](https://mysqlconnector.net/api/mysqlconnector/mysqlguidformattype/),
+  retrieved 2026-08-29.
 - MySqlConnector, [connection options and pool reset behavior](https://mysqlconnector.net/connection-options/),
   retrieved 2026-08-21.
 - MySqlConnector, [`MySqlConnection.ClearPoolAsync`](https://mysqlconnector.net/api/mysqlconnector/mysqlconnection/clearpoolasync/),

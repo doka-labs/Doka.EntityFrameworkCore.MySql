@@ -7,6 +7,44 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.1.1-rc.2] - 2026-08-28
+
+Second release candidate for the 10.1.1 patch release. It completes the
+provider-owned conversion correction after published-package validation of
+rc.1 found that migration operations still used relational provider types.
+
+Install the candidate explicitly to validate the complete correction against
+the published packages. Add the spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.1-rc.2
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.1-rc.2
+dotnet package add Doka.Caching.MySql --version 10.1.1-rc.2
+```
+
+### Fixed
+
+- Keep provider-owned `Char36` and `Binary16` migration operations typed as
+  `Guid` across `CreateTable`, `AddColumn`, and both sides of `AlterColumn`,
+  including an explicit `Binary16` property under a `Char36` default.
+- Restore provider-side text and big-endian byte defaults to their `Guid` model
+  values before C# migration generation. Reject invalid provider types,
+  malformed text, and binary values whose width is not exactly 16 bytes.
+- Continue emitting `string` migration operations for application-owned GUID
+  converters so the correction does not claim consumer conversion metadata.
+- Reject direct `Char36`/`Binary16` storage changes and one-sided
+  application/provider changes that cross text and binary representations.
+  Application-owned `binary(16)` is also rejected against native `Binary16`
+  because the SQL type does not prove byte order. Canonical application-owned
+  `char(36)` or `varchar(36)` remains text-equivalent to native `Char36`.
+- Remove CLR defaults synthesized by EF Core for scaffolded required columns
+  when the target model declares no default, and require an explicit backfill
+  before SQL generation. Initial tables and server-generated columns retain
+  their normal behavior.
+- Preserve JSON DOM and row-version model CLR types through snapshots,
+  designers, and generated migration operations while leaving
+  application-owned converters unchanged.
+
 ## [10.1.1-rc.1] - 2026-08-28
 
 First release candidate for the 10.1.1 patch release. It corrects
@@ -35,9 +73,9 @@ dotnet package add Doka.Caching.MySql --version 10.1.1-rc.1
 - Preserve application-owned value converters and provider CLR types before
   applying provider GUID metadata so compatible relationship chains remain
   valid and genuinely conflicting application conversions still fail closed.
-- Preserve GUID model types through designers, snapshots, and migration
-  round-trips instead of producing `AlterColumn<string>(...)` and unintended
-  `varchar(36)` schema drift.
+- Preserve GUID model types through designers, snapshots, and unchanged-model
+  round-trips. Migration-operation C# typing remained incomplete in this
+  candidate and is corrected by 10.1.1-rc.2.
 
 ## [10.1.0] - 2026-08-27
 
@@ -958,7 +996,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.1.1-rc.1...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.1.1-rc.2...HEAD
+[10.1.1-rc.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.1-rc.2
 [10.1.1-rc.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.1-rc.1
 [10.1.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.0
 [10.1.0-rc.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.0-rc.2
