@@ -3,6 +3,9 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlDistributedCacheIntegrationTests
 {
+    private const int CleanupConcurrencyProbeCount = 16;
+    private const int ConcurrentUpsertProbeCount = 16;
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_preserves_distributed_cache_contracts() =>
         AssertCacheContractsAsync(IntegrationDatabaseTarget.MySql84);
@@ -949,8 +952,14 @@ public sealed class MySqlDistributedCacheIntegrationTests
         CacheIntegrationStore store
     )
     {
+        var concurrentConnectionString = new MySqlConnectionStringBuilder(store.ConnectionString)
+        {
+            // WHY: The upsert race must not depend on the shared fixture's connection-pool limit.
+            MaximumPoolSize = ConcurrentUpsertProbeCount + 1,
+        }.ConnectionString;
+        await using var cache = store.CreateCache(TimeProvider.System, connectionString: concurrentConnectionString);
         var writes = Enumerable
-            .Range(1, 16)
+            .Range(1, ConcurrentUpsertProbeCount)
             .Select(async marker =>
             {
                 var value = new byte[64 * 1024];
@@ -959,13 +968,11 @@ public sealed class MySqlDistributedCacheIntegrationTests
                     .AsSpan()
                     .Fill((byte)marker);
 
-                await store
-                    .Cache
+                await cache
                     .SetAsync("concurrent", value, new DistributedCacheEntryOptions(), CancellationToken.None)
                     .ConfigureAwait(false);
 
-                var observed = await store
-                    .Cache
+                var observed = await cache
                     .GetAsync("concurrent", CancellationToken.None)
                     .ConfigureAwait(false);
 
@@ -992,20 +999,18 @@ public sealed class MySqlDistributedCacheIntegrationTests
 
         for (var iteration = 0; iteration < 8; iteration++)
         {
-            await store
-                .Cache
+            await cache
                 .SetAsync("remove-race", [1], new DistributedCacheEntryOptions(), CancellationToken.None)
                 .ConfigureAwait(false);
 
             await Task
                 .WhenAll(
-                    store.Cache.RefreshAsync("remove-race", CancellationToken.None),
-                    store.Cache.RemoveAsync("remove-race", CancellationToken.None))
+                    cache.RefreshAsync("remove-race", CancellationToken.None),
+                    cache.RemoveAsync("remove-race", CancellationToken.None))
                 .ConfigureAwait(false);
 
             Assert.Null(
-                await store
-                    .Cache
+                await cache
                     .GetAsync("remove-race", CancellationToken.None)
                     .ConfigureAwait(false));
         }
@@ -1595,7 +1600,12 @@ public sealed class MySqlDistributedCacheIntegrationTests
 
         var time = new CacheManualTimeProvider();
         var logger = new CacheRecordingLogger();
-        await using var cache = store.CreateCache(time, logger);
+        var cleanupConnectionString = new MySqlConnectionStringBuilder(store.ConnectionString)
+        {
+            // WHY: One connection is deliberately blocked by cleanup. Keep the probes independent of pool saturation.
+            MaximumPoolSize = CleanupConcurrencyProbeCount + 2,
+        }.ConnectionString;
+        await using var cache = store.CreateCache(time, logger, cleanupConnectionString);
 
         await cache
             .SetAsync("live", [1], new DistributedCacheEntryOptions(), CancellationToken.None)
@@ -1820,7 +1830,7 @@ public sealed class MySqlDistributedCacheIntegrationTests
                 await Task
                     .WhenAll(
                         Enumerable
-                            .Range(0, 16)
+                            .Range(0, CleanupConcurrencyProbeCount)
                             .Select(_ => cache.GetAsync("cleanup-miss", CancellationToken.None)))
                     .WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None)
                     .ConfigureAwait(false);
