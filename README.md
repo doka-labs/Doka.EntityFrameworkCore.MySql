@@ -68,22 +68,20 @@ For reproducible installs, add `--version` followed by the exact version from
 the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
 or NuGet.org package page.
 
-### Test the Release Candidate
+### GUID Migration Correction in 10.1.1
 
-`10.1.1-rc.2` completes the provider-owned GUID conversion correction across
+`10.1.1` completes the provider-owned GUID conversion correction across
 relationship graphs, snapshots, designers, and every generated column
 operation. It also rejects direct text/binary GUID representation changes that
-require an explicit staged data migration. Install the candidate explicitly
-when validating an affected model against the published packages:
+require an explicit staged data migration. Pin the stable version explicitly
+when validating an affected model:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.1-rc.2
-dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.1-rc.2
-dotnet package add Doka.Caching.MySql --version 10.1.1-rc.2
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.1
 ```
 
-The spatial and cache packages remain optional. Use normal NuGet resolution
-above for applications that should stay on the latest stable release.
+See [Migrating from Pomelo][migrating-from-pomelo] for the corrected GUID
+mapping contract and the required staged migration for representation changes.
 
 ## Quick Start
 
