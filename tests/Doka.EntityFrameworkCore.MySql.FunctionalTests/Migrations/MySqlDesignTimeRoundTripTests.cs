@@ -208,6 +208,102 @@ public sealed class MySqlDesignTimeRoundTripTests
         Assert.DoesNotContain(".Property<byte[]>(\"BinaryReference\")", generated.SnapshotCode, StringComparison.Ordinal);
         AssertRoundTripsWithoutOperations(context, generated.SnapshotModel);
         AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
+
+        var operations = context
+            .GetService<IMigrationsModelDiffer>()
+            .GetDifferences(
+                null,
+                context.GetService<IDesignTimeModel>().Model.GetRelationalModel());
+
+        var createTable = Assert.Single(
+            operations.OfType<CreateTableOperation>(),
+            operation => operation.Name == "MixedGuidDesignRecords");
+
+        var binaryReference = Assert.Single(
+            createTable.Columns,
+            column => column.Name == nameof(MixedGuidDesignRecord.BinaryReference));
+
+        Assert.Equal(typeof(Guid), binaryReference.ClrType);
+        Assert.Equal("binary(16)", binaryReference.ColumnType);
+        Assert.Equal(
+            MySqlGuidFormat.Binary16,
+            binaryReference.FindAnnotation(MySqlAnnotationNames.GuidFormat)?.Value);
+
+        var migrationCode = GenerateMigrationCode(operations);
+
+        Assert.Contains("table.Column<Guid>", migrationCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("table.Column<byte[]>", migrationCode, StringComparison.Ordinal);
+        _ = Compile(migrationCode);
+    }
+
+    /// <summary>
+    /// Provider-owned JSON and row-version converters retain their model CLR
+    /// types instead of leaking their provider CLR types into generated models.
+    /// </summary>
+    [Fact]
+    public void Provider_owned_converters_roundtrip_model_types_without_pending_operations()
+    {
+        using var context = new ProviderConverterDesignContext(
+            CreateOptions<ProviderConverterDesignContext>(MySqlServerVersion.MySql(new Version(8, 4, 0))));
+
+        var generated = GenerateAndCompile(context);
+
+        Assert.Contains(
+            ".Property<System.Text.Json.JsonElement>(\"Element\")",
+            generated.SnapshotCode,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            ".Property<System.Text.Json.JsonDocument>(\"Document\")",
+            generated.SnapshotCode,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            ".Property<System.Text.Json.Nodes.JsonNode>(\"Node\")",
+            generated.SnapshotCode,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            ".Property<System.Text.Json.Nodes.JsonObject>(\"ObjectValue\")",
+            generated.SnapshotCode,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            ".Property<System.Text.Json.Nodes.JsonArray>(\"Array\")",
+            generated.SnapshotCode,
+            StringComparison.Ordinal);
+        Assert.Contains(".Property<byte[]>(\"Version\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Property<string>(\"Element\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Property<System.DateTime>(\"Version\")", generated.SnapshotCode, StringComparison.Ordinal);
+        AssertRoundTripsWithoutOperations(context, generated.SnapshotModel);
+        AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
+
+        using var empty = new EmptyTemporalDesignContext(
+            CreateOptions<EmptyTemporalDesignContext>(MySqlServerVersion.MySql(new Version(8, 4, 0))));
+
+        var operations = context
+            .GetService<IMigrationsModelDiffer>()
+            .GetDifferences(
+                empty.GetService<IDesignTimeModel>().Model.GetRelationalModel(),
+                context.GetService<IDesignTimeModel>().Model.GetRelationalModel());
+
+        var columns = Assert
+            .Single(operations.OfType<CreateTableOperation>())
+            .Columns.ToDictionary(column => column.Name, StringComparer.Ordinal);
+
+        Assert.Equal(typeof(System.Text.Json.JsonElement), columns["Element"].ClrType);
+        Assert.Equal(typeof(System.Text.Json.JsonDocument), columns["Document"].ClrType);
+        Assert.Equal(typeof(System.Text.Json.Nodes.JsonNode), columns["Node"].ClrType);
+        Assert.Equal(typeof(System.Text.Json.Nodes.JsonObject), columns["ObjectValue"].ClrType);
+        Assert.Equal(typeof(System.Text.Json.Nodes.JsonArray), columns["Array"].ClrType);
+        Assert.Equal(typeof(byte[]), columns["Version"].ClrType);
+
+        var migrationCode = GenerateMigrationCode(operations);
+
+        Assert.Contains("table.Column<JsonElement>", migrationCode, StringComparison.Ordinal);
+        Assert.Contains("table.Column<JsonDocument>", migrationCode, StringComparison.Ordinal);
+        Assert.Contains("table.Column<JsonNode>", migrationCode, StringComparison.Ordinal);
+        Assert.Contains("table.Column<JsonObject>", migrationCode, StringComparison.Ordinal);
+        Assert.Contains("table.Column<JsonArray>", migrationCode, StringComparison.Ordinal);
+        Assert.Contains("table.Column<byte[]>", migrationCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("table.Column<DateTime>", migrationCode, StringComparison.Ordinal);
+        _ = Compile(migrationCode);
     }
 
     /// <summary>
@@ -321,6 +417,27 @@ public sealed class MySqlDesignTimeRoundTripTests
             assembly.GetType($"{GeneratedNamespace}.{migrationName}", throwOnError: true)!)!;
 
         return new GeneratedTemporalModels(snapshotCode, designerCode, snapshot.Model, migration.TargetModel);
+    }
+
+    private static string GenerateMigrationCode(
+        IReadOnlyList<MigrationOperation> operations
+    )
+    {
+        var services = new ServiceCollection();
+
+        services.AddLogging();
+        services.AddEntityFrameworkDokaMySqlDesignTime();
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var generator = serviceProvider
+            .GetRequiredService<IMigrationsCodeGeneratorSelector>()
+            .Select("C#");
+
+        return generator.GenerateMigration(
+            GeneratedNamespace,
+            $"ProviderMigration{Guid.NewGuid():N}",
+            operations,
+            []);
     }
 
     private static Assembly Compile(
@@ -1069,6 +1186,73 @@ public sealed class MixedGuidDesignRecord
     /// Gets or sets the explicitly Binary16 value.
     /// </summary>
     public Guid BinaryReference { get; set; }
+}
+
+/// <summary>
+/// Test context for provider-owned converter design-time models.
+/// </summary>
+public sealed class ProviderConverterDesignContext : DbContext
+{
+    /// <summary>
+    /// Creates the provider-owned converter design context.
+    /// </summary>
+    public ProviderConverterDesignContext(
+        DbContextOptions<ProviderConverterDesignContext> options
+    ) : base(options) { }
+
+    /// <inheritdoc />
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
+    {
+        modelBuilder.Entity<ProviderConverterDesignRecord>(entity =>
+        {
+            entity.ToTable("ProviderConverterDesignRecords");
+            entity.HasKey(record => record.Id);
+            entity.Property(record => record.Version).IsRowVersion();
+        });
+    }
+}
+
+/// <summary>
+/// Entity used by the provider-owned converter design model.
+/// </summary>
+public sealed class ProviderConverterDesignRecord
+{
+    /// <summary>
+    /// Gets or sets the key.
+    /// </summary>
+    public int Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the JSON element.
+    /// </summary>
+    public System.Text.Json.JsonElement Element { get; set; }
+
+    /// <summary>
+    /// Gets or sets the JSON document.
+    /// </summary>
+    public System.Text.Json.JsonDocument? Document { get; set; }
+
+    /// <summary>
+    /// Gets or sets the JSON node.
+    /// </summary>
+    public System.Text.Json.Nodes.JsonNode? Node { get; set; }
+
+    /// <summary>
+    /// Gets or sets the JSON object.
+    /// </summary>
+    public System.Text.Json.Nodes.JsonObject? ObjectValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the JSON array.
+    /// </summary>
+    public System.Text.Json.Nodes.JsonArray? Array { get; set; }
+
+    /// <summary>
+    /// Gets or sets the row version.
+    /// </summary>
+    public byte[] Version { get; set; } = [];
 }
 
 /// <summary>

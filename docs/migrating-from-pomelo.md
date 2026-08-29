@@ -148,20 +148,46 @@ optionsBuilder.UseMySql(connectionString, serverVersion, mysql =>
 ```
 
 Use `HasMySqlGuidFormat(...)` to preserve mixed per-property formats. Changing
-`char(36)` to `binary(16)` is a data and schema migration, not namespace cleanup.
+`char(36)` or `varchar(36)` to `binary(16)` is a data and schema migration, not
+namespace cleanup. Doka rejects a generated in-place alteration whenever a
+provider-owned GUID side resolves to a different physical representation.
 
-Provider-owned `Char36` properties remain `Guid` or `Guid?` in the model,
-designer, and snapshot. Do not add `GuidToStringConverter` or configure a
-provider CLR type of `string` merely because the store column is `char(36)`.
-When a no-schema-change migration instead emits `AlterColumn<string>(...)` or
-changes `char(36)` to `varchar(36)`, treat it as model-metadata drift and fix the
-configuration before applying the migration.
+Provider-owned `Char36` and `Binary16` properties remain `Guid` or `Guid?` in
+the model, designer, snapshot, and generated `CreateTable`, `AddColumn`, and
+`AlterColumn` operations. Do not add
+`GuidToStringConverter` or configure a provider CLR type of `string` merely
+because the store column is `char(36)`. Upgrade to 10.1.1-rc.2 or later before
+diagnosing `AlterColumn<string>(...)`, `AlterColumn<byte[]>(...)`, or unintended
+`varchar(36)` output. If it persists, treat it as application model-metadata
+drift and correct the configuration before applying the migration.
 
 Doka `Binary16` uses big-endian GUID bytes. An existing `binary(16)` column
 alone does not prove compatibility: old little-endian or time-swapped layouts
 need an explicit, tested conversion. Round-trip known preexisting GUID values
 and compare their stored bytes before accepting the replacement. Do not set
 connector `GuidFormat` or `OldGuids` options behind Doka's model mapping.
+
+The SQL type also cannot prove that an application-owned byte converter uses
+Doka's byte order. Doka therefore rejects application-owned `binary(16)` to
+native `Binary16` changes in both directions. Canonical application-owned
+`char(36)` or `varchar(36)` to native `Char36` remains text-equivalent.
+
+For any rejected transition, keep the source until its replacement has been
+proved:
+
+1. Add a nullable destination column.
+2. Validate every source value and identify the exact binary layout before
+   conversion.
+3. Backfill with reviewed SQL and compare both representations in both
+   directions.
+4. Make the destination required only after validation succeeds.
+5. Replace the source and restore its keys, indexes, and foreign keys.
+6. Exercise representative reads and writes through the migrated model.
+
+Validate text before calling `UNHEX`; strict server modes may reject malformed
+input immediately. Do not rely on a transaction rollback around the whole
+sequence: MySQL atomic DDL and MariaDB implicit-commit behavior do not provide
+that portable boundary.
 
 ## Historical Migrations, Designers, and Snapshots
 
@@ -314,7 +340,7 @@ the originating application migration has already completed.
 
 ## Primary Sources
 
-Retrieved 2026-08-26:
+Retrieved 2026-08-26 and reverified 2026-08-29:
 
 - [EF Core managing migrations](https://learn.microsoft.com/ef/core/managing-schemas/migrations/managing)
   explains generated files, pending-model checks, and why deployed history
@@ -323,6 +349,12 @@ Retrieved 2026-08-26:
   defines script generation and review before deployment.
 - [MySqlConnector GUID formats](https://mysqlconnector.net/api/MySqlConnector/MySqlGuidFormatType/)
   distinguishes big-endian, little-endian, and time-swapped binary layouts.
+- [MySQL `ALTER TABLE`](https://dev.mysql.com/doc/refman/8.4/en/alter-table.html)
+  documents conversion behavior for changed column definitions.
+- [MySQL atomic DDL](https://dev.mysql.com/doc/refman/8.4/en/atomic-ddl.html)
+  defines the scope and limits of atomic data-definition statements.
+- [MariaDB statements causing an implicit commit](https://mariadb.com/docs/server/reference/sql-statements/transactions/sql-statements-that-cause-an-implicit-commit)
+  defines the transaction boundary around DDL.
 - [Provider Configuration](provider-configuration.md),
   [Query Functions](query-functions.md), and
   [Distributed Cache](distributed-cache.md) own the Doka contracts and their
