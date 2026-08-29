@@ -46,8 +46,7 @@ public sealed class MySqlRemainingGapTests
     public void JsonTypeMapping_generates_sql_literal_for_json_element()
     {
         var mapping = MySqlJsonTypeMapping.CreateJsonElementMapping();
-        var element = System.Text.Json.JsonDocument.Parse("""{"key":"value"}""")
-            .RootElement;
+        var element = JsonElement.Parse("""{"key":"value"}""");
 
         var literal = mapping.GenerateSqlLiteral(element);
 

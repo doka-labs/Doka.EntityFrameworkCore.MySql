@@ -22,8 +22,7 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping
                 typeof(JsonElement),
                 new ValueConverter<JsonElement, string>(
                     v => v.GetRawText(),
-                    v => JsonDocument.Parse(v, default)
-                        .RootElement),
+                    v => JsonElement.Parse(v)),
                 MySqlJsonValueComparers.JsonElementComparer),
             "json",
             StoreTypePostfix.None,
@@ -47,11 +46,11 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping
     /// <summary>
     /// Creates a JSON type mapping for <see cref="JsonNode"/>.
     /// </summary>
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+    [UnconditionalSuppressMessage(
         "Trimming",
         "IL2026",
         Justification = "JsonNode.Parse and ToJsonString use well-known JSON types.")]
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+    [UnconditionalSuppressMessage(
         "AOT",
         "IL3050",
         Justification = "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
@@ -70,11 +69,11 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping
     /// <summary>
     /// Creates a JSON type mapping for <see cref="JsonObject"/>.
     /// </summary>
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+    [UnconditionalSuppressMessage(
         "Trimming",
         "IL2026",
         Justification = "JsonNode.Parse and ToJsonString use well-known JSON types.")]
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+    [UnconditionalSuppressMessage(
         "AOT",
         "IL3050",
         Justification = "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
@@ -93,11 +92,11 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping
     /// <summary>
     /// Creates a JSON type mapping for <see cref="JsonArray"/>.
     /// </summary>
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+    [UnconditionalSuppressMessage(
         "Trimming",
         "IL2026",
         Justification = "JsonNode.Parse and ToJsonString use well-known JSON types.")]
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+    [UnconditionalSuppressMessage(
         "AOT",
         "IL3050",
         Justification = "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]

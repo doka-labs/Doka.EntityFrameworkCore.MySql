@@ -68,16 +68,17 @@ For reproducible installs, add `--version` followed by the exact version from
 the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
 or NuGet.org package page.
 
-### GUID Migration Correction in 10.1.1
+### Current Stable Release
 
-`10.1.1` completes the provider-owned GUID conversion correction across
-relationship graphs, snapshots, designers, and every generated column
-operation. It also rejects direct text/binary GUID representation changes that
-require an explicit staged data migration. Pin the stable version explicitly
-when validating an affected model:
+`10.1.2` retains the provider-owned GUID conversion correction introduced in
+`10.1.1` across relationship graphs, snapshots, designers, and every generated
+column operation. It also returns independently owned `JsonElement` values
+during provider conversion instead of retaining a disposable `JsonDocument`
+owner that the conversion boundary cannot release. Pin the current stable
+version explicitly when validating an affected model:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.1
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.2
 ```
 
 See [Migrating from Pomelo][migrating-from-pomelo] for the corrected GUID

@@ -7,6 +7,33 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.1.2] - 2026-08-29
+
+Stable patch release correcting resource ownership during `JsonElement`
+materialization. It does not change public API, generated SQL, database
+behavior, supported-engine policy, or package dependency ranges.
+
+Install the stable packages through normal NuGet version resolution. Add the
+spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.2
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.1.2
+dotnet package add Doka.Caching.MySql --version 10.1.2
+```
+
+### Changed
+
+- Add an observational BenchmarkDotNet workload for `JsonElement` conversion
+  across 256-byte, 4-KiB, and 64-KiB payloads without introducing an
+  uncalibrated regression threshold.
+
+### Fixed
+
+- Return independently owned `JsonElement` values from provider conversion
+  instead of retaining a disposable `JsonDocument` owner that the conversion
+  boundary cannot release.
+
 ## [10.1.1] - 2026-08-29
 
 Stable patch release containing all corrections from `10.1.1-rc.1` and
@@ -1026,7 +1053,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.1.1...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.1.2...HEAD
+[10.1.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.2
 [10.1.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.1
 [10.1.1-rc.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.1-rc.2
 [10.1.1-rc.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.1-rc.1

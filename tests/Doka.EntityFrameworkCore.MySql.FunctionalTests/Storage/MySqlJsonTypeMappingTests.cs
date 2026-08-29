@@ -120,8 +120,7 @@ public sealed class MySqlJsonTypeMappingTests
                 .GetRelationalTypeMapping()
                 .Converter!;
 
-        var original = JsonDocument.Parse("""{"key":"value","num":42}""")
-            .RootElement;
+        var original = JsonElement.Parse("""{"key":"value","num":42}""");
 
         var serialized = (string)converter.ConvertToProvider(original)!;
         var deserialized = (JsonElement)converter.ConvertFromProvider(serialized)!;
@@ -156,14 +155,9 @@ public sealed class MySqlJsonTypeMappingTests
     [Fact]
     public void JsonElement_comparer_uses_content_equality()
     {
-        var a = JsonDocument.Parse("""{"x":1}""")
-            .RootElement;
-
-        var b = JsonDocument.Parse("""{"x":1}""")
-            .RootElement;
-
-        var c = JsonDocument.Parse("""{"x":2}""")
-            .RootElement;
+        var a = JsonElement.Parse("""{"x":1}""");
+        var b = JsonElement.Parse("""{"x":1}""");
+        var c = JsonElement.Parse("""{"x":2}""");
 
         var comparer = MySqlJsonValueComparers.JsonElementComparer;
 
