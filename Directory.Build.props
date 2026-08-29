@@ -33,7 +33,6 @@
     <LangVersion>latestMajor</LangVersion>
     <!-- Package version tracks the .NET / EF Core major it targets (10.x). -->
     <VersionPrefix>10.1.1</VersionPrefix>
-    <VersionSuffix>rc.2</VersionSuffix>
     <Authors>Dominic Kalkbrenner</Authors>
     <Company>Doka Labs</Company>
     <Copyright>Copyright (c) 2026 Dominic Kalkbrenner</Copyright>

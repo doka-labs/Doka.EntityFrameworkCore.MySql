@@ -21,7 +21,7 @@ Replace the `Pomelo.EntityFrameworkCore.MySql` package reference with
 stable package explicitly so the migration uses the documented version:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.0
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.1
 ```
 
 Use:
@@ -156,7 +156,7 @@ Provider-owned `Char36` and `Binary16` properties remain `Guid` or `Guid?` in
 the model, designer, snapshot, and generated `CreateTable`, `AddColumn`, and
 `AlterColumn` operations. Do not add
 `GuidToStringConverter` or configure a provider CLR type of `string` merely
-because the store column is `char(36)`. Upgrade to 10.1.1-rc.2 or later before
+because the store column is `char(36)`. Upgrade to 10.1.1 or later before
 diagnosing `AlterColumn<string>(...)`, `AlterColumn<byte[]>(...)`, or unintended
 `varchar(36)` output. If it persists, treat it as application model-metadata
 drift and correct the configuration before applying the migration.
