@@ -37,6 +37,7 @@ const Doka.EntityFrameworkCore.MySql.MySqlDiagnostics.SourceName = "Doka.EntityF
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.CommandTimeout(int commandTimeout) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.DefaultGuidFormat(Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.EnableRetryOnFailure(int maxRetryCount = 6, System.TimeSpan? maxRetryDelay = null) -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
+Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.RequireUserVariables() -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!
 Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec
 Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec.CommandText.get -> string!
 Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec.Fragments.get -> System.Collections.Generic.IReadOnlyList<Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandFragment>!

@@ -7,6 +7,23 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.2.0] - 2026-08-30
+
+Stable minor release establishing ownership-aware connection invariants for
+provider-owned strings, caller-owned connections, and caller-owned data
+sources. It preserves `Char36` and `Binary16` column storage while unifying the
+MySqlConnector wire transport and enforcing EF-compatible matched-row
+semantics.
+
+Install the stable packages through normal NuGet version resolution. Add the
+spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.2.0
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.2.0
+dotnet package add Doka.Caching.MySql --version 10.2.0
+```
+
 ### Added
 
 - Add `RequireUserVariables()` so libraries and applications can require
@@ -1075,7 +1092,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.1.2...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.2.0...HEAD
+[10.2.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.2.0
 [10.1.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.2
 [10.1.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.1
 [10.1.1-rc.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.1-rc.2

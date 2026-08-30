@@ -1,2 +1,1 @@
 #nullable enable
-Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder.RequireUserVariables() -> Doka.EntityFrameworkCore.MySql.MySqlDbContextOptionsBuilder!

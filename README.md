@@ -70,19 +70,21 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.1.2` retains the provider-owned GUID conversion correction introduced in
-`10.1.1` across relationship graphs, snapshots, designers, and every generated
-column operation. It also returns independently owned `JsonElement` values
-during provider conversion instead of retaining a disposable `JsonDocument`
-owner that the conversion boundary cannot release. Pin the current stable
-version explicitly when validating an affected model:
+`10.2.0` adds ownership-aware connection invariants for provider-owned strings,
+caller-owned connections, and caller-owned data sources. It requires matched-row
+semantics, uses `Binary16` as the MySqlConnector wire transport, and adds
+`RequireUserVariables()` for applications that execute server-side user-variable
+programs. `Char36` remains fully supported as a model and column-storage format;
+the connector transport does not migrate or reinterpret `char(36)` columns. Pin
+the current stable version explicitly when validating an affected application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.2
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.2.0
 ```
 
-See [Migrating from Pomelo][migrating-from-pomelo] for the corrected GUID
-mapping contract and the required staged migration for representation changes.
+See [Provider Configuration][provider-configuration] for owned and borrowed
+connection requirements, and [Migrating from Pomelo][migrating-from-pomelo] for
+the GUID mapping and representation-migration contracts.
 
 ## Quick Start
 

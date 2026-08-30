@@ -32,7 +32,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <LangVersion>latestMajor</LangVersion>
     <!-- Package version tracks the .NET / EF Core major it targets (10.x). -->
-    <VersionPrefix>10.1.2</VersionPrefix>
+    <VersionPrefix>10.2.0</VersionPrefix>
     <Authors>Dominic Kalkbrenner</Authors>
     <Company>Doka Labs</Company>
     <Copyright>Copyright (c) 2026 Dominic Kalkbrenner</Copyright>
