@@ -127,34 +127,31 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     }
 
     /// <summary>
-    /// An explicit Binary16 property remains byte-exact even when the context
-    /// default configures MySqlConnector for Char36 columns.
+    /// An explicit Binary16 property remains on the connector-native Guid path
+    /// even when the context default selects Char36 columns.
     /// </summary>
     [Fact]
-    public void Explicit_binary16_override_uses_big_endian_binary_provider_values()
+    public void Explicit_binary16_override_remains_native_and_converter_free()
     {
         using var context = new ValueGenerationContext(CreateOptions(MySqlGuidFormat.Char36));
         var property = context.Model
             .FindEntityType(typeof(ExplicitBinary16Entity))!
             .FindProperty(nameof(ExplicitBinary16Entity.Id))!;
 
-        var converter = Assert.IsAssignableFrom<ValueConverter>(property.GetValueConverter());
         var value = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
 
-        var providerValue = Assert.IsType<byte[]>(converter.ConvertToProvider(value));
-
-        Assert.Equal("00112233445566778899AABBCCDDEEFF", Convert.ToHexString(providerValue));
-        Assert.Equal(value, converter.ConvertFromProvider(providerValue));
-        Assert.Throws<InvalidOperationException>(() => _ = converter.ConvertFromProvider(new byte[15]));
-        Assert.Equal(typeof(byte[]), converter.ProviderClrType);
+        Assert.Null(property.GetValueConverter());
         Assert.Null(property.GetProviderClrType());
         Assert.Equal("binary(16)", property.FindAnnotation(RelationalAnnotationNames.ColumnType)?.Value);
         Assert.Equal("binary(16)", property.GetColumnType());
+        Assert.IsType<MySqlGuidBinaryTypeMapping>(property.GetRelationalTypeMapping());
+        Assert.Equal(
+            "X'00112233445566778899AABBCCDDEEFF'",
+            property.GetRelationalTypeMapping().GenerateSqlLiteral(value));
     }
 
     /// <summary>
-    /// The unannotated provider default retains the native Binary16 fast path;
-    /// the byte converter is reserved for an explicit format override.
+    /// The unannotated provider default retains the native Binary16 fast path.
     /// </summary>
     [Fact]
     public void Default_binary16_mapping_remains_native_and_converter_free()

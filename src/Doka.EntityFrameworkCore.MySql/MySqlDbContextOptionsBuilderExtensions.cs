@@ -65,9 +65,20 @@ public static class MySqlDbContextOptionsBuilderExtensions
 
         ConfigureWarnings(optionsBuilder);
 
-        var extension = GetOrCreateExtension(optionsBuilder)
-            .WithConnection(connection)
-            .WithServerVersion(serverVersion);
+        var currentExtension = GetOrCreateExtension(optionsBuilder);
+        MySqlOptionsExtension extension;
+
+        try
+        {
+            extension = currentExtension
+                .WithConnection(connection)
+                .WithServerVersion(serverVersion);
+        }
+        catch (MySqlConnectionContractException exception)
+        {
+            currentExtension.LogInvalidConfiguration(optionsBuilder.Options, exception.Reason, nameof(DbConnection));
+            throw;
+        }
 
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
         mySqlOptionsAction?.Invoke(new MySqlDbContextOptionsBuilder(optionsBuilder));
@@ -100,9 +111,20 @@ public static class MySqlDbContextOptionsBuilderExtensions
 
         ConfigureWarnings(optionsBuilder);
 
-        var extension = GetOrCreateExtension(optionsBuilder)
-            .WithDataSource(dataSource)
-            .WithServerVersion(serverVersion);
+        var currentExtension = GetOrCreateExtension(optionsBuilder);
+        MySqlOptionsExtension extension;
+
+        try
+        {
+            extension = currentExtension
+                .WithDataSource(dataSource)
+                .WithServerVersion(serverVersion);
+        }
+        catch (MySqlConnectionContractException exception)
+        {
+            currentExtension.LogInvalidConfiguration(optionsBuilder.Options, exception.Reason, nameof(MySqlDataSource));
+            throw;
+        }
 
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
         mySqlOptionsAction?.Invoke(new MySqlDbContextOptionsBuilder(optionsBuilder));

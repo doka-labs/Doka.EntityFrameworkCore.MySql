@@ -36,6 +36,72 @@ public sealed class MySqlDiagnosticsTests
         Assert.DoesNotContain("super-secret", entry.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Connection_contract_failure_logging_uses_bounded_fields_only()
+    {
+        const string secret = "connection-contract-secret";
+        var sink = new TestLogSink();
+        using var loggerFactory = LoggerFactory.Create(
+            builder => builder.AddProvider(new TestLoggerProvider(sink)));
+        var optionsBuilder = new DbContextOptionsBuilder();
+
+        optionsBuilder.UseLoggerFactory(loggerFactory);
+        optionsBuilder.UseMySql(
+            $"Server=localhost;Database=doka;User ID=root;Password={secret};UseAffectedRows=true;",
+            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        using var context = new DbContext(optionsBuilder.Options);
+
+        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
+            _ = context.GetService<IRelationalConnection>());
+
+        var entry = Assert.Single(
+            sink.Entries,
+            candidate => candidate.EventId.Id == MySqlEventId.InvalidConfiguration.Id);
+
+        Assert.Equal(
+            MySqlConfigurationFailureReason.ChangedRowSemanticsUnsupported,
+            entry.State["Reason"]);
+        Assert.Equal("ConnectionString", entry.State["ConnectionPath"]);
+        Assert.DoesNotContain(secret, exception.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(secret, entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Password", entry.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Borrowed_connection_contract_failure_logging_uses_bounded_fields_only()
+    {
+        const string secret = "borrowed-connection-secret";
+        var sink = new TestLogSink();
+        using var loggerFactory = LoggerFactory.Create(
+            builder => builder.AddProvider(new TestLoggerProvider(sink)));
+        var optionsBuilder = new DbContextOptionsBuilder();
+        using var connection = new MySqlConnection(
+            $"Server=borrowed-host;Database=borrowed-db;User ID=borrowed-user;Password={secret};"
+            + "GuidFormat=Char36;");
+
+        optionsBuilder.UseLoggerFactory(loggerFactory);
+
+        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
+            optionsBuilder.UseMySql(
+                connection,
+                MySqlServerVersion.MySql(new Version(8, 4, 0))));
+
+        var entry = Assert.Single(
+            sink.Entries,
+            candidate => candidate.EventId.Id == MySqlEventId.InvalidConfiguration.Id);
+
+        Assert.Equal(
+            MySqlConfigurationFailureReason.GuidTransportIncompatible,
+            entry.State["Reason"]);
+        Assert.Equal(nameof(DbConnection), entry.State["ConnectionPath"]);
+        Assert.DoesNotContain(secret, exception.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(secret, entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("borrowed-host", entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("borrowed-db", entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("borrowed-user", entry.Message, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Verifies that schema-unsupported diagnostics use EF Core's model-validation category
     /// without exposing schema or object names.

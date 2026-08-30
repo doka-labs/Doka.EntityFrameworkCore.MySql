@@ -7,6 +7,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Add `RequireUserVariables()` so libraries and applications can require
+  session-local MySQL or MariaDB user variables through provider configuration.
+  Doka enables an omitted `AllowUserVariables` option for provider-owned
+  strings and validates caller-owned connections and data sources without
+  rebuilding them.
+
+### Changed
+
+- Require MySqlConnector matched-row semantics on every connection path and
+  reject `UseAffectedRows=true` before database I/O so semantically unchanged
+  updates cannot become false optimistic-concurrency conflicts.
+- Use `GuidFormat=Binary16` as the single MySqlConnector wire-transport
+  invariant while keeping Doka's `DefaultGuidFormat(...)` and
+  `HasMySqlGuidFormat(...)` APIs authoritative for `binary(16)` and `char(36)`
+  column storage. Caller-owned connections and data sources must declare the
+  compatible connector setting and are rejected without mutation otherwise.
+- Keep explicit `Binary16` properties on the native `Guid` parameter and
+  materialization path even when the model default is `Char36`, removing the
+  former per-value `byte[]` conversion.
+
 ## [10.1.2] - 2026-08-29
 
 Stable patch release correcting resource ownership during `JsonElement`

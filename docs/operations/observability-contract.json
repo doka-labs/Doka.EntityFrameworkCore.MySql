@@ -163,17 +163,22 @@
     "boundedLogFieldDomains": {
       "configurationFailureReason": [
         "ApplicationTimeInvalid",
+        "BorrowedConnectionStringMutation",
+        "ChangedRowSemanticsUnsupported",
         "ConflictingConnectionPaths",
         "ConnectionPathChanged",
         "ForeignKeyNameTooLong",
         "GuidFormatChanged",
+        "GuidTransportIncompatible",
         "IndexNameTooLong",
+        "InvalidConnectionString",
         "MissingConnectionPath",
         "MissingServerVersion",
         "RetrySettingsChanged",
         "ServerVersionChanged",
         "TemporalTableInvalid",
-        "UnsupportedServerVersion"
+        "UnsupportedServerVersion",
+        "UserVariablesUnavailable"
       ]
     },
     "objectScopeId": {

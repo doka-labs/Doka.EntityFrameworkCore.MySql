@@ -20,6 +20,8 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
 
     internal MySqlGuidFormat DefaultGuidFormat { get; private set; } = MySqlGuidFormat.Binary16;
 
+    internal bool UserVariablesRequired { get; private set; }
+
     /// <inheritdoc />
     public override DbContextOptionsExtensionInfo Info => _info ??= new MySqlOptionsExtensionInfo(this);
 
@@ -36,6 +38,7 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
         ServerVersion = copyFrom.ServerVersion;
         RetryOptions = copyFrom.RetryOptions;
         DefaultGuidFormat = copyFrom.DefaultGuidFormat;
+        UserVariablesRequired = copyFrom.UserVariablesRequired;
     }
 
     /// <inheritdoc />
@@ -117,6 +120,23 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
             throw new InvalidOperationException(
                 "Configure exactly one MySQL connection path: connection string, DbConnection, or MySqlDataSource.");
         }
+
+        try
+        {
+            if (Connection is not null)
+            {
+                MySqlConnectionContract.ValidateBorrowed(Connection, UserVariablesRequired);
+            }
+            else if (DataSource is not null)
+            {
+                MySqlConnectionContract.ValidateBorrowed(DataSource, UserVariablesRequired);
+            }
+        }
+        catch (MySqlConnectionContractException exception)
+        {
+            LogInvalidConfiguration(options, exception.Reason);
+            throw;
+        }
     }
 
     internal new MySqlOptionsExtension WithConnectionString(
@@ -135,6 +155,8 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
     {
         ArgumentNullException.ThrowIfNull(connection);
 
+        MySqlConnectionContract.ValidateBorrowed(connection, UserVariablesRequired);
+
         var clone = (MySqlOptionsExtension)base.WithConnection(connection, owned: false);
         return clone.ResetOtherConnectionPaths(ConnectionPath.Connection);
     }
@@ -144,6 +166,8 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
     )
     {
         ArgumentNullException.ThrowIfNull(dataSource);
+
+        MySqlConnectionContract.ValidateBorrowed(dataSource, UserVariablesRequired);
 
         var clone = (MySqlOptionsExtension)Clone();
         clone.DataSource = dataSource;
@@ -189,6 +213,23 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
         return clone;
     }
 
+    internal MySqlOptionsExtension WithUserVariablesRequired()
+    {
+        if (Connection is not null)
+        {
+            MySqlConnectionContract.ValidateBorrowed(Connection, userVariablesRequired: true);
+        }
+        else if (DataSource is not null)
+        {
+            MySqlConnectionContract.ValidateBorrowed(DataSource, userVariablesRequired: true);
+        }
+
+        var clone = (MySqlOptionsExtension)Clone();
+        clone.UserVariablesRequired = true;
+
+        return clone;
+    }
+
     // The three connection-path properties (ConnectionString, Connection, DataSource) are
     // mutex per Validate -- exactly one must be configured. The active path is set by the
     // calling With*-method; this helper nulls out the other two. The base setters accept
@@ -228,9 +269,10 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
         DataSource,
     }
 
-    private void LogInvalidConfiguration(
+    internal void LogInvalidConfiguration(
         IDbContextOptions options,
-        MySqlConfigurationFailureReason reason
+        MySqlConfigurationFailureReason reason,
+        string? connectionPath = null
     )
     {
         var loggerFactory = options.FindExtension<CoreOptionsExtension>()
@@ -246,7 +288,7 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
         MySqlLoggerMessages.InvalidConfiguration(
             logger,
             reason,
-            GetConnectionPath());
+            connectionPath ?? GetConnectionPath());
     }
 
     private string GetConnectionPath()

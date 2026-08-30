@@ -145,7 +145,7 @@ public sealed class MySqlOptionsRegistrationTests
     public void Generic_data_source_builder_overload_returns_the_same_builder_instance()
     {
         using var dataSource = new MySqlDataSourceBuilder(
-            "Server=localhost;Database=doka;User ID=root;Password=password;").Build();
+            "Server=localhost;Database=doka;User ID=root;Password=password;GuidFormat=Binary16;").Build();
 
         var builder = new DbContextOptionsBuilder<TestDbContext>();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
@@ -162,7 +162,7 @@ public sealed class MySqlOptionsRegistrationTests
     public void Repeated_UseMySql_calls_replace_the_connection_path_consistently()
     {
         using var dataSource = new MySqlDataSourceBuilder(
-            "Server=localhost;Database=doka;User ID=root;Password=password;").Build();
+            "Server=localhost;Database=doka;User ID=root;Password=password;GuidFormat=Binary16;").Build();
 
         var builder = new DbContextOptionsBuilder<TestDbContext>();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));

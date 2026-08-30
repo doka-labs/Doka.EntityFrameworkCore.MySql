@@ -311,6 +311,7 @@ public sealed class MySqlTlsAuthenticationContractTests
     ) => new(administrativeConnectionString)
     {
         Database = databaseName,
+        GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
         Pooling = false,
         SslCa = string.Empty,
         SslMode = MySqlSslMode.Required,

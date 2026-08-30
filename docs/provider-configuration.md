@@ -14,6 +14,37 @@ Configure the provider with exactly one of the `UseMySql(...)` inputs:
 | `DbConnection` | The host already created the connection or needs explicit connection lifetime control. | The host owns and disposes the supplied connection. |
 | `MySqlDataSource` | Pooling, connector logging, TLS, credentials, or rotation are centralized by the host. | The host owns and disposes the data source. |
 
+All three inputs share two unconditional provider invariants:
+
+- MySqlConnector must use matched-row semantics (`UseAffectedRows=false`) so
+  an update whose predicate matched is not reported as an optimistic
+  concurrency conflict merely because the stored value was unchanged.
+- MySqlConnector must use `GuidFormat=Binary16` as Doka's low-level transport.
+  `DefaultGuidFormat(...)` and `HasMySqlGuidFormat(...)` still select each
+  column's `binary(16)` or `char(36)` storage contract.
+
+Doka applies the transport value to provider-owned strings after EF resolves a
+possible `Name=ConnectionStrings:...` token. An explicitly conflicting
+`UseAffectedRows=true`, `GuidFormat`, or legacy `OldGuids` value is rejected
+instead of silently overwritten. For a caller-owned `DbConnection` or
+`MySqlDataSource`, the caller must configure `GuidFormat=Binary16`; Doka
+validates the effective string and retains the exact object without mutation,
+cloning, or reconstruction.
+
+```mermaid
+flowchart TD
+    A[UseMySql input] --> B{Provider owns a string?}
+    B -- Yes --> C[EF resolves an optional Name token]
+    C --> D[Validate matched rows and explicit intent]
+    D --> E[Normalize Binary16 transport and application name]
+    B -- No --> F[Inspect borrowed effective configuration]
+    F --> G{All required invariants present?}
+    G -- No --> H[Fail before database I/O]
+    G -- Yes --> I[Retain the exact connection or data source]
+    E --> J[Create or open the physical connection]
+    I --> J
+```
+
 Every overload requires a `MySqlServerVersion`. Prefer an explicit supported
 engine line in production:
 
@@ -74,8 +105,47 @@ The callback passed to `UseMySql(...)` exposes:
 | `MaxBatchSize(count)` | Caps statements in one modification batch; packet and parameter ceilings can split it further. |
 | `MinBatchSize(count)` | Sets the minimum accumulated statement count for batched modification execution. |
 | `MigrationsHistoryTable(name, schema)` | Selects the history table. A non-empty schema is rejected because MySQL-family databases do not implement EF Core schema semantics. |
+| `RequireUserVariables()` | Requires MySqlConnector to pass `@name` tokens through as server-side user variables. Doka enables an omitted option for owned strings and validates borrowed inputs. |
 | `UseQuerySplittingBehavior(behavior)` | Selects EF Core single- or split-query behavior for collection includes. |
 | `UseNetTopologySuite()` | Activates services from the optional NetTopologySuite provider package. |
+
+Use `RequireUserVariables()` when a library or application emits session-local
+MySQL or MariaDB variables, including a `PREPARE ... FROM @sql` program:
+
+```csharp
+options.UseMySql(
+    connectionString,
+    serverVersion,
+    mysql => mysql.RequireUserVariables());
+```
+
+For an owned string, omission is normalized to `AllowUserVariables=true`.
+Explicit `false` is contradictory and fails locally. A borrowed connection or
+data source must already specify both transport prerequisites:
+
+```csharp
+var builder = new MySqlConnectionStringBuilder(connectionString)
+{
+    AllowUserVariables = true,
+    GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
+};
+
+var dataSource = new MySqlDataSourceBuilder(builder.ConnectionString).Build();
+```
+
+`AllowUserVariables` is a connector parser capability, not a database
+privilege, multi-statement switch, or server setting. Enabling it can select a
+separate MySqlConnector pool because the effective connection configuration
+changes.
+
+EF runtime replacement follows the same ownership rules.
+`Database.SetConnectionString(...)` is normalized only on a provider-owned
+string path and is rejected on a borrowed connection or data-source path.
+`Database.SetDbConnection(...)` validates an open or closed replacement before
+EF accepts it; `contextOwnsConnection` changes disposal responsibility, not
+configuration ownership. Direct mutation of a borrowed object after validation
+is a caller contract violation and does not add parsing to query or command hot
+paths.
 
 Retry policy, commit-unknown handling, and proxy requirements are owned by
 [Resilience and Topology](operations/resilience-and-topology.md). Host-side
@@ -134,9 +204,12 @@ Use the narrowest scope that expresses the contract:
 4. Engine capability validation remains authoritative; fluent configuration
    cannot make unsupported server syntax valid.
 
-Do not set connector GUID conversion options behind the provider. The
+Do not use connector GUID options as a second model configuration surface. The
 provider's `DefaultGuidFormat(...)` and `HasMySqlGuidFormat(...)` own the model,
 parameter, literal, migration, and materialization contract together.
+Caller-owned connections and data sources must nevertheless set connector
+`GuidFormat=Binary16` as the one wire-transport prerequisite; Doka validates it
+without treating it as a column-format choice.
 
 For provider-owned `Char36` and `Binary16`, keep the model CLR type as `Guid` or
 `Guid?`. The relational type mapping owns conversion to `char(36)` or the
@@ -184,3 +257,14 @@ Retrieved 2026-08-26 for connection-string detection:
 
 - [MySqlConnector connection opening](https://mysqlconnector.net/api/mysqlconnector/mysqlconnection/open/)
 - [MySqlConnector connection reuse](https://mysqlconnector.net/troubleshooting/connection-reuse/)
+
+Retrieved 2026-08-30 for connection invariants:
+
+- [MySqlConnector connection options](https://mysqlconnector.net/connection-options/)
+- [MySqlConnector 2.5.0 connection-string builder](https://github.com/mysql-net/MySqlConnector/blob/2.5.0/src/MySqlConnector/MySqlConnectionStringBuilder.cs)
+- [MySqlConnector 2.5.0 data source](https://github.com/mysql-net/MySqlConnector/blob/2.5.0/src/MySqlConnector/MySqlDataSource.cs)
+- [MySQL 8.4 `ROW_COUNT()`](https://dev.mysql.com/doc/refman/8.4/en/information-functions.html)
+- [MySQL 8.4 user variables](https://dev.mysql.com/doc/refman/8.4/en/user-variables.html)
+- [MySQL 8.4 prepared statements](https://dev.mysql.com/doc/refman/8.4/en/prepare.html)
+- [EF Core 10 optimistic concurrency](https://learn.microsoft.com/ef/core/saving/concurrency)
+- [EF Core 10.0.8 relational connection source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Storage/RelationalConnection.cs)

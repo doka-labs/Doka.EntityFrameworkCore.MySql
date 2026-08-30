@@ -41,8 +41,7 @@ internal sealed class MySqlGuidTextExpressionFactory
                     _stringTypeMapping);
         }
 
-        if (mapping is not MySqlGuidBinaryTypeMapping { Converter: null }
-            && mapping?.Converter is not MySqlGuidToBytesConverter)
+        if (mapping is not MySqlGuidBinaryTypeMapping { Converter: null })
         {
             throw new InvalidOperationException(
                 $"GUID text translation does not support store type '{mapping?.StoreType}' "

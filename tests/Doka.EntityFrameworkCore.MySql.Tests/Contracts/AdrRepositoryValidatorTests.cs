@@ -66,7 +66,7 @@ public sealed class AdrRepositoryValidatorTests
         var report = AdrRepositoryValidator.Validate(FindRepositoryRoot());
 
         Assert.True(report.IsValid, FormatErrors(report));
-        Assert.Equal(28, report.Documents.Count);
+        Assert.Equal(29, report.Documents.Count);
     }
 
     [Fact]

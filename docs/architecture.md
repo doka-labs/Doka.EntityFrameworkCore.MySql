@@ -101,6 +101,35 @@ options. The extension registers provider services in EF Core's internal
 service provider. Configuration accepts exactly one connection path: a
 connection string, an existing `DbConnection`, or a `MySqlDataSource`.
 
+The relational-connection boundary resolves ownership once. EF first resolves
+an optional named connection string. Doka then validates the effective
+MySqlConnector configuration and normalizes only provider-owned strings.
+Caller-owned connections and data sources are inspected without reconstruction
+and retained by reference. Runtime replacement passes through the same
+boundary before EF accepts the new configuration.
+
+```mermaid
+flowchart LR
+    A[UseMySql input] --> B{Ownership}
+    B -- Provider string --> C[EF resolves Name token]
+    C --> D[Validate matched rows and explicit intent]
+    D --> E[Normalize Binary16 transport]
+    E --> F[Optionally require user variables]
+    B -- Borrowed connection --> G[Validate effective configuration]
+    B -- Borrowed data source --> G
+    G --> H[Retain exact object]
+    F --> I[MySqlConnector]
+    H --> I
+```
+
+Matched-row semantics and the connector's `Binary16` GUID transport are
+provider invariants, not optional tuning switches. Column-level GUID storage
+remains owned by Doka type mappings, so `Char36` and `Binary16` properties can
+coexist under one connector transport. `RequireUserVariables()` adds one
+immutable capability requirement: an omitted option can be enabled on an owned
+string, while a borrowed input must already provide it. No connection-string
+parsing occurs per command, parameter, row, or repeated open.
+
 The declared `MySqlServerVersion` is resolved into an internal engine profile.
 That profile separates two questions:
 

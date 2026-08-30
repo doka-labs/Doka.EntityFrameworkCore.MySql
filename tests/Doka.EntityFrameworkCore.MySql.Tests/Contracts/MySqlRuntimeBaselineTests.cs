@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
@@ -51,7 +53,7 @@ public sealed class MySqlRuntimeBaselineTests
     public void Lifecycle_connection_preserves_mysql_connection_callbacks()
     {
         using var connection = new MySqlConnection(
-            "Server=localhost;Database=doka;User ID=root;Password=password;");
+            "Server=localhost;Database=doka;User ID=root;Password=password;GuidFormat=Binary16;");
 
         Func<System.Security.Cryptography.X509Certificates.X509CertificateCollection, ValueTask>
             clientCertificates = _ => ValueTask.CompletedTask;
@@ -99,7 +101,7 @@ public sealed class MySqlRuntimeBaselineTests
             (_, _, _, errors) => errors == System.Net.Security.SslPolicyErrors.None;
 
         using var dataSource = new MySqlDataSourceBuilder(
-                "Server=localhost;Database=doka;User ID=root;")
+                "Server=localhost;Database=doka;User ID=root;GuidFormat=Binary16;")
             .UseClientCertificatesCallback(clientCertificates)
             .UseRemoteCertificateValidationCallback(remoteCertificate)
             .UsePeriodicPasswordProvider(
@@ -203,15 +205,14 @@ public sealed class MySqlRuntimeBaselineTests
     }
 
     /// <summary>
-    /// Verifies that provider-created connections propagate the configured GUID format
-    /// to the MySqlConnector connection string, matching the provider's DefaultGuidFormat.
+    /// Verifies that provider-created connections use one connector transport
+    /// format independently of the provider's column-level GUID default.
     /// </summary>
     [Theory]
-    [InlineData(MySqlGuidFormat.Binary16, MySqlConnector.MySqlGuidFormat.Binary16)]
-    [InlineData(MySqlGuidFormat.Char36, MySqlConnector.MySqlGuidFormat.Char36)]
-    public void Relational_connection_propagates_guid_format_to_connector(
-        MySqlGuidFormat providerFormat,
-        MySqlConnector.MySqlGuidFormat expectedConnectorFormat
+    [InlineData(MySqlGuidFormat.Binary16)]
+    [InlineData(MySqlGuidFormat.Char36)]
+    public void Relational_connection_uses_binary16_connector_transport(
+        MySqlGuidFormat providerFormat
     )
     {
         var optionsBuilder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
@@ -225,7 +226,351 @@ public sealed class MySqlRuntimeBaselineTests
         var relationalConnection = context.GetService<IRelationalConnection>();
         var builder = new MySqlConnectionStringBuilder(relationalConnection.DbConnection.ConnectionString);
 
-        Assert.Equal(expectedConnectorFormat, builder.GuidFormat);
+        Assert.Equal(MySqlConnector.MySqlGuidFormat.Binary16, builder.GuidFormat);
+    }
+
+    /// <summary>
+    /// Verifies that EF runtime string replacement retains EF's raw public
+    /// value while the physical provider connection receives every invariant.
+    /// </summary>
+    [Fact]
+    public void Runtime_connection_string_replacement_is_normalized_before_connection_use()
+    {
+        const string replacement =
+            "Server=replacement;Database=runtime;User ID=provider;Password=secret;";
+
+        using var context = new RuntimeBaselineContext(
+            CreateOptions(
+                "Server=initial;Database=doka;User ID=provider;Password=secret;",
+                options => options.RequireUserVariables()));
+
+        context.Database.SetConnectionString(replacement);
+
+        var physical = new MySqlConnectionStringBuilder(
+            context.Database.GetDbConnection().ConnectionString);
+
+        Assert.Equal(replacement, context.Database.GetConnectionString());
+        Assert.Equal("replacement", physical.Server);
+        Assert.Equal(MySqlConnector.MySqlGuidFormat.Binary16, physical.GuidFormat);
+        Assert.False(physical.UseAffectedRows);
+        Assert.True(physical.AllowUserVariables);
+    }
+
+    /// <summary>
+    /// Verifies that a rejected runtime string leaves the active connection
+    /// configuration unchanged.
+    /// </summary>
+    [Theory]
+    [InlineData("UseAffectedRows=true")]
+    [InlineData("GuidFormat=Char36")]
+    [InlineData("AllowUserVariables=false")]
+    public void Runtime_connection_string_replacement_rejects_incompatible_configuration_atomically(
+        string incompatibleOption
+    )
+    {
+        using var context = new RuntimeBaselineContext(
+            CreateOptions(
+                "Server=initial;Database=doka;User ID=provider;Password=secret;",
+                options => options.RequireUserVariables()));
+
+        var originalConnection = context.Database.GetDbConnection();
+        var originalConnectionString = originalConnection.ConnectionString;
+
+        Assert.Throws<MySqlConnectionContractException>(() =>
+            context.Database.SetConnectionString(
+                $"Server=replacement;Database=runtime;Password=secret-canary;{incompatibleOption};"));
+
+        Assert.Same(originalConnection, context.Database.GetDbConnection());
+        Assert.Equal(originalConnectionString, originalConnection.ConnectionString);
+    }
+
+    /// <summary>
+    /// Verifies that runtime borrowed connections are validated before EF
+    /// replaces the active provider-owned connection.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Runtime_db_connection_replacement_accepts_the_exact_compatible_instance(
+        bool open,
+        bool contextOwnsConnection
+    )
+    {
+        using var context = new RuntimeBaselineContext(
+            CreateOptions(
+                "Server=initial;Database=doka;User ID=provider;Password=secret;",
+                options => options.RequireUserVariables()));
+
+        var replacement = new RecordingDbConnection
+        {
+            ConnectionString =
+                "Server=replacement;Database=doka;GuidFormat=Binary16;AllowUserVariables=true;",
+        };
+
+        if (open)
+        {
+            replacement.Open();
+        }
+
+        context.Database.SetDbConnection(replacement, contextOwnsConnection);
+
+        Assert.Same(replacement, context.Database.GetDbConnection());
+        Assert.Equal(
+            open ? ConnectionState.Open : ConnectionState.Closed,
+            replacement.State);
+
+        if (!contextOwnsConnection)
+        {
+            replacement.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Verifies that a successful transition to a borrowed connection prevents
+    /// a later string replacement from mutating that object indirectly.
+    /// </summary>
+    [Fact]
+    public void Runtime_db_connection_transition_marks_the_active_path_as_borrowed()
+    {
+        using var context = new RuntimeBaselineContext(
+            CreateOptions("Server=initial;Database=doka;User ID=provider;Password=secret;"));
+        using var replacement = new RecordingDbConnection();
+
+        context.Database.SetDbConnection(replacement, contextOwnsConnection: false);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            context.Database.SetConnectionString(
+                "Server=second;Database=runtime;GuidFormat=Binary16;"));
+
+        Assert.Same(replacement, context.Database.GetDbConnection());
+        Assert.Equal(
+            "Server=localhost;Database=doka;GuidFormat=Binary16;",
+            replacement.ConnectionString);
+        Assert.Equal(ConnectionState.Closed, replacement.State);
+        Assert.False(replacement.IsDisposed);
+    }
+
+    /// <summary>
+    /// Verifies that an incompatible runtime borrowed connection is rejected
+    /// before it replaces or changes the current connection.
+    /// </summary>
+    [Theory]
+    [InlineData("GuidFormat=Default;")]
+    [InlineData("GuidFormat=Char36;")]
+    [InlineData("GuidFormat=LittleEndianBinary16;")]
+    [InlineData("GuidFormat=TimeSwapBinary16;")]
+    [InlineData("GuidFormat=None;")]
+    [InlineData("GuidFormat=Binary16;UseAffectedRows=true;")]
+    [InlineData("GuidFormat=Binary16;AllowUserVariables=false;")]
+    public void Runtime_db_connection_replacement_rejects_incompatible_input_atomically(
+        string options
+    )
+    {
+        using var context = new RuntimeBaselineContext(
+            CreateOptions(
+                "Server=initial;Database=doka;User ID=provider;Password=secret;",
+                providerOptions => providerOptions.RequireUserVariables()));
+
+        var originalConnection = context.Database.GetDbConnection();
+        using var replacement = new RecordingDbConnection
+        {
+            ConnectionString =
+                $"Server=replacement;Database=doka;Password=secret-canary;{options}",
+        };
+
+        Assert.Throws<MySqlConnectionContractException>(() =>
+            context.Database.SetDbConnection(replacement, contextOwnsConnection: false));
+
+        Assert.Same(originalConnection, context.Database.GetDbConnection());
+        Assert.Equal(ConnectionState.Closed, replacement.State);
+        Assert.False(replacement.IsDisposed);
+    }
+
+    /// <summary>
+    /// Verifies that validation failure is independent of connection state and
+    /// EF disposal ownership and leaves the supplied object untouched.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Runtime_db_connection_rejection_preserves_state_and_ownership(
+        bool open,
+        bool contextOwnsConnection
+    )
+    {
+        using var context = new RuntimeBaselineContext(
+            CreateOptions("Server=initial;Database=doka;User ID=provider;Password=secret;"));
+        using var replacement = new RecordingDbConnection
+        {
+            ConnectionString =
+                "Server=replacement;Database=doka;GuidFormat=Char36;",
+        };
+
+        if (open)
+        {
+            replacement.Open();
+        }
+
+        var originalConnectionString = replacement.ConnectionString;
+        var originalConnection = context.Database.GetDbConnection();
+
+        Assert.Throws<MySqlConnectionContractException>(() =>
+            context.Database.SetDbConnection(replacement, contextOwnsConnection));
+
+        Assert.Same(originalConnection, context.Database.GetDbConnection());
+        Assert.Equal(originalConnectionString, replacement.ConnectionString);
+        Assert.Equal(
+            open ? ConnectionState.Open : ConnectionState.Closed,
+            replacement.State);
+        Assert.False(replacement.IsDisposed);
+    }
+
+    /// <summary>
+    /// Verifies that EF string replacement cannot mutate a borrowed connection
+    /// path behind its owner's back.
+    /// </summary>
+    [Fact]
+    public void Runtime_connection_string_replacement_is_rejected_for_borrowed_connection()
+    {
+        using var connection = new RecordingDbConnection();
+        var originalConnectionString = connection.ConnectionString;
+        using var context = new RuntimeBaselineContext(CreateOptions(connection));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            context.Database.SetConnectionString(
+                "Server=replacement;Database=runtime;GuidFormat=Binary16;"));
+
+        Assert.Equal(
+            "Database.SetConnectionString cannot replace caller-owned MySQL connection configuration.",
+            exception.Message);
+        Assert.Same(connection, context.Database.GetDbConnection());
+        Assert.Equal(originalConnectionString, connection.ConnectionString);
+        Assert.Equal(ConnectionState.Closed, connection.State);
+    }
+
+    /// <summary>
+    /// Verifies that EF string replacement cannot bypass a caller-owned data
+    /// source or reconstruct it from serializable options.
+    /// </summary>
+    [Fact]
+    public void Runtime_connection_string_replacement_is_rejected_for_borrowed_data_source()
+    {
+        using var dataSource = new MySqlDataSourceBuilder(
+            "Server=localhost;Database=doka;GuidFormat=Binary16;").Build();
+        var builder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
+        builder.UseMySql(
+            dataSource,
+            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        using var context = new RuntimeBaselineContext(builder.Options);
+        var originalConnection = context.Database.GetDbConnection();
+
+        Assert.Throws<InvalidOperationException>(() =>
+            context.Database.SetConnectionString(
+                "Server=replacement;Database=runtime;GuidFormat=Binary16;"));
+
+        Assert.Same(originalConnection, context.Database.GetDbConnection());
+        Assert.Equal(ConnectionState.Closed, originalConnection.State);
+        Assert.Equal(
+            MySqlConnector.MySqlGuidFormat.Binary16,
+            new MySqlConnectionStringBuilder(dataSource.ConnectionString).GuidFormat);
+    }
+
+    /// <summary>
+    /// Verifies that EF resolves a named token before Doka parses and
+    /// normalizes the resulting provider connection string.
+    /// </summary>
+    [Fact]
+    public void Named_connection_string_is_resolved_before_provider_normalization()
+    {
+        const string token = "Name=ConnectionStrings:Main";
+        const string resolved =
+            "Server=resolved;Database=doka;User ID=provider;Password=secret;";
+
+        var resolver = new RecordingNamedConnectionStringResolver(token, resolved);
+        var services = new ServiceCollection();
+        services.AddEntityFrameworkDokaMySql();
+#pragma warning disable EF1001 // Replaces EF's internal named-string seam to pin provider ordering.
+        services.Replace(ServiceDescriptor.Singleton<
+            Microsoft.EntityFrameworkCore.Storage.Internal.INamedConnectionStringResolver>(resolver));
+#pragma warning restore EF1001
+
+        using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
+        var builder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
+
+        builder.UseInternalServiceProvider(serviceProvider);
+        builder.UseMySql(
+            token,
+            MySqlServerVersion.MySql(new Version(8, 4, 0)),
+            options => options.RequireUserVariables());
+
+        var extension = Assert.IsType<MySqlOptionsExtension>(
+            builder.Options.FindExtension<MySqlOptionsExtension>());
+
+        Assert.Equal(token, extension.ConnectionString);
+
+        using var context = new RuntimeBaselineContext(builder.Options);
+        var physical = new MySqlConnectionStringBuilder(
+            context.Database.GetDbConnection().ConnectionString);
+
+        Assert.Equal(token, resolver.LastInput);
+        Assert.Equal("resolved", physical.Server);
+        Assert.Equal(MySqlConnector.MySqlGuidFormat.Binary16, physical.GuidFormat);
+        Assert.True(physical.AllowUserVariables);
+    }
+
+    /// <summary>
+    /// Verifies that named-string resolution cannot bypass any provider-owned
+    /// connection invariant.
+    /// </summary>
+    [Theory]
+    [InlineData(
+        "UseAffectedRows=true",
+        nameof(MySqlConfigurationFailureReason.ChangedRowSemanticsUnsupported))]
+    [InlineData(
+        "GuidFormat=Char36",
+        nameof(MySqlConfigurationFailureReason.GuidTransportIncompatible))]
+    [InlineData(
+        "AllowUserVariables=false",
+        nameof(MySqlConfigurationFailureReason.UserVariablesUnavailable))]
+    public void Named_connection_string_rejects_incompatible_resolved_configuration(
+        string incompatibleOption,
+        string expectedReason
+    )
+    {
+        const string token = "Name=ConnectionStrings:Main";
+        var resolved =
+            $"Server=resolved;Database=doka;Password=secret-canary;{incompatibleOption};";
+        var resolver = new RecordingNamedConnectionStringResolver(token, resolved);
+        var services = new ServiceCollection();
+        services.AddEntityFrameworkDokaMySql();
+#pragma warning disable EF1001 // Replaces EF's internal named-string seam to pin provider ordering.
+        services.Replace(ServiceDescriptor.Singleton<
+            Microsoft.EntityFrameworkCore.Storage.Internal.INamedConnectionStringResolver>(resolver));
+#pragma warning restore EF1001
+
+        using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
+        var builder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
+
+        builder.UseInternalServiceProvider(serviceProvider);
+        builder.UseMySql(
+            token,
+            MySqlServerVersion.MySql(new Version(8, 4, 0)),
+            options => options.RequireUserVariables());
+
+        using var context = new RuntimeBaselineContext(builder.Options);
+        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
+            _ = context.Database.GetDbConnection());
+
+        Assert.Equal(
+            Enum.Parse<MySqlConfigurationFailureReason>(expectedReason),
+            exception.Reason);
+        Assert.Equal(token, resolver.LastInput);
+        Assert.DoesNotContain("secret-canary", exception.ToString(), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -293,6 +638,21 @@ public sealed class MySqlRuntimeBaselineTests
 
     private static DbContextOptions<RuntimeBaselineContext> CreateOptions(
         string connectionString,
+        Action<MySqlDbContextOptionsBuilder>? configure = null
+    )
+    {
+        var builder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
+
+        builder.UseMySql(
+            connectionString,
+            MySqlServerVersion.MySql(new Version(8, 4, 0)),
+            configure);
+
+        return builder.Options;
+    }
+
+    private static DbContextOptions<RuntimeBaselineContext> CreateOptions(
+        string connectionString,
         IServiceProvider internalServiceProvider
     )
     {
@@ -311,6 +671,35 @@ public sealed class MySqlRuntimeBaselineTests
         ) : base(options) { }
     }
 
+#pragma warning disable EF1001 // Test double for EF's named-connection-string resolution boundary.
+    private sealed class RecordingNamedConnectionStringResolver
+        : Microsoft.EntityFrameworkCore.Storage.Internal.INamedConnectionStringResolver
+    {
+        private readonly string _expectedInput;
+        private readonly string _resolvedConnectionString;
+
+        public RecordingNamedConnectionStringResolver(
+            string expectedInput,
+            string resolvedConnectionString
+        )
+        {
+            _expectedInput = expectedInput;
+            _resolvedConnectionString = resolvedConnectionString;
+        }
+
+        public string? LastInput { get; private set; }
+
+        public string ResolveConnectionString(
+            string connectionString
+        )
+        {
+            Assert.Equal(_expectedInput, connectionString);
+            LastInput = connectionString;
+            return _resolvedConnectionString;
+        }
+    }
+#pragma warning restore EF1001
+
     private sealed class RecordingDbConnection : DbConnection
     {
         private ConnectionState _state = ConnectionState.Closed;
@@ -320,7 +709,8 @@ public sealed class MySqlRuntimeBaselineTests
         public RecordingDbTransaction? LastTransaction { get; private set; }
 
         [AllowNull]
-        public override string ConnectionString { get; set; } = "Server=localhost;Database=doka;";
+        public override string ConnectionString { get; set; } =
+            "Server=localhost;Database=doka;GuidFormat=Binary16;";
 
         public override string Database => "doka";
 

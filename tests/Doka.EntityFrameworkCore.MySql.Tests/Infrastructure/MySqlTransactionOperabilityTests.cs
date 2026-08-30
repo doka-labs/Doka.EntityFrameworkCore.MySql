@@ -131,7 +131,8 @@ public sealed class MySqlTransactionOperabilityTests
         public List<RecordingDbCommand> Commands { get; } = new();
 
         [AllowNull]
-        public override string ConnectionString { get; set; } = "Server=localhost;Database=doka;";
+        public override string ConnectionString { get; set; } =
+            "Server=localhost;Database=doka;GuidFormat=Binary16;";
 
         public override string Database => "doka";
 

@@ -336,6 +336,17 @@
       "supersededBy": [],
       "amends": [],
       "amendedBy": []
+    },
+    {
+      "id": "D-029",
+      "title": "Centralize ownership-aware connection invariants",
+      "status": "implemented",
+      "date": "2026-08-30",
+      "path": "docs/decisions/D-029-ownership-aware-connection-invariants.md",
+      "supersedes": [],
+      "supersededBy": [],
+      "amends": [],
+      "amendedBy": []
     }
   ]
 }

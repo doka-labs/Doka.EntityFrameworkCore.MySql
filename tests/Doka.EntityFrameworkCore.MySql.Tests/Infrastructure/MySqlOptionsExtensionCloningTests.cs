@@ -12,8 +12,11 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlOptionsExtensionCloningTests
 {
-    private const string ConnectionStringA = "Server=localhost;Database=a;User ID=root;Password=pw;";
-    private const string ConnectionStringB = "Server=localhost;Database=b;User ID=root;Password=pw;";
+    private const string ConnectionStringA =
+        "Server=localhost;Database=a;User ID=root;Password=pw;GuidFormat=Binary16;";
+
+    private const string ConnectionStringB =
+        "Server=localhost;Database=b;User ID=root;Password=pw;GuidFormat=Binary16;";
 
     [Fact]
     public void WithConnectionString_clears_DataSource_and_Connection()
@@ -75,6 +78,19 @@ public sealed class MySqlOptionsExtensionCloningTests
         Assert.Equal(ConnectionStringA, rotated.ConnectionString);
         Assert.Same(retryOptions, rotated.RetryOptions);
         Assert.Equal(MySqlGuidFormat.Char36, rotated.DefaultGuidFormat);
+    }
+
+    [Fact]
+    public void Connection_path_clones_preserve_the_user_variable_requirement()
+    {
+        var seeded = new MySqlOptionsExtension()
+            .WithUserVariablesRequired()
+            .WithConnectionString(ConnectionStringA);
+
+        var rotated = seeded.WithConnectionString(ConnectionStringB);
+
+        Assert.True(rotated.UserVariablesRequired);
+        Assert.Equal(ConnectionStringB, rotated.ConnectionString);
     }
 
     [Fact]

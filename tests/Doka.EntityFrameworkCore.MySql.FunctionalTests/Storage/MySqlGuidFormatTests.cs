@@ -58,7 +58,8 @@ public sealed class MySqlGuidFormatTests
                         useMigrations);
                     break;
                 case "db-connection":
-                    await using (var connection = new MySqlConnection(connectionString))
+                    await using (var connection = new MySqlConnection(
+                                     AddBinary16Transport(connectionString)))
                     {
                         await AssertDefaultChar36ContractAsync(
                             BuildDefaultChar36Options<DefaultChar36GuidContext>(
@@ -70,7 +71,8 @@ public sealed class MySqlGuidFormatTests
 
                     break;
                 case "data-source":
-                    await using (var dataSource = new MySqlDataSourceBuilder(connectionString).Build())
+                    await using (var dataSource = new MySqlDataSourceBuilder(
+                                         AddBinary16Transport(connectionString)).Build())
                     {
                         await AssertDefaultChar36ContractAsync(
                             BuildDefaultChar36Options<DefaultChar36GuidContext>(
@@ -353,6 +355,13 @@ public sealed class MySqlGuidFormatTests
     ) => new MySqlConnectionStringBuilder(baseConnectionString)
     {
         Database = databaseName,
+    }.ConnectionString;
+
+    private static string AddBinary16Transport(
+        string connectionString
+    ) => new MySqlConnectionStringBuilder(connectionString)
+    {
+        GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
     }.ConnectionString;
 
     private static async Task CreateDatabaseAsync(
