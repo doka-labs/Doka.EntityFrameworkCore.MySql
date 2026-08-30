@@ -21,7 +21,7 @@ Replace the `Pomelo.EntityFrameworkCore.MySql` package reference with
 stable package explicitly so the migration uses the documented version:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.2
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.2.0
 ```
 
 Use:
@@ -164,8 +164,18 @@ drift and correct the configuration before applying the migration.
 Doka `Binary16` uses big-endian GUID bytes. An existing `binary(16)` column
 alone does not prove compatibility: old little-endian or time-swapped layouts
 need an explicit, tested conversion. Round-trip known preexisting GUID values
-and compare their stored bytes before accepting the replacement. Do not set
-connector `GuidFormat` or `OldGuids` options behind Doka's model mapping.
+and compare their stored bytes before accepting the replacement. Ordinary
+connection-string configuration needs no connector GUID option because Doka
+normalizes its owned physical connection to `GuidFormat=Binary16`. A supplied
+`DbConnection` or `MySqlDataSource` must already use that exact connector
+transport value; `Default`, `Char36`, little-endian, time-swapped, `None`, and
+legacy `OldGuids` configurations are rejected. This transport prerequisite
+does not replace Doka's column-level `DefaultGuidFormat(...)` and
+`HasMySqlGuidFormat(...)` configuration.
+
+Remove `UseAffectedRows=true` during migration. Doka requires the connector's
+matched-row behavior so an EF update that matches a row but stores an equal
+value does not produce a false optimistic-concurrency exception.
 
 The SQL type also cannot prove that an application-owned byte converter uses
 Doka's byte order. Doka therefore rejects application-owned `binary(16)` to

@@ -49,13 +49,106 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     }
 
     /// <summary>
+    /// Verifies that the user-variable capability is immutable provider state.
+    /// </summary>
+    [Fact]
+    public void RequireUserVariables_stores_the_requirement()
+    {
+        var extension = BuildExtension(options => options.RequireUserVariables());
+
+        Assert.True(extension.UserVariablesRequired);
+    }
+
+    /// <summary>
+    /// Verifies that requiring the capability before connection configuration
+    /// survives the later provider options clone.
+    /// </summary>
+    [Fact]
+    public void RequireUserVariables_before_UseMySql_is_preserved()
+    {
+        var builder = new DbContextOptionsBuilder();
+
+        new MySqlDbContextOptionsBuilder(builder).RequireUserVariables();
+        builder.UseMySql(
+            "Server=localhost;Database=doka;User ID=root;Password=password;",
+            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        var extension = Assert.IsType<MySqlOptionsExtension>(
+            builder.Options.FindExtension<MySqlOptionsExtension>());
+
+        Assert.True(extension.UserVariablesRequired);
+    }
+
+    /// <summary>
+    /// Verifies that repeating the one-way capability requirement is idempotent.
+    /// </summary>
+    [Fact]
+    public void RequireUserVariables_is_idempotent()
+    {
+        var builder = new DbContextOptionsBuilder();
+        var providerBuilder = new MySqlDbContextOptionsBuilder(builder);
+
+        var first = providerBuilder.RequireUserVariables();
+        var second = providerBuilder.RequireUserVariables();
+        var extension = Assert.IsType<MySqlOptionsExtension>(
+            builder.Options.FindExtension<MySqlOptionsExtension>());
+
+        Assert.Same(providerBuilder, first);
+        Assert.Same(providerBuilder, second);
+        Assert.True(extension.UserVariablesRequired);
+    }
+
+    /// <summary>
+    /// Verifies that a requirement recorded before a borrowed connection is
+    /// configured validates that exact later input.
+    /// </summary>
+    [Fact]
+    public void RequireUserVariables_before_borrowed_connection_validates_the_later_input()
+    {
+        var builder = new DbContextOptionsBuilder();
+        new MySqlDbContextOptionsBuilder(builder).RequireUserVariables();
+        using var connection = new MySqlConnection(
+            "Server=localhost;Database=doka;GuidFormat=Binary16;AllowUserVariables=true;");
+
+        builder.UseMySql(
+            connection,
+            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        var extension = Assert.IsType<MySqlOptionsExtension>(
+            builder.Options.FindExtension<MySqlOptionsExtension>());
+
+        Assert.True(extension.UserVariablesRequired);
+        Assert.Same(connection, extension.Connection);
+    }
+
+    /// <summary>
+    /// Verifies that a later borrowed input cannot bypass an already-recorded
+    /// user-variable requirement.
+    /// </summary>
+    [Fact]
+    public void RequireUserVariables_before_borrowed_connection_rejects_missing_capability()
+    {
+        var builder = new DbContextOptionsBuilder();
+        new MySqlDbContextOptionsBuilder(builder).RequireUserVariables();
+        using var connection = new MySqlConnection(
+            "Server=localhost;Database=doka;GuidFormat=Binary16;");
+
+        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
+            builder.UseMySql(
+                connection,
+                MySqlServerVersion.MySql(new Version(8, 4, 0))));
+
+        Assert.Equal(MySqlConfigurationFailureReason.UserVariablesUnavailable, exception.Reason);
+    }
+
+    /// <summary>
     /// Verifies that the data-source overload stores the caller-owned data source.
     /// </summary>
     [Fact]
     public void UseMySql_stores_data_source_and_server_version()
     {
         using var dataSource = new MySqlDataSourceBuilder(
-            "Server=localhost;Database=doka;User ID=root;Password=password;").Build();
+            "Server=localhost;Database=doka;User ID=root;Password=password;GuidFormat=Binary16;").Build();
 
         var builder = new DbContextOptionsBuilder();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));

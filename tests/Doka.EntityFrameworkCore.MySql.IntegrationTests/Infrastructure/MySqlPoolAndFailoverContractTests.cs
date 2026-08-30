@@ -409,6 +409,7 @@ public sealed class MySqlPoolAndFailoverContractTests
             MaximumPoolSize = maximumPoolSize,
             ConnectionTimeout = connectionTimeout,
             ApplicationName = $"doka-pool-contract-{Guid.NewGuid():N}",
+            GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
         }.ConnectionString;
     }
 

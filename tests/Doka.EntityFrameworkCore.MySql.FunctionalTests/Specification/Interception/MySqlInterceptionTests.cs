@@ -175,7 +175,8 @@ public abstract class ConnectionInterceptionMySqlTestBase
     private sealed class ThrowingDbConnection : DbConnection
     {
         [AllowNull]
-        public override string ConnectionString { get; set; } = string.Empty;
+        public override string ConnectionString { get; set; } =
+            "Server=localhost;GuidFormat=Binary16;";
 
         public override string Database => "Database";
 

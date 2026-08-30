@@ -109,6 +109,22 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
         logger ?? new CacheRecordingLogger(),
         timeProvider);
 
+    public MySqlDistributedCache CreateCache(
+        TimeProvider timeProvider,
+        MySqlDataSource dataSource,
+        CacheRecordingLogger? logger = null
+    ) => new(
+        Options.Create(
+            new MySqlCacheOptions
+            {
+                DataSource = dataSource,
+                SchemaName = SchemaName,
+                TableName = TableName,
+                ExpiredItemsDeletionInterval = TimeSpan.FromMinutes(5),
+            }),
+        logger ?? new CacheRecordingLogger(),
+        timeProvider);
+
     public async Task ExecuteAsync(
         string commandText
     )

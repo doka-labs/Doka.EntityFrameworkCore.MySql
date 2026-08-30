@@ -460,6 +460,7 @@ public sealed class MySqlScopedMigrationOperationIntegrationTests
     {
         AllowUserVariables = true,
         ConnectionReset = connectionReset,
+        GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
         MinimumPoolSize = pooling ? 1u : 0u,
         MaximumPoolSize = pooling ? 1u : 100u,
         Pooling = pooling,

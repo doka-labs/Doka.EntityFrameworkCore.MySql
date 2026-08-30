@@ -112,7 +112,7 @@ public sealed class MySqlOptionsExtensionInfoTests
     {
         var infoA = InfoFor(WithVersion(new MySqlOptionsExtension()));
         var infoB = InfoFor(WithVersion(new MySqlOptionsExtension())
-            .WithConnection(new MySqlConnection()));
+            .WithConnection(new MySqlConnection("Server=localhost;GuidFormat=Binary16")));
 
         Assert.False(infoA.ShouldUseSameServiceProvider(infoB));
     }
@@ -122,9 +122,23 @@ public sealed class MySqlOptionsExtensionInfoTests
     {
         var infoA = InfoFor(WithVersion(new MySqlOptionsExtension()));
         var infoB = InfoFor(WithVersion(new MySqlOptionsExtension())
-            .WithDataSource(new MySqlDataSourceBuilder("Server=localhost").Build()));
+            .WithDataSource(new MySqlDataSourceBuilder(
+                "Server=localhost;GuidFormat=Binary16").Build()));
 
         Assert.False(infoA.ShouldUseSameServiceProvider(infoB));
+    }
+
+    [Fact]
+    public void User_variable_requirement_does_not_fragment_the_internal_service_provider()
+    {
+        var optional = WithVersion(new MySqlOptionsExtension());
+        var required = optional.WithUserVariablesRequired();
+
+        Assert.Equal(
+            optional.Info.GetServiceProviderHashCode(),
+            required.Info.GetServiceProviderHashCode());
+        Assert.True(optional.Info.ShouldUseSameServiceProvider(required.Info));
+        Assert.True(required.Info.ShouldUseSameServiceProvider(optional.Info));
     }
 
     // -- GetServiceProviderHashCode is stable + sensitive to fields --

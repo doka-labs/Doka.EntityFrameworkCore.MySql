@@ -7,7 +7,8 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 public sealed class MySqlGuidFormatTestOptionsTests
 {
     private const string ConnectionString =
-        "Server=127.0.0.1;Port=3306;Database=doka_guid_options;User ID=root;Password=root_password;";
+        "Server=127.0.0.1;Port=3306;Database=doka_guid_options;User ID=root;Password=root_password;"
+        + "GuidFormat=Binary16;";
 
     private static readonly MySqlServerVersion s_serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
 

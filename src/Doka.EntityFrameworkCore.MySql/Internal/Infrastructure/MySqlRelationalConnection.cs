@@ -4,7 +4,9 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
 {
     private readonly IMySqlDriverFacade _driverFacade;
     private readonly MySqlOptionsExtension _optionsExtension;
+    private bool _activeConnectionPathIsBorrowed;
     private bool _connectionStringOverridden;
+    private string? _runtimeConnectionString;
 
     public MySqlRelationalConnection(
         RelationalConnectionDependencies dependencies,
@@ -14,28 +16,66 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
         _driverFacade = driverFacade ?? throw new ArgumentNullException(nameof(driverFacade));
         _optionsExtension = dependencies.ContextOptions.FindExtension<MySqlOptionsExtension>()
             ?? throw new InvalidOperationException("The Doka MySQL options extension is not configured.");
+
+        _activeConnectionPathIsBorrowed = _optionsExtension.Connection is not null
+            || _optionsExtension.DataSource is not null;
+
+        if (!_activeConnectionPathIsBorrowed
+            && base.ConnectionString is { } connectionString)
+        {
+            try
+            {
+                base.ConnectionString = NormalizeConnectionString(connectionString);
+            }
+            catch (MySqlConnectionContractException exception)
+            {
+                _optionsExtension.LogInvalidConfiguration(
+                    dependencies.ContextOptions,
+                    exception.Reason,
+                    "ConnectionString");
+                throw;
+            }
+        }
     }
 
     protected override bool SupportsAmbientTransactions => true;
 
     public override string? ConnectionString
     {
-        get
-        {
-            var connectionString = base.ConnectionString;
-
-            // Initial options and the physical connection must expose the same
-            // provider defaults to creation interceptors. Runtime overrides are
-            // an EF-managed mutable contract and must round-trip unchanged.
-            return !_connectionStringOverridden
-                && _optionsExtension.ConnectionString is not null
-                && connectionString is not null
-                    ? NormalizeConnectionString(connectionString)
-                    : connectionString;
-        }
+        get => _connectionStringOverridden ? _runtimeConnectionString : base.ConnectionString;
         set
         {
-            base.ConnectionString = value;
+            if (_activeConnectionPathIsBorrowed)
+            {
+                _optionsExtension.LogInvalidConfiguration(
+                    Dependencies.ContextOptions,
+                    MySqlConfigurationFailureReason.BorrowedConnectionStringMutation,
+                    _optionsExtension.DataSource is null ? nameof(DbConnection) : nameof(MySqlDataSource));
+
+                throw new InvalidOperationException(
+                    "Database.SetConnectionString cannot replace caller-owned MySQL connection configuration.");
+            }
+
+            string? normalizedConnectionString = null;
+
+            if (value is not null)
+            {
+                try
+                {
+                    normalizedConnectionString = NormalizeConnectionString(value);
+                }
+                catch (MySqlConnectionContractException exception)
+                {
+                    _optionsExtension.LogInvalidConfiguration(
+                        Dependencies.ContextOptions,
+                        exception.Reason,
+                        "ConnectionString");
+                    throw;
+                }
+            }
+
+            base.ConnectionString = normalizedConnectionString;
+            _runtimeConnectionString = value;
             _connectionStringOverridden = true;
         }
     }
@@ -52,7 +92,7 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
             return _optionsExtension.Connection;
         }
 
-        var connectionString = ConnectionString;
+        var connectionString = base.ConnectionString;
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -60,10 +100,38 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
                 "A MySQL connection string, DbConnection, or MySqlDataSource must be configured.");
         }
 
-        return _driverFacade.CreateConnection(
-            _connectionStringOverridden
-                ? connectionString
-                : NormalizeConnectionString(connectionString));
+        return _driverFacade.CreateConnection(connectionString);
+    }
+
+    public override void SetDbConnection(
+        DbConnection? value,
+        bool contextOwnsConnection
+    )
+    {
+        if (value is not null)
+        {
+            try
+            {
+                MySqlConnectionContract.ValidateBorrowed(value, _optionsExtension.UserVariablesRequired);
+            }
+            catch (MySqlConnectionContractException exception)
+            {
+                _optionsExtension.LogInvalidConfiguration(
+                    Dependencies.ContextOptions,
+                    exception.Reason,
+                    nameof(DbConnection));
+                throw;
+            }
+        }
+
+        base.SetDbConnection(value, contextOwnsConnection);
+
+        _activeConnectionPathIsBorrowed = value is not null
+            || _optionsExtension.Connection is not null
+            || _optionsExtension.DataSource is not null;
+
+        _runtimeConnectionString = null;
+        _connectionStringOverridden = false;
     }
 
     /// <summary>
@@ -105,7 +173,8 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
             // DbConnection. Borrow the configured object so its custom TLS,
             // authentication, interception, and command behavior remain active.
             ? MySqlLifecycleConnection.Borrow(_optionsExtension.Connection, connectionString)
-            : MySqlLifecycleConnection.Own(_driverFacade.CreateConnection(connectionString));
+            : MySqlLifecycleConnection.Own(
+                _driverFacade.CreateConnection(NormalizeConnectionString(connectionString)));
     }
 
     protected override DbTransaction ConnectionBeginTransaction(
@@ -152,23 +221,9 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
 
     private string NormalizeConnectionString(
         string connectionString
-    )
-    {
-        var connectionStringBuilder = new MySqlConnectionStringBuilder(connectionString);
-
-        if (string.IsNullOrWhiteSpace(connectionStringBuilder.ApplicationName))
-        {
-            connectionStringBuilder.ApplicationName = MySqlDiagnostics.DefaultDriverPoolName;
-        }
-
-        connectionStringBuilder.GuidFormat = _optionsExtension.DefaultGuidFormat switch
-        {
-            MySqlGuidFormat.Char36 => MySqlConnector.MySqlGuidFormat.Char36,
-            _ => MySqlConnector.MySqlGuidFormat.Binary16,
-        };
-
-        return connectionStringBuilder.ConnectionString;
-    }
+    ) => MySqlConnectionContract.NormalizeProviderOwned(
+        connectionString,
+        _optionsExtension.UserVariablesRequired);
 
     // MySqlConnector already emits REPEATABLE READ when callers pass
     // Unspecified, but retains Unspecified on MySqlTransaction.IsolationLevel.

@@ -100,6 +100,7 @@ public sealed class MySqlSqlModeContractTests
         var connectionString =
             new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target))
             {
+                GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
                 Pooling = false,
             }.ConnectionString;
 
@@ -691,6 +692,7 @@ public sealed class MySqlSqlModeContractTests
         var tableName = $"SqlModeCleanupFailure_{Guid.NewGuid():N}";
         var connectionString = new MySqlConnectionStringBuilder(baseConnectionString)
         {
+            GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
             Pooling = true,
             MaximumPoolSize = 1,
             MinimumPoolSize = 0,
@@ -766,6 +768,7 @@ public sealed class MySqlSqlModeContractTests
         var tableName = $"SyncSqlModeCleanupFailure_{Guid.NewGuid():N}";
         var connectionString = new MySqlConnectionStringBuilder(baseConnectionString)
         {
+            GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
             Pooling = true,
             MaximumPoolSize = 1,
             MinimumPoolSize = 0,

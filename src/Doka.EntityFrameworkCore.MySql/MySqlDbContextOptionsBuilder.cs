@@ -43,6 +43,38 @@ public sealed class MySqlDbContextOptionsBuilder
         : throw new ArgumentOutOfRangeException(nameof(format));
 
     /// <summary>
+    /// Requires every connection used by this context to support server-side
+    /// user-defined variables.
+    /// </summary>
+    /// <remarks>
+    /// Doka enables the connector capability when it owns the connection
+    /// string. Caller-owned <see cref="DbConnection"/> and
+    /// <see cref="MySqlDataSource"/> instances must already specify
+    /// <c>AllowUserVariables=true</c>; Doka validates them without mutation or
+    /// reconstruction.
+    /// </remarks>
+    /// <returns>The current builder instance.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The configured caller-owned connection does not support user-defined
+    /// variables or violates another required Doka connection contract.
+    /// </exception>
+    public MySqlDbContextOptionsBuilder RequireUserVariables()
+    {
+        try
+        {
+            return WithOption(currentExtension => currentExtension.WithUserVariablesRequired());
+        }
+        catch (MySqlConnectionContractException exception)
+        {
+            var extension = OptionsBuilder.Options.FindExtension<MySqlOptionsExtension>()
+                ?? new MySqlOptionsExtension();
+
+            extension.LogInvalidConfiguration(OptionsBuilder.Options, exception.Reason);
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Configures the default command timeout (in seconds) the provider applies to every
     /// command it issues, including reads, writes, migrations, and the migration advisory
     /// lock acquire. The runtime translates the value via MySqlConnector's

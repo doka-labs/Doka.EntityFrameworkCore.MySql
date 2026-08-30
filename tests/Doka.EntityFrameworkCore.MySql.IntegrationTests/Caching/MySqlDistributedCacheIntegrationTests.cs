@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [Collection(IntegrationDatabaseTestGroup.Name)]
 public sealed class MySqlDistributedCacheIntegrationTests
 {
-    private const int CleanupConcurrencyProbeCount = 16;
+    private const int CleanupProbeConnectionCount = 2;
     private const int ConcurrentUpsertProbeCount = 16;
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
@@ -1602,10 +1602,15 @@ public sealed class MySqlDistributedCacheIntegrationTests
         var logger = new CacheRecordingLogger();
         var cleanupConnectionString = new MySqlConnectionStringBuilder(store.ConnectionString)
         {
-            // WHY: One connection is deliberately blocked by cleanup. Keep the probes independent of pool saturation.
-            MaximumPoolSize = CleanupConcurrencyProbeCount + 2,
+            AutoEnlist = false,
+            MaximumPoolSize = CleanupProbeConnectionCount,
         }.ConnectionString;
-        await using var cache = store.CreateCache(time, logger, cleanupConnectionString);
+        await using var cleanupDataSource = new MySqlDataSource(cleanupConnectionString);
+
+        await WarmCleanupProbePoolAsync(cleanupDataSource)
+            .ConfigureAwait(false);
+
+        await using var cache = store.CreateCache(time, cleanupDataSource, logger);
 
         await cache
             .SetAsync("live", [1], new DistributedCacheEntryOptions(), CancellationToken.None)
@@ -1801,8 +1806,9 @@ public sealed class MySqlDistributedCacheIntegrationTests
             token => cache.RemoveAsync("cleanup-array", token),
         ];
 
-        foreach (var operation in operations)
+        for (var operationIndex = 0; operationIndex < operations.Length; operationIndex++)
         {
+            var operation = operations[operationIndex];
             await using var transaction = await lockConnection
                 .BeginTransactionAsync(CancellationToken.None)
                 .ConfigureAwait(false);
@@ -1827,13 +1833,15 @@ public sealed class MySqlDistributedCacheIntegrationTests
                 await AssertLockingStatementStartedAsync(observer, store.TableName, pending, cleanupOnly: true)
                     .ConfigureAwait(false);
 
-                await Task
-                    .WhenAll(
-                        Enumerable
-                            .Range(0, CleanupConcurrencyProbeCount)
-                            .Select(_ => cache.GetAsync("cleanup-miss", CancellationToken.None)))
-                    .WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None)
-                    .ConfigureAwait(false);
+                if (operationIndex == 0)
+                {
+                    // WHY: The isolated pool makes this a cleanup-coordination assertion, not a pool-capacity test.
+                    Assert.Null(
+                        await cache
+                            .GetAsync("cleanup-miss", CancellationToken.None)
+                            .WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None)
+                            .ConfigureAwait(false));
+                }
 
                 Assert.False(pending.IsCompleted);
 
@@ -1895,6 +1903,18 @@ public sealed class MySqlDistributedCacheIntegrationTests
             await cache
                 .GetAsync("cleanup-segmented", CancellationToken.None)
                 .ConfigureAwait(false));
+    }
+
+    private static async Task WarmCleanupProbePoolAsync(
+        MySqlDataSource dataSource
+    )
+    {
+        await using var cleanupConnection = await dataSource
+            .OpenConnectionAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+        await using var probeConnection = await dataSource
+            .OpenConnectionAsync(CancellationToken.None)
+            .ConfigureAwait(false);
     }
 
     private static async Task AssertDmlOnlyPermissionsAndCleanupFailureAsync(

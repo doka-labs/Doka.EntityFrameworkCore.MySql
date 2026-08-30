@@ -70,19 +70,21 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.1.2` retains the provider-owned GUID conversion correction introduced in
-`10.1.1` across relationship graphs, snapshots, designers, and every generated
-column operation. It also returns independently owned `JsonElement` values
-during provider conversion instead of retaining a disposable `JsonDocument`
-owner that the conversion boundary cannot release. Pin the current stable
-version explicitly when validating an affected model:
+`10.2.0` adds ownership-aware connection invariants for provider-owned strings,
+caller-owned connections, and caller-owned data sources. It requires matched-row
+semantics, uses `Binary16` as the MySqlConnector wire transport, and adds
+`RequireUserVariables()` for applications that execute server-side user-variable
+programs. `Char36` remains fully supported as a model and column-storage format;
+the connector transport does not migrate or reinterpret `char(36)` columns. Pin
+the current stable version explicitly when validating an affected application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.1.2
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.2.0
 ```
 
-See [Migrating from Pomelo][migrating-from-pomelo] for the corrected GUID
-mapping contract and the required staged migration for representation changes.
+See [Provider Configuration][provider-configuration] for owned and borrowed
+connection requirements, and [Migrating from Pomelo][migrating-from-pomelo] for
+the GUID mapping and representation-migration contracts.
 
 ## Quick Start
 
@@ -169,7 +171,12 @@ For centralized pooling and connector logging, register a
 `MySqlDataSource` instead:
 
 ```csharp
-var dataSource = new MySqlDataSourceBuilder(connectionString)
+var dataSourceConnectionString = new MySqlConnectionStringBuilder(connectionString)
+{
+    GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
+}.ConnectionString;
+
+var dataSource = new MySqlDataSourceBuilder(dataSourceConnectionString)
     .UseLoggerFactory(loggerFactory)
     .Build();
 
@@ -182,6 +189,12 @@ services.AddDbContext<AppDbContext>(options =>
 The provider also accepts an existing `DbConnection`. See
 [Host Integration][host-integration] for connection ownership, pooling, retry,
 health-check, and telemetry guidance.
+
+Provider-owned connection strings are normalized to Doka's Binary16 connector
+transport. Caller-owned connections and data sources must already specify
+`GuidFormat=Binary16`; Doka validates them without mutation. Every connection
+path rejects `UseAffectedRows=true` because EF optimistic concurrency requires
+matched-row semantics.
 
 ## Supported Engines
 
@@ -235,6 +248,22 @@ contracts and limitations. The sections below show only the main entry points.
 options.UseMySql(connectionString, serverVersion, mysql =>
     mysql.EnableRetryOnFailure(maxRetryCount: 5));
 ```
+
+### Require server-side user variables
+
+Libraries or applications that use session-local `@name` variables can require
+the connector capability through provider configuration:
+
+```csharp
+options.UseMySql(connectionString, serverVersion, mysql =>
+    mysql.RequireUserVariables());
+```
+
+Doka adds `AllowUserVariables=true` when an owned connection string omits it.
+Borrowed connections and data sources must configure it explicitly because
+Doka never rebuilds caller-owned objects. See
+[Provider Configuration][provider-configuration] for runtime replacement and
+ownership rules.
 
 ### Choose GUID storage
 

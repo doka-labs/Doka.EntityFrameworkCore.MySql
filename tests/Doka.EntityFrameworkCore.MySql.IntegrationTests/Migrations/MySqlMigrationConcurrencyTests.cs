@@ -395,6 +395,7 @@ public sealed class MySqlMigrationConcurrencyTests
         var builder = new MySqlConnectionStringBuilder(baseConnectionString)
         {
             Database = databaseName,
+            GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
         };
 
         return builder.ConnectionString;

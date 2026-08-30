@@ -77,6 +77,7 @@ public sealed class MySqlColumnDefaultIntegrationTests
         var connectionString = new MySqlConnectionStringBuilder(
             IntegrationTestEnvironment.GetConnectionString(target))
         {
+            GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
             Pooling = false,
         }.ConnectionString;
 

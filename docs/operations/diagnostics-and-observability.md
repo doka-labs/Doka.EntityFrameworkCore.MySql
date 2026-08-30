@@ -68,6 +68,21 @@ emit caller-provided messages or any connection-string representation. The
 exception thrown to the calling application retains the detailed validation
 message needed to correct the configuration.
 
+Connection-boundary failures use these dedicated `Reason` values:
+
+| Reason | Operator action |
+| --- | --- |
+| `InvalidConnectionString` | Correct the provider connection configuration without copying secrets into logs or incident records. |
+| `ChangedRowSemanticsUnsupported` | Remove `UseAffectedRows=true` or set it to `false`. |
+| `GuidTransportIncompatible` | Use `GuidFormat=Binary16`; remove legacy `OldGuids` and incompatible byte-order modes. |
+| `UserVariablesUnavailable` | When `RequireUserVariables()` is active, set `AllowUserVariables=true` on caller-owned connections and data sources. Provider-owned strings may omit it. |
+| `BorrowedConnectionStringMutation` | Replace the borrowed object through `Database.SetDbConnection(...)`; do not call `SetConnectionString(...)` on a caller-owned path. |
+
+These failures are local and occur before database I/O. Investigate the
+bounded reason and path, not the raw connection string. Passwords, hosts,
+database names, user IDs, certificate paths, and parser exception messages are
+intentionally absent from provider telemetry.
+
 ## Observability and Alert Response
 
 The machine-readable contract is

@@ -125,7 +125,8 @@ public sealed class MySqlHiLoConcurrencyTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task HiLo_uses_configured_data_source_and_leaves_it_usable()
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+        var connectionString = CreateBorrowedConnectionString(
+            IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84));
 
         await PrepareSchemaAsync(connectionString)
             .ConfigureAwait(false);
@@ -162,7 +163,8 @@ public sealed class MySqlHiLoConcurrencyTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task HiLo_uses_external_connection_without_taking_ownership()
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+        var connectionString = CreateBorrowedConnectionString(
+            IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84));
 
         await PrepareSchemaAsync(connectionString)
             .ConfigureAwait(false);
@@ -232,6 +234,13 @@ public sealed class MySqlHiLoConcurrencyTests
         builder.UseMySql(connection, MySqlServerVersion.MySql(new Version(8, 4, 0)));
         return builder.Options;
     }
+
+    private static string CreateBorrowedConnectionString(
+        string connectionString
+    ) => new MySqlConnectionStringBuilder(connectionString)
+    {
+        GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
+    }.ConnectionString;
 
     private const string SequenceAuditTable = "hilo_sequence_audit";
     private const string SequenceAuditTrigger = "trg_hilo_sequence_audit";

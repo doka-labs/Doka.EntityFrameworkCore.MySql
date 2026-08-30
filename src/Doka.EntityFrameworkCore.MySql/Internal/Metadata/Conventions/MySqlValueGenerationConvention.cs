@@ -84,10 +84,7 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
                 mutableProperty.SetIsFixedLength(true);
                 mutableProperty.SetColumnType("binary(16)");
                 mutableProperty.SetProviderClrType(null);
-                mutableProperty.SetValueConverter(
-                    _singletonOptions.DefaultGuidFormat == MySqlGuidFormat.Char36
-                        ? MySqlGuidToBytesConverter.Default
-                        : null);
+                mutableProperty.SetValueConverter((ValueConverter?)null);
                 break;
             case MySqlGuidFormat.Char36:
                 mutableProperty.SetMaxLength(36);
@@ -102,7 +99,7 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         }
     }
 
-    private bool TryApplyExplicitStoreTypeGuidMapping(
+    private static bool TryApplyExplicitStoreTypeGuidMapping(
         IMutableProperty property,
         string? explicitStoreType
     )
@@ -143,10 +140,7 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
                 property.SetIsFixedLength(true);
                 property.SetColumnType("binary(16)");
                 property.SetProviderClrType(null);
-                property.SetValueConverter(
-                    _singletonOptions.DefaultGuidFormat == MySqlGuidFormat.Char36
-                        ? MySqlGuidToBytesConverter.Default
-                        : null);
+                property.SetValueConverter((ValueConverter?)null);
 
                 return true;
 
