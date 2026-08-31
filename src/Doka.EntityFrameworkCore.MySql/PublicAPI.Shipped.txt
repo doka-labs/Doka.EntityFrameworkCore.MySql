@@ -91,18 +91,24 @@ Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode.ReservedOperatio
 Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode.UnknownOperationType = 4 -> Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.Features.get -> Doka.EntityFrameworkCore.MySql.MySqlMigrationFeatureSet!
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.Metadata.get -> Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationMetadata!
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.Model.get -> Microsoft.EntityFrameworkCore.Metadata.IModel?
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.Operation.get -> Microsoft.EntityFrameworkCore.Migrations.Operations.MigrationOperation!
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.OperationOrdinal.get -> int
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.Options.get -> Microsoft.EntityFrameworkCore.Migrations.MigrationsSqlGenerationOptions
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.RenderStandardOperation(Microsoft.EntityFrameworkCore.Migrations.Operations.MigrationOperation! operation) -> System.Collections.Generic.IReadOnlyList<Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec!>!
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.ServerVersion.get -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationExtensions
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationHandlerException
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationHandlerException.FailureCode.get -> Doka.EntityFrameworkCore.MySql.MySqlMigrationHandlerFailureCode
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationHandlerException.GenerationOptions.get -> Microsoft.EntityFrameworkCore.Migrations.MigrationsSqlGenerationOptions
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationHandlerException.HandlerId.get -> string?
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationHandlerException.OperationOrdinal.get -> int
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationHandlerException.OperationType.get -> string!
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationMetadata
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationMetadata.GuidFormat.get -> Doka.EntityFrameworkCore.MySql.MySqlGuidFormat?
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationMetadata.IndexPrefixLengths.get -> System.Collections.Generic.IReadOnlyList<int>?
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationMetadata.ValueGenerationStrategy.get -> Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy?
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult.Commands.get -> System.Collections.Generic.IReadOnlyList<Doka.EntityFrameworkCore.MySql.MySqlMigrationCommandSpec!>!
 Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult.OutcomeCode.get -> string!
@@ -220,6 +226,9 @@ static Doka.EntityFrameworkCore.MySql.MySqlIndexBuilderExtensions.HasPrefixLengt
 static Doka.EntityFrameworkCore.MySql.MySqlIndexBuilderExtensions.IsFullText(this Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder! indexBuilder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder!
 static Doka.EntityFrameworkCore.MySql.MySqlIndexBuilderExtensions.IsFullText<TEntity>(this Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder<TEntity!>! indexBuilder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.IndexBuilder<TEntity!>!
 static Doka.EntityFrameworkCore.MySql.MySqlModelBuilderExtensions.HasCharSet(this Microsoft.EntityFrameworkCore.ModelBuilder! modelBuilder, string! charSet) -> Microsoft.EntityFrameworkCore.ModelBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationExtensions.GetMySqlMigrationMetadata(this Microsoft.EntityFrameworkCore.Migrations.Operations.MigrationOperation! operation) -> Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationMetadata!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.HasMySqlGuidFormat(this Microsoft.EntityFrameworkCore.Metadata.Builders.ComplexTypePropertyBuilder! propertyBuilder, Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Microsoft.EntityFrameworkCore.Metadata.Builders.ComplexTypePropertyBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.HasMySqlGuidFormat<TProperty>(this Microsoft.EntityFrameworkCore.Metadata.Builders.ComplexTypePropertyBuilder<TProperty>! propertyBuilder, Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Microsoft.EntityFrameworkCore.Metadata.Builders.ComplexTypePropertyBuilder<TProperty>!
 static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.HasMySqlGuidFormat(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder! propertyBuilder, Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder!
 static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.HasMySqlGuidFormat<TProperty>(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>! propertyBuilder, Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<TProperty>!
 static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.HasMySqlValueGenerationStrategy(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder! propertyBuilder, Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy strategy) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder!

@@ -11,28 +11,13 @@ The provider is a library loaded into an application process. It sits between
 Entity Framework Core and MySqlConnector. It does not host a service, own an
 application identity, or replace database access control.
 
-```text
-application model and LINQ
-            |
-            v
-Entity Framework Core contracts
-            |
-            v
-Doka.EntityFrameworkCore.MySql
-  configuration and metadata
-  capabilities and engine policy
-  query and update SQL generation
-  migrations and reverse engineering
-  storage and value generation
-  diagnostics and resilience
-            |
-            +---- optional NetTopologySuite plugin
-            |
-            v
-MySqlConnector
-            |
-            v
-supported MySQL or MariaDB server
+```mermaid
+flowchart TD
+    APP["Application model and LINQ"] --> EF["Entity Framework Core contracts"]
+    EF --> DOKA["Doka.EntityFrameworkCore.MySql<br/>Configuration and metadata<br/>Capabilities and engine policy<br/>Query and update SQL generation<br/>Migrations and reverse engineering<br/>Storage and value generation<br/>Diagnostics and resilience"]
+    NTS["Optional NetTopologySuite plugin"] -.-> DOKA
+    DOKA --> CONNECTOR["MySqlConnector"]
+    CONNECTOR --> SERVER["Supported MySQL or MariaDB server"]
 ```
 
 EF Core owns change tracking, LINQ pipeline orchestration, model conventions,
@@ -142,14 +127,14 @@ provider.
 
 ## Query and Update Flow
 
-```text
-LINQ expression
-  -> EF Core query preprocessing and translation
-  -> provider translators and SQL expression visitors
-  -> provider query SQL generator
-  -> parameterized MySqlCommand
-  -> MySqlConnector and database
-  -> provider type mapping and materialization
+```mermaid
+flowchart LR
+    LINQ["LINQ expression"] --> EF["EF Core query preprocessing and translation"]
+    EF --> TRANSLATE["Provider translators and SQL expression visitors"]
+    TRANSLATE --> SQL["Provider query SQL generator"]
+    SQL --> COMMAND["Parameterized MySqlCommand"]
+    COMMAND --> DATABASE["MySqlConnector and database"]
+    DATABASE --> MATERIALIZE["Provider type mapping and materialization"]
 ```
 
 Ordinary values remain parameters. Provider-specific methods enter through
@@ -176,14 +161,14 @@ compiled models.
 
 ## Migration Flow
 
-```text
-EF Core model difference
-  -> MigrationOperation sequence
-  -> provider migrations SQL generator
-  -> built-in operation renderer or exact custom-handler dispatch
-  -> validated command specifications
-  -> advisory-lock-protected execution
-  -> MySqlConnector and database
+```mermaid
+flowchart LR
+    MODEL["EF Core model difference"] --> OPERATIONS["MigrationOperation sequence"]
+    OPERATIONS --> GENERATOR["Provider migrations SQL generator"]
+    GENERATOR --> RENDER["Built-in renderer or exact custom-handler dispatch"]
+    RENDER --> COMMANDS["Validated command specifications"]
+    COMMANDS --> LOCK["Advisory-lock-protected execution"]
+    LOCK --> DATABASE["MySqlConnector and database"]
 ```
 
 Built-in EF Core operations remain provider-owned. Extension packages may

@@ -7,6 +7,23 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.3.0] - 2026-08-31
+
+Stable minor release preserving provider-owned migration metadata from model
+construction through generated snapshots, migration designers, migration
+operations, SQL, and live schemas. It adds an immutable public metadata
+projection for custom migration handlers and closes index-fidelity gaps across
+TPH, TPT, and TPC inheritance mappings.
+
+Install the stable packages through normal NuGet version resolution. Add the
+spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.3.0
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.3.0
+dotnet package add Doka.Caching.MySql --version 10.3.0
+```
+
 ### Added
 
 - Add `MySqlMigrationOperationMetadata`,
@@ -1141,7 +1158,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.2.0...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.3.0...HEAD
+[10.3.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.3.0
 [10.2.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.2.0
 [10.1.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.2
 [10.1.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.1
