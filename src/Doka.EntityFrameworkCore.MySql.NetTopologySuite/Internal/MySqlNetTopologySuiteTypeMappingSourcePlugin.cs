@@ -2,8 +2,10 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlNetTopologySuiteTypeMappingSourcePlugin : IRelationalTypeMappingSourcePlugin
 {
-    private static readonly ConcurrentDictionary<(Type ClrType, string StoreType), RelationalTypeMapping>
-        s_mappingCache = new();
+    private static readonly ConcurrentDictionary<
+        (Type ClrType, string StoreType, bool UseLongLatAxisOrder), RelationalTypeMapping> s_mappingCache = new();
+
+    private readonly MySqlSingletonOptions _mySqlSingletonOptions;
 
     private static readonly Dictionary<Type, string> s_defaultStoreTypes = new()
     {
@@ -29,6 +31,17 @@ internal sealed class MySqlNetTopologySuiteTypeMappingSourcePlugin : IRelational
         ["multipolygon"] = typeof(MultiPolygon),
     };
 
+    public MySqlNetTopologySuiteTypeMappingSourcePlugin(
+        IEnumerable<ISingletonOptions> singletonOptions
+    )
+    {
+        ArgumentNullException.ThrowIfNull(singletonOptions);
+
+        _mySqlSingletonOptions = singletonOptions
+            .OfType<MySqlSingletonOptions>()
+            .Single();
+    }
+
     public RelationalTypeMapping? FindMapping(
         in RelationalTypeMappingInfo mappingInfo
     )
@@ -43,10 +56,12 @@ internal sealed class MySqlNetTopologySuiteTypeMappingSourcePlugin : IRelational
         }
 
         var storeType = ResolveStoreType(spatialClrType, normalizedStoreType);
+        var useLongLatAxisOrder =
+            _mySqlSingletonOptions.Profile?.Engine.Has(EngineCapability.SpatialWktAxisOrderOptions) == true;
 
         return s_mappingCache.GetOrAdd(
-            (spatialClrType, storeType),
-            static key => CreateMapping(key.ClrType, key.StoreType));
+            (spatialClrType, storeType, useLongLatAxisOrder),
+            static key => CreateMapping(key.ClrType, key.StoreType, key.UseLongLatAxisOrder));
     }
 
     private static Type? ResolveSpatialClrType(
@@ -85,47 +100,48 @@ internal sealed class MySqlNetTopologySuiteTypeMappingSourcePlugin : IRelational
 
     private static RelationalTypeMapping CreateMapping(
         Type clrType,
-        string storeType
+        string storeType,
+        bool useLongLatAxisOrder
     )
     {
         if (clrType == typeof(Geometry))
         {
-            return CreateTypedMapping<Geometry>(storeType);
+            return CreateTypedMapping<Geometry>(storeType, useLongLatAxisOrder);
         }
 
         if (clrType == typeof(Point))
         {
-            return CreateTypedMapping<Point>(storeType);
+            return CreateTypedMapping<Point>(storeType, useLongLatAxisOrder);
         }
 
         if (clrType == typeof(LineString))
         {
-            return CreateTypedMapping<LineString>(storeType);
+            return CreateTypedMapping<LineString>(storeType, useLongLatAxisOrder);
         }
 
         if (clrType == typeof(Polygon))
         {
-            return CreateTypedMapping<Polygon>(storeType);
+            return CreateTypedMapping<Polygon>(storeType, useLongLatAxisOrder);
         }
 
         if (clrType == typeof(GeometryCollection))
         {
-            return CreateTypedMapping<GeometryCollection>(storeType);
+            return CreateTypedMapping<GeometryCollection>(storeType, useLongLatAxisOrder);
         }
 
         if (clrType == typeof(MultiPoint))
         {
-            return CreateTypedMapping<MultiPoint>(storeType);
+            return CreateTypedMapping<MultiPoint>(storeType, useLongLatAxisOrder);
         }
 
         if (clrType == typeof(MultiLineString))
         {
-            return CreateTypedMapping<MultiLineString>(storeType);
+            return CreateTypedMapping<MultiLineString>(storeType, useLongLatAxisOrder);
         }
 
         if (clrType == typeof(MultiPolygon))
         {
-            return CreateTypedMapping<MultiPolygon>(storeType);
+            return CreateTypedMapping<MultiPolygon>(storeType, useLongLatAxisOrder);
         }
 
         throw new InvalidOperationException(
@@ -133,7 +149,8 @@ internal sealed class MySqlNetTopologySuiteTypeMappingSourcePlugin : IRelational
     }
 
     private static MySqlNetTopologySuiteGeometryTypeMapping<TGeometry> CreateTypedMapping<TGeometry>(
-        string storeType
+        string storeType,
+        bool useLongLatAxisOrder
     )
         where TGeometry : Geometry
     {
@@ -142,7 +159,8 @@ internal sealed class MySqlNetTopologySuiteTypeMappingSourcePlugin : IRelational
                 geometry => MySqlGeometry.FromWkb(geometry.SRID, new WKBWriter().Write(geometry)),
                 providerValue => ConvertFromProvider<TGeometry>(providerValue)),
             storeType,
-            MySqlJsonGeometryWktReaderWriter.Instance);
+            MySqlJsonGeometryWktReaderWriter.Instance,
+            useLongLatAxisOrder);
     }
 
     private static TGeometry ConvertFromProvider<TGeometry>(

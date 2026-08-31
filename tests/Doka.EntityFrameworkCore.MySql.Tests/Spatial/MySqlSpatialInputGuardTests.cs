@@ -18,7 +18,8 @@ public sealed class MySqlSpatialInputGuardTests
                 geometry => MySqlGeometry.FromWkb(geometry.SRID, new WKBWriter().Write(geometry)),
                 providerValue => ReadProviderGeometry(providerValue)),
             "geometry",
-            jsonValueReaderWriter: null);
+            jsonValueReaderWriter: null,
+            useLongLatAxisOrder: false);
 
         var readerMethod = mapping.GetDataReaderMethod();
 

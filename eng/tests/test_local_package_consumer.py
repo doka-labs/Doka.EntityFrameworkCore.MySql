@@ -56,7 +56,7 @@ class LocalPackageConsumerTests(unittest.TestCase):
                 encoding="ascii"
             )
         )
-        self.assertEqual(3, evidence["schemaVersion"])
+        self.assertEqual(4, evidence["schemaVersion"])
         self.assertEqual("pass", evidence["qualification"])
         self.assertEqual(
             "provider-migration-operation-conformance",
@@ -65,6 +65,7 @@ class LocalPackageConsumerTests(unittest.TestCase):
         self.assertEqual(
             {
                 "baselineRendering": "pass",
+                "annotatedMetadataProjection": "pass",
                 "commandBoundaries": "pass",
                 "contextLifetime": "pass",
                 "duplicateHandlerIdFailure": "pass",

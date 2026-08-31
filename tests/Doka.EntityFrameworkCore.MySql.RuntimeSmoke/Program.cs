@@ -112,6 +112,8 @@ public static class Program
             .OfType<RuntimeSmokeMigrationHandler>()
             .Single();
 
+        VerifyProviderProducedMetadata(context);
+
         var commands = generator.Generate(
             [
                 new RuntimeSmokeMigrationOperation(),
@@ -170,6 +172,48 @@ public static class Program
 
         throw new InvalidOperationException(
             "The package-only migration-operation context remained usable after handler return.");
+    }
+
+    private static void VerifyProviderProducedMetadata(
+        RuntimeSmokeMigrationContext context
+    )
+    {
+        var model = context.GetService<IDesignTimeModel>().Model;
+        var operations = context
+            .GetService<IMigrationsModelDiffer>()
+            .GetDifferences(null, model.GetRelationalModel());
+        var createTable = operations
+            .OfType<CreateTableOperation>()
+            .Single(operation => operation.Name == "RuntimeSmokeMetadataEntries");
+        var id = createTable.Columns.Single(column => column.Name == nameof(RuntimeSmokeMetadataEntry.Id));
+        var reference = createTable.Columns.Single(
+            column => column.Name == nameof(RuntimeSmokeMetadataEntry.Reference));
+        var binaryReference = createTable.Columns.Single(
+            column => column.Name == nameof(RuntimeSmokeMetadataEntry.BinaryReference));
+        var clientReference = createTable.Columns.Single(
+            column => column.Name == nameof(RuntimeSmokeMetadataEntry.ClientReference));
+        var manualReference = createTable.Columns.Single(
+            column => column.Name == nameof(RuntimeSmokeMetadataEntry.ManualReference));
+        var index = operations
+            .OfType<CreateIndexOperation>()
+            .Single(operation => operation.Table == "RuntimeSmokeMetadataEntries");
+
+        if (id.GetMySqlMigrationMetadata().ValueGenerationStrategy
+                != MySqlValueGenerationStrategy.AutoIncrement
+            || reference.GetMySqlMigrationMetadata().GuidFormat != MySqlGuidFormat.Char36
+            || binaryReference.GetMySqlMigrationMetadata().GuidFormat != MySqlGuidFormat.Binary16
+            || clientReference.GetMySqlMigrationMetadata().GuidFormat != MySqlGuidFormat.Binary16
+            || clientReference.GetMySqlMigrationMetadata().ValueGenerationStrategy
+                != MySqlValueGenerationStrategy.ClientGuid
+            || manualReference.GetMySqlMigrationMetadata().GuidFormat != MySqlGuidFormat.Char36
+            || manualReference.GetMySqlMigrationMetadata().ValueGenerationStrategy
+                != MySqlValueGenerationStrategy.None
+            || index.GetMySqlMigrationMetadata().IndexPrefixLengths is not { } prefixLengths
+            || !prefixLengths.SequenceEqual([16, 0]))
+        {
+            throw new InvalidOperationException(
+                "The package-only consumer did not observe provider-produced typed migration metadata.");
+        }
     }
 
     private static void VerifyProviderCommandFragments(
@@ -391,6 +435,14 @@ public static class Program
         )
         {
             LastContext = context;
+            if (context.Metadata.GuidFormat is not null
+                || context.Metadata.ValueGenerationStrategy is not null
+                || context.Metadata.IndexPrefixLengths is not null)
+            {
+                throw new InvalidOperationException(
+                    "The package-only handler observed provider metadata on an unannotated custom operation.");
+            }
+
             var baseline = context.RenderStandardOperation(
                 new SqlOperation
                 {
@@ -466,6 +518,59 @@ public static class Program
         public RuntimeSmokeMigrationContext(
             DbContextOptions<RuntimeSmokeMigrationContext> options
         ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<RuntimeSmokeMetadataEntry>(entity =>
+            {
+                entity.ToTable("RuntimeSmokeMetadataEntries");
+                entity.HasKey(entry => entry.Id);
+                entity
+                    .Property(entry => entry.Reference)
+                    .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+                entity
+                    .Property(entry => entry.BinaryReference)
+                    .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+                entity
+                    .Property(entry => entry.ClientReference)
+                    .HasMySqlGuidFormat(MySqlGuidFormat.Binary16)
+                    .UseMySqlClientGuidValueGeneration();
+                entity
+                    .Property(entry => entry.ManualReference)
+                    .HasMySqlGuidFormat(MySqlGuidFormat.Char36)
+                    .HasMySqlValueGenerationStrategy(MySqlValueGenerationStrategy.None);
+                entity
+                    .Property(entry => entry.Name)
+                    .HasMaxLength(64);
+                entity
+                    .Property(entry => entry.Code)
+                    .HasMaxLength(64);
+                entity
+                    .HasIndex(
+                        nameof(RuntimeSmokeMetadataEntry.Name),
+                        nameof(RuntimeSmokeMetadataEntry.Code))
+                    .HasPrefixLength(16, 0);
+            });
+        }
+    }
+
+    private sealed class RuntimeSmokeMetadataEntry
+    {
+        public int Id { get; set; }
+
+        public Guid Reference { get; set; }
+
+        public Guid BinaryReference { get; set; }
+
+        public Guid ClientReference { get; set; }
+
+        public Guid ManualReference { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public string Code { get; set; } = string.Empty;
     }
 
     private sealed class RuntimeSmokeMigrationHandlerOptionsExtension : IDbContextOptionsExtension

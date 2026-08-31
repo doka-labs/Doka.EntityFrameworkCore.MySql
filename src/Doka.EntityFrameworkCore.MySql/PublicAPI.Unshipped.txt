@@ -1,1 +1,10 @@
 #nullable enable
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationContext.Metadata.get -> Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationMetadata!
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationExtensions
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationMetadata
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationMetadata.GuidFormat.get -> Doka.EntityFrameworkCore.MySql.MySqlGuidFormat?
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationMetadata.IndexPrefixLengths.get -> System.Collections.Generic.IReadOnlyList<int>?
+Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationMetadata.ValueGenerationStrategy.get -> Doka.EntityFrameworkCore.MySql.MySqlValueGenerationStrategy?
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.HasMySqlGuidFormat(this Microsoft.EntityFrameworkCore.Metadata.Builders.ComplexTypePropertyBuilder! propertyBuilder, Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Microsoft.EntityFrameworkCore.Metadata.Builders.ComplexTypePropertyBuilder!
+static Doka.EntityFrameworkCore.MySql.MySqlPropertyBuilderExtensions.HasMySqlGuidFormat<TProperty>(this Microsoft.EntityFrameworkCore.Metadata.Builders.ComplexTypePropertyBuilder<TProperty>! propertyBuilder, Doka.EntityFrameworkCore.MySql.MySqlGuidFormat format) -> Microsoft.EntityFrameworkCore.Metadata.Builders.ComplexTypePropertyBuilder<TProperty>!
+static Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationExtensions.GetMySqlMigrationMetadata(this Microsoft.EntityFrameworkCore.Migrations.Operations.MigrationOperation! operation) -> Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationMetadata!

@@ -29,6 +29,7 @@ public sealed class MySqlMigrationOperationContext
         ArgumentNullException.ThrowIfNull(standardRenderer);
 
         Operation = operation;
+        Metadata = operation.GetMySqlMigrationMetadata();
         Model = model;
         Options = options;
         ServerVersion = serverVersion;
@@ -40,6 +41,12 @@ public sealed class MySqlMigrationOperationContext
 
     /// <summary>Gets the original exact custom migration operation.</summary>
     public MigrationOperation Operation { get; }
+
+    /// <summary>
+    /// Gets an immutable, typed snapshot of supported Doka metadata on the
+    /// current operation.
+    /// </summary>
+    public MySqlMigrationOperationMetadata Metadata { get; }
 
     /// <summary>Gets the target model supplied to EF Core, when available.</summary>
     public IModel? Model { get; }

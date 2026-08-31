@@ -7,6 +7,288 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 public sealed class MySqlMigrationOperationContractTests
 {
     [Fact]
+    public void Public_metadata_projection_rejects_a_null_operation()
+    {
+        MigrationOperation operation = null!;
+
+        Assert.Throws<ArgumentNullException>(() => operation.GetMySqlMigrationMetadata());
+    }
+
+    [Theory]
+    [InlineData(MySqlGuidFormat.Binary16)]
+    [InlineData(MySqlGuidFormat.Char36)]
+    public void Public_metadata_projection_reads_supported_guid_formats(
+        MySqlGuidFormat format
+    )
+    {
+        var operation = CreateGuidColumnOperation(format);
+        operation[MySqlAnnotationNames.GuidFormat] = format;
+
+        var metadata = operation.GetMySqlMigrationMetadata();
+
+        Assert.Equal(format, metadata.GuidFormat);
+        Assert.Null(metadata.ValueGenerationStrategy);
+        Assert.Null(metadata.IndexPrefixLengths);
+    }
+
+    [Theory]
+    [InlineData(MySqlValueGenerationStrategy.None)]
+    [InlineData(MySqlValueGenerationStrategy.AutoIncrement)]
+    [InlineData(MySqlValueGenerationStrategy.ClientGuid)]
+    [InlineData(MySqlValueGenerationStrategy.HiLo)]
+    public void Public_metadata_projection_reads_supported_value_generation_strategies(
+        MySqlValueGenerationStrategy strategy
+    )
+    {
+        var operation = CreateColumnOperation();
+        operation[MySqlAnnotationNames.ValueGenerationStrategy] = strategy;
+
+        var metadata = operation.GetMySqlMigrationMetadata();
+
+        Assert.Equal(strategy, metadata.ValueGenerationStrategy);
+        Assert.Null(metadata.GuidFormat);
+        Assert.Null(metadata.IndexPrefixLengths);
+    }
+
+    [Fact]
+    public void Public_metadata_projection_preserves_future_typed_value_generation_values()
+    {
+        var futureStrategy = (MySqlValueGenerationStrategy)int.MaxValue;
+        var operation = CreateColumnOperation();
+        operation[MySqlAnnotationNames.ValueGenerationStrategy] = futureStrategy;
+
+        var metadata = operation.GetMySqlMigrationMetadata();
+
+        Assert.Equal(futureStrategy, metadata.ValueGenerationStrategy);
+    }
+
+    [Fact]
+    public void Public_metadata_projection_snapshots_ordered_index_prefix_lengths()
+    {
+        var source = new[] { 24, 0 };
+        var operation = new CreateIndexOperation
+        {
+            Name = "IX_Entries_Name_Code",
+            Table = "Entries",
+            Columns = ["Name", "Code"],
+        };
+        operation[MySqlAnnotationNames.IndexPrefixLength] = source;
+
+        var metadata = operation.GetMySqlMigrationMetadata();
+        source[0] = 1;
+
+        Assert.Equal([24, 0], metadata.IndexPrefixLengths);
+        Assert.Throws<NotSupportedException>(() =>
+            ((IList<int>)metadata.IndexPrefixLengths!)[0] = 1);
+    }
+
+    [Fact]
+    public void Public_metadata_projection_reads_a_single_index_prefix_length()
+    {
+        var operation = new CreateIndexOperation
+        {
+            Name = "IX_Entries_Name",
+            Table = "Entries",
+            Columns = ["Name"],
+        };
+        operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { 16 };
+
+        var metadata = operation.GetMySqlMigrationMetadata();
+
+        Assert.Equal([16], metadata.IndexPrefixLengths);
+    }
+
+    [Fact]
+    public void Public_metadata_projection_distinguishes_absent_metadata_from_explicit_zero_values()
+    {
+        var absent = CreateColumnOperation()
+            .GetMySqlMigrationMetadata();
+        var explicitValues = CreateColumnOperation();
+        explicitValues[MySqlAnnotationNames.ValueGenerationStrategy] = MySqlValueGenerationStrategy.None;
+
+        var explicitMetadata = explicitValues.GetMySqlMigrationMetadata();
+
+        Assert.Null(absent.GuidFormat);
+        Assert.Null(absent.ValueGenerationStrategy);
+        Assert.Null(absent.IndexPrefixLengths);
+        Assert.Equal(MySqlValueGenerationStrategy.None, explicitMetadata.ValueGenerationStrategy);
+    }
+
+    [Fact]
+    public void Public_metadata_projection_ignores_unrelated_annotations()
+    {
+        var operation = CreateColumnOperation();
+        operation["Example:FutureMetadata"] = "opaque";
+
+        var metadata = operation.GetMySqlMigrationMetadata();
+
+        Assert.Null(metadata.GuidFormat);
+        Assert.Null(metadata.ValueGenerationStrategy);
+        Assert.Null(metadata.IndexPrefixLengths);
+    }
+
+    [Theory]
+    [InlineData(MySqlAnnotationNames.GuidFormat)]
+    [InlineData(MySqlAnnotationNames.ValueGenerationStrategy)]
+    [InlineData(MySqlAnnotationNames.IndexPrefixLength)]
+    public void Public_metadata_projection_rejects_wrong_annotation_value_types(
+        string annotationName
+    )
+    {
+        MigrationOperation operation = annotationName == MySqlAnnotationNames.IndexPrefixLength
+            ? new CreateIndexOperation
+            {
+                Name = "IX_Entries_Name",
+                Table = "Entries",
+                Columns = ["Name"],
+            }
+            : CreateColumnOperation();
+        operation[annotationName] = "invalid";
+
+        Assert.Throws<InvalidOperationException>(() => operation.GetMySqlMigrationMetadata());
+    }
+
+    [Fact]
+    public void Public_metadata_projection_rejects_unknown_guid_format_values()
+    {
+        var operation = CreateColumnOperation();
+        operation[MySqlAnnotationNames.GuidFormat] = (MySqlGuidFormat)int.MaxValue;
+
+        Assert.Throws<InvalidOperationException>(() => operation.GetMySqlMigrationMetadata());
+    }
+
+    [Theory]
+    [InlineData(MySqlGuidFormat.Binary16, "char(36)", typeof(Guid))]
+    [InlineData(MySqlGuidFormat.Char36, "binary(16)", typeof(Guid))]
+    [InlineData(MySqlGuidFormat.Char36, "char(36)", typeof(string))]
+    public void Public_metadata_projection_rejects_guid_format_conflicts(
+        MySqlGuidFormat format,
+        string columnType,
+        Type clrType
+    )
+    {
+        var operation = CreateColumnOperation();
+        operation.ClrType = clrType;
+        operation.ColumnType = columnType;
+        operation[MySqlAnnotationNames.GuidFormat] = format;
+
+        Assert.Throws<InvalidOperationException>(() => operation.GetMySqlMigrationMetadata());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" BINARY(16) ")]
+    public void Public_metadata_projection_accepts_deferred_or_normalized_guid_store_types(
+        string? columnType
+    )
+    {
+        var operation = CreateGuidColumnOperation(MySqlGuidFormat.Binary16);
+        operation.ColumnType = columnType!;
+        operation[MySqlAnnotationNames.GuidFormat] = MySqlGuidFormat.Binary16;
+
+        var metadata = operation.GetMySqlMigrationMetadata();
+
+        Assert.Equal(MySqlGuidFormat.Binary16, metadata.GuidFormat);
+    }
+
+    [Theory]
+    [InlineData(typeof(Guid))]
+    [InlineData(typeof(Guid?))]
+    public void Public_metadata_projection_accepts_required_and_nullable_guid_clr_types(
+        Type clrType
+    )
+    {
+        var operation = CreateGuidColumnOperation(MySqlGuidFormat.Char36);
+        operation.ClrType = clrType;
+        operation[MySqlAnnotationNames.GuidFormat] = MySqlGuidFormat.Char36;
+
+        var metadata = operation.GetMySqlMigrationMetadata();
+
+        Assert.Equal(MySqlGuidFormat.Char36, metadata.GuidFormat);
+    }
+
+    [Theory]
+    [InlineData(MySqlAnnotationNames.GuidFormat, MySqlGuidFormat.Char36)]
+    [InlineData(MySqlAnnotationNames.ValueGenerationStrategy, MySqlValueGenerationStrategy.None)]
+    [InlineData(MySqlAnnotationNames.IndexPrefixLength, null)]
+    public void Public_metadata_projection_rejects_metadata_on_incompatible_operation_shapes(
+        string annotationName,
+        object? annotationValue
+    )
+    {
+        var operation = new SqlOperation { Sql = "SELECT 1;" };
+        operation[annotationName] = annotationValue ?? new[] { 0 };
+
+        Assert.Throws<InvalidOperationException>(() => operation.GetMySqlMigrationMetadata());
+    }
+
+    [Fact]
+    public void Public_metadata_projection_rejects_negative_index_prefix_lengths()
+    {
+        var operation = new CreateIndexOperation
+        {
+            Name = "IX_Entries_Name",
+            Table = "Entries",
+            Columns = ["Name"],
+        };
+        operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { -1 };
+
+        Assert.Throws<InvalidOperationException>(() => operation.GetMySqlMigrationMetadata());
+    }
+
+    [Fact]
+    public void Public_metadata_projection_rejects_index_prefix_cardinality_mismatch()
+    {
+        var operation = new CreateIndexOperation
+        {
+            Name = "IX_Entries_Name_Code",
+            Table = "Entries",
+            Columns = ["Name", "Code"],
+        };
+        operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { 16 };
+
+        Assert.Throws<InvalidOperationException>(() => operation.GetMySqlMigrationMetadata());
+    }
+
+    [Fact]
+    public void Public_metadata_projection_rejects_missing_index_columns()
+    {
+        var operation = new CreateIndexOperation
+        {
+            Name = "IX_Entries_Name",
+            Table = "Entries",
+            Columns = null!,
+        };
+        operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { 16 };
+
+        Assert.Throws<InvalidOperationException>(() => operation.GetMySqlMigrationMetadata());
+    }
+
+    [Fact]
+    public void Operation_context_exposes_the_same_typed_metadata_snapshot()
+    {
+        var operation = CreateColumnOperation();
+        operation[MySqlAnnotationNames.GuidFormat] = MySqlGuidFormat.Char36;
+        operation[MySqlAnnotationNames.ValueGenerationStrategy] = MySqlValueGenerationStrategy.ClientGuid;
+        var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 11));
+        var context = new MySqlMigrationOperationContext(
+            operation,
+            model: null,
+            MigrationsSqlGenerationOptions.Default,
+            serverVersion,
+            new MySqlMigrationFeatureSet(serverVersion.Profile),
+            operationOrdinal: 0,
+            "tests.metadata",
+            _ => []);
+
+        operation[MySqlAnnotationNames.GuidFormat] = MySqlGuidFormat.Binary16;
+
+        Assert.Equal(MySqlGuidFormat.Char36, context.Metadata.GuidFormat);
+        Assert.Equal(MySqlValueGenerationStrategy.ClientGuid, context.Metadata.ValueGenerationStrategy);
+    }
+
+    [Fact]
     public void Generated_result_snapshots_the_caller_owned_command_collection()
     {
         var commands = new List<MySqlMigrationCommandSpec>
@@ -511,4 +793,24 @@ public sealed class MySqlMigrationOperationContractTests
     }
 
     private sealed class CustomOperation : MigrationOperation;
+
+    private static AddColumnOperation CreateColumnOperation() => new()
+    {
+        Name = "Id",
+        Table = "Entries",
+        ClrType = typeof(Guid),
+        ColumnType = "char(36)",
+    };
+
+    private static AddColumnOperation CreateGuidColumnOperation(
+        MySqlGuidFormat format
+    )
+    {
+        var operation = CreateColumnOperation();
+        operation.ColumnType = format == MySqlGuidFormat.Binary16
+            ? "binary(16)"
+            : "char(36)";
+
+        return operation;
+    }
 }

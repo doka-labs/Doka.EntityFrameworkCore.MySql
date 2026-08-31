@@ -202,27 +202,7 @@ public static class MySqlPropertyBuilderExtensions
             throw new ArgumentOutOfRangeException(nameof(format));
         }
 
-        propertyBuilder.Metadata.SetMySqlGuidFormat(format);
-
-        switch (format)
-        {
-            case MySqlGuidFormat.Binary16:
-                propertyBuilder.IsFixedLength();
-                propertyBuilder.HasMaxLength(16);
-                propertyBuilder.HasColumnType("binary(16)");
-                propertyBuilder.Metadata.SetProviderClrType(null);
-                propertyBuilder.Metadata.SetValueConverter((ValueConverter?)null);
-                break;
-            case MySqlGuidFormat.Char36:
-                propertyBuilder.IsFixedLength();
-                propertyBuilder.HasMaxLength(36);
-                propertyBuilder.HasColumnType("char(36)");
-                propertyBuilder.Metadata.SetProviderClrType(null);
-                propertyBuilder.Metadata.SetValueConverter((ValueConverter?)null);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(format));
-        }
+        ApplyGuidFormat(propertyBuilder.Metadata, format);
 
         return propertyBuilder;
     }
@@ -244,6 +224,61 @@ public static class MySqlPropertyBuilderExtensions
         ((PropertyBuilder)propertyBuilder).HasMySqlGuidFormat(format);
 
         return propertyBuilder;
+    }
+
+    /// <summary>
+    /// Configures the provider-level GUID storage format for a complex-type property.
+    /// </summary>
+    /// <param name="propertyBuilder">The complex-type property builder.</param>
+    /// <param name="format">The GUID storage format.</param>
+    /// <returns>The same <see cref="ComplexTypePropertyBuilder"/> instance.</returns>
+    public static ComplexTypePropertyBuilder HasMySqlGuidFormat(
+        this ComplexTypePropertyBuilder propertyBuilder,
+        MySqlGuidFormat format
+    )
+    {
+        ArgumentNullException.ThrowIfNull(propertyBuilder);
+
+        if (!Enum.IsDefined(format))
+        {
+            throw new ArgumentOutOfRangeException(nameof(format));
+        }
+
+        ApplyGuidFormat(propertyBuilder.Metadata, format);
+
+        return propertyBuilder;
+    }
+
+    /// <summary>
+    /// Configures the provider-level GUID storage format for a typed complex-type property.
+    /// </summary>
+    /// <typeparam name="TProperty">The property CLR type.</typeparam>
+    /// <param name="propertyBuilder">The typed complex-type property builder.</param>
+    /// <param name="format">The GUID storage format.</param>
+    /// <returns>The same <see cref="ComplexTypePropertyBuilder{TProperty}"/> instance.</returns>
+    public static ComplexTypePropertyBuilder<TProperty> HasMySqlGuidFormat<TProperty>(
+        this ComplexTypePropertyBuilder<TProperty> propertyBuilder,
+        MySqlGuidFormat format
+    )
+    {
+        ArgumentNullException.ThrowIfNull(propertyBuilder);
+
+        ((ComplexTypePropertyBuilder)propertyBuilder).HasMySqlGuidFormat(format);
+
+        return propertyBuilder;
+    }
+
+    private static void ApplyGuidFormat(
+        IMutableProperty property,
+        MySqlGuidFormat format
+    )
+    {
+        property.SetMySqlGuidFormat(format);
+        property.SetIsFixedLength(true);
+        property.SetMaxLength(format == MySqlGuidFormat.Binary16 ? 16 : 36);
+        property.SetColumnType(format == MySqlGuidFormat.Binary16 ? "binary(16)" : "char(36)");
+        property.SetProviderClrType(null);
+        property.SetValueConverter((ValueConverter?)null);
     }
 
     /// <summary>

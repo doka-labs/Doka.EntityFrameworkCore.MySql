@@ -26,8 +26,7 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         var properties = modelBuilder
             .Metadata
             .GetEntityTypes()
-            .SelectMany(entityType => entityType
-                .GetProperties()
+            .SelectMany(entityType => GetPropertiesIncludingComplexTypes(entityType)
                 .Select(property => (EntityType: entityType, Property: property)))
             .ToArray();
 
@@ -41,7 +40,11 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         foreach (var (entityType, property) in properties)
         {
             ApplyGuidFormat(property, applicationConversionProperties.Contains(property));
-            ApplyValueGenerationStrategy(entityType, property);
+
+            if (property.DeclaringType is IConventionEntityType)
+            {
+                ApplyValueGenerationStrategy(entityType, property);
+            }
         }
     }
 
@@ -176,6 +179,29 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
     private static bool IsGuidProperty(
         IReadOnlyProperty property
     ) => (Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType) == typeof(Guid);
+
+    private static IEnumerable<IConventionProperty> GetPropertiesIncludingComplexTypes(
+        IConventionTypeBase typeBase
+    )
+    {
+        foreach (var property in typeBase.GetDeclaredProperties())
+        {
+            yield return property;
+        }
+
+        foreach (var complexProperty in typeBase.GetDeclaredComplexProperties())
+        {
+            if (complexProperty.IsCollection)
+            {
+                continue;
+            }
+
+            foreach (var property in GetPropertiesIncludingComplexTypes(complexProperty.ComplexType))
+            {
+                yield return property;
+            }
+        }
+    }
 
     private static void ThrowUnsupportedGuidFormat(
         MySqlGuidFormat format

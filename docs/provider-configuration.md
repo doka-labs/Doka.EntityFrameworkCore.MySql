@@ -161,7 +161,7 @@ by [Host Integration](host-integration-examples.md).
 | Entity | `UseStorageEngine(engine)` | Selects the table storage engine. |
 | Index | `HasPrefixLength(lengths)` | Supplies one non-negative prefix length per indexed property; zero selects the complete value. |
 | Index | `IsFullText()` | Marks the index as full text. |
-| Property | `HasMySqlGuidFormat(format)` | Overrides GUID storage for one property. |
+| Property or complex scalar property | `HasMySqlGuidFormat(format)` | Overrides GUID storage for one property. |
 | Property | `HasMySqlValueGenerationStrategy(strategy)` | Selects `None`, `AutoIncrement`, `ClientGuid`, or `HiLo`. |
 | Property | `UseMySqlAutoIncrementColumn()` | Selects auto-increment value generation. |
 | Property | `UseMySqlClientGuidValueGeneration()` | Selects explicit client-side GUID generation. |
@@ -169,6 +169,49 @@ by [Host Integration](host-integration-examples.md).
 | Property | `IsInvisible()` | Marks a supported engine column `INVISIBLE`. |
 | Spatial property | `HasSrid(srid)` | Registers the non-negative SRID expected by the spatial mapping. |
 | Spatial index | `IsSpatial()` | Marks an explicit single-column spatial index. |
+
+### Index key byte fidelity
+
+Ordinary indexes, unique indexes, primary keys, alternate keys, and the
+indexes EF creates for foreign keys share one byte budget. Doka calculates the
+known ordered key width from the effective bounded store type, character set
+or collation, explicit prefix lengths, binary lengths, and fixed-width key
+parts. A definition above InnoDB's largest supported 3072-byte limit is
+rejected during model validation. Full-text, spatial, and functional indexes
+retain their separate feature contracts.
+
+`HasPrefixLength(...)` is an explicit semantic choice. A positive entry limits
+that key part; zero selects the complete value. Doka rejects a prefix longer
+than its column and never creates a prefix automatically because doing so can
+change selectivity and the meaning of a unique index.
+
+Changing, adding, or removing the configured prefix lengths rebuilds the
+existing physical index through one drop and one create migration operation.
+The recreated index carries the target model's ordered values, including zero
+entries for complete key parts. Treat this as online-deployment work: review
+the engine's lock behavior and the table size before applying it.
+
+Changing an existing ordinary index to `IsFullText()` or `IsSpatial()`, or
+removing either designation, uses the same drop-and-create boundary because
+the target is a different physical index kind.
+
+The metadata comparison uses physical relational index identity. TPH has one
+physical copy, TPT keeps indexes on their declaring tables, and a base index in
+TPC is expanded with the same provider metadata onto every concrete table.
+Rename-plus-metadata transitions rebuild those TPC copies independently.
+
+Smaller InnoDB page sizes can impose lower limits: 8-KiB pages allow 1536
+bytes and 4-KiB pages allow 768 bytes. A model alone cannot prove the live page
+size, and historical or hand-authored migrations may bypass current model
+validation. During EF migration execution, Doka therefore observes the
+server's per-command diagnostics. If MySQL or MariaDB reports code 1071 after
+accepting a command by shortening an index, Doka fails that command before EF
+records the migration history entry.
+
+MySQL-family DDL may already have committed when that failure becomes visible.
+Inspect and remove or correct the partially created table or index, reduce the
+declared length or configure a deliberate prefix, and then rerun the migration.
+Do not insert the missing history row manually.
 
 Temporal, application-time, and bitemporal table builders are documented in
 [Temporal Tables](temporal-tables.md). The `UseWithoutOverlaps()` key and index
@@ -220,6 +263,10 @@ but every property in a relationship chain must use a compatible conversion
 contract. Changing between text and binary storage, or adopting native
 `Binary16` from an application byte converter, requires the staged data
 migration described in [Migration Operations](operations/migrations.md#guid-representation-changes).
+The context default and property override also apply to scalar GUID properties
+inside non-collection complex types. Complex collections mapped as JSON retain
+their JSON document contract rather than receiving per-member relational GUID
+column metadata.
 
 ## Runnable Verification
 
@@ -268,3 +315,13 @@ Retrieved 2026-08-30 for connection invariants:
 - [MySQL 8.4 prepared statements](https://dev.mysql.com/doc/refman/8.4/en/prepare.html)
 - [EF Core 10 optimistic concurrency](https://learn.microsoft.com/ef/core/saving/concurrency)
 - [EF Core 10.0.8 relational connection source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Storage/RelationalConnection.cs)
+
+Retrieved 2026-08-31 for index-key fidelity:
+
+- [MySQL 8.4 InnoDB limits](https://dev.mysql.com/doc/refman/8.4/en/innodb-limits.html)
+- [MySQL 8.4 column indexes](https://dev.mysql.com/doc/refman/8.4/en/column-indexes.html)
+- [MariaDB InnoDB limitations](https://mariadb.com/docs/server/server-usage/storage-engines/innodb/innodb-limitations)
+- [MariaDB data-type storage requirements](https://mariadb.com/docs/server/reference/data-types/data-type-storage-requirements)
+- [MariaDB `CREATE INDEX`](https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/create-index)
+- [MariaDB InnoDB row formats](https://mariadb.com/docs/server/server-usage/storage-engines/innodb/innodb-row-formats/innodb-row-formats-overview)
+- [MySqlConnector `InfoMessage`](https://mysqlconnector.net/api/mysqlconnector/mysqlconnection/infomessage/)

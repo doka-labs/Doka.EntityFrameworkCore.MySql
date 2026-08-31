@@ -34,6 +34,7 @@ public static class MySqlServiceCollectionExtensions
             .TryAdd<IDatabaseCreator>(p => p.GetRequiredService<IRelationalDatabaseCreator>())
             .TryAdd<IExecutionStrategyFactory, MySqlExecutionStrategyFactory>()
             .TryAdd<IInterceptor, MySqlParameterSizeCommandInterceptor>()
+            .TryAdd<IInterceptor, MySqlMigrationWarningCommandInterceptor>()
             .TryAdd<IRelationalTypeMappingSource, MySqlTypeMappingSource>()
             .TryAdd<ITypeMappingSource>(p => p.GetRequiredService<IRelationalTypeMappingSource>())
             .TryAdd<IRelationalAnnotationProvider, MySqlRelationalAnnotationProvider>()
@@ -118,6 +119,9 @@ public static class MySqlServiceCollectionExtensions
 #pragma warning restore EF1001
 
         builder.TryAddCoreServices();
+
+        serviceCollection.Replace(
+            ServiceDescriptor.Singleton<IMigrationsCodeGenerator, MySqlCSharpMigrationsGenerator>());
 
         serviceCollection.Replace(ServiceDescriptor.Scoped<IScaffoldingModelFactory, MySqlScaffoldingModelFactory>());
 
