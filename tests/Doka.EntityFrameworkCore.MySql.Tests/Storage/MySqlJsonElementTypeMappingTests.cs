@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;
@@ -44,4 +45,66 @@ public sealed class MySqlJsonElementTypeMappingTests
     public void Converter_rejects_malformed_json(
         string json
     ) => Assert.ThrowsAny<JsonException>(() => s_converter.ConvertFromProvider(json));
+
+    [Fact]
+    public void Native_json_mappings_generate_executable_model_value_literals()
+    {
+        using var sourceDocument = JsonDocument.Parse("""{"kind":"document"}""");
+        var cases = new (MySqlJsonTypeMapping Mapping, object Value, Type ExpectedType)[]
+        {
+            (
+                MySqlJsonTypeMapping.CreateJsonElementMapping(),
+                JsonElement.Parse("""{"kind":"element"}"""),
+                typeof(JsonElement)),
+            (
+                MySqlJsonTypeMapping.CreateJsonDocumentMapping(),
+                sourceDocument,
+                typeof(JsonDocument)),
+            (
+                MySqlJsonTypeMapping.CreateJsonNodeMapping(),
+                JsonNode.Parse("""{"kind":"node"}""")!,
+                typeof(JsonNode)),
+            (
+                MySqlJsonTypeMapping.CreateJsonObjectMapping(),
+                (JsonObject)JsonNode.Parse("""{"kind":"object"}""")!,
+                typeof(JsonObject)),
+            (
+                MySqlJsonTypeMapping.CreateJsonArrayMapping(),
+                (JsonArray)JsonNode.Parse("""["array"]""")!,
+                typeof(JsonArray)),
+        };
+
+        foreach (var (mapping, value, expectedType) in cases)
+        {
+            var generatedValue = Expression
+                .Lambda(mapping.GenerateCodeLiteral(value))
+                .Compile()
+                .DynamicInvoke();
+
+            Assert.NotNull(generatedValue);
+            Assert.True(expectedType.IsAssignableFrom(generatedValue.GetType()));
+
+            if (generatedValue is JsonDocument generatedDocument)
+            {
+                generatedDocument.Dispose();
+            }
+        }
+    }
+
+    [Fact]
+    public void Native_json_mappings_reject_non_json_code_literal_values()
+    {
+        var mappings = new[]
+        {
+            MySqlJsonTypeMapping.CreateJsonElementMapping(),
+            MySqlJsonTypeMapping.CreateJsonDocumentMapping(),
+            MySqlJsonTypeMapping.CreateJsonNodeMapping(),
+            MySqlJsonTypeMapping.CreateJsonObjectMapping(),
+            MySqlJsonTypeMapping.CreateJsonArrayMapping(),
+        };
+
+        Assert.All(
+            mappings,
+            mapping => Assert.Throws<InvalidOperationException>(() => mapping.GenerateCodeLiteral(42)));
+    }
 }

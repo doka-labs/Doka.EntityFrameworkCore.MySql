@@ -7,6 +7,72 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.3.0] - 2026-08-31
+
+Stable minor release preserving provider-owned migration metadata from model
+construction through generated snapshots, migration designers, migration
+operations, SQL, and live schemas. It adds an immutable public metadata
+projection for custom migration handlers and closes index-fidelity gaps across
+TPH, TPT, and TPC inheritance mappings.
+
+Install the stable packages through normal NuGet version resolution. Add the
+spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.3.0
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.3.0
+dotnet package add Doka.Caching.MySql --version 10.3.0
+```
+
+### Added
+
+- Add `MySqlMigrationOperationMetadata`,
+  `GetMySqlMigrationMetadata()`, and
+  `MySqlMigrationOperationContext.Metadata` so external migration handlers can
+  read GUID storage, value-generation, and ordered index-prefix semantics
+  without depending on private annotation names or mutable arrays.
+
+### Fixed
+
+- Preserve provider-owned `Guid` values in generated `HasData` snapshots and
+  migration designers for both `Char36` and `Binary16`, including nullable
+  values and seeded relationships, while retaining EF Core's provider-shaped
+  executable data operations and output for application-owned converters.
+  Generated artifacts also import the model namespace required by restored
+  `Guid` literals when a model contains only converted `Char36` properties.
+  The same contract applies recursively to scalar properties in non-collection
+  complex types; application-owned complex-property converters remain unchanged.
+- Preserve provider-owned `Guid` and native JSON literal defaults as model-side
+  values in generated snapshots and migration designers. GUID coverage includes
+  `Char36`, `Binary16`, nullable, and empty values; application-owned converters
+  retain their provider-side default representation.
+- Preserve `JsonElement`, `JsonDocument`, `JsonNode`, `JsonObject`, and
+  `JsonArray` values, plus explicitly supplied `byte[]` row-version values, in
+  generated `HasData` snapshots and migration designers. Executable migration
+  data operations continue to carry the JSON strings expected by the provider
+  conversion boundary and omit store-generated row-version columns.
+- Preserve NetTopologySuite geometry model types and seeded values through
+  snapshots, migration designers, column operations, and generated migration
+  code instead of leaking MySqlConnector's `MySqlGeometry` transport type.
+- Preserve NetTopologySuite X/Y coordinate order for geographic spatial
+  literals on MySQL by selecting longitude-latitude constructor semantics.
+  MariaDB retains its supported two-argument constructor form.
+- Reject ordinary, unique, and key definitions whose known composite byte
+  width exceeds InnoDB's 3072-byte maximum. Explicit prefix lengths remain
+  authoritative; Doka never invents a prefix that would change index or
+  uniqueness semantics.
+- Reject migration commands when MySQL or MariaDB reports server code 1071
+  after accepting DDL with a shortened index key. The migration history entry
+  is not recorded, including for historical or hand-authored operations that
+  did not pass the current model validator.
+- Rebuild an existing index when `HasPrefixLength(...)` is added, removed, or
+  changed, or when an ordinary index becomes full-text or spatial and back.
+  The rebuild also survives simultaneous table or index renames, while a pure
+  rename with unchanged provider metadata retains EF Core's native rename
+  operation. Migration operations and generated SQL retain the target model's
+  physical index semantics across TPH, TPT, and TPC inheritance mappings,
+  including each physical TPC index copy.
+
 ## [10.2.0] - 2026-08-30
 
 Stable minor release establishing ownership-aware connection invariants for
@@ -1092,7 +1158,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.2.0...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.3.0...HEAD
+[10.3.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.3.0
 [10.2.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.2.0
 [10.1.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.2
 [10.1.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.1

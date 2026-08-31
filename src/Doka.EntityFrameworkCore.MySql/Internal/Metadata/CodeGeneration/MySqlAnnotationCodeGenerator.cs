@@ -314,6 +314,8 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
         ArgumentNullException.ThrowIfNull(property);
         ArgumentNullException.ThrowIfNull(annotations);
 
+        RestoreProviderOwnedDefaultModelValue(property, annotations);
+
         var fragments = base
             .GenerateFluentApiCalls(property, annotations)
             .ToList();
@@ -352,6 +354,41 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
         }
 
         return fragments;
+    }
+
+    private static void RestoreProviderOwnedDefaultModelValue(
+        IProperty property,
+        IDictionary<string, IAnnotation> annotations
+    )
+    {
+        if (!annotations.TryGetValue(RelationalAnnotationNames.DefaultValue, out var annotation)
+            || annotation.Value is null or DBNull or Guid
+            || property.ClrType.IsInstanceOfType(annotation.Value))
+        {
+            return;
+        }
+
+        var typeMapping = property.GetTypeMapping();
+        var modelClrType = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
+
+        if (typeMapping is IMySqlProviderOwnedModelTypeMapping providerOwnedMapping)
+        {
+            annotations[RelationalAnnotationNames.DefaultValue] = new Annotation(
+                RelationalAnnotationNames.DefaultValue,
+                providerOwnedMapping.ConvertToModelValue(annotation.Value));
+            return;
+        }
+
+        if (modelClrType != typeof(Guid)
+            || property.GetMySqlGuidFormat() is null
+            || typeMapping.Converter is not { } converter)
+        {
+            return;
+        }
+
+        annotations[RelationalAnnotationNames.DefaultValue] = new Annotation(
+            RelationalAnnotationNames.DefaultValue,
+            converter.ConvertFromProvider(annotation.Value));
     }
 
     public override IReadOnlyList<MethodCallCodeFragment> GenerateFluentApiCalls(

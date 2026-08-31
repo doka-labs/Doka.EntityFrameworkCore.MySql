@@ -21,7 +21,7 @@ Replace the `Pomelo.EntityFrameworkCore.MySql` package reference with
 stable package explicitly so the migration uses the documented version:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.2.0
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.3.0
 ```
 
 Use:

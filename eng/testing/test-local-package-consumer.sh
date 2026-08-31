@@ -236,7 +236,7 @@ jq -n \
     --arg spatialSha256 "${spatial_sha256}" \
     --arg cacheSha256 "${cache_sha256}" \
     '{
-      schemaVersion: 3,
+      schemaVersion: 4,
       generatedUtc: $generatedUtc,
       qualification: "pass",
       consumerBoundary: "isolated-local-package",
@@ -248,6 +248,7 @@ jq -n \
         commandBoundaries: "pass",
         registrationOrderIndependence: "pass",
         exactTypeDispatch: "pass",
+        annotatedMetadataProjection: "pass",
         unknownOperationFailure: "pass",
         contextLifetime: "pass",
         duplicateHandlerIdFailure: "pass",

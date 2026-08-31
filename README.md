@@ -70,21 +70,21 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.2.0` adds ownership-aware connection invariants for provider-owned strings,
-caller-owned connections, and caller-owned data sources. It requires matched-row
-semantics, uses `Binary16` as the MySqlConnector wire transport, and adds
-`RequireUserVariables()` for applications that execute server-side user-variable
-programs. `Char36` remains fully supported as a model and column-storage format;
-the connector transport does not migrate or reinterpret `char(36)` columns. Pin
-the current stable version explicitly when validating an affected application:
+`10.3.0` preserves provider-owned GUID, JSON, row-version, and spatial metadata
+through generated snapshots, migration designers, migration operations, and
+SQL. It also adds immutable public migration-operation metadata for custom
+handlers and preserves physical index semantics across TPH, TPT, and TPC
+inheritance mappings. `Char36` and `Binary16` remain fully supported GUID
+storage formats. Pin the current stable version explicitly when validating an
+affected application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.2.0
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.3.0
 ```
 
-See [Provider Configuration][provider-configuration] for owned and borrowed
-connection requirements, and [Migrating from Pomelo][migrating-from-pomelo] for
-the GUID mapping and representation-migration contracts.
+See [Migration Operation Handlers][migration-operation-handlers] for the public
+metadata projection and [Migrating from Pomelo][migrating-from-pomelo] for the
+GUID mapping and representation-migration contracts.
 
 ## Quick Start
 

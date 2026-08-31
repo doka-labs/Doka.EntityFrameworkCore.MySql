@@ -26,6 +26,45 @@ public abstract class MySqlModelBuilderTestBase : RelationalModelBuilderTest
             MySqlModelBuilderFixture fixture
         ) : base(fixture) { }
 
+        [Fact]
+        public override void Can_set_complex_property_annotation()
+        {
+            var modelBuilder = CreateModelBuilder();
+
+            modelBuilder
+                .Ignore<IndexedClass>()
+                .Entity<ComplexProperties>()
+                .Ignore(entity => entity.Customers)
+                .ComplexProperty(entity => entity.Customer)
+                .HasTypeAnnotation("foo", "bar")
+                .HasPropertyAnnotation("foo2", "bar2")
+                .Ignore(complex => complex.Details)
+                .Ignore(complex => complex.Title)
+                .Ignore(complex => complex.Orders);
+
+            var model = modelBuilder.FinalizeModel();
+            var entityType = model.FindEntityType(typeof(ComplexProperties));
+
+            Assert.NotNull(entityType);
+
+            var complexProperty = Assert.Single(entityType.GetComplexProperties());
+
+            Assert.Equal("bar", complexProperty.ComplexType["foo"]);
+            Assert.Equal("bar2", complexProperty["foo2"]);
+            Assert.Equal(nameof(ComplexProperties.Customer), complexProperty.Name);
+            Assert.Equal(
+                @"Customer (Customer)
+  ComplexType: ComplexProperties.Customer#Customer
+    Properties: "
+                + @"
+      AlternateKey (Guid) Required MaxLength(16)
+      Id (int) Required
+      Name (string)
+      Notes (List<string>) Element type: string Required",
+                complexProperty.ToDebugString(),
+                ignoreLineEndingDifferences: true);
+        }
+
         [SpecFrameworkLimitationFact("EFCORE-35613-COMPLEX-TYPE-SHADOW-PROPERTIES")]
         public override void Can_add_shadow_primitive_collections_when_they_have_been_ignored() =>
             base.Can_add_shadow_primitive_collections_when_they_have_been_ignored();

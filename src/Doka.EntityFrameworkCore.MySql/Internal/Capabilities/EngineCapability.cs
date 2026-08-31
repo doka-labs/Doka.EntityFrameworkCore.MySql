@@ -17,6 +17,7 @@ internal enum EngineCapability
     StoredGeneratedColumnUsesPersistentKeyword,
     SpatialColumnSridAttribute,
     SpatialSridCheckConstraint,
+    SpatialWktAxisOrderOptions,
     SpatialIsValidFunction,
     SpatialBufferStrategies,
     SpatialCollectAggregate,

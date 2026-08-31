@@ -82,6 +82,9 @@ public sealed class MySqlMigrationDslTests
         var externalIdColumn = Assert.Single(
             createTable.Columns,
             column => column.Name == nameof(MigrationDslEntity.ExternalId));
+        var idColumn = Assert.Single(
+            createTable.Columns,
+            column => column.Name == nameof(MigrationDslEntity.Id));
 
         var prefixIndex = Assert.Single(
             operations.OfType<CreateIndexOperation>(),
@@ -113,9 +116,18 @@ public sealed class MySqlMigrationDslTests
                 ?.Value);
         Assert.Equal("char(36)", externalIdColumn.ColumnType);
         Assert.Equal(
+            MySqlGuidFormat.Char36,
+            externalIdColumn.GetMySqlMigrationMetadata().GuidFormat);
+        Assert.Equal(
+            MySqlValueGenerationStrategy.AutoIncrement,
+            idColumn.GetMySqlMigrationMetadata().ValueGenerationStrategy);
+        Assert.Equal(
             s_indexPrefixLengths,
             prefixIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength)
                 ?.Value as int[]);
+        Assert.Equal(
+            s_indexPrefixLengths,
+            prefixIndex.GetMySqlMigrationMetadata().IndexPrefixLengths);
         Assert.Equal(s_mixedIndexDirections, prefixIndex.IsDescending);
         Assert.Null(prefixIndex.FindAnnotation(MySqlAnnotationNames.SpatialIndex));
         Assert.Null(fullTextIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength));
@@ -128,6 +140,414 @@ public sealed class MySqlMigrationDslTests
         Assert.True(
             spatialIndex.FindAnnotation(MySqlAnnotationNames.SpatialIndex)
                 ?.Value as bool?);
+    }
+
+    /// <summary>
+    /// Changing provider-owned index metadata rebuilds the physical index.
+    /// </summary>
+    [Theory]
+    [InlineData(IndexPrefixTransition.Change)]
+    [InlineData(IndexPrefixTransition.Add)]
+    [InlineData(IndexPrefixTransition.Remove)]
+    public void Migrations_model_differ_rebuilds_indexes_for_prefix_length_transitions(
+        IndexPrefixTransition transition
+    )
+    {
+        using var sourceContext = CreateIndexPrefixContext(transition, source: true);
+        using var targetContext = CreateIndexPrefixContext(transition, source: false);
+        var differ = targetContext.GetService<IMigrationsModelDiffer>();
+        var sourceModel = sourceContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+        var targetModel = targetContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+
+        Assert.True(differ.HasDifferences(sourceModel, targetModel));
+
+        var operations = differ
+            .GetDifferences(sourceModel, targetModel)
+            .ToList();
+        var drop = Assert.Single(operations.OfType<DropIndexOperation>());
+        var create = Assert.Single(operations.OfType<CreateIndexOperation>());
+
+        Assert.Equal(IndexPrefixContract.IndexName, drop.Name);
+        Assert.Equal(IndexPrefixContract.TableName, drop.Table);
+        Assert.Equal(IndexPrefixContract.IndexName, create.Name);
+        Assert.Equal(IndexPrefixContract.TableName, create.Table);
+        Assert.Equal(
+            transition is IndexPrefixTransition.Change or IndexPrefixTransition.Add
+                ? IndexPrefixContract.TargetPrefixLengths
+                : null,
+            create.GetMySqlMigrationMetadata().IndexPrefixLengths);
+        Assert.True(operations.IndexOf(drop) < operations.IndexOf(create));
+
+        var sql = GenerateMigrationSql(targetContext, operations);
+
+        Assert.Contains(
+            $"ALTER TABLE `{IndexPrefixContract.TableName}` DROP INDEX `{IndexPrefixContract.IndexName}`",
+            sql,
+            StringComparison.Ordinal);
+
+        var expectedCreate = $"CREATE INDEX `{IndexPrefixContract.IndexName}` "
+            + $"ON `{IndexPrefixContract.TableName}` "
+            + (transition is IndexPrefixTransition.Change or IndexPrefixTransition.Add
+                ? "(`TenantId`, `Code`(48))"
+                : "(`TenantId`, `Code`)");
+
+        Assert.Contains(
+            expectedCreate,
+            sql,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Equal provider-owned index metadata does not create a redundant rebuild.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_does_not_rebuild_unchanged_prefix_lengths()
+    {
+        using var sourceContext = new SourceIndexPrefixContext(CreateOptions<SourceIndexPrefixContext>());
+        using var targetContext = new SourceIndexPrefixContext(CreateOptions<SourceIndexPrefixContext>());
+        var differ = targetContext.GetService<IMigrationsModelDiffer>();
+        var sourceModel = sourceContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+        var targetModel = targetContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+
+        Assert.False(differ.HasDifferences(sourceModel, targetModel));
+        Assert.Empty(differ.GetDifferences(sourceModel, targetModel));
+    }
+
+    /// <summary>
+    /// Equal provider-owned index kinds do not create a redundant rebuild.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Migrations_model_differ_does_not_rebuild_unchanged_index_kinds(
+        bool fullText
+    )
+    {
+        using DbContext sourceContext = fullText
+            ? new FullTextIndexContext(CreateOptions<FullTextIndexContext>())
+            : new SpatialIndexContext(CreateOptions<SpatialIndexContext>());
+        using DbContext targetContext = fullText
+            ? new FullTextIndexContext(CreateOptions<FullTextIndexContext>())
+            : new SpatialIndexContext(CreateOptions<SpatialIndexContext>());
+        var differ = targetContext.GetService<IMigrationsModelDiffer>();
+        var sourceModel = sourceContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+        var targetModel = targetContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+
+        Assert.False(differ.HasDifferences(sourceModel, targetModel));
+        Assert.Empty(differ.GetDifferences(sourceModel, targetModel));
+    }
+
+    /// <summary>
+    /// A simultaneous index rename and prefix change is one physical rebuild,
+    /// not a rename that silently retains the old prefix.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_rebuilds_a_renamed_index_when_prefix_lengths_change()
+    {
+        using var sourceContext = new SourceIndexPrefixContext(CreateOptions<SourceIndexPrefixContext>());
+        using var targetContext = new RenamedIndexPrefixContext(CreateOptions<RenamedIndexPrefixContext>());
+        var operations = GetDifferences(sourceContext, targetContext);
+
+        var drop = Assert.Single(operations.OfType<DropIndexOperation>());
+        var create = Assert.Single(operations.OfType<CreateIndexOperation>());
+
+        Assert.Empty(operations.OfType<RenameIndexOperation>());
+        Assert.Equal(IndexPrefixContract.IndexName, drop.Name);
+        Assert.Equal(IndexPrefixContract.RenamedIndexName, create.Name);
+        Assert.Equal(IndexPrefixContract.TargetPrefixLengths, create.GetMySqlMigrationMetadata().IndexPrefixLengths);
+        Assert.True(operations.IndexOf(drop) < operations.IndexOf(create));
+
+        var sql = GenerateMigrationSql(targetContext, operations);
+
+        Assert.Contains(
+            $"ALTER TABLE `{IndexPrefixContract.TableName}` DROP INDEX `{IndexPrefixContract.IndexName}`",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"CREATE INDEX `{IndexPrefixContract.RenamedIndexName}` "
+            + $"ON `{IndexPrefixContract.TableName}` (`TenantId`, `Code`(48))",
+            sql,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A simultaneous table rename and prefix change rebuilds the index around
+    /// the rename so neither operation addresses a stale table identity.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_rebuilds_an_index_when_its_table_and_prefix_lengths_change()
+    {
+        using var sourceContext = new SourceIndexPrefixContext(CreateOptions<SourceIndexPrefixContext>());
+        using var targetContext = new RenamedTableIndexPrefixContext(
+            CreateOptions<RenamedTableIndexPrefixContext>());
+        var operations = GetDifferences(sourceContext, targetContext);
+
+        var drop = Assert.Single(operations.OfType<DropIndexOperation>());
+        var rename = Assert.Single(operations.OfType<RenameTableOperation>());
+        var create = Assert.Single(operations.OfType<CreateIndexOperation>());
+
+        Assert.Equal(IndexPrefixContract.TableName, drop.Table);
+        Assert.Equal(IndexPrefixContract.RenamedTableName, rename.NewName);
+        Assert.Equal(IndexPrefixContract.RenamedTableName, create.Table);
+        Assert.Equal(IndexPrefixContract.TargetPrefixLengths, create.GetMySqlMigrationMetadata().IndexPrefixLengths);
+        Assert.True(operations.IndexOf(drop) < operations.IndexOf(rename));
+        Assert.True(operations.IndexOf(rename) < operations.IndexOf(create));
+
+        var sql = GenerateMigrationSql(targetContext, operations);
+
+        Assert.Contains(
+            $"ALTER TABLE `{IndexPrefixContract.TableName}` DROP INDEX `{IndexPrefixContract.IndexName}`",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"RENAME TABLE `{IndexPrefixContract.TableName}` TO `{IndexPrefixContract.RenamedTableName}`",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"CREATE INDEX `{IndexPrefixContract.IndexName}` "
+            + $"ON `{IndexPrefixContract.RenamedTableName}` (`TenantId`, `Code`(48))",
+            sql,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Simultaneous table and index renames do not hide a physical prefix
+    /// transition behind either rename operation.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_rebuilds_an_index_when_both_identity_parts_and_prefix_change()
+    {
+        using var sourceContext = new SourceIndexPrefixContext(CreateOptions<SourceIndexPrefixContext>());
+        using var targetContext = new RenamedTableAndIndexPrefixContext(
+            CreateOptions<RenamedTableAndIndexPrefixContext>());
+        var operations = GetDifferences(sourceContext, targetContext);
+
+        var drop = Assert.Single(operations.OfType<DropIndexOperation>());
+        var renameTable = Assert.Single(operations.OfType<RenameTableOperation>());
+        var create = Assert.Single(operations.OfType<CreateIndexOperation>());
+
+        Assert.Empty(operations.OfType<RenameIndexOperation>());
+        Assert.Equal(IndexPrefixContract.IndexName, drop.Name);
+        Assert.Equal(IndexPrefixContract.TableName, drop.Table);
+        Assert.Equal(IndexPrefixContract.RenamedTableName, renameTable.NewName);
+        Assert.Equal(IndexPrefixContract.RenamedIndexName, create.Name);
+        Assert.Equal(IndexPrefixContract.RenamedTableName, create.Table);
+        Assert.Equal(IndexPrefixContract.TargetPrefixLengths, create.GetMySqlMigrationMetadata().IndexPrefixLengths);
+        Assert.True(operations.IndexOf(drop) < operations.IndexOf(renameTable));
+        Assert.True(operations.IndexOf(renameTable) < operations.IndexOf(create));
+    }
+
+    /// <summary>
+    /// A pure index rename retains the efficient native rename operation when
+    /// provider metadata is unchanged.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_does_not_rebuild_a_renamed_index_with_unchanged_prefix_lengths()
+    {
+        using var sourceContext = new SourceIndexPrefixContext(CreateOptions<SourceIndexPrefixContext>());
+        using var targetContext = new RenamedIndexSamePrefixContext(CreateOptions<RenamedIndexSamePrefixContext>());
+        var operations = GetDifferences(sourceContext, targetContext);
+        var rename = Assert.Single(operations.OfType<RenameIndexOperation>());
+
+        Assert.Equal(IndexPrefixContract.IndexName, rename.Name);
+        Assert.Equal(IndexPrefixContract.RenamedIndexName, rename.NewName);
+        Assert.Empty(operations.OfType<DropIndexOperation>());
+        Assert.Empty(operations.OfType<CreateIndexOperation>());
+    }
+
+    /// <summary>
+    /// A pure table rename does not rebuild indexes whose provider metadata is
+    /// unchanged.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_does_not_rebuild_indexes_for_a_table_rename_with_unchanged_prefix_lengths()
+    {
+        using var sourceContext = new SourceIndexPrefixContext(CreateOptions<SourceIndexPrefixContext>());
+        using var targetContext = new RenamedTableSamePrefixContext(CreateOptions<RenamedTableSamePrefixContext>());
+        var operations = GetDifferences(sourceContext, targetContext);
+
+        Assert.Single(operations.OfType<RenameTableOperation>());
+        Assert.Empty(operations.OfType<DropIndexOperation>());
+        Assert.Empty(operations.OfType<CreateIndexOperation>());
+    }
+
+    /// <summary>
+    /// TPT inheritance resolves each declared index against its owning table
+    /// without reinterpreting an inherited base index as a derived-table index.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_resolves_declared_indexes_across_tpt_tables()
+    {
+        using var sourceContext = new EmptyMigrationDslContext(CreateOptions<EmptyMigrationDslContext>());
+        using var targetContext = new InheritedIndexContext(CreateOptions<InheritedIndexContext>());
+        var operations = GetDifferences(sourceContext, targetContext);
+        var indexes = operations
+            .OfType<CreateIndexOperation>()
+            .ToDictionary(operation => operation.Name, StringComparer.Ordinal);
+
+        Assert.Equal(
+            InheritedIndexContract.BaseTable,
+            indexes[InheritedIndexContract.BaseIndex].Table);
+        Assert.Equal(
+            InheritedIndexContract.DerivedTable,
+            indexes[InheritedIndexContract.DerivedIndex].Table);
+        Assert.DoesNotContain(
+            operations.OfType<CreateIndexOperation>(),
+            operation => operation.Name == InheritedIndexContract.BaseIndex
+                && operation.Table == InheritedIndexContract.DerivedTable);
+    }
+
+    /// <summary>
+    /// TPC inheritance expands one base-declared index into each concrete
+    /// table and preserves the provider metadata on every physical index.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_expands_base_indexes_across_tpc_tables()
+    {
+        using var sourceContext = new EmptyMigrationDslContext(CreateOptions<EmptyMigrationDslContext>());
+        using var targetContext = new InheritedTpcIndexContext(CreateOptions<InheritedTpcIndexContext>());
+        var indexes = GetDifferences(sourceContext, targetContext)
+            .OfType<CreateIndexOperation>()
+            .Where(operation => operation.Name == InheritedTpcIndexContract.Index)
+            .OrderBy(operation => operation.Table, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Collection(
+            indexes,
+            operation =>
+            {
+                Assert.Equal(InheritedTpcIndexContract.FirstTable, operation.Table);
+                Assert.Equal([16], operation.GetMySqlMigrationMetadata().IndexPrefixLengths);
+            },
+            operation =>
+            {
+                Assert.Equal(InheritedTpcIndexContract.SecondTable, operation.Table);
+                Assert.Equal([16], operation.GetMySqlMigrationMetadata().IndexPrefixLengths);
+            });
+    }
+
+    /// <summary>
+    /// Physical TPC copies retain distinct logical identities while their
+    /// tables, index name, and provider metadata change together.
+    /// </summary>
+    [Fact]
+    public void Migrations_model_differ_rebuilds_renamed_tpc_index_copies_independently()
+    {
+        using var sourceContext = new InheritedTpcIndexContext(CreateOptions<InheritedTpcIndexContext>());
+        using var targetContext = new RenamedInheritedTpcIndexContext(
+            CreateOptions<RenamedInheritedTpcIndexContext>());
+        var operations = GetDifferences(sourceContext, targetContext);
+        var drops = operations
+            .OfType<DropIndexOperation>()
+            .OrderBy(operation => operation.Table, StringComparer.Ordinal)
+            .ToArray();
+        var creates = operations
+            .OfType<CreateIndexOperation>()
+            .OrderBy(operation => operation.Table, StringComparer.Ordinal)
+            .ToArray();
+        var tableRenames = operations
+            .OfType<RenameTableOperation>()
+            .OrderBy(operation => operation.Name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            [InheritedTpcIndexContract.FirstTable, InheritedTpcIndexContract.SecondTable],
+            drops.Select(operation => operation.Table));
+        Assert.All(drops, operation => Assert.Equal(InheritedTpcIndexContract.Index, operation.Name));
+        Assert.Equal(
+            [InheritedTpcIndexContract.RenamedFirstTable, InheritedTpcIndexContract.RenamedSecondTable],
+            creates.Select(operation => operation.Table));
+        Assert.All(creates, operation =>
+        {
+            Assert.Equal(InheritedTpcIndexContract.RenamedIndex, operation.Name);
+            Assert.Equal([24], operation.GetMySqlMigrationMetadata().IndexPrefixLengths);
+        });
+        Assert.Equal(2, tableRenames.Length);
+        Assert.Empty(operations.OfType<RenameIndexOperation>());
+        Assert.True(operations.IndexOf(drops[0]) < operations.IndexOf(tableRenames[0]));
+        Assert.True(operations.IndexOf(tableRenames[^1]) < operations.IndexOf(creates[0]));
+    }
+
+    /// <summary>
+    /// Other provider-owned index kinds use the same physical rebuild boundary.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Migrations_model_differ_rebuilds_indexes_for_full_text_transitions(
+        bool enableFullText
+    )
+    {
+        using var plainContext = new PlainTextIndexContext(CreateOptions<PlainTextIndexContext>());
+        using var fullTextContext = new FullTextIndexContext(CreateOptions<FullTextIndexContext>());
+        DbContext sourceContext = enableFullText ? plainContext : fullTextContext;
+        DbContext targetContext = enableFullText ? fullTextContext : plainContext;
+        var differ = targetContext.GetService<IMigrationsModelDiffer>();
+        var sourceModel = sourceContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+        var targetModel = targetContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+
+        var operations = differ
+            .GetDifferences(sourceModel, targetModel)
+            .ToList();
+        var drop = Assert.Single(operations.OfType<DropIndexOperation>());
+        var create = Assert.Single(operations.OfType<CreateIndexOperation>());
+
+        Assert.True(differ.HasDifferences(sourceModel, targetModel));
+        Assert.Equal(TextIndexContract.IndexName, drop.Name);
+        Assert.Equal(
+            enableFullText ? true : null,
+            create.FindAnnotation(MySqlAnnotationNames.FullTextIndex)?.Value as bool?);
+        Assert.True(operations.IndexOf(drop) < operations.IndexOf(create));
+
+        var sql = GenerateMigrationSql(targetContext, operations);
+
+        Assert.Contains(
+            enableFullText
+                ? $"CREATE FULLTEXT INDEX `{TextIndexContract.IndexName}`"
+                : $"CREATE INDEX `{TextIndexContract.IndexName}`",
+            sql,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Spatial index-kind transitions rebuild the same physical index identity.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Migrations_model_differ_rebuilds_indexes_for_spatial_transitions(
+        bool enableSpatial
+    )
+    {
+        using var plainContext = new PlainSpatialIndexContext(CreateOptions<PlainSpatialIndexContext>());
+        using var spatialContext = new SpatialIndexContext(CreateOptions<SpatialIndexContext>());
+        DbContext sourceContext = enableSpatial ? plainContext : spatialContext;
+        DbContext targetContext = enableSpatial ? spatialContext : plainContext;
+        var differ = targetContext.GetService<IMigrationsModelDiffer>();
+        var sourceModel = sourceContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+        var targetModel = targetContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+
+        var operations = differ
+            .GetDifferences(sourceModel, targetModel)
+            .ToList();
+        var drop = Assert.Single(operations.OfType<DropIndexOperation>());
+        var create = Assert.Single(operations.OfType<CreateIndexOperation>());
+
+        Assert.True(differ.HasDifferences(sourceModel, targetModel));
+        Assert.Equal(SpatialIndexContract.IndexName, drop.Name);
+        Assert.Equal(
+            enableSpatial ? true : null,
+            create.FindAnnotation(MySqlAnnotationNames.SpatialIndex)?.Value as bool?);
+        Assert.True(operations.IndexOf(drop) < operations.IndexOf(create));
+
+        var sql = GenerateMigrationSql(targetContext, operations);
+
+        Assert.Contains(
+            enableSpatial
+                ? $"CREATE SPATIAL INDEX `{SpatialIndexContract.IndexName}`"
+                : $"CREATE INDEX `{SpatialIndexContract.IndexName}`",
+            sql,
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -235,14 +655,24 @@ public sealed class MySqlMigrationDslTests
             principalId.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
                 ?.Value);
         Assert.Equal(
+            MySqlValueGenerationStrategy.None,
+            principalId.GetMySqlMigrationMetadata().ValueGenerationStrategy);
+        Assert.Equal(
             MySqlValueGenerationStrategy.AutoIncrement,
             principalId.OldColumn.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
                 ?.Value);
         Assert.Equal(
+            MySqlValueGenerationStrategy.AutoIncrement,
+            principalId.OldColumn.GetMySqlMigrationMetadata().ValueGenerationStrategy);
+        Assert.Equal(
             MySqlValueGenerationStrategy.None,
             secondaryId.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
                 ?.Value);
+        Assert.Equal(
+            MySqlValueGenerationStrategy.None,
+            secondaryId.GetMySqlMigrationMetadata().ValueGenerationStrategy);
         Assert.Null(secondaryId.OldColumn.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy));
+        Assert.Null(secondaryId.OldColumn.GetMySqlMigrationMetadata().ValueGenerationStrategy);
     }
 
     /// <summary>
@@ -1139,6 +1569,22 @@ public sealed class MySqlMigrationDslTests
         return services.BuildServiceProvider(validateScopes: true);
     }
 
+    private static DbContext CreateIndexPrefixContext(
+        IndexPrefixTransition transition,
+        bool source
+    ) => (transition, source) switch
+    {
+        (IndexPrefixTransition.Change, true) =>
+            new SourceIndexPrefixContext(CreateOptions<SourceIndexPrefixContext>()),
+        (IndexPrefixTransition.Change, false) or (IndexPrefixTransition.Remove, true) =>
+            new TargetIndexPrefixContext(CreateOptions<TargetIndexPrefixContext>()),
+        (IndexPrefixTransition.Add, true) or (IndexPrefixTransition.Remove, false) =>
+            new NoIndexPrefixContext(CreateOptions<NoIndexPrefixContext>()),
+        (IndexPrefixTransition.Add, false) =>
+            new TargetIndexPrefixContext(CreateOptions<TargetIndexPrefixContext>()),
+        _ => throw new ArgumentOutOfRangeException(nameof(transition), transition, null),
+    };
+
     private sealed class EmptyMigrationDslContext : DbContext
     {
         public EmptyMigrationDslContext(
@@ -1188,6 +1634,307 @@ public sealed class MySqlMigrationDslTests
                     .HasDatabaseName("IX_MigrationDsl_Location")
                     .IsSpatial();
             });
+        }
+    }
+
+    private sealed class SourceIndexPrefixContext : DbContext
+    {
+        public SourceIndexPrefixContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureIndexPrefix(modelBuilder, IndexPrefixContract.SourcePrefixLengths);
+    }
+
+    private sealed class TargetIndexPrefixContext : DbContext
+    {
+        public TargetIndexPrefixContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureIndexPrefix(modelBuilder, IndexPrefixContract.TargetPrefixLengths);
+    }
+
+    private sealed class NoIndexPrefixContext : DbContext
+    {
+        public NoIndexPrefixContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureIndexPrefix(modelBuilder, prefixLengths: null);
+    }
+
+    private sealed class RenamedIndexPrefixContext : DbContext
+    {
+        public RenamedIndexPrefixContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureIndexPrefix(
+            modelBuilder,
+            IndexPrefixContract.TargetPrefixLengths,
+            indexName: IndexPrefixContract.RenamedIndexName);
+    }
+
+    private sealed class RenamedTableIndexPrefixContext : DbContext
+    {
+        public RenamedTableIndexPrefixContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureIndexPrefix(
+            modelBuilder,
+            IndexPrefixContract.TargetPrefixLengths,
+            tableName: IndexPrefixContract.RenamedTableName);
+    }
+
+    private sealed class RenamedTableAndIndexPrefixContext : DbContext
+    {
+        public RenamedTableAndIndexPrefixContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureIndexPrefix(
+            modelBuilder,
+            IndexPrefixContract.TargetPrefixLengths,
+            IndexPrefixContract.RenamedTableName,
+            IndexPrefixContract.RenamedIndexName);
+    }
+
+    private sealed class RenamedIndexSamePrefixContext : DbContext
+    {
+        public RenamedIndexSamePrefixContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureIndexPrefix(
+            modelBuilder,
+            IndexPrefixContract.SourcePrefixLengths,
+            indexName: IndexPrefixContract.RenamedIndexName);
+    }
+
+    private sealed class RenamedTableSamePrefixContext : DbContext
+    {
+        public RenamedTableSamePrefixContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureIndexPrefix(
+            modelBuilder,
+            IndexPrefixContract.SourcePrefixLengths,
+            tableName: IndexPrefixContract.RenamedTableName);
+    }
+
+    private sealed class PlainTextIndexContext : DbContext
+    {
+        public PlainTextIndexContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureTextIndex(modelBuilder, fullText: false);
+    }
+
+    private sealed class FullTextIndexContext : DbContext
+    {
+        public FullTextIndexContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureTextIndex(modelBuilder, fullText: true);
+    }
+
+    private sealed class PlainSpatialIndexContext : DbContext
+    {
+        public PlainSpatialIndexContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureSpatialIndex(modelBuilder, spatial: false);
+    }
+
+    private sealed class SpatialIndexContext : DbContext
+    {
+        public SpatialIndexContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureSpatialIndex(modelBuilder, spatial: true);
+    }
+
+    private sealed class InheritedIndexContext : DbContext
+    {
+        public InheritedIndexContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder
+                .Entity<InheritedIndexBase>()
+                .ToTable(InheritedIndexContract.BaseTable)
+                .HasIndex(entity => new
+                {
+                    entity.AlternateId,
+                    entity.Id,
+                })
+                .HasDatabaseName(InheritedIndexContract.BaseIndex)
+                .HasPrefixLength(16, 0);
+
+            modelBuilder
+                .Entity<InheritedIndexDerived>()
+                .ToTable(InheritedIndexContract.DerivedTable)
+                .HasIndex(entity => entity.DerivedCode)
+                .HasDatabaseName(InheritedIndexContract.DerivedIndex)
+                .HasPrefixLength(24);
+        }
+    }
+
+    private sealed class InheritedTpcIndexContext : DbContext
+    {
+        public InheritedTpcIndexContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureInheritedTpcIndex(
+            modelBuilder,
+            InheritedTpcIndexContract.FirstTable,
+            InheritedTpcIndexContract.SecondTable,
+            InheritedTpcIndexContract.Index,
+            prefixLength: 16);
+    }
+
+    private sealed class RenamedInheritedTpcIndexContext : DbContext
+    {
+        public RenamedInheritedTpcIndexContext(
+            DbContextOptions options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => ConfigureInheritedTpcIndex(
+            modelBuilder,
+            InheritedTpcIndexContract.RenamedFirstTable,
+            InheritedTpcIndexContract.RenamedSecondTable,
+            InheritedTpcIndexContract.RenamedIndex,
+            prefixLength: 24);
+    }
+
+    private static void ConfigureIndexPrefix(
+        ModelBuilder modelBuilder,
+        int[]? prefixLengths,
+        string tableName = IndexPrefixContract.TableName,
+        string indexName = IndexPrefixContract.IndexName
+    )
+    {
+        var index = modelBuilder
+            .Entity<IndexPrefixEntity>()
+            .ToTable(tableName)
+            .HasIndex(entity => new
+            {
+                entity.TenantId,
+                entity.Code,
+            })
+            .HasDatabaseName(indexName);
+
+        if (prefixLengths is not null)
+        {
+            index.HasPrefixLength(prefixLengths);
+        }
+    }
+
+    private static void ConfigureInheritedTpcIndex(
+        ModelBuilder modelBuilder,
+        string firstTable,
+        string secondTable,
+        string indexName,
+        int prefixLength
+    )
+    {
+        modelBuilder
+            .Entity<InheritedTpcIndexBase>()
+            .UseTpcMappingStrategy()
+            .HasIndex(entity => entity.AlternateId)
+            .HasDatabaseName(indexName)
+            .HasPrefixLength(prefixLength);
+
+        modelBuilder
+            .Entity<FirstInheritedTpcIndex>()
+            .ToTable(firstTable);
+        modelBuilder
+            .Entity<SecondInheritedTpcIndex>()
+            .ToTable(secondTable);
+    }
+
+    private static void ConfigureTextIndex(
+        ModelBuilder modelBuilder,
+        bool fullText
+    )
+    {
+        var index = modelBuilder
+            .Entity<TextIndexEntity>()
+            .ToTable(TextIndexContract.TableName)
+            .HasIndex(entity => entity.Body)
+            .HasDatabaseName(TextIndexContract.IndexName);
+
+        modelBuilder
+            .Entity<TextIndexEntity>()
+            .Property(entity => entity.Body)
+            .HasMaxLength(256);
+
+        if (fullText)
+        {
+            index.IsFullText();
+        }
+    }
+
+    private static void ConfigureSpatialIndex(
+        ModelBuilder modelBuilder,
+        bool spatial
+    )
+    {
+        var index = modelBuilder
+            .Entity<SpatialIndexEntity>()
+            .ToTable(SpatialIndexContract.TableName)
+            .HasIndex(entity => entity.Location)
+            .HasDatabaseName(SpatialIndexContract.IndexName);
+
+        modelBuilder
+            .Entity<SpatialIndexEntity>()
+            .Property(entity => entity.Location)
+            .HasColumnType("point")
+            .HasSrid(0);
+
+        if (spatial)
+        {
+            index.IsSpatial();
         }
     }
 
@@ -1677,5 +2424,98 @@ public sealed class MySqlMigrationDslTests
         public string Body { get; set; } = string.Empty;
 
         public Point Location { get; set; } = new(0, 0);
+    }
+
+    private sealed class IndexPrefixEntity
+    {
+        public int Id { get; set; }
+
+        public int TenantId { get; set; }
+
+        public string Code { get; set; } = string.Empty;
+    }
+
+    private sealed class TextIndexEntity
+    {
+        public int Id { get; set; }
+
+        public string Body { get; set; } = string.Empty;
+    }
+
+    private sealed class SpatialIndexEntity
+    {
+        public int Id { get; set; }
+
+        public Point Location { get; set; } = new(0, 0);
+    }
+
+    private class InheritedIndexBase
+    {
+        public int Id { get; set; }
+
+        public string AlternateId { get; set; } = string.Empty;
+    }
+
+    private sealed class InheritedIndexDerived : InheritedIndexBase
+    {
+        public string DerivedCode { get; set; } = string.Empty;
+    }
+
+    private abstract class InheritedTpcIndexBase
+    {
+        public int Id { get; set; }
+
+        public string AlternateId { get; set; } = string.Empty;
+    }
+
+    private sealed class FirstInheritedTpcIndex : InheritedTpcIndexBase;
+
+    private sealed class SecondInheritedTpcIndex : InheritedTpcIndexBase;
+
+    private static class IndexPrefixContract
+    {
+        public const string TableName = "IndexPrefixRecords";
+        public const string RenamedTableName = "RenamedIndexPrefixRecords";
+        public const string IndexName = "IX_IndexPrefixRecords_TenantId_Code";
+        public const string RenamedIndexName = "IX_IndexPrefixRecords_TenantId_Code_Renamed";
+        public static readonly int[] SourcePrefixLengths = [0, 24];
+        public static readonly int[] TargetPrefixLengths = [0, 48];
+    }
+
+    private static class TextIndexContract
+    {
+        public const string TableName = "TextIndexRecords";
+        public const string IndexName = "IX_TextIndexRecords_Body";
+    }
+
+    private static class SpatialIndexContract
+    {
+        public const string TableName = "SpatialIndexRecords";
+        public const string IndexName = "IX_SpatialIndexRecords_Location";
+    }
+
+    private static class InheritedIndexContract
+    {
+        public const string BaseTable = "InheritedIndexBase";
+        public const string DerivedTable = "InheritedIndexDerived";
+        public const string BaseIndex = "IX_InheritedIndexBase_AlternateId_Id";
+        public const string DerivedIndex = "IX_InheritedIndexDerived_DerivedCode";
+    }
+
+    private static class InheritedTpcIndexContract
+    {
+        public const string FirstTable = "FirstInheritedTpcIndex";
+        public const string SecondTable = "SecondInheritedTpcIndex";
+        public const string RenamedFirstTable = "RenamedFirstInheritedTpcIndex";
+        public const string RenamedSecondTable = "RenamedSecondInheritedTpcIndex";
+        public const string Index = "IX_InheritedTpcIndex_AlternateId";
+        public const string RenamedIndex = "IX_InheritedTpcIndex_AlternateId_Renamed";
+    }
+
+    public enum IndexPrefixTransition
+    {
+        Change,
+        Add,
+        Remove,
     }
 }

@@ -1,9 +1,12 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class
-    MySqlNetTopologySuiteGeometryTypeMapping<TGeometry> : RelationalGeometryTypeMapping<TGeometry, MySqlGeometry>
+    MySqlNetTopologySuiteGeometryTypeMapping<TGeometry> : RelationalGeometryTypeMapping<TGeometry, MySqlGeometry>,
+    IMySqlProviderOwnedModelTypeMapping
     where TGeometry : Geometry
 {
+    private readonly bool _useLongLatAxisOrder;
+
     private static readonly MethodInfo s_convertFromProviderMethod =
         typeof(MySqlNetTopologySuiteGeometryTypeMapping<TGeometry>).GetMethod(
             nameof(ConvertFromProviderExpression),
@@ -21,17 +24,32 @@ internal sealed class
     public MySqlNetTopologySuiteGeometryTypeMapping(
         ValueConverter<TGeometry, MySqlGeometry> converter,
         string storeType,
-        JsonValueReaderWriter? jsonValueReaderWriter
-    ) : base(converter, storeType, jsonValueReaderWriter) { }
+        JsonValueReaderWriter? jsonValueReaderWriter,
+        bool useLongLatAxisOrder
+    ) : base(converter, storeType, jsonValueReaderWriter)
+    {
+        _useLongLatAxisOrder = useLongLatAxisOrder;
+    }
 
     private MySqlNetTopologySuiteGeometryTypeMapping(
         RelationalTypeMappingParameters parameters,
-        ValueConverter<TGeometry, MySqlGeometry> converter
-    ) : base(parameters, converter) { }
+        ValueConverter<TGeometry, MySqlGeometry> converter,
+        bool useLongLatAxisOrder
+    ) : base(parameters, converter)
+    {
+        _useLongLatAxisOrder = useLongLatAxisOrder;
+    }
+
+    Type IMySqlProviderOwnedModelTypeMapping.ProviderClrType => typeof(MySqlGeometry);
+
+    object IMySqlProviderOwnedModelTypeMapping.ConvertToModelValue(
+        object providerValue
+    ) => SpatialConverter?.ConvertFromProvider(providerValue)
+        ?? throw new InvalidOperationException("The spatial mapping does not expose its required value converter.");
 
     protected override RelationalTypeMapping Clone(
         RelationalTypeMappingParameters parameters
-    ) => new MySqlNetTopologySuiteGeometryTypeMapping<TGeometry>(parameters, SpatialConverter!);
+    ) => new MySqlNetTopologySuiteGeometryTypeMapping<TGeometry>(parameters, SpatialConverter!, _useLongLatAxisOrder);
 
     protected override Type WktReaderType => typeof(WKTReader);
 
@@ -75,7 +93,11 @@ internal sealed class
         var wkt = AsText(value).Replace("'", "''", StringComparison.Ordinal);
         var srid = GetSrid(value);
 
-        return $"ST_GeomFromText('{wkt}', {srid.ToString(CultureInfo.InvariantCulture)})";
+        var sridLiteral = srid.ToString(CultureInfo.InvariantCulture);
+
+        return _useLongLatAxisOrder
+            ? $"ST_GeomFromText('{wkt}', {sridLiteral}, 'axis-order=long-lat')"
+            : $"ST_GeomFromText('{wkt}', {sridLiteral})";
     }
 
     public override Expression CustomizeDataReaderExpression(

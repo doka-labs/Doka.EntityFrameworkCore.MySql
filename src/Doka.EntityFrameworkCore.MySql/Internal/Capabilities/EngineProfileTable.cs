@@ -172,6 +172,7 @@ internal static class EngineProfileTable
         {
             capabilities.Add(EngineCapability.CommonTableExpressions);
             capabilities.Add(EngineCapability.DescendingIndexes);
+            capabilities.Add(EngineCapability.SpatialWktAxisOrderOptions);
         }
 
         if (IsAtLeast(version, s_mySql803))

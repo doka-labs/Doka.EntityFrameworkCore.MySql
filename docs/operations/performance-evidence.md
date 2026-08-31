@@ -3,12 +3,12 @@
 This runbook is the operator entry point for provider benchmarks. The current
 design has one measurement owner and one decision owner:
 
-```text
-schedule or manual dispatch
-  -> eng/benchmark.sh
-  -> BenchmarkDotNet raw JSON
-  -> PerformanceGate
-  -> pass, regression, or invalid evidence
+```mermaid
+flowchart LR
+    TRIGGER["Schedule or manual dispatch"] --> SCRIPT["eng/benchmark.sh"]
+    SCRIPT --> BDN["BenchmarkDotNet raw JSON"]
+    BDN --> GATE["PerformanceGate"]
+    GATE --> RESULT["Pass, regression, or invalid evidence"]
 ```
 
 Performance evidence is independent of release qualification. The release

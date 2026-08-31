@@ -79,6 +79,49 @@ external handler dispatch. A custom operation, recursive call, concurrent
 call, or call after `Generate` returns fails with
 `MySqlMigrationOperationHandlerException`.
 
+## Read Provider Migration Metadata
+
+Doka-owned migration annotations remain an internal implementation detail.
+Handlers that need their typed meaning use the immutable public projection:
+
+```csharp
+var metadata = operation.GetMySqlMigrationMetadata();
+
+if (metadata.GuidFormat == MySqlGuidFormat.Char36)
+{
+    // Compare or project the physical char(36) storage contract.
+}
+```
+
+`context.Metadata` is the same projection captured from `context.Operation`.
+Use `GetMySqlMigrationMetadata()` when inspecting another operation, including
+an operation that will be passed to `RenderStandardOperation`. For a
+`CreateTableOperation`, inspect each entry in `Columns`. For an
+`AlterColumnOperation`, inspect the operation and `OldColumn` separately.
+
+The projection currently exposes:
+
+| Metadata | Operation | Meaning |
+| --- | --- | --- |
+| `GuidFormat` | `ColumnOperation` | Physical `binary(16)` or `char(36)` storage used by DDL and catalog comparison |
+| `ValueGenerationStrategy` | `ColumnOperation` | Provider generation; `AutoIncrement` affects DDL and catalog state, `ClientGuid` is an EF client behavior, and `None` is explicit absence |
+| `IndexPrefixLengths` | `CreateIndexOperation` | Ordered DDL and catalog prefix lengths; zero means the complete key |
+
+Missing metadata returns `null`, which remains distinct from
+`MySqlValueGenerationStrategy.None` and zero prefix entries. Prefix lengths
+are copied into a read-only snapshot, so later mutation of an operation-owned
+array cannot change the handler's view. A wrong value type, a known annotation
+on an incompatible operation, a negative prefix, a prefix-count mismatch, or
+an undefined GUID format, or GUID metadata that contradicts the column CLR or
+explicit store type throws `InvalidOperationException`. A missing store type
+remains valid because EF Core may defer mapping resolution. Future typed
+`MySqlValueGenerationStrategy` values are preserved so a consumer can reject
+unsupported semantics explicitly. Unrelated annotations are not classified as
+known Doka metadata.
+
+Do not copy `Doka:MySql:*` annotation names into an extension package. Their
+identities remain private and are not a compatibility contract.
+
 ## Register from an Extension Package
 
 EF Core may maintain an internal service provider for a context. Registering a
@@ -376,6 +419,13 @@ highest supported provider patch:
     physical session instead of returning it to the pool.
 12. Normal and idempotent script runners stop and discard their session after
     failure because scripts cannot reproduce the runtime finally boundary.
+13. Typed operation metadata preserves absent values, explicit zero values,
+    ordered prefixes, and malformed-value failures without private annotation
+    names.
+14. The isolated candidate-package consumer builds a normal provider model,
+    obtains annotated column and index operations from `IMigrationsModelDiffer`,
+    and reads `Char36`, `Binary16`, `AutoIncrement`, `ClientGuid`, explicit
+    `None`, and composite-prefix metadata without private annotation identities.
 
 The provider repository verifies the general contract with two independent
 conformance handlers, an exhaustive 21-by-6 feature matrix, a local
@@ -390,6 +440,8 @@ recovery, and least-privilege behavior.
 ## Primary Sources
 
 - Microsoft, [Custom Migrations Operations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/operations), retrieved 2026-08-11.
+- Microsoft, [`ColumnOperation` API](https://learn.microsoft.com/en-us/dotnet/api/microsoft.entityframeworkcore.migrations.operations.columnoperation?view=efcore-10.0), retrieved 2026-08-31.
+- Microsoft, [`IAnnotation` API](https://learn.microsoft.com/en-us/dotnet/api/microsoft.entityframeworkcore.infrastructure.iannotation?view=efcore-10.0), retrieved 2026-08-31.
 - Microsoft, [EF Core 10.0.8 `MigrationsSqlGenerator` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationsSqlGenerator.cs), retrieved 2026-08-11.
 - Microsoft, [EF Core 10.0.10 `MigrationsSqlGenerator` source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/MigrationsSqlGenerator.cs), retrieved 2026-08-11.
 - Microsoft, [EF Core 10.0.8 `IMigrationsSqlGenerator` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/IMigrationsSqlGenerator.cs), retrieved 2026-08-11.

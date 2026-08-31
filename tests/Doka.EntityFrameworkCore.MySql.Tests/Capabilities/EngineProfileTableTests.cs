@@ -111,6 +111,8 @@ public sealed class EngineProfileTableTests
             (EngineFamily.MySql, "5.7.8", EngineCapability.NativeJsonType, true),
             (EngineFamily.MySql, "8.0.0", EngineCapability.CommonTableExpressions, false),
             (EngineFamily.MySql, "8.0.1", EngineCapability.CommonTableExpressions, true),
+            (EngineFamily.MySql, "8.0.0", EngineCapability.SpatialWktAxisOrderOptions, false),
+            (EngineFamily.MySql, "8.0.1", EngineCapability.SpatialWktAxisOrderOptions, true),
             (EngineFamily.MySql, "7.99.99", EngineCapability.AtomicDdl, false),
             (EngineFamily.MySql, "8.0.0", EngineCapability.AtomicDdl, true),
             (EngineFamily.MySql, "8.0.0", EngineCapability.DescendingIndexes, false),
@@ -178,6 +180,7 @@ public sealed class EngineProfileTableTests
             (EngineFamily.MariaDb, "11.8.99", EngineCapability.SpatialCollectAggregate, false),
             (EngineFamily.MariaDb, "12.0.0", EngineCapability.SpatialCollectAggregate, true),
             (EngineFamily.MariaDb, "12.3.2", EngineCapability.SpatialBufferStrategies, false),
+            (EngineFamily.MariaDb, "12.3.2", EngineCapability.SpatialWktAxisOrderOptions, false),
         };
 
         foreach (var testCase in cases)

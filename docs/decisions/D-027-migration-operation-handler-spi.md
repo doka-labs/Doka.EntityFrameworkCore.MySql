@@ -49,6 +49,8 @@ details part of the compatibility surface.
   of registration order.
 - The public contract must contain no provider-internal or SafeMigrations-
   specific type.
+- External handlers must read provider-owned operation metadata without
+  copying private annotation identities or mutable annotation values.
 - Diagnostics must be stable, bounded, low-cardinality, and free of SQL,
   credentials, object names, and plugin exception messages.
 - Runtime, design-time tools, scripts, and bundles must resolve the same
@@ -99,6 +101,17 @@ new provider callback can begin or outlive the invocation boundary.
 Use after return is reported directly as `ContextExpired`. It occurs after the
 handler invocation has completed and therefore is not attributed retroactively
 to that invocation's activity, metrics, or log event.
+
+The context also captures an immutable, typed metadata projection for its
+current operation. The same projection can be obtained from another EF Core
+migration operation before delegating it to the baseline renderer. It exposes
+GUID storage, value-generation strategy, and ordered index prefix lengths
+without publishing annotation identities. Known malformed metadata fails
+deterministically, prefix arrays are copied, absent values remain distinct
+from explicit zero values, and unknown annotations remain opaque.
+The package-only release consumer builds an ordinary provider model and reads
+the resulting annotated column and index operations through this projection;
+an unannotated custom-operation check alone is not sufficient evidence.
 
 The handler returns one complete result containing at least one immutable
 command and one bounded outcome code. The provider enumerates the foreign
@@ -152,6 +165,8 @@ strategy cannot retry an already committed but ambiguously reported DDL body.
   ambiguous or partially generated custom DDL.
 - Good, because the feature set centralizes engine differences instead of
   forcing packages to maintain private version tables.
+- Good, because extension packages can interpret supported provider metadata
+  without hardcoding private annotation names or retaining mutable arrays.
 - Good, because the baseline renderer preserves provider SQL and command
   boundaries without exposing the mutable builder.
 - Good, because package consumers can identify structured command roles

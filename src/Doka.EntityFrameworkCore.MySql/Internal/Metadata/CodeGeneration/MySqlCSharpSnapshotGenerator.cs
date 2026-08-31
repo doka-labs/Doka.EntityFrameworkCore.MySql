@@ -70,6 +70,81 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
         GeneratePropertyAnnotations(propertyBuilderName, property, stringBuilder);
     }
 
+    protected override void GenerateData(
+        string entityTypeBuilderName,
+        IEnumerable<IProperty> properties,
+        IEnumerable<IDictionary<string, object?>> data,
+        IndentedStringBuilder stringBuilder
+    )
+    {
+        // EF Core supplies provider-shaped seed data. Doka-owned mappings retain
+        // model CLR properties in generated models, so their seeds must match
+        // those model-side types.
+        var propertyList = properties.ToArray();
+        var converters = propertyList
+            .Where(RequiresModelSeedValue)
+            .Select(property => (
+                PropertyName: property.Name,
+                ModelClrType: Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType,
+                TypeMapping: property.GetTypeMapping() as IMySqlProviderOwnedModelTypeMapping,
+                Converter: property.GetTypeMapping().Converter))
+            .ToArray();
+
+        base.GenerateData(
+            entityTypeBuilderName,
+            propertyList,
+            converters.Length == 0 ? data : ConvertProviderSeedValues(data, converters),
+            stringBuilder);
+    }
+
+    private static IEnumerable<IDictionary<string, object?>> ConvertProviderSeedValues(
+        IEnumerable<IDictionary<string, object?>> data,
+        IReadOnlyList<(
+            string PropertyName,
+            Type ModelClrType,
+            IMySqlProviderOwnedModelTypeMapping? TypeMapping,
+            ValueConverter? Converter)> converters
+    )
+    {
+        foreach (var seedValues in data)
+        {
+            Dictionary<string, object?>? convertedSeedValues = null;
+
+            foreach (var (propertyName, modelClrType, typeMapping, converter) in converters)
+            {
+                if (!seedValues.TryGetValue(propertyName, out var providerValue)
+                    || providerValue is null
+                    || modelClrType.IsInstanceOfType(providerValue))
+                {
+                    continue;
+                }
+
+                convertedSeedValues ??= new Dictionary<string, object?>(seedValues, StringComparer.Ordinal);
+                convertedSeedValues[propertyName] = typeMapping is not null
+                    ? typeMapping.ConvertToModelValue(providerValue)
+                    : converter!.ConvertFromProvider(providerValue);
+            }
+
+            yield return convertedSeedValues ?? seedValues;
+        }
+    }
+
+    private static bool RequiresModelSeedValue(
+        IProperty property
+    )
+    {
+        var modelClrType = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
+
+        if (property.GetTypeMapping() is IMySqlProviderOwnedModelTypeMapping)
+        {
+            return true;
+        }
+
+        return modelClrType == typeof(Guid)
+            && property.GetMySqlGuidFormat() is not null
+            && property.GetTypeMapping().Converter is not null;
+    }
+
     private static Type MakeNullable(
         Type clrType,
         bool nullable
@@ -95,8 +170,8 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
 
         var typeMapping = property.GetRelationalTypeMapping();
 
-        return typeMapping is MySqlJsonTypeMapping or MySqlRowVersionTypeMapping
-            && typeMapping.Converter?.ProviderClrType != property.ClrType;
+        return typeMapping is IMySqlProviderOwnedModelTypeMapping providerOwnedMapping
+            && providerOwnedMapping.ProviderClrType != property.ClrType;
     }
 
     private static bool IsNullableType(

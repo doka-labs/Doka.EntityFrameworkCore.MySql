@@ -29,6 +29,248 @@ public sealed class MySqlModelValidatorAndDdlTests
         Assert.Throws<InvalidOperationException>(() => _ = context.Model);
     }
 
+    /// <summary>
+    /// An explicitly bounded utf8mb4 index that exceeds the largest InnoDB key
+    /// budget is rejected before SQL generation.
+    /// </summary>
+    [Fact]
+    public void Utf8Mb4_full_index_rejects_one_byte_over_absolute_limit()
+    {
+        using var context = new IndexWidthContext<Utf8Mb4OverlongScenario>(
+            CreateOptions<IndexWidthContext<Utf8Mb4OverlongScenario>>());
+
+        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+
+        Assert.Contains("3200 bytes", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("3072-byte", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("does not invent a prefix", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The full-column utf8mb4 boundary remains valid and is not rewritten to a
+    /// prefix index.
+    /// </summary>
+    [Fact]
+    public void Utf8Mb4_full_index_accepts_absolute_limit()
+    {
+        using var context = new IndexWidthContext<Utf8Mb4BoundaryScenario>(
+            CreateOptions<IndexWidthContext<Utf8Mb4BoundaryScenario>>());
+
+        var index = Assert.Single(context.Model.FindEntityType(typeof(IndexWidthEntity))!.GetIndexes());
+
+        Assert.Null(index.GetMySqlIndexPrefixLengths());
+    }
+
+    /// <summary>
+    /// A deliberate prefix is measured instead of the complete property.
+    /// </summary>
+    [Fact]
+    public void Utf8Mb4_explicit_prefix_accepts_absolute_limit()
+    {
+        using var context = new IndexWidthContext<Utf8Mb4PrefixBoundaryScenario>(
+            CreateOptions<IndexWidthContext<Utf8Mb4PrefixBoundaryScenario>>());
+
+        var index = Assert.Single(context.Model.FindEntityType(typeof(IndexWidthEntity))!.GetIndexes());
+
+        Assert.Equal([768], index.GetMySqlIndexPrefixLengths());
+    }
+
+    /// <summary>
+    /// Prefixes are subject to the same byte budget as complete key parts.
+    /// </summary>
+    [Fact]
+    public void Utf8Mb4_explicit_prefix_rejects_one_character_over_absolute_limit()
+    {
+        using var context = new IndexWidthContext<Utf8Mb4PrefixOverlongScenario>(
+            CreateOptions<IndexWidthContext<Utf8Mb4PrefixOverlongScenario>>());
+
+        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+
+        Assert.Contains("3076 bytes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A prefix cannot claim more characters than the bounded column stores.
+    /// </summary>
+    [Fact]
+    public void Prefix_longer_than_column_is_rejected()
+    {
+        using var context = new IndexWidthContext<PrefixBeyondColumnScenario>(
+            CreateOptions<IndexWidthContext<PrefixBeyondColumnScenario>>());
+
+        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+
+        Assert.Contains("exceeds its store length 32", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Composite definitions include fixed-width key parts in their aggregate
+    /// byte budget.
+    /// </summary>
+    [Fact]
+    public void Composite_index_rejects_aggregate_width_over_absolute_limit()
+    {
+        using var context = new IndexWidthContext<CompositeOverlongScenario>(
+            CreateOptions<IndexWidthContext<CompositeOverlongScenario>>());
+
+        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+
+        Assert.Contains("3076 bytes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Composite definitions exactly at the byte boundary remain valid.
+    /// </summary>
+    [Fact]
+    public void Composite_index_accepts_aggregate_width_at_absolute_limit()
+    {
+        using var context = new IndexWidthContext<CompositeBoundaryScenario>(
+            CreateOptions<IndexWidthContext<CompositeBoundaryScenario>>());
+
+        Assert.Single(context.Model.FindEntityType(typeof(IndexWidthEntity))!.GetIndexes());
+    }
+
+    /// <summary>
+    /// Character-set width is part of validation; a single-byte charset does
+    /// not inherit utf8mb4's four-byte multiplier.
+    /// </summary>
+    [Fact]
+    public void Latin1_full_index_accepts_length_that_utf8mb4_rejects()
+    {
+        using var context = new IndexWidthContext<Latin1Scenario>(
+            CreateOptions<IndexWidthContext<Latin1Scenario>>());
+
+        Assert.Single(context.Model.FindEntityType(typeof(IndexWidthEntity))!.GetIndexes());
+    }
+
+    /// <summary>
+    /// Three-byte character sets retain their own full-key boundary instead of
+    /// inheriting either the latin1 or utf8mb4 calculation.
+    /// </summary>
+    [Fact]
+    public void Utf8Mb3_full_index_accepts_absolute_limit()
+    {
+        using var context = new IndexWidthContext<Utf8Mb3BoundaryScenario>(
+            CreateOptions<IndexWidthContext<Utf8Mb3BoundaryScenario>>());
+
+        Assert.Single(context.Model.FindEntityType(typeof(IndexWidthEntity))!.GetIndexes());
+    }
+
+    /// <summary>
+    /// A three-byte character-set definition one character beyond the absolute
+    /// key budget is rejected.
+    /// </summary>
+    [Fact]
+    public void Utf8Mb3_full_index_rejects_one_character_over_absolute_limit()
+    {
+        using var context = new IndexWidthContext<Utf8Mb3OverlongScenario>(
+            CreateOptions<IndexWidthContext<Utf8Mb3OverlongScenario>>());
+
+        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+
+        Assert.Contains("3075 bytes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An explicit property collation determines the encoded width before a
+    /// broader model character-set default.
+    /// </summary>
+    [Fact]
+    public void Property_collation_overrides_model_character_set_for_index_width()
+    {
+        using var context = new IndexWidthContext<CollationOverrideScenario>(
+            CreateOptions<IndexWidthContext<CollationOverrideScenario>>());
+
+        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+
+        Assert.Contains("3200 bytes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Binary key parts are measured in bytes without a character-set multiplier.
+    /// </summary>
+    [Fact]
+    public void Binary_full_index_rejects_one_byte_over_absolute_limit()
+    {
+        using var context = new IndexWidthContext<BinaryOverlongScenario>(
+            CreateOptions<IndexWidthContext<BinaryOverlongScenario>>());
+
+        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+
+        Assert.Contains("3073 bytes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Binary key lengths are byte-exact at the absolute boundary.
+    /// </summary>
+    [Fact]
+    public void Binary_full_index_accepts_absolute_limit()
+    {
+        using var context = new IndexWidthContext<BinaryBoundaryScenario>(
+            CreateOptions<IndexWidthContext<BinaryBoundaryScenario>>());
+
+        Assert.Single(context.Model.FindEntityType(typeof(IndexWidthEntity))!.GetIndexes());
+    }
+
+    /// <summary>
+    /// Unique and key definitions share the same fail-closed byte contract.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Unique_and_alternate_key_definitions_reject_overlong_utf8mb4_values(
+        bool uniqueIndex
+    )
+    {
+        var exception = uniqueIndex
+            ? Assert.Throws<InvalidOperationException>(() =>
+            {
+                using var context = new IndexWidthContext<UniqueOverlongScenario>(
+                    CreateOptions<IndexWidthContext<UniqueOverlongScenario>>());
+                _ = context.Model;
+            })
+            : Assert.Throws<InvalidOperationException>(() =>
+            {
+                using var context = new IndexWidthContext<AlternateKeyOverlongScenario>(
+                    CreateOptions<IndexWidthContext<AlternateKeyOverlongScenario>>());
+                _ = context.Model;
+            });
+
+        Assert.Contains("3200 bytes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Primary keys are evaluated by the same complete-definition contract as
+    /// alternate keys and indexes.
+    /// </summary>
+    [Fact]
+    public void Primary_key_rejects_overlong_utf8mb4_value()
+    {
+        using var context = new IndexWidthContext<PrimaryKeyOverlongScenario>(
+            CreateOptions<IndexWidthContext<PrimaryKeyOverlongScenario>>());
+
+        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+
+        Assert.Contains("key 'PK_IndexWidthEntity'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("3200 bytes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The convention-created supporting index for a foreign key is validated
+    /// without requiring an explicit HasIndex call.
+    /// </summary>
+    [Fact]
+    public void Foreign_key_supporting_index_accepts_absolute_limit()
+    {
+        using var context = new ForeignKeyIndexWidthContext(
+            CreateOptions<ForeignKeyIndexWidthContext>());
+
+        var dependent = context.Model.FindEntityType(typeof(ForeignKeyIndexWidthDependent));
+        var index = Assert.Single(dependent!.GetIndexes());
+
+        Assert.True(index.Properties.Single().IsForeignKey());
+    }
+
     [Fact]
     public void Default_table_and_view_schemas_are_preserved_as_database_qualifiers()
     {
@@ -343,6 +585,193 @@ public sealed class MySqlModelValidatorAndDdlTests
                 entity.HasIndex(item => item.Body);
             });
         }
+    }
+
+    private sealed class IndexWidthContext<TScenario> : DbContext
+        where TScenario : class
+    {
+        public IndexWidthContext(
+            DbContextOptions<IndexWidthContext<TScenario>> options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            var scenarioType = typeof(TScenario);
+            var charSet = scenarioType switch
+            {
+                var current when current == typeof(Latin1Scenario)
+                    || current == typeof(CollationOverrideScenario) => "latin1",
+                var current when current == typeof(Utf8Mb3BoundaryScenario)
+                    || current == typeof(Utf8Mb3OverlongScenario) => "utf8mb3",
+                _ => "utf8mb4",
+            };
+            modelBuilder.HasCharSet(charSet);
+
+            modelBuilder.Entity<IndexWidthEntity>(entity =>
+            {
+                entity.HasKey(item => item.Id);
+
+                if (scenarioType == typeof(BinaryOverlongScenario)
+                    || scenarioType == typeof(BinaryBoundaryScenario))
+                {
+                    entity
+                        .Property(item => item.BinaryValue)
+                        .HasColumnType(
+                            scenarioType == typeof(BinaryBoundaryScenario)
+                                ? "varbinary(3072)"
+                                : "varbinary(3073)");
+                    entity.HasIndex(item => item.BinaryValue);
+                    return;
+                }
+
+                var length = scenarioType switch
+                {
+                    var current when current == typeof(Utf8Mb4BoundaryScenario) => 768,
+                    var current when current == typeof(PrefixBeyondColumnScenario) => 32,
+                    var current when current == typeof(CompositeBoundaryScenario) => 767,
+                    var current when current == typeof(CompositeOverlongScenario) => 768,
+                    var current when current == typeof(Utf8Mb3BoundaryScenario) => 1024,
+                    var current when current == typeof(Utf8Mb3OverlongScenario) => 1025,
+                    _ => 800,
+                };
+
+                var property = entity
+                    .Property(item => item.Value)
+                    .HasColumnType($"varchar({length})");
+
+                if (scenarioType == typeof(CollationOverrideScenario))
+                {
+                    property.UseCollation("utf8mb4_bin");
+                }
+
+                if (scenarioType == typeof(PrimaryKeyOverlongScenario))
+                {
+                    entity.HasKey(item => item.Value);
+                    return;
+                }
+
+                if (scenarioType == typeof(AlternateKeyOverlongScenario))
+                {
+                    entity.HasAlternateKey(item => item.Value);
+                    return;
+                }
+
+                var index = scenarioType == typeof(CompositeBoundaryScenario)
+                    || scenarioType == typeof(CompositeOverlongScenario)
+                        ? entity.HasIndex(item => new { item.Value, item.Id })
+                        : entity.HasIndex(item => item.Value);
+
+                if (scenarioType == typeof(UniqueOverlongScenario))
+                {
+                    index.IsUnique();
+                }
+                else if (scenarioType == typeof(Utf8Mb4PrefixBoundaryScenario))
+                {
+                    index.HasPrefixLength(768);
+                }
+                else if (scenarioType == typeof(Utf8Mb4PrefixOverlongScenario))
+                {
+                    index.HasPrefixLength(769);
+                }
+                else if (scenarioType == typeof(PrefixBeyondColumnScenario))
+                {
+                    index.HasPrefixLength(33);
+                }
+            });
+        }
+    }
+
+    private sealed class Utf8Mb4OverlongScenario;
+
+    private sealed class Utf8Mb4BoundaryScenario;
+
+    private sealed class Utf8Mb4PrefixBoundaryScenario;
+
+    private sealed class Utf8Mb4PrefixOverlongScenario;
+
+    private sealed class PrefixBeyondColumnScenario;
+
+    private sealed class CompositeBoundaryScenario;
+
+    private sealed class CompositeOverlongScenario;
+
+    private sealed class Latin1Scenario;
+
+    private sealed class Utf8Mb3BoundaryScenario;
+
+    private sealed class Utf8Mb3OverlongScenario;
+
+    private sealed class CollationOverrideScenario;
+
+    private sealed class BinaryBoundaryScenario;
+
+    private sealed class BinaryOverlongScenario;
+
+    private sealed class UniqueOverlongScenario;
+
+    private sealed class AlternateKeyOverlongScenario;
+
+    private sealed class PrimaryKeyOverlongScenario;
+
+    private sealed class ForeignKeyIndexWidthContext : DbContext
+    {
+        public ForeignKeyIndexWidthContext(
+            DbContextOptions<ForeignKeyIndexWidthContext> options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.HasCharSet("utf8mb4");
+
+            modelBuilder.Entity<ForeignKeyIndexWidthPrincipal>(entity =>
+            {
+                entity.HasKey(item => item.Id);
+                entity
+                    .Property(item => item.NaturalKey)
+                    .HasColumnType("varchar(768)");
+                entity.HasAlternateKey(item => item.NaturalKey);
+            });
+
+            modelBuilder.Entity<ForeignKeyIndexWidthDependent>(entity =>
+            {
+                entity.HasKey(item => item.Id);
+                entity
+                    .Property(item => item.PrincipalNaturalKey)
+                    .HasColumnType("varchar(768)");
+                entity
+                    .HasOne<ForeignKeyIndexWidthPrincipal>()
+                    .WithMany()
+                    .HasForeignKey(item => item.PrincipalNaturalKey)
+                    .HasPrincipalKey(item => item.NaturalKey);
+            });
+        }
+    }
+
+    private sealed class ForeignKeyIndexWidthPrincipal
+    {
+        public int Id { get; set; }
+
+        public string NaturalKey { get; set; } = string.Empty;
+    }
+
+    private sealed class ForeignKeyIndexWidthDependent
+    {
+        public int Id { get; set; }
+
+        public string PrincipalNaturalKey { get; set; } = string.Empty;
+    }
+
+    private sealed class IndexWidthEntity
+    {
+        public int Id { get; set; }
+
+        public string Value { get; set; } = string.Empty;
+
+        public byte[] BinaryValue { get; set; } = [];
     }
 
     private sealed class FullTextIndexEntity

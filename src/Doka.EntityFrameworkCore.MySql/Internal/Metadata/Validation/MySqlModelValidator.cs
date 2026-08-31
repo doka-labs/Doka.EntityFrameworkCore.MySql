@@ -5,6 +5,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal sealed class MySqlModelValidator : RelationalModelValidator
 {
+    private const int MaximumInnoDbIndexBytes = 3072;
     private readonly MySqlSingletonOptions _singletonOptions;
 
     public MySqlModelValidator(
@@ -74,18 +75,64 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
     {
         foreach (var entityType in model.GetEntityTypes())
         {
-            foreach (var property in entityType.GetProperties())
+            foreach (var key in entityType.GetKeys())
             {
-                if (!RequiresExplicitMaxLength(property))
+                ValidateIndexKeyWidth(
+                    entityType,
+                    key.Properties,
+                    prefixLengths: null,
+                    $"key '{key.GetName()}'",
+                    logger);
+            }
+
+            foreach (var index in entityType.GetIndexes())
+            {
+                if (index.GetMySqlFullTextIndex()
+                    || index.GetMySqlSpatialIndex())
                 {
                     continue;
                 }
 
-                if (!HasUnboundedStoreType(property))
-                {
-                    continue;
-                }
+                ValidateIndexKeyWidth(
+                    entityType,
+                    index.Properties,
+                    index.GetMySqlIndexPrefixLengths(),
+                    $"index '{index.GetDatabaseName() ?? index.Name}'",
+                    logger);
+            }
+        }
+    }
 
+    private static void ValidateIndexKeyWidth(
+        IEntityType entityType,
+        IReadOnlyList<IProperty> properties,
+        IReadOnlyList<int>? prefixLengths,
+        string definition,
+        ILogger logger
+    )
+    {
+        if (prefixLengths is not null
+            && prefixLengths.Count != properties.Count)
+        {
+            throw new InvalidOperationException(
+                $"The {definition} on entity type '{entityType.DisplayName()}' must declare one prefix length "
+                + "per indexed property.");
+        }
+
+        if (prefixLengths?.Any(prefixLength => prefixLength < 0) == true)
+        {
+            throw new InvalidOperationException(
+                $"The {definition} on entity type '{entityType.DisplayName()}' contains a negative prefix length.");
+        }
+
+        long knownBytes = 0;
+
+        for (var index = 0; index < properties.Count; index++)
+        {
+            var property = properties[index];
+
+            if (HasUnboundedStoreType(property))
+            {
                 var propertyKind = property.ClrType.UnwrapNullableType() == typeof(byte[]) ? "binary" : "text";
 
                 MySqlLoggerMessages.KeyOrIndexMaxLengthRequired(
@@ -98,7 +145,267 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                     $"The keyed or indexed {propertyKind} property "
                     + $"'{entityType.DisplayName()}.{property.Name}' must map to a bounded store type.");
             }
+
+            var prefixLength = prefixLengths?[index] ?? 0;
+            var fullLength = GetStoreTypeLength(property);
+
+            if (prefixLength > 0
+                && prefixLength > fullLength)
+            {
+                throw new InvalidOperationException(
+                    $"The {definition} on entity type '{entityType.DisplayName()}' declares prefix length "
+                    + $"{prefixLength} for '{property.Name}', which exceeds its store length {fullLength}.");
+            }
+
+            var propertyBytes = GetIndexedBytes(entityType, property, prefixLength, fullLength);
+            if (propertyBytes is null)
+            {
+                continue;
+            }
+
+            knownBytes += propertyBytes.Value;
+            if (knownBytes > MaximumInnoDbIndexBytes)
+            {
+                throw new InvalidOperationException(
+                    $"The {definition} on entity type '{entityType.DisplayName()}' requires at least "
+                    + $"{knownBytes} bytes and exceeds InnoDB's maximum supported "
+                    + $"{MaximumInnoDbIndexBytes}-byte index-key length. Configure a deliberate prefix "
+                    + "or reduce the indexed column lengths; Doka does not invent a prefix because that "
+                    + "would change index and uniqueness semantics.");
+            }
         }
+    }
+
+    private static long? GetIndexedBytes(
+        IEntityType entityType,
+        IProperty property,
+        int prefixLength,
+        int? fullLength
+    )
+    {
+        var storeType = property.GetRelationalTypeMapping().StoreType;
+        var storeTypeName = GetStoreTypeName(storeType);
+        var indexedLength = prefixLength > 0 ? prefixLength : fullLength;
+
+        if (storeTypeName is "char" or "varchar")
+        {
+            if (indexedLength is null)
+            {
+                return null;
+            }
+
+            var bytesPerCharacter = GetBytesPerCharacter(entityType, property);
+
+            // One byte per character is the lower bound for an unknown server
+            // character set. It still rejects definitions that cannot fit on
+            // any supported InnoDB configuration, while the migration warning
+            // guard closes configuration-dependent cases at execution time.
+            return checked((long)indexedLength.Value * (bytesPerCharacter ?? 1));
+        }
+
+        return storeTypeName is "binary" or "varbinary"
+            ? indexedLength
+            : GetFixedStoreTypeBytes(storeTypeName, storeType);
+    }
+
+    private static int? GetBytesPerCharacter(
+        IEntityType entityType,
+        IProperty property
+    )
+    {
+        var charSet = GetCharSetFromCollation(property.GetCollation())
+            ?? entityType.GetMySqlCharSet()
+            ?? GetCharSetFromCollation(entityType.Model.GetCollation())
+            ?? entityType.Model.GetMySqlCharSet();
+
+        return charSet?.Trim().ToLowerInvariant() switch
+        {
+            "utf8mb4" or "utf16" or "utf16le" or "utf32" or "gb18030" => 4,
+            "utf8" or "utf8mb3" => 3,
+            "big5" or "cp932" or "eucjpms" or "gb2312" or "gbk" or "sjis" or "ucs2" or "ujis" => 2,
+            "armscii8"
+                or "ascii"
+                or "binary"
+                or "cp1250"
+                or "cp1251"
+                or "cp1256"
+                or "cp1257"
+                or "cp850"
+                or "cp852"
+                or "cp866"
+                or "dec8"
+                or "geostd8"
+                or "greek"
+                or "hebrew"
+                or "hp8"
+                or "keybcs2"
+                or "koi8r"
+                or "koi8u"
+                or "latin1"
+                or "latin2"
+                or "latin5"
+                or "latin7"
+                or "macce"
+                or "macroman"
+                or "swe7"
+                or "tis620" => 1,
+            _ => null,
+        };
+    }
+
+    private static string? GetCharSetFromCollation(
+        string? collation
+    )
+    {
+        if (string.IsNullOrWhiteSpace(collation))
+        {
+            return null;
+        }
+
+        var separator = collation.IndexOf('_');
+
+        return separator > 0 ? collation[..separator] : null;
+    }
+
+    private static int? GetStoreTypeLength(
+        IProperty property
+    )
+    {
+        var storeType = property.GetRelationalTypeMapping().StoreType;
+        var facetStart = storeType.IndexOf('(');
+        if (facetStart >= 0)
+        {
+            var facetEnd = storeType.IndexOf(')', facetStart + 1);
+            if (facetEnd > facetStart + 1)
+            {
+                var facet = storeType.AsSpan(facetStart + 1, facetEnd - facetStart - 1);
+                var separator = facet.IndexOf(',');
+                var lengthFacet = separator >= 0 ? facet[..separator] : facet;
+
+                if (int.TryParse(lengthFacet.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var length))
+                {
+                    return length;
+                }
+            }
+        }
+
+        return property.GetRelationalTypeMapping().Size
+            ?? property.GetMaxLength();
+    }
+
+    private static string GetStoreTypeName(
+        string storeType
+    )
+    {
+        var facetStart = storeType.IndexOf('(');
+        var name = facetStart >= 0 ? storeType[..facetStart] : storeType;
+        var modifierStart = name.IndexOf(' ');
+
+        return (modifierStart >= 0 ? name[..modifierStart] : name)
+            .Trim()
+            .ToLowerInvariant();
+    }
+
+    private static int? GetFixedStoreTypeBytes(
+        string storeTypeName,
+        string storeType
+    ) => storeTypeName switch
+    {
+        "bit" => GetBitBytes(storeType),
+        "bool" or "boolean" or "tinyint" or "year" => 1,
+        "smallint" => 2,
+        "mediumint" or "date" => 3,
+        "int" or "integer" or "float" => 4,
+        "bigint" or "double" or "real" => 8,
+        "decimal" or "numeric" => GetDecimalBytes(storeType),
+        "time" => 3 + GetFractionalSecondsBytes(storeType),
+        "datetime" => 5 + GetFractionalSecondsBytes(storeType),
+        "timestamp" => 4 + GetFractionalSecondsBytes(storeType),
+        _ => null,
+    };
+
+    private static int GetBitBytes(
+        string storeType
+    )
+    {
+        var bits = GetFirstStoreTypeFacet(storeType) ?? 1;
+
+        return checked((bits + 7) / 8);
+    }
+
+    private static int? GetDecimalBytes(
+        string storeType
+    )
+    {
+        var facets = GetStoreTypeFacets(storeType);
+        if (facets is null)
+        {
+            return null;
+        }
+
+        var precision = facets.Value.First;
+        var scale = facets.Value.Second;
+
+        if (precision < 1
+            || scale < 0
+            || scale > precision)
+        {
+            return null;
+        }
+
+        return GetDecimalDigitsBytes(precision - scale)
+            + GetDecimalDigitsBytes(scale);
+    }
+
+    private static int GetDecimalDigitsBytes(
+        int digits
+    )
+    {
+        ReadOnlySpan<int> remainderBytes = [0, 1, 1, 2, 2, 3, 3, 3, 4];
+
+        return ((digits / 9) * 4) + remainderBytes[digits % 9];
+    }
+
+    private static int GetFractionalSecondsBytes(
+        string storeType
+    )
+    {
+        var precision = GetFirstStoreTypeFacet(storeType) ?? 0;
+
+        return precision switch
+        {
+            0 => 0,
+            <= 2 => 1,
+            <= 4 => 2,
+            _ => 3,
+        };
+    }
+
+    private static int? GetFirstStoreTypeFacet(
+        string storeType
+    ) => GetStoreTypeFacets(storeType)?.First;
+
+    private static (int First, int Second)? GetStoreTypeFacets(
+        string storeType
+    )
+    {
+        var facetStart = storeType.IndexOf('(');
+        var facetEnd = facetStart < 0 ? -1 : storeType.IndexOf(')', facetStart + 1);
+        if (facetStart < 0
+            || facetEnd <= facetStart + 1)
+        {
+            return null;
+        }
+
+        var facets = storeType.AsSpan(facetStart + 1, facetEnd - facetStart - 1);
+        var separator = facets.IndexOf(',');
+        var firstFacet = separator >= 0 ? facets[..separator] : facets;
+        var secondFacet = separator >= 0 ? facets[(separator + 1)..] : "0";
+
+        return int.TryParse(firstFacet.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var first)
+            && int.TryParse(secondFacet.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var second)
+                ? (first, second)
+                : null;
     }
 
     private static bool HasUnboundedStoreType(
@@ -112,12 +419,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
         var storeType = property.GetRelationalTypeMapping()
             .StoreType;
 
-        var facetStart = storeType.IndexOf('(');
-        var storeTypeName = facetStart >= 0 ? storeType[..facetStart] : storeType;
-
-        return storeTypeName
-                .Trim()
-                .ToLowerInvariant() is "tinytext"
+        return GetStoreTypeName(storeType) is "tinytext"
             or "text"
             or "mediumtext"
             or "longtext"
@@ -134,7 +436,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
     {
         foreach (var entityType in model.GetEntityTypes())
         {
-            foreach (var property in entityType.GetProperties())
+            foreach (var property in GetPropertiesIncludingComplexTypes(entityType))
             {
                 if (property.ClrType.UnwrapNullableType() != typeof(decimal))
                 {
@@ -154,29 +456,6 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                     defaultScale: 2);
             }
         }
-    }
-
-    private static bool RequiresExplicitMaxLength(
-        IProperty property
-    )
-    {
-        var clrType = property.ClrType.UnwrapNullableType();
-
-        if (clrType != typeof(string)
-            && clrType != typeof(byte[]))
-        {
-            return false;
-        }
-
-        var declaringEntityType = property.DeclaringType as IEntityType;
-
-        return property.FindContainingPrimaryKey() is not null
-            || declaringEntityType
-                ?.GetKeys()
-                .Any(key => key.Properties.Contains(property)) == true
-            || property
-                .GetContainingIndexes()
-                .Any(index => !index.GetMySqlFullTextIndex());
     }
 
     private static bool HasExplicitDecimalPrecision(
@@ -481,7 +760,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
         ILogger logger
     )
     {
-        foreach (var property in entityType.GetProperties())
+        foreach (var property in GetPropertiesIncludingComplexTypes(entityType))
         {
             if (property.GetComputedColumnSql() is null)
             {
@@ -515,6 +794,29 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                 logger,
                 $"The {role} name '{name}' on entity type '{entityType.DisplayName()}' exceeds the "
                 + $"{MySqlConventionSetBuilder.MaxIdentifierLength}-character engine limit.");
+        }
+    }
+
+    private static IEnumerable<IProperty> GetPropertiesIncludingComplexTypes(
+        IReadOnlyTypeBase typeBase
+    )
+    {
+        foreach (var property in typeBase.GetDeclaredProperties())
+        {
+            yield return (IProperty)property;
+        }
+
+        foreach (var complexProperty in typeBase.GetDeclaredComplexProperties())
+        {
+            if (complexProperty.IsCollection)
+            {
+                continue;
+            }
+
+            foreach (var property in GetPropertiesIncludingComplexTypes(complexProperty.ComplexType))
+            {
+                yield return property;
+            }
         }
     }
 

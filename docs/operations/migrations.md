@@ -139,6 +139,95 @@ existing-row preservation, and new-row defaults through every EF deployment
 path on all six active targets. Script generation additionally rejects any
 unparenthesized `DEFAULT DATE '...'` or `DEFAULT TIME '...'` form.
 
+### Model-managed data literals
+
+`HasData` is model-managed data: EF compares the current model with the saved
+snapshot and derives `InsertData`, `UpdateData`, and `DeleteData` operations.
+The generated model and the executable operation therefore have different CLR
+boundaries when a provider-owned value converter is present.
+
+For native `Char36` and `Binary16` properties, snapshots and migration
+designers reconstruct `Guid` or `Guid?` values. For native JSON properties,
+they reconstruct `JsonElement`, `JsonDocument`, `JsonNode`, `JsonObject`, or
+`JsonArray` values through the corresponding `System.Text.Json` parser.
+Explicit model-managed values on Doka's `byte[]` row-version mapping remain
+byte arrays instead of leaking the provider-side `DateTime` representation.
+NetTopologySuite model-managed spatial values likewise retain their concrete
+`Geometry` model type, coordinates, and SRID instead of leaking MySqlConnector's
+`MySqlGeometry` transport type.
+The generated snapshot and designer namespace set follows these reconstructed
+model types, including a `System` import for a model containing only converted
+`Char36` GUID properties. Namespace discovery and provider GUID conventions
+walk nested non-collection complex properties as well as direct entity
+properties; application-owned converters remain provider-shaped negative
+controls on either surface.
+For MySQL geographic spatial reference systems, generated SQL selects
+`axis-order=long-lat` so NetTopologySuite X/Y coordinates retain their
+longitude/latitude meaning. MariaDB receives the supported two-argument
+`ST_GeomFromText(wkt, srid)` form because it does not expose MySQL's options
+argument.
+This keeps the saved model reloadable and makes an unchanged model produce
+zero migration operations. The executable `InsertDataOperation` retains the
+representation required by the selected type mapping: provider-side strings
+for native JSON and model-side geometries for spatial SQL literal generation.
+Store-generated row-version columns remain omitted. Neither executable shape
+may be substituted for the model-side snapshot literal.
+
+Application-owned converters remain authoritative. Doka does not reinterpret
+their seeds as provider-native GUID or JSON values. Use fixed deterministic
+`HasData` values only; database-dependent, generated, or mutable initialization
+belongs in EF's runtime seeding APIs or in an explicit reviewed data migration.
+
+Provider-owned GUID literal defaults follow the model boundary as well.
+Snapshots and migration designers emit typed `Guid` values for native
+`Char36` and `Binary16` properties, including nullable properties and
+`Guid.Empty`. Application-owned converters continue to emit their provider
+representation. A generated `HasDefaultValue("...")` on a provider-owned
+`Guid` property is invalid because the saved model cannot initialize it.
+Native JSON literal defaults likewise reconstruct their JSON CLR type rather
+than a provider-side string.
+
+### Index key fidelity failures
+
+An exception reporting server code 1071 means the server accepted migration
+DDL only after shortening an index key. Treat it as a failed migration even if
+the table or index now exists: the catalog no longer represents the requested
+model, and DDL may have committed before Doka received the server diagnostic.
+
+1. Confirm the migration is absent from the configured EF history table.
+2. Inspect `information_schema.STATISTICS.SUB_PART` for the affected index.
+3. Remove or correct the partially created object.
+4. Reduce the indexed column length or configure an intentional
+   `HasPrefixLength(...)` value after reviewing selectivity and uniqueness.
+5. Regenerate and review the migration before retrying it.
+
+Do not suppress the server diagnostic or add the history row manually. Model
+validation catches definitions that exceed the absolute 3072-byte maximum;
+the runtime guard also covers lower page-size limits and old or hand-authored
+migration operations.
+
+Adding, removing, or changing `HasPrefixLength(...)` on an existing index is a
+physical index change. Doka emits one drop and one create operation with the
+target ordered prefix lengths; it does not treat the annotation-only model
+change as metadata with no DDL effect. Review the rebuild's locking and storage
+cost for large tables before deployment.
+
+When the same migration also renames the index or its table, Doka associates
+the source and target through the stable EF model index and orders the physical
+drop before the rename and the create after it. A rename with unchanged prefix
+metadata remains a native rename and does not incur a rebuild.
+
+Index association follows the relational model's physical tables. This keeps
+base and derived indexes attached to their owning TPT tables and preserves the
+provider metadata on every physical index produced by TPC expansion. A TPC
+table or index rename combined with a metadata change rebuilds each physical
+copy independently. TPH retains its single-table identity.
+
+The same rebuild boundary applies when an existing ordinary index becomes
+full-text or spatial, or changes back. These annotations select different
+physical index kinds; a metadata-only migration would leave the live catalog
+inconsistent with the model.
+
 ### GUID representation changes
 
 Do not apply a generated in-place alteration between text GUID storage and
@@ -423,6 +512,20 @@ ADO.NET command.
   retrieved 2026-07-28.
 - Microsoft, [Managing Migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/managing),
   retrieved 2026-08-29.
+- Microsoft, [EF Core model-managed data](https://learn.microsoft.com/en-us/ef/core/modeling/data-seeding#model-managed-data),
+  retrieved 2026-08-31.
+- Microsoft, [EF Core 10.0.11 `CSharpHelper` source](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore.Design/Design/Internal/CSharpHelper.cs),
+  retrieved 2026-08-31.
+- Microsoft, [EF Core 10.0.11 `MigrationsCodeGenerator` source](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore.Design/Migrations/Design/MigrationsCodeGenerator.cs),
+  retrieved 2026-08-31.
+- Microsoft, [EF Core complex types](https://learn.microsoft.com/en-us/ef/core/modeling/complex-types),
+  retrieved 2026-08-31.
+- Microsoft, [`JsonElement.Parse`](https://learn.microsoft.com/en-us/dotnet/api/system.text.json.jsonelement.parse?view=net-10.0),
+  retrieved 2026-08-31.
+- Microsoft, [`JsonDocument.Parse`](https://learn.microsoft.com/en-us/dotnet/api/system.text.json.jsondocument.parse?view=net-10.0),
+  retrieved 2026-08-31.
+- Microsoft, [`JsonNode.Parse`](https://learn.microsoft.com/en-us/dotnet/api/system.text.json.nodes.jsonnode.parse?view=net-10.0),
+  retrieved 2026-08-31.
 - Microsoft, [EF Core 10.0.8 `MigrationsModelDiffer` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/Internal/MigrationsModelDiffer.cs),
   retrieved 2026-08-29.
 - Microsoft, [EF Core 10.0.8 `MigrationCommand` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationCommand.cs),
@@ -441,6 +544,10 @@ ADO.NET command.
   retrieved 2026-08-21.
 - MySQL, [Geometry Well-Formedness and Validity](https://dev.mysql.com/doc/refman/8.4/en/geometry-well-formedness-validity.html),
   retrieved 2026-08-21.
+- MySQL, [Functions That Create Geometry Values from WKT Values](https://dev.mysql.com/doc/refman/8.4/en/gis-wkt-functions.html),
+  retrieved 2026-08-31.
+- MariaDB, [`ST_GeomFromText`](https://mariadb.com/docs/server/reference/sql-statements/geometry-constructors/wkt/st_geomfromtext),
+  retrieved 2026-08-31.
 - MySQL, [`CHECK` Constraints](https://dev.mysql.com/doc/refman/8.4/en/create-table-check-constraints.html),
   retrieved 2026-08-21.
 - MySQL, [`CREATE TABLE` Statement](https://dev.mysql.com/doc/refman/8.4/en/create-table.html),
