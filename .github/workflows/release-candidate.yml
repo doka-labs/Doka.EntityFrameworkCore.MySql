@@ -28,7 +28,9 @@ jobs:
 
     permissions:
       actions: read
+      checks: read
       contents: read
+      pull-requests: read
 
     steps:
       - name: Checkout candidate source
@@ -36,11 +38,6 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
 
       - name: Verify current untagged main source
         env:
@@ -64,6 +61,22 @@ jobs:
             echo "Candidate qualification must complete before a semantic tag exists." >&2
             exit 1
           fi
+
+      - name: Verify imported repository qualification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -m eng.release.trust pre-tag \
+            --repo . \
+            --commit "${GITHUB_SHA}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --policy eng/release/evidence-policy.json \
+            --qualification-only
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
 
       - name: Verify release tooling contracts
         run: |

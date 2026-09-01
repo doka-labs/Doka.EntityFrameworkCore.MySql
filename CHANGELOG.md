@@ -7,7 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-## [10.3.0] - 2026-08-31
+## [10.3.0] - 2026-09-01
 
 Stable minor release preserving provider-owned migration metadata from model
 construction through generated snapshots, migration designers, migration
@@ -34,6 +34,15 @@ dotnet package add Doka.Caching.MySql --version 10.3.0
 
 ### Fixed
 
+- Bind release qualification to the pull-request merge-ref tree GitHub Actions
+  actually tested instead of the raw pull-request head tree. The protected
+  aggregator now records that tree in attempt-qualified artifact metadata, and
+  candidate assembly plus publication freeze and revalidate its exact artifact
+  identity. Release-candidate preflight now performs that trust check before
+  the expensive gates start, so an invalid import fails early rather than only
+  after qualification has completed. Workflow runs created before this policy
+  remain intentionally ineligible; the pull request carrying this change is
+  the bootstrap qualification.
 - Preserve provider-owned `Guid` values in generated `HasData` snapshots and
   migration designers for both `Char36` and `Binary16`, including nullable
   values and seeded relationships, while retaining EF Core's provider-shaped

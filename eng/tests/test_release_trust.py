@@ -234,6 +234,27 @@ class ReachabilityTests(unittest.TestCase):
 COMMIT = "a" * 40
 QUALIFIED_COMMIT = "c" * 40
 TREE = "b" * 40
+HEAD_TREE = "e" * 40
+
+
+def qualification_artifact(
+    *,
+    run_attempt: int = 2,
+    tree: str = TREE,
+) -> dict[str, object]:
+    """Return immutable artifact metadata carrying one tested merge tree."""
+    return {
+        "id": 8001,
+        "name": (
+            f"release-stage-repository-qualification-{tree}"
+            f"-attempt-{run_attempt}"
+        ),
+        "expired": False,
+        "workflow_run": {
+            "id": 9001,
+            "head_sha": QUALIFIED_COMMIT,
+        },
+    }
 
 
 def qualification(**overrides: object) -> dict[str, object]:
@@ -255,6 +276,7 @@ def qualification(**overrides: object) -> dict[str, object]:
         "mergedCommit": COMMIT,
         "mergedTreeId": TREE,
         "qualifiedTreeId": TREE,
+        "qualificationArtifactId": 8001,
     }
     receipt.update(overrides)
 
@@ -297,6 +319,10 @@ def qualification_manifest(
                 "baseBranch": receipt.get("baseBranch", "main"),
                 "qualifiedCommit": receipt.get("commit", QUALIFIED_COMMIT),
                 "qualifiedTreeId": receipt.get("qualifiedTreeId", tree_id),
+                "qualificationArtifactId": receipt.get(
+                    "qualificationArtifactId",
+                    8001,
+                ),
                 "responseDigest": hashlib.sha256(
                     json.dumps(
                         receipt,
@@ -395,7 +421,12 @@ class PullRequestQualificationTests(unittest.TestCase):
 
     def test_missing_pull_request_identity_is_rejected(self) -> None:
         """Reject evidence that cannot be traced back to one merged PR."""
-        for field in ("pullRequestNumber", "commit", "qualifiedTreeId"):
+        for field in (
+            "pullRequestNumber",
+            "commit",
+            "qualifiedTreeId",
+            "qualificationArtifactId",
+        ):
             with self.subTest(field=field):
                 with self.assertRaises(trust.TrustRootError):
                     self.check(**{field: None})
@@ -506,6 +537,157 @@ class QualificationResolutionTests(unittest.TestCase):
         self.assertEqual("pull_request", receipt["event"])
         self.assertEqual("feature/provider-change", receipt["headBranch"])
         self.assertEqual(QUALIFIED_COMMIT, receipt["commit"])
+
+    def test_the_tested_merge_tree_is_bound_instead_of_the_raw_head_tree(
+        self,
+    ) -> None:
+        """Accept a squash whose tested merge tree differs from the PR head."""
+        def object_api(path: str) -> dict[str, object]:
+            if path.endswith(f"/commits/{QUALIFIED_COMMIT}/check-runs"):
+                return self.CHECK_RUNS
+            if "actions/runs?check_suite_id=7001" in path:
+                return self.WORKFLOW_RUNS
+            if path.endswith(f"/git/commits/{COMMIT}"):
+                return {"tree": {"sha": TREE}}
+            if path.endswith(f"/git/commits/{QUALIFIED_COMMIT}"):
+                return {"tree": {"sha": HEAD_TREE}}
+            if path.endswith(
+                "/actions/runs/9001/artifacts?per_page=100&page=1"
+            ):
+                return {
+                    "total_count": 1,
+                    "artifacts": [qualification_artifact()],
+                }
+            self.fail(f"Unexpected object API path: {path}")
+
+        with (
+            mock.patch.object(trust, "_gh_json", side_effect=object_api),
+            mock.patch.object(
+                trust,
+                "_gh_array",
+                return_value=self.PULL_REQUESTS,
+            ),
+        ):
+            receipt = trust.fetch_qualification_receipt(
+                "doka-labs/Doka.EntityFrameworkCore.MySql",
+                COMMIT,
+                "repository-qualification",
+            )
+
+        self.assertEqual(QUALIFIED_COMMIT, receipt["commit"])
+        self.assertEqual(TREE, receipt["qualifiedTreeId"])
+        self.assertEqual(8001, receipt["qualificationArtifactId"])
+
+    def test_an_artifact_for_another_head_is_rejected(self) -> None:
+        """Reject tree metadata that belongs to another pull-request head."""
+        artifact = qualification_artifact()
+        artifact["workflow_run"] = {
+            "id": 9001,
+            "head_sha": "9" * 40,
+        }
+
+        with self.assertRaisesRegex(
+            trust.TrustRootError,
+            "exactly one merge-tree artifact",
+        ):
+            trust.select_qualification_artifact(
+                {"total_count": 1, "artifacts": [artifact]},
+                workflow_run=self.WORKFLOW_RUNS["workflow_runs"][0],
+            )
+
+    def test_ambiguous_merge_tree_artifacts_are_rejected(self) -> None:
+        """Reject a workflow attempt that published more than one tree."""
+        with self.assertRaisesRegex(
+            trust.TrustRootError,
+            "exactly one merge-tree artifact",
+        ):
+            trust.select_qualification_artifact(
+                {
+                    "total_count": 2,
+                    "artifacts": [
+                        qualification_artifact(),
+                        qualification_artifact(tree="9" * 40),
+                    ],
+                },
+                workflow_run=self.WORKFLOW_RUNS["workflow_runs"][0],
+            )
+
+    def test_a_pre_policy_run_without_an_artifact_is_rejected(self) -> None:
+        """Keep the bootstrap boundary fail closed."""
+        with self.assertRaisesRegex(
+            trust.TrustRootError,
+            "before the merge-tree artifact policy do not qualify",
+        ):
+            trust.select_qualification_artifact(
+                {"total_count": 0, "artifacts": []},
+                workflow_run=self.WORKFLOW_RUNS["workflow_runs"][0],
+            )
+
+    def test_an_expired_merge_tree_artifact_is_rejected_explicitly(self) -> None:
+        """Distinguish expired evidence from absent or ambiguous evidence."""
+        artifact = qualification_artifact()
+        artifact["expired"] = True
+        artifact["expires_at"] = "2026-11-30T00:00:00Z"
+
+        with self.assertRaisesRegex(trust.TrustRootError, "artifact expired at"):
+            trust.select_qualification_artifact(
+                {"total_count": 1, "artifacts": [artifact]},
+                workflow_run=self.WORKFLOW_RUNS["workflow_runs"][0],
+            )
+
+    def test_artifact_lookup_reads_every_page(self) -> None:
+        """Find qualification evidence after the first API page."""
+        first_page = {
+            "total_count": 101,
+            "artifacts": [
+                {"name": f"unrelated-{index}"}
+                for index in range(100)
+            ],
+        }
+        second_page = {
+            "total_count": 101,
+            "artifacts": [qualification_artifact()],
+        }
+
+        with mock.patch.object(
+            trust,
+            "_gh_json",
+            side_effect=[first_page, second_page],
+        ):
+            artifact = trust.fetch_qualification_artifact(
+                "doka-labs/Doka.EntityFrameworkCore.MySql",
+                self.WORKFLOW_RUNS["workflow_runs"][0],
+            )
+
+        self.assertEqual(8001, artifact["id"])
+        self.assertEqual(TREE, artifact["qualifiedTreeId"])
+
+    def test_artifact_lookup_rejects_a_listing_that_changes_by_page(self) -> None:
+        """Do not combine pages from different listing snapshots."""
+        first_page = {
+            "total_count": 101,
+            "artifacts": [{"name": "unrelated"}] * 100,
+        }
+        changed_second_page = {
+            "total_count": 102,
+            "artifacts": [qualification_artifact()],
+        }
+
+        with (
+            mock.patch.object(
+                trust,
+                "_gh_json",
+                side_effect=[first_page, changed_second_page],
+            ),
+            self.assertRaisesRegex(
+                trust.TrustRootError,
+                "listing changed while being read",
+            ),
+        ):
+            trust.fetch_workflow_artifacts(
+                "doka-labs/Doka.EntityFrameworkCore.MySql",
+                9001,
+            )
 
     def test_an_incomplete_workflow_run_is_rejected(self) -> None:
         """Reject a workflow run that cannot answer what the receipt claims."""
@@ -645,7 +827,11 @@ class FrozenQualificationTests(unittest.TestCase):
 
     def test_a_different_attempt_or_response_is_rejected(self) -> None:
         """Prevent a later rerun from replacing evidence after assembly."""
-        for field, value in (("runAttempt", 2), ("workflowRunId", 9002)):
+        for field, value in (
+            ("runAttempt", 2),
+            ("workflowRunId", 9002),
+            ("qualificationArtifactId", 8002),
+        ):
             with self.subTest(field=field):
                 changed = dict(self.receipt)
                 changed[field] = value
@@ -669,6 +855,12 @@ class FrozenQualificationTests(unittest.TestCase):
 
     def test_the_exact_attempt_endpoint_is_used(self) -> None:
         """Read an earlier rerun attempt without consulting current API ordering."""
+        self.manifest, self.policy = qualification_manifest(
+            self.receipt,
+            repository=self.repository,
+            tree_id=self.tree,
+            release_tag=self.tag,
+        )
         check_run = {
             "name": "repository-qualification",
             "id": 5001,
@@ -707,6 +899,10 @@ class FrozenQualificationTests(unittest.TestCase):
                 return check_run
             if "/attempts/" in path:
                 return workflow_run
+            if path.endswith("/actions/artifacts/8001"):
+                return qualification_artifact(
+                    run_attempt=1,
+                )
             return {"tree": {"sha": TREE}}
 
         def array_api(path: str) -> list[dict[str, object]]:
@@ -732,8 +928,8 @@ class FrozenQualificationTests(unittest.TestCase):
                 f"/repos/{self.repository}/check-runs/5001",
                 f"/repos/{self.repository}/actions/runs/9001/attempts/1",
                 f"/repos/{self.repository}/commits/{COMMIT}/pulls",
+                f"/repos/{self.repository}/actions/artifacts/8001",
                 f"/repos/{self.repository}/git/commits/{COMMIT}",
-                f"/repos/{self.repository}/git/commits/{QUALIFIED_COMMIT}",
             ],
             requested,
         )
@@ -825,6 +1021,36 @@ class LocalSigningKeyTests(unittest.TestCase):
     def tearDown(self) -> None:
         """Release the fixture."""
         self.directory.cleanup()
+
+    def test_qualification_only_pre_tag_skips_the_local_signing_key(self) -> None:
+        """Let hosted preflight reuse trust without operator key material."""
+        with (
+            mock.patch.object(
+                trust,
+                "fetch_qualification_receipt",
+                return_value=qualification(),
+            ),
+            mock.patch.object(
+                trust,
+                "run_git",
+                return_value=subprocess.CompletedProcess([], 0, TREE, ""),
+            ),
+            mock.patch.object(
+                trust,
+                "local_signing_fingerprint",
+                side_effect=AssertionError("hosted preflight read a local key"),
+            ),
+        ):
+            report = trust.pre_tag_report(
+                repo=self.repo,
+                repository="doka-labs/Doka.EntityFrameworkCore.MySql",
+                commit=COMMIT,
+                policy=self.policy,
+                qualification_only=True,
+            )
+
+        self.assertEqual(1, len(report))
+        self.assertEqual("repository-qualification", report[0][1])
 
     def test_the_configured_key_resolves_to_its_fingerprint(self) -> None:
         """Read the key that would sign rather than the fact that one is set."""

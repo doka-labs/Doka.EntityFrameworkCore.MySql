@@ -615,7 +615,11 @@ public sealed class AdrRepositoryValidatorTests
         var publish = GetWorkflowJob(workflow, "publish");
 
         Assert.Contains(
-            "    permissions:\n      actions: read\n      contents: read\n",
+            "    permissions:\n"
+            + "      actions: read\n"
+            + "      checks: read\n"
+            + "      contents: read\n"
+            + "      pull-requests: read\n",
             preflight,
             StringComparison.Ordinal);
         Assert.DoesNotContain("\n    permissions:", foundation, StringComparison.Ordinal);
@@ -701,6 +705,30 @@ public sealed class AdrRepositoryValidatorTests
         {
             Assert.Contains($"      - {requiredGate}\n", qualification, StringComparison.Ordinal);
         }
+
+        Assert.Contains(
+            "Checkout tested pull-request merge ref",
+            qualification,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "test \"${DOKA_QUALIFIED_REF}\" = \"${expected_ref}\"",
+            qualification,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "test \"${qualified_commit}\" = \"${GITHUB_SHA}\"",
+            qualification,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "echo \"tree=${qualified_tree}\" >> \"${GITHUB_OUTPUT}\"",
+            qualification,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "name: release-stage-repository-qualification-"
+            + "${{ steps.repository-qualification.outputs.tree }}-attempt-"
+            + "${{ github.run_attempt }}",
+            qualification,
+            StringComparison.Ordinal);
+        Assert.Contains("retention-days: 30", qualification, StringComparison.Ordinal);
 
         Assert.Contains("  workflow_dispatch:\n", benchmarkTriggers, StringComparison.Ordinal);
         Assert.Contains("  schedule:\n", benchmarkTriggers, StringComparison.Ordinal);
@@ -824,6 +852,14 @@ public sealed class AdrRepositoryValidatorTests
 
         Assert.Contains("cron: \"0 2 * * 2\"", containerMatrix, StringComparison.Ordinal);
         Assert.DoesNotContain("schedule:", releaseCandidate, StringComparison.Ordinal);
+        var releasePreflight = GetWorkflowJob(releaseCandidate, "preflight");
+
+        Assert.Contains(
+            "Verify imported repository qualification",
+            releasePreflight,
+            StringComparison.Ordinal);
+        Assert.Contains("--qualification-only", releasePreflight, StringComparison.Ordinal);
+        Assert.Contains("  foundation:\n    needs: preflight", releaseCandidate, StringComparison.Ordinal);
 
         Assert.Contains(
             "groups:\n      github-actions:\n        patterns:\n          - \"*\"\n"

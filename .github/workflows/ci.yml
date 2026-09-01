@@ -494,3 +494,39 @@ jobs:
             fi
           done
           exit "${status}"
+
+      - name: Checkout tested pull-request merge ref
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Record tested pull-request merge tree
+        if: github.event_name == 'pull_request'
+        id: repository-qualification
+        env:
+          DOKA_PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+          DOKA_QUALIFIED_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+
+          expected_ref="refs/pull/${DOKA_PULL_REQUEST_NUMBER}/merge"
+          qualified_commit="$(git rev-parse HEAD)"
+          qualified_tree="$(git rev-parse 'HEAD^{tree}')"
+
+          test "${DOKA_QUALIFIED_REF}" = "${expected_ref}"
+          test "${qualified_commit}" = "${GITHUB_SHA}"
+          echo "tree=${qualified_tree}" >> "${GITHUB_OUTPUT}"
+
+          mkdir -p artifacts/repository-qualification
+          printf '%s\n' "${qualified_tree}" \
+            > artifacts/repository-qualification/qualified-tree.txt
+
+      - name: Upload tested pull-request merge tree
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-stage-repository-qualification-${{ steps.repository-qualification.outputs.tree }}-attempt-${{ github.run_attempt }}
+          path: artifacts/repository-qualification/qualified-tree.txt
+          if-no-files-found: error
+          retention-days: 30

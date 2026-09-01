@@ -52,6 +52,11 @@ GPG_FINGERPRINT = re.compile(
 
 ACCEPTED_API_REASONS = frozenset({"valid"})
 GITHUB_API_VERSION = "2026-03-10"
+GIT_OBJECT_ID = re.compile(r"[0-9a-f]{40}\Z")
+QUALIFICATION_ARTIFACT_NAME = re.compile(
+    r"release-stage-repository-qualification-"
+    r"(?P<tree>[0-9a-f]{40})-attempt-(?P<attempt>[1-9][0-9]*)\Z"
+)
 
 
 def run_git(repo: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -256,11 +261,14 @@ def verify_pull_request_qualification(
         )
     if qualified_tree != tree_id:
         raise TrustRootError(
-            f"Pull request qualified tree {qualified_tree!r}, not the merged "
+            f"Pull request merge-ref tree {qualified_tree!r}, not the merged "
             f"tree {tree_id}."
         )
     qualified_commit = receipt.get("commit")
-    if not isinstance(qualified_commit, str) or not qualified_commit:
+    if (
+        not isinstance(qualified_commit, str)
+        or GIT_OBJECT_ID.fullmatch(qualified_commit) is None
+    ):
         raise TrustRootError(
             "Repository qualification carries no usable qualified commit."
         )
@@ -276,7 +284,13 @@ def verify_pull_request_qualification(
             f"Repository qualification came from workflow "
             f"{receipt.get('workflowPath')!r} rather than {expected_workflow!r}."
         )
-    for field in ("id", "workflowRunId", "runAttempt", "pullRequestNumber"):
+    for field in (
+        "id",
+        "workflowRunId",
+        "runAttempt",
+        "pullRequestNumber",
+        "qualificationArtifactId",
+    ):
         value = receipt.get(field)
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
             raise TrustRootError(
@@ -498,9 +512,9 @@ def bind_pull_request_qualification(
     pull_request: dict[str, Any],
     merged_commit: str,
     merged_tree: str,
-    qualified_tree: str,
+    qualification_artifact: dict[str, Any],
 ) -> dict[str, Any]:
-    """Bind a workflow receipt to the PR and trees it connects."""
+    """Bind a workflow receipt to its PR-tested merge tree and main squash."""
     head = pull_request.get("head") or {}
     base = pull_request.get("base") or {}
     if receipt.get("commit") != head.get("sha"):
@@ -520,7 +534,8 @@ def bind_pull_request_qualification(
         "baseBranch": base.get("ref"),
         "mergedCommit": merged_commit,
         "mergedTreeId": merged_tree,
-        "qualifiedTreeId": qualified_tree,
+        "qualifiedTreeId": qualification_artifact["qualifiedTreeId"],
+        "qualificationArtifactId": qualification_artifact["id"],
     }
     verify_pull_request_qualification(
         enriched,
@@ -569,6 +584,158 @@ def qualification_receipt(
         "commit": workflow_run["head_sha"],
         "workflowConclusion": workflow_run["conclusion"],
     }
+
+
+def select_qualification_artifact(
+    payload: dict[str, Any],
+    *,
+    workflow_run: dict[str, Any],
+) -> dict[str, Any]:
+    """Select the single merge-tree artifact emitted by one workflow attempt."""
+    run_id = workflow_run.get("id")
+    run_attempt = workflow_run.get("run_attempt")
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value <= 0
+        for value in (run_id, run_attempt)
+    ):
+        raise TrustRootError(
+            "Repository qualification workflow identity is invalid."
+        )
+    metadata = payload.get("artifacts")
+    if not isinstance(metadata, list) or any(
+        not isinstance(entry, dict) for entry in metadata
+    ):
+        raise TrustRootError(
+            "Repository qualification artifact metadata is invalid."
+        )
+
+    total_count = payload.get("total_count")
+    if total_count is not None and total_count != len(metadata):
+        raise TrustRootError(
+            "Repository qualification artifact listing is incomplete."
+        )
+
+    candidates: list[tuple[dict[str, Any], re.Match[str]]] = []
+    for entry in metadata:
+        match = QUALIFICATION_ARTIFACT_NAME.fullmatch(str(entry.get("name", "")))
+        if match is None or int(match.group("attempt")) != run_attempt:
+            continue
+        artifact_run = entry.get("workflow_run") or {}
+        if (
+            artifact_run.get("id") != run_id
+            or artifact_run.get("head_sha") != workflow_run.get("head_sha")
+        ):
+            continue
+        candidates.append((entry, match))
+
+    if len(candidates) != 1:
+        raise TrustRootError(
+            "Repository qualification requires exactly one merge-tree "
+            f"artifact for its workflow attempt; found {len(candidates)}. "
+            "Workflow runs created before the merge-tree artifact policy do "
+            "not qualify."
+        )
+
+    entry, match = candidates[0]
+    if entry.get("expired") is not False:
+        raise TrustRootError(
+            "Repository qualification merge-tree artifact expired at "
+            f"{entry.get('expires_at')!r}; a current artifact-producing pull "
+            "request must qualify before release."
+        )
+
+    identifier = entry.get("id")
+    if (
+        isinstance(identifier, bool)
+        or not isinstance(identifier, int)
+        or identifier <= 0
+    ):
+        raise TrustRootError(
+            "Repository qualification artifact identity is invalid."
+        )
+
+    return {
+        "id": identifier,
+        "qualifiedTreeId": match.group("tree"),
+    }
+
+
+def fetch_workflow_artifacts(repository: str, run_id: int) -> dict[str, Any]:
+    """Read every artifact page for one completed workflow run."""
+    first = _gh_json(
+        f"/repos/{repository}/actions/runs/{run_id}/artifacts"
+        "?per_page=100&page=1"
+    )
+    total_count = first.get("total_count")
+    artifacts = first.get("artifacts")
+    if (
+        isinstance(total_count, bool)
+        or not isinstance(total_count, int)
+        or total_count < 0
+        or not isinstance(artifacts, list)
+    ):
+        raise TrustRootError(
+            "Repository qualification artifact metadata is invalid."
+        )
+
+    page_count = (total_count + 99) // 100
+    for page in range(2, page_count + 1):
+        payload = _gh_json(
+            f"/repos/{repository}/actions/runs/{run_id}/artifacts"
+            f"?per_page=100&page={page}"
+        )
+        page_artifacts = payload.get("artifacts")
+        if payload.get("total_count") != total_count or not isinstance(
+            page_artifacts,
+            list,
+        ):
+            raise TrustRootError(
+                "Repository qualification artifact listing changed while "
+                "being read."
+            )
+        artifacts.extend(page_artifacts)
+
+    return {"total_count": total_count, "artifacts": artifacts}
+
+
+def fetch_qualification_artifact(
+    repository: str,
+    workflow_run: dict[str, Any],
+    *,
+    artifact_id: int | None = None,
+) -> dict[str, Any]:
+    """Read the immutable metadata that carries the tested merge tree."""
+    run_id = workflow_run.get("id")
+    if isinstance(run_id, bool) or not isinstance(run_id, int) or run_id <= 0:
+        raise TrustRootError(
+            "Repository qualification workflow identity is invalid."
+        )
+    if artifact_id is None:
+        metadata = fetch_workflow_artifacts(repository, run_id)
+    else:
+        if (
+            isinstance(artifact_id, bool)
+            or not isinstance(artifact_id, int)
+            or artifact_id <= 0
+        ):
+            raise TrustRootError(
+                "Repository qualification artifact identity is invalid."
+            )
+        metadata = {
+            "artifacts": [
+                _gh_json(f"/repos/{repository}/actions/artifacts/{artifact_id}")
+            ]
+        }
+
+    artifact = select_qualification_artifact(
+        metadata,
+        workflow_run=workflow_run,
+    )
+    if artifact_id is not None and artifact["id"] != artifact_id:
+        raise TrustRootError(
+            "GitHub returned a different repository qualification artifact."
+        )
+    return artifact
 
 
 def select_workflow_run(
@@ -620,13 +787,17 @@ def fetch_qualification_receipt(
         check_suite_id=suite_id,
         commit=qualified_commit,
     )
+    qualification_artifact = fetch_qualification_artifact(
+        repository,
+        workflow_run,
+    )
 
     return bind_pull_request_qualification(
         qualification_receipt(check_run, workflow_run),
         pull_request=pull_request,
         merged_commit=commit,
         merged_tree=fetch_commit_tree(repository, commit),
-        qualified_tree=fetch_commit_tree(repository, qualified_commit),
+        qualification_artifact=qualification_artifact,
     )
 
 
@@ -696,6 +867,7 @@ def verify_frozen_qualification_receipt(
         "baseBranch": receipt.get("baseBranch"),
         "qualifiedCommit": receipt.get("commit"),
         "qualifiedTreeId": receipt.get("qualifiedTreeId"),
+        "qualificationArtifactId": receipt.get("qualificationArtifactId"),
         "commit": commit,
         "treeId": tree_id,
     }
@@ -761,11 +933,13 @@ def fetch_frozen_qualification_receipt(
     workflow_run_id = entry.get("workflowRunId")
     run_attempt = entry.get("runAttempt")
     pull_request_number = entry.get("pullRequestNumber")
+    qualification_artifact_id = entry.get("qualificationArtifactId")
     for field, value in (
         ("apiResourceId", check_id),
         ("workflowRunId", workflow_run_id),
         ("runAttempt", run_attempt),
         ("pullRequestNumber", pull_request_number),
+        ("qualificationArtifactId", qualification_artifact_id),
     ):
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
             raise TrustRootError(
@@ -801,13 +975,17 @@ def fetch_frozen_qualification_receipt(
             "request than the frozen qualification."
         )
 
-    qualified_commit = pull_request["head"]["sha"]
+    qualification_artifact = fetch_qualification_artifact(
+        repository,
+        workflow_run,
+        artifact_id=qualification_artifact_id,
+    )
     receipt = bind_pull_request_qualification(
         qualification_receipt(check_run, workflow_run),
         pull_request=pull_request,
         merged_commit=commit,
         merged_tree=fetch_commit_tree(repository, commit),
-        qualified_tree=fetch_commit_tree(repository, qualified_commit),
+        qualification_artifact=qualification_artifact,
     )
     verify_frozen_qualification_receipt(
         receipt,
@@ -902,6 +1080,7 @@ def pre_tag_report(
     repository: str,
     commit: str,
     policy: dict[str, Any],
+    qualification_only: bool = False,
 ) -> list[tuple[str, str, str]]:
     """Answer whether a commit has the branch and signer prerequisites.
 
@@ -911,15 +1090,20 @@ def pre_tag_report(
     """
     lines: list[tuple[str, str, str]] = []
 
-    trusted = policy.get("trustedTagSigners") or {}
-    try:
-        observed = local_signing_fingerprint(repo)
-        match_registered_key(observed, trusted.get("signers") or [])
-        lines.append(
-            ("OK", "signing key is a registered signer", observed["fingerprint"])
-        )
-    except TrustRootError as error:
-        lines.append(("FAIL", "signing key is a registered signer", str(error)))
+    if not qualification_only:
+        trusted = policy.get("trustedTagSigners") or {}
+        try:
+            observed = local_signing_fingerprint(repo)
+            match_registered_key(observed, trusted.get("signers") or [])
+            lines.append(
+                (
+                    "OK",
+                    "signing key is a registered signer",
+                    observed["fingerprint"],
+                )
+            )
+        except TrustRootError as error:
+            lines.append(("FAIL", "signing key is a registered signer", str(error)))
 
     gate = next(
         (
@@ -978,6 +1162,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     pre_tag.add_argument("--commit", required=True)
     pre_tag.add_argument("--repository", required=True)
     pre_tag.add_argument("--policy", required=True, type=Path)
+    pre_tag.add_argument("--qualification-only", action="store_true")
     arguments = parser.parse_args(argv)
 
     if arguments.command == "pre-tag":
@@ -992,6 +1177,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             repository=arguments.repository,
             commit=arguments.commit,
             policy=policy,
+            qualification_only=arguments.qualification_only,
         ):
             print(f"PRE-TAG\t{state}\t{subject}\t{detail}")
             if state == "FAIL":

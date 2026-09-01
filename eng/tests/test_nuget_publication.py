@@ -893,6 +893,7 @@ class NuGetPublicationTests(unittest.TestCase):
             "mergedCommit": source_commit,
             "mergedTreeId": tree_id,
             "qualifiedTreeId": tree_id,
+            "qualificationArtifactId": 8001,
         }
         qualification_manifest, policy = self._qualification_manifest(
             qualification_receipt,
@@ -1152,6 +1153,7 @@ class NuGetPublicationTests(unittest.TestCase):
                 "baseBranch": receipt["baseBranch"],
                 "qualifiedCommit": receipt["commit"],
                 "qualifiedTreeId": receipt["qualifiedTreeId"],
+                "qualificationArtifactId": receipt["qualificationArtifactId"],
                 "responseDigest": hashlib.sha256(
                     json.dumps(
                         receipt,
