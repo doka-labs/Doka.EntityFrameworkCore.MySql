@@ -103,8 +103,17 @@ its merged pull request was green:
 
 It verifies the clean source, protected-main reachability, configured signing
 material, and the successful pull-request `repository-qualification` whose
-qualified Git tree exactly matches the candidate commit's Git tree. It creates
-no tag and allocates no hosted runner.
+attempt-qualified artifact name records the merge-ref tree GitHub tested. That
+tree must exactly match the candidate commit's Git tree. The artifact ID is
+frozen for publication. The lookup creates no tag and allocates no hosted
+runner.
+
+The pull request that introduced this merge-tree artifact is the bootstrap
+boundary. Older `repository-qualification` runs cannot authorize a release.
+Artifacts are retained for 30 days, the maximum currently permitted by the
+repository. An expired or missing artifact requires a current qualifying pull
+request; the release-candidate preflight rejects it before any package or engine
+gate starts.
 
 ### 3. Start one untagged candidate run
 
@@ -148,9 +157,9 @@ and rejects any source-tree change before writing evidence. Finalization then
 validates that exact evidence instead of trusting the runtime job conclusion.
 The same real Linux RID path runs inside the pull-request `integration-smoke`
 job, so the change exercises the failure boundary before merge. Release trust
-accepts that evidence only after the qualified pull-request tree and merged
-`main` tree match exactly. Candidate runtime posture remains a separate
-retained release gate over the built package and deployment shape.
+accepts that evidence only after the recorded tested merge-ref tree and merged
+`main` tree match exactly. Candidate runtime posture remains a separate retained
+release gate over the built package and deployment shape.
 
 Runtime posture executes ordinary and full-trim provider/spatial builds, plus
 ordinary, full-trim, and NativeAOT builds of the standalone cache. The cache's

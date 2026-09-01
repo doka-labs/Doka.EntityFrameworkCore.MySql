@@ -221,12 +221,13 @@ observed summaries and an update to D-025 in the same pull request.
 
 ### Required status checks must match the current lanes
 
-The CI workflow exposes a stable aggregator for the exact pull-request head.
-The individual specification and coverage jobs remain visible, but
+The CI workflow exposes a stable aggregator for GitHub's tested pull-request
+merge ref. The individual specification and coverage jobs remain visible, but
 `repository-qualification` is the fail-closed contract: it runs with
 `always()`, inspects every dependency result, and fails when one was skipped or
-failed. Release trust later accepts it only when that qualified Git tree equals
-the merged `main` tree.
+failed. After success it records the checked-out merge commit and tree in an
+attempt-qualified artifact. Release trust later accepts it only when that
+artifact-bound tree equals the merged `main` tree.
 
 After the simplified workflow has reported hosted success, the intended
 required checks on `main` are:

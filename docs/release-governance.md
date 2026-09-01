@@ -45,9 +45,14 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - migration model drift gate: `./eng/quality/check-migration-model.sh`
   - protected-branch aggregator: `repository-qualification`, which fails closed
     over quality, repository tests, specification conformance, integration
-    smoke, and merged coverage for the exact pull-request head
+    smoke, and merged coverage for GitHub's tested pull-request merge ref
   - merge binding: release trust accepts that result only for the single merged
-    pull request whose qualified head tree equals the candidate `main` tree
+    pull request whose recorded merge-ref tree equals the candidate `main` tree;
+    the exact artifact ID is frozen for publication
+  - qualification retention: pre-policy runs are ineligible and merge-tree
+    artifacts use the repository's currently permitted maximum of 30 days;
+    missing or expired evidence fails release-candidate preflight before
+    expensive gates start
   - specification targets: `mysql84`, `mysql97`, `mariadb1011`, `mariadb114`,
     `mariadb118`, and `mariadb123`
   - merged source-coverage gate: `coverage-gate`
@@ -109,8 +114,9 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     creating a tag
   - imported branch gate: `repository-qualification` aggregates quality,
     repository tests, specification, integration smoke, and coverage for the
-    qualified pull-request head; the release lookup separately binds that tree
-    to the candidate `main` commit
+    tested pull-request merge ref; the release lookup verifies its
+    attempt-qualified artifact and binds that tree to the candidate `main`
+    commit
   - candidate-produced gates: migration deployment, runtime posture, both
     patch matrices, package, and SBOM produce exactly six stage receipts while
     the source is still untagged
@@ -251,8 +257,9 @@ explicitly and runs without a filter. The shared runner persists its selected
 targets, filter, exit code, and full-matrix marker so the result remains
 auditable instead of being inferred from a green job alone. This scheduled
 lane is compatibility evidence; the release manifest imports only the
-PR-head `integration-smoke` result through `repository-qualification`, after
-release trust proves that the qualified and merged Git trees are identical.
+pull-request `integration-smoke` result through `repository-qualification`,
+after release trust proves that the tested merge-ref and merged Git trees are
+identical.
 
 MySQL-family DDL accepts only its quoted comment-literal grammar, so the
 provider cannot use the general `_utf8mb4 X'...'` expression form directly

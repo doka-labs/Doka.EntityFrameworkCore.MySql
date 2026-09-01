@@ -162,9 +162,9 @@ def protected_check_result(
 ) -> dict[str, Any]:
     """Describe one gate whose evidence lives on the forge rather than here.
 
-    Repository qualification runs on GitHub, so there is no repository-owned
-    artifact to hash. The response the API returned is digested instead, which
-    is what makes the per-file digest contract apply to it at all.
+    Repository qualification runs on GitHub. Its API response and the hosted
+    merge-tree artifact are both frozen so publication can revalidate the same
+    check attempt and the same tested content.
     """
     try:
         verify_pull_request_qualification(
@@ -198,6 +198,7 @@ def protected_check_result(
         "baseBranch": receipt["baseBranch"],
         "qualifiedCommit": receipt["commit"],
         "qualifiedTreeId": receipt["qualifiedTreeId"],
+        "qualificationArtifactId": receipt["qualificationArtifactId"],
         "responseDigest": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
         "policyDigest": None,
     }

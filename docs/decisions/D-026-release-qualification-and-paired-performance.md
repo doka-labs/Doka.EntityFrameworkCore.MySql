@@ -16,6 +16,30 @@ doka-profile-version: "1.0"
 
 # D-026 -- Qualify releases from PR-bound, tree-exact evidence
 
+## 2026-09-01 Amendment: Freeze the tested pull-request merge tree
+
+Repository qualification is commit-exact at two distinct boundaries. The raw
+pull-request head commit identifies the proposed change and the check suite.
+The synthetic `refs/pull/<number>/merge` commit identifies the content GitHub
+Actions actually checked out and tested against the latest protected base.
+
+The protected aggregator emits an attempt-qualified artifact only after every
+product gate succeeds. Its immutable name carries the tested Git tree and its
+GitHub metadata binds the workflow run and pull-request head. Candidate
+assembly freezes the artifact ID alongside the check-run and workflow-attempt
+identities. Publication reads that exact metadata again and repeats the
+binding. Release authorization requires the recorded merge-ref tree, not the
+raw head tree, to equal the candidate `main` tree.
+
+This corrects the tree source named by the 2026-08-23 amendment without
+reintroducing a product run after merge or adding another qualification lane.
+The pull request that introduces the artifact producer is the first releaseable
+commit under this policy. Pre-policy workflow runs are rejected rather than
+falling back to the known-invalid raw-head comparison. Public-repository
+artifact retention is set to the repository's currently permitted 30-day
+maximum; expiration is a named preflight failure and requires a current
+qualifying pull request.
+
 ## 2026-08-23 Amendment: Preserve release trust without paired performance
 
 Paired performance is retired in favor of the direct BenchmarkDotNet gate
@@ -647,9 +671,10 @@ whose dependencies fail unless their condition explicitly overrides that
 behavior.
 
 Candidate assembly resolves and records the protected check required by the
-versioned evidence policy. Publication later reads back that exact check-run ID
-and attempt-specific workflow-run resource, verifies the response digest, and
-refuses to reselect a newer rerun.
+versioned evidence policy. Publication later reads back that exact check-run ID,
+attempt-specific workflow-run resource, and frozen merge-tree artifact
+metadata, verifies both response and artifact identities, and refuses to
+reselect a newer rerun or artifact.
 
 ### Expensive gates run before the tag
 
@@ -706,16 +731,18 @@ but it is no longer a producer of release evidence.
 ### Evidence selection
 
 All release evidence is commit-exact. Repository qualification is produced for
-the release commit on `main`; migration deployment, runtime posture, both patch
-matrices, package integrity, and SBOM integrity are produced for it in the
-release-candidate workflow. Evidence is selected for the exact candidate commit
-under the versioned identity policy, rather than through source-equivalence or
-freshness rules.
+the pull-request merge ref GitHub tested and is accepted only when its recorded
+tree equals the release commit's tree on `main`; migration deployment, runtime
+posture, both patch matrices, package integrity, and SBOM integrity are produced
+for the candidate in the release-candidate workflow. Evidence is selected for
+the exact candidate commit under the versioned identity policy, rather than
+through source-equivalence or freshness rules.
 
 The policy first filters eligible results. Every result must match the exact
 commit, repository, gate, expected producer, workflow identity where
 applicable, policy digest, and successful conclusion. Repository qualification
-must additionally originate from a `push` on protected `main`.
+must additionally originate from a `pull_request` targeting protected `main`,
+bind the raw head identity, and carry the artifact-bound tested merge-ref tree.
 Candidate-produced gates must belong to the current release-candidate workflow
 run.
 
@@ -1495,6 +1522,8 @@ manifest verification.
 - 2026-08-23: Retired paired performance and the duplicate `push main`
   qualification, then bound release trust to one successful merged pull
   request whose qualified and merged Git trees are identical.
+- 2026-09-01: Corrected the qualified tree to the tested pull-request merge
+  ref and froze its hosted artifact ID through publication.
 
 ### Implementation References
 
@@ -1523,6 +1552,16 @@ manifest verification.
 
 ### Sources
 
+- [Events that trigger workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)
+  (primary source; retrieved 2026-09-01)
+- [Rules available for rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)
+  (primary source; retrieved 2026-09-01)
+- [Actions artifacts REST API](https://docs.github.com/en/rest/actions/artifacts)
+  (primary source; retrieved 2026-09-01)
+- [Managing GitHub Actions settings for a repository](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository)
+  (primary source; retrieved 2026-09-01)
+- [REST API endpoints for GitHub Actions permissions](https://docs.github.com/en/rest/actions/permissions)
+  (primary source; retrieved 2026-09-01)
 - [NuGet package publication][nuget-publish-package]
   (primary source; retrieved 2026-08-24)
 - [NuGet symbol publication][nuget-symbol-packages]

@@ -160,6 +160,7 @@ def fake_check_receipt(commit: str, tree: str) -> dict[str, Any]:
         "mergedCommit": commit,
         "mergedTreeId": tree,
         "qualifiedTreeId": tree,
+        "qualificationArtifactId": 8001,
     }
 
 

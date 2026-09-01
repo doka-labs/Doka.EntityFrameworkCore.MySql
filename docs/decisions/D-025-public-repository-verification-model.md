@@ -16,6 +16,53 @@ doka-profile-version: "1.0"
 
 # D-025 -- Qualify pull-request changes once and harden public workflows
 
+## 2026-09-01 Amendment: Bind release trust to the tree CI tested
+
+GitHub Actions sets `GITHUB_SHA` for a `pull_request` workflow to the synthetic
+merge commit at `refs/pull/<number>/merge` unless checkout is explicitly
+redirected to the pull-request head. Doka uses that default checkout together
+with strict required-status checks, so the product gates qualify the proposed
+change merged into the latest protected base, not the raw head tree.
+
+The 2026-08-23 amendment correctly removed the duplicate `push main` product
+run, but its release lookup compared the raw pull-request head tree with the
+final squash tree. That was not the tree the workflow tested and could reject a
+valid release after every product and release-candidate gate had succeeded.
+
+`repository-qualification` now checks out the tested merge ref after all five
+gates pass and writes its tree into the name of one attempt-qualified GitHub
+artifact. Release trust binds that immutable metadata to the workflow run,
+attempt, and pull-request head before comparing the tested tree with the
+candidate `main` tree. Assembly freezes the artifact ID, and publication reads
+back that exact metadata instead of selecting mutable current state.
+
+The pull request containing this policy change is the bootstrap boundary.
+Earlier workflow runs cannot supply the merge-tree artifact and therefore do
+not authorize a release; there is deliberately no fallback to the incorrect
+raw-head comparison. The artifact is retained for the public-repository maximum
+currently permitted by the repository, 30 days. An expired artifact requires a
+current qualifying pull request, and release-candidate preflight reports that
+condition before expensive gates start. GitHub's repository API reported both
+`days` and `maximum_allowed_days` as 30 on 2026-09-01; a longer horizon requires
+an explicit organization or repository policy change before the workflow value
+can be raised.
+
+```mermaid
+flowchart LR
+  H["Pull-request head"] --> MR["GitHub merge ref with latest main"]
+  B["Latest protected main"] --> MR
+  MR --> G["Product gates"]
+  G --> Q["repository-qualification receipt"]
+  Q --> S["Protected squash merge"]
+  S --> T{"Tested merge-ref tree equals main tree?"}
+  T -->|yes| RC["Release may import qualification"]
+  T -->|no| R["Reject release trust"]
+```
+
+Statements below that call the raw pull-request head tree the qualified tree
+are historical. The head commit remains a required identity, but it is not the
+qualified content boundary.
+
 ## 2026-08-23 Amendment: Qualify the PR tree once
 
 Product qualification now runs on pull requests and explicit manual CI. The
@@ -374,6 +421,8 @@ version control. They are documented in
 - 2026-08-23: Moved product qualification to the pull-request head, removed the
   duplicate automatic `main` run, and bound release trust to the single merged
   pull request through exact qualified/merged Git-tree equality.
+- 2026-09-01: Corrected the qualified-tree identity to GitHub's tested
+  pull-request merge ref and froze its attempt-qualified artifact identity.
 
 ### Implementation References
 
@@ -409,6 +458,16 @@ version control. They are documented in
   (primary source; retrieved 2026-08-15)
 - [REST API rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)
   (primary source; retrieved 2026-08-15)
+- [Events that trigger workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)
+  (primary source; retrieved 2026-09-01)
+- [Rules available for rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)
+  (primary source; retrieved 2026-09-01)
+- [Actions artifacts REST API](https://docs.github.com/en/rest/actions/artifacts)
+  (primary source; retrieved 2026-09-01)
+- [Managing GitHub Actions settings for a repository](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository)
+  (primary source; retrieved 2026-09-01)
+- [REST API endpoints for GitHub Actions permissions](https://docs.github.com/en/rest/actions/permissions)
+  (primary source; retrieved 2026-09-01)
 - [Configuring automatic dependency submission](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/submit-dependencies-automatically)
   (primary source; retrieved 2026-08-14)
 - [Automatic dependency submission](https://docs.github.com/en/code-security/reference/supply-chain-security/automatic-dependency-submission)
