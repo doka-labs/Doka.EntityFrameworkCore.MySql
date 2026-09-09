@@ -99,6 +99,34 @@ public sealed class MySqlDatabaseModelFactoryTests
     }
 
     /// <summary>
+    /// Verifies that MariaDB's intrinsic JSON-alias CHECK is represented by the
+    /// canonical json store type while an adjacent caller-owned CHECK survives.
+    /// </summary>
+    [Fact]
+    public void Reverse_engineering_consumes_only_the_intrinsic_mariadb_json_check()
+    {
+        using var connection = new ScaffoldingDbConnection(ScaffoldingScenario.MariaDbJson);
+        var factory = new MySqlDatabaseModelFactory(new StubDriverFacade(), new MySqlScaffoldingContext());
+
+        var databaseModel = factory.Create(
+            connection,
+            new DatabaseModelFactoryOptions(["json_constraint_table"], Array.Empty<string>()));
+
+        var table = Assert.Single(databaseModel.Tables);
+        var payload = Assert.Single(table.Columns);
+        var checkConstraints = Assert.IsType<MySqlScaffoldedCheckConstraint[]>(
+            table.FindAnnotation(MySqlAnnotationNames.ScaffoldingCheckConstraints)
+                ?.Value);
+        var userCheck = Assert.Single(checkConstraints);
+
+        Assert.Equal("json", payload.StoreType);
+        Assert.Equal("CK_JsonConstraintTable_Payload", userCheck.Name);
+        Assert.Equal(
+            "`Payload` IS NULL OR json_valid(`Payload`)",
+            userCheck.Sql);
+    }
+
+    /// <summary>
     /// Verifies that EF schema filters select the equivalent MySQL database,
     /// qualify the returned metadata, and restore the caller's active database.
     /// </summary>
@@ -261,6 +289,7 @@ public sealed class MySqlDatabaseModelFactoryTests
         Default,
         NativeMariaDbTemporal,
         MariaDbSpatial,
+        MariaDbJson,
         MySqlTemporalEmulation,
         IncompleteMySqlTemporalEmulation,
     }
@@ -301,6 +330,7 @@ public sealed class MySqlDatabaseModelFactoryTests
 
         public override string ServerVersion => Scenario is ScaffoldingScenario.NativeMariaDbTemporal
             or ScaffoldingScenario.MariaDbSpatial
+            or ScaffoldingScenario.MariaDbJson
             ? "11.4.7-MariaDB"
             : "8.4.6";
 
@@ -400,7 +430,7 @@ public sealed class MySqlDatabaseModelFactoryTests
                     CreatePhysicalTemporalColumnsReader(_connection.Database),
                 var sql when sql.Contains("FROM information_schema.CHECK_CONSTRAINTS", StringComparison.Ordinal)
                     && sql.Contains("JSON_VALID", StringComparison.OrdinalIgnoreCase) =>
-                    CreateJsonCheckConstraintsReader(),
+                    CreateJsonCheckConstraintsReader(_connection.Scenario),
                 var sql when sql.Contains("FROM information_schema.CHECK_CONSTRAINTS", StringComparison.Ordinal) =>
                     CreateCheckConstraintsReader(_connection.Scenario),
                 var sql when sql.Contains("TABLE_TYPE = 'SEQUENCE'", StringComparison.Ordinal) =>
@@ -451,6 +481,15 @@ public sealed class MySqlDatabaseModelFactoryTests
                     DBNull.Value,
                     "InnoDB",
                     "SYSTEM VERSIONED");
+            }
+            else if (scenario == ScaffoldingScenario.MariaDbJson)
+            {
+                table.Rows.Add(
+                    "json_constraint_table",
+                    "utf8mb4_general_ci",
+                    DBNull.Value,
+                    "InnoDB",
+                    "BASE TABLE");
             }
             else if (scenario is ScaffoldingScenario.MySqlTemporalEmulation
                      or ScaffoldingScenario.IncompleteMySqlTemporalEmulation)
@@ -624,11 +663,21 @@ public sealed class MySqlDatabaseModelFactoryTests
             return table.CreateDataReader();
         }
 
-        private static DataTableReader CreateJsonCheckConstraintsReader()
+        private static DataTableReader CreateJsonCheckConstraintsReader(
+            ScaffoldingScenario scenario
+        )
         {
             var table = new DataTable();
             table.Columns.Add("TABLE_NAME", typeof(string));
             table.Columns.Add("CHECK_CLAUSE", typeof(string));
+
+            if (scenario == ScaffoldingScenario.MariaDbJson)
+            {
+                table.Rows.Add("json_constraint_table", "json_valid(`Payload`)");
+                table.Rows.Add(
+                    "json_constraint_table",
+                    "`Payload` IS NULL OR json_valid(`Payload`)");
+            }
 
             return table.CreateDataReader();
         }
@@ -661,6 +710,23 @@ public sealed class MySqlDatabaseModelFactoryTests
             if (scenario is ScaffoldingScenario.NativeMariaDbTemporal)
             {
                 AddTemporalColumns(table, "audit_entries", "timestamp(6)", "timestamp");
+
+                return table.CreateDataReader();
+            }
+
+            if (scenario == ScaffoldingScenario.MariaDbJson)
+            {
+                table.Rows.Add(
+                    "json_constraint_table",
+                    "Payload",
+                    "YES",
+                    "longtext",
+                    "longtext",
+                    DBNull.Value,
+                    DBNull.Value,
+                    DBNull.Value,
+                    DBNull.Value,
+                    "utf8mb4_bin");
 
                 return table.CreateDataReader();
             }
@@ -786,6 +852,17 @@ public sealed class MySqlDatabaseModelFactoryTests
                     "spatial_feature_table",
                     "CK_spatial_location_not_null",
                     "`Location` IS NOT NULL");
+            }
+            else if (scenario == ScaffoldingScenario.MariaDbJson)
+            {
+                table.Rows.Add(
+                    "json_constraint_table",
+                    "Payload",
+                    "json_valid(`Payload`)");
+                table.Rows.Add(
+                    "json_constraint_table",
+                    "CK_JsonConstraintTable_Payload",
+                    "`Payload` IS NULL OR json_valid(`Payload`)");
             }
 
             return table.CreateDataReader();

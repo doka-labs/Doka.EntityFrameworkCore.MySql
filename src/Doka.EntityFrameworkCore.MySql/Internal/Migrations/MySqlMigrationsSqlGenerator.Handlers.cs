@@ -222,7 +222,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         return builder.GetCommandSpecs();
     }
 
-    private ReadOnlyCollection<MySqlMigrationCommandSpec> ValidateResult(
+    private IReadOnlyList<MySqlMigrationCommandSpec> ValidateResult(
         MySqlMigrationOperationResult? result,
         MySqlMigrationOperationHandlerRegistry.Registration registration
     )
@@ -234,6 +234,19 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             throw CreateInvalidResultException(registration);
         }
 
+        return result.Kind switch
+        {
+            MySqlMigrationOperationResultKind.Generated => ValidateGeneratedResult(result, registration),
+            MySqlMigrationOperationResultKind.Consumed => ValidateConsumedResult(result, registration),
+            _ => throw CreateInvalidResultException(registration),
+        };
+    }
+
+    private ReadOnlyCollection<MySqlMigrationCommandSpec> ValidateGeneratedResult(
+        MySqlMigrationOperationResult result,
+        MySqlMigrationOperationHandlerRegistry.Registration registration
+    )
+    {
         MySqlMigrationCommandSpec[] commands;
 
         try
@@ -256,6 +269,30 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         }
 
         return Array.AsReadOnly(commands);
+    }
+
+    private MySqlMigrationCommandSpec[] ValidateConsumedResult(
+        MySqlMigrationOperationResult result,
+        MySqlMigrationOperationHandlerRegistry.Registration registration
+    )
+    {
+        int commandCount;
+
+        try
+        {
+            commandCount = result.Commands.Count;
+        }
+        catch (Exception exception)
+        {
+            throw CreateInvalidResultException(registration, exception);
+        }
+
+        if (commandCount != 0)
+        {
+            throw CreateInvalidResultException(registration);
+        }
+
+        return Array.Empty<MySqlMigrationCommandSpec>();
     }
 
     private MySqlMigrationOperationHandlerException CreateInvalidResultException(

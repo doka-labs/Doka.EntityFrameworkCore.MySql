@@ -304,19 +304,33 @@ public sealed class MySqlMigrationOperationContractTests
         Assert.True(command.TransactionSuppressed);
     }
 
+    [Fact]
+    public void Consumed_results_share_the_immutable_empty_command_sequence()
+    {
+        var first = MySqlMigrationOperationResult.Consumed("first_outcome");
+        var second = MySqlMigrationOperationResult.Consumed("second_outcome");
+
+        Assert.Empty(first.Commands);
+        Assert.Same(first.Commands, second.Commands);
+        Assert.Equal("first_outcome", first.OutcomeCode);
+    }
+
     [Theory]
+    [InlineData(null)]
     [InlineData("")]
+    [InlineData("   ")]
     [InlineData("Generated")]
     [InlineData("generated-value")]
     [InlineData("1_generated")]
     [InlineData("generated value")]
     public void Invalid_outcome_codes_are_rejected(
-        string outcomeCode
+        string? outcomeCode
     )
     {
-        Assert.Throws<ArgumentException>(() => MySqlMigrationOperationResult.Generated(
+        Assert.ThrowsAny<ArgumentException>(() => MySqlMigrationOperationResult.Generated(
             [MySqlMigrationCommandSpec.Create("SELECT 1;")],
-            outcomeCode));
+            outcomeCode!));
+        Assert.ThrowsAny<ArgumentException>(() => MySqlMigrationOperationResult.Consumed(outcomeCode!));
     }
 
     [Fact]
@@ -346,9 +360,12 @@ public sealed class MySqlMigrationOperationContractTests
     [Fact]
     public void Outcome_codes_longer_than_64_ascii_characters_are_rejected()
     {
+        var outcomeCode = $"g{new string('a', 64)}";
+
         Assert.Throws<ArgumentException>(() => MySqlMigrationOperationResult.Generated(
             [MySqlMigrationCommandSpec.Create("SELECT 1;")],
-            $"g{new string('a', 64)}"));
+            outcomeCode));
+        Assert.Throws<ArgumentException>(() => MySqlMigrationOperationResult.Consumed(outcomeCode));
     }
 
     [Theory]

@@ -20,8 +20,10 @@ stop-the-line migration signal. Do not retry the same artifact blindly.
 2. Reproduce generation offline with the same migration assembly, provider
    package, server-version descriptor, and generation options.
 3. Correct the handler registration, exception, or invalid result. A handler
-   must return at least one immutable command, a bounded outcome code, and the
-   intended transaction-suppression boundary for every command.
+   must return either `Generated(...)` with at least one immutable command or
+   `Consumed(...)` for an intentionally commandless operation. Both results
+   require a bounded outcome code; every generated command must retain its
+   intended transaction-suppression boundary.
 4. Regenerate and review the complete migration script before deployment.
 
 `UnknownMigrationOperation` (1114) means no built-in or registered exact-type
@@ -107,6 +109,12 @@ metadata through their provider-specific rendering paths. The generator rejects
 a backslash comment combined with raw SQL whose interpretation would change
 under `NO_BACKSLASH_ESCAPES`; callers must rewrite that raw expression into a
 mode-independent form before generating the migration.
+
+During reverse engineering, Doka represents MariaDB's canonical, same-named
+`JSON_VALID(column)` constraint through the `json` store type instead of also
+scaffolding it as a caller-owned CHECK. This avoids emitting the engine-owned
+constraint twice when the generated model reconstructs the schema. Differently
+named checks and compound expressions remain explicit model constraints.
 
 Changing any nullable column to required is a data migration. The provider
 repairs existing null rows only when the `AlterColumnOperation` declares an

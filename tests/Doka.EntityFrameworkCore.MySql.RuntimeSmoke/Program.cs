@@ -70,6 +70,14 @@ public static class Program
             throw new InvalidOperationException(
                 "The public migration-operation handler registration contract did not round-trip.");
         }
+
+        var consumed = MySqlMigrationOperationResult.Consumed("runtime_smoke_consumed");
+        if (consumed.Commands.Count != 0
+            || !string.Equals(consumed.OutcomeCode, "runtime_smoke_consumed", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The public commandless migration-operation result contract did not round-trip.");
+        }
     }
 
     [RequiresUnreferencedCode(
@@ -117,6 +125,7 @@ public static class Program
         var commands = generator.Generate(
             [
                 new RuntimeSmokeMigrationOperation(),
+                new RuntimeSmokeConsumedOperation(),
                 new RuntimeSmokeSecondOperation(),
             ],
             context.Model);
@@ -412,6 +421,8 @@ public static class Program
 
     private sealed class RuntimeSmokeSecondOperation : MigrationOperation;
 
+    private sealed class RuntimeSmokeConsumedOperation : MigrationOperation;
+
     private sealed class UnregisteredRuntimeSmokeMigrationOperation : MigrationOperation;
 
     private sealed class RuntimeSmokeMigrationHandler : IMySqlMigrationOperationHandler
@@ -485,6 +496,17 @@ public static class Program
         public MySqlMigrationOperationResult Generate(
             MySqlMigrationOperationContext context
         ) => MySqlMigrationOperationResult.Generated([MySqlMigrationCommandSpec.Create("SELECT 3;")], "runtime_smoke");
+    }
+
+    private sealed class RuntimeSmokeConsumedHandler : IMySqlMigrationOperationHandler
+    {
+        public string HandlerId => "runtime_smoke.consumed";
+
+        public Type OperationType => typeof(RuntimeSmokeConsumedOperation);
+
+        public MySqlMigrationOperationResult Generate(
+            MySqlMigrationOperationContext context
+        ) => MySqlMigrationOperationResult.Consumed("runtime_smoke_consumed");
     }
 
     private sealed class RuntimeSmokeDuplicateIdHandler : IMySqlMigrationOperationHandler
@@ -594,11 +616,13 @@ public static class Program
             if (_handlerOrder == RuntimeSmokeHandlerOrder.SecondaryFirst)
             {
                 AddHandler<RuntimeSmokeSecondHandler>(services);
+                AddHandler<RuntimeSmokeConsumedHandler>(services);
                 AddHandler<RuntimeSmokeMigrationHandler>(services);
                 return;
             }
 
             AddHandler<RuntimeSmokeMigrationHandler>(services);
+            AddHandler<RuntimeSmokeConsumedHandler>(services);
             AddHandler<RuntimeSmokeSecondHandler>(services);
             if (_handlerOrder == RuntimeSmokeHandlerOrder.ConflictingId)
             {

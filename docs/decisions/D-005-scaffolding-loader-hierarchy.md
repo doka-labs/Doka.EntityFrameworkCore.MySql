@@ -141,6 +141,11 @@ The test strategy splits into two tiers:
 
 - `MySqlDatabaseModelFactory` shrank from 812 LOC to 124 LOC; the per-aspect loaders live as `TableLoader`, `ColumnLoader`, `PrimaryKeyLoader`, `UniqueConstraintLoader`, `IndexLoader`, `SpatialColumnLoader`, `ForeignKeyLoader`, `JsonCheckConstraintLoader`.
 - `ScaffoldingPipelineContext` carries the per-call state (live connection, in-flight `DatabaseModel`, table-filter, engine capabilities, MariaDB JSON_VALID column set, lookup dictionaries).
+- `JsonCheckConstraintLoader` recognizes only a canonical
+  `JSON_VALID(column)` clause as evidence for MariaDB's JSON alias.
+  `CheckConstraintLoader` consumes the same-named intrinsic constraint because
+  the canonical `json` store type recreates it; differently named and compound
+  caller-owned checks remain explicit constraints.
 - `ScaffoldingHelpers.AppendTableNameFilter` binds `WHERE TABLE_NAME IN (@t0, @t1, ...)` as SQL parameters; the loaders keep a client-side `tableFilter.Matches` belt-and-suspenders check so a test stub that ignores parameters still returns deterministic results.
 - `IndexLoader` reads `SUB_PART` and emits `MySqlAnnotationNames.IndexPrefixLength` as an `int[]` (one entry per indexed column, `0` when the column has no prefix length). The previous monolith silently dropped `SUB_PART`.
 - `MySqlScaffoldingState` renamed to `MySqlScaffoldingContext` with an explicit `Begin()` per-call reset method; the DI lifetime stayed Singleton because the EF Core `ProviderCodeGenerator.GenerateUseProvider(string, MethodCallCodeFragment?)` contract has no model parameter through which the cross-service `DetectedServerVersionText` + `UsesNetTopologySuiteScaffolding` flags could flow.
@@ -179,6 +184,8 @@ The test strategy splits into two tiers:
 
 - 2026-05-16: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-09-09: Clarified ownership of MariaDB's intrinsic JSON-alias CHECK
+  during reverse engineering and schema reconstruction.
 
 ### Implementation References
 
@@ -187,4 +194,7 @@ The test strategy splits into two tiers:
 
 ### Sources
 
-- No external sources; repository evidence only.
+- [MariaDB JSON data type](https://mariadb.com/docs/server/reference/data-types/string-data-types/json)
+  (primary source; retrieved 2026-09-09)
+- [MariaDB CHECK constraint metadata](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/system-tables/information-schema/information-schema-tables/information-schema-check_constraints-table)
+  (primary source; retrieved 2026-09-09)

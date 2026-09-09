@@ -54,6 +54,48 @@ public sealed class MySqlMigrationOperationHandlerTests
     }
 
     [Theory]
+    [MemberData(nameof(GenerationModes))]
+    public void Consumed_handler_emits_no_command_and_preserves_neighbor_boundaries(
+        MigrationsSqlGenerationOptions options
+    )
+    {
+        using var serviceProvider = CreateServiceProvider(
+            [typeof(ConsumedHandler)],
+            registerBeforeProvider: true);
+
+        using var context = CreateContext(serviceProvider);
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var handler = context
+            .GetService<IEnumerable<IMySqlMigrationOperationHandler>>()
+            .OfType<ConsumedHandler>()
+            .Single();
+        var first = new SqlOperation
+        {
+            Sql = "SELECT 1;",
+            SuppressTransaction = true,
+        };
+        var second = new SqlOperation { Sql = "SELECT 2;" };
+
+        var expected = generator.Generate([first, second], context.Model, options);
+        var actual = generator.Generate(
+            [first, new ConsumedCustomOperation(), second],
+            context.Model,
+            options);
+
+        Assert.Equal(expected.Count, actual.Count);
+        for (var index = 0; index < expected.Count; index++)
+        {
+            Assert.Equal(expected[index].CommandText, actual[index].CommandText);
+            Assert.Equal(expected[index].TransactionSuppressed, actual[index].TransactionSuppressed);
+        }
+
+        Assert.NotNull(handler.LastContext);
+        Assert.Equal(options, handler.LastContext.Options);
+        Assert.Equal(1, handler.LastContext.OperationOrdinal);
+        Assert.Empty(generator.Generate([new ConsumedCustomOperation()], context.Model, options));
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
@@ -228,6 +270,28 @@ public sealed class MySqlMigrationOperationHandlerTests
             command => Assert.Equal("SELECT 1;", command.CommandText),
             command => Assert.Equal("SELECT 2;", command.CommandText));
         Assert.Equal(1, handler.Commands?.EnumerationCount);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Inconsistent_result_state_fails_before_any_command_is_returned(
+        int shapeValue
+    )
+    {
+        var shape = (MalformedResultShape)shapeValue;
+        using var serviceProvider = CreateServiceProvider(
+            [typeof(MalformedResultHandler)],
+            registerBeforeProvider: true);
+
+        using var context = CreateContext(serviceProvider);
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+
+        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
+            generator.Generate([new MalformedResultOperation(shape)], context.Model));
+
+        Assert.Equal(MySqlMigrationHandlerFailureCode.InvalidHandlerResult, exception.FailureCode);
     }
 
     [Fact]
@@ -914,6 +978,27 @@ public sealed class MySqlMigrationOperationHandlerTests
 
     private sealed class StatefulResultOperation : MigrationOperation;
 
+    private sealed class ConsumedCustomOperation : MigrationOperation;
+
+    private sealed class MalformedResultOperation : MigrationOperation
+    {
+        public MalformedResultOperation(
+            MalformedResultShape shape
+        )
+        {
+            Shape = shape;
+        }
+
+        public MalformedResultShape Shape { get; }
+    }
+
+    private enum MalformedResultShape
+    {
+        UndefinedKind,
+        GeneratedWithoutCommands,
+        ConsumedWithCommands,
+    }
+
     private sealed class BaselineRenderingHandler : IMySqlMigrationOperationHandler
     {
         public string HandlerId => "tests.baseline";
@@ -962,6 +1047,23 @@ public sealed class MySqlMigrationOperationHandlerTests
             return MySqlMigrationOperationResult.Generated(
                 [MySqlMigrationCommandSpec.Create("SELECT 3;")],
                 "generated");
+        }
+    }
+
+    private sealed class ConsumedHandler : IMySqlMigrationOperationHandler
+    {
+        public string HandlerId => "tests.consumed";
+
+        public Type OperationType => typeof(ConsumedCustomOperation);
+
+        public MySqlMigrationOperationContext? LastContext { get; private set; }
+
+        public MySqlMigrationOperationResult Generate(
+            MySqlMigrationOperationContext context
+        )
+        {
+            LastContext = context;
+            return MySqlMigrationOperationResult.Consumed("operation_consumed");
         }
     }
 
@@ -1083,6 +1185,7 @@ public sealed class MySqlMigrationOperationHandlerTests
                 [
                     typeof(IReadOnlyList<MySqlMigrationCommandSpec>),
                     typeof(string),
+                    typeof(MySqlMigrationOperationResultKind),
                 ],
                 modifiers: null);
 
@@ -1093,6 +1196,7 @@ public sealed class MySqlMigrationOperationHandlerTests
             [
                 Array.AsReadOnly(commands),
                 "generated",
+                MySqlMigrationOperationResultKind.Generated,
             ]);
         }
     }
@@ -1136,13 +1240,59 @@ public sealed class MySqlMigrationOperationHandlerTests
                 [
                     typeof(IReadOnlyList<MySqlMigrationCommandSpec>),
                     typeof(string),
+                    typeof(MySqlMigrationOperationResultKind),
                 ],
                 modifiers: null);
 
             // A stateful list models the strongest IReadOnlyList adversary: a
             // second enumeration yields different data. The provider must copy
             // once and validate exactly the command snapshot it later appends.
-            return (MySqlMigrationOperationResult)resultConstructor!.Invoke([Commands, "generated"]);
+            return (MySqlMigrationOperationResult)resultConstructor!.Invoke(
+            [
+                Commands,
+                "generated",
+                MySqlMigrationOperationResultKind.Generated,
+            ]);
+        }
+    }
+
+    private sealed class MalformedResultHandler : IMySqlMigrationOperationHandler
+    {
+        public string HandlerId => "tests.malformed_result";
+
+        public Type OperationType => typeof(MalformedResultOperation);
+
+        public MySqlMigrationOperationResult Generate(
+            MySqlMigrationOperationContext context
+        )
+        {
+            var operation = (MalformedResultOperation)context.Operation;
+            var commands = operation.Shape == MalformedResultShape.ConsumedWithCommands
+                ? Array.AsReadOnly([MySqlMigrationCommandSpec.Create("SELECT 1;")])
+                : Array.AsReadOnly(Array.Empty<MySqlMigrationCommandSpec>());
+            var kind = operation.Shape switch
+            {
+                MalformedResultShape.UndefinedKind => (MySqlMigrationOperationResultKind)0,
+                MalformedResultShape.GeneratedWithoutCommands => MySqlMigrationOperationResultKind.Generated,
+                MalformedResultShape.ConsumedWithCommands => MySqlMigrationOperationResultKind.Consumed,
+                _ => throw new InvalidOperationException("Unknown malformed-result test shape."),
+            };
+            var resultConstructor = typeof(MySqlMigrationOperationResult).GetConstructor(
+                BindingFlags.Instance | BindingFlags.NonPublic,
+                binder: null,
+                [
+                    typeof(IReadOnlyList<MySqlMigrationCommandSpec>),
+                    typeof(string),
+                    typeof(MySqlMigrationOperationResultKind),
+                ],
+                modifiers: null);
+
+            return (MySqlMigrationOperationResult)resultConstructor!.Invoke(
+            [
+                commands,
+                "malformed_result",
+                kind,
+            ]);
         }
     }
 

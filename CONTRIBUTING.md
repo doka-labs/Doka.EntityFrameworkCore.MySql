@@ -361,7 +361,9 @@ public-API workflow:
    `MigrationsSqlGenerationOptions` combination.
 4. Preserve command order, command boundaries, and
    `TransactionSuppressed`. Validate the complete staged result before any
-   outer builder mutation.
+   outer builder mutation. A commandless result must use `Consumed(...)` and
+   must prove that neighboring generated commands remain unchanged in every
+   supported generation mode; an empty `Generated(...)` result remains invalid.
 5. Route every engine difference through `MySqlMigrationFeatureSet` and the
    canonical internal capability chain. Do not add package-local version
    comparisons.

@@ -1,8 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Generates MySQL migration commands for one exact custom
-/// <see cref="MigrationOperation"/> type.
+/// Processes one exact custom <see cref="MigrationOperation"/> type and either
+/// generates MySQL commands or explicitly consumes the operation without SQL.
 /// </summary>
 /// <remarks>
 /// Implementations are resolved from the scoped EF Core service provider. They
@@ -27,9 +27,9 @@ public interface IMySqlMigrationOperationHandler
     Type OperationType { get; }
 
     /// <summary>
-    /// Generates the complete command result for the current operation.
+    /// Processes the current operation and returns its complete result.
     /// </summary>
     /// <param name="context">The immutable provider generation context.</param>
-    /// <returns>A complete, validated command result.</returns>
+    /// <returns>A generated command result or an explicit commandless result.</returns>
     MySqlMigrationOperationResult Generate(MySqlMigrationOperationContext context);
 }

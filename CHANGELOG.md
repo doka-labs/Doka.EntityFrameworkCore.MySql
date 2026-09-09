@@ -7,6 +7,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Add `MySqlMigrationOperationResult.Consumed(...)` so a custom migration
+  handler can explicitly complete a validation-only or control-only operation
+  without generating a synthetic SQL command. Consumed operations retain
+  bounded outcome telemetry, create no command or batch boundary, and remain
+  distinct from an invalid empty `Generated(...)` result.
+
+### Fixed
+
+- Prevent MariaDB JSON-alias reverse engineering from scaffolding the
+  engine-owned `JSON_VALID` constraint as an additional user CHECK. Generated
+  contexts now reconstruct JSON columns without duplicate constraint names,
+  while differently named and compound caller-owned checks remain intact.
+
 ## [10.3.0] - 2026-09-01
 
 Stable minor release preserving provider-owned migration metadata from model

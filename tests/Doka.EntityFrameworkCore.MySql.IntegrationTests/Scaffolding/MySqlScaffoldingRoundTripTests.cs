@@ -840,6 +840,48 @@ public sealed class MySqlScaffoldingRoundTripTests
                     connection,
                     $"""
                     SELECT COUNT(*)
+                    FROM information_schema.TABLE_CONSTRAINTS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = '{ParentTable}'
+                      AND CONSTRAINT_TYPE = 'CHECK'
+                      AND CONSTRAINT_NAME = '{CheckConstraint}';
+                    """)
+                .ConfigureAwait(false));
+        Assert.Equal(
+            1L,
+            await ExecuteScalarInt64Async(
+                    connection,
+                    $"""
+                    SELECT COUNT(DISTINCT INDEX_NAME)
+                    FROM information_schema.STATISTICS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = '{ChildTable}'
+                      AND COLUMN_NAME = 'ParentId'
+                      AND SEQ_IN_INDEX = 1;
+                    """)
+                .ConfigureAwait(false));
+        Assert.Equal(
+            IsMariaDb(target) ? 1L : 0L,
+            await ExecuteScalarInt64Async(
+                    connection,
+                    $"""
+                    SELECT COUNT(*)
+                    FROM information_schema.TABLE_CONSTRAINTS AS constraints
+                    INNER JOIN information_schema.CHECK_CONSTRAINTS AS checks
+                        ON checks.CONSTRAINT_SCHEMA = constraints.CONSTRAINT_SCHEMA
+                        AND checks.CONSTRAINT_NAME = constraints.CONSTRAINT_NAME
+                    WHERE constraints.TABLE_SCHEMA = DATABASE()
+                      AND constraints.TABLE_NAME = '{IndexStoreTable}'
+                      AND constraints.CONSTRAINT_TYPE = 'CHECK'
+                      AND LOWER(checks.CHECK_CLAUSE) LIKE '%json_valid%';
+                    """)
+                .ConfigureAwait(false));
+        Assert.Equal(
+            1L,
+            await ExecuteScalarInt64Async(
+                    connection,
+                    $"""
+                    SELECT COUNT(*)
                     FROM `{ParentTable}`
                     WHERE `OptionalCount` = 9
                       AND `ComputedCount` = 10;

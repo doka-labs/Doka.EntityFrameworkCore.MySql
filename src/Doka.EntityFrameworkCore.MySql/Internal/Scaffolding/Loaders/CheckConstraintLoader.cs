@@ -48,6 +48,18 @@ internal static class CheckConstraintLoader
                 continue;
             }
 
+            var jsonColumnName = ScaffoldingHelpers.ExtractJsonValidColumnName(checkClause);
+
+            // MariaDB's JSON alias owns this column CHECK. The canonical json
+            // store type recreates it, so scaffolding it as a user CHECK would
+            // emit the same constraint twice during schema reconstruction.
+            if (jsonColumnName is not null
+                && string.Equals(constraintName, jsonColumnName, StringComparison.OrdinalIgnoreCase)
+                && context.MariaDbJsonColumns.Contains((tableName, jsonColumnName)))
+            {
+                continue;
+            }
+
             var constraints = constraintsByTable.TryGetValue(tableName, out var existing)
                 ? existing
                 : constraintsByTable[tableName] = [];

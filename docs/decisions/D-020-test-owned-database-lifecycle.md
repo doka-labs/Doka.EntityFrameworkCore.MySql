@@ -48,8 +48,8 @@ Chosen option: "Assembly-scoped test-owned containers", because the test contrac
 
 Use Testcontainers for .NET as the canonical lifecycle owner for live integration and specification tests.
 
-- `Testcontainers.MySql` 4.13.0 provisions MySQL.
-- `Testcontainers.MariaDb` 4.12.0 provisions MariaDB; it consumes the compatible Testcontainers core selected by the MySQL module.
+- `Testcontainers.MySql` provisions MySQL.
+- `Testcontainers.MariaDb` provisions MariaDB; both modules use the same centrally managed version.
 - One container per selected engine is shared by an xUnit collection fixture for the lifetime of one test assembly.
 - Tests isolate mutable state with per-test databases and existing cleanup helpers; they do not create one container per test.
 - Supported images are pinned by patch version and multi-platform manifest digest in one shared source file.

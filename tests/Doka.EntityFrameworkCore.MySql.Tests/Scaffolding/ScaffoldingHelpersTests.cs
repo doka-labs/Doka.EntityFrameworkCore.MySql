@@ -128,7 +128,11 @@ public sealed class ScaffoldingHelpersTests
     [InlineData("json_valid()")]
     [InlineData("json_valid(   )")]
     [InlineData("json_valid(``)")]
-    public void ExtractJsonValidColumnName_for_empty_argument_returns_null(string clause) =>
+    [InlineData("(`payload` IS NULL OR json_valid(`payload`))")]
+    [InlineData("json_valid(`payload`) AND `payload` IS NOT NULL")]
+    [InlineData("NOT json_valid(`payload`)")]
+    [InlineData("json_valid(`payload`.`value`)")]
+    public void ExtractJsonValidColumnName_for_noncanonical_clause_returns_null(string clause) =>
         Assert.Null(ScaffoldingHelpers.ExtractJsonValidColumnName(clause));
 
     // -- AppendTableNameFilter --
