@@ -104,8 +104,13 @@ public sealed class MySqlActivityAndMeterSmokeTests
         AssertEngineTags(calls.TagSets, MySqlDiagnosticTags.MySql);
     }
 
-    [Fact]
-    public void Migration_operation_handler_propagates_its_terminal_outcome_to_span_and_metrics()
+    [Theory]
+    [InlineData(false, "generated")]
+    [InlineData(true, "consumed")]
+    public void Migration_operation_handler_propagates_generated_and_consumed_outcomes_to_span_and_metrics(
+        bool consumeOperation,
+        string expectedOutcome
+    )
     {
         using var activitySink = new ActivitySink();
         using var calls = new CounterSink<long>(MySqlDiagnostics.MigrationOperationHandlerCallsTotalMetricName);
@@ -124,26 +129,27 @@ public sealed class MySqlActivityAndMeterSmokeTests
 
         using var context = new OutcomeContext(options);
 
-        _ = context
+        var commands = context
             .GetService<IMigrationsSqlGenerator>()
-            .Generate([new OutcomeOperation()], context.Model);
+            .Generate([new OutcomeOperation(consumeOperation)], context.Model);
 
         var activity = Assert.Single(
             activitySink.Activities,
             candidate => candidate.OperationName == MySqlDiagnostics.MigrationOperationHandlerSpanName
                 && Equals(candidate.GetTagItem(MySqlDiagnosticTags.MigrationHandlerId), "tests.outcome"));
 
-        Assert.Equal("qualified", activity.GetTagItem(MySqlDiagnosticTags.MigrationHandlerOutcome));
+        Assert.Equal(expectedOutcome, activity.GetTagItem(MySqlDiagnosticTags.MigrationHandlerOutcome));
+        Assert.Equal(consumeOperation ? 0 : 1, commands.Count);
         Assert.True(calls.TotalDelta >= 1);
         Assert.Contains(
             calls.TagSets,
             tags => Equals(tags[MySqlDiagnosticTags.MigrationHandlerId], "tests.outcome")
-                && Equals(tags[MySqlDiagnosticTags.MigrationHandlerOutcome], "qualified"));
+                && Equals(tags[MySqlDiagnosticTags.MigrationHandlerOutcome], expectedOutcome));
         Assert.NotEmpty(duration.Measurements);
         Assert.Contains(
             duration.TagSets,
             tags => Equals(tags[MySqlDiagnosticTags.MigrationHandlerId], "tests.outcome")
-                && Equals(tags[MySqlDiagnosticTags.MigrationHandlerOutcome], "qualified"));
+                && Equals(tags[MySqlDiagnosticTags.MigrationHandlerOutcome], expectedOutcome));
     }
 
     [Fact]
@@ -429,7 +435,12 @@ public sealed class MySqlActivityAndMeterSmokeTests
         ) : base(options) { }
     }
 
-    private sealed class OutcomeOperation : MigrationOperation;
+    private sealed class OutcomeOperation(
+        bool consume
+    ) : MigrationOperation
+    {
+        public bool Consume { get; } = consume;
+    }
 
     private sealed class OutcomeHandler : IMySqlMigrationOperationHandler
     {
@@ -439,7 +450,16 @@ public sealed class MySqlActivityAndMeterSmokeTests
 
         public MySqlMigrationOperationResult Generate(
             MySqlMigrationOperationContext context
-        ) => MySqlMigrationOperationResult.Generated([MySqlMigrationCommandSpec.Create("SELECT 1;")], "qualified");
+        )
+        {
+            var operation = (OutcomeOperation)context.Operation;
+
+            return operation.Consume
+                ? MySqlMigrationOperationResult.Consumed("consumed")
+                : MySqlMigrationOperationResult.Generated(
+                    [MySqlMigrationCommandSpec.Create("SELECT 1;")],
+                    "generated");
+        }
     }
 
     private sealed class FailureContext : DbContext

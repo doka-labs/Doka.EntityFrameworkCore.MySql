@@ -1,15 +1,17 @@
 # Migration Operation Handlers
 
-The migration-operation handler SPI lets an extension package own SQL
-generation for its own exact `MigrationOperation` type without replacing or
-deriving from the provider's migrations SQL generator. It is intended for
-package authors. Application migrations that only need one provider-specific
-statement should continue to use `MigrationBuilder.Sql`.
+The migration-operation handler SPI lets an extension package own processing
+and optional SQL generation for its own exact `MigrationOperation` type without
+replacing or deriving from the provider's migrations SQL generator. It is
+intended for package authors. Application migrations that only need one
+provider-specific statement should continue to use `MigrationBuilder.Sql`.
+Explicit commandless outcomes are available from Doka 10.4.0.
 
 The provider owns dispatch, standard MySQL and MariaDB DDL, capability
 classification, command boundaries, failure classification, and telemetry. A
 handler package owns its custom operation, generated guard or extension SQL,
-outcome vocabulary, registration extension, and recovery semantics.
+explicit commandless outcome when applicable, outcome vocabulary, registration
+extension, and recovery semantics.
 
 ## Contract at a Glance
 
@@ -299,17 +301,46 @@ cross-engine `finally`. A script runner must stop on failure and discard that
 connection; script text alone cannot promise cleanup after a failed body.
 Doka's repository script gate provides that process-owned session boundary.
 
-Use `MySqlMigrationOperationResult.Generated` to snapshot the completed
-sequence. Every result must contain at least one non-null command. The outcome
-code must match `^[a-z][a-z0-9_]{0,63}$` and remain low-cardinality across
-databases and migrations. It must not contain SQL, migration IDs, object names,
-identifiers, default values, tenant values, or catalog payloads.
+Use `MySqlMigrationOperationResult.Generated` to snapshot a completed sequence
+containing at least one non-null command. Use
+`MySqlMigrationOperationResult.Consumed` only when the handler has fully
+processed a control-only or validation-only operation whose intended database
+effect is no command:
+
+```csharp
+return MySqlMigrationOperationResult.Consumed(
+    "design_time_guard_consumed");
+```
+
+`Generated(...)` with an empty command sequence remains invalid. A consumed
+result has a provider-owned, reusable empty sequence; it does not create or
+terminate a command or batch boundary, and generated commands before and after
+it retain their original order, text, and transaction-suppression values.
+Normal and idempotent scripts omit the consumed operation completely, so it is
+also absent from server statement logs and SQL-only audit output. Use a
+generated command instead when the database or an external SQL reviewer must
+observe the operation.
+
+Both result forms require an outcome code matching
+`^[a-z][a-z0-9_]{0,63}$` that remains low-cardinality across databases and
+migrations. It must not contain SQL, migration IDs, object names, identifiers,
+default values, tenant values, or catalog payloads. The provider records the
+same success activity and metrics, including this outcome, for generated and
+consumed results.
 
 The provider enumerates the returned command collection exactly once into a
 private snapshot and validates that same snapshot at its trust boundary. No
-command is appended until that succeeds. A handler exception, invalid result,
-unknown operation, or registration conflict never falls back to unguarded
-provider DDL.
+command is appended until that succeeds. Consumed results are validated as a
+separate explicit state and are never inferred from an empty or `null` result.
+An undefined state, a consumed result containing commands, a generated result
+without commands, a handler exception, an unknown operation, or a registration
+conflict fails closed without falling back to unguarded provider DDL.
+
+An EF migration whose application operations are all consumed still follows
+EF Core's migration lifecycle: the migrator appends its provider-owned history
+insert after SQL generation. `Consumed(...)` removes only the custom
+operation's synthetic database statement; it does not suppress the migration
+history entry.
 
 ## Migration Feature Projection
 
@@ -406,7 +437,8 @@ highest supported provider patch:
 4. Every generation-options combination reaches the handler unchanged.
 5. Every feature branch is exercised on each applicable MySQL and MariaDB LTS
    line.
-6. Commands preserve order, boundaries, and transaction suppression.
+6. Generated commands preserve order, boundaries, and transaction suppression;
+   consumed operations emit no command and leave neighboring boundaries intact.
 7. Missing registration, duplicate ownership, handler failure, and invalid
    result all fail without fallback.
 8. Generated SQL and error telemetry contain no secret or unbounded payload.
@@ -426,6 +458,9 @@ highest supported provider patch:
     obtains annotated column and index operations from `IMigrationsModelDiffer`,
     and reads `Char36`, `Binary16`, `AutoIncrement`, `ClientGuid`, explicit
     `None`, and composite-prefix metadata without private annotation identities.
+15. Consumed results remain commandless in every generation mode, preserve
+    bounded outcome telemetry, and reject empty generated or internally
+    inconsistent result states.
 
 The provider repository verifies the general contract with two independent
 conformance handlers, an exhaustive 21-by-6 feature matrix, a local
@@ -444,6 +479,7 @@ recovery, and least-privilege behavior.
 - Microsoft, [`IAnnotation` API](https://learn.microsoft.com/en-us/dotnet/api/microsoft.entityframeworkcore.infrastructure.iannotation?view=efcore-10.0), retrieved 2026-08-31.
 - Microsoft, [EF Core 10.0.8 `MigrationsSqlGenerator` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationsSqlGenerator.cs), retrieved 2026-08-11.
 - Microsoft, [EF Core 10.0.10 `MigrationsSqlGenerator` source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/MigrationsSqlGenerator.cs), retrieved 2026-08-11.
+- Microsoft, [EF Core 10.0.11 `Migrator` source](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore.Relational/Migrations/Internal/Migrator.cs), retrieved 2026-09-09.
 - Microsoft, [EF Core 10.0.8 `IMigrationsSqlGenerator` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/IMigrationsSqlGenerator.cs), retrieved 2026-08-11.
 - Microsoft, [EF Core 10.0.10 `IMigrationsSqlGenerator` source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/IMigrationsSqlGenerator.cs), retrieved 2026-08-11.
 - Microsoft, [EF Core 10.0.8 `MigrationCommand` source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationCommand.cs), retrieved 2026-08-11.

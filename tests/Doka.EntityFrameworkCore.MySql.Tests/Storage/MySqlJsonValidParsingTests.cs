@@ -41,7 +41,13 @@ public sealed class MySqlJsonValidParsingTests
         Assert.Null(ScaffoldingHelpers.ExtractJsonValidColumnName("json_valid(   )"));
 
     [Fact]
-    public void Handles_nested_expression() => Assert.Equal(
-        "metadata",
+    public void Rejects_nested_expression() => Assert.Null(
         ScaffoldingHelpers.ExtractJsonValidColumnName("(`metadata` is null or json_valid(`metadata`))"));
+
+    [Theory]
+    [InlineData("json_valid(`metadata`) AND `metadata` IS NOT NULL")]
+    [InlineData("NOT json_valid(`metadata`)")]
+    [InlineData("json_valid(`metadata`.`value`)")]
+    public void Rejects_noncanonical_expression(string checkClause) => Assert.Null(
+        ScaffoldingHelpers.ExtractJsonValidColumnName(checkClause));
 }

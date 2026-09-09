@@ -71,8 +71,8 @@ adds one narrow, composable ownership boundary while keeping standard DDL and
 the mutable command builder inside the provider.
 
 The runtime package exposes an immutable context, an immutable command
-specification, a validated generated result, a canonical migration-feature
-projection, stable failure codes, and
+specification, a validated generated-or-consumed result, a canonical
+migration-feature projection, stable failure codes, and
 `IMySqlMigrationOperationHandler`. A package registers each handler as scoped
 through a package-owned `IDbContextOptionsExtension`; its `ApplyServices`
 method uses `TryAddEnumerable` so independent implementations compose in EF
@@ -113,10 +113,18 @@ The package-only release consumer builds an ordinary provider model and reads
 the resulting annotated column and index operations through this projection;
 an unannotated custom-operation check alone is not sufficient evidence.
 
-The handler returns one complete result containing at least one immutable
-command and one bounded outcome code. The provider enumerates the foreign
-command collection exactly once into a private snapshot, validates that
-snapshot, and appends only the validated copy to the outer builder. Handler
+The handler returns one complete result with one bounded outcome code. A
+`Generated` result contains at least one immutable command. A `Consumed`
+result explicitly represents a fully processed control-only or validation-only
+operation with no database command. The states are distinct: an empty generated
+result, a consumed result containing commands, an undefined internal state, and
+`null` all fail closed.
+
+The provider enumerates a generated foreign command collection exactly once
+into a private snapshot, validates that snapshot, and appends only the validated
+copy to the outer builder. A consumed result uses a reusable empty sequence and
+creates no command or batch boundary; neighboring generated commands remain
+unchanged. Both states record the same bounded success telemetry. Handler
 failure or contract failure never falls back to built-in generation. An
 unregistered custom operation also fails closed.
 
@@ -175,6 +183,8 @@ strategy cannot retry an already committed but ambiguously reported DDL body.
   finally-equivalent execution boundary rather than a later EF command.
 - Good, because external handlers can request the same bounded runtime cleanup
   semantics without parsing or replacing provider internals.
+- Good, because control-only operations can be consumed without exposing a
+  synthetic SQL statement while retaining success telemetry.
 - Bad, because package authors must provide an EF options extension rather
   than relying on ordinary application-container registration.
 - Bad, because every public feature and failure value becomes a versioned API
@@ -184,6 +194,9 @@ strategy cannot retry an already committed but ambiguously reported DDL body.
 - Bad, because SQL scripts can preserve the declared fragment order but cannot
   provide the runtime finally boundary; failed script sessions must be
   discarded by the deployment runner.
+- Bad, because a consumed operation is absent from generated SQL and server
+  statement logs; packages that require database-visible evidence must return
+  a generated command instead.
 
 ### Confirmation
 
@@ -191,6 +204,9 @@ strategy cannot retry an already committed but ambiguously reported DDL body.
   package-only consumer dispatch, and functional service-graph contracts.
 - Run `dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj --filter FullyQualifiedName~MySqlMigrationOperationHandlerTests` to validate exact dispatch, every generation mode, baseline rendering, and independent options extensions.
 - Run `dotnet build tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke/Doka.EntityFrameworkCore.MySql.RuntimeSmoke.csproj --configuration Release` to compile the public SPI in the trim and NativeAOT smoke consumer.
+- Run the consumed-result contract and diagnostics tests to prove every
+  generation mode emits no command, preserves neighboring boundaries, records
+  the outcome, and rejects inconsistent states.
 - Run the package-only handler smoke to prove opaque handler commands, ordinary
   provider bodies, and scoped provider fragments from restored package bytes.
 - Run the SQL-mode integration contract to prove exact restoration after
@@ -294,6 +310,8 @@ contract.
   cancellation-independent cleanup and pool-safe failure handling.
 - 2026-08-21: Clarified that public fragments describe validated execution
   structure while internal scope kinds retain provenance.
+- 2026-09-09: Added an explicit commandless consumed result for control-only
+  and validation-only custom operations.
 
 ### Implementation References
 
@@ -317,6 +335,7 @@ contract.
 - [EF Core custom migrations operations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/operations) (primary source; retrieved 2026-08-11)
 - [EF Core 10.0.8 migrations SQL generator source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationsSqlGenerator.cs) (primary source; retrieved 2026-08-11)
 - [EF Core 10.0.10 migrations SQL generator source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/MigrationsSqlGenerator.cs) (primary source; retrieved 2026-08-11)
+- [EF Core 10.0.11 migrator source](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore.Relational/Migrations/Internal/Migrator.cs) (primary source; retrieved 2026-09-09)
 - [EF Core 10.0.8 migrations SQL generator interface source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/IMigrationsSqlGenerator.cs) (primary source; retrieved 2026-08-11)
 - [EF Core 10.0.10 migrations SQL generator interface source](https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Migrations/IMigrationsSqlGenerator.cs) (primary source; retrieved 2026-08-11)
 - [EF Core 10.0.8 migration command source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Migrations/MigrationCommand.cs) (primary source; retrieved 2026-08-11)

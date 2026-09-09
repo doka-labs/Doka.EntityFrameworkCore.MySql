@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <summary>
 /// Static helpers shared by the per-aspect scaffolding loaders. The helpers cover
 /// scalar-string execution, value-generated resolution, character-set derivation,
-/// JSON_VALID column-name extraction, referential-action mapping, and parametrized
+/// canonical JSON_VALID column-name extraction, referential-action mapping, and parametrized
 /// TABLE_NAME IN (@t0, @t1, ...) filter binding.
 /// </summary>
 internal static class ScaffoldingHelpers
@@ -110,41 +110,81 @@ internal static class ScaffoldingHelpers
     }
 
     /// <summary>
-    /// Extracts the column name from a MariaDB CHECK_CLAUSE like
+    /// Extracts the column name from a canonical MariaDB JSON-alias CHECK_CLAUSE like
     /// <c>json_valid(`payload`)</c> or <c>json_valid(payload)</c>.
-    /// Returns null when no json_valid call is present or the column reference is empty.
+    /// Returns null when the complete clause is not a single JSON_VALID call over one
+    /// column identifier.
     /// </summary>
     public static string? ExtractJsonValidColumnName(
         string checkClause
     )
     {
-        const string prefix = "json_valid(";
-        var lowerClause = checkClause.ToLowerInvariant();
-        var startIndex = lowerClause.IndexOf(prefix, StringComparison.Ordinal);
+        ArgumentNullException.ThrowIfNull(checkClause);
 
-        if (startIndex < 0)
+        const string functionName = "json_valid";
+        var clause = checkClause.AsSpan().Trim();
+
+        if (!clause.StartsWith(functionName, StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
-        startIndex += prefix.Length;
-        var endIndex = lowerClause.IndexOf(')', startIndex);
+        clause = clause[functionName.Length..].TrimStart();
 
-        if (endIndex <= startIndex)
+        if (clause.Length < 3
+            || clause[0] != '('
+            || clause[^1] != ')')
         {
             return null;
         }
 
-        var columnRef = checkClause[startIndex..endIndex]
-            .Trim();
+        var columnReference = clause[1..^1].Trim();
 
-        if (columnRef is ['`', _, ..]
-            && columnRef[^1] == '`')
+        if (columnReference.Length >= 2
+            && columnReference[0] == '`'
+            && columnReference[^1] == '`')
         {
-            columnRef = columnRef[1..^1];
+            var quotedIdentifier = columnReference[1..^1];
+
+            if (quotedIdentifier.IsEmpty)
+            {
+                return null;
+            }
+
+            for (var index = 0; index < quotedIdentifier.Length; index++)
+            {
+                if (quotedIdentifier[index] != '`')
+                {
+                    continue;
+                }
+
+                if (index + 1 >= quotedIdentifier.Length
+                    || quotedIdentifier[index + 1] != '`')
+                {
+                    return null;
+                }
+
+                index++;
+            }
+
+            var identifier = quotedIdentifier.ToString();
+
+            return identifier.Contains("``", StringComparison.Ordinal)
+                ? identifier.Replace("``", "`", StringComparison.Ordinal)
+                : identifier;
         }
 
-        return string.IsNullOrWhiteSpace(columnRef) ? null : columnRef;
+        foreach (var character in columnReference)
+        {
+            if (!char.IsLetterOrDigit(character)
+                && character is not '_'
+                && character is not '$')
+            {
+                return null;
+            }
+        }
+
+        return columnReference.IsEmpty ? null : columnReference.ToString();
     }
 
     /// <summary>

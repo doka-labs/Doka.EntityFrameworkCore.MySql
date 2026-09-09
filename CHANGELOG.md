@@ -7,6 +7,37 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.4.0] - 2026-09-10
+
+Stable minor release adding explicit commandless handling for custom migration
+operations and correcting MariaDB JSON-alias reverse engineering. It preserves
+handler diagnostics and telemetry without synthetic SQL and prevents
+engine-owned JSON validation from becoming a duplicate user constraint.
+
+Install the stable packages through normal NuGet version resolution. Add the
+spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.0
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.4.0
+dotnet package add Doka.Caching.MySql --version 10.4.0
+```
+
+### Added
+
+- Add `MySqlMigrationOperationResult.Consumed(...)` so a custom migration
+  handler can explicitly complete a validation-only or control-only operation
+  without generating a synthetic SQL command. Consumed operations retain
+  bounded outcome telemetry, create no command or batch boundary, and remain
+  distinct from an invalid empty `Generated(...)` result.
+
+### Fixed
+
+- Prevent MariaDB JSON-alias reverse engineering from scaffolding the
+  engine-owned `JSON_VALID` constraint as an additional user CHECK. Generated
+  contexts now reconstruct JSON columns without duplicate constraint names,
+  while differently named and compound caller-owned checks remain intact.
+
 ## [10.3.0] - 2026-09-01
 
 Stable minor release preserving provider-owned migration metadata from model
@@ -1167,7 +1198,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.3.0...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.4.0...HEAD
+[10.4.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.0
 [10.3.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.3.0
 [10.2.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.2.0
 [10.1.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.1.2

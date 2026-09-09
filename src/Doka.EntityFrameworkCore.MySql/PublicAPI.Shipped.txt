@@ -358,3 +358,4 @@ Doka.EntityFrameworkCore.MySql.MySqlApplicationTimeTableBuilder<TEntity>.HasPeri
 static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.Like<T>(this Microsoft.EntityFrameworkCore.DbFunctions! functions, T matchExpression, string? pattern) -> bool
 static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.Like<T>(this Microsoft.EntityFrameworkCore.DbFunctions! functions, T matchExpression, string? pattern, string? escapeCharacter) -> bool
 static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.AutoDetect(string! connectionString) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
+static Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult.Consumed(string! outcomeCode) -> Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult!
