@@ -243,6 +243,9 @@ The `EnableRetryOnFailure(int, TimeSpan?)` signature matches Pomelo by coinciden
   packages against 10.0.0; the cache baseline follows publication of 10.1.0.
 - 2026-08-28: Advanced the provider and spatial package baselines to 10.1.0 and
   enabled the cache baseline after publication of its first stable package.
+- 2026-09-09: Promoted the commandless migration-operation result introduced
+  for 10.4.0 from the provider's unshipped ledger to its stable shipped
+  baseline before qualification.
 
 ### Implementation References
 

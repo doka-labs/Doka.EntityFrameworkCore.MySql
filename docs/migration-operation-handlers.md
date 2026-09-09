@@ -5,6 +5,7 @@ and optional SQL generation for its own exact `MigrationOperation` type without
 replacing or deriving from the provider's migrations SQL generator. It is
 intended for package authors. Application migrations that only need one
 provider-specific statement should continue to use `MigrationBuilder.Sql`.
+Explicit commandless outcomes are available from Doka 10.4.0.
 
 The provider owns dispatch, standard MySQL and MariaDB DDL, capability
 classification, command boundaries, failure classification, and telemetry. A

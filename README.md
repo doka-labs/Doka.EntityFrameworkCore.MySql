@@ -70,21 +70,22 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.3.0` preserves provider-owned GUID, JSON, row-version, and spatial metadata
-through generated snapshots, migration designers, migration operations, and
-SQL. It also adds immutable public migration-operation metadata for custom
-handlers and preserves physical index semantics across TPH, TPT, and TPC
-inheritance mappings. `Char36` and `Binary16` remain fully supported GUID
-storage formats. Pin the current stable version explicitly when validating an
-affected application:
+`10.4.0` lets custom migration-operation handlers explicitly consume
+validation-only and control-only operations without generating synthetic SQL.
+Diagnostics, activities, metrics, and the bounded outcome code remain intact.
+It also prevents MariaDB JSON aliases from recreating their engine-owned
+`JSON_VALID` constraint as a duplicate user CHECK during reverse engineering.
+`Char36` and `Binary16` remain fully supported GUID storage formats. Pin the
+current stable version explicitly when validating an affected application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.3.0
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.0
 ```
 
-See [Migration Operation Handlers][migration-operation-handlers] for the public
-metadata projection and [Migrating from Pomelo][migrating-from-pomelo] for the
-GUID mapping and representation-migration contracts.
+See [Migration Operation Handlers][migration-operation-handlers] for commandless
+outcomes and the public metadata projection, and [Migrating from
+Pomelo][migrating-from-pomelo] for the GUID mapping and
+representation-migration contracts.
 
 ## Quick Start
 
