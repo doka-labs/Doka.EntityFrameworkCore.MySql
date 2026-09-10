@@ -151,7 +151,7 @@ probes, and re-evaluation triggers.
 - The provider test infrastructure owns isolated test databases and records
   exact image and endpoint evidence.
 - Version-bound inventories enumerate all 327 official compliance bases for
-  EF Core 10.0.8, 10.0.10, and 10.0.11.
+  EF Core 10.0.8, 10.0.10, 10.0.11, and 10.0.12.
 - Exact EF Core 10.0.8 discovery contracts contain 29,746 tests for each MySQL
   target and 29,412 / 29,410 / 29,411 / 29,417 tests for MariaDB 10.11 / 11.4 /
   11.8 / 12.3 respectively.
@@ -161,6 +161,9 @@ probes, and re-evaluation triggers.
 - Exact EF Core 10.0.11 discovery contracts contain 29,755 tests for each
   MySQL target and 29,421 / 29,419 / 29,420 / 29,426 tests for MariaDB 10.11 /
   11.4 / 11.8 / 12.3 respectively.
+- Exact EF Core 10.0.12 discovery contracts contain the same IDs and counts as
+  10.0.11: 29,755 tests for each MySQL target and 29,421 / 29,419 / 29,420 /
+  29,426 tests for MariaDB 10.11 / 11.4 / 11.8 / 12.3 respectively.
 - The patch-matrix preflight rejects a resolved version unless its inventory,
   complete baseline membership, and six-target discovery contract already
   exist. Newly published upstream tests therefore become a reviewed contract
@@ -210,6 +213,9 @@ probes, and re-evaluation triggers.
 - 2026-08-16: Added the EF Core 10.0.11 inventory and six-target discovery
   contract, including the one newly inherited upstream test, with zero
   provider debt.
+- 2026-09-10: Added the EF Core 10.0.12 inventory and six-target discovery
+  contract. The complete inventory and discovered provider IDs are unchanged
+  from 10.0.11.
 
 ### Implementation References
 
@@ -219,13 +225,13 @@ probes, and re-evaluation triggers.
 
 ### Sources
 
-- [EF Core ComplianceTestBase 10.0.11][ef-compliance]
-  (primary source; retrieved 2026-08-16)
-- [EF Core RelationalComplianceTestBase 10.0.11][ef-relational-compliance]
-  (primary source; retrieved 2026-08-16)
-- [Relational specification package 10.0.11][ef-relational-spec-package]
-  (primary source; retrieved 2026-08-24)
+- [EF Core ComplianceTestBase 10.0.12][ef-compliance]
+  (primary source; retrieved 2026-09-10)
+- [EF Core RelationalComplianceTestBase 10.0.12][ef-relational-compliance]
+  (primary source; retrieved 2026-09-10)
+- [Relational specification package 10.0.12][ef-relational-spec-package]
+  (primary source; retrieved 2026-09-10)
 
-[ef-compliance]: https://github.com/dotnet/efcore/blob/v10.0.11/test/EFCore.Specification.Tests/ComplianceTestBase.cs
-[ef-relational-compliance]: https://github.com/dotnet/efcore/blob/v10.0.11/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs
-[ef-relational-spec-package]: https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Relational.Specification.Tests/10.0.11
+[ef-compliance]: https://github.com/dotnet/efcore/blob/v10.0.12/test/EFCore.Specification.Tests/ComplianceTestBase.cs
+[ef-relational-compliance]: https://github.com/dotnet/efcore/blob/v10.0.12/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs
+[ef-relational-spec-package]: https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Relational.Specification.Tests/10.0.12

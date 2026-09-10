@@ -3,6 +3,7 @@
   "efCoreVersions": [
     "10.0.10",
     "10.0.11",
+    "10.0.12",
     "10.0.8"
   ],
   "supportedTargets": [
@@ -22,6 +23,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -49,6 +51,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -77,6 +80,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -103,6 +107,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -129,6 +134,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -155,6 +161,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -181,6 +188,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -207,6 +215,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -233,6 +242,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -259,6 +269,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -286,6 +297,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -312,6 +324,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -338,6 +351,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -364,6 +378,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -391,6 +406,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -417,6 +433,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -443,6 +460,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -469,6 +487,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -495,6 +514,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -521,6 +541,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -547,6 +568,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -573,6 +595,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -599,6 +622,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -625,6 +649,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -651,6 +676,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -678,6 +704,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -705,6 +732,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -732,6 +760,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -759,6 +788,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -786,6 +816,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -813,6 +844,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -840,6 +872,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -867,6 +900,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -894,6 +928,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -920,6 +955,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -946,6 +982,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -972,6 +1009,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -998,6 +1036,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1024,6 +1063,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1050,6 +1090,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1076,6 +1117,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1102,6 +1144,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1128,6 +1171,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1154,6 +1198,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1180,6 +1225,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1206,6 +1252,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -1232,6 +1279,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1258,6 +1306,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1284,6 +1333,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1310,6 +1360,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1336,6 +1387,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1362,6 +1414,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1388,6 +1441,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -1414,6 +1468,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1440,6 +1495,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1466,6 +1522,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1492,6 +1549,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1518,6 +1576,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1544,6 +1603,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1570,6 +1630,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1596,6 +1657,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1622,6 +1684,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1648,6 +1711,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1674,6 +1738,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1700,6 +1765,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -1726,6 +1792,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1752,6 +1819,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1778,6 +1846,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1804,6 +1873,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1830,6 +1900,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1856,6 +1927,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1882,6 +1954,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1908,6 +1981,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1934,6 +2008,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1960,6 +2035,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -1986,6 +2062,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2012,6 +2089,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2038,6 +2116,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2064,6 +2143,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2090,6 +2170,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2116,6 +2197,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2142,6 +2224,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2168,6 +2251,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2194,6 +2278,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2220,6 +2305,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2246,6 +2332,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2272,6 +2359,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2298,6 +2386,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2324,6 +2413,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2350,6 +2440,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2376,6 +2467,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2402,6 +2494,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2428,6 +2521,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2454,6 +2548,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2482,6 +2577,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2510,6 +2606,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2536,6 +2633,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2564,6 +2662,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2592,6 +2691,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2618,6 +2718,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2644,6 +2745,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2670,6 +2772,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2696,6 +2799,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2722,6 +2826,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2748,6 +2853,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2774,6 +2880,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2800,6 +2907,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2826,6 +2934,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2852,6 +2961,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2878,6 +2988,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2904,6 +3015,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2930,6 +3042,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2956,6 +3069,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -2982,6 +3096,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3008,6 +3123,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3034,6 +3150,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3060,6 +3177,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3086,6 +3204,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3112,6 +3231,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3138,6 +3258,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3164,6 +3285,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3190,6 +3312,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3216,6 +3339,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3242,6 +3366,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3268,6 +3393,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3294,6 +3420,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3320,6 +3447,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3346,6 +3474,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3372,6 +3501,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3398,6 +3528,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3424,6 +3555,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3450,6 +3582,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3476,6 +3609,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3502,6 +3636,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3528,6 +3663,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3554,6 +3690,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3580,6 +3717,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3606,6 +3744,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3632,6 +3771,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3658,6 +3798,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3684,6 +3825,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3710,6 +3852,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3736,6 +3879,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3762,6 +3906,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3788,6 +3933,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3814,6 +3960,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3840,6 +3987,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -3866,6 +4014,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -3892,6 +4041,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -3918,6 +4068,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -3944,6 +4095,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -3970,6 +4122,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -3996,6 +4149,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4023,6 +4177,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -4050,6 +4205,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -4076,6 +4232,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4102,6 +4259,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -4143,6 +4301,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -4169,6 +4328,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -4195,6 +4355,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -4221,6 +4382,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -4247,6 +4409,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -4273,6 +4436,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -4299,6 +4463,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -4325,6 +4490,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4351,6 +4517,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4377,6 +4544,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4403,6 +4571,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4429,6 +4598,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -4457,6 +4627,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -4491,6 +4662,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -4518,6 +4690,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -4546,6 +4719,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -4572,6 +4746,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -4598,6 +4773,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4624,6 +4800,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4650,6 +4827,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4676,6 +4854,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4702,6 +4881,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4728,6 +4908,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4755,6 +4936,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4781,6 +4963,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4807,6 +4990,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4833,6 +5017,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4859,6 +5044,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4885,6 +5071,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4912,6 +5099,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4938,6 +5126,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4964,6 +5153,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -4990,6 +5180,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5016,6 +5207,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5051,6 +5243,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -5077,6 +5270,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5103,6 +5297,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5129,6 +5324,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5155,6 +5351,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5181,6 +5378,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5207,6 +5405,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5233,6 +5432,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5259,6 +5459,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5285,6 +5486,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -5312,6 +5514,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -5339,6 +5542,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -5366,6 +5570,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -5393,6 +5598,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -5420,6 +5626,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -5463,6 +5670,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -5490,6 +5698,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -5517,6 +5726,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -5544,6 +5754,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -5571,6 +5782,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5597,6 +5809,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5623,6 +5836,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5649,6 +5863,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5699,6 +5914,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5725,6 +5941,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5751,6 +5968,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5777,6 +5995,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5803,6 +6022,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5829,6 +6049,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -5855,6 +6076,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -5881,6 +6103,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -5907,6 +6130,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -5933,6 +6157,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -5959,6 +6184,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -5985,6 +6211,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -6012,6 +6239,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6041,6 +6269,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6072,6 +6301,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6103,6 +6333,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6134,6 +6365,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6162,6 +6394,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6193,6 +6426,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -6220,6 +6454,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6246,6 +6481,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6273,6 +6509,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6300,6 +6537,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6327,6 +6565,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6353,6 +6592,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6380,6 +6620,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6406,6 +6647,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6432,6 +6674,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6458,6 +6701,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6484,6 +6728,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6510,6 +6755,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6536,6 +6782,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6562,6 +6809,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6589,6 +6837,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6617,6 +6866,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6645,6 +6895,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6673,6 +6924,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6699,6 +6951,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6727,6 +6980,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6756,6 +7010,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6783,6 +7038,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6810,6 +7066,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6836,6 +7093,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6862,6 +7120,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6889,6 +7148,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6915,6 +7175,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6944,6 +7205,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6972,6 +7234,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -6998,6 +7261,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7026,6 +7290,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7052,6 +7317,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7080,6 +7346,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7108,6 +7375,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7134,6 +7402,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7162,6 +7431,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7193,6 +7463,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7219,6 +7490,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7245,6 +7517,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7271,6 +7544,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7297,6 +7571,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7323,6 +7598,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7349,6 +7625,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7375,6 +7652,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7401,6 +7679,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7427,6 +7706,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7453,6 +7733,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7480,6 +7761,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7511,6 +7793,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7537,6 +7820,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7563,6 +7847,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7589,6 +7874,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7615,6 +7901,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7641,6 +7928,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7667,6 +7955,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7693,6 +7982,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7719,6 +8009,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7745,6 +8036,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7771,6 +8063,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7797,6 +8090,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7823,6 +8117,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7849,6 +8144,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -7875,6 +8171,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8004,6 +8301,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8030,6 +8328,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8056,6 +8355,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8082,6 +8382,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8108,6 +8409,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8134,6 +8436,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8160,6 +8463,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8186,6 +8490,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8212,6 +8517,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8238,6 +8544,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8264,6 +8571,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8290,6 +8598,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8316,6 +8625,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8342,6 +8652,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8368,6 +8679,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8394,6 +8706,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8420,6 +8733,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8446,6 +8760,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -8473,6 +8788,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -8500,6 +8816,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "design-time-modeling",
@@ -8526,6 +8843,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -8552,6 +8870,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -8578,6 +8897,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -8604,6 +8924,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -8630,6 +8951,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8656,6 +8978,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -8682,6 +9005,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -8708,6 +9032,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "query-storage-spatial",
@@ -8749,6 +9074,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "migration-update",
@@ -8775,6 +9101,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",
@@ -8801,6 +9128,7 @@
       "efCoreVersions": [
         "10.0.10",
         "10.0.11",
+        "10.0.12",
         "10.0.8"
       ],
       "suiteDomain": "cross-cutting",

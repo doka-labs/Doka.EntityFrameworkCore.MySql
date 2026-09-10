@@ -33,6 +33,10 @@ dotnet package add Doka.Caching.MySql --version 10.4.0
 
 ### Fixed
 
+- Keep release-candidate EF Core selection deterministic by executing the
+  highest exact patch already admitted to the reviewed specification baseline.
+  Scheduled CI still detects newly published `10.0.x` patches, but an upstream
+  publication can no longer invalidate a green release commit after merge.
 - Prevent MariaDB JSON-alias reverse engineering from scaffolding the
   engine-owned `JSON_VALID` constraint as an additional user CHECK. Generated
   contexts now reconstruct JSON columns without duplicate constraint names,

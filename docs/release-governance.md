@@ -129,13 +129,14 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     without changing the provider NativeAOT deferral in D-017
   - EF Core patch scope: the candidate re-resolves and records the exact floor
     graph already behavior-qualified by the tree-exact pull-request
-    `repository-qualification`, then fully executes the latest compatible
-    patch; both scopes, resolved package graphs, per-target TRX and engine
-    evidence, and the full-row integration result are independently verified
-    during evidence assembly
+    `repository-qualification`, then fully executes the highest exact patch
+    already admitted to `SpecSuiteBaseline.json`; scheduled CI alone uses the
+    floating selector to detect a newer upstream patch. Both scopes, resolved
+    package graphs, per-target TRX and engine evidence, and the full-row
+    integration result are independently verified during evidence assembly
   - EF Core version preflight: exact inventory, complete baseline membership,
     and six-target discovery contracts are required immediately after restore,
-    before the full repository and live latest-patch matrix begins
+    before the full repository and live qualified-patch matrix begins
   - local consumer boundary: before publication, isolated projects restore
     the exact local provider, spatial, and cache packages into an empty package
     cache and bind their SHA-256 digests. The provider/spatial consumer compiles

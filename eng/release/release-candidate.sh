@@ -585,12 +585,24 @@ copy_matrix_evidence_legs() {
 
 # The protected branch already runs the complete repository, specification,
 # and integration contracts against the deterministic EF Core floor. The
-# candidate re-resolves that floor to bind its dependency graph, then spends
-# the additional live-test budget only on the latest compatible patch.
+# scheduled workflow owns floating-patch detection. A release selects the
+# highest patch already admitted to the reviewed specification baseline so an
+# upstream publication cannot invalidate a green candidate after merge.
 run_efcore_matrix_gate() {
-    local leg scope
+    local leg qualified_pattern qualified_version scope
+    qualified_version="$(jq -er '
+        [
+          .efCoreVersions[]?
+          | select(test("^10[.]0[.][0-9]+$"))
+          | {version: ., components: (split(".") | map(tonumber))}
+        ]
+        | max_by(.components)
+        | .version
+    ' "${repo_root}/tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts/SpecSuiteBaseline.json")"
+    qualified_pattern="^${qualified_version//./[.]}$"
+
     for leg in "10.0.8:^10[.]0[.]8$:minimum-10-0-8:dependency-graph" \
-               "10.0.*:^10[.]0[.][0-9]+$:latest-10-0:full"; do
+               "${qualified_version}:${qualified_pattern}:latest-10-0:full"; do
         scope="${leg##*:}"
         leg="${leg%:*}"
         DokaEfCoreVersion="${leg%%:*}" \

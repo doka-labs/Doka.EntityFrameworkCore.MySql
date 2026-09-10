@@ -13,6 +13,7 @@ that the finalizer's semantic gate creates every assembly it consumes.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -23,6 +24,7 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 ORCHESTRATOR = REPOSITORY_ROOT / "eng" / "release" / "release-candidate.sh"
 WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "release-candidate.yml"
+CI_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
 TEST_ENTRY = REPOSITORY_ROOT / "eng" / "testing" / "test.sh"
 MIGRATION_GATE = REPOSITORY_ROOT / "eng" / "testing" / "test-migration-deployment.sh"
 MIGRATION_MODEL = REPOSITORY_ROOT / "eng" / "quality" / "check-migration-model.sh"
@@ -216,6 +218,59 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
         ):
             with self.subTest(leg=leg):
                 self.assertEqual(1, body.count(f'"{leg}"'))
+
+    def test_release_efcore_matrix_uses_a_reviewed_exact_patch(self) -> None:
+        """Do not let a new upstream patch invalidate a green release commit."""
+        body = ORCHESTRATOR.read_text(encoding="utf-8")
+        start = body.index("run_efcore_matrix_gate() {")
+        matrix = body[start : body.index("\n}\n", start)]
+
+        self.assertIn("SpecSuiteBaseline.json", matrix)
+        self.assertIn("max_by(.components)", matrix)
+        self.assertNotIn("10.0.*", matrix)
+        self.assertIn(
+            '"${qualified_version}:${qualified_pattern}:latest-10-0:full"',
+            matrix,
+        )
+        self.assertIn(
+            'ef-core-version: "10.0.*"',
+            CI_WORKFLOW.read_text(encoding="utf-8"),
+        )
+
+    def test_latest_qualified_efcore_patch_has_complete_contracts(self) -> None:
+        """Keep the release selector and exact contract files in one state."""
+        contracts = (
+            REPOSITORY_ROOT
+            / "tests"
+            / "Doka.EntityFrameworkCore.MySql.FunctionalTests"
+            / "Specification"
+            / "Contracts"
+        )
+        baseline = json.loads(
+            (contracts / "SpecSuiteBaseline.json").read_text(encoding="utf-8")
+        )
+        latest = max(
+            (
+                version
+                for version in baseline["efCoreVersions"]
+                if version.startswith("10.0.")
+            ),
+            key=lambda version: tuple(map(int, version.split("."))),
+        )
+
+        result = subprocess.run(
+            (
+                "bash",
+                str(REPOSITORY_ROOT / "eng/testing/check-spec-version-contract.sh"),
+                latest,
+            ),
+            cwd=REPOSITORY_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
 
     def test_release_run_id_cannot_escape_the_evidence_root(self) -> None:
         """Reject path traversal before an incomplete stage can replace evidence."""

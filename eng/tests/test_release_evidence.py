@@ -311,11 +311,47 @@ class ReleaseEvidenceTests(unittest.TestCase):
             / "efcore-contract-evidence.json"
         )
         receipt = json.loads(path.read_text(encoding="utf-8"))
+        receipt["requestedVersion"] = "10.0.10"
         receipt["resolvedVersion"] = "10.0.10"
         path.write_text(json.dumps(receipt), encoding="utf-8")
 
         with self.assertRaisesRegex(
             release_evidence.EvidenceError, "dependency graph does not match"
+        ):
+            self._generate()
+
+    def test_generate_rejects_a_floating_release_dependency_request(self) -> None:
+        """Keep upstream publication from changing a reviewed release graph."""
+        path = (
+            self.root
+            / "efcore-patch-matrix"
+            / "latest-10-0"
+            / "efcore-contract-evidence.json"
+        )
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+        receipt["requestedVersion"] = "10.0.*"
+        path.write_text(json.dumps(receipt), encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "requested an unexpected version"
+        ):
+            self._generate()
+
+    def test_generate_rejects_a_different_requested_and_resolved_patch(self) -> None:
+        """Bind the requested release patch to the exact resolved graph."""
+        path = (
+            self.root
+            / "efcore-patch-matrix"
+            / "latest-10-0"
+            / "efcore-contract-evidence.json"
+        )
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+        receipt["requestedVersion"] = "10.0.11"
+        path.write_text(json.dumps(receipt), encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError,
+            "did not request its exact resolved version",
         ):
             self._generate()
 
@@ -688,8 +724,8 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 ],
             },
             "latest-10-0": {
-                "requestedVersion": "10.0.*",
-                "resolvedVersion": "10.0.11",
+                "requestedVersion": "10.0.12",
+                "resolvedVersion": "10.0.12",
                 "validationScope": "full",
                 "qualificationSource": None,
                 "specificationTargets": ["mariadb118", "mysql84"],

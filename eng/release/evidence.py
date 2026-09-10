@@ -299,12 +299,13 @@ def validate_efcore_patch_matrix(
     root: Path,
     qualification_gates: list[str],
 ) -> None:
-    """Require one floor graph and one fully executed latest EF Core row.
+    """Require one floor graph and one fully executed qualified EF Core row.
 
     The protected branch owns behavior at the deterministic dependency floor.
     The candidate still resolves and records that exact graph, while the
-    additional candidate-produced test budget is reserved for the newest
-    compatible patch. Receipts make that division explicit and non-optional.
+    additional candidate-produced test budget is reserved for the highest
+    repository-qualified patch. Receipts make that division explicit and
+    non-optional.
     """
     matrix_root = root / EFCORE_PATCH_MATRIX_ROOT
     receipts = sorted(matrix_root.rglob("efcore-contract-evidence.json"))
@@ -321,7 +322,7 @@ def validate_efcore_patch_matrix(
 
     expected = {
         "minimum-10-0-8": {
-            "requestedVersion": "10.0.8",
+            "requestedPattern": r"10[.]0[.]8",
             "resolvedPattern": r"10[.]0[.]8",
             "validationScope": "dependency-graph",
             "qualificationSource": "repository-qualification",
@@ -331,7 +332,7 @@ def validate_efcore_patch_matrix(
             "results": {"dependencies": "resolved-packages.json"},
         },
         "latest-10-0": {
-            "requestedVersion": "10.0.*",
+            "requestedPattern": r"10[.]0[.][0-9]+",
             "resolvedPattern": r"10[.]0[.][0-9]+",
             "validationScope": "full",
             "qualificationSource": None,
@@ -369,7 +370,6 @@ def validate_efcore_patch_matrix(
             raise EvidenceError(f"EF Core matrix evidence is invalid for {leg}.")
 
         for field in (
-            "requestedVersion",
             "validationScope",
             "qualificationSource",
             "specificationTargets",
@@ -382,12 +382,22 @@ def validate_efcore_patch_matrix(
         if receipt.get("schemaVersion") != 2:
             raise EvidenceError(f"EF Core matrix {leg} has an unsupported receipt schema.")
 
+        requested_version = receipt.get("requestedVersion")
         resolved_version = receipt.get("resolvedVersion")
+        if (
+            not isinstance(requested_version, str)
+            or re.fullmatch(contract["requestedPattern"], requested_version) is None
+        ):
+            raise EvidenceError(f"EF Core matrix {leg} requested an unexpected version.")
         if (
             not isinstance(resolved_version, str)
             or re.fullmatch(contract["resolvedPattern"], resolved_version) is None
         ):
             raise EvidenceError(f"EF Core matrix {leg} resolved an unexpected version.")
+        if requested_version != resolved_version:
+            raise EvidenceError(
+                f"EF Core matrix {leg} did not request its exact resolved version."
+            )
         projects = graph.get("projects")
         if not isinstance(projects, list) or any(
             not isinstance(project, dict) for project in projects

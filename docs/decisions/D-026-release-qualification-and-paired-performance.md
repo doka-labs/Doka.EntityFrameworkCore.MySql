@@ -16,6 +16,32 @@ doka-profile-version: "1.0"
 
 # D-026 -- Qualify releases from PR-bound, tree-exact evidence
 
+## 2026-09-10 Amendment: Make release dependency selection deterministic
+
+Release qualification must not resolve an EF Core patch that was unknown when
+the candidate pull request completed. On 2026-09-10, candidate run
+`34413824357` resolved the floating `10.0.*` selector to EF Core 10.0.12 after
+the pull request had skipped the scheduled-only patch matrix. The run therefore
+failed because the exact 10.0.12 specification contracts were absent from its
+reviewed source.
+
+The weekly and manually dispatched CI matrix retains floating `10.0.*`
+resolution as an upstream-drift detector. Release qualification instead reads
+`SpecSuiteBaseline.json`, selects its numerically highest registered 10.0.x
+patch, and requests that exact version. Candidate evidence requires the
+requested and resolved versions to be identical. A new upstream publication
+can therefore make the scheduled detector fail, but cannot change the
+dependency graph of an already green release commit.
+
+EF Core 10.0.12 is admitted with exact inventory and six-target discovery
+contracts retrieved on 2026-09-10. Its 327 compliance bases, 9,040 unique test
+definitions, 19,192 effective assignments, and every discovered provider test
+ID match the 10.0.11 contract. This amendment changes release selection, not
+the consumer package range `[10.0.8, 10.1.0)`.
+
+Primary-source basis: the EF Core relational specification package 10.0.12
+listed in Sources, retrieved 2026-09-10.
+
 ## 2026-09-01 Amendment: Freeze the tested pull-request merge tree
 
 Repository qualification is commit-exact at two distinct boundaries. The raw
@@ -344,7 +370,7 @@ behavior through repository tests, all six specification targets, and the
 representative integration matrix. Release qualification re-resolves the exact
 10.0.8 graph and validates its version-bound contracts, but performs the
 additional full repository, live specification, and integration execution only
-against the latest compatible 10.0.x patch.
+against the highest exact 10.0.x patch admitted to the reviewed baseline.
 
 This is an evidence split, not an omitted endpoint. The floor receipt declares
 `validationScope=dependency-graph` and binds its qualification source to
@@ -359,8 +385,9 @@ assembly rejects absent, failed, mismatched, or incomplete result evidence.
 An exact version-contract preflight now follows package resolution and precedes
 all builds and live tests. It requires the generated suite inventory, complete
 baseline membership, and six-target discovery contract for the resolved EF
-Core patch. A newly published patch can no longer consume the full stage budget
-before reporting that its reviewed specification contract is absent.
+Core patch. Scheduled floating detection reports an unregistered upstream
+patch; release qualification never selects it before those contracts are
+reviewed.
 
 The stage deadline is reduced from 6,600 to 3,300 seconds, below a 60-minute
 job timeout. The previous hosted evidence measured each fully executed row at
@@ -715,7 +742,9 @@ for MySqlConnector, with central floating versions enabled -- so an upstream
 patch release can break the provider while the repository stands still. Their
 weekly run surfaces that near the day it happens. The benchmark workflow keeps
 its classifier and monthly schedule for the same reason. Neither schedule
-qualifies or blocks a release; the tag measures for itself.
+qualifies or blocks a release. The MySqlConnector candidate matrix continues to
+resolve its floating supported endpoint; the EF Core candidate matrix selects
+the highest exact patch already present in its reviewed specification baseline.
 
 For the dedicated benchmark workflow, resolved `compare` mode also means a
 paired same-run comparison. Only resolved `seed` mode uses a historical
@@ -1524,6 +1553,9 @@ manifest verification.
   request whose qualified and merged Git trees are identical.
 - 2026-09-01: Corrected the qualified tree to the tested pull-request merge
   ref and froze its hosted artifact ID through publication.
+- 2026-09-10: Restricted EF Core release qualification to the highest exact
+  patch in the reviewed specification baseline while retaining floating patch
+  resolution only in scheduled and manually dispatched drift detection.
 
 ### Implementation References
 
@@ -1552,6 +1584,8 @@ manifest verification.
 
 ### Sources
 
+- [EF Core relational specification package 10.0.12](https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Relational.Specification.Tests/10.0.12)
+  (primary source; retrieved 2026-09-10)
 - [Events that trigger workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)
   (primary source; retrieved 2026-09-01)
 - [Rules available for rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)
