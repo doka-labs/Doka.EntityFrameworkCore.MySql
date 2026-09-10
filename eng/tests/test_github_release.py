@@ -288,8 +288,8 @@ class GitHubReleaseTests(unittest.TestCase):
                 ],
             },
             "latest-10-0": {
-                "requestedVersion": "10.0.*",
-                "resolvedVersion": "10.0.11",
+                "requestedVersion": "10.0.12",
+                "resolvedVersion": "10.0.12",
                 "validationScope": "full",
                 "qualificationSource": None,
                 "specificationTargets": ["mariadb118", "mysql84"],

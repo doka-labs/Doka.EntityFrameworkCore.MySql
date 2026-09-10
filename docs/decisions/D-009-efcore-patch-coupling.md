@@ -79,9 +79,11 @@ integration tests. Release trust accepts that input only when the qualified
 pull-request tree exactly matches the candidate `main` tree. The candidate
 therefore re-resolves and records the exact floor dependency graph, validates
 its version-bound specification contracts, and reserves the additional
-live-test budget for the latest compatible patch. The retained floor and latest
-receipts declare those different scopes, and release-evidence verification
-rejects a missing, swapped, or widened row.
+live-test budget for the highest exact patch already admitted to the reviewed
+specification baseline. Only scheduled and manually dispatched drift detection
+uses the floating selector. The retained floor and qualified-patch receipts
+declare those different scopes, and release-evidence verification rejects a
+missing, swapped, widened, or non-exact row.
 
 ### Consequences
 
@@ -152,7 +154,8 @@ rejects a missing, swapped, or widened row.
   fast lane. Its weekly and manually dispatched exhaustive lane overrides the
   property with `10.0.8` and `10.0.*`, asserts the resolved package graph, and
   runs non-live, specification, live, and integration coverage for both matrix
-  entries.
+  entries. Release qualification instead selects the numerically highest exact
+  10.0.x patch already listed in `SpecSuiteBaseline.json`.
 
 ### Implementation Notes
 
@@ -168,11 +171,12 @@ rejects a missing, swapped, or widened row.
 - Each entry runs `eng/test.sh`, specification plus live functional tests against MySQL 8.4 and MariaDB 11.8, and the representative MySQL 8.4 plus MariaDB 11.8 integration matrix. Test-owned containers make the live paths identical locally and in CI.
 - Before expensive tests begin, `check-spec-version-contract.sh` requires an
   exact version-bound inventory, baseline membership for every entry, and a
-  complete six-target discovery contract. A newly published patch therefore
-  fails during preflight rather than after a full matrix run.
+  complete six-target discovery contract. Scheduled floating detection reports
+  a newly published patch during preflight rather than after a full matrix run;
+  release qualification never selects that patch before contract review.
 - Release qualification records the floor with
   `validationScope=dependency-graph` and
-  `qualificationSource=repository-qualification`, while the latest compatible
+  `qualificationSource=repository-qualification`, while the highest registered
   patch records `validationScope=full`. The full row retains one reconciled TRX
   and one engine-lifecycle document per selected specification target plus its
   integration-matrix evidence under the same row directory.
@@ -223,6 +227,10 @@ rejects a missing, swapped, or widened row.
   qualification into a commit-qualified floor graph plus a fully executed
   latest-patch row, eliminating the redundant serial floor suite without
   weakening scheduled floor/latest verification.
+- 2026-09-10: Restricted release qualification to the highest exact EF Core
+  patch already registered in the reviewed specification baseline. Scheduled
+  verification retains floating `10.0.*` discovery so a newly published patch
+  cannot alter a previously green release commit.
 
 ### Implementation References
 

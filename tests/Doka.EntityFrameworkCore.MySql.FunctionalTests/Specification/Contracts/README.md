@@ -28,18 +28,18 @@ amend an ADR.
 
 ## Current baseline
 
-EF Core 10.0.8, 10.0.10, and 10.0.11 expose 327 official compliance bases. The
-10.0.8 inventory contains 9,031 unique xUnit method definitions and 19,176
-effective base-to-method assignments. The 10.0.10 inventory contains 9,039
-definitions and 19,191 assignments. The 10.0.11 inventory contains 9,040
-definitions and 19,192 assignments.
+EF Core 10.0.8, 10.0.10, 10.0.11, and 10.0.12 expose 327 official compliance
+bases. The 10.0.8 inventory contains 9,031 unique xUnit method definitions and
+19,176 effective base-to-method assignments. The 10.0.10 inventory contains
+9,039 definitions and 19,191 assignments. The 10.0.11 and 10.0.12 inventories
+each contain 9,040 definitions and 19,192 assignments.
 
 The baseline retrieved on 2026-07-27 recorded 9 implemented base mappings,
 1 official compliance exemption, and 317 provider-owned gaps. Those 317 gaps
 are now closed: the repository validator reports provider suite debt `0/317`
 for every registered EF Core patch contract.
 
-Discovery regenerated through 2026-08-16 records the complete concrete provider
+Discovery regenerated through 2026-09-10 records the complete concrete provider
 surface:
 
 | EF Core | Target | Discovered |
@@ -62,6 +62,12 @@ surface:
 | 10.0.11 | MariaDB 11.4 | 29,419 |
 | 10.0.11 | MariaDB 11.8 | 29,420 |
 | 10.0.11 | MariaDB 12.3 | 29,426 |
+| 10.0.12 | MySQL 8.4 | 29,755 |
+| 10.0.12 | MySQL 9.7 | 29,755 |
+| 10.0.12 | MariaDB 10.11 | 29,421 |
+| 10.0.12 | MariaDB 11.4 | 29,419 |
+| 10.0.12 | MariaDB 11.8 | 29,420 |
+| 10.0.12 | MariaDB 12.3 | 29,426 |
 
 The complete six-target matrix was executed in full against EF Core 10.0.10
 on 2026-08-11:
@@ -96,9 +102,10 @@ discovered test passed. The three newly admitted targets were also executed
 against the minimum EF Core 10.0.8 patch on the same date. The scheduled patch
 matrix continues to execute both supported dependency endpoints in full.
 Release qualification re-resolves and records the deterministic floor graph,
-then fully executes the latest compatible patch; the commit-exact
-`repository-qualification` check already owns full floor behavior across all
-six active LTS targets.
+then fully executes the highest exact patch already registered in the reviewed
+baseline. Scheduled CI alone resolves floating `10.0.*` to detect a newer
+upstream patch; the commit-exact `repository-qualification` check already owns
+full floor behavior across all six active LTS targets.
 The source contract also rejects inherited upstream skips unless the provider
 activates the assertion or records an executable framework disposition.
 
@@ -141,11 +148,11 @@ diff before accepting an upstream patch.
 
 ## Primary sources
 
-Retrieved on 2026-08-16:
+Retrieved on 2026-09-10:
 
 - NuGet package versions:
   <https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.relational.specification.tests/index.json>
-- EF Core `ComplianceTestBase` 10.0.11:
-  <https://github.com/dotnet/efcore/blob/v10.0.11/test/EFCore.Specification.Tests/ComplianceTestBase.cs>
-- EF Core `RelationalComplianceTestBase` 10.0.11:
-  <https://github.com/dotnet/efcore/blob/v10.0.11/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs>
+- EF Core `ComplianceTestBase` 10.0.12:
+  <https://github.com/dotnet/efcore/blob/v10.0.12/test/EFCore.Specification.Tests/ComplianceTestBase.cs>
+- EF Core `RelationalComplianceTestBase` 10.0.12:
+  <https://github.com/dotnet/efcore/blob/v10.0.12/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs>

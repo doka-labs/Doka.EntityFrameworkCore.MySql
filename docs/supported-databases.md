@@ -42,8 +42,9 @@ claim:
   release line before provider options are accepted;
 - upstream EF Core specification conformance and standalone live functional
   tests run for every target, exact discovery contracts bind every target at
-  both supported EF Core patch endpoints, and the floating patch matrix repeats
-  live behavior on one target from each engine family;
+  both supported EF Core patch endpoints, scheduled floating detection repeats
+  live behavior on one target from each engine family, and release candidates
+  execute only the highest exact patch already admitted to those contracts;
 - live integration, migration deployment, and runnable-example matrices own
   isolated databases for all six targets;
 - the scheduled container matrix repeats the full configuration and failure

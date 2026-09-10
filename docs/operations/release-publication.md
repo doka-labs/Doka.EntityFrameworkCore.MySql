@@ -134,7 +134,8 @@ matrix.
 
 - migration deployment;
 - runtime posture;
-- EF Core floor-graph and full latest-patch qualification, with an early exact
+- EF Core floor-graph and full qualification of the highest exact patch already
+  admitted to the reviewed specification baseline, with an early exact
   specification-contract preflight;
 - full MySqlConnector floor/latest patch matrices;
 - package and symbol generation;
