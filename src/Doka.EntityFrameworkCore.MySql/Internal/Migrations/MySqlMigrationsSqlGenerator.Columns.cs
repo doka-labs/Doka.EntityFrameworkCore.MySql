@@ -19,11 +19,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ValidateGeneratedColumnSupport(operation);
         ValidateSpatialColumnSupport(operation);
 
-        if (!string.IsNullOrWhiteSpace(operation.Collation))
+        if (operation.Collation is { } collation)
         {
             MySqlSqlTokenValidator.ValidateIdentifier(
-                operation.Collation,
-                MySqlAnnotationNames.Collation);
+                collation,
+                RelationalAnnotationNames.Collation);
         }
 
         if (TryAppendTemporalPeriodColumnDefinition(name, operation, builder))

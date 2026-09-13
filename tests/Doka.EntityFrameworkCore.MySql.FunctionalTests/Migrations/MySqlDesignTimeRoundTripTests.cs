@@ -19,6 +19,29 @@ public sealed class MySqlDesignTimeRoundTripTests
         new(2026, 8, 31, 12, 34, 56, DateTimeKind.Utc);
 
     /// <summary>
+    /// Database character set and collation survive both generated model
+    /// surfaces without creating a pending migration.
+    /// </summary>
+    [Fact]
+    public void Database_options_snapshot_and_designer_roundtrip_without_pending_operations()
+    {
+        using var context = new DatabaseCollationDesignContext(
+            CreateOptions<DatabaseCollationDesignContext>(MySqlServerVersion.MySql(new Version(8, 4, 0))));
+        var generated = GenerateAndCompile(context);
+
+        Assert.Contains(".UseCollation(\"utf8mb4_unicode_ci\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".HasCharSet(\"utf8mb4\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".UseCollation(\"utf8mb4_unicode_ci\")", generated.DesignerCode, StringComparison.Ordinal);
+        Assert.Contains(".HasCharSet(\"utf8mb4\")", generated.DesignerCode, StringComparison.Ordinal);
+        Assert.Equal("utf8mb4_unicode_ci", generated.SnapshotModel.GetCollation());
+        Assert.Equal("utf8mb4", generated.SnapshotModel.GetMySqlCharSet());
+        Assert.Equal("utf8mb4_unicode_ci", generated.DesignerModel.GetCollation());
+        Assert.Equal("utf8mb4", generated.DesignerModel.GetMySqlCharSet());
+        AssertRoundTripsWithoutOperations(context, generated.SnapshotModel);
+        AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
+    }
+
+    /// <summary>
     /// System-time metadata, including convention-inherited owned mapping, survives
     /// both generated design-time model surfaces without creating a pending migration.
     /// </summary>
@@ -1371,6 +1394,52 @@ public sealed class MySqlDesignTimeRoundTripTests
         IModel SnapshotModel,
         IModel DesignerModel
     );
+}
+
+/// <summary>
+/// Test context for generated database-default migration metadata.
+/// </summary>
+public sealed class DatabaseCollationDesignContext : DbContext
+{
+    /// <summary>
+    /// Creates the database-default design-time context.
+    /// </summary>
+    public DatabaseCollationDesignContext(
+        DbContextOptions<DatabaseCollationDesignContext> options
+    ) : base(options) { }
+
+    /// <inheritdoc />
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
+    {
+        modelBuilder
+            .HasCharSet("utf8mb4")
+            .UseCollation("utf8mb4_unicode_ci");
+
+        modelBuilder.Entity<DatabaseCollationDesignRecord>(entity =>
+        {
+            entity.ToTable("DatabaseCollationDesignRecords");
+            entity.HasKey(record => record.Id);
+            entity.Property(record => record.Name).HasMaxLength(64);
+        });
+    }
+}
+
+/// <summary>
+/// Entity used by the generated database-default migration model.
+/// </summary>
+public sealed class DatabaseCollationDesignRecord
+{
+    /// <summary>
+    /// Gets or sets the key.
+    /// </summary>
+    public int Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the inherited-collation value.
+    /// </summary>
+    public string Name { get; set; } = null!;
 }
 
 /// <summary>

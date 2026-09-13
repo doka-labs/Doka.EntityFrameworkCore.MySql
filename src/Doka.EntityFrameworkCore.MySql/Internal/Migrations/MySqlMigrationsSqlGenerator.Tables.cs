@@ -11,19 +11,46 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(builder);
 
-        var charSet = operation.FindAnnotation(MySqlAnnotationNames.CharSet)?.Value as string;
+        var charSet = GetValidatedOptionalIdentifierAnnotation(operation, MySqlAnnotationNames.CharSet);
+        var collation = GetValidatedDatabaseCollation(operation);
+        var sourceCharSet = GetValidatedOptionalIdentifierAnnotation(
+            operation.OldDatabase,
+            MySqlAnnotationNames.CharSet);
+        var sourceCollation = ValidateOptionalIdentifier(
+            operation.OldDatabase.Collation,
+            RelationalAnnotationNames.Collation);
 
-        if (string.IsNullOrWhiteSpace(charSet))
+        ValidateCharacterSetAndCollation(charSet, collation);
+        ValidateCharacterSetAndCollation(sourceCharSet, sourceCollation);
+
+        if (charSet is null && collation is null)
         {
+            if (sourceCharSet is not null || sourceCollation is not null)
+            {
+                throw new InvalidOperationException(
+                    "Removing explicit database character-set or collation metadata requires an explicit target value.");
+            }
+
             return;
         }
 
-        MySqlSqlTokenValidator.ValidateIdentifier(charSet, MySqlAnnotationNames.CharSet);
+        builder.Append("ALTER DATABASE");
 
-        builder
-            .Append("ALTER DATABASE CHARACTER SET = ")
-            .Append(charSet)
-            .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+        if (charSet is not null)
+        {
+            builder
+                .Append(" CHARACTER SET = ")
+                .Append(charSet);
+        }
+
+        if (collation is not null)
+        {
+            builder
+                .Append(" COLLATE = ")
+                .Append(collation);
+        }
+
+        builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
 
         EndStatement(builder);
     }
@@ -177,6 +204,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         }
 
         var generatedApplicationTimeTransition = AppendApplicationTimeTransition(operation, builder);
+        AppendTableOptionTransition(operation, builder);
 
         if (generatedTemporalTransition || generatedApplicationTimeTransition)
         {
@@ -218,6 +246,96 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         EndStatement(builder);
     }
 
+    private void AppendTableOptionTransition(
+        AlterTableOperation operation,
+        MigrationCommandListBuilder builder
+    )
+    {
+        var targetCharSet = GetValidatedOptionalIdentifierAnnotation(
+            operation,
+            MySqlAnnotationNames.CharSet);
+        var sourceCharSet = GetValidatedOptionalIdentifierAnnotation(
+            operation.OldTable,
+            MySqlAnnotationNames.CharSet);
+        var targetCollation = GetValidatedTableCollation(operation);
+        var sourceCollation = GetValidatedTableCollation(operation.OldTable);
+        var targetStorageEngine = GetValidatedOptionalIdentifierAnnotation(
+            operation,
+            MySqlAnnotationNames.StorageEngine);
+        var sourceStorageEngine = GetValidatedOptionalIdentifierAnnotation(
+            operation.OldTable,
+            MySqlAnnotationNames.StorageEngine);
+
+        ValidateCharacterSetAndCollation(targetCharSet, targetCollation);
+        ValidateCharacterSetAndCollation(sourceCharSet, sourceCollation);
+
+        var charSetChanged = !string.Equals(
+            targetCharSet,
+            sourceCharSet,
+            StringComparison.OrdinalIgnoreCase);
+        var collationChanged = !string.Equals(
+            targetCollation,
+            sourceCollation,
+            StringComparison.OrdinalIgnoreCase);
+        var storageEngineChanged = !string.Equals(
+            targetStorageEngine,
+            sourceStorageEngine,
+            StringComparison.OrdinalIgnoreCase);
+        var appendCollation = collationChanged
+            || (charSetChanged && targetCollation is not null);
+
+        if (!charSetChanged && !collationChanged && !storageEngineChanged)
+        {
+            return;
+        }
+
+        if (charSetChanged && targetCharSet is null)
+        {
+            throw new InvalidOperationException(
+                $"Removing an explicit table '{MySqlAnnotationNames.CharSet}' requires an explicit target value.");
+        }
+
+        if (collationChanged && targetCollation is null)
+        {
+            throw new InvalidOperationException(
+                $"Removing an explicit table '{RelationalAnnotationNames.Collation}' requires an explicit target value.");
+        }
+
+        if (storageEngineChanged && targetStorageEngine is null)
+        {
+            throw new InvalidOperationException(
+                $"Removing an explicit table '{MySqlAnnotationNames.StorageEngine}' requires an explicit target value.");
+        }
+
+        builder
+            .Append("ALTER TABLE ")
+            .Append(DelimitMigrationIdentifier(operation.Name, operation.Schema));
+
+        if (charSetChanged)
+        {
+            builder
+                .Append(" DEFAULT CHARACTER SET = ")
+                .Append(targetCharSet!);
+        }
+
+        if (appendCollation)
+        {
+            builder
+                .Append(" DEFAULT COLLATE = ")
+                .Append(targetCollation!);
+        }
+
+        if (storageEngineChanged)
+        {
+            builder
+                .Append(" ENGINE = ")
+                .Append(targetStorageEngine!);
+        }
+
+        builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+        EndStatement(builder);
+    }
+
     protected override void Generate(
         EnsureSchemaOperation operation,
         IModel? model,
@@ -235,35 +353,36 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         EndStatement(builder);
     }
 
-    private static void AppendTableOptions(
+    private void AppendTableOptions(
         CreateTableOperation operation,
         MigrationCommandListBuilder builder
     )
     {
-        var charSet = operation.FindAnnotation(MySqlAnnotationNames.CharSet)?.Value as string;
-        var collation = operation.FindAnnotation(MySqlAnnotationNames.Collation)?.Value as string;
-        var storageEngine = operation.FindAnnotation(MySqlAnnotationNames.StorageEngine)?.Value as string;
+        var charSet = GetValidatedOptionalIdentifierAnnotation(operation, MySqlAnnotationNames.CharSet);
+        var collation = GetValidatedTableCollation(operation);
+        var storageEngine = GetValidatedOptionalIdentifierAnnotation(
+            operation,
+            MySqlAnnotationNames.StorageEngine);
         var comment = operation.Comment;
 
-        if (!string.IsNullOrWhiteSpace(charSet))
+        ValidateCharacterSetAndCollation(charSet, collation);
+
+        if (charSet is not null)
         {
-            MySqlSqlTokenValidator.ValidateIdentifier(charSet, MySqlAnnotationNames.CharSet);
             builder
                 .Append(" CHARACTER SET ")
                 .Append(charSet);
         }
 
-        if (!string.IsNullOrWhiteSpace(collation))
+        if (collation is not null)
         {
-            MySqlSqlTokenValidator.ValidateIdentifier(collation, MySqlAnnotationNames.Collation);
             builder
                 .Append(" COLLATE ")
                 .Append(collation);
         }
 
-        if (!string.IsNullOrWhiteSpace(storageEngine))
+        if (storageEngine is not null)
         {
-            MySqlSqlTokenValidator.ValidateIdentifier(storageEngine, MySqlAnnotationNames.StorageEngine);
             builder
                 .Append(" ENGINE = ")
                 .Append(storageEngine);
@@ -276,6 +395,124 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 .Append(MySqlSqlLiteralGenerator.GenerateDdlComment(comment));
         }
     }
+
+    private static string? GetValidatedDatabaseCollation(
+        AlterDatabaseOperation operation
+    )
+    {
+        if (operation.FindAnnotation(MySqlAnnotationNames.Collation) is not null)
+        {
+            throw new InvalidOperationException(
+                $"Database collation must use '{nameof(AlterDatabaseOperation.Collation)}' rather than "
+                + $"the table-level '{MySqlAnnotationNames.Collation}' annotation.");
+        }
+
+        return ValidateOptionalIdentifier(operation.Collation, RelationalAnnotationNames.Collation);
+    }
+
+    private static string? GetValidatedTableCollation(
+        IReadOnlyAnnotatable annotatable
+    )
+    {
+        var relationalCollation = GetValidatedOptionalIdentifierAnnotation(
+            annotatable,
+            RelationalAnnotationNames.Collation);
+        var providerCollation = GetValidatedOptionalIdentifierAnnotation(
+            annotatable,
+            MySqlAnnotationNames.Collation);
+
+        if (relationalCollation is not null
+            && providerCollation is not null
+            && !string.Equals(relationalCollation, providerCollation, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Table collation metadata conflicts between '{RelationalAnnotationNames.Collation}' and "
+                + $"'{MySqlAnnotationNames.Collation}'.");
+        }
+
+        return relationalCollation ?? providerCollation;
+    }
+
+    private static string? GetValidatedOptionalIdentifierAnnotation(
+        IReadOnlyAnnotatable annotatable,
+        string annotationName
+    )
+    {
+        var annotation = annotatable.FindAnnotation(annotationName);
+        if (annotation is null)
+        {
+            return null;
+        }
+
+        if (annotation.Value is not string value)
+        {
+            throw new InvalidOperationException(
+                $"The '{annotationName}' annotation must contain a non-empty string.");
+        }
+
+        return ValidateOptionalIdentifier(value, annotationName);
+    }
+
+    private static string? ValidateOptionalIdentifier(
+        string? value,
+        string metadataName
+    ) => value is null
+        ? null
+        : MySqlSqlTokenValidator.ValidateIdentifier(value, metadataName);
+
+    private void ValidateCharacterSetAndCollation(
+        string? charSet,
+        string? collation
+    )
+    {
+        if (charSet is null || collation is null)
+        {
+            return;
+        }
+
+        var separator = collation.IndexOf('_');
+        var collationCharSet = separator > 0 ? collation[..separator] : collation;
+
+        if (string.Equals(charSet, collationCharSet, StringComparison.OrdinalIgnoreCase)
+            || IsUtf8Mb3AliasPair(charSet, collationCharSet)
+            || IsMariaDbSharedUca1400Pair(charSet, collation))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"The configured '{MySqlAnnotationNames.CharSet}' and '{RelationalAnnotationNames.Collation}' "
+            + "values do not identify the same MySQL character set.");
+    }
+
+    private bool IsMariaDbSharedUca1400Pair(
+        string charSet,
+        string collation
+    )
+    {
+        if (!Profile.Engine.Has(EngineCapability.SharedUca1400Collations)
+            || !collation.StartsWith("uca1400_", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // MariaDB exposes unprefixed UCA-14 collations with no single Charset
+        // because the same collation is available to multiple Unicode sets.
+        return charSet.Equals("ucs2", StringComparison.OrdinalIgnoreCase)
+            || charSet.Equals("utf8", StringComparison.OrdinalIgnoreCase)
+            || charSet.Equals("utf8mb3", StringComparison.OrdinalIgnoreCase)
+            || charSet.Equals("utf8mb4", StringComparison.OrdinalIgnoreCase)
+            || charSet.Equals("utf16", StringComparison.OrdinalIgnoreCase)
+            || charSet.Equals("utf32", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsUtf8Mb3AliasPair(
+        string charSet,
+        string collationCharSet
+    ) => (string.Equals(charSet, "utf8", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(collationCharSet, "utf8mb3", StringComparison.OrdinalIgnoreCase))
+        || (string.Equals(charSet, "utf8mb3", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(collationCharSet, "utf8", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Generates MySQL-specific RENAME TABLE syntax.

@@ -31,6 +31,7 @@ internal enum EngineCapability
     RegexpLikeFunction,
     LateralDerivedTables,
     JsonTableExistsRequiresWorkaround,
+    SharedUca1400Collations,
     SelfReferencingMutationRequiresIsolation,
     MariaDbSpatialSemantics,
     ColumnCommentPrecedesVisibilityAttribute,

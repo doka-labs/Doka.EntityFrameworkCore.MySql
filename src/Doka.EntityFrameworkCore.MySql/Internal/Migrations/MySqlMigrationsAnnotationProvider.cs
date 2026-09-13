@@ -128,7 +128,8 @@ internal sealed class MySqlMigrationsAnnotationProvider : IMigrationsAnnotationP
 
         return annotatable
             .GetAnnotations()
-            .Where(annotation => annotation.Name is MySqlAnnotationNames.CharSet
+            .Where(annotation => annotation.Name is RelationalAnnotationNames.Collation
+                or MySqlAnnotationNames.CharSet
                 or MySqlAnnotationNames.StorageEngine
                 or MySqlAnnotationNames.GuidFormat
                 or MySqlAnnotationNames.ValueGenerationStrategy
@@ -189,6 +190,7 @@ internal sealed class MySqlMigrationsAnnotationProvider : IMigrationsAnnotationP
             .ToList();
 
         AddMappedTypeBaseAnnotationIfMissing(tableAnnotations, table, MySqlAnnotationNames.CharSet);
+        AddMappedTypeBaseAnnotationIfMissing(tableAnnotations, table, RelationalAnnotationNames.Collation);
         AddMappedTypeBaseAnnotationIfMissing(tableAnnotations, table, MySqlAnnotationNames.StorageEngine);
 
         return tableAnnotations;

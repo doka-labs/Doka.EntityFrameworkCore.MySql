@@ -244,10 +244,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(" ")
             .Append(storeType);
 
-        var collation = column.FindAnnotation(RelationalAnnotationNames.Collation)
-            ?.Value as string;
+        var collation = ValidateOptionalIdentifier(
+            column.Collation,
+            RelationalAnnotationNames.Collation);
 
-        if (!string.IsNullOrWhiteSpace(collation))
+        if (collation is not null)
         {
             builder
                 .Append(" COLLATE ")
@@ -312,16 +313,19 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         builder.Append(") ENGINE = InnoDB");
 
-        if (table.FindAnnotation(MySqlAnnotationNames.CharSet)
-                ?.Value is string charSet)
+        var charSet = GetValidatedOptionalIdentifierAnnotation(table, MySqlAnnotationNames.CharSet);
+        var collation = GetValidatedTableCollation(table);
+
+        ValidateCharacterSetAndCollation(charSet, collation);
+
+        if (charSet is not null)
         {
             builder
                 .Append(" CHARACTER SET ")
                 .Append(charSet);
         }
 
-        if (table.FindAnnotation(MySqlAnnotationNames.Collation)
-                ?.Value is string collation)
+        if (collation is not null)
         {
             builder
                 .Append(" COLLATE ")
@@ -351,10 +355,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         builder.Append(column.StoreType);
 
-        var collation = column.FindAnnotation(RelationalAnnotationNames.Collation)
-            ?.Value as string;
+        var collation = GetValidatedOptionalIdentifierAnnotation(
+            column,
+            RelationalAnnotationNames.Collation);
 
-        if (!string.IsNullOrWhiteSpace(collation))
+        if (collation is not null)
         {
             builder
                 .Append(" COLLATE ")
@@ -637,21 +642,24 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         + "mode can make retained history inaccurate. Migrate the data through an explicitly reviewed "
         + "replacement-table operation instead of weakening history correctness.");
 
-    private static void AppendCharacterSetAndCollation(
+    private void AppendCharacterSetAndCollation(
         CreateTableOperation operation,
         MigrationCommandListBuilder builder
     )
     {
-        if (operation.FindAnnotation(MySqlAnnotationNames.CharSet)
-                ?.Value is string charSet)
+        var charSet = GetValidatedOptionalIdentifierAnnotation(operation, MySqlAnnotationNames.CharSet);
+        var collation = GetValidatedTableCollation(operation);
+
+        ValidateCharacterSetAndCollation(charSet, collation);
+
+        if (charSet is not null)
         {
             builder
                 .Append(" CHARACTER SET ")
                 .Append(charSet);
         }
 
-        if (operation.FindAnnotation(MySqlAnnotationNames.Collation)
-                ?.Value is string collation)
+        if (collation is not null)
         {
             builder
                 .Append(" COLLATE ")

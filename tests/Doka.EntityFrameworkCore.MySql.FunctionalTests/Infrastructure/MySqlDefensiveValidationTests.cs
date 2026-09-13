@@ -109,10 +109,340 @@ public sealed class MySqlDefensiveValidationTests
         var operation = new AlterDatabaseOperation();
         operation.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
 
-        var commands = generator.Generate([operation], context.Model);
-        var sql = string.Join("\n", commands.Select(c => c.CommandText));
+        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
 
-        Assert.Contains("ALTER DATABASE CHARACTER SET = utf8mb4", sql, StringComparison.Ordinal);
+        Assert.Equal("ALTER DATABASE CHARACTER SET = utf8mb4;\n", sql);
+    }
+
+    [Fact]
+    public void AlterDatabase_accepts_valid_collation_without_charset()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterDatabaseOperation
+        {
+            Collation = "utf8mb4_unicode_ci",
+        };
+
+        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+
+        Assert.Equal("ALTER DATABASE COLLATE = utf8mb4_unicode_ci;\n", sql);
+    }
+
+    [Fact]
+    public void AlterDatabase_accepts_compatible_charset_and_collation()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterDatabaseOperation
+        {
+            Collation = "utf8mb4_unicode_ci",
+        };
+        operation.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
+
+        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+
+        Assert.Equal(
+            "ALTER DATABASE CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;\n",
+            sql);
+    }
+
+    [Fact]
+    public void AlterDatabase_accepts_shared_mariadb_uca1400_collation_for_unicode_charset()
+    {
+        using var context = CreateContext(MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterDatabaseOperation
+        {
+            Collation = "uca1400_ai_ci",
+        };
+        operation.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
+
+        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+
+        Assert.Equal(
+            "ALTER DATABASE CHARACTER SET = utf8mb4 COLLATE = uca1400_ai_ci;\n",
+            sql);
+    }
+
+    [Fact]
+    public void AlterDatabase_rejects_mariadb_only_shared_collation_for_mysql()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterDatabaseOperation
+        {
+            Collation = "uca1400_ai_ci",
+        };
+        operation.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => generator.Generate([operation], context.Model));
+
+        Assert.Contains(RelationalAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void AlterDatabase_rejects_blank_collation(
+        string collation
+    )
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterDatabaseOperation
+        {
+            Collation = collation,
+        };
+
+        Assert.Throws<ArgumentException>(() => generator.Generate([operation], context.Model));
+    }
+
+    [Fact]
+    public void AlterDatabase_rejects_collation_with_injection()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterDatabaseOperation
+        {
+            Collation = "utf8mb4_unicode_ci; DROP DATABASE test",
+        };
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => generator.Generate([operation], context.Model));
+
+        Assert.Contains(RelationalAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(operation.Collation, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AlterDatabase_rejects_incompatible_charset_and_collation()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterDatabaseOperation
+        {
+            Collation = "latin1_swedish_ci",
+        };
+        operation.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => generator.Generate([operation], context.Model));
+
+        Assert.Contains(MySqlAnnotationNames.CharSet, exception.Message, StringComparison.Ordinal);
+        Assert.Contains(RelationalAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AlterDatabase_rejects_table_collation_annotation()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterDatabaseOperation
+        {
+            Collation = "utf8mb4_unicode_ci",
+        };
+        operation.SetAnnotation(MySqlAnnotationNames.Collation, "utf8mb4_unicode_ci");
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => generator.Generate([operation], context.Model));
+
+        Assert.Contains(nameof(AlterDatabaseOperation.Collation), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(MySqlAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AlterDatabase_rejects_non_string_charset_annotation()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterDatabaseOperation();
+        operation.SetAnnotation(MySqlAnnotationNames.CharSet, 42);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => generator.Generate([operation], context.Model));
+
+        Assert.Contains(MySqlAnnotationNames.CharSet, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AlterDatabase_without_database_options_emits_no_command()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+
+        var commands = generator.Generate([new AlterDatabaseOperation()], context.Model);
+
+        Assert.Empty(commands);
+    }
+
+    [Fact]
+    public void AlterDatabase_rejects_removing_last_explicit_database_default()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterDatabaseOperation();
+        operation.OldDatabase.Collation = "utf8mb4_bin";
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => generator.Generate([operation], context.Model));
+
+        Assert.Contains("explicit target value", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AlterDatabase_accepts_explicit_charset_replacing_old_collation()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterDatabaseOperation();
+        operation.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
+        operation.OldDatabase.Collation = "utf8mb4_bin";
+
+        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+
+        Assert.Equal("ALTER DATABASE CHARACTER SET = utf8mb4;\n", sql);
+    }
+
+    [Fact]
+    public void AlterTable_rejects_removed_collation_without_resolved_target_default()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterTableOperation
+        {
+            Name = "ResetCollation",
+        };
+        operation.OldTable.SetAnnotation(RelationalAnnotationNames.Collation, "utf8mb4_bin");
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => generator.Generate([operation], context.Model));
+
+        Assert.Contains(RelationalAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AlterTable_rejects_removed_charset_without_resolved_target_default()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterTableOperation
+        {
+            Name = "RemovedCharSet",
+        };
+        operation.OldTable.SetAnnotation(MySqlAnnotationNames.CharSet, "latin1");
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => generator.Generate([operation], context.Model));
+
+        Assert.Contains(MySqlAnnotationNames.CharSet, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AlterTable_emits_explicit_storage_engine_transition()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterTableOperation
+        {
+            Name = "StorageEngineTransition",
+        };
+        operation.SetAnnotation(MySqlAnnotationNames.StorageEngine, "InnoDB");
+        operation.OldTable.SetAnnotation(MySqlAnnotationNames.StorageEngine, "MyISAM");
+
+        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+
+        Assert.Equal("ALTER TABLE `StorageEngineTransition` ENGINE = InnoDB;\n", sql);
+    }
+
+    [Fact]
+    public void AlterTable_emits_known_collation_together_with_changed_charset()
+    {
+        using var context = CreateContext(MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterTableOperation
+        {
+            Name = "SharedCollationTransition",
+        };
+        operation.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
+        operation.SetAnnotation(RelationalAnnotationNames.Collation, "uca1400_ai_ci");
+        operation.OldTable.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb3");
+        operation.OldTable.SetAnnotation(RelationalAnnotationNames.Collation, "uca1400_ai_ci");
+
+        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+
+        Assert.Equal(
+            "ALTER TABLE `SharedCollationTransition` DEFAULT CHARACTER SET = utf8mb4 "
+            + "DEFAULT COLLATE = uca1400_ai_ci;\n",
+            sql);
+    }
+
+    [Fact]
+    public void AlterTable_ignores_case_only_table_option_differences()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterTableOperation
+        {
+            Name = "CaseOnlyTransition",
+        };
+        operation.SetAnnotation(MySqlAnnotationNames.CharSet, "UTF8MB4");
+        operation.SetAnnotation(RelationalAnnotationNames.Collation, "UTF8MB4_UNICODE_CI");
+        operation.SetAnnotation(MySqlAnnotationNames.StorageEngine, "INNODB");
+        operation.OldTable.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
+        operation.OldTable.SetAnnotation(RelationalAnnotationNames.Collation, "utf8mb4_unicode_ci");
+        operation.OldTable.SetAnnotation(MySqlAnnotationNames.StorageEngine, "InnoDB");
+
+        var commands = generator.Generate([operation], context.Model);
+
+        Assert.Empty(commands);
+    }
+
+    [Fact]
+    public void AlterTable_rejects_removed_storage_engine_without_explicit_target()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AlterTableOperation
+        {
+            Name = "RemovedStorageEngine",
+        };
+        operation.OldTable.SetAnnotation(MySqlAnnotationNames.StorageEngine, "InnoDB");
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => generator.Generate([operation], context.Model));
+
+        Assert.Contains(MySqlAnnotationNames.StorageEngine, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AppendTableOptions_accepts_canonical_relational_collation()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = CreateTableOperation("CanonicalCollation");
+        operation.SetAnnotation(RelationalAnnotationNames.Collation, "utf8mb4_bin");
+
+        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+
+        Assert.Contains("COLLATE utf8mb4_bin", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AppendTableOptions_rejects_conflicting_collation_annotations()
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = CreateTableOperation("ConflictingCollation");
+        operation.SetAnnotation(RelationalAnnotationNames.Collation, "utf8mb4_unicode_ci");
+        operation.SetAnnotation(MySqlAnnotationNames.Collation, "utf8mb4_bin");
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => generator.Generate([operation], context.Model));
+
+        Assert.Contains(RelationalAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
+        Assert.Contains(MySqlAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -142,6 +472,22 @@ public sealed class MySqlDefensiveValidationTests
         Assert.Contains("ENGINE = InnoDB", sql, StringComparison.Ordinal);
     }
 
+    private static CreateTableOperation CreateTableOperation(
+        string name
+    ) => new()
+    {
+        Name = name,
+        Columns =
+        {
+            new AddColumnOperation
+            {
+                Name = "Id",
+                ClrType = typeof(int),
+                ColumnType = "int",
+            },
+        },
+    };
+
     [Theory]
     [InlineData("utf8mb4_bin; SELECT 'injected'")]
     [InlineData("utf8mb4_unicode_ci\u00e9")]
@@ -163,8 +509,30 @@ public sealed class MySqlDefensiveValidationTests
         var exception = Assert.Throws<InvalidOperationException>(
             () => generator.Generate([operation], context.Model));
 
-        Assert.Contains(MySqlAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
+        Assert.Contains(RelationalAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(collation, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void ColumnDefinition_rejects_blank_collation(
+        string collation
+    )
+    {
+        using var context = CreateContext();
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var operation = new AddColumnOperation
+        {
+            Table = "DefensiveEntities",
+            Name = "Name",
+            ClrType = typeof(string),
+            ColumnType = "varchar(100)",
+            Collation = collation,
+        };
+
+        _ = Assert.Throws<ArgumentException>(
+            () => generator.Generate([operation], context.Model));
     }
 
     [Fact]
@@ -286,12 +654,14 @@ public sealed class MySqlDefensiveValidationTests
 
     // -- Helpers --
 
-    private static DefensiveContext CreateContext()
+    private static DefensiveContext CreateContext(
+        MySqlServerVersion? serverVersion = null
+    )
     {
         var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<DefensiveContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+            serverVersion ?? MySqlServerVersion.MySql(new Version(8, 4, 0)));
         return new DefensiveContext(builder.Options);
     }
 
