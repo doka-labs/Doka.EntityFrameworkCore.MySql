@@ -70,22 +70,22 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.4.0` lets custom migration-operation handlers explicitly consume
-validation-only and control-only operations without generating synthetic SQL.
-Diagnostics, activities, metrics, and the bounded outcome code remain intact.
-It also prevents MariaDB JSON aliases from recreating their engine-owned
-`JSON_VALID` constraint as a duplicate user CHECK during reverse engineering.
-`Char36` and `Binary16` remain fully supported GUID storage formats. Pin the
-current stable version explicitly when validating an affected application:
+`10.4.1` preserves the configured database character set and collation through
+model differencing, generated migrations, snapshots, and SQL. It emits both
+facets together when required, supports collation-only changes, keeps explicit
+table defaults separate from inherited database defaults, and rejects
+ambiguous or incompatible transitions before generating SQL. Updating the
+package does not rewrite existing migration source; regenerate an affected
+unpublished migration with `10.4.1`. Pin the current stable version explicitly
+when validating an affected application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.0
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.1
 ```
 
-See [Migration Operation Handlers][migration-operation-handlers] for commandless
-outcomes and the public metadata projection, and [Migrating from
-Pomelo][migrating-from-pomelo] for the GUID mapping and
-representation-migration contracts.
+See [Provider Configuration][provider-configuration] for the database-default
+and migration-recovery contracts, and [Migrating from
+Pomelo][migrating-from-pomelo] for the complete migration guidance.
 
 ## Quick Start
 

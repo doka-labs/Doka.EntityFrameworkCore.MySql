@@ -171,15 +171,17 @@ by [Host Integration](host-integration-examples.md).
 | Spatial property | `HasSrid(srid)` | Registers the non-negative SRID expected by the spatial mapping. |
 | Spatial index | `IsSpatial()` | Marks an explicit single-column spatial index. |
 
-Database character set and collation are independent model facets. When both
-are configured, Doka preserves both through migration source and emits them in
-one `ALTER DATABASE` statement before tables that inherit the database
-default. A collation-only change remains executable; a character-set-only
-configuration remains character-set-only and intentionally lets the server
-choose that character set's default collation. Doka rejects malformed and
-statically incompatible explicit pairs before emitting SQL. Availability
-remains engine-version-specific; documented MariaDB 10.10.1 and later
-`uca1400_*` collations are accepted only for MariaDB Unicode character sets.
+Database character set and collation are independent model facets. The
+complete migration-preservation contract described here is available from
+Doka 10.4.1. When both facets are configured, Doka preserves both through
+migration source and emits them in one `ALTER DATABASE` statement before
+tables that inherit the database default. A collation-only change remains
+executable; a character-set-only configuration remains character-set-only and
+intentionally lets the server choose that character set's default collation.
+Doka rejects malformed and statically incompatible explicit pairs before
+emitting SQL. Availability remains engine-version-specific; documented
+MariaDB 10.10.1 and later `uca1400_*` collations are accepted only for MariaDB
+Unicode character sets.
 
 On an existing database, a character-set-only migration replaces any current
 database collation with the server's configured default for that character
