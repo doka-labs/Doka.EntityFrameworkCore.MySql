@@ -33,9 +33,18 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
         bool designTime
     )
     {
+        var hasRelationalCollation = false;
+
         foreach (var annotation in base.For(table, designTime))
         {
+            hasRelationalCollation |= annotation.Name == RelationalAnnotationNames.Collation;
             yield return annotation;
+        }
+
+        if (!hasRelationalCollation
+            && FindTableAnnotation(table, RelationalAnnotationNames.Collation) is { } collationAnnotation)
+        {
+            yield return collationAnnotation;
         }
 
         if (FindTableAnnotation(table, MySqlAnnotationNames.CharSet) is { } charSetAnnotation)

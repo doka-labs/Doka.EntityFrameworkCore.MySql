@@ -7,6 +7,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve EF Core's canonical database collation together with Doka's
+  character-set metadata through initial migrations, transitions, generated
+  `Up`/`Down` source, and SQL. Database DDL now emits both configured facets in
+  one statement, supports collation-only changes, rejects incompatible pairs,
+  and keeps explicit table collations distinct from inherited database
+  defaults. Removing the last explicit database default without a replacement
+  now fails before SQL generation. Explicit table-default transitions no longer
+  disappear, retain a known collation when the character set changes, ignore
+  casing-only differences, and do not convert existing textual columns. The
+  same table-option audit also restores executable SQL for explicit
+  storage-engine transitions.
+
 ## [10.4.0] - 2026-09-10
 
 Stable minor release adding explicit commandless handling for custom migration

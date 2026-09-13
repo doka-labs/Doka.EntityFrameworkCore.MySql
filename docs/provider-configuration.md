@@ -157,6 +157,7 @@ by [Host Integration](host-integration-examples.md).
 | Scope | API | Contract |
 | --- | --- | --- |
 | Model | `HasCharSet(charSet)` | Sets the model default character set. |
+| Model | `UseCollation(collation)` | Sets the canonical EF Core database collation. |
 | Entity | `HasCharSet(charSet)` | Overrides the table character set. |
 | Entity | `UseStorageEngine(engine)` | Selects the table storage engine. |
 | Index | `HasPrefixLength(lengths)` | Supplies one non-negative prefix length per indexed property; zero selects the complete value. |
@@ -169,6 +170,49 @@ by [Host Integration](host-integration-examples.md).
 | Property | `IsInvisible()` | Marks a supported engine column `INVISIBLE`. |
 | Spatial property | `HasSrid(srid)` | Registers the non-negative SRID expected by the spatial mapping. |
 | Spatial index | `IsSpatial()` | Marks an explicit single-column spatial index. |
+
+Database character set and collation are independent model facets. When both
+are configured, Doka preserves both through migration source and emits them in
+one `ALTER DATABASE` statement before tables that inherit the database
+default. A collation-only change remains executable; a character-set-only
+configuration remains character-set-only and intentionally lets the server
+choose that character set's default collation. Doka rejects malformed and
+statically incompatible explicit pairs before emitting SQL. Availability
+remains engine-version-specific; documented MariaDB 10.10.1 and later
+`uca1400_*` collations are accepted only for MariaDB Unicode character sets.
+
+On an existing database, a character-set-only migration replaces any current
+database collation with the server's configured default for that character
+set. For `utf8mb4`, stock MySQL 8.4 selects `utf8mb4_0900_ai_ci`; MariaDB uses
+`utf8mb4_general_ci` through 11.4 and `utf8mb4_uca1400_ai_ci` from 11.5. Server
+configuration can override these defaults. A subsequently created textual
+foreign key can therefore be incompatible with an existing principal column.
+Configure both facets whenever a specific collation is part of the schema
+contract. Removing the last explicit database default without a replacement is
+rejected rather than reduced to a migration that cannot change the database.
+
+Updating Doka does not rewrite an already generated migration. A migration
+created by an affected provider version without
+`AlterDatabaseOperation.Collation` remains incomplete because its checked-in
+operation is the migration contract; the SQL generator does not infer missing
+metadata from the current target model. Regenerate an unpublished migration
+after updating Doka. If the migration has already been deployed, preserve its
+history and create a reviewed forward migration that sets the intended
+database default explicitly.
+
+An explicit table collation remains a table override. An explicit table-default
+transition changes the default for subsequently added textual columns without
+converting existing columns; removing the override resets the table default to
+the database default recorded in the target model. Doka rejects removal when
+that target default is not configured because a mutable server default is not
+deterministic migration input. Changing only the database default does not
+convert existing tables or columns. Converting existing columns requires
+explicit column migration operations and a separate data and locking review.
+
+Changing an explicit storage engine emits `ALTER TABLE ... ENGINE = ...`.
+Because the server may rebuild and lock the table, review that migration as a
+physical data operation. Removing an explicit engine without selecting a
+replacement is rejected rather than delegated to a mutable server default.
 
 ### Index key byte fidelity
 
@@ -325,3 +369,11 @@ Retrieved 2026-08-31 for index-key fidelity:
 - [MariaDB `CREATE INDEX`](https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/create-index)
 - [MariaDB InnoDB row formats](https://mariadb.com/docs/server/server-usage/storage-engines/innodb/innodb-row-formats/innodb-row-formats-overview)
 - [MySqlConnector `InfoMessage`](https://mysqlconnector.net/api/mysqlconnector/mysqlconnection/infomessage/)
+
+Retrieved 2026-09-13 for character-set and collation migration fidelity:
+
+- [MySQL 8.4 character sets and collations](https://dev.mysql.com/doc/refman/8.4/en/charset.html)
+- [MySQL 8.4 database character-set and collation defaults](https://dev.mysql.com/doc/refman/8.4/en/charset-database.html)
+- [MySQL 8.4 foreign-key constraints](https://dev.mysql.com/doc/refman/8.4/en/create-table-foreign-keys.html)
+- [MariaDB character-set and collation configuration](https://mariadb.com/docs/server/reference/data-types/string-data-types/character-sets/setting-character-sets-and-collations)
+- [MariaDB supported character sets and collations](https://mariadb.com/docs/server/reference/data-types/string-data-types/character-sets/supported-character-sets-and-collations)

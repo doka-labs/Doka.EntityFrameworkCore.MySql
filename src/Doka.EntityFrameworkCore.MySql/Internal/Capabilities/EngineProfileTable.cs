@@ -42,6 +42,7 @@ internal static class EngineProfileTable
     private static readonly Version s_mariaDb1061 = new(10, 6, 1);
     private static readonly Version s_mariaDb1062 = new(10, 6, 2);
     private static readonly Version s_mariaDb108 = new(10, 8, 0);
+    private static readonly Version s_mariaDb10101 = new(10, 10, 1);
     private static readonly Version s_mariaDb114 = new(11, 4, 0);
     private static readonly Version s_mariaDb120 = new(12, 0, 0);
 
@@ -297,6 +298,11 @@ internal static class EngineProfileTable
         if (IsAtLeast(version, s_mariaDb108))
         {
             capabilities.Add(EngineCapability.DescendingIndexes);
+        }
+
+        if (IsAtLeast(version, s_mariaDb10101))
+        {
+            capabilities.Add(EngineCapability.SharedUca1400Collations);
         }
 
         if (IsAtLeast(version, s_mariaDb114))
