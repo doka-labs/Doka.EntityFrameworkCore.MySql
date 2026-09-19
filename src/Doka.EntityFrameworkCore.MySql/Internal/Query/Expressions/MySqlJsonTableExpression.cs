@@ -25,7 +25,9 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
     /// <summary>
     /// Describes one column inside the <c>COLUMNS</c> clause of a <c>JSON_TABLE</c> call.
     /// <see cref="Name"/> becomes the column alias; <see cref="TypeMapping"/> drives the
-    /// <c>type</c> token; <see cref="Path"/> renders as <c>PATH '$.x'</c> when non-null;
+    /// <c>type</c> token; <see cref="ResultTypeMapping"/> optionally restores the property
+    /// representation after lossless extraction; <see cref="Path"/> renders as
+    /// <c>PATH '$.x'</c> when non-null;
     /// <see cref="AsJson"/> forces the column type to <c>JSON</c> so nested objects flow
     /// through as raw JSON (the JSON_TABLE equivalent of OPENJSON's <c>AS JSON</c> suffix);
     /// <see cref="ForOrdinality"/> emits <c>FOR ORDINALITY</c> instead of a type + path
@@ -36,7 +38,8 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
         RelationalTypeMapping TypeMapping,
         IReadOnlyList<PathSegment>? Path = null,
         bool AsJson = false,
-        bool ForOrdinality = false
+        bool ForOrdinality = false,
+        RelationalTypeMapping? ResultTypeMapping = null
     );
 
     public SqlExpression JsonExpression => Arguments[0];
@@ -205,6 +208,7 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
                             typeof(IReadOnlyList<PathSegment>),
                             typeof(bool),
                             typeof(bool),
+                            typeof(RelationalTypeMapping),
                         ])!,
                         Expression.Constant(column.Name),
                         RelationalExpressionQuotingUtilities.QuoteTypeMapping(column.TypeMapping),
@@ -212,7 +216,11 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
                             ? Expression.Constant(null, typeof(IReadOnlyList<PathSegment>))
                             : QuotePath(column.Path),
                         Expression.Constant(column.AsJson),
-                        Expression.Constant(column.ForOrdinality))))));
+                        Expression.Constant(column.ForOrdinality),
+                        column.ResultTypeMapping is null
+                            ? Expression.Constant(null, typeof(RelationalTypeMapping))
+                            : RelationalExpressionQuotingUtilities.QuoteTypeMapping(
+                                column.ResultTypeMapping))))));
 
     [System.Diagnostics.CodeAnalysis.Experimental("EF9100")]
     private static ListInitExpression QuotePath(

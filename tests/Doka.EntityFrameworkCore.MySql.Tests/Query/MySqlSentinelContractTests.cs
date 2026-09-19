@@ -115,6 +115,8 @@ public sealed class MySqlSentinelContractTests
         MySqlSentinelKind.OrderAscending
             or MySqlSentinelKind.OrderDescending
             or MySqlSentinelKind.GuidToString
+            or MySqlSentinelKind.StringJsonDecode
+            or MySqlSentinelKind.TimeSpanJsonDecode
             or MySqlSentinelKind.TimeOfDayTicks
             or MySqlSentinelKind.OnesComplement => 1,
         MySqlSentinelKind.JsonSet => 3,

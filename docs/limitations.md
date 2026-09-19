@@ -62,14 +62,28 @@ Primary sources, retrieved 2026-08-11:
 Fractional-second temporal mappings remain supported. MySQL and MariaDB accept
 fractional-second precision from zero through six digits. The removed flag was
 always true for the supported targets and had no behavior-routing consumer.
-The distinct seven-digit .NET precision boundary is documented in the engine
+The provider accepts omitted precision and explicit values from zero through
+six. Higher, negative, empty, non-numeric, or otherwise malformed precision
+facets are rejected while the model/type mapping is built, before database I/O.
+This applies consistently to `DateTime`, `TimeOnly`, and `TimeSpan`, including
+explicit `datetime(...)`, `timestamp(...)`, and `time(...)` store types. The
+distinct seven-digit .NET precision boundary is documented in the engine
 limitations inventory below.
 
-Primary sources, retrieved 2026-08-11:
+MySQL-family `TIME` values are additionally limited to the signed range
+`-838:59:59` through `838:59:59`. Doka validates that range for relational
+literals and parameter-collection JSON transport, including application
+conversions to `TimeSpan`, so the server cannot silently saturate an
+out-of-range comparison value. JSON document persistence retains EF Core's
+unrestricted `TimeSpan` representation because it does not cast through a
+MySQL-family `TIME` value.
+
+Primary sources, reverified 2026-09-19:
 
 - [MySQL 8.4 Fractional Seconds in Time Values][mysql-fractional-seconds]
 - [MySQL 9.7 Fractional Seconds in Time Values][mysql97-fractional-seconds]
 - [MariaDB Microseconds in MariaDB][mariadb-microseconds]
+- [EF Core precision and scale](https://learn.microsoft.com/en-us/ef/core/modeling/entity-properties#precision-and-scale)
 
 ### Generated invisible primary keys
 

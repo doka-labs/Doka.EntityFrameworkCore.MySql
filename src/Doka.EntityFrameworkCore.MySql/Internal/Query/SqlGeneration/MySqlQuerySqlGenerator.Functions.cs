@@ -72,6 +72,18 @@ internal sealed partial class MySqlQuerySqlGenerator
                     return sqlFunctionExpression;
                 }
 
+            case MySqlSentinelKind.StringJsonDecode:
+                {
+                    EmitStringJsonDecode(arguments[0]);
+                    return sqlFunctionExpression;
+                }
+
+            case MySqlSentinelKind.TimeSpanJsonDecode:
+                {
+                    EmitTimeSpanJsonDecode(arguments[0]);
+                    return sqlFunctionExpression;
+                }
+
             case MySqlSentinelKind.DateTimeOffsetNow:
             case MySqlSentinelKind.DateTimeOffsetUtcNow:
                 {
@@ -214,6 +226,90 @@ internal sealed partial class MySqlQuerySqlGenerator
         EmitSubstring(hexadecimal, 17, 4);
         Sql.Append(", '-', ");
         EmitSubstring(hexadecimal, 21, 12);
+        Sql.Append("))");
+    }
+
+    private void EmitStringJsonDecode(
+        SqlExpression value
+    )
+    {
+        // MariaDB 10.11 assigns CONVERT(... USING utf8mb4) the same implicit
+        // coercibility as a column. Quote/unquote makes the decoded value
+        // coercible on every supported engine, so the column collation wins.
+        Sql.Append("JSON_UNQUOTE(JSON_QUOTE(CONVERT(FROM_BASE64(");
+        Visit(value);
+        Sql.Append(") USING utf8mb4)))");
+    }
+
+    private void EmitTimeSpanJsonDecode(
+        SqlExpression value
+    )
+    {
+        // TIME() extracts a time-of-day and rejects elapsed-hour values above
+        // 23. CAST(... AS TIME(6)) preserves MySQL's full elapsed-time range.
+        Sql.Append("CAST(CASE WHEN ");
+        EmitTimeSpanSeparatorCount(value);
+        Sql.Append(" = 3 THEN CONCAT(CASE WHEN CAST(");
+        EmitTimeSpanDayText(value);
+        Sql.Append(" AS SIGNED) < 0 THEN '-' ELSE '' END, ABS(CAST(");
+        EmitTimeSpanDayText(value);
+        Sql.Append(" AS SIGNED)) * 24 + CAST(");
+        EmitTimeSpanHourText(value);
+        Sql.Append(" AS SIGNED), ");
+        EmitTimeSpanTimeSuffix(value);
+        Sql.Append(") ELSE ");
+        Visit(value);
+        Sql.Append(" END AS TIME(6))");
+    }
+
+    private void EmitTimeSpanSeparatorCount(
+        SqlExpression value
+    )
+    {
+        Sql.Append("(LENGTH(");
+        Visit(value);
+        Sql.Append(") - LENGTH(REPLACE(");
+        Visit(value);
+        Sql.Append(", ':', '')))");
+    }
+
+    private void EmitTimeSpanDayText(
+        SqlExpression value
+    )
+    {
+        Sql.Append("SUBSTRING_INDEX(");
+        Visit(value);
+        Sql.Append(", ':', 1)");
+    }
+
+    private void EmitTimeSpanHourText(
+        SqlExpression value
+    )
+    {
+        Sql.Append("SUBSTRING_INDEX(");
+        EmitTimeSpanTimeText(value);
+        Sql.Append(", ':', 1)");
+    }
+
+    private void EmitTimeSpanTimeText(
+        SqlExpression value
+    )
+    {
+        Sql.Append("SUBSTRING(");
+        Visit(value);
+        Sql.Append(", LOCATE(':', ");
+        Visit(value);
+        Sql.Append(") + 1)");
+    }
+
+    private void EmitTimeSpanTimeSuffix(
+        SqlExpression value
+    )
+    {
+        Sql.Append("SUBSTRING(");
+        EmitTimeSpanTimeText(value);
+        Sql.Append(", LOCATE(':', ");
+        EmitTimeSpanTimeText(value);
         Sql.Append("))");
     }
 

@@ -28,7 +28,8 @@ public sealed class MySqlJsonTableExpressionTests
                     "payload",
                     MySqlStringTypeMapping.Default,
                     [new PathSegment("value")],
-                    AsJson: true),
+                    AsJson: true,
+                    ResultTypeMapping: MySqlGuidBinaryTypeMapping.Default),
                 new MySqlJsonTableExpression.ColumnInfo("ordinal", MySqlStringTypeMapping.Default, ForOrdinality: true),
             ]);
 
@@ -60,6 +61,9 @@ public sealed class MySqlJsonTableExpressionTests
             {
                 Assert.Equal("payload", column.Name);
                 Assert.Equal(MySqlStringTypeMapping.Default.StoreType, column.TypeMapping.StoreType);
+                Assert.Equal(
+                    MySqlGuidBinaryTypeMapping.Default.StoreType,
+                    Assert.IsType<MySqlGuidBinaryTypeMapping>(column.ResultTypeMapping).StoreType);
                 Assert.True(column.AsJson);
                 Assert.False(column.ForOrdinality);
                 Assert.Equal(
@@ -73,6 +77,7 @@ public sealed class MySqlJsonTableExpressionTests
                 Assert.False(column.AsJson);
                 Assert.True(column.ForOrdinality);
                 Assert.Null(column.Path);
+                Assert.Null(column.ResultTypeMapping);
             });
     }
 

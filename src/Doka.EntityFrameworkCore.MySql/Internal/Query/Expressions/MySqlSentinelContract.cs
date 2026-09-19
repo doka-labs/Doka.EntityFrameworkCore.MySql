@@ -14,6 +14,8 @@ internal enum MySqlSentinelKind
     OrderAscending,
     OrderDescending,
     GuidToString,
+    StringJsonDecode,
+    TimeSpanJsonDecode,
     DateTimeOffsetNow,
     DateTimeOffsetUtcNow,
     DateTimeOffsetSubtractTimeSpan,
@@ -66,6 +68,8 @@ internal static class MySqlSentinelContract
     private const string OrderAscendingName = Prefix + "order_ascending";
     private const string OrderDescendingName = Prefix + "order_descending";
     private const string GuidToStringName = Prefix + "guid_to_string";
+    private const string StringJsonDecodeName = Prefix + "string_json_decode";
+    private const string TimeSpanJsonDecodeName = Prefix + "timespan_json_decode";
     private const string DateTimeOffsetNowName = Prefix + "datetimeoffset_now";
     private const string DateTimeOffsetUtcNowName = Prefix + "datetimeoffset_utc_now";
     private const string DateTimeOffsetSubtractTimeSpanName = Prefix + "datetimeoffset_subtract_timespan";
@@ -91,6 +95,8 @@ internal static class MySqlSentinelContract
         MySqlSentinelKind.OrderAscending => OrderAscendingName,
         MySqlSentinelKind.OrderDescending => OrderDescendingName,
         MySqlSentinelKind.GuidToString => GuidToStringName,
+        MySqlSentinelKind.StringJsonDecode => StringJsonDecodeName,
+        MySqlSentinelKind.TimeSpanJsonDecode => TimeSpanJsonDecodeName,
         MySqlSentinelKind.DateTimeOffsetNow => DateTimeOffsetNowName,
         MySqlSentinelKind.DateTimeOffsetUtcNow => DateTimeOffsetUtcNowName,
         MySqlSentinelKind.DateTimeOffsetSubtractTimeSpan => DateTimeOffsetSubtractTimeSpanName,
@@ -159,6 +165,8 @@ internal static class MySqlSentinelContract
             OrderAscendingName => new MySqlSentinel(MySqlSentinelKind.OrderAscending),
             OrderDescendingName => new MySqlSentinel(MySqlSentinelKind.OrderDescending),
             GuidToStringName => new MySqlSentinel(MySqlSentinelKind.GuidToString),
+            StringJsonDecodeName => new MySqlSentinel(MySqlSentinelKind.StringJsonDecode),
+            TimeSpanJsonDecodeName => new MySqlSentinel(MySqlSentinelKind.TimeSpanJsonDecode),
             DateTimeOffsetNowName => new MySqlSentinel(MySqlSentinelKind.DateTimeOffsetNow),
             DateTimeOffsetUtcNowName => new MySqlSentinel(MySqlSentinelKind.DateTimeOffsetUtcNow),
             DateTimeOffsetSubtractTimeSpanName => new MySqlSentinel(MySqlSentinelKind.DateTimeOffsetSubtractTimeSpan),
@@ -239,6 +247,8 @@ internal static class MySqlSentinelContract
         MySqlSentinelKind.OrderAscending
             or MySqlSentinelKind.OrderDescending
             or MySqlSentinelKind.GuidToString
+            or MySqlSentinelKind.StringJsonDecode
+            or MySqlSentinelKind.TimeSpanJsonDecode
             or MySqlSentinelKind.TimeOfDayTicks
             or MySqlSentinelKind.OnesComplement => argumentCount == 1,
         MySqlSentinelKind.JsonSet => argumentCount == 3,

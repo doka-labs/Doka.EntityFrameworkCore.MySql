@@ -21,14 +21,32 @@ public sealed class MySqlDateTimeTypeMapping : DateTimeTypeMapping
     /// </summary>
     /// <param name="storeType">The MySQL temporal store type.</param>
     /// <param name="dbType">The ADO.NET parameter type.</param>
+    /// <exception cref="ArgumentException"><paramref name="storeType"/> is empty.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// <paramref name="storeType"/> contains malformed precision metadata.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The declared fractional-seconds precision is outside the MySQL-family
+    /// range from zero through six.
+    /// </exception>
     public MySqlDateTimeTypeMapping(
         string storeType,
         DbType? dbType = System.Data.DbType.DateTime
-    ) : base(storeType, dbType) { }
+    ) : base(storeType, dbType)
+    {
+        var precision = MySqlTemporalLiteralFormatter.ParsePrecision(storeType);
+        _ = MySqlTemporalLiteralFormatter.ValidatePrecision(precision);
+    }
 
     private MySqlDateTimeTypeMapping(
         RelationalTypeMappingParameters parameters
-    ) : base(parameters) { }
+    ) : base(parameters)
+    {
+        var precision = parameters.Precision
+            ?? MySqlTemporalLiteralFormatter.ParsePrecision(parameters.StoreType);
+
+        _ = MySqlTemporalLiteralFormatter.ValidatePrecision(precision);
+    }
 
     /// <inheritdoc />
     protected override string SqlLiteralFormatString => @"'{0:yyyy-MM-dd HH\:mm\:ss.ffffff}'";

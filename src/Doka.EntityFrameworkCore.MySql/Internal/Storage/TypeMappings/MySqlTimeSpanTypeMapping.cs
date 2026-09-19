@@ -54,10 +54,7 @@ public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
         var truncatedTicks = time.Ticks / _tickResolution * _tickResolution;
 
         // Validate the emitted precision so discarded ticks do not reject an exact boundary.
-        if (truncatedTicks is > MaximumTimeTicks or < -MaximumTimeTicks)
-        {
-            throw new InvalidOperationException($"The TimeSpan value '{time:c}' exceeds the MySQL TIME range.");
-        }
+        ValidateStoreRange(truncatedTicks, time);
 
         var isNegative = truncatedTicks < 0;
         var absoluteTicks = Math.Abs(truncatedTicks);
@@ -113,6 +110,15 @@ public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
         RelationalTypeMappingParameters parameters
     ) => new MySqlTimeSpanTypeMapping(parameters);
 
+    /// <summary>
+    /// Rejects a JSON-transported value that cannot be represented by a
+    /// MySQL-family <c>TIME</c> value without saturation.
+    /// </summary>
+    /// <param name="value">The value to validate.</param>
+    internal static void ValidateStoreRange(
+        TimeSpan value
+    ) => ValidateStoreRange(value.Ticks, value);
+
     private static RelationalTypeMappingParameters CreateParameters(
         string storeType,
         int precision
@@ -123,7 +129,9 @@ public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
         var validatedPrecision = MySqlTemporalLiteralFormatter.ValidatePrecision(precision);
 
         return new RelationalTypeMappingParameters(
-            new CoreTypeMappingParameters(typeof(TimeSpan), jsonValueReaderWriter: JsonTimeSpanReaderWriter.Instance),
+            new CoreTypeMappingParameters(
+                typeof(TimeSpan),
+                jsonValueReaderWriter: JsonTimeSpanReaderWriter.Instance),
             storeType,
             StoreTypePostfix.None,
             System.Data.DbType.Time,
@@ -132,6 +140,17 @@ public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
             fixedLength: false,
             validatedPrecision,
             scale: null);
+    }
+
+    private static void ValidateStoreRange(
+        long ticks,
+        TimeSpan value
+    )
+    {
+        if (ticks is > MaximumTimeTicks or < -MaximumTimeTicks)
+        {
+            throw new InvalidOperationException($"The TimeSpan value '{value:c}' exceeds the MySQL TIME range.");
+        }
     }
 
     private static void WriteHours(

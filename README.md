@@ -279,6 +279,28 @@ modelBuilder.Entity<OrderWithGuid>()
         Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Binary16);
 ```
 
+Parameterized GUID collections retain the effective property mapping. Both
+`EF.Parameter(keys).Contains(order.Id)` and ordinary `keys.Contains(order.Id)`
+work with `Binary16`, `Char36`, nullable values, and large single-parameter
+collections; Doka performs the required JSON text decoding in generated SQL.
+Composed parameter-collection queries extract strings, decimals, and temporal
+values through lossless intermediate mappings so property length, scale, or
+fractional-second facets cannot change a parameter before comparison. This
+includes application value converters and positive and negative `TimeSpan`
+values above 24 hours within MySQL's signed `TIME` range. Values outside
+`-838:59:59` through `838:59:59` fail before parameter-collection JSON
+transport instead of being silently saturated by a server cast. `ToJson()`
+documents retain EF Core's unrestricted JSON representation for `TimeSpan`.
+The same lossless extraction rule applies when querying scalar members of
+`ToJson()`-owned collections. String parameters and application values
+converted to strings use Base64-encoded UTF-8 inside the JSON transport so
+MariaDB's `NO_BACKSLASH_ESCAPES` mode cannot reinterpret quotes or backslashes;
+the property column remains authoritative for collation semantics.
+
+MySQL and MariaDB support fractional-seconds precision from zero through six.
+Doka rejects higher, negative, or malformed `datetime(...)`, `timestamp(...)`,
+and `time(...)` precision while the model is built, before database I/O.
+
 ### Configure temporal tables
 
 ```csharp

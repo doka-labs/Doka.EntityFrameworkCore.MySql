@@ -19,6 +19,7 @@ global using Microsoft.EntityFrameworkCore.Query;
 global using Microsoft.EntityFrameworkCore.Scaffolding;
 global using Microsoft.EntityFrameworkCore.Scaffolding.Metadata;
 global using Microsoft.EntityFrameworkCore.Storage;
+global using Microsoft.EntityFrameworkCore.Storage.Json;
 global using Microsoft.EntityFrameworkCore.TestUtilities;
 global using Microsoft.EntityFrameworkCore.Update;
 global using Microsoft.Extensions.DependencyInjection;
