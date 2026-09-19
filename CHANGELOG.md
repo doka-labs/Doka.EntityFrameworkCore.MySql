@@ -7,6 +7,23 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.4.2] - 2026-09-20
+
+Stable patch release preserving provider representations through EF Core
+parameterized primitive collections and owned JSON queries. It keeps GUID,
+binary, string, numeric, and temporal values lossless across `JSON_TABLE`
+translation, prevents collation and SQL-mode drift, and validates MySQL-family
+temporal precision and `TIME` range boundaries before database I/O.
+
+Install the stable packages through normal NuGet version resolution. Add the
+spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.2
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.4.2
+dotnet package add Doka.Caching.MySql --version 10.4.2
+```
+
 ### Fixed
 
 - Preserve provider GUID encoding when EF Core applies a primitive-collection
@@ -1268,7 +1285,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.4.1...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.4.2...HEAD
+[10.4.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.2
 [10.4.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.1
 [10.4.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.0
 [10.3.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.3.0

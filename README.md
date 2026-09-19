@@ -70,22 +70,22 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.4.1` preserves the configured database character set and collation through
-model differencing, generated migrations, snapshots, and SQL. It emits both
-facets together when required, supports collation-only changes, keeps explicit
-table defaults separate from inherited database defaults, and rejects
-ambiguous or incompatible transitions before generating SQL. Updating the
-package does not rewrite existing migration source; regenerate an affected
-unpublished migration with `10.4.1`. Pin the current stable version explicitly
-when validating an affected application:
+`10.4.2` preserves provider representations through EF Core parameterized
+primitive collections and owned JSON queries. `Binary16`, `Char36`, binary,
+string, numeric, and temporal values retain their effective mappings across
+`JSON_TABLE` translation without collation, SQL-mode, length, scale, or
+precision drift. Invalid MySQL-family temporal precision and out-of-range
+parameter `TIME` values fail before database I/O. Pin the current stable
+version explicitly when validating an affected application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.1
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.2
 ```
 
-See [Provider Configuration][provider-configuration] for the database-default
-and migration-recovery contracts, and [Migrating from
-Pomelo][migrating-from-pomelo] for the complete migration guidance.
+See [Provider Configuration][provider-configuration] for collection transport
+and GUID representation contracts, [Limitations][external-limitations] for
+temporal boundaries, and [Migrating from Pomelo][migrating-from-pomelo] for the
+complete migration guidance.
 
 ## Quick Start
 

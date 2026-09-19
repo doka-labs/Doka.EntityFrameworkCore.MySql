@@ -31,6 +31,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         "GITHUB_REF": "",
         "GITHUB_SHA": "",
     }
+    _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
     def setUp(self) -> None:
         """Create an untagged repository with an ignored evidence fixture."""
@@ -52,7 +53,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
         # Evidence remains ignored so negative tests can mutate it without
         # turning an artifact-integrity failure into a source-dirty failure.
-        dotnet_sdk = release_evidence.run_command("dotnet", "--version", cwd=self.repo)
+        # The host may also carry preview SDKs. Release fixtures must inherit
+        # the repository-approved stable SDK rather than ambient tool selection.
+        dotnet_sdk = release_evidence.approved_dotnet_sdk(self._REPOSITORY_ROOT)
         (self.repo / ".gitignore").write_text("/evidence/\n", encoding="ascii")
         (self.repo / "global.json").write_text(
             json.dumps(
@@ -147,6 +150,18 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             release_evidence.EvidenceError, "disable .NET SDK roll-forward"
+        ):
+            release_evidence.approved_dotnet_sdk(self.repo)
+
+    def test_sdk_contract_rejects_prerelease_version(self) -> None:
+        """Reject an exact SDK identity that is not a stable release."""
+        path = self.repo / "global.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["sdk"]["version"] = "11.0.100-rc.1.25451.107"
+        path.write_text(json.dumps(payload) + "\n", encoding="ascii")
+
+        with self.assertRaisesRegex(
+            release_evidence.EvidenceError, "exact stable .NET SDK version"
         ):
             release_evidence.approved_dotnet_sdk(self.repo)
 
