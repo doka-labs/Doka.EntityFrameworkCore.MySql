@@ -197,14 +197,17 @@ public sealed class MySqlCrossLayerObservabilityTests
                 ShouldListenTo =
                     source => source.Name is MySqlDiagnostics.SourceName
                         or MySqlDiagnostics.MySqlConnectorSourceName,
-                Sample = (ref ActivityCreationOptions<ActivityContext> _) =>
-                    ActivitySamplingResult.AllDataAndRecorded,
+                Sample = SampleActivity,
                 ActivityStopped = Activities.Enqueue,
             };
             ActivitySource.AddActivityListener(_listener);
         }
 
         public ConcurrentQueue<Activity> Activities { get; } = new();
+
+        private static ActivitySamplingResult SampleActivity(
+            ref ActivityCreationOptions<ActivityContext> _
+        ) => ActivitySamplingResult.AllDataAndRecorded;
 
         public void Dispose() => _listener.Dispose();
     }

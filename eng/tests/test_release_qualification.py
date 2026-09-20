@@ -31,7 +31,15 @@ class PolicyTests(unittest.TestCase):
         """Keep the checked-in policy inside its own shape."""
         policy = qualification.load_policy()
 
-        self.assertEqual(5, len(policy["gates"]))
+        self.assertEqual(
+            [
+                "repository-qualification",
+                "migration-deployment",
+                "runtime-posture",
+                "mysqlconnector-patch-matrix",
+            ],
+            [gate["id"] for gate in policy["gates"]],
+        )
         self.assertIn("repository-qualification", policy["requiredProtectedChecks"])
 
     def test_performance_results_have_no_release_authority(self) -> None:

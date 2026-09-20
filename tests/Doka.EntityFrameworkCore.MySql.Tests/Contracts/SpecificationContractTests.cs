@@ -108,6 +108,21 @@ public class SpecificationContractTests
     }
 
     [Fact]
+    public void Specification_facade_requires_every_upstream_test_signature()
+    {
+        Assert.True(SpecificationInventory.Implements(typeof(CompleteFacade), typeof(FacadeContract)));
+        Assert.True(SpecificationInventory.Implements(typeof(CompleteFacade), typeof(FacadeRootContract)));
+        Assert.False(SpecificationInventory.Implements(typeof(IncompleteFacade), typeof(FacadeContract)));
+        Assert.False(SpecificationInventory.Implements(typeof(IncompleteFacade), typeof(FacadeRootContract)));
+    }
+
+    [Fact]
+    public void Specification_facade_rejects_an_unrelated_contract_declaration()
+    {
+        Assert.False(SpecificationInventory.Implements(typeof(UnrelatedFacade), typeof(FacadeContract)));
+    }
+
+    [Fact]
     public void Publication_gate_rejects_nonzero_provider_debt()
     {
         var report = SpecificationContractValidator.EnforceZeroProviderDebt(
@@ -197,6 +212,21 @@ public class SpecificationContractTests
         Assert.Contains(errors, error => error.Contains("missing expected test ID", StringComparison.Ordinal));
         Assert.Contains(errors, error => error.Contains("unexpected test ID", StringComparison.Ordinal));
         Assert.Contains(errors, error => error.Contains("fixture set changed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Discovery_accepts_only_the_external_runtime_migration_adapter()
+    {
+        const string runtimeMigrationTestId =
+            "Microsoft.EntityFrameworkCore.RuntimeMigrationMySqlTest.Can_compile_migration";
+
+        const string unrelatedEfCoreTestId =
+            "Microsoft.EntityFrameworkCore.MigrationsTestBase.Can_compile_migration";
+
+        var discovered = DiscoveryContract.ParseListOutput(
+            $"{PassedTestId}\n{runtimeMigrationTestId}\n{unrelatedEfCoreTestId}\n");
+
+        Assert.Equal([PassedTestId, runtimeMigrationTestId], discovered);
     }
 
     [Fact]
@@ -446,5 +476,38 @@ public class SpecificationContractTests
             results.Select(result => $"<UnitTestResult testName=\"{result.TestId}\" outcome=\"{result.Outcome}\" />"));
 
         return $"<TestRun><Results>{body}</Results></TestRun>";
+    }
+
+    public abstract class FacadeRootContract
+    {
+    }
+
+    public abstract class FacadeContract : FacadeRootContract
+    {
+        [Fact]
+        public abstract void Required_contract();
+    }
+
+    [SpecificationContractFacade(typeof(FacadeContract))]
+    public abstract class CompleteFacade
+    {
+        [Fact]
+        public void Required_contract()
+        {
+        }
+    }
+
+    [SpecificationContractFacade(typeof(FacadeContract))]
+    public abstract class IncompleteFacade
+    {
+    }
+
+    [SpecificationContractFacade(typeof(IDisposable))]
+    public abstract class UnrelatedFacade
+    {
+        [Fact]
+        public void Required_contract()
+        {
+        }
     }
 }

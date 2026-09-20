@@ -98,8 +98,7 @@ internal sealed class MySqlTypeMappingPostprocessor : RelationalTypeMappingPostp
 
         if (MySqlJsonTableValueEncoding.RequiresDecoding(elementType, elementTypeMapping))
         {
-            var mappings = _deferredValueMappings ??=
-                new Dictionary<JsonTableColumn, DeferredValueMapping>();
+            var mappings = _deferredValueMappings ??= [];
 
             mappings[new JsonTableColumn(jsonTable.Alias, "value")] = new DeferredValueMapping(
                 elementType,
@@ -108,10 +107,14 @@ internal sealed class MySqlTypeMappingPostprocessor : RelationalTypeMappingPostp
                 usesBase64StringTransport);
         }
 
-        var columns = new List<MySqlJsonTableExpression.ColumnInfo>((jsonTable.ColumnInfos?.Count ?? 0) + 1)
-        {
-            new(Name: "value", TypeMapping: extractionTypeMapping, Path: [], AsJson: false, ForOrdinality: false),
-        };
+        List<MySqlJsonTableExpression.ColumnInfo> columns = [];
+        columns.EnsureCapacity((jsonTable.ColumnInfos?.Count ?? 0) + 1);
+        columns.Add(new(
+            Name: "value",
+            TypeMapping: extractionTypeMapping,
+            Path: [],
+            AsJson: false,
+            ForOrdinality: false));
 
         if (jsonTable.ColumnInfos is not null)
         {

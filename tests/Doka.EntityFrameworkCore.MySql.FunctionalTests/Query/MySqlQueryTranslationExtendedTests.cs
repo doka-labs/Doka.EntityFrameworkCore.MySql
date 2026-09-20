@@ -203,6 +203,23 @@ public sealed class MySqlQueryTranslationExtendedTests
             .ToQueryString();
 
         MySqlSqlAssert.ContainsFunction(sql, "SIGN");
+        Assert.Contains("CAST(SIGN(", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Culture-sensitive Parse overloads remain client-only because MySQL CAST
+    /// cannot reproduce arbitrary CLR format-provider semantics.
+    /// </summary>
+    [Fact]
+    public void Numeric_parse_with_format_provider_remains_client_evaluated()
+    {
+        using var context = CreateContext();
+        var sql = context.Items
+            .Select(entity => int.Parse(entity.Name, CultureInfo.InvariantCulture))
+            .ToQueryString();
+
+        Assert.Contains("`t`.`Name`", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("CAST(", sql, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -809,7 +826,7 @@ public sealed class MySqlQueryTranslationExtendedTests
         var minimumValue = 50D;
 
         var sql = context.Items
-            .FromSqlInterpolated(
+            .FromSql(
                 $"""
                 WITH `FilteredItems` AS (
                     SELECT *
@@ -850,7 +867,7 @@ public sealed class MySqlQueryTranslationExtendedTests
             .Where(item => item.Id > 0);
 
         var exception = Assert.Throws<InvalidOperationException>(
-            () => query.ToQueryString());
+            query.ToQueryString);
 
         Assert.Equal(
             "The configured database engine does not support common table expressions.",

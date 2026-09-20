@@ -1,6 +1,5 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Fixtures;
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
@@ -21,6 +20,28 @@ public sealed partial class PrimitiveCollectionsQueryMySqlTest
         Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
     }
 
+    protected override DbContextOptionsBuilder SetParameterizedCollectionMode(
+        DbContextOptionsBuilder optionsBuilder,
+        ParameterTranslationMode parameterizedCollectionMode
+    )
+    {
+        new MySqlDbContextOptionsBuilder(optionsBuilder).UseParameterizedCollectionMode(parameterizedCollectionMode);
+
+        return optionsBuilder;
+    }
+
+    [Fact]
+    public override Task Parameter_with_inferred_value_converter() => base.Parameter_with_inferred_value_converter();
+
+    [Fact]
+    public override async Task Column_collection_of_strings_Contains()
+    {
+        await base.Column_collection_of_strings_Contains();
+
+        Assert.Contains("JSON_CONTAINS(`p`.`Strings`", Fixture.TestSqlLoggerFactory.Sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("JSON_TABLE(`p`.`Strings`", Fixture.TestSqlLoggerFactory.Sql, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Verifies that an empty primitive collection remains a valid JSON array in storage.
     /// </summary>
@@ -30,7 +51,7 @@ public sealed partial class PrimitiveCollectionsQueryMySqlTest
         await using var context = Fixture
             .GetContextCreator()();
 
-        var storedValue = await context
+        var storedInts = await context
             .Database
             .SqlQueryRaw<string>(
                 """
@@ -38,9 +59,31 @@ public sealed partial class PrimitiveCollectionsQueryMySqlTest
                 FROM `PrimitiveCollectionsEntity`
                 WHERE `Id` = 5
                 """)
-            .SingleAsync();
+            .SingleAsync(Xunit.TestContext.Current.CancellationToken);
 
-        Assert.Equal("5B5D", storedValue);
+        var storedStrings = await context
+            .Database
+            .SqlQueryRaw<string>(
+                """
+                SELECT HEX(`Strings`) AS `Value`
+                FROM `PrimitiveCollectionsEntity`
+                WHERE `Id` = 5
+                """)
+            .SingleAsync(Xunit.TestContext.Current.CancellationToken);
+
+        var invalidStringCollectionIds = await context
+            .Database
+            .SqlQueryRaw<string>(
+                """
+                SELECT COALESCE(GROUP_CONCAT(`Id` ORDER BY `Id`), '') AS `Value`
+                FROM `PrimitiveCollectionsEntity`
+                WHERE JSON_VALID(`Strings`) = 0
+                """)
+            .SingleAsync(Xunit.TestContext.Current.CancellationToken);
+
+        Assert.Equal("5B5D", storedInts);
+        Assert.Equal("5B5D", storedStrings);
+        Assert.Equal(string.Empty, invalidStringCollectionIds);
     }
 }
 
@@ -70,6 +113,7 @@ public sealed class SpatialQueryMySqlTest
     /// <see href="https://dev.mysql.com/doc/refman/8.4/en/spatial-function-reference.html">
     /// MySQL 8.4 spatial function reference</see>.
     /// </remarks>
+    [Theory]
     [SpecEngineLimitationTheory(
         "MYSQL-MARIADB-SPATIAL-NORMALIZE",
         "mysql84",
@@ -89,6 +133,7 @@ public sealed class SpatialQueryMySqlTest
     /// <see href="https://dev.mysql.com/doc/refman/8.4/en/spatial-function-reference.html">
     /// MySQL 8.4 spatial function reference</see>.
     /// </remarks>
+    [Theory]
     [SpecEngineLimitationTheory(
         "MYSQL-SPATIAL-RELATE",
         "mysql84")]
@@ -106,6 +151,7 @@ public sealed class SpatialQueryMySqlTest
     /// <see href="https://dev.mysql.com/doc/refman/8.4/en/spatial-function-reference.html">
     /// MySQL 8.4 spatial function reference</see>.
     /// </remarks>
+    [Theory]
     [SpecEngineLimitationTheory(
         "MYSQL-MARIADB-SPATIAL-REVERSE",
         "mysql84",
@@ -120,6 +166,7 @@ public sealed class SpatialQueryMySqlTest
     /// MariaDB cannot represent NTS quadrant-segment control in its two-argument
     /// <c>ST_Buffer</c> contract.
     /// </summary>
+    [Theory]
     [SpecEngineLimitationTheory(
         "MARIADB-SPATIAL-BUFFER-STRATEGY",
         "mariadb114",
@@ -134,6 +181,7 @@ public sealed class SpatialQueryMySqlTest
     /// required by NTS collection-combine semantics. MariaDB 12.3 executes the
     /// inherited contract through the function added in MariaDB 12.0.
     /// </summary>
+    [Theory]
     [SpecEngineLimitationTheory(
         "MARIADB-SPATIAL-COLLECT",
         "mariadb114",
@@ -148,6 +196,7 @@ public sealed class SpatialQueryMySqlTest
     /// required before computing a collection envelope. MariaDB 12.3 executes
     /// the inherited contract through the function added in MariaDB 12.0.
     /// </summary>
+    [Theory]
     [SpecEngineLimitationTheory(
         "MARIADB-SPATIAL-COLLECT",
         "mariadb114",
@@ -163,6 +212,7 @@ public sealed class SpatialQueryMySqlTest
     /// executes the inherited contract through the function added in MariaDB
     /// 12.0.
     /// </summary>
+    [Theory]
     [SpecEngineLimitationTheory(
         "MARIADB-SPATIAL-COLLECT",
         "mariadb114",
@@ -177,6 +227,7 @@ public sealed class SpatialQueryMySqlTest
     /// MariaDB 12.3 executes the inherited contract through the function added
     /// in MariaDB 12.0.
     /// </summary>
+    [Theory]
     [SpecEngineLimitationTheory(
         "MARIADB-SPATIAL-VALIDITY",
         "mariadb114",

@@ -82,12 +82,14 @@ public sealed class MaterializationInterceptionMySqlTest : MaterializationInterc
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 
-    protected override DbContextOptionsBuilder AddOptions(
+    protected override DbContextOptionsBuilder AddNonSharedOptions(
         DbContextOptionsBuilder builder
-    ) => base.AddOptions(
-        builder.UseTransientInternalServiceProvider());
+    ) => base.AddNonSharedOptions(
+            builder.UseTransientInternalServiceProvider())
+        .ConfigureWarnings(warnings =>
+            warnings.Ignore(RelationalEventId.OwnedEntityMappedToJsonCollectionWarning));
 
     public sealed class MySqlLibraryContext : LibraryContext
     {

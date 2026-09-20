@@ -1,5 +1,4 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
@@ -16,87 +15,112 @@ public sealed partial class UdfDbFunctionMySqlTest : UdfDbFunctionTestBase<UdfDb
         Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
     }
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_Correlated_Select_In_Anonymous() => base.QF_Correlated_Select_In_Anonymous();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_Correlated_Nested_Func_Call() => base.QF_Correlated_Nested_Func_Call();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void DbSet_mapped_to_function() => base.DbSet_mapped_to_function();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_Join() => base.QF_Join();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_Stand_Alone() => base.QF_Stand_Alone();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_OuterApply_Correlated_Select_QF() => base.QF_OuterApply_Correlated_Select_QF();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_OuterApply_Correlated_Select_Entity() => base.QF_OuterApply_Correlated_Select_Entity();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_OuterApply_Correlated_Select_Anonymous() =>
         base.QF_OuterApply_Correlated_Select_Anonymous();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void Udf_with_argument_being_comparison_to_null_parameter() =>
         base.Udf_with_argument_being_comparison_to_null_parameter();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void Udf_with_argument_being_comparison_of_nullable_columns() =>
         base.Udf_with_argument_being_comparison_of_nullable_columns();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void TVF_with_navigation_in_projection_groupby_aggregate() =>
         base.TVF_with_navigation_in_projection_groupby_aggregate();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void TVF_with_argument_being_a_subquery_with_navigation_in_projection_groupby_aggregate() =>
         base.TVF_with_argument_being_a_subquery_with_navigation_in_projection_groupby_aggregate();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_LeftJoin_Select_Anonymous() => base.QF_LeftJoin_Select_Anonymous();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_CrossApply_Correlated_Select_QF_Type() => base.QF_CrossApply_Correlated_Select_QF_Type();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_Correlated_Func_Call_With_Navigation() => base.QF_Correlated_Func_Call_With_Navigation();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_Stand_Alone_Parameter() => base.QF_Stand_Alone_Parameter();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_CrossJoin_Parameter() => base.QF_CrossJoin_Parameter();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_LeftJoin_Select_Result() => base.QF_LeftJoin_Select_Result();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_Select_Correlated_Direct_With_Function_Query_Parameter_Correlated_In_Anonymous() =>
         base.QF_Select_Correlated_Direct_With_Function_Query_Parameter_Correlated_In_Anonymous();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_CrossJoin_Not_Correlated() => base.QF_CrossJoin_Not_Correlated();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_Select_Correlated_Subquery_In_Anonymous() =>
         base.QF_Select_Correlated_Subquery_In_Anonymous();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_Nested() => base.QF_Nested();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_Select_Correlated_Subquery_In_Anonymous_Nested_With_QF() =>
         base.QF_Select_Correlated_Subquery_In_Anonymous_Nested_With_QF();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_CrossApply_Correlated_Select_Anonymous() =>
         base.QF_CrossApply_Correlated_Select_Anonymous();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SCALAR-STORED-FUNCTIONS", "mysql84", "mariadb114", "mariadb118")]
     public override void QF_CrossApply_Correlated_Select_Result() => base.QF_CrossApply_Correlated_Select_Result();
 

@@ -42,17 +42,21 @@ public sealed class MySqlSequenceValueGeneratorTests
     [Fact]
     public async Task GetNextValueAsync_rejects_a_missing_connection() =>
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            MySqlSequenceValueGenerator.GetNextValueAsync(null!, "orders", 1, supportsNativeSequences: false));
+            MySqlSequenceValueGenerator.GetNextValueAsync(
+                null!,
+                "orders",
+                1,
+                supportsNativeSequences: false,
+                TestContext.Current.CancellationToken));
 
     public static TheoryData<object, long> ConnectorScalarRepresentations =>
-        new()
-        {
-            { 42L, 42L },
-            { 42, 42L },
-            { 42m, 42L },
-            { 42UL, 42L },
-            { "42", 42L },
-        };
+    [
+        new(42L, 42L),
+        new(42, 42L),
+        new(42m, 42L),
+        new(42UL, 42L),
+        new("42", 42L),
+    ];
 
     [Theory]
     [MemberData(nameof(ConnectorScalarRepresentations))]
@@ -75,10 +79,9 @@ public sealed class MySqlSequenceValueGeneratorTests
     }
 
     public static TheoryData<object> DbNullScalarRepresentation =>
-        new()
-        {
-            DBNull.Value,
-        };
+    [
+        DBNull.Value,
+    ];
 
     [Fact]
     public void ConvertResult_rejects_unsigned_values_above_int64_max_value() =>

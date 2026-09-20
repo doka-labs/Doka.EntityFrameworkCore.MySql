@@ -98,7 +98,7 @@ public static class MySqlServiceCollectionExtensions
         serviceCollection.TryAddSingleton(reverseEngineeringOptions);
         serviceCollection.TryAddSingleton<MySqlScaffoldingContext>();
 
-        // EF Core 10's EntityFrameworkRelationalDesignServicesBuilder.TryAddCoreServices only
+        // EF Core's EntityFrameworkRelationalDesignServicesBuilder.TryAddCoreServices only
         // registers IAnnotationCodeGenerator + ICSharpRuntimeAnnotationCodeGenerator;
         // IModelCodeGenerator + the rest of the design-time core (CSharpModelGenerator,
         // ModelCodeGeneratorSelector, CSharpMigrationsGenerator, ...) live in

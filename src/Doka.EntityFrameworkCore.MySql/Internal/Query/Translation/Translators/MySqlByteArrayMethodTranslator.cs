@@ -18,6 +18,11 @@ internal sealed class MySqlByteArrayMethodTranslator : IMethodCallTranslator
         .Single(method => method.Name == nameof(Enumerable.Contains)
             && method.GetParameters().Length == 2);
 
+    private static readonly MethodInfo s_anyMethod = typeof(Enumerable)
+        .GetRuntimeMethods()
+        .Single(method => method.Name == nameof(Enumerable.Any)
+            && method.GetParameters().Length == 1);
+
     private static readonly MethodInfo s_firstMethod = typeof(Enumerable)
         .GetRuntimeMethods()
         .Single(method => method.Name == nameof(Enumerable.First)
@@ -48,6 +53,7 @@ internal sealed class MySqlByteArrayMethodTranslator : IMethodCallTranslator
         var genericMethod = method.GetGenericMethodDefinition();
 
         if (genericMethod != s_containsMethod
+            && genericMethod != s_anyMethod
             && genericMethod != s_firstMethod)
         {
             return null;
@@ -77,6 +83,18 @@ internal sealed class MySqlByteArrayMethodTranslator : IMethodCallTranslator
                 typeof(int));
 
             return _sqlExpressionFactory.GreaterThan(locate, _sqlExpressionFactory.Constant(0));
+        }
+
+        if (genericMethod == s_anyMethod)
+        {
+            var length = _sqlExpressionFactory.Function(
+                "OCTET_LENGTH",
+                [source],
+                nullable: true,
+                argumentsPropagateNullability: s_singleArgumentNullPropagation,
+                typeof(int));
+
+            return _sqlExpressionFactory.GreaterThan(length, _sqlExpressionFactory.Constant(0));
         }
 
         return _sqlExpressionFactory.Function(

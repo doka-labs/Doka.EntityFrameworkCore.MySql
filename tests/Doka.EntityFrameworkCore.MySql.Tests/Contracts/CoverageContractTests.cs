@@ -143,11 +143,11 @@ public sealed class CoverageContractTests
                 $"doka-coverage-contract-{Guid.NewGuid():N}");
             Directory.CreateDirectory(path);
             var fixture = new CoverageFixture(path);
-            var hits = lineHits ?? (1, 1);
+            var (firstHits, secondHits) = lineHits ?? (1, 1);
             classElements ??= $"<class name=\"{className}\"><lines>"
-                + $"<line number=\"1\" hits=\"{hits.First}\" branch=\"true\" "
+                + $"<line number=\"1\" hits=\"{firstHits}\" branch=\"true\" "
                 + $"condition-coverage=\"{branchFraction}\" />"
-                + $"<line number=\"2\" hits=\"{hits.Second}\" />"
+                + $"<line number=\"2\" hits=\"{secondHits}\" />"
                 + "</lines></class>";
             File.WriteAllText(
                 fixture.ReportPath,

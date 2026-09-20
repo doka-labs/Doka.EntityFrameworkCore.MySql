@@ -7,6 +7,41 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- Start the isolated 11.x provider line on `net11.0` with exact .NET SDK and
+  EF Core `11.0.0-rc.1.26425.128` pins. The stable 10.x line remains the .NET
+  10 maintenance line.
+- Move the test projects to xUnit.net v3 package version 4.0.0. Repository
+  automation uses the .NET 11 Microsoft Testing Platform runner, while the
+  xUnit IDE adapter keeps Rider and other supported IDE runners available.
+- Replace the stable-line EF Core floor/latest patch matrix with one exact
+  RC.1 dependency graph. Repository, specification, integration, runtime, and
+  publication gates qualify that graph without a second floating restore.
+- Consume the .NET 11 shared-framework caching, dependency-injection, logging,
+  and options abstractions instead of shipping redundant package references.
+- Update Testcontainers to 4.15.0 and remove the obsolete explicit SSH.NET
+  override now that the test dependency graph resolves SSH.NET 2026.0.0.
+- Keep package validation enabled while resetting the incompatible 10.x
+  package baselines for the new `net11.0` major line. Public API analyzers
+  remain the source-level compatibility boundary until an 11.x baseline is
+  published.
+- Reject direct indexes over JSON complex values and JSON member paths during
+  model validation. Index an explicitly typed generated scalar column instead,
+  matching the portable MySQL and MariaDB JSON-index contract.
+
+### Fixed
+
+- Preserve EF Core 11 RC.1 string-collection membership semantics when its
+  JSON value projection is wrapped in `JSON_UNQUOTE(JSON_QUOTE(...))`. Direct
+  membership uses `JSON_CONTAINS`, while composed collection queries retain
+  their complete decoded projection instead of being reduced to a bare
+  `JSON_TABLE` value column.
+- Preserve nullable NetTopologySuite `IsSimple` semantics on every supported
+  MariaDB release. The explicit null guard now survives EF Core's relational
+  nullability processing instead of exposing MariaDB's `-1` sentinel for
+  `ST_IsSimple(NULL)` as `true`.
+
 ## [10.4.4] - 2026-09-23
 
 Stable patch release restoring EF Core 10's multiple-parameter default for

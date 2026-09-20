@@ -2,6 +2,9 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed class AdrRepositoryValidatorTests
 {
+    private const string SpecificationFilter =
+        "--filter \"FullyQualifiedName~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.|Category=Spec|Category=Live\"";
+
     /// <summary>
     /// Keeps the public migration-fragment contract and its runtime behavior
     /// visible in its release notes instead of only in the API baseline.
@@ -789,10 +792,10 @@ public sealed class AdrRepositoryValidatorTests
         AssertFastLaneJob(workflow, "spec-test-suite");
         AssertFastLaneJob(workflow, "coverage-gate");
 
-        Assert.Contains("--filter \"Category=Spec|Category=Live\"", workflow, StringComparison.Ordinal);
+        Assert.Contains(SpecificationFilter, workflow, StringComparison.Ordinal);
         Assert.Equal(
             1,
-            workflow.Split("--filter \"Category=Spec|Category=Live\"", StringSplitOptions.None)
+            workflow.Split(SpecificationFilter, StringSplitOptions.None)
                 .Length
             - 1);
 
@@ -800,8 +803,8 @@ public sealed class AdrRepositoryValidatorTests
             $"  migration-deployment:\n    {exhaustiveCondition}",
             workflow,
             StringComparison.Ordinal);
-        Assert.Contains(
-            $"  efcore-patch-matrix:\n    {exhaustiveCondition}",
+        Assert.DoesNotContain(
+            "  efcore-patch-matrix:",
             workflow,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
@@ -942,7 +945,7 @@ public sealed class AdrRepositoryValidatorTests
             releaseCandidate,
             StringComparison.Ordinal);
         Assert.Contains("DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=1", releaseCandidate, StringComparison.Ordinal);
-        Assert.Contains("--filter \"Category=Spec|Category=Live\"", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains(SpecificationFilter, releaseCandidate, StringComparison.Ordinal);
         Assert.Contains(
             "run_integration_configuration_and_failure_gate",
             releaseCandidate,

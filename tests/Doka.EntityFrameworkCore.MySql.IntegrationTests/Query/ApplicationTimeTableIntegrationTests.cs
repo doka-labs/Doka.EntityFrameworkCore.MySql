@@ -366,9 +366,9 @@ public sealed class ApplicationTimeTableIntegrationTests
         await using var command = connection.CreateCommand();
         command.CommandText = commandText;
 
-        foreach (var parameter in parameters)
+        foreach (var (name, value) in parameters)
         {
-            command.Parameters.AddWithValue(parameter.Name, parameter.Value);
+            command.Parameters.AddWithValue(name, value);
         }
 
         return await command.ExecuteScalarAsync();

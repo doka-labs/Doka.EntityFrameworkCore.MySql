@@ -115,55 +115,6 @@ jobs:
           name: repo-tests-coverage
           path: artifacts/coverage
 
-  # ADR D-009: runs the repo-local test path against the lower bound of the EF
-  # Core 10.0.x patch range plus the latest floating 10.0.x tag, so a Microsoft
-  # patch that breaks the EF1001 surface is detected on the scheduled cycle
-  # rather than at consumer-install time. Package resolution is deliberately
-  # uncached here because resolution is the property under test.
-  efcore-patch-matrix:
-    if: >-
-      github.event_name == 'schedule'
-      || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - ef-core-version: "10.0.8"
-            resolved-version-pattern: '^10[.]0[.]8$'
-            artifact-suffix: minimum-10-0-8
-          - ef-core-version: "10.0.*"
-            resolved-version-pattern: '^10[.]0[.][0-9]+$'
-            artifact-suffix: latest-10-0
-
-    env:
-      DokaEfCoreVersion: ${{ matrix.ef-core-version }}
-      CentralPackageFloatingVersionsEnabled: true
-      DOKA_EF_CORE_RESOLVED_PATTERN: ${{ matrix.resolved-version-pattern }}
-      DOKA_EF_CORE_ARTIFACT_SUFFIX: ${{ matrix.artifact-suffix }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      - name: Run EF Core patch matrix row
-        run: bash ./eng/testing/test-efcore-matrix.sh
-
-      - name: Upload EF Core patch evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: efcore-patch-${{ matrix.artifact-suffix }}
-          path: artifacts/efcore-patch-matrix/${{ matrix.artifact-suffix }}
-
   mysqlconnector-patch-matrix:
     if: >-
       github.event_name == 'schedule'
@@ -261,7 +212,7 @@ jobs:
         if: matrix.engine.name == 'mysql84'
         run: |
           bash ./eng/testing/check-spec-contract.sh
-          dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
+          dotnet test --project tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
             --configuration Release --no-build --no-restore --tl:off \
             --filter FullyQualifiedName~SpecDispositionContractTests
           bash ./eng/testing/check-spec-discovery.sh
@@ -271,12 +222,15 @@ jobs:
           DOKA_SPEC_TEST_TARGET: ${{ matrix.engine.target }}
           DOKA_TEST_DATABASE_EVIDENCE_FILE: ${{ github.workspace }}/artifacts/spec-tests/${{ matrix.engine.name }}/test-database-evidence.json
         run: |
-          dotnet test tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
+          dotnet test --project tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
             --configuration Release --no-build --no-restore --tl:off \
-            --filter "Category=Spec|Category=Live" \
-            --collect:"XPlat Code Coverage" \
-            --logger trx \
-            --results-directory artifacts/spec-tests/${{ matrix.engine.name }}
+            --filter "FullyQualifiedName~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.|Category=Spec|Category=Live" \
+            --coverlet \
+            --coverlet-output-format cobertura \
+            --coverlet-file-prefix spec-${{ matrix.engine.name }} \
+            --results-directory artifacts/spec-tests/${{ matrix.engine.name }} \
+            --report-xunit-trx \
+            --report-xunit-trx-filename spec-tests.trx
           bash ./eng/testing/check-spec-results.sh \
             ${{ matrix.engine.target }} \
             artifacts/spec-tests/${{ matrix.engine.name }}

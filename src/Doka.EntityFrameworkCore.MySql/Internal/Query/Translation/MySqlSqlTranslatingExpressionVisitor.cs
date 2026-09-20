@@ -27,6 +27,15 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// MySQL 8.4 JSON creation functions</see>. MariaDB exposes the same
 /// <c>JSON_ARRAY</c> and <c>JSON_OBJECT</c> function contract in its server JSON
 /// function reference. Sources retrieved 2026-08-18.
+///
+/// EF Core 11's relational <c>JsonPathExists</c> contract maps to
+/// <c>JSON_CONTAINS_PATH(json, 'one', path) = 1</c>. Both engine families define
+/// that function as a one-or-all path existence check. Sources retrieved
+/// 2026-09-18:
+/// <see href="https://dev.mysql.com/doc/refman/8.4/en/json-search-functions.html">
+/// MySQL 8.4 JSON search functions</see> and
+/// <see href="https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_contains_path">
+/// MariaDB JSON_CONTAINS_PATH</see>.
 /// </remarks>
 internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTranslatingExpressionVisitor
 {
@@ -41,6 +50,10 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         nameof(Convert.ToString),
         [typeof(object)])!;
 
+    private static readonly MethodInfo s_dateTimeOffsetToOffsetMethod = typeof(DateTimeOffset).GetRuntimeMethod(
+        nameof(DateTimeOffset.ToOffset),
+        [typeof(TimeSpan)])!;
+
     private static readonly MethodInfo s_jsonArrayMethod = typeof(MySqlDbFunctionsExtensions).GetRuntimeMethod(
         nameof(MySqlDbFunctionsExtensions.JsonArray),
         [
@@ -53,6 +66,14 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         [
             typeof(DbFunctions),
             typeof(object[]),
+        ])!;
+
+    private static readonly MethodInfo s_jsonPathExistsMethod = typeof(RelationalDbFunctionsExtensions).GetRuntimeMethod(
+        nameof(RelationalDbFunctionsExtensions.JsonPathExists),
+        [
+            typeof(DbFunctions),
+            typeof(object),
+            typeof(string),
         ])!;
 
     private static readonly MethodInfo s_enumerableElementAtMethod = typeof(Enumerable)
@@ -77,10 +98,22 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
             .GetTypeInfo()
             .GetDeclaredMethod(nameof(ConvertEnumParameterToString))!;
 
+    private static readonly MethodInfo s_validateDateTimeOffsetParameterMethod =
+        typeof(MySqlSqlTranslatingExpressionVisitor)
+            .GetTypeInfo()
+            .GetDeclaredMethod(nameof(ValidateDateTimeOffsetParameter))!;
+
     private static readonly bool[] s_singleArgumentNullPropagation = [true];
 
     private static readonly bool[] s_twoArgumentNullPropagation =
     [
+        true,
+        true,
+    ];
+
+    private static readonly bool[] s_threeArgumentNullPropagation =
+    [
+        true,
         true,
         true,
     ];
@@ -142,6 +175,55 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         }
 
         return base.VisitUnary(unaryExpression);
+    }
+
+    /// <summary>
+    /// Constructs the provider's lossless <see cref="DateTimeOffset"/> text shape
+    /// from native <see cref="DateTime"/> and <see cref="TimeSpan"/> expressions.
+    /// </summary>
+    protected override Expression VisitNew(
+        NewExpression newExpression
+    )
+    {
+        var translation = base.VisitNew(newExpression);
+        if (translation != QueryCompilationContext.NotTranslatedExpression)
+        {
+            return translation;
+        }
+
+        if (newExpression.Constructor?.DeclaringType != typeof(DateTimeOffset)
+            || newExpression.Arguments is not [var dateTimeArgument, ..]
+            || dateTimeArgument.Type != typeof(DateTime)
+            || Visit(dateTimeArgument) is not SqlExpression dateTime)
+        {
+            return QueryCompilationContext.NotTranslatedExpression;
+        }
+
+        var offset = newExpression.Arguments.Count switch
+        {
+            1 => _sqlExpressionFactory.Constant(
+                TimeSpan.Zero,
+                _typeMappingSource.FindMapping(typeof(TimeSpan))),
+            2 when Visit(newExpression.Arguments[1]) is SqlExpression translatedOffset =>
+                TranslateDateTimeOffsetOffset(translatedOffset),
+            _ => null,
+        };
+
+        if (offset is null)
+        {
+            return QueryCompilationContext.NotTranslatedExpression;
+        }
+
+        return _sqlExpressionFactory.Function(
+            MySqlSentinelContract.GetName(MySqlSentinelKind.DateTimeOffsetConstruct),
+            [
+                dateTime,
+                offset,
+            ],
+            nullable: true,
+            argumentsPropagateNullability: s_twoArgumentNullPropagation,
+            typeof(DateTimeOffset),
+            _typeMappingSource.FindMapping(typeof(DateTimeOffset)));
     }
 
     /// <inheritdoc />
@@ -292,6 +374,29 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         MethodCallExpression methodCallExpression
     )
     {
+        if (methodCallExpression.Method == s_dateTimeOffsetToOffsetMethod
+            && methodCallExpression.Object is { } instanceExpression
+            && Visit(instanceExpression) is SqlExpression instance
+            && Visit(methodCallExpression.Arguments[0]) is SqlExpression translatedOffset
+            && TranslateDateTimeOffsetOffset(translatedOffset) is { } offset)
+        {
+            return _sqlExpressionFactory.Function(
+                MySqlSentinelContract.GetName(MySqlSentinelKind.DateTimeOffsetToOffset),
+                [
+                    instance,
+                    offset,
+                ],
+                nullable: true,
+                argumentsPropagateNullability: s_twoArgumentNullPropagation,
+                typeof(DateTimeOffset),
+                instance.TypeMapping);
+        }
+
+        if (methodCallExpression.Method == s_jsonPathExistsMethod)
+        {
+            return TranslateJsonPathExists(methodCallExpression);
+        }
+
         if (methodCallExpression.Method == s_jsonArrayMethod)
         {
             return TranslateJsonConstruction(methodCallExpression, "JSON_ARRAY", requirePairs: false);
@@ -365,6 +470,49 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
             argumentsPropagateNullability: nullPropagation,
             typeof(string),
             _typeMappingSource.FindMapping(typeof(string)));
+    }
+
+    private Expression TranslateJsonPathExists(
+        MethodCallExpression methodCallExpression
+    )
+    {
+        if (Translate(methodCallExpression.Arguments[2]) is not SqlExpression translatedPath)
+        {
+            return QueryCompilationContext.NotTranslatedExpression;
+        }
+
+#pragma warning disable EF1001 // TranslateProjection is required for EF-owned JSON structural shapers.
+        var translatedJson = TranslateProjection(methodCallExpression.Arguments[1]) switch
+        {
+            SqlExpression scalar => scalar,
+            RelationalStructuralTypeShaperExpression
+            {
+                ValueBufferExpression: JsonQueryExpression { JsonColumn: var jsonColumn, },
+            } => jsonColumn,
+            _ => null,
+        };
+#pragma warning restore EF1001
+
+        if (translatedJson is null)
+        {
+            return QueryCompilationContext.NotTranslatedExpression;
+        }
+
+        var result = _sqlExpressionFactory.Function(
+            "JSON_CONTAINS_PATH",
+            [
+                translatedJson,
+                _sqlExpressionFactory.Constant("one"),
+                translatedPath,
+            ],
+            nullable: true,
+            argumentsPropagateNullability: s_threeArgumentNullPropagation,
+            typeof(int),
+            _typeMappingSource.FindMapping(typeof(int)));
+
+        return _sqlExpressionFactory.Equal(
+            result,
+            _sqlExpressionFactory.Constant(1));
     }
 
     private SqlExpression TranslateJsonConstruction(
@@ -514,6 +662,68 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
     ) => queryContext.Parameters.TryGetValue(parameterName, out var value)
         ? value?.ToString()
         : null;
+
+    private SqlExpression? TranslateDateTimeOffsetOffset(
+        SqlExpression offset
+    )
+    {
+        var timeSpanMapping = _typeMappingSource.FindMapping(typeof(TimeSpan))!;
+
+        return offset switch
+        {
+            SqlConstantExpression { Value: TimeSpan value, } => _sqlExpressionFactory.Constant(
+                ValidateDateTimeOffset(value),
+                timeSpanMapping),
+            SqlParameterExpression parameter => CreateDateTimeOffsetRuntimeParameter(parameter, timeSpanMapping),
+            _ => null,
+        };
+    }
+
+    private SqlParameterExpression CreateDateTimeOffsetRuntimeParameter(
+        SqlParameterExpression parameter,
+        RelationalTypeMapping timeSpanMapping
+    )
+    {
+        var lambda = Expression.Lambda<Func<QueryContext, TimeSpan>>(
+            Expression.Call(
+                s_validateDateTimeOffsetParameterMethod,
+                QueryCompilationContext.QueryContextParameter,
+                Expression.Constant(parameter.Name)),
+            QueryCompilationContext.QueryContextParameter);
+
+        var runtimeParameter = _queryCompilationContext.RegisterRuntimeParameter(
+            $"{parameter.Name}_datetimeoffset",
+            lambda);
+
+        return new SqlParameterExpression(runtimeParameter.Name!, runtimeParameter.Type, timeSpanMapping);
+    }
+
+    private static TimeSpan ValidateDateTimeOffsetParameter(
+        QueryContext queryContext,
+        string parameterName
+    ) => queryContext.Parameters.TryGetValue(parameterName, out var value)
+        && value is TimeSpan offset
+            ? ValidateDateTimeOffset(offset)
+            : throw new InvalidOperationException(
+                $"DateTimeOffset offset parameter '{parameterName}' does not contain a TimeSpan value.");
+
+    private static TimeSpan ValidateDateTimeOffset(
+        TimeSpan offset
+    )
+    {
+        if (offset.Ticks % TimeSpan.TicksPerMinute != 0)
+        {
+            throw new InvalidOperationException("A DateTimeOffset offset must be specified in whole minutes.");
+        }
+
+        if (offset < TimeSpan.FromHours(-14)
+            || offset > TimeSpan.FromHours(14))
+        {
+            throw new InvalidOperationException("A DateTimeOffset offset must be between -14:00 and +14:00.");
+        }
+
+        return offset;
+    }
 
     private Expression TranslateByteArrayElementAccess(
         Expression arrayExpression,

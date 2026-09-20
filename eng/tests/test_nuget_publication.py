@@ -1290,7 +1290,7 @@ class NuGetPublicationTests(unittest.TestCase):
             f"<version>{self._VERSION}</version>"
             f'<repository type="git" url="https://github.com/{self._REPOSITORY}" '
             f'commit="{source_commit or self._COMMIT}" />'
-            f"<dependencies><group targetFramework=\"net10.0\">{dependency_xml}</group></dependencies>"
+            f"<dependencies><group targetFramework=\"net11.0\">{dependency_xml}</group></dependencies>"
             "</metadata>"
             "</package>"
         ).encode("utf-8")
@@ -1298,7 +1298,7 @@ class NuGetPublicationTests(unittest.TestCase):
         output = BytesIO()
         with zipfile.ZipFile(output, mode="w") as package:
             package.writestr(f"{package_id}.nuspec", nuspec)
-            package.writestr(f"lib/net10.0/{package_id}.dll", library)
+            package.writestr(f"lib/net11.0/{package_id}.dll", library)
             if signature is not None:
                 package.writestr(nuget_publication.NUGET_SIGNATURE_ENTRY, signature)
         return output.getvalue()
@@ -1323,7 +1323,7 @@ class NuGetPublicationTests(unittest.TestCase):
         output = BytesIO()
         with zipfile.ZipFile(output, mode="w") as package:
             package.writestr(f"{package_id}.nuspec", nuspec)
-            package.writestr(f"lib/net10.0/{package_id}.pdb", pdb)
+            package.writestr(f"lib/net11.0/{package_id}.pdb", pdb)
         return output.getvalue()
 
     @staticmethod

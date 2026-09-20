@@ -5,19 +5,10 @@ using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
-[Trait("Category", "Spec")]
-[Collection(FunctionalDatabaseTestGroup.Name)]
-public sealed class AdHocJsonQueryMySqlTest
-    : AdHocJsonQueryRelationalTestBase
+public partial class JsonQueryMySqlTest
 {
-    public AdHocJsonQueryMySqlTest(NonSharedFixture fixture)
-        : base(fixture)
-    {
-    }
 
-    protected override ITestStoreFactory TestStoreFactory
-        => MySqlTestStoreFactory.Instance;
-
+    [Theory]
     [SpecEngineLimitationTheory(
         "MYSQL-MARIADB-JSON-DOCUMENT-VALIDATION",
         "mysql84",
@@ -29,6 +20,7 @@ public sealed class AdHocJsonQueryMySqlTest
         bool noTracking)
         => base.Bad_json_properties_null_navigations(noTracking);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MYSQL-MARIADB-JSON-DOCUMENT-VALIDATION",
         "mysql84",

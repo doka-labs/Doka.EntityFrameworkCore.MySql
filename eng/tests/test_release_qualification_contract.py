@@ -37,11 +37,10 @@ RUN_ATTEMPT = 1
 STAGE_DIRECTORIES = {
     "migration-deployment": "migration-deployment",
     "runtime": "runtime",
-    "efcore-patch-matrix": "efcore-patch-matrix",
     "mysqlconnector-patch-matrix": "mysqlconnector-patch-matrix",
 }
 
-DEPENDENCY_STAGES = ("efcore-patch-matrix", "mysqlconnector-patch-matrix")
+DEPENDENCY_STAGES = ("mysqlconnector-patch-matrix",)
 DEPENDENCY_LEGS = ("minimum", "latest")
 
 
@@ -350,7 +349,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
         """Refuse a floating-dependency gate that recorded no resolved graph."""
         self.chain.complete()
         for leg in DEPENDENCY_LEGS:
-            (self.chain.evidence_root / "efcore-patch-matrix" / leg
+            (self.chain.evidence_root / "mysqlconnector-patch-matrix" / leg
              / "resolved-packages.json").unlink()
 
         self.assertEqual(1, self._derive_exit_code())
@@ -365,7 +364,11 @@ class ReleaseQualificationChainTests(unittest.TestCase):
         self.chain.complete()
         first = {result["gate"]: result for result in self.derive()}
 
-        leg = self.chain.evidence_root / "efcore-patch-matrix" / DEPENDENCY_LEGS[-1]
+        leg = (
+            self.chain.evidence_root
+            / "mysqlconnector-patch-matrix"
+            / DEPENDENCY_LEGS[-1]
+        )
         (leg / "resolved-packages.json").write_text(
             json.dumps({"projects": [{"changed": True}]}), encoding="utf-8"
         )
@@ -373,11 +376,11 @@ class ReleaseQualificationChainTests(unittest.TestCase):
 
         self.assertEqual(
             len(DEPENDENCY_LEGS),
-            first["efcore-patch-matrix"]["dependencySnapshotCount"],
+            first["mysqlconnector-patch-matrix"]["dependencySnapshotCount"],
         )
         self.assertNotEqual(
-            first["efcore-patch-matrix"]["dependencySnapshotDigest"],
-            second["efcore-patch-matrix"]["dependencySnapshotDigest"],
+            first["mysqlconnector-patch-matrix"]["dependencySnapshotDigest"],
+            second["mysqlconnector-patch-matrix"]["dependencySnapshotDigest"],
         )
 
     def test_a_tampered_package_fails_verification(self) -> None:

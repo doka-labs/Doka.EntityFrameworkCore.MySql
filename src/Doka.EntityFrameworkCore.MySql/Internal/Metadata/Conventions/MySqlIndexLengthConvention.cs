@@ -42,10 +42,14 @@ internal sealed class MySqlIndexLengthConvention : IModelFinalizingConvention
     }
 
     private static void ApplySharedByteBudget(
-        IReadOnlyList<IConventionProperty> properties
+        IReadOnlyList<IConventionPropertyBase> properties
     )
     {
-        var variableProperties = properties
+        var scalarProperties = properties
+            .SelectMany(GetScalarProperties)
+            .ToArray();
+
+        var variableProperties = scalarProperties
             .Where(IsImplicitVariableLengthProperty)
             .ToArray();
 
@@ -54,7 +58,7 @@ internal sealed class MySqlIndexLengthConvention : IModelFinalizingConvention
             return;
         }
 
-        var fixedPropertyCount = properties.Count - variableProperties.Length;
+        var fixedPropertyCount = scalarProperties.Length - variableProperties.Length;
         var availableBytes = Math.Max(1, MaximumIndexBytes - (fixedPropertyCount * FixedPropertyReserveBytes));
         var totalWeight = variableProperties.Sum(static property => IsString(property) ? Utf8Mb4BytesPerCharacter : 1);
         var length = Math.Min(MaximumImplicitLength, Math.Max(1, availableBytes / totalWeight));
@@ -69,19 +73,51 @@ internal sealed class MySqlIndexLengthConvention : IModelFinalizingConvention
         }
     }
 
+    private static IEnumerable<IConventionProperty> GetScalarProperties(
+        IConventionPropertyBase property
+    )
+    {
+        if (property is IConventionProperty scalarProperty)
+        {
+            yield return scalarProperty;
+            yield break;
+        }
+
+        if (property is IConventionComplexProperty complexProperty)
+        {
+            foreach (var nestedProperty in GetScalarProperties(complexProperty.ComplexType))
+            {
+                yield return nestedProperty;
+            }
+        }
+    }
+
+    private static IEnumerable<IConventionProperty> GetScalarProperties(
+        IConventionTypeBase typeBase
+    )
+    {
+        foreach (var property in typeBase.GetProperties())
+        {
+            yield return property;
+        }
+
+        foreach (var complexProperty in typeBase.GetComplexProperties())
+        {
+            foreach (var property in GetScalarProperties(complexProperty.ComplexType))
+            {
+                yield return property;
+            }
+        }
+    }
+
     private static bool IsImplicitVariableLengthProperty(
         IConventionProperty property
     )
     {
         var clrType = property.ClrType.UnwrapNullableType();
 
-        if (clrType != typeof(string)
-            && clrType != typeof(byte[]))
-        {
-            return false;
-        }
-
-        return property.GetMaxLengthConfigurationSource() is null or ConfigurationSource.Convention
+        return (clrType == typeof(string) || clrType == typeof(byte[]))
+            && property.GetMaxLengthConfigurationSource() is null or ConfigurationSource.Convention
             && property.GetColumnTypeConfigurationSource() is null or ConfigurationSource.Convention;
     }
 

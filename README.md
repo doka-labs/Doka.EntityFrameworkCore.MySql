@@ -8,7 +8,7 @@
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/doka-labs/Doka.EntityFrameworkCore.MySql/badge)](https://scorecard.dev/viewer/?uri=github.com/doka-labs/Doka.EntityFrameworkCore.MySql)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13999/badge)](https://www.bestpractices.dev/projects/13999)
 
-`Doka.EntityFrameworkCore.MySql` is an Entity Framework Core 10 provider for
+`Doka.EntityFrameworkCore.MySql` is an Entity Framework Core 11 provider for
 MySQL and MariaDB, built on the asynchronous
 [`MySqlConnector`](https://mysqlconnector.net/) ADO.NET driver. It provides one
 EF Core model across both database families while keeping engine differences
@@ -24,17 +24,16 @@ advertised LTS line.
 | --- | --- |
 | [`Doka.EntityFrameworkCore.MySql`](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql) | Core EF Core provider, migrations, scaffolding, type mappings, and query translation |
 | [`Doka.EntityFrameworkCore.MySql.NetTopologySuite`](https://www.nuget.org/packages/Doka.EntityFrameworkCore.MySql.NetTopologySuite) | Optional NetTopologySuite mappings, spatial indexes, scaffolding, and spatial query translation |
-| [`Doka.Caching.MySql`](https://www.nuget.org/packages/Doka.Caching.MySql) | Standalone .NET 10 `IDistributedCache` and `IBufferDistributedCache` implementation; available from 10.1.0 |
+| [`Doka.Caching.MySql`](https://www.nuget.org/packages/Doka.Caching.MySql) | Standalone .NET 11 `IDistributedCache` and `IBufferDistributedCache` implementation; available on the stable line from 10.1.0 |
 
 The cache package, connection-string detection, and scalar `Like<T>` are
-available from [10.1.0][changelog]. They are not present in the `10.0.0`
-packages.
+available from [10.1.0][changelog] and remain part of the 11.x line. They are
+not present in the `10.0.0` packages.
 
 ## Requirements
 
-- An application targeting .NET 10 or later
-- EF Core 10.0.x for the provider and spatial extension; the supported package
-  range is `>= 10.0.8` and `< 10.1.0`
+- An application targeting .NET 11
+- EF Core `11.0.0-rc.1.26425.128` for the provider and spatial extension
 - MySqlConnector 2.x; the supported package range is `>= 2.5.0` and `< 3.0.0`
 - A supported MySQL or MariaDB server from the matrix below
 
@@ -44,29 +43,36 @@ example, benchmark, and release-qualification runs.
 
 ## Install
 
-The following .NET 10 command installs the latest stable provider package and
-writes its resolved version to the project file:
+The following .NET 11 command installs the exact provider release candidate
+represented by this branch once the package is published:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql
+dotnet package add Doka.EntityFrameworkCore.MySql --version 11.0.0-rc.1
 ```
 
 Add the spatial extension only when the model uses NetTopologySuite types:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 11.0.0-rc.1
 ```
 
 Install the standalone distributed cache only when the application needs a
 MySQL or MariaDB-backed `IDistributedCache`:
 
 ```bash
-dotnet package add Doka.Caching.MySql
+dotnet package add Doka.Caching.MySql --version 11.0.0-rc.1
 ```
 
 For reproducible installs, add `--version` followed by the exact version from
 the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
 or NuGet.org package page.
+
+### Current Release Candidate
+
+`11.0.0-rc.1` is the first isolated .NET 11 and EF Core 11 line. It targets
+`net11.0`, pins the exact .NET and EF Core RC.1 toolchain, and does not change
+the supported MySQL, MariaDB, or MySqlConnector ranges. The stable 10.x line
+remains available for .NET 10 applications.
 
 ### Current Stable Release
 
@@ -381,13 +387,13 @@ from schema changes and preserves deployed migration history.
 ## Distributed Caching
 
 `Doka.Caching.MySql` provides `IDistributedCache` and
-`IBufferDistributedCache` for MySQL and MariaDB. It is a standalone .NET 10
+`IBufferDistributedCache` for MySQL and MariaDB. It is a standalone .NET 11
 package: neither the EF Core provider nor a `DbContext` is required.
 
 Install the package:
 
 ```bash
-dotnet package add Doka.Caching.MySql
+dotnet package add Doka.Caching.MySql --version 11.0.0-rc.1
 ```
 
 First, generate the cache table script for an existing database:

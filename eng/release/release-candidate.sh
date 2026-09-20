@@ -41,7 +41,6 @@ coverage_merged_dir="${release_candidate_dir}/coverage-merged"
 integration_dir="${release_candidate_dir}/integration"
 migration_deployment_root="${release_candidate_dir}/migration-deployment"
 runtime_dir="${release_candidate_dir}/runtime"
-efcore_matrix_dir="${release_candidate_dir}/efcore-patch-matrix"
 mysqlconnector_matrix_dir="${release_candidate_dir}/mysqlconnector-patch-matrix"
 runtime_publish_dir="${repo_root}/artifacts/runtime-smoke/${release_candidate_run_id}/trimmed"
 reconciliation_file="${release_candidate_dir}/release-candidate-reconciliation.json"
@@ -76,7 +75,7 @@ fi
 # database matrix, or publication gate.
 case "${selected_stage}" in
     all | quality | repository-tests | specification | integration \
-        | migration-deployment | runtime | efcore-patch-matrix \
+        | migration-deployment | runtime \
         | mysqlconnector-patch-matrix | coverage | package | sbom \
         | finalize)
         ;;
@@ -275,7 +274,6 @@ verify_required_stage_set() {
     local expected_stages=(
         migration-deployment
         runtime
-        efcore-patch-matrix
         mysqlconnector-patch-matrix
         package
         sbom
@@ -457,11 +455,12 @@ run_specification_gate() {
     dotnet build "${specification_contract_project}" --configuration Release --no-restore --tl:off -m:1
     dotnet build "${functional_test_project}" --configuration Release --no-restore --tl:off -m:1
     bash "${repo_root}/eng/testing/check-spec-contract.sh"
-    dotnet test "${functional_test_project}" \
+    dotnet test --project "${functional_test_project}" \
         --configuration Release --no-build --no-restore --tl:off \
         --filter "FullyQualifiedName~SpecDispositionContractTests" \
-        --logger trx \
-        --results-directory "${specification_dir}/contract"
+        --results-directory "${specification_dir}/contract" \
+        --report-xunit-trx \
+        --report-xunit-trx-filename spec-contract.trx
     bash "${repo_root}/eng/testing/check-spec-discovery.sh"
 
     local targets=(
@@ -477,12 +476,15 @@ run_specification_gate() {
         echo "Running release specification suite against ${target}..."
         DOKA_SPEC_TEST_TARGET="${target}" \
         DOKA_TEST_DATABASE_EVIDENCE_FILE="${specification_dir}/${target}/test-database-evidence.json" \
-            dotnet test "${functional_test_project}" \
+            dotnet test --project "${functional_test_project}" \
                 --configuration Release --no-build --no-restore --tl:off \
-                --filter "Category=Spec|Category=Live" \
-                --collect:"XPlat Code Coverage" \
-                --logger trx \
-                --results-directory "${specification_dir}/${target}"
+                --filter "FullyQualifiedName~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.|Category=Spec|Category=Live" \
+                --coverlet \
+                --coverlet-output-format cobertura \
+                --coverlet-file-prefix "spec-${target}" \
+                --results-directory "${specification_dir}/${target}" \
+                --report-xunit-trx \
+                --report-xunit-trx-filename spec-tests.trx
         bash "${repo_root}/eng/testing/check-spec-results.sh" \
             "${target}" \
             "${specification_dir}/${target}"
@@ -581,41 +583,6 @@ copy_matrix_evidence_legs() {
         fi
         cp -R "${source_root}/${leg}" "${destination_root}/${leg}"
     done
-}
-
-# The protected branch already runs the complete repository, specification,
-# and integration contracts against the deterministic EF Core floor. The
-# scheduled workflow owns floating-patch detection. A release selects the
-# highest patch already admitted to the reviewed specification baseline so an
-# upstream publication cannot invalidate a green candidate after merge.
-run_efcore_matrix_gate() {
-    local leg qualified_pattern qualified_version scope
-    qualified_version="$(jq -er '
-        [
-          .efCoreVersions[]?
-          | select(test("^10[.]0[.][0-9]+$"))
-          | {version: ., components: (split(".") | map(tonumber))}
-        ]
-        | max_by(.components)
-        | .version
-    ' "${repo_root}/tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts/SpecSuiteBaseline.json")"
-    qualified_pattern="^${qualified_version//./[.]}$"
-
-    for leg in "10.0.8:^10[.]0[.]8$:minimum-10-0-8:dependency-graph" \
-               "${qualified_version}:${qualified_pattern}:latest-10-0:full"; do
-        scope="${leg##*:}"
-        leg="${leg%:*}"
-        DokaEfCoreVersion="${leg%%:*}" \
-        DOKA_EF_CORE_RESOLVED_PATTERN="$(printf '%s' "${leg}" | cut -d: -f2)" \
-        DOKA_EF_CORE_ARTIFACT_SUFFIX="${leg##*:}" \
-        DOKA_EF_CORE_VALIDATION_SCOPE="${scope}" \
-            bash "${repo_root}/eng/testing/test-efcore-matrix.sh"
-    done
-    copy_matrix_evidence_legs \
-        "${repo_root}/artifacts/efcore-patch-matrix" \
-        "${efcore_matrix_dir}" \
-        "minimum-10-0-8" \
-        "latest-10-0"
 }
 
 run_mysqlconnector_matrix_gate() {
@@ -744,7 +711,6 @@ write_summary() {
         echo "- sbomDirectory: sbom"
         echo "- migrationDeploymentDirectory: migration-deployment/${release_candidate_run_id}"
         echo "- runtimeDirectory: runtime"
-        echo "- efcoreMatrixDirectory: efcore-patch-matrix"
         echo "- mysqlconnectorMatrixDirectory: mysqlconnector-patch-matrix"
         echo "- qualificationManifestFile: release-qualification-manifest.json"
         echo "- reconciliationFile: release-candidate-reconciliation.json"
@@ -804,7 +770,6 @@ write_reconciliation() {
     # Each matrix gate writes one evidence file per resolved dependency leg,
     # in that leg's own directory, so the requirement is per gate rather than
     # per fixed path.
-    require_evidence_glob "${efcore_matrix_dir}" "efcore-contract-evidence.json"
     require_evidence_glob "${mysqlconnector_matrix_dir}" \
         "driver-contract-evidence.json"
     require_evidence_directory "${packages_dir}"
@@ -961,13 +926,6 @@ run_finalization_stage() {
         exit 1
     fi
 
-    local publication_ef_core_version
-    publication_ef_core_version="$(
-        resolved_matrix_version \
-            "${efcore_matrix_dir}/latest-10-0/efcore-contract-evidence.json" \
-            "EF Core" \
-            '^10[.]0[.][0-9]+$'
-    )"
     local publication_mysqlconnector_version
     publication_mysqlconnector_version="$(
         resolved_matrix_version \
@@ -977,7 +935,6 @@ run_finalization_stage() {
     )"
 
     bash "${repo_root}/eng/release/check-publication-readiness.sh" \
-        --ef-core-version "${publication_ef_core_version}" \
         --mysqlconnector-version "${publication_mysqlconnector_version}"
     assemble_qualification_manifest
     write_reconciliation
@@ -1018,10 +975,6 @@ run_all_stages() {
         run_migration_deployment_gate \
         "${migration_deployment_root}"
     run_named_stage "runtime" run_runtime_posture_gate "${runtime_dir}"
-    run_named_stage \
-        "efcore-patch-matrix" \
-        run_efcore_matrix_gate \
-        "${efcore_matrix_dir}"
     run_named_stage \
         "mysqlconnector-patch-matrix" \
         run_mysqlconnector_matrix_gate \
@@ -1125,12 +1078,6 @@ case "${selected_stage}" in
         ;;
     runtime)
         run_named_stage "runtime" run_runtime_posture_gate "${runtime_dir}"
-        ;;
-    efcore-patch-matrix)
-        run_named_stage \
-            "efcore-patch-matrix" \
-            run_efcore_matrix_gate \
-            "${efcore_matrix_dir}"
         ;;
     mysqlconnector-patch-matrix)
         run_named_stage \

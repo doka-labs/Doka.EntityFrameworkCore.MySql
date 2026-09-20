@@ -1,6 +1,6 @@
 # Distributed Cache
 
-`Doka.Caching.MySql` is a standalone .NET 10 cache package backed by MySQL or
+`Doka.Caching.MySql` is a standalone .NET 11 cache package backed by MySQL or
 MariaDB through MySqlConnector. It implements `IDistributedCache` and
 `IBufferDistributedCache` on the same singleton. It does not depend on the EF
 Core provider or an application `DbContext`.

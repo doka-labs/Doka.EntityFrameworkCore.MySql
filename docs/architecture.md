@@ -66,12 +66,14 @@ of applications that do not use spatial data.
 
 ### Standalone cache
 
-`src/Doka.Caching.MySql` implements the .NET 10 `IDistributedCache` and
+`src/Doka.Caching.MySql` implements the .NET 11 `IDistributedCache` and
 `IBufferDistributedCache` contracts through one singleton and a MySqlConnector
 data source. A connection string creates a cache-owned source; an explicitly
 supplied source remains caller-owned. Neither the cache nor the EF Core provider depends
 on the other. The cache's runtime dependencies are MySqlConnector and
-Microsoft.Extensions packages; it does not depend on EF Core.
+the .NET shared framework; it does not depend on EF Core. .NET 11 provides the
+caching, dependency-injection, logging, and options abstractions used here, so
+the package does not repeat those package references.
 
 Cache registration uses `AddDistributedMySqlCache(...)` and
 `MySqlCacheOptions`, not EF Core services. Deployment explicitly creates its

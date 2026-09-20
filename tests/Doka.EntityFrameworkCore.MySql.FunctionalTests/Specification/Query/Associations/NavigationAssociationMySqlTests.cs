@@ -1,5 +1,4 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-using Xunit.Abstractions;
 using Navigations = Microsoft.EntityFrameworkCore.Query.Associations.Navigations;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Associations;

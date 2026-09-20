@@ -17,6 +17,7 @@ public sealed class MySqlAdvisoryLockLifecycleStressTests
         await using var context = new StubContext(BuildOptions());
         var historyRepository = (MySqlHistoryRepository)context.GetService<IHistoryRepository>();
         var lockInstance = new MySqlHistoryRepository.MySqlMigrationsDatabaseLock(historyRepository);
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         var disposes = Task.Run(() =>
         {
@@ -24,7 +25,7 @@ public sealed class MySqlAdvisoryLockLifecycleStressTests
             {
                 lockInstance.Dispose();
             }
-        });
+        }, cancellationToken);
 
         var reacquires = Task.Run(() =>
         {
@@ -41,7 +42,7 @@ public sealed class MySqlAdvisoryLockLifecycleStressTests
                     // does not leave the connection slot in a half-broken state.
                 }
             }
-        });
+        }, cancellationToken);
 
         await Task.WhenAll(disposes, reacquires);
 
@@ -62,7 +63,7 @@ public sealed class MySqlAdvisoryLockLifecycleStressTests
 
         Assert.Throws<ObjectDisposedException>(() =>
             lockInstance.ReacquireIfNeeded(connectionReopened: true, transactionRestarted: null));
-        Assert.Throws<ObjectDisposedException>(() => lockInstance.AcquireLock());
+        Assert.Throws<ObjectDisposedException>(lockInstance.AcquireLock);
     }
 
     [Fact]
@@ -71,12 +72,16 @@ public sealed class MySqlAdvisoryLockLifecycleStressTests
         await using var context = new StubContext(BuildOptions());
         var historyRepository = (MySqlHistoryRepository)context.GetService<IHistoryRepository>();
         var lockInstance = new MySqlHistoryRepository.MySqlMigrationsDatabaseLock(historyRepository);
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         await lockInstance.DisposeAsync();
 
         await Assert.ThrowsAsync<ObjectDisposedException>(() =>
-            lockInstance.ReacquireIfNeededAsync(connectionReopened: true, transactionRestarted: null));
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => lockInstance.AcquireLockAsync());
+            lockInstance.ReacquireIfNeededAsync(
+                connectionReopened: true,
+                transactionRestarted: null,
+                cancellationToken));
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => lockInstance.AcquireLockAsync(cancellationToken));
     }
 
     [Fact]

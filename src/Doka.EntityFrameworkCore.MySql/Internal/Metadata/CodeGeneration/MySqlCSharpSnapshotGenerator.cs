@@ -11,63 +11,53 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
     protected override void GenerateProperty(
         string entityTypeBuilderName,
         IProperty property,
-        IndentedStringBuilder stringBuilder
+        CSharpSnapshotGeneratorParameters parameters
     )
     {
         if (!RequiresModelClrType(property))
         {
-            base.GenerateProperty(entityTypeBuilderName, property, stringBuilder);
+            base.GenerateProperty(entityTypeBuilderName, property, parameters);
             return;
         }
 
-        // EF Core snapshots declare converted properties through the converter's
-        // provider CLR type. Provider-owned fluent metadata or type mapping restores
-        // these mappings, so their declarations must retain the model CLR type.
-        // Application-owned converters continue through the base implementation.
-        // This branch mirrors EF Core 10.0.11
-        // CSharpSnapshotGenerator.GenerateProperty except for that CLR-type choice.
-        // Diff it against upstream whenever the supported EF Core range changes.
-        var clrType = MakeNullable(property.ClrType, property.IsNullable);
-        var propertyCall = property.IsPrimitiveCollection ? "PrimitiveCollection" : "Property";
+        // Let EF Core own its complete property-generation algorithm and replace
+        // only the provider CLR type selected from the converter. Copying the
+        // upstream generator would make every new fluent call an update hazard.
+        var generatedBuilder = new IndentedStringBuilder();
+        base.GenerateProperty(
+            entityTypeBuilderName,
+            property,
+            parameters with { StringBuilder = generatedBuilder });
+
         var code = Dependencies.CSharpHelper;
-        var propertyBuilderName =
-            $"{entityTypeBuilderName}.{propertyCall}<{code.Reference(clrType, fullName: true)}>({code.Literal(property.Name)})";
+        var propertyCall = property.IsPrimitiveCollection ? "PrimitiveCollection" : "Property";
+        var providerClrType = MakeNullable(
+            property.GetTypeMapping().Converter?.ProviderClrType ?? property.ClrType,
+            property.IsNullable);
 
-        stringBuilder
-            .AppendLine()
-            .Append(propertyBuilderName);
-        stringBuilder.IncrementIndent();
+        var modelClrType = MakeNullable(property.ClrType, property.IsNullable);
+        var propertyName = code.Literal(property.Name);
+        var providerDeclaration =
+            $".{propertyCall}<{code.Reference(providerClrType)}>({propertyName})";
 
-        var isInComplexCollection = property.DeclaringType is IComplexType { ComplexProperty.IsCollection: true };
-
-        if (!isInComplexCollection
-            && property.IsConcurrencyToken)
+        var generated = generatedBuilder.ToString();
+        if (!generated.Contains(providerDeclaration, StringComparison.Ordinal))
         {
-            stringBuilder
-                .AppendLine()
-                .Append(".IsConcurrencyToken()");
+            throw new InvalidOperationException(
+                $"EF Core did not emit the expected provider-CLR declaration '{providerDeclaration}' for property '{property.Name}'.");
         }
 
-        if (property.IsNullable != (IsNullableType(clrType) && !property.IsPrimaryKey()))
-        {
-            stringBuilder
-                .AppendLine()
-                .Append(".IsRequired()");
-        }
+        var requiredCall = !property.IsNullable
+            && !modelClrType.IsValueType
+            && providerClrType.IsValueType
+                ? ".IsRequired()"
+                : string.Empty;
 
-        if (!isInComplexCollection
-            && property.ValueGenerated != ValueGenerated.Never)
-        {
-            stringBuilder
-                .AppendLine()
-                .Append(
-                    property.ValueGenerated == ValueGenerated.OnAdd ? ".ValueGeneratedOnAdd()" :
-                    property.ValueGenerated == ValueGenerated.OnUpdate ? ".ValueGeneratedOnUpdate()" :
-                    property.ValueGenerated == ValueGenerated.OnUpdateSometimes ? ".ValueGeneratedOnUpdateSometimes()" :
-                    ".ValueGeneratedOnAddOrUpdate()");
-        }
+        var modelDeclaration =
+            $".{propertyCall}<{code.Reference(modelClrType, fullName: true)}>({propertyName}){requiredCall}";
 
-        GeneratePropertyAnnotations(propertyBuilderName, property, stringBuilder);
+        parameters.StringBuilder.AppendLines(
+            generated.Replace(providerDeclaration, modelDeclaration, StringComparison.Ordinal));
     }
 
     protected override void GenerateData(
@@ -174,7 +164,4 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
             && providerOwnedMapping.ProviderClrType != property.ClrType;
     }
 
-    private static bool IsNullableType(
-        Type clrType
-    ) => !clrType.IsValueType || Nullable.GetUnderlyingType(clrType) is not null;
 }

@@ -353,9 +353,12 @@ run_integration_tests() {
             --no-build
             --no-restore
             --tl:off
-            --collect:"XPlat Code Coverage"
+            --coverlet
+            --coverlet-output-format cobertura
+            --coverlet-file-prefix "integration-${target}"
             --results-directory "${target_results_dir}"
-            --logger trx
+            --report-xunit-trx
+            --report-xunit-trx-filename integration.trx
         )
 
         if [[ -n "${integration_test_filter}" ]]; then
@@ -365,7 +368,7 @@ run_integration_tests() {
         echo "Running isolated integration process for ${target}..."
         DOKA_INTEGRATION_TARGETS="${target}" \
         DOKA_TEST_DATABASE_EVIDENCE_FILE="${target_evidence_file}" \
-            dotnet test "${integration_test_project}" "${test_arguments[@]}"
+            dotnet test --project "${integration_test_project}" "${test_arguments[@]}"
         target_exit_code=$?
 
         if [[ "${target_exit_code}" -ne 0 ]]; then

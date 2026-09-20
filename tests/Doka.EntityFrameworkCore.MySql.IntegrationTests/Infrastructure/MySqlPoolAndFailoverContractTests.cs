@@ -131,7 +131,7 @@ public sealed class MySqlPoolAndFailoverContractTests
             await using (var timedOutConnection = new MySqlConnection(connectionString))
             {
                 _ = await Assert
-                    .ThrowsAsync<MySqlException>(() => timedOutConnection.OpenAsync())
+                    .ThrowsAsync<MySqlException>(timedOutConnection.OpenAsync)
                     .ConfigureAwait(false);
             }
 

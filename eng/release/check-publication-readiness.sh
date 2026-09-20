@@ -9,29 +9,18 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 contract_project="${repo_root}/eng/tools/Doka.EntityFrameworkCore.MySql.SpecificationContract/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj"
 functional_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj"
-ef_core_version=""
 mysqlconnector_version=""
 
 print_usage() {
     cat <<'EOF'
 Usage:
   ./eng/check-publication-readiness.sh \
-    --ef-core-version <major.minor.patch> \
     --mysqlconnector-version <major.minor.patch>
 EOF
 }
 
 while (( $# > 0 )); do
     case "$1" in
-        --ef-core-version)
-            if (( $# < 2 )); then
-                echo "--ef-core-version requires a value." >&2
-                print_usage >&2
-                exit 2
-            fi
-            ef_core_version="$2"
-            shift 2
-            ;;
         --mysqlconnector-version)
             if (( $# < 2 )); then
                 echo "--mysqlconnector-version requires a value." >&2
@@ -53,11 +42,6 @@ while (( $# > 0 )); do
     esac
 done
 
-if [[ ! "${ef_core_version}" =~ ^10[.]0[.][0-9]+$ ]]; then
-    echo "--ef-core-version must identify one exact EF Core 10.0 patch." >&2
-    exit 2
-fi
-
 if [[ ! "${mysqlconnector_version}" =~ ^2[.][0-9]+[.][0-9]+$ ]]; then
     echo "--mysqlconnector-version must identify one exact MySqlConnector 2.x patch." >&2
     exit 2
@@ -74,7 +58,6 @@ mkdir -p "${build_root}/locks"
 
 build_properties=(
     "-p:ArtifactsPath=${build_root}"
-    "-p:DokaEfCoreVersion=${ef_core_version}"
     "-p:DokaMySqlConnectorVersion=${mysqlconnector_version}"
     "-p:NuGetLockFilePath=${build_root}/locks/\$(MSBuildProjectName).packages.lock.json"
 )

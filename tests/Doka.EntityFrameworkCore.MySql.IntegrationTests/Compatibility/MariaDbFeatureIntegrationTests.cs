@@ -359,28 +359,6 @@ public sealed class MariaDbFeatureIntegrationTests
             : IntegrationTestEnvironment.GetServerVersion(target);
     }
 
-    private static string ReplaceDatabase(
-        string connectionString,
-        string newDatabase
-    )
-    {
-        var csb = new MySqlConnectionStringBuilder(connectionString) { Database = newDatabase };
-        return csb.ConnectionString;
-    }
-
-    private static async Task DropDatabaseIfExistsAsync(
-        string connectionString,
-        string databaseName
-    )
-    {
-        var csb = new MySqlConnectionStringBuilder(connectionString) { Database = string.Empty };
-        await using var connection = new MySqlConnection(csb.ConnectionString);
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText = $"DROP DATABASE IF EXISTS `{databaseName}`;";
-        await command.ExecuteNonQueryAsync();
-    }
-
     // -- Entities / Contexts --
 
     private sealed class SimpleItem
