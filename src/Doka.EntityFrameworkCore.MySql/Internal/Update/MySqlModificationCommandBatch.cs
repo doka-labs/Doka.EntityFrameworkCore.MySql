@@ -50,7 +50,7 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
     private readonly IRelationalConnection _connection;
     private readonly ILogger _logger;
 
-    private readonly List<IReadOnlyModificationCommand> _pendingBulkInsertCommands = new();
+    private readonly List<IReadOnlyModificationCommand> _pendingBulkInsertCommands = [];
     private long _additionalReadbackPacketBytes;
     private int _currentParameterCount;
     private bool _packetSizeWarningEmitted;

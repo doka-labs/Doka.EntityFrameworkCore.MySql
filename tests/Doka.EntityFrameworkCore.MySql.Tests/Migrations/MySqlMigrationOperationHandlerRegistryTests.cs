@@ -8,14 +8,14 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlMigrationOperationHandlerRegistryTests
 {
-    public static TheoryData<Type> InvalidOperationTypes => new()
-    {
+    public static TheoryData<Type> InvalidOperationTypes =>
+    [
         null!,
         typeof(string),
         typeof(MigrationOperation),
         typeof(AbstractOperation),
         typeof(OpenGenericOperation<>),
-    };
+    ];
 
     /// <summary>
     /// Verifies registry snapshots handler metadata once.
@@ -80,7 +80,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     )
     {
         // Arrange
-        Func<object?> act = () =>
+        object? act() =>
             new MySqlMigrationOperationHandlerRegistry([new CountingHandler(handlerId!, typeof(FirstOperation))]);
 
         // Act
@@ -100,7 +100,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     {
         // Arrange
         var handlerId = $"sample.{new string('a', 194)}";
-        Func<object?> act = () =>
+        object? act() =>
             new MySqlMigrationOperationHandlerRegistry([new CountingHandler(handlerId, typeof(FirstOperation))]);
 
         // Act
@@ -133,7 +133,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
             Array.Reverse(handlers);
         }
 
-        Func<object?> act = () =>
+        object? act() =>
             new MySqlMigrationOperationHandlerRegistry(handlers);
 
         // Act
@@ -168,7 +168,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
             Array.Reverse(handlers);
         }
 
-        Func<object?> act = () =>
+        object? act() =>
             new MySqlMigrationOperationHandlerRegistry(handlers);
 
         // Act
@@ -189,7 +189,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     {
         // Arrange
         var handler = new CountingHandler("sample.first", typeof(FirstOperation));
-        Func<object?> act = () =>
+        object? act() =>
             new MySqlMigrationOperationHandlerRegistry([handler, handler]);
 
         // Act
@@ -211,7 +211,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     public void Null_handler_fails_registration()
     {
         // Arrange
-        Func<object?> act = () =>
+        static object? act() =>
             new MySqlMigrationOperationHandlerRegistry([null!]);
 
         // Act
@@ -232,7 +232,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     )
     {
         // Arrange
-        Func<object?> act = () =>
+        object? act() =>
             new MySqlMigrationOperationHandlerRegistry([new CountingHandler("sample.invalid", operationType)]);
 
         // Act
@@ -308,7 +308,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
         var secret = "server=private;password=do-not-log";
         var source = new InvalidOperationException(secret);
         var handler = new ThrowingMetadataHandler(source);
-        Func<object?> act = () =>
+        object? act() =>
             new MySqlMigrationOperationHandlerRegistry([handler]);
 
         // Act

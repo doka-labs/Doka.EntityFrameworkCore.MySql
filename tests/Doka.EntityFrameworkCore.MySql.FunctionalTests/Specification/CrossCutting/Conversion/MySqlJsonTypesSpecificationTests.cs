@@ -10,8 +10,6 @@ public sealed class JsonTypesMySqlTest : JsonTypesRelationalTestBase
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
-
     public override Task Can_read_write_DateTimeOffset_JSON_values(
         string value,
         string json
@@ -101,11 +99,13 @@ public sealed class JsonTypesMySqlTest : JsonTypesRelationalTestBase
             """{"Prop":[0,null,18446744073709551615,0,1,8]}""",
             mappedCollection: true);
 
-    protected override DbContextOptionsBuilder AddOptions(
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
+
+    protected override DbContextOptionsBuilder AddNonSharedOptions(
         DbContextOptionsBuilder builder
     )
     {
-        var optionsBuilder = base.AddOptions(builder);
+        var optionsBuilder = base.AddNonSharedOptions(builder);
 
         new MySqlDbContextOptionsBuilder(optionsBuilder).UseNetTopologySuite();
 

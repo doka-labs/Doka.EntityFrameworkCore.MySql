@@ -44,13 +44,13 @@ public sealed class BasicTypesDateTimeTranslationsMySqlTest
     /// <inheritdoc />
     public override Task Parse_with_constant()
         => ExecuteWithUsEnglishCulture(
-            () => base.Parse_with_constant(),
+            base.Parse_with_constant,
             cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Parse_with_parameter()
         => ExecuteWithUsEnglishCulture(
-            () => base.Parse_with_parameter(),
+            base.Parse_with_parameter,
             cancellationToken: CancellationToken.None);
 
     /// <summary>

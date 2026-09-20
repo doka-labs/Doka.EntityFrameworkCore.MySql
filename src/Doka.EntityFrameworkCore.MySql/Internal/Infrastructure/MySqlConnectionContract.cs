@@ -54,8 +54,8 @@ internal static class MySqlConnectionContract
             connectionString = connection.ConnectionString;
         }
         catch (Exception exception) when (exception is ArgumentException
-            or InvalidOperationException
-            or NotSupportedException)
+                                          or InvalidOperationException
+                                          or NotSupportedException)
         {
             throw CreateInvalidConnectionStringFailure();
         }
@@ -99,7 +99,9 @@ internal static class MySqlConnectionContract
     {
         try
         {
-            return new MySqlConnectionStringBuilder(connectionString);
+            MySqlConnectionStringBuilder builder = [with(connectionString)];
+
+            return builder;
         }
         catch (ArgumentException)
         {

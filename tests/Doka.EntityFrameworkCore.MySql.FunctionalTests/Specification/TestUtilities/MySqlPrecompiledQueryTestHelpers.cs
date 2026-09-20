@@ -1,4 +1,3 @@
-using System.Reflection;
 using Microsoft.CodeAnalysis;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;

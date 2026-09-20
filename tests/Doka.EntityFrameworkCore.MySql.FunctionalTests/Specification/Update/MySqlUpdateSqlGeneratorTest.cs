@@ -22,7 +22,7 @@ public sealed class MySqlUpdateSqlGeneratorTest : UpdateSqlGeneratorTestBase, ID
 
     protected override string CloseDelimiter => "`";
 
-    protected override string? Schema => null;
+    protected override string Schema => null!;
 
     /// <inheritdoc />
     public void Dispose() => _context.Dispose();

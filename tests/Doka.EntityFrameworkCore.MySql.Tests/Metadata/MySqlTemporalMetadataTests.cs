@@ -184,7 +184,7 @@ public sealed class MySqlTemporalMetadataTests
     {
         // Arrange
         using var context = CreateContext<IdenticalPeriodsConfiguration>(s_mySql84);
-        Action act = () => _ = context.Model;
+        void act() => _ = context.Model;
 
         // Act
         var recordedException = Record.Exception(act);
@@ -202,7 +202,7 @@ public sealed class MySqlTemporalMetadataTests
     {
         // Arrange
         using var context = CreateContext<InvalidPeriodTypeConfiguration>(s_mySql84);
-        Action act = () => _ = context.Model;
+        void act() => _ = context.Model;
 
         // Act
         var recordedException = Record.Exception(act);
@@ -220,7 +220,7 @@ public sealed class MySqlTemporalMetadataTests
     {
         // Arrange
         using var context = CreateContext<UnsupportedEngineConfiguration>(s_mariaDb1033);
-        Action act = () => _ = context.Model;
+        void act() => _ = context.Model;
 
         // Act
         var recordedException = Record.Exception(act);
@@ -238,7 +238,7 @@ public sealed class MySqlTemporalMetadataTests
     {
         // Arrange
         using var context = CreateContext<MyIsamConfiguration>(s_mySql84);
-        Action act = () => _ = context.Model;
+        void act() => _ = context.Model;
 
         // Act
         var recordedException = Record.Exception(act);
@@ -257,7 +257,7 @@ public sealed class MySqlTemporalMetadataTests
     {
         // Arrange
         using var context = CreateContext<CascadeConfiguration>(s_mySql84);
-        Action act = () => _ = context.Model;
+        void act() => _ = context.Model;
 
         // Act
         var recordedException = Record.Exception(act);
@@ -280,7 +280,7 @@ public sealed class MySqlTemporalMetadataTests
     {
         // Arrange
         using var context = CreateContext<NativeGeneratedColumnConfiguration>(s_mariaDb114);
-        Action act = () => _ = context.Model;
+        void act() => _ = context.Model;
 
         // Act
         var recordedException = Record.Exception(act);

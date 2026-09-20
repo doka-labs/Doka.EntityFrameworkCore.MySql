@@ -199,7 +199,7 @@ public sealed partial class MySql84CrudBaselineTests
 
     private sealed class CommandCaptureInterceptor : DbCommandInterceptor
     {
-        public List<CapturedCommand> Commands { get; } = new();
+        public List<CapturedCommand> Commands { get; } = [];
 
         public override InterceptionResult<int> NonQueryExecuting(
             DbCommand command,

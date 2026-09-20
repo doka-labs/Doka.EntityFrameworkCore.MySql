@@ -69,7 +69,7 @@ public sealed partial class MySqlMigrationOperationContractTests
     )
     {
         // Arrange
-        Func<object?> act = () => consumed
+        object? act() => consumed
             ? MySqlMigrationOperationResult.Consumed(outcomeCode!)
             : MySqlMigrationOperationResult.Generated(
                 [MySqlMigrationCommandSpec.Create("SELECT 1;")],
@@ -89,7 +89,7 @@ public sealed partial class MySqlMigrationOperationContractTests
     public void Empty_results_are_rejected()
     {
         // Arrange
-        Action act = () => MySqlMigrationOperationResult.Generated([], "generated");
+        static void act() => MySqlMigrationOperationResult.Generated([], "generated");
 
         // Act
         var recordedException = Record.Exception(act);
@@ -118,7 +118,7 @@ public sealed partial class MySqlMigrationOperationContractTests
         };
 
         commands[nullIndex] = null!;
-        Action act = () => MySqlMigrationOperationResult.Generated(commands, "generated");
+        void act() => MySqlMigrationOperationResult.Generated(commands, "generated");
 
         // Act
         var recordedException = Record.Exception(act);

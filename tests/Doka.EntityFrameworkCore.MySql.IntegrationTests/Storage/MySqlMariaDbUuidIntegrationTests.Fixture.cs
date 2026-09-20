@@ -14,10 +14,10 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         private readonly Dictionary<(IntegrationDatabaseTarget Target, UuidDataSet DataSet), Task> _seeds = [];
 
         /// <inheritdoc />
-        public Task InitializeAsync() => Task.CompletedTask;
+        public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
         /// <inheritdoc />
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             // WHY: Fixture teardown must release every engine dataset after a cancelled test.
             List<Exception>? failures = null;

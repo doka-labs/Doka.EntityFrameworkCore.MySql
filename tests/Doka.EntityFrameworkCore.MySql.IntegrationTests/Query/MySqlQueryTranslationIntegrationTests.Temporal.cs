@@ -8,7 +8,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     /// <param name="month">The expected result month.</param>
     /// <param name="day">The expected result day.</param>
     /// <param name="hour">The expected result hour.</param>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MySql84 })]
     [InlineData("AddDays", 2025, 1, 11, 12)]
     [InlineData("AddMonths", 2025, 3, 1, 12)]
     [InlineData("AddYears", 2026, 1, 1, 12)]

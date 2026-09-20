@@ -230,9 +230,9 @@ public sealed class MySqlSqlModeContractTests
         var observations = new List<(string Expected, object? Actual)>();
 
         // Act
-        foreach (var @case in cases)
+        foreach (var (propertyName, expected) in cases)
         {
-            var escapedSegment = Assert.IsType<string>(escapeMethod.Invoke(null, [@case.PropertyName]));
+            var escapedSegment = Assert.IsType<string>(escapeMethod.Invoke(null, [propertyName]));
             var jsonLiteral = MySqlSqlLiteralGenerator.Generate(json);
             var pathLiteral = MySqlSqlLiteralGenerator.Generate($"$.{escapedSegment}");
             await using var command = connection.CreateCommand();
@@ -242,7 +242,7 @@ public sealed class MySqlSqlModeContractTests
                 .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            observations.Add((@case.Expected, actual));
+            observations.Add((expected, actual));
         }
 
         // Assert

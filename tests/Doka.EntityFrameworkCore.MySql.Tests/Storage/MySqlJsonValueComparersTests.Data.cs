@@ -26,32 +26,32 @@ public sealed partial class MySqlJsonValueComparersTests
     /// <summary>
     /// Supplies named semantic equality pairs without constructing mutable nodes during discovery.
     /// </summary>
-    public static TheoryData<string> SemanticallyEqualNodeCases => new()
-    {
+    public static TheoryData<string> SemanticallyEqualNodeCases =>
+    [
         "reordered-properties",
         "equivalent-number-spellings",
         "parsed-and-custom-object",
         "int32-and-int64",
         "escaped-and-created-text",
         "guid-and-text",
-    };
+    ];
 
     /// <summary>
     /// Supplies independently selectable semantic differences.
     /// </summary>
-    public static TheoryData<string> SemanticallyDistinctNodeCases => new()
-    {
+    public static TheoryData<string> SemanticallyDistinctNodeCases =>
+    [
         "array-order",
         "missing-and-null-property",
         "number-and-text",
         "nested-value-difference",
-    };
+    ];
 
     /// <summary>
     /// Supplies representation and comparison-option boundaries for bidirectional JSON equality.
     /// </summary>
-    public static TheoryData<string> BidirectionalNodeCases => new()
-    {
+    public static TheoryData<string> BidirectionalNodeCases =>
+    [
         "reordered-properties",
         "value-difference",
         "mixed-case-options-exact-name",
@@ -66,13 +66,13 @@ public sealed partial class MySqlJsonValueComparersTests
         "customized-array",
         "true-and-null",
         "both-null",
-    };
+    ];
 
     /// <summary>
     /// Supplies the null-element, container-shape, and length boundaries independently.
     /// </summary>
-    public static TheoryData<string> ContainerEdgeNodeCases => new()
-    {
+    public static TheoryData<string> ContainerEdgeNodeCases =>
+    [
         "array-null-elements",
         "array-null-and-number",
         "object-and-array",
@@ -80,16 +80,16 @@ public sealed partial class MySqlJsonValueComparersTests
         "array-and-object",
         "array-and-boolean",
         "array-length",
-    };
+    ];
 
     /// <summary>
     /// Supplies customized object and array representations independently.
     /// </summary>
-    public static TheoryData<string> CustomizedContainerNodeCases => new()
-    {
+    public static TheoryData<string> CustomizedContainerNodeCases =>
+    [
         "customized-object",
         "customized-array",
-    };
+    ];
 
     /// <summary>
     /// Supplies the complete Cartesian product of the supported primitive representations.

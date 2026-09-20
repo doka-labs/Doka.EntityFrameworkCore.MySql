@@ -22,7 +22,7 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
         ExecutionStrategyDependencies dependencies,
         IExecutionStrategy innerStrategy,
         MySqlRetryOptions? retryOptions,
-        MySqlSingletonOptions singletonOptions,
+        EngineFamily engineFamily,
         ILogger? logger,
         IMySqlTransientExceptionDetector transientExceptionDetector
     )
@@ -31,10 +31,7 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
         _innerStrategy = innerStrategy ?? throw new ArgumentNullException(nameof(innerStrategy));
 
         _maxRetryCount = retryOptions?.MaxRetryCount;
-        var capabilityProfile = (singletonOptions ?? throw new ArgumentNullException(nameof(singletonOptions))).Profile
-            ?? throw new InvalidOperationException("The MySQL capability profile must be initialized.");
-
-        _engineFamily = capabilityProfile.Engine.Family;
+        _engineFamily = engineFamily;
         _logger = logger;
         _transientExceptionDetector = transientExceptionDetector
             ?? throw new ArgumentNullException(nameof(transientExceptionDetector));

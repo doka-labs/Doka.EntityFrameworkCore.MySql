@@ -52,19 +52,20 @@ public sealed class MySqlTransactionOperabilityTests
     public async Task Commit_unknown_failures_emit_the_resilience_diagnostic()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         MySqlSingletonOptions primedSingletonOptions;
         await using (var primingConnection = new RecordingDbConnection())
         await using (var primingContext =
             new TransactionOperabilityContext(
                 CreateOptions(primingConnection, defaultGuidFormat: MySqlGuidFormat.Char36)))
-        await using (var primingTransaction = await primingContext.Database.BeginTransactionAsync())
+        await using (var primingTransaction = await primingContext.Database.BeginTransactionAsync(cancellationToken))
         {
             primedSingletonOptions = primingContext
                 .GetService<IEnumerable<ISingletonOptions>>()
                 .OfType<MySqlSingletonOptions>()
                 .Single();
 
-            await primingTransaction.RollbackAsync();
+            await primingTransaction.RollbackAsync(cancellationToken);
         }
 
         var sink = new TestLogSink();
@@ -81,8 +82,8 @@ public sealed class MySqlTransactionOperabilityTests
             .OfType<MySqlSingletonOptions>()
             .Single();
 
-        await using var transaction = await context.Database.BeginTransactionAsync();
-        var act = () => transaction.CommitAsync();
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        Task act() => transaction.CommitAsync(cancellationToken);
 
         // Act
         var recordedException = await Record.ExceptionAsync(act);
@@ -137,7 +138,7 @@ public sealed class MySqlTransactionOperabilityTests
             _commitFailure = commitFailure;
         }
 
-        public List<RecordingDbCommand> Commands { get; } = new();
+        public List<RecordingDbCommand> Commands { get; } = [];
 
         [AllowNull]
         public override string ConnectionString { get; set; } =
@@ -316,7 +317,7 @@ public sealed class MySqlTransactionOperabilityTests
 
     private sealed class RecordingDbParameterCollection : DbParameterCollection
     {
-        private readonly List<DbParameter> _parameters = new();
+        private readonly List<DbParameter> _parameters = [];
 
         public override int Count => _parameters.Count;
 

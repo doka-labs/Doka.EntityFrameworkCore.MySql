@@ -7,23 +7,22 @@ defined by released packages, the support matrix, and release notes.
 
 ## Direction Through July 2027
 
-### Stabilize the EF Core 10 release line
+### Maintain the stable EF Core 10 release line
 
-- Complete consumer validation of the current release-candidate line and ship
-  the first stable `10.0.0` package only after the reviewed release contract is
-  satisfied.
+- Maintain the published 10.x packages as the .NET 10 consumer line.
 - Treat correctness, data integrity, security, migrations, query semantics,
   type mapping, and cross-engine compatibility defects as the primary work on
-  the `10.0.x` line.
+  the `10.x` line.
 - Keep the public API small. Add surface only when a supported scenario cannot
   be expressed safely through EF Core or an existing provider contract.
 - Maintain package, trimming, runtime, migration, scaffolding, specification,
-  and live-engine verification for both shipped packages.
+  and live-engine verification for all three shipped packages.
 
 ### Maintain supported dependencies and engines
 
-- Keep the supported EF Core 10 patch range and MySqlConnector 2.x range under
-  continuous compatibility and vulnerability review.
+- Keep the supported EF Core 10 maintenance range, the exact EF Core 11 RC.1
+  graph, and the MySqlConnector 2.x range under compatibility and
+  vulnerability review.
 - Prioritize dependency updates that remediate a relevant vulnerability.
   Routine version churn without compatibility, security, or support value is
   not a roadmap goal.
@@ -43,12 +42,12 @@ defined by released packages, the support matrix, and release notes.
 - Continue to publish checksums, SBOMs, signed tags, immutable releases, NuGet
   repository signatures, and portable SLSA provenance for releases.
 
-### Prepare the next platform major deliberately
+### Qualify the next platform major deliberately
 
-- Do not adopt EF Core 11 preview or release-candidate packages in the stable
+- Keep EF Core 11 release-candidate packages isolated from the stable 10.x
   provider line.
-- Start the EF Core 11 and .NET 11 work only when an accepted trigger in ADR
-  D-013 fires.
+- The maintainer-authorized trigger in ADR D-013 has fired; `feature/dotnet-11`
+  owns the exact RC.1 graph.
 - Treat that transition as a new provider major with explicit validation of
   EF Core internal-service dependencies, public API compatibility, trim and
   AOT posture, migrations, and specification tests.
@@ -66,7 +65,8 @@ The project does not intend to:
 - move application authentication, authorization, tenant isolation, network
   policy, or database privilege ownership into the provider;
 - make benchmarks a release-publication authority; or
-- begin EF Core 11 implementation merely because a preview is available.
+- merge the EF Core 11 line before its exact SDK, package graph, specification
+  contracts, runtime posture, and live-engine matrix are reproducible.
 
 ## Review and Change Process
 

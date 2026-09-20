@@ -8,14 +8,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
     /// </summary>
     public sealed class SeededDatabaseFixture : IAsyncLifetime
     {
-        private readonly Dictionary<IntegrationDatabaseTarget, Task> _seeds = new();
+        private readonly Dictionary<IntegrationDatabaseTarget, Task> _seeds = [];
         private Task? _sqlModeSeed;
 
         /// <summary>Leaves seeding to the first selected test for each engine.</summary>
-        public Task InitializeAsync() => Task.CompletedTask;
+        public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
         /// <summary>Drops every table created by this class, including after test failure.</summary>
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             List<Exception>? failures = null;
 
@@ -30,7 +30,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
                 }
                 catch (Exception exception)
                 {
-                    (failures ??= new List<Exception>()).Add(
+                    (failures ??= []).Add(
                         new InvalidOperationException($"Could not drop {CharTableName} on {target}.", exception));
                 }
 
@@ -41,7 +41,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
                 }
                 catch (Exception exception)
                 {
-                    (failures ??= new List<Exception>()).Add(
+                    (failures ??= []).Add(
                         new InvalidOperationException($"Could not drop {TableName} on {target}.", exception));
                 }
             }
@@ -55,7 +55,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
                 }
                 catch (Exception exception)
                 {
-                    (failures ??= new List<Exception>()).Add(
+                    (failures ??= []).Add(
                         new InvalidOperationException($"Could not drop {SqlModeTableName} on MariaDb118.", exception));
                 }
             }

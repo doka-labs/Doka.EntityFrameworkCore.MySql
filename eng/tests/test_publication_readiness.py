@@ -46,8 +46,6 @@ class PublicationReadinessTests(unittest.TestCase):
             (
                 "bash",
                 str(self.script),
-                "--ef-core-version",
-                "10.0.11",
                 "--mysqlconnector-version",
                 "2.6.1",
             ),
@@ -97,15 +95,19 @@ class PublicationReadinessTests(unittest.TestCase):
             {str(artifact_path / "locks" / "$(MSBuildProjectName).packages.lock.json")},
             lock_paths,
         )
+        self.assertTrue(
+            all("DokaEfCoreVersion" not in command for command in commands),
+            commands,
+        )
 
-    def test_gate_rejects_a_floating_ef_core_version_before_dotnet(self) -> None:
-        """Require the finalizer to bind the check to one matrix-resolved patch."""
+    def test_gate_rejects_the_retired_ef_core_override_before_dotnet(self) -> None:
+        """Keep the exact central preview pin as the only EF Core graph."""
         result = subprocess.run(
             (
                 "bash",
                 str(self.script),
                 "--ef-core-version",
-                "10.0.*",
+                "11.0.0-rc.1.26425.128",
                 "--mysqlconnector-version",
                 "2.6.1",
             ),
@@ -116,7 +118,7 @@ class PublicationReadinessTests(unittest.TestCase):
         )
 
         self.assertEqual(2, result.returncode)
-        self.assertIn("one exact EF Core 10.0 patch", result.stderr)
+        self.assertIn("Unknown option '--ef-core-version'", result.stderr)
 
     def test_gate_rejects_a_floating_connector_version_before_dotnet(self) -> None:
         """Require the finalizer to bind the check to one driver-matrix patch."""
@@ -124,8 +126,6 @@ class PublicationReadinessTests(unittest.TestCase):
             (
                 "bash",
                 str(self.script),
-                "--ef-core-version",
-                "10.0.11",
                 "--mysqlconnector-version",
                 "2.*",
             ),

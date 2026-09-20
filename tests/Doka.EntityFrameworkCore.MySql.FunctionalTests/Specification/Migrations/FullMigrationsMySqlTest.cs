@@ -153,6 +153,7 @@ public sealed class FullMigrationsMySqlTest
     /// Keeps the official filtered-index fact discoverable while documenting the missing
     /// predicate grammar on every supported MySQL-family target.
     /// </summary>
+    [Fact]
     [SpecEngineLimitationFact(
         "MYSQL-MARIADB-FILTERED-INDEXES",
         "mysql84",
@@ -165,6 +166,7 @@ public sealed class FullMigrationsMySqlTest
     /// Keeps the official unique filtered-index fact discoverable while documenting the
     /// engine boundary that prevents preserving its conditional uniqueness semantics.
     /// </summary>
+    [Fact]
     [SpecEngineLimitationFact(
         "MYSQL-MARIADB-FILTERED-INDEXES",
         "mysql84",
@@ -363,7 +365,7 @@ public sealed class FullMigrationsMySqlTest
         IModel sourceModel,
         IModel? targetModel,
         IReadOnlyList<MigrationOperation> operations,
-        Action<DatabaseModel> asserter,
+        Action<DatabaseModel>? asserter,
         MigrationsSqlGenerationOptions migrationsSqlGenerationOptions = MigrationsSqlGenerationOptions.Default
     )
     {

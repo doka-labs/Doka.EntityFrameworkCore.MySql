@@ -340,7 +340,6 @@ public sealed class QualificationWorkflowContractTests
     /// <param name="job">The standalone maintenance producer.</param>
     [Theory]
     [InlineData("migration-deployment")]
-    [InlineData("efcore-patch-matrix")]
     [InlineData("mysqlconnector-patch-matrix")]
     public void Standalone_maintenance_producers_require_the_maintenance_dispatch_input(
         string job

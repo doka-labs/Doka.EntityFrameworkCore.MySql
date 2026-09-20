@@ -17,13 +17,13 @@ public sealed partial class
     /// Verifies the ordered-parent projection without assigning an order to the
     /// selected parent's child collection.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InheritedTheoryData]
     public override Task SelectMany_subquery_with_custom_projection(
         bool async
     ) => ComplexNavigationContractAssertions.AssertSelectManySubqueryWithCustomProjection(
         async,
-        () => Fixture.CreateContext(),
+        Fixture.CreateContext,
         Fixture.GetExpectedData(),
         cancellationToken: CancellationToken.None);
 
@@ -83,13 +83,13 @@ public sealed partial class
     /// Verifies the ordered-parent projection without assigning an order to the
     /// selected parent's child collection.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InheritedTheoryData]
     public override Task SelectMany_subquery_with_custom_projection(
         bool async
     ) => ComplexNavigationContractAssertions.AssertSelectManySubqueryWithCustomProjection(
         async,
-        () => Fixture.CreateContext(),
+        Fixture.CreateContext,
         Fixture.GetExpectedData(),
         cancellationToken: CancellationToken.None);
 

@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore.TestModels.ConcurrencyModel;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
@@ -400,8 +399,8 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
                                      """;
 
         var actual = async
-            ? await context.Database.ExecuteSqlInterpolatedAsync(command)
-            : context.Database.ExecuteSqlInterpolated(command);
+            ? await context.Database.ExecuteSqlAsync(command)
+            : context.Database.ExecuteSql(command);
 
         Assert.Equal(-1, actual);
     }
@@ -420,8 +419,8 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
                                      """;
 
         var actual = async
-            ? await context.Database.ExecuteSqlInterpolatedAsync(command)
-            : context.Database.ExecuteSqlInterpolated(command);
+            ? await context.Database.ExecuteSqlAsync(command)
+            : context.Database.ExecuteSql(command);
 
         Assert.Equal(-1, actual);
     }
