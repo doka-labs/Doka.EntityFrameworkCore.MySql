@@ -13,7 +13,7 @@ public sealed partial class MySqlRuntimeBaselineTests
             ConnectionString = connectionString;
         }
 
-        public List<AsyncAwareDbCommand> Commands { get; } = new();
+        public List<AsyncAwareDbCommand> Commands { get; } = [];
 
         [AllowNull]
         public override string ConnectionString { get; set; }
@@ -250,7 +250,7 @@ public sealed partial class MySqlRuntimeBaselineTests
 
     private sealed class RecordingDbParameterCollection : DbParameterCollection
     {
-        private readonly List<DbParameter> _parameters = new();
+        private readonly List<DbParameter> _parameters = [];
 
         public override int Count => _parameters.Count;
 

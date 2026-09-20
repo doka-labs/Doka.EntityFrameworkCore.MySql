@@ -3,8 +3,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed partial class MySqlQuerySqlGenerator
 {
     /// <summary>
-    /// Enforces the provider's bounded collation grammar before the relational
-    /// base generator embeds the token verbatim in SQL.
+    /// Enforces the provider's bounded collation grammar before embedding the
+    /// token without identifier quoting, as required by MySQL and MariaDB.
     /// </summary>
     protected override Expression VisitCollate(
         CollateExpression collateExpression
@@ -14,7 +14,12 @@ internal sealed partial class MySqlQuerySqlGenerator
 
         MySqlSqlTokenValidator.ValidateIdentifier(collateExpression.Collation, MySqlAnnotationNames.Collation);
 
-        return base.VisitCollate(collateExpression);
+        Visit(collateExpression.Operand);
+        Sql
+            .Append(" COLLATE ")
+            .Append(collateExpression.Collation);
+
+        return collateExpression;
     }
 
     /// <summary>
@@ -41,6 +46,15 @@ internal sealed partial class MySqlQuerySqlGenerator
     )
     {
         ArgumentNullException.ThrowIfNull(sqlUnaryExpression);
+
+        if (sqlUnaryExpression.OperatorType is ExpressionType.Equal or ExpressionType.NotEqual
+            && IsJsonDocument(sqlUnaryExpression.Operand))
+        {
+            EmitJsonNullTest(
+                sqlUnaryExpression.Operand,
+                equalsNull: sqlUnaryExpression.OperatorType == ExpressionType.Equal);
+            return sqlUnaryExpression;
+        }
 
         if (sqlUnaryExpression.OperatorType is ExpressionType.Not or ExpressionType.OnesComplement
             && IsSignedIntegralType(sqlUnaryExpression.Type.UnwrapNullableType()))
@@ -154,6 +168,12 @@ internal sealed partial class MySqlQuerySqlGenerator
         ArgumentNullException.ThrowIfNull(sqlBinaryExpression);
 
         if (sqlBinaryExpression.OperatorType is ExpressionType.Equal or ExpressionType.NotEqual
+            && TryEmitJsonNullComparison(sqlBinaryExpression))
+        {
+            return sqlBinaryExpression;
+        }
+
+        if (sqlBinaryExpression.OperatorType is ExpressionType.Equal or ExpressionType.NotEqual
             && IsJsonDocument(sqlBinaryExpression.Left)
             && IsJsonDocument(sqlBinaryExpression.Right))
         {
@@ -182,6 +202,41 @@ internal sealed partial class MySqlQuerySqlGenerator
         Visit(sqlBinaryExpression.Right);
         Sql.Append(")");
         return sqlBinaryExpression;
+    }
+
+    private bool TryEmitJsonNullComparison(
+        SqlBinaryExpression expression
+    )
+    {
+        var jsonExpression = expression switch
+        {
+            { Left: SqlConstantExpression { Value: null }, Right: var right } when IsJsonDocument(right) => right,
+            { Left: var left, Right: SqlConstantExpression { Value: null } } when IsJsonDocument(left) => left,
+            _ => null,
+        };
+
+        if (jsonExpression is null)
+        {
+            return false;
+        }
+
+        EmitJsonNullTest(
+            jsonExpression,
+            equalsNull: expression.OperatorType == ExpressionType.Equal);
+
+        return true;
+    }
+
+    private void EmitJsonNullTest(
+        SqlExpression expression,
+        bool equalsNull
+    )
+    {
+        Sql.Append("COALESCE(JSON_TYPE(");
+        EmitJsonDocument(expression);
+        Sql.Append(equalsNull
+            ? "), 'NULL') = 'NULL'"
+            : "), 'NULL') <> 'NULL'");
     }
 
     /// <summary>

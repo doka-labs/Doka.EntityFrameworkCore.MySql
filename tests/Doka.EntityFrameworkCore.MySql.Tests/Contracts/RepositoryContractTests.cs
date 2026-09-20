@@ -146,18 +146,18 @@ public sealed class RepositoryContractTests
                 : "invalid subject\n");
 
         // Act
-        var result = RunCommitMessageGate(repositoryRoot, messagePath);
+        var (exitCode, standardError) = RunCommitMessageGate(repositoryRoot, messagePath);
 
         // Assert
         Assert.Equal(
             valid
                 ? 0
                 : 1,
-            result.ExitCode);
+            exitCode);
 
         if (!valid)
         {
-            Assert.Contains("Commit message rejected", result.StandardError, StringComparison.Ordinal);
+            Assert.Contains("Commit message rejected", standardError, StringComparison.Ordinal);
         }
     }
 

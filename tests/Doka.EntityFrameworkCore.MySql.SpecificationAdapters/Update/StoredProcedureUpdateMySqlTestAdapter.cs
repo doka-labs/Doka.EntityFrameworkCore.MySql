@@ -665,7 +665,7 @@ public abstract class StoredProcedureUpdateMySqlTestAdapter : StoredProcedureUpd
             END
             """;
 
-        var contextFactory = await InitializeAsync<DbContext>(
+        var contextFactory = await InitializeNonSharedTest<DbContext>(
             modelBuilder =>
             {
                 modelBuilder
@@ -691,7 +691,7 @@ public abstract class StoredProcedureUpdateMySqlTestAdapter : StoredProcedureUpd
                     builder.Ignore(RelationalEventId.TpcStoreGeneratedIdentityWarning)); // <-- added
             });
 
-        await using var context = contextFactory.CreateContext();
+        await using var context = contextFactory.CreateDbContext();
 
         var entity1 = new Child1
         {

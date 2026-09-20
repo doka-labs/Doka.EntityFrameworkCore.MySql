@@ -82,7 +82,7 @@ public sealed partial class MySqlRuntimeBaselineTests
 
         var originalConnection = context.Database.GetDbConnection();
         var originalConnectionString = originalConnection.ConnectionString;
-        var act = () =>
+        void act() =>
             context.Database.SetConnectionString(
                 $"Server=replacement;Database=runtime;Password=secret-canary;{incompatibleOption};");
 
@@ -152,7 +152,7 @@ public sealed partial class MySqlRuntimeBaselineTests
 
         using var replacement = new RecordingDbConnection();
         context.Database.SetDbConnection(replacement, contextOwnsConnection: false);
-        var act = () =>
+        void act() =>
             context.Database.SetConnectionString(
                 "Server=second;Database=runtime;GuidFormat=Binary16;");
 
@@ -199,7 +199,7 @@ public sealed partial class MySqlRuntimeBaselineTests
                 $"Server=replacement;Database=doka;Password=secret-canary;{options}",
         };
 
-        var act = () =>
+        void act() =>
             context.Database.SetDbConnection(replacement, contextOwnsConnection: false);
 
         // Act
@@ -243,7 +243,7 @@ public sealed partial class MySqlRuntimeBaselineTests
 
         var originalConnectionString = replacement.ConnectionString;
         var originalConnection = context.Database.GetDbConnection();
-        var act = () =>
+        void act() =>
             context.Database.SetDbConnection(replacement, contextOwnsConnection);
 
         // Act
@@ -273,7 +273,7 @@ public sealed partial class MySqlRuntimeBaselineTests
         using var connection = new RecordingDbConnection();
         var originalConnectionString = connection.ConnectionString;
         using var context = new RuntimeBaselineContext(CreateOptions(connection));
-        var act = () =>
+        void act() =>
             context.Database.SetConnectionString(
                 "Server=replacement;Database=runtime;GuidFormat=Binary16;");
 
@@ -309,7 +309,7 @@ public sealed partial class MySqlRuntimeBaselineTests
 
         using var context = new RuntimeBaselineContext(builder.Options);
         var originalConnection = context.Database.GetDbConnection();
-        var act = () =>
+        void act() =>
             context.Database.SetConnectionString(
                 "Server=replacement;Database=runtime;GuidFormat=Binary16;");
 

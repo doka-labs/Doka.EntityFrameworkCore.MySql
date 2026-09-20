@@ -20,7 +20,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
             // WHY: Unrelated queries allocate no directed-edge tracking state. Subqueries share
             // their root visitor's lazy set so a marker never becomes model- or context-global.
             var owner = _straightJoinOwner ?? this;
-            (owner._straightJoinInputs ??= new HashSet<SelectExpression>(ReferenceEqualityComparer.Instance)).Add(
+            (owner._straightJoinInputs ??= [with(ReferenceEqualityComparer.Instance)]).Add(
                 (SelectExpression)translated.QueryExpression);
 
             return translated;

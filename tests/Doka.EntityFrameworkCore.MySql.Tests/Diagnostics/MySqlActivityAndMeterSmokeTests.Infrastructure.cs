@@ -96,12 +96,16 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
             _listener = new ActivityListener
             {
                 ShouldListenTo = source => source.Name == MySqlDiagnostics.SourceName,
-                Sample = (ref _) => ActivitySamplingResult.AllData,
+                Sample = SampleAllData,
                 ActivityStopped = Activities.Enqueue,
             };
 
             ActivitySource.AddActivityListener(_listener);
         }
+
+        private static ActivitySamplingResult SampleAllData(
+            ref ActivityCreationOptions<ActivityContext> _
+        ) => ActivitySamplingResult.AllData;
 
         // The source is process-wide, so callbacks can overlap with activities
         // emitted by parallel test collections. Concurrent capture keeps both
@@ -155,7 +159,7 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
     {
         private readonly MeterListener _listener;
         private readonly Lock _lock = new();
-        private readonly List<double> _measurements = new();
+        private readonly List<double> _measurements = [];
         private readonly ConcurrentQueue<IReadOnlyDictionary<string, object?>> _tagSets = new();
 
         public HistogramSink(

@@ -25,25 +25,25 @@ public sealed class MySqlScaffoldingClrTypeTests
     };
 
     /// <summary>Provides scalar types outside the scaffolding mapping's closed set.</summary>
-    public static TheoryData<Type> UnsupportedValueTypes => new()
-    {
+    public static TheoryData<Type> UnsupportedValueTypes =>
+    [
         typeof(DateTimeOffset),
         typeof(TimeSpan),
         typeof(UnsupportedEnum),
         typeof(UnsupportedValue),
-    };
+    ];
 
     /// <summary>Includes unsupported value types because required columns never request nullable construction.</summary>
     public static IEnumerable<object[]> RequiredValueTypes()
     {
         foreach (var pair in SupportedTypes)
         {
-            yield return [pair[0]];
+            yield return [pair.Data.Item1];
         }
 
         foreach (var unsupported in UnsupportedValueTypes)
         {
-            yield return [unsupported];
+            yield return [unsupported.Data];
         }
     }
 
@@ -52,8 +52,8 @@ public sealed class MySqlScaffoldingClrTypeTests
     {
         foreach (var pair in SupportedTypes)
         {
-            yield return [pair[1], false];
-            yield return [pair[1], true];
+            yield return [pair.Data.Item2, false];
+            yield return [pair.Data.Item2, true];
         }
 
         foreach (var type in new[]

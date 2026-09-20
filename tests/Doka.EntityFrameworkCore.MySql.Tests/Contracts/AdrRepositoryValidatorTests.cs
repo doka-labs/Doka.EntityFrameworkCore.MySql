@@ -3,6 +3,9 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// <summary>Verifies ADR validation and the repository contracts that consume it.</summary>
 public sealed partial class AdrRepositoryValidatorTests
 {
+    private const string SpecificationFilter =
+        "--filter \"FullyQualifiedName~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.|Category=Spec|Category=Live\"";
+
     /// <summary>
     /// Keeps the public migration-fragment contract and its runtime behavior
     /// visible in its release notes instead of only in the API baseline.

@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Owns the exact EF Core 10 built-in operation types reserved for provider
+/// Owns the exact EF Core built-in operation types reserved for provider
 /// dispatch. Keeping the set explicit avoids reflection and prevents an
 /// external handler from shadowing provider DDL.
 /// </summary>

@@ -181,13 +181,16 @@ authority before the candidate calls the common qualifier. Both callers execute
 the complete reversible quality, test, integration, deployment, runtime,
 dependency, package-consumer, SBOM and coverage graph. Candidate stages retain
 same-run `release-stage-<stage>-attempt-N` artifacts, checkpoint ownership and
-digest verification. The current main/10 assembly still requires its six stage
-receipts; they are distinct from the complete product job graph. Assembly does
-not repack qualified bytes. Attestation remains a separate release-only job.
+digest verification. Stable main/10 requires six stage receipts; preview/11
+requires five because its reviewed policy omits the stable EF patch matrix.
+Both use the branch-owned stage inventory, separately from the complete product
+job graph. Assembly does not repack qualified bytes. Attestation remains a
+separate release-only job.
 
-EF Core qualification records the floor graph and fully exercises the highest
-exact patch admitted to the branch's reviewed baseline; the driver matrix uses
-its reviewed floor/latest recipe. Scheduled floating probes detect new upstream
+Stable lines declaring the EF matrix record the floor graph and fully exercise
+the highest exact patch admitted to their reviewed baseline. Preview qualifies
+its exact pinned prerelease graph; the driver matrix uses its reviewed
+floor/latest recipe. Branch-applicable scheduled floating probes detect new upstream
 drift independently. Benchmarks remain independent engineering diagnostics:
 qualification never invokes them or consumes their artifacts, and hardware-dependent
 timing, CPU or working-set thresholds are not qualifier gates.

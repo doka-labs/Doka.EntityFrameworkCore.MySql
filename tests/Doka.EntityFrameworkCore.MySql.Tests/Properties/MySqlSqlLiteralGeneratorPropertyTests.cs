@@ -164,7 +164,7 @@ public sealed class MySqlSqlLiteralGeneratorPropertyTests
     {
         // Arrange
         var invalid = new string(['\uD800']);
-        Action act = () => MySqlSqlLiteralGenerator.Generate(invalid);
+        void act() => MySqlSqlLiteralGenerator.Generate(invalid);
 
         // Act
         var recordedException = Record.Exception(act);

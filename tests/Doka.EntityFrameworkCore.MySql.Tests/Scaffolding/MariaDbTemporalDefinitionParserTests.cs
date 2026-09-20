@@ -96,7 +96,7 @@ public sealed class MariaDbTemporalDefinitionParserTests
     public void ParseApplicationTime_rejects_unknown_without_overlaps_period()
     {
         // Arrange
-        Action act = () =>
+        static void act() =>
             MariaDbTemporalDefinitionParser.ParseApplicationTime(
                 """
                 CREATE TABLE `invalid` (
@@ -149,7 +149,7 @@ public sealed class MariaDbTemporalDefinitionParserTests
     public void ParseApplicationTime_rejects_multiple_application_periods()
     {
         // Arrange
-        Action act = () =>
+        static void act() =>
             MariaDbTemporalDefinitionParser.ParseApplicationTime(
                 """
                 CREATE TABLE `multiple_periods` (
@@ -177,7 +177,7 @@ public sealed class MariaDbTemporalDefinitionParserTests
     public void ParseApplicationTime_rejects_without_overlaps_without_period()
     {
         // Arrange
-        Action act = () =>
+        static void act() =>
             MariaDbTemporalDefinitionParser.ParseApplicationTime(
                 """
                 CREATE TABLE `missing_period` (
@@ -223,7 +223,7 @@ public sealed class MariaDbTemporalDefinitionParserTests
     public void ParseApplicationTime_rejects_unterminated_literal()
     {
         // Arrange
-        Action act = () =>
+        static void act() =>
             MariaDbTemporalDefinitionParser.ParseApplicationTime(
                 "CREATE TABLE `invalid` (`Value` varchar(32) DEFAULT 'unterminated);");
 
@@ -242,7 +242,7 @@ public sealed class MariaDbTemporalDefinitionParserTests
     public void ParseApplicationTime_rejects_unterminated_identifier()
     {
         // Arrange
-        Action act = () =>
+        static void act() =>
             MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `unterminated (id int);");
 
         // Act
@@ -260,7 +260,7 @@ public sealed class MariaDbTemporalDefinitionParserTests
     public void ParseApplicationTime_rejects_missing_table_definition()
     {
         // Arrange
-        Action act = () =>
+        static void act() =>
             MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `invalid`;");
 
         // Act
@@ -278,7 +278,7 @@ public sealed class MariaDbTemporalDefinitionParserTests
     public void ParseApplicationTime_rejects_unterminated_table_definition()
     {
         // Arrange
-        Action act = () =>
+        static void act() =>
             MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `invalid` (`Id` int(11)");
 
         // Act

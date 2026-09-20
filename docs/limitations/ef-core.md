@@ -1,6 +1,6 @@
 # EF Core Limitations
 
-This inventory contains only contracts that EF Core 10 rejects or cannot
+This inventory contains only contracts that EF Core 11 RC.1 rejects or cannot
 represent before provider translation. Engine restrictions are documented
 separately in [Database Engine Limitations](database-engines.md), and the
 [cross-feature index](../limitations.md) defines the governing zero-gap
@@ -8,7 +8,7 @@ contract.
 
 ## Complex-Type Contract
 
-The provider implements the relational complex-type surface that EF Core 10
+The provider implements the relational complex-type surface that EF Core 11
 can represent for CLR-backed model shapes on every supported LTS target.
 That includes flattened and nested complex properties, JSON document mapping,
 EF Core-valid reference-type complex collections in JSON, query and update
@@ -20,50 +20,25 @@ The shape-specific EF Core limitations later in this inventory remain exact
 upstream boundaries. They cover unsupported collection-tracking shapes,
 affected `EntityEntry` store-value and nested database-value APIs, and shadow
 complex properties. The following broader framework boundaries complete the
-public complex-type contract for the current EF Core 10 line.
-
-### Complex types with TPT or TPC mapping
-
-- **Unavailable contract:** Combining a complex or JSON property with a TPT
-  or TPC entity hierarchy on EF Core 10.
-- **Available contracts:** Complex properties on non-inheritance entity types,
-  and provider temporal tables on TPH, TPT, and TPC hierarchies, remain
-  supported. The latter is a temporal-table contract and must not be confused
-  with an EF complex property.
-- **Responsibility:** EF Core 11 adds complex types and JSON columns to TPT and
-  TPC mapping. EF Core 10 rejects that combination before provider SQL
-  translation.
-- **Targets:** Every supported LTS target.
-- **Primary source:** [EF Core 11 complex-type
-  improvements][efcore-11-whats-new], retrieved 2026-08-05.
-
-### Nested complex members in keys or indexes
-
-- **Unavailable contract:** Using a nested complex member as an entity key or
-  index property on EF Core 10.
-- **Available contracts:** Ordinary scalar entity properties remain valid key
-  and index members. Nested complex members remain queryable and persistable
-  outside that metadata role.
-- **Responsibility:** EF Core 11 adds key and index support for nested complex
-  members; the EF Core 10 metadata model does not expose the contract to the
-  provider.
-- **Targets:** Every supported LTS target.
-- **Primary source:** [EF Core 11 complex-type
-  improvements][efcore-11-whats-new], retrieved 2026-08-05.
+public complex-type contract for the pinned EF Core 11 release candidate.
+Complex and JSON properties now participate in TPH, TPT, and TPC hierarchies,
+and nested complex members can participate in keys and indexes. Doka executes
+the corresponding inheritance and complex-type suites on every supported
+engine target.
 
 ### Struct elements in complex collections
 
 - **Unavailable contract:** Persisting a complex collection whose element type
-  is a struct on EF Core 10.
+  is a struct on EF Core 11 RC.1.
 - **Available contracts:** Reference-type complex collections mapped to JSON,
   and individual struct complex properties, remain supported.
-- **Responsibility:** EF Core 10 documents struct complex properties but does
+- **Responsibility:** EF Core documents struct complex properties but does
   not support struct elements in complex collections. The provider cannot
   supply a collection model that the framework does not represent.
 - **Targets:** Every supported LTS target.
-- **Primary sources:** [EF Core 10 complex-type
-  improvements][efcore-10-whats-new] and [EF Core 10 breaking
-  changes][efcore-10-breaking], retrieved 2026-08-05.
+- **Primary sources:** [EF Core 11 complex-type
+  improvements][efcore-11-whats-new] and the exact [RC.1 complex-type
+  tests][efcore-complex-tests], retrieved 2026-09-19.
 
 See [Complex Types](../complex-types.md) for configuration examples, provider
 behavior, and the full support matrix.
@@ -306,15 +281,13 @@ disposition represents them.
   resulting expression is rejected by EF Core before provider translation.
 - **Targets:** Every supported LTS target.
 - **Primary sources:** [EF Core advanced performance
-  topics][efcore-advanced-performance], [EF Core 10.0.10 relational SQL query
-  extensions][efcore-relational-query-extensions], and [EF Core 10.0.10 SQL
-  Server temporal query extensions][efcore-sqlserver-temporal-extensions],
-  retrieved 2026-08-04.
+  topics][efcore-advanced-performance], the exact [EF Core 11 RC.1 relational
+  SQL query extensions][efcore-relational-query-extensions], and [SQL Server
+  temporal query extensions][efcore-sqlserver-temporal-extensions], retrieved
+  2026-09-19.
 
 ## Source References
 
-[efcore-10-breaking]: https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-10.0/breaking-changes
-[efcore-10-whats-new]: https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-10.0/whatsnew
 [efcore-11-whats-new]: https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-11.0/whatsnew
 [efcore-13890]: https://github.com/dotnet/efcore/issues/13890
 [efcore-15743]: https://github.com/dotnet/efcore/issues/15743
@@ -342,12 +315,12 @@ disposition represents them.
 [efcore-36483]: https://github.com/dotnet/efcore/issues/36483
 [efcore-advanced-performance]: https://learn.microsoft.com/en-us/ef/core/performance/advanced-performance-topics
 [efcore-collations]: https://learn.microsoft.com/en-us/ef/core/miscellaneous/collations-and-case-sensitivity
-[efcore-complex-collection-tests]: https://github.com/dotnet/efcore/blob/v10.0.8/test/EFCore.Specification.Tests/ModelBuilding/ModelBuilderTest.ComplexCollections.cs
-[efcore-complex-tests]: https://github.com/dotnet/efcore/blob/v10.0.8/test/EFCore.Specification.Tests/ModelBuilding/ModelBuilderTest.ComplexType.cs
-[efcore-execute-update]: https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Query/RelationalQueryableMethodTranslatingExpressionVisitor.ExecuteUpdate.cs
-[efcore-model-validator]: https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore/Infrastructure/ModelValidator.cs
-[efcore-relational-query-extensions]: https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.Relational/Extensions/RelationalQueryableExtensions.cs
+[efcore-complex-collection-tests]: https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/test/EFCore.Specification.Tests/ModelBuilding/ModelBuilderTest.ComplexCollections.cs
+[efcore-complex-tests]: https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/test/EFCore.Specification.Tests/ModelBuilding/ModelBuilderTest.ComplexType.cs
+[efcore-execute-update]: https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/src/EFCore.Relational/Query/RelationalQueryableMethodTranslatingExpressionVisitor.ExecuteUpdate.cs
+[efcore-model-validator]: https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/src/EFCore/Infrastructure/ModelValidator.cs
+[efcore-relational-query-extensions]: https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/src/EFCore.Relational/Extensions/RelationalQueryableExtensions.cs
 [efcore-sql-queries]: https://learn.microsoft.com/en-us/ef/core/querying/sql-queries
-[efcore-sqlserver-temporal-extensions]: https://github.com/dotnet/efcore/blob/v10.0.10/src/EFCore.SqlServer/Extensions/SqlServerDbSetExtensions.cs
-[efcore-tpc-tests]: https://github.com/dotnet/efcore/blob/v10.0.8/test/EFCore.Specification.Tests/BulkUpdates/InheritanceBulkUpdatesTestBase.cs
+[efcore-sqlserver-temporal-extensions]: https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/src/EFCore.SqlServer/Extensions/SqlServerDbSetExtensions.cs
+[efcore-tpc-tests]: https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/test/EFCore.Specification.Tests/BulkUpdates/Inheritance/InheritanceBulkUpdatesTestBase.cs
 [efcore-window-functions]: https://github.com/dotnet/efcore/issues/12747

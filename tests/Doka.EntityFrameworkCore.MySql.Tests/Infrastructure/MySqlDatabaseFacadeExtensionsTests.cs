@@ -229,7 +229,7 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
     {
         // Arrange
         DatabaseFacade database = null!;
-        Action act = () => database.IsMariaDb();
+        void act() => database.IsMariaDb();
 
         // Act
         var recordedException = Record.Exception(act);
@@ -266,7 +266,7 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
         // WHY: This public infrastructure seam isolates the option guard from EF's earlier provider validation;
         // no additional foreign database-provider dependency is needed to represent options without Doka.
         var database = new OptionsOnlyFacade(context, services);
-        Action act = () => database.IsMariaDb();
+        void act() => database.IsMariaDb();
 
         // Act
         var recordedException = Record.Exception(act);

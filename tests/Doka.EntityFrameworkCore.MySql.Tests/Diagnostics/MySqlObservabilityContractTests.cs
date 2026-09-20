@@ -550,7 +550,7 @@ public sealed partial class MySqlObservabilityContractTests
             _listener = new ActivityListener
             {
                 ShouldListenTo = source => source.Name == MySqlDiagnostics.SourceName,
-                Sample = (ref _) => ActivitySamplingResult.AllDataAndRecorded,
+                Sample = SampleAllDataAndRecorded,
                 ActivityStopped = Activities.Enqueue,
             };
 
@@ -558,6 +558,10 @@ public sealed partial class MySqlObservabilityContractTests
         }
 
         public ConcurrentQueue<Activity> Activities { get; } = new();
+
+        private static ActivitySamplingResult SampleAllDataAndRecorded(
+            ref ActivityCreationOptions<ActivityContext> _
+        ) => ActivitySamplingResult.AllDataAndRecorded;
 
         public void Dispose() => _listener.Dispose();
     }

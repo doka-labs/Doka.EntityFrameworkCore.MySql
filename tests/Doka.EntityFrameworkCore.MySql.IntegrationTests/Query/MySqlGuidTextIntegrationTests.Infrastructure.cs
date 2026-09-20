@@ -33,18 +33,18 @@ public sealed partial class MySqlGuidTextIntegrationTests
         private readonly Dictionary<(IntegrationDatabaseTarget Target, MySqlGuidFormat Format), Task> _seeds = [];
 
         /// <inheritdoc />
-        public Task InitializeAsync() => Task.CompletedTask;
+        public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
         /// <inheritdoc />
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             List<Exception>? failures = null;
 
-            foreach (var key in _seeds.Keys)
+            foreach (var (target, format) in _seeds.Keys)
             {
                 try
                 {
-                    await using var context = CreateContext(key.Target, key.Format);
+                    await using var context = CreateContext(target, format);
                     await DropTableAsync(context, CancellationToken.None);
                 }
                 catch (Exception exception)
@@ -52,7 +52,7 @@ public sealed partial class MySqlGuidTextIntegrationTests
                     // WHY: Cleanup must still reach the remaining engine/format pairs.
                     (failures ??= []).Add(
                         new InvalidOperationException(
-                            $"Could not drop {TableName} on {key.Target} with {key.Format}.",
+                            $"Could not drop {TableName} on {target} with {format}.",
                             exception));
                 }
             }

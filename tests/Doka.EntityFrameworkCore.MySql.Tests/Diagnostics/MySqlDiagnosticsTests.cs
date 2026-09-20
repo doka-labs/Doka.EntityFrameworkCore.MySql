@@ -19,7 +19,7 @@ public sealed class MySqlDiagnosticsTests
             "Server=localhost;Database=doka;User ID=root;Password=super-secret;");
 
         optionsBuilder.UseLoggerFactory(loggerFactory);
-        var act = () => extension.Validate(optionsBuilder.Options);
+        void act() => extension.Validate(optionsBuilder.Options);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -61,7 +61,7 @@ public sealed class MySqlDiagnosticsTests
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
         using var context = new DbContext(optionsBuilder.Options);
-        Action act = () =>
+        void act() =>
             _ = context.GetService<IRelationalConnection>();
 
         // Act
@@ -100,7 +100,7 @@ public sealed class MySqlDiagnosticsTests
             + "GuidFormat=Char36;");
 
         optionsBuilder.UseLoggerFactory(loggerFactory);
-        Action act = () =>
+        void act() =>
             optionsBuilder.UseMySql(
                 connection,
                 MySqlServerVersion.MySql(new Version(8, 4, 0)));

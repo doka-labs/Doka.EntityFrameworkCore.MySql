@@ -460,7 +460,6 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
     private void AppendTemporalHistoryColumnAddition(
         AddColumnOperation operation,
-        IModel? model,
         TemporalMigrationContract contract,
         MigrationCommandListBuilder builder
     )
@@ -505,7 +504,6 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
     private void AppendTemporalHistoryColumnAlteration(
         AlterColumnOperation operation,
-        IModel? model,
         TemporalMigrationContract contract,
         MigrationCommandListBuilder builder
     )

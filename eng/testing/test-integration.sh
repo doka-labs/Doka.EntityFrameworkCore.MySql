@@ -403,9 +403,7 @@ run_integration_tests() {
     # remains valid without sharing instrumented binaries between targets.
     isolated_test_root="$(mktemp -d "${repo_root}/artifacts/integration-tests.XXXXXXXX")" || return $?
 
-    # Coverlet rewrites assemblies in the test output during collection.
-    # Separate result directories cannot isolate concurrent collectors, so
-    # each target runs from a private copy of the one shared build.
+    # Each target needs private binaries because coverage instrumentation modifies them.
     for (( batch_start = 0; batch_start < ${#selected_targets[@]}; batch_start += max_parallel_targets )); do
         active_target_pids=()
         batch_targets=()
@@ -426,9 +424,12 @@ run_integration_tests() {
                 --no-restore
                 --output "${target_test_output_dir}"
                 --tl:off
-                --collect:"XPlat Code Coverage"
+                --coverlet
+                --coverlet-output-format cobertura
+                --coverlet-file-prefix "integration-${target}"
                 --results-directory "${target_results_dir}"
-                --logger trx
+                --report-xunit-trx
+                --report-xunit-trx-filename integration.trx
             )
 
             if [[ -n "${integration_test_filter}" ]]; then
@@ -438,7 +439,7 @@ run_integration_tests() {
             echo "Starting isolated integration process for ${target}..."
             DOKA_INTEGRATION_TARGETS="${target}" \
             DOKA_TEST_DATABASE_EVIDENCE_FILE="${target_evidence_file}" \
-                dotnet test "${integration_test_project}" "${test_arguments[@]}" &
+                dotnet test --project "${integration_test_project}" "${test_arguments[@]}" &
             active_target_pids+=("$!")
             active_target_pid_count=$((active_target_pid_count + 1))
             batch_targets+=("${target}")
