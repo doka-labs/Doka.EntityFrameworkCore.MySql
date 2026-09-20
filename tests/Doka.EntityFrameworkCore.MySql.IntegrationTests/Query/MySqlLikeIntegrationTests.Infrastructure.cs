@@ -13,7 +13,7 @@ public sealed partial class MySqlLikeIntegrationTests
         private readonly Dictionary<IntegrationDatabaseTarget, Task> _seeds = [];
 
         /// <inheritdoc />
-        public Task InitializeAsync() => Task.CompletedTask;
+        public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
         /// <summary>
         /// Seeds the selected engine once and returns a fresh context for one case.
@@ -36,7 +36,7 @@ public sealed partial class MySqlLikeIntegrationTests
         }
 
         /// <inheritdoc />
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             List<Exception>? failures = null;
 

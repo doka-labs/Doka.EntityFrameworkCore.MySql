@@ -1,8 +1,6 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
-/// <summary>
-/// Translates JSON collections, indexing, and their natural element ordering.
-/// </summary>
+/// <summary>Translates JSON collections, indexing, and their natural element ordering.</summary>
 internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
 {
     private const string MySqlValuesOrderingColumnName = "_ord";
@@ -40,7 +38,8 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 Orderings: [{ IsAscending: true, Expression: ColumnExpression orderingColumn }],
                 Limit: null,
                 Offset: null,
-            } when orderingColumn.TableAlias == jsonTable.Alias
+            }
+                when orderingColumn.TableAlias == jsonTable.Alias
                 && orderingColumn.Name == GetOrdinalityColumnName(jsonTable):
                 {
                     var path = jsonTable.Path?.ToList() ?? [];
@@ -68,10 +67,10 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 Tables:
                 [
                     ValuesExpression
-                    {
-                        ColumnNames: [MySqlValuesOrderingColumnName, MySqlValuesValueColumnName,],
-                        ValuesParameter: { } parameter,
-                    },
+                {
+                    ColumnNames: [MySqlValuesOrderingColumnName, MySqlValuesValueColumnName,],
+                    ValuesParameter: { } parameter,
+                },
                 ],
                 Predicate: null,
                 GroupBy: [],
@@ -79,7 +78,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 IsDistinct: false,
                 Orderings:
                 [
-                    { IsAscending: true, Expression: ColumnExpression { Name: MySqlValuesOrderingColumnName, }, },
+                { IsAscending: true, Expression: ColumnExpression { Name: MySqlValuesOrderingColumnName, }, },
                 ],
                 Limit: null,
                 Offset: null,
@@ -87,10 +86,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 {
                     var elementMapping = projection.TypeMapping ?? _typeMappingSource.FindMapping(projection.Type);
                     var collectionMapping = parameter.TypeMapping
-                        ?? _typeMappingSource.FindMapping(
-                            parameter.Type,
-                            _queryCompilationContext.Model,
-                            elementMapping);
+                        ?? _typeMappingSource.FindMapping(parameter.Type, _queryCompilationContext.Model, elementMapping);
 
                     var json = collectionMapping is null ? parameter : parameter.ApplyTypeMapping(collectionMapping);
 
@@ -108,10 +104,9 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 Tables:
                 [
                     ValuesExpression
-                    {
-                        ColumnNames: [MySqlValuesOrderingColumnName, MySqlValuesValueColumnName,],
-                        RowValues: { } rows,
-                    },
+                {
+                    ColumnNames: [MySqlValuesOrderingColumnName, MySqlValuesValueColumnName,], RowValues: { } rows,
+                },
                 ],
                 Predicate: null,
                 GroupBy: [],
@@ -119,7 +114,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 IsDistinct: false,
                 Orderings:
                 [
-                    { IsAscending: true, Expression: ColumnExpression { Name: MySqlValuesOrderingColumnName, }, },
+                { IsAscending: true, Expression: ColumnExpression { Name: MySqlValuesOrderingColumnName, }, },
                 ],
                 Limit: null,
                 Offset: null,
@@ -272,8 +267,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
             path: null,
             columnInfos: columns);
 
-        var isNullable = property?.GetElementType()
-                ?.IsNullable
+        var isNullable = property?.GetElementType()?.IsNullable
             ?? IsNullableType(sequenceType);
 
         var valueColumn = new ColumnExpression(
@@ -352,17 +346,19 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
 
         foreach (var prop in structuralType.GetPropertiesInHierarchy())
         {
-            var jsonPropertyName = prop.GetJsonPropertyName();
-            if (jsonPropertyName is null)
+            if (jsonQueryExpression.FindJsonElement(prop) is not { PropertyName: { } jsonPropertyName } element)
             {
                 continue;
             }
 
-            var typeMapping = prop.GetRelationalTypeMapping();
+            var typeMapping = element.StoreTypeMapping
+                ?? throw new UnreachableException("A JSON element must declare a relational type mapping.");
             var asJson = typeMapping.ElementTypeMapping is not null;
             var extractionTypeMapping = asJson
                 ? typeMapping
-                : MySqlJsonTableValueEncoding.GetDocumentExtractionTypeMapping(typeMapping, _typeMappingSource);
+                : MySqlJsonTableValueEncoding.GetDocumentExtractionTypeMapping(
+                    typeMapping,
+                    _typeMappingSource);
 
             columns.Add(
                 new MySqlJsonTableExpression.ColumnInfo(
@@ -373,15 +369,6 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                     ForOrdinality: false,
                     ResultTypeMapping: asJson ? null : typeMapping));
         }
-
-        var containerColumnName = structuralType.GetContainerColumnName()
-            ?? throw new UnreachableException("Owned-JSON structural type must declare a container column.");
-
-        var containerColumn = structuralType
-            .ContainingEntityType
-            .GetTableMappings()
-            .SelectMany(static m => m.Table.Columns)
-            .Single(c => c.Name == containerColumnName);
 
         var nestedJsonPropertyNames = structuralType switch
         {
@@ -407,7 +394,8 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
             columns.Add(
                 new MySqlJsonTableExpression.ColumnInfo(
                     Name: name,
-                    TypeMapping: containerColumn.StoreTypeMapping,
+                    TypeMapping: jsonQueryExpression.JsonColumn.TypeMapping
+                        ?? throw new UnreachableException("A JSON query column must declare a relational type mapping."),
                     Path: [new PathSegment(name)],
                     AsJson: true,
                     ForOrdinality: false));
@@ -427,9 +415,28 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 AsJson: false,
                 ForOrdinality: true));
 
+        // MySQL exposes a JSON column projected by a view as a string-typed expression.
+        // Reparse only that boundary; JSON_TABLE rejects the direct view-column argument.
+        var jsonExpression = structuralType.ContainingEntityType.GetViewName() is null
+            ? jsonQueryExpression.JsonColumn
+            : _sqlExpressionFactory.Function(
+                "JSON_EXTRACT",
+                [
+                    jsonQueryExpression.JsonColumn,
+                    _sqlExpressionFactory.Constant("$"),
+                ],
+                nullable: true,
+                argumentsPropagateNullability:
+                [
+                    true,
+                    false,
+                ],
+                typeof(string),
+                jsonQueryExpression.JsonColumn.TypeMapping);
+
         var jsonTableExpression = new MySqlJsonTableExpression(
             alias: alias,
-            jsonExpression: jsonQueryExpression.JsonColumn,
+            jsonExpression: jsonExpression,
             path: jsonQueryExpression.Path,
             columnInfos: columns);
 

@@ -137,7 +137,7 @@ public sealed class MySqlJsonElementTypeMappingTests
     }
 
     /// <summary>Creates the provider mapping matching one supported JSON model type.</summary>
-    private static MySqlJsonTypeMapping CreateMapping(Type jsonType) => jsonType switch
+    private static RelationalTypeMapping CreateMapping(Type jsonType) => jsonType switch
     {
         _ when jsonType == typeof(JsonElement) => MySqlJsonTypeMapping.CreateJsonElementMapping(),
         _ when jsonType == typeof(JsonDocument) => MySqlJsonTypeMapping.CreateJsonDocumentMapping(),

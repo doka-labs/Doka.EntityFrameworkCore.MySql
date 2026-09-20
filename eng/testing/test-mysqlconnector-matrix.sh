@@ -76,23 +76,25 @@ resolved_version="$(jq -er --arg pattern "${resolved_pattern}" '
 # Unit tests cover driver-facing classification and version logic without a
 # server. Live contracts then prove pooling, transactions, faults, and telemetry
 # against both supported engine families.
-dotnet test "${unit_project}" \
+dotnet test --project "${unit_project}" \
     --configuration Release \
     --no-restore \
     --tl:off \
     --filter "FullyQualifiedName~MySqlExecutionStrategyTests\
 |FullyQualifiedName~MySqlTransientExceptionDetectorTests\
 |FullyQualifiedName~MySqlServerVersionTests" \
-    --logger "trx;LogFileName=driver-contract-unit.trx" \
-    --results-directory "${evidence_dir}/unit"
+    --results-directory "${evidence_dir}/unit" \
+    --report-xunit-trx \
+    --report-xunit-trx-filename driver-contract-unit.trx
 
-dotnet test "${integration_project}" \
+dotnet test --project "${integration_project}" \
     --configuration Release \
     --no-restore \
     --tl:off \
     --filter "Category=DriverContract" \
-    --logger "trx;LogFileName=driver-contract-live.trx" \
-    --results-directory "${evidence_dir}/live"
+    --results-directory "${evidence_dir}/live" \
+    --report-xunit-trx \
+    --report-xunit-trx-filename driver-contract-live.trx
 
 # The matrix row is not complete unless both containers were identified and
 # cleaned up. This readback also prevents a green test result from hiding a

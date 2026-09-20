@@ -1,1 +1,6 @@
 #nullable enable
+Doka.EntityFrameworkCore.MySql.MySqlJsonContainerTypeMapping
+Doka.EntityFrameworkCore.MySql.MySqlJsonContainerTypeMapping.MySqlJsonContainerTypeMapping(string! storeType) -> void
+override Doka.EntityFrameworkCore.MySql.MySqlJsonContainerTypeMapping.CustomizeDataReaderExpression(System.Linq.Expressions.Expression! expression) -> System.Linq.Expressions.Expression!
+override Doka.EntityFrameworkCore.MySql.MySqlJsonContainerTypeMapping.GetDataReaderMethod() -> System.Reflection.MethodInfo!
+static Doka.EntityFrameworkCore.MySql.MySqlJsonContainerTypeMapping.CreateUtf8Stream(string! json) -> System.IO.MemoryStream!

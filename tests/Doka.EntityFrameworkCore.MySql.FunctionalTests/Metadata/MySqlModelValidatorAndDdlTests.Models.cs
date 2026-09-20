@@ -289,4 +289,63 @@ public sealed partial class MySqlModelValidatorAndDdlTests
     {
         public int Id { get; set; }
     }
+
+    private sealed class JsonIndexContext<TScenario> : DbContext
+        where TScenario : class
+    {
+        public JsonIndexContext(
+            DbContextOptions<JsonIndexContext<TScenario>> options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<JsonIndexEntity>(entity =>
+            {
+                entity.HasKey(item => item.Id);
+                entity.ComplexProperty(item => item.Payload, complex => complex.ToJson());
+
+                if (typeof(TScenario) == typeof(JsonComplexPropertyScenario))
+                {
+                    entity.HasIndex(item => item.Payload);
+                }
+                else if (typeof(TScenario) == typeof(JsonScalarPathScenario))
+                {
+                    entity.HasIndex(["Payload.Code"]);
+                }
+                else
+                {
+                    entity
+                        .Property(item => item.PayloadCode)
+                        .HasColumnType("varchar(64)")
+                        .HasComputedColumnSql(
+                            "JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.Code'))",
+                            stored: false);
+                    entity.HasIndex(item => item.PayloadCode);
+                }
+
+            });
+        }
+    }
+
+    private sealed class JsonComplexPropertyScenario;
+
+    private sealed class JsonScalarPathScenario;
+
+    private sealed class JsonGeneratedColumnScenario;
+
+    private sealed class JsonIndexEntity
+    {
+        public int Id { get; set; }
+
+        public JsonIndexPayload Payload { get; set; } = new();
+
+        public string? PayloadCode { get; set; }
+    }
+
+    private sealed class JsonIndexPayload
+    {
+        public string? Code { get; set; }
+    }
 }

@@ -126,4 +126,70 @@ public sealed partial class MySqlModelValidatorAndDdlTests
         Assert.False(profile.Engine.Has(EngineCapability.NativeJsonType));
         Assert.Equal(ProviderSupportStatus.Emulated, profile.GetSupport(ProviderCapability.JsonColumns));
     }
+
+    /// <summary>
+    /// A direct index over a JSON complex value is rejected before invalid DDL
+    /// reaches the server.
+    /// </summary>
+    [Fact]
+    public void Direct_index_on_json_complex_property_is_rejected()
+    {
+        // Arrange
+        using var context = new JsonIndexContext<JsonComplexPropertyScenario>(
+            CreateOptions<JsonIndexContext<JsonComplexPropertyScenario>>());
+
+        // Act
+        var caught = Record.Exception(() => _ = context.Model);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(caught);
+
+        Assert.Contains("targets JSON-mapped member 'Payload'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("generated column", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A direct index over a scalar path inside JSON storage is rejected rather
+    /// than being emitted as an index over the container column.
+    /// </summary>
+    [Fact]
+    public void Direct_index_on_json_scalar_path_is_rejected()
+    {
+        // Arrange
+        using var context = new JsonIndexContext<JsonScalarPathScenario>(
+            CreateOptions<JsonIndexContext<JsonScalarPathScenario>>());
+
+        // Act
+        var caught = Record.Exception(() => _ = context.Model);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(caught);
+
+        Assert.Contains("targets JSON-mapped member 'Code'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("generated column", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An indexed scalar generated from JSON remains a supported, explicit
+    /// representation of the engine's indirect-indexing contract.
+    /// </summary>
+    [Fact]
+    public void Generated_scalar_index_for_json_path_is_accepted()
+    {
+        // Arrange
+        using var context = new JsonIndexContext<JsonGeneratedColumnScenario>(
+            CreateOptions<JsonIndexContext<JsonGeneratedColumnScenario>>());
+
+        // Act
+        var entityType = context.Model.FindEntityType(typeof(JsonIndexEntity));
+
+        // Assert
+        var index = Assert.Single(entityType!.GetIndexes());
+        var property = Assert.IsAssignableFrom<IProperty>(Assert.Single(index.Properties));
+
+        Assert.Equal(nameof(JsonIndexEntity.PayloadCode), property.Name);
+        Assert.Equal(
+            "JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.Code'))",
+            property.GetComputedColumnSql());
+    }
 }

@@ -11,13 +11,13 @@ internal sealed class IntegrationDatabaseTestAttribute : Attribute
 /// <summary>
 /// Owns the one server session shared by independently isolated test classes.
 /// </summary>
-internal sealed class IntegrationDatabaseFixture : IAsyncLifetime
+public sealed class IntegrationDatabaseFixture : IAsyncLifetime
 {
     private TestDatabaseSession? _session;
 
     /// <summary>Starts the selected server targets once for this test run.</summary>
-    /// <returns>A task that completes when all selected targets are ready.</returns>
-    public async Task InitializeAsync()
+    /// <returns>A value task that completes when all selected targets are ready.</returns>
+    public async ValueTask InitializeAsync()
     {
         var requests = IntegrationTestEnvironment
             .GetSelectedTargets()
@@ -43,8 +43,8 @@ internal sealed class IntegrationDatabaseFixture : IAsyncLifetime
     }
 
     /// <summary>Drops class databases and stops the test-owned servers.</summary>
-    /// <returns>A task that completes after cleanup.</returns>
-    public async Task DisposeAsync()
+    /// <returns>A value task that completes after cleanup.</returns>
+    public async ValueTask DisposeAsync()
     {
         if (_session is null)
         {

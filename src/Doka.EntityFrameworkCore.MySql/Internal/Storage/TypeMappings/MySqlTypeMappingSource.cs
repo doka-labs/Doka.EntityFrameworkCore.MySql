@@ -248,7 +248,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     }
 
     /// <inheritdoc />
-    public override CoreTypeMapping? FindMapping(
+    public override RelationalTypeMapping? FindMapping(
         IElementType elementType
     )
     {
@@ -277,7 +277,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
 
             ValidateMapping(mapping, property: null);
 
-            return mapping;
+            return (RelationalTypeMapping?)mapping;
         }
 
         return base.FindMapping(elementType);

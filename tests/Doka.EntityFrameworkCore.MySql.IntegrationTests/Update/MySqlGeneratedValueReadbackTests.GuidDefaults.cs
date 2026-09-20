@@ -25,10 +25,13 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
     /// <summary>Replaces temporary keys with server UUIDs and propagates each key to its own dependent.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(MariaDbGuidDefaultKeyCases))]
     public async Task Guid_sql_default_keys_use_returning_and_propagate_correlated_foreign_keys(
         string targetName,
@@ -101,7 +104,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     }
 
     /// <summary>Rejects actual unknown SQL-default keys on MySQL before any INSERT reaches the server.</summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MySql97)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MySql97 })]
     [MemberData(nameof(MySqlGuidDefaultKeyCases))]
     public async Task Guid_sql_default_unknown_keys_are_rejected_before_mysql_insert(
         string targetName,

@@ -1,7 +1,6 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.BulkUpdates;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.BulkUpdates;
 
@@ -39,10 +38,13 @@ public sealed class NorthwindBulkUpdatesMySqlTest
             .CountAsync(
                 customer => EF.Functions.Like(
                     customer.CustomerID,
-                    "F%"));
+                    "F%"),
+                TestContext.Current.CancellationToken);
 
         var orderCount = await context.Orders
-            .CountAsync(order => order.OrderID > 5);
+            .CountAsync(
+                order => order.OrderID > 5,
+                TestContext.Current.CancellationToken);
 
         var rows = await (
                 from customer in context.Customers
@@ -54,7 +56,7 @@ public sealed class NorthwindBulkUpdatesMySqlTest
                     customer.CustomerID,
                     order.OrderID,
                 })
-            .ToListAsync();
+            .ToListAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(customerCount * orderCount, rows.Count);
     }
@@ -74,7 +76,8 @@ public sealed class NorthwindBulkUpdatesMySqlTest
             .CountAsync(
                 customer => EF.Functions.Like(
                     customer.CustomerID,
-                    "F%"));
+                    "F%"),
+                TestContext.Current.CancellationToken);
 
         var rows = await (
                 from customer in context.Customers
@@ -89,7 +92,7 @@ public sealed class NorthwindBulkUpdatesMySqlTest
                     customer.CustomerID,
                     OrderId = (int?)order!.OrderID,
                 })
-            .ToListAsync();
+            .ToListAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedCount, rows.Count);
         Assert.All(rows, row => Assert.Null(row.OrderId));
@@ -98,6 +101,7 @@ public sealed class NorthwindBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped grouped delete projection.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-28525-BULK-ENTITY-PROJECTION")]
     [InlineData(false)]
     [InlineData(true)]
@@ -108,6 +112,7 @@ public sealed class NorthwindBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped grouped scalar delete predicate.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-26753-GROUPING-FIRST-PROPERTY")]
     [InlineData(false)]
     [InlineData(true)]
@@ -118,6 +123,7 @@ public sealed class NorthwindBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped grouped scalar update predicate.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-26753-GROUPING-FIRST-PROPERTY")]
     [InlineData(false)]
     [InlineData(true)]
@@ -200,7 +206,7 @@ public sealed class NonSharedModelBulkUpdatesMySqlTest
     {
     }
 
-    protected override ITestStoreFactory TestStoreFactory =>
+    protected override ITestStoreFactory NonSharedTestStoreFactory =>
         MySqlTestStoreFactory.Instance;
 }
 
@@ -225,6 +231,7 @@ public sealed class TpcFiltersInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped grouped delete projection.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-28525-BULK-ENTITY-PROJECTION")]
     [InlineData(false)]
     [InlineData(true)]
@@ -235,6 +242,7 @@ public sealed class TpcFiltersInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped grouped scalar delete predicate.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-26753-GROUPING-FIRST-PROPERTY")]
     [InlineData(false)]
     [InlineData(true)]
@@ -245,6 +253,7 @@ public sealed class TpcFiltersInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped hierarchy update subquery.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-TPC-NONLEAF-BULK-UPDATE")]
     [InlineData(false)]
     [InlineData(true)]
@@ -289,6 +298,7 @@ public sealed class TpcInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped grouped delete projection.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-28525-BULK-ENTITY-PROJECTION")]
     [InlineData(false)]
     [InlineData(true)]
@@ -299,6 +309,7 @@ public sealed class TpcInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped grouped scalar delete predicate.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-26753-GROUPING-FIRST-PROPERTY")]
     [InlineData(false)]
     [InlineData(true)]
@@ -309,6 +320,7 @@ public sealed class TpcInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped hierarchy update subquery.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-TPC-NONLEAF-BULK-UPDATE")]
     [InlineData(false)]
     [InlineData(true)]
@@ -353,6 +365,7 @@ public sealed class TphInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped grouped delete projection.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-28525-BULK-ENTITY-PROJECTION")]
     [InlineData(false)]
     [InlineData(true)]
@@ -363,6 +376,7 @@ public sealed class TphInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped grouped scalar delete predicate.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-26753-GROUPING-FIRST-PROPERTY")]
     [InlineData(false)]
     [InlineData(true)]
@@ -374,6 +388,7 @@ public sealed class TphInheritanceBulkUpdatesMySqlTest
     /// Executes the grouped self-referencing delete where immediate foreign-key
     /// enforcement permits the statement's complete target set.
     /// </summary>
+    [Theory]
     [SpecEngineLimitationTheory(
         "MYSQL-MARIADB-IMMEDIATE-SELF-FK-DELETE",
         "mysql84",
@@ -387,7 +402,7 @@ public sealed class TphInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped hierarchy update subquery.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public override Task Update_where_hierarchy_subquery(
@@ -426,6 +441,7 @@ public sealed class TptFiltersInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped grouped delete projection.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-28525-BULK-ENTITY-PROJECTION")]
     [InlineData(false)]
     [InlineData(true)]
@@ -436,6 +452,7 @@ public sealed class TptFiltersInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped grouped scalar delete predicate.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-26753-GROUPING-FIRST-PROPERTY")]
     [InlineData(false)]
     [InlineData(true)]
@@ -446,7 +463,7 @@ public sealed class TptFiltersInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped hierarchy update subquery.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public override Task Update_where_hierarchy_subquery(
@@ -490,7 +507,7 @@ public sealed class TptInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates both upstream-skipped hierarchy delete predicates.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public override Task Delete_where_using_hierarchy(
@@ -500,7 +517,7 @@ public sealed class TptInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped derived hierarchy delete predicate.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public override Task Delete_where_using_hierarchy_derived(
@@ -510,6 +527,7 @@ public sealed class TptInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped grouped delete projection.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-28525-BULK-ENTITY-PROJECTION")]
     [InlineData(false)]
     [InlineData(true)]
@@ -520,6 +538,7 @@ public sealed class TptInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped grouped scalar delete predicate.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-26753-GROUPING-FIRST-PROPERTY")]
     [InlineData(false)]
     [InlineData(true)]
@@ -530,7 +549,7 @@ public sealed class TptInheritanceBulkUpdatesMySqlTest
     /// <summary>
     /// Activates the upstream-skipped hierarchy update subquery.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public override Task Update_where_hierarchy_subquery(

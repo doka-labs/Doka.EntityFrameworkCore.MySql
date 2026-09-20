@@ -1,10 +1,11 @@
 # Complex Types
 
-The provider implements the provider-owned portion of the EF Core 10
+The provider implements the provider-owned portion of the EF Core 11 RC.1
 relational complex-type contract on every supported LTS target.
 Complex types use the standard EF Core model API; no provider-specific opt-in
 or alternative change-tracking model is required. "Supported" below always
-means a CLR-backed shape that EF Core 10 can represent and track.
+means a CLR-backed shape that the pinned EF Core release candidate can
+represent and track.
 
 ## Support Matrix
 
@@ -14,19 +15,20 @@ means a CLR-backed shape that EF Core 10 can represent and track.
 | Nested CLR-backed complex properties | Supported | None |
 | Query, projection, materialization, updates, and tracking for EF Core-valid shapes | Supported | None |
 | EF Core-valid complex types mapped to JSON | Supported | None |
-| Reference-type complex collections mapped to JSON | Supported within the EF Core 10 collection boundaries below | EF Core |
+| Reference-type complex collections mapped to JSON | Supported within the EF Core 11 collection boundaries below | EF Core |
 | Compiled models and precompiled `JSON_TABLE` expressions | Supported | None |
-| Complex or JSON properties combined with TPT / TPC | Unavailable in EF Core 10 | EF Core |
-| Nested complex members used as keys or indexes | Unavailable in EF Core 10 | EF Core |
-| Selected struct, readonly-struct, record, and array complex-collection tracking shapes | Unavailable in EF Core 10 | EF Core |
-| Complex-collection store values through affected `EntityEntry` APIs | Unavailable in EF Core 10 | EF Core |
-| Nested complex members through affected concurrency and database-value APIs | Unavailable in EF Core 10 | EF Core |
-| Shadow complex properties and table-splitting shapes that require them | Unavailable in EF Core 10 | EF Core |
+| Complex or JSON properties combined with TPH / TPT / TPC | Supported | None |
+| Inheritance table splitting for EF Core-valid CLR-backed shapes | Supported | None |
+| Nested flattened complex members used as keys or indexes | Supported | None |
+| Direct indexes over JSON complex values or JSON member paths | Rejected; index an extracted generated scalar column | Database engine |
+| Selected struct, readonly-struct, record, and array complex-collection tracking shapes | Unavailable in EF Core 11 RC.1 | EF Core |
+| Complex-collection store values through affected `EntityEntry` APIs | Unavailable in EF Core 11 RC.1 | EF Core |
+| Nested complex members through affected concurrency and database-value APIs | Unavailable in EF Core 11 RC.1 | EF Core |
+| Shadow complex properties and table-splitting shapes that require them | Unavailable in EF Core 11 RC.1 | EF Core |
 
-The unavailable rows are exact EF Core 10 framework boundaries. They are not
-database-engine limitations and do not represent missing provider work. EF
-Core 11 adds the TPT / TPC combination and nested key or index support. The
-other shapes remain governed by the upstream issues linked from
+The unavailable rows are exact EF Core 11 RC.1 framework boundaries. They are
+not database-engine limitations and do not represent missing provider work.
+The remaining shapes are governed by the upstream issues linked from
 [External Engine and EF Core Limitations](limitations.md).
 
 ## Configure Complex Properties
@@ -64,6 +66,36 @@ model contract. Nested scalar access, document updates, materialization, and
 EF Core-valid reference-type complex collections remain in the normal EF Core
 query and update pipelines.
 
+## Index JSON Values Indirectly
+
+MySQL and MariaDB do not provide a portable direct index over a JSON document
+or over EF Core's conceptual JSON member path. Doka rejects those index shapes
+during model validation, before migration SQL reaches the server.
+
+Map the value to a scalar generated column and index that property instead:
+
+```csharp
+modelBuilder.Entity<Customer>(entity =>
+{
+    entity.ComplexProperty(
+        customer => customer.Address,
+        complex => complex.ToJson());
+
+    entity.Property<string?>("PostalCodeIndex")
+        .HasColumnType("varchar(32)")
+        .HasComputedColumnSql(
+            "JSON_UNQUOTE(JSON_EXTRACT(`Address`, '$.PostalCode'))",
+            stored: false);
+
+    entity.HasIndex("PostalCodeIndex");
+});
+```
+
+The generated scalar makes the indexed type, length, collation, and JSON path
+explicit. Both MySQL and MariaDB support indexes over generated columns; their
+optimizers can then use that scalar index without treating the complete JSON
+document as an index key.
+
 ## JSON Construction Functions
 
 `EF.Functions.JsonArray(...)` and `EF.Functions.JsonObject(...)` translate
@@ -84,20 +116,20 @@ the state as `INVISIBLE` through `INFORMATION_SCHEMA.COLUMNS.EXTRA`.
 
 ## Required and Optional Values
 
-EF Core 10 supports optional complex properties when the complex type contains
+EF Core 11 supports optional complex properties when the complex type contains
 at least one required member. A fully optional complex value has no stable
 relational discriminator from which EF Core can decide whether an instance
 exists, so EF Core rejects that model before provider SQL generation.
 
 Collections of complex reference types are supported when mapped to JSON and
 when the requested tracking and property-value operation is part of the EF
-Core 10 contract. Selected struct, readonly-struct, record, and array
+Core 11 contract. Selected struct, readonly-struct, record, and array
 collection shapes remain upstream limitations. The affected `EntityEntry`
 store-value APIs and nested database-value aggregation also remain upstream
 limitations. Use a CLR-backed reference element and the normal query and
 update pipeline for the portable contract on the current framework line.
 
-Complex types cannot provide shadow properties on the affected EF Core 10
+Complex types cannot provide shadow properties on the affected EF Core 11
 model shapes. This also prevents table-splitting configurations that require a
 shared complex column to be represented through a shadow complex property.
 Those models fail EF Core validation before the provider can generate SQL.
@@ -129,15 +161,16 @@ in [External Engine and EF Core Limitations](limitations.md).
 
 ## Primary Sources
 
-Unless noted otherwise, sources were retrieved on 2026-08-05.
+Unless noted otherwise, sources were retrieved on 2026-09-19.
 
-- [EF Core 10 complex-type improvements](https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-10.0/whatsnew)
-- [EF Core 10 breaking changes](https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-10.0/breaking-changes)
 - [EF Core 11 complex-type improvements](https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-11.0/whatsnew)
+- [EF Core 11 RC.1 relational specification source](https://github.com/dotnet/efcore/tree/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/test/EFCore.Relational.Specification.Tests)
 - [EF Core JSON columns](https://learn.microsoft.com/en-us/ef/core/modeling/json)
 - [EF Core NativeAOT and precompiled queries](https://learn.microsoft.com/en-us/ef/core/performance/nativeaot-and-precompiled-queries)
 - [MySQL 8.4 JSON data type](https://dev.mysql.com/doc/refman/8.4/en/json.html)
 - [MariaDB JSON data type](https://mariadb.com/docs/server/reference/data-types/string-data-types/json)
+- [MySQL 8.4 generated-column indexes](https://dev.mysql.com/doc/refman/8.4/en/generated-column-index-optimizations.html)
+- [MariaDB generated columns](https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/generated-columns)
 - [MySQL 8.4 JSON creation functions](https://dev.mysql.com/doc/refman/8.4/en/json-creation-functions.html), retrieved 2026-08-18
 - [MariaDB JSON_ARRAY](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_array), retrieved 2026-08-18
 - [MariaDB JSON_OBJECT](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_object), retrieved 2026-08-18

@@ -17,7 +17,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from eng.release import evidence as release_evidence, lines
-from eng.tests.test_release_lines import initial_policy
+from eng.tests.test_release_lines import ga_specification_baseline, initial_policy
 
 
 def release_line(source_ref: str = "refs/heads/main") -> dict[str, object]:
@@ -50,8 +50,6 @@ class ReleaseEvidenceTests(unittest.TestCase):
         "GITHUB_REF": "",
         "GITHUB_SHA": "",
     }
-    _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-
     def setUp(self) -> None:
         """Create an untagged repository with an ignored evidence fixture."""
         self._temporary_directory = tempfile.TemporaryDirectory(
@@ -72,9 +70,21 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
         # Evidence remains ignored so negative tests can mutate it without
         # turning an artifact-integrity failure into a source-dirty failure.
-        # The host may also carry preview SDKs. Release fixtures must inherit
-        # the repository-approved stable SDK rather than ambient tool selection.
-        dotnet_sdk = release_evidence.approved_dotnet_sdk(self._REPOSITORY_ROOT)
+        # WHY: These are historical GA-10 scenarios even on an RC-11 checkout.
+        # Simulate only their SDK observation; Git identity probes remain real.
+        dotnet_sdk = "10.0.402"
+        original_run_command = release_evidence.run_command
+
+        def run_fixture_command(*arguments: str, cwd: Path | None = None) -> str:
+            """Supply the owned fixture's SDK while forwarding every other probe."""
+            if arguments == ("dotnet", "--version") and cwd is not None and cwd.resolve() == self.repo.resolve():
+                return dotnet_sdk
+
+            return original_run_command(*arguments, cwd=cwd)
+
+        sdk_probe = mock.patch.object(release_evidence, "run_command", side_effect=run_fixture_command)
+        sdk_probe.start()
+        self.addCleanup(sdk_probe.stop)
         (self.repo / ".gitignore").write_text("/evidence/\n", encoding="ascii")
         (self.repo / "global.json").write_text(
             json.dumps(
@@ -99,11 +109,11 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "[10.0.8, 10.1.0)</DokaEfCoreVersion></PropertyGroup></Project>\n",
             encoding="ascii",
         )
-        # WHY: GA source qualification consumes its own reviewed patch baseline;
-        # the isolated repository must carry that source contract too.
+        # WHY: Keep the reviewed GA-10 versions independent of the active branch's
+        # specification inventory; full suite validation belongs to its own gate.
         baseline = self.repo / lines.SPECIFICATION_BASELINE_PATH
         baseline.parent.mkdir(parents=True)
-        baseline.write_bytes((self._REPOSITORY_ROOT / lines.SPECIFICATION_BASELINE_PATH).read_bytes())
+        baseline.write_text(json.dumps(ga_specification_baseline()), encoding="ascii")
         self._git("add", ".gitignore", "global.json", "source.txt", "Directory.Build.props",
                   "Directory.Packages.props", str(lines.SPECIFICATION_BASELINE_PATH))
         self._git("commit", "-m", "test: seed release source")
@@ -453,6 +463,26 @@ class ReleaseEvidenceTests(unittest.TestCase):
             release_evidence.EvidenceError, "disable .NET SDK roll-forward"
         ):
             release_evidence.approved_dotnet_sdk(self.repo)
+
+    def test_generate_rejects_a_different_observed_sdk(self) -> None:
+        """Keep fixture-local SDK simulation subject to the exact identity guard."""
+        # Arrange
+        original_probe = release_evidence.run_command
+
+        def wrong_sdk(*arguments: str, cwd: Path | None = None) -> str:
+            """Change only the owned fixture's SDK observation."""
+            if arguments == ("dotnet", "--version") and cwd is not None and cwd.resolve() == self.repo.resolve():
+                return "10.0.999"
+
+            return original_probe(*arguments, cwd=cwd)
+
+        # Act
+        with mock.patch.object(release_evidence, "run_command", side_effect=wrong_sdk):
+            with self.assertRaises(release_evidence.EvidenceError) as failure:
+                self._generate()
+
+        # Assert
+        self.assertIn("active .NET SDK 10.0.999 does not match the approved SDK 10.0.402", str(failure.exception))
 
     def test_sdk_contract_rejects_prerelease_version(self) -> None:
         """Reject an exact SDK identity that is not a stable release."""

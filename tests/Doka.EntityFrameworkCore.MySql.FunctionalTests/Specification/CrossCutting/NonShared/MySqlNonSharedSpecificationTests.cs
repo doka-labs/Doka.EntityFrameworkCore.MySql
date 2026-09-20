@@ -3,20 +3,6 @@ using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.NonShared;
 
 /// <summary>
-/// Exercises ad-hoc many-to-many models whose shape is built independently per test.
-/// </summary>
-[Trait("Category", "Spec")]
-[Collection(FunctionalDatabaseTestGroup.Name)]
-public sealed class AdHocManyToManyQueryMySqlTest : AdHocManyToManyQueryRelationalTestBase
-{
-    public AdHocManyToManyQueryMySqlTest(
-        NonSharedFixture fixture
-    ) : base(fixture) { }
-
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
-}
-
-/// <summary>
 /// Runs relational owned-entity queries over independently constructed models.
 /// </summary>
 [Trait("Category", "Spec")]
@@ -27,7 +13,7 @@ public sealed class OwnedEntityQueryMySqlTest : OwnedEntityQueryRelationalTestBa
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 
     /// <summary>
     /// Verifies an owned collection projection with deterministic relational ordering.
@@ -36,9 +22,9 @@ public sealed class OwnedEntityQueryMySqlTest : OwnedEntityQueryRelationalTestBa
         bool async
     )
     {
-        var contextFactory = await InitializeAsync<Context18582>(seed: context => context.SeedAsync());
+        var contextFactory = await InitializeNonSharedTest<Context18582>(seed: context => context.SeedAsync());
 
-        using var context = contextFactory.CreateContext();
+        using var context = contextFactory.CreateDbContext();
 
         // The upstream assertion is positional, while SQL without ORDER BY has
         // no row-order contract. Preserve the asserted seed order explicitly.
@@ -68,9 +54,9 @@ public sealed class OwnedEntityQueryMySqlTest : OwnedEntityQueryRelationalTestBa
     /// </summary>
     public override async Task Correlated_subquery_with_owned_navigation_being_compared_to_null_works()
     {
-        var contextFactory = await InitializeAsync<Context13157>(seed: context => context.SeedAsync());
+        var contextFactory = await InitializeNonSharedTest<Context13157>(seed: context => context.SeedAsync());
 
-        using var context = contextFactory.CreateContext();
+        using var context = contextFactory.CreateDbContext();
 
         // The upstream test asserts collection positions but does not order
         // its relational query. Order by the child key so the assertion keeps
@@ -119,5 +105,5 @@ public sealed class SharedTypeQueryMySqlTest : SharedTypeQueryRelationalTestBase
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 }

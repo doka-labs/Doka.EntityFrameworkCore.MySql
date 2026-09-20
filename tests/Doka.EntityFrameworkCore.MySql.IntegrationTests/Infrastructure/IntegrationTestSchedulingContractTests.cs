@@ -42,14 +42,17 @@ public sealed class IntegrationTestSchedulingContractTests
         var assembly = typeof(IntegrationTestSchedulingContractTests).Assembly;
 
         // Act
-        var behavior = assembly.GetCustomAttribute<CollectionBehaviorAttribute>();
+        var behavior = assembly.GetCustomAttribute<Xunit.v3.ParallelizationAttribute>();
+        var fixture = assembly.GetCustomAttributes<AssemblyFixtureAttribute>()
+            .Single();
         var ordinaryCollection = typeof(MySqlPoolAndFailoverContractTests)
             .GetCustomAttribute<CollectionAttribute>();
 
         // Assert
         Assert.NotNull(behavior);
-        Assert.False(behavior.DisableTestParallelization);
-        Assert.Equal(4, behavior.MaxParallelThreads);
+        Assert.Equal(Xunit.Sdk.ParallelMode.Collections, behavior.GetMode());
+        Assert.Equal(4, behavior.GetMaxThreads());
+        Assert.Equal(typeof(IntegrationDatabaseFixture), fixture.AssemblyFixtureType);
         Assert.Null(ordinaryCollection);
     }
 
