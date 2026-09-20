@@ -33,7 +33,7 @@ public sealed class MySqlTypeExtensionsTests
     public void UnwrapNullableType_rejects_null()
     {
         // Arrange
-        Action act = () => MySqlTypeExtensions.UnwrapNullableType(null!);
+        static void act() => MySqlTypeExtensions.UnwrapNullableType(null!);
 
         // Act
         var recordedException = Record.Exception(act);

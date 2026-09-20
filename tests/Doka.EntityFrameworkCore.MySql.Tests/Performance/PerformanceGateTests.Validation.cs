@@ -161,7 +161,7 @@ public sealed partial class PerformanceGateTests
                 PerformanceGateFixture.ControlObservation("Baseline", 0),
             ]);
 
-        Action act = () => fixture.Evaluate();
+        void act() => fixture.Evaluate();
 
         // Act
         var recordedException = Record.Exception(act);

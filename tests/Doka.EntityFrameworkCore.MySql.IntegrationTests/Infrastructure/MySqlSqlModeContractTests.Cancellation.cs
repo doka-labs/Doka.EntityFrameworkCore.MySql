@@ -135,7 +135,7 @@ public sealed partial class MySqlSqlModeContractTests
             await DatabaseLockProbeCleanup
                 .CompleteLockProbeAsync(
                     cancellation,
-                    () => blocker.CloseAsync(),
+                    blocker.CloseAsync,
                     executionObserved
                         ? Task.CompletedTask
                         : execution ?? Task.CompletedTask,

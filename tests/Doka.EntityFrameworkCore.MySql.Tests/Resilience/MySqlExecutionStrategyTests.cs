@@ -106,15 +106,14 @@ public sealed class MySqlExecutionStrategyTests
         // Arrange
         using var context = new ExecutionStrategyContext(CreateOptions(enableRetry: true));
         var dependencies = context.GetService<ExecutionStrategyDependencies>();
-        var singletonOptions = context
-            .GetService<IEnumerable<ISingletonOptions>>()
-            .OfType<MySqlSingletonOptions>()
-            .Single();
+        var retryOptions = Assert.IsType<MySqlRetryOptions>(
+            dependencies.Options.FindExtension<MySqlOptionsExtension>()?.RetryOptions);
 
         // Act
         var exception = Record.Exception(() => new MySqlExecutionStrategy(
             dependencies,
-            singletonOptions,
+                retryOptions,
+                EngineFamily.MySql,
             transientExceptionDetector: null!));
 
         // Assert

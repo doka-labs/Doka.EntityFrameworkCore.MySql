@@ -1,8 +1,6 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
-/// <summary>
-/// Applies temporal and application-time metadata to physical query sources.
-/// </summary>
+/// <summary>Applies temporal and application-time metadata to physical query sources.</summary>
 internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
 {
     private ShapedQueryExpression TranslateApplicationTimeQueryRoot(
@@ -87,8 +85,12 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
             return tableExpression
                 .AddAnnotation(MySqlAnnotationNames.ApplicationTimeOperation, true)
                 .AddAnnotation(MySqlAnnotationNames.ApplicationTimePeriodName, metadata.PeriodName)
-                .AddAnnotation(MySqlAnnotationNames.ApplicationTimePeriodStartColumn, metadata.PeriodStartColumn)
-                .AddAnnotation(MySqlAnnotationNames.ApplicationTimePeriodEndColumn, metadata.PeriodEndColumn)
+                .AddAnnotation(
+                    MySqlAnnotationNames.ApplicationTimePeriodStartColumn,
+                    metadata.PeriodStartColumn)
+                .AddAnnotation(
+                    MySqlAnnotationNames.ApplicationTimePeriodEndColumn,
+                    metadata.PeriodEndColumn)
                 .AddAnnotation(MySqlAnnotationNames.ApplicationTimeRangeStart, _queryRoot.From)
                 .AddAnnotation(MySqlAnnotationNames.ApplicationTimeRangeEnd, _queryRoot.To);
         }
@@ -105,7 +107,8 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
             + "Microsoft.EntityFrameworkCore.Relational";
 
         [DynamicallyAccessedMembers(
-            DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)]
+            DynamicallyAccessedMemberTypes.PublicConstructors
+            | DynamicallyAccessedMemberTypes.PublicProperties)]
         private static readonly Type s_tpcTablesExpressionType =
             Type.GetType(TpcTablesExpressionTypeName, throwOnError: false)
             ?? throw new InvalidOperationException(
@@ -126,7 +129,8 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
         private static readonly PropertyInfo s_tpcSelectExpressionsProperty =
             GetRequiredTpcProperty("SelectExpressions");
 
-        private static readonly PropertyInfo s_tpcEntityTypeProperty = GetRequiredTpcProperty("EntityType");
+        private static readonly PropertyInfo s_tpcEntityTypeProperty =
+            GetRequiredTpcProperty("EntityType");
 
         private static readonly PropertyInfo s_tpcDiscriminatorColumnProperty =
             GetRequiredTpcProperty("DiscriminatorColumn");
@@ -174,8 +178,12 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
 
             var annotatedTable = tableExpression
                 .AddAnnotation(MySqlAnnotationNames.TemporalOperation, _queryRoot.Operation)
-                .AddAnnotation(MySqlAnnotationNames.TemporalPeriodStartColumn, temporalMetadata.PeriodStartColumn)
-                .AddAnnotation(MySqlAnnotationNames.TemporalPeriodEndColumn, temporalMetadata.PeriodEndColumn);
+                .AddAnnotation(
+                    MySqlAnnotationNames.TemporalPeriodStartColumn,
+                    temporalMetadata.PeriodStartColumn)
+                .AddAnnotation(
+                    MySqlAnnotationNames.TemporalPeriodEndColumn,
+                    temporalMetadata.PeriodEndColumn);
 
             if (temporalMetadata.HistoryTable is not null)
             {
@@ -228,7 +236,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
             }
 
             // TpcTablesExpression intentionally hides its union branches from ordinary
-            // expression visitors. EF Core 10 exposes that temporary shape only through
+            // expression visitors. EF Core exposes that temporary shape only through
             // an internal namespace, so the bridge is resolved reflectively and fails fast
             // when the pinned EF patch changes. This keeps provider code free of an EF1001
             // suppression while still applying each branch's own temporal table metadata.

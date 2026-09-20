@@ -18,11 +18,11 @@ public sealed class MySqlNetTopologySuiteTranslationTests
     {
         get
         {
-            foreach (var version in s_legacyMariaDbVersions)
+            foreach (var (major, minor) in s_legacyMariaDbVersions)
             {
                 foreach (var operation in s_unavailableFunctions)
                 {
-                    yield return [version.Major, version.Minor, operation];
+                    yield return [major, minor, operation];
                 }
             }
 
@@ -406,5 +406,59 @@ public sealed class MySqlNetTopologySuiteTranslationTests
         public Geometry? OptionalShape { get; set; }
 
         public Geometry? OptionalRegion { get; set; }
+    }
+
+    /// <summary>
+    /// Preserves MySQL's native <c>ST_IsSimple</c> null propagation without an
+    /// unnecessary provider guard.
+    /// </summary>
+    [Fact]
+    public void MySql_is_simple_uses_native_null_propagation()
+    {
+        // Arrange
+        using var context =
+            new SpatialTranslationContext(CreateOptions(MySqlServerVersion.MySql(new Version(8, 4, 0))));
+
+        // Act
+        var sql = context
+            .Entities
+            .Select(entity => (bool?)entity.OptionalShape!.IsSimple)
+            .ToQueryString();
+
+        // Assert
+        Assert.Contains("ST_IsSimple(", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("THEN NULL", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Preserves the explicit null guard required by every supported MariaDB
+    /// line after EF's relational nullability processing.
+    /// </summary>
+    /// <param name="major">The supported MariaDB major version.</param>
+    /// <param name="minor">The supported MariaDB minor version.</param>
+    [Theory]
+    [InlineData(10, 11)]
+    [InlineData(11, 4)]
+    [InlineData(11, 8)]
+    [InlineData(12, 3)]
+    public void MariaDb_is_simple_preserves_null_guard_through_sql_processing(
+        int major,
+        int minor
+    )
+    {
+        // Arrange
+        using var context =
+            new SpatialTranslationContext(CreateOptions(MySqlServerVersion.MariaDb(new Version(major, minor, 0))));
+
+        // Act
+        var sql = context
+            .Entities
+            .Select(entity => (bool?)entity.OptionalShape!.IsSimple)
+            .ToQueryString();
+
+        // Assert
+        Assert.Contains("`OptionalShape` IS NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("THEN NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("ST_IsSimple(", sql, StringComparison.Ordinal);
     }
 }

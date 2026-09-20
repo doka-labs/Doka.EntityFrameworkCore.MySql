@@ -5,6 +5,14 @@ path by the task you need to complete. Architecture records explain why a
 decision exists, while feature guides and runbooks explain supported behavior
 and operational procedures.
 
+This checkout prepares the isolated `11.0.0-rc.1` line for .NET 11 and the
+exact EF Core release candidate pinned in `Directory.Packages.props`.
+See the [preview changelog](../CHANGELOG.md#unreleased),
+[asynchronous contributor policy](../CONTRIBUTING.md#code-style) and
+[shared qualification overview](operations/workflow-overview.md).
+
+The following notes describe the stable .NET 10 line.
+
 For the 10.7.0 stable preparation, see the [changelog](../CHANGELOG.md#1070---2026-11-18)
 and [shared qualification overview](operations/workflow-overview.md). This release
 adds application text defaults, locking reads, scoped ordinary/recursive CTEs,

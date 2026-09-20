@@ -1,18 +1,18 @@
 # Doka.Caching.MySql
 
-`Doka.Caching.MySql` provides the .NET 10 `IDistributedCache` and
+`Doka.Caching.MySql` provides the .NET 11 `IDistributedCache` and
 `IBufferDistributedCache` contracts for MySQL and MariaDB through
 MySqlConnector.
 
 It is independent of Entity Framework Core: no provider package or `DbContext`
-is required. The package targets .NET 10.
+is required. The 11.x package line targets .NET 11.
 
 ## Install
 
-Install the latest stable package:
+Install the exact release candidate represented by this branch:
 
 ```bash
-dotnet package add Doka.Caching.MySql
+dotnet package add Doka.Caching.MySql --version 11.0.0-rc.1
 ```
 
 This package is available from 10.1.0; it is not part of the 10.0.0 release.

@@ -74,7 +74,7 @@ public sealed class MySqlCacheOptionsTests
         using var provider = MySqlCacheTestFactory.CreateProvider(options =>
             options.ConnectionString = connectionString!);
 
-        Func<object?> act = () =>
+        object? act() =>
             provider.GetRequiredService<IOptions<MySqlCacheOptions>>()
                 .Value;
 
@@ -122,7 +122,7 @@ public sealed class MySqlCacheOptionsTests
             "Server=127.0.0.1;Password=private-source-password;AutoEnlist=false");
 
         await using var provider = MySqlCacheTestFactory.CreateProvider(options => options.DataSource = dataSource);
-        Func<object?> act = () =>
+        object? act() =>
             provider.GetRequiredService<IOptions<MySqlCacheOptions>>()
                 .Value;
 
@@ -153,13 +153,13 @@ public sealed class MySqlCacheOptionsTests
             options.DataSource = dataSource;
         });
 
-        var act = () =>
+        Task act() =>
             provider
-                .GetRequiredService<IStartupValidator>()
-                .Validate();
+                .GetRequiredService<IAsyncStartupValidator>()
+                .ValidateAsync(TestContext.Current.CancellationToken);
 
         // Act
-        var recordedException = Record.Exception(act);
+        var recordedException = await Record.ExceptionAsync(act);
 
         // Assert
         var exception = Assert.IsType<OptionsValidationException>(recordedException);
@@ -249,15 +249,15 @@ public sealed class MySqlCacheOptionsTests
     /// Verifies a very long cleanup interval does not overflow scheduling during resolution.
     /// </summary>
     [Fact]
-    public void Maximum_cleanup_interval_is_accepted_without_timestamp_overflow()
+    public async Task Maximum_cleanup_interval_is_accepted_without_timestamp_overflow()
     {
         // Arrange
         using var provider = MySqlCacheTestFactory.CreateProvider(options =>
             options.ExpiredItemsDeletionInterval = TimeSpan.MaxValue);
 
-        provider
-            .GetRequiredService<IStartupValidator>()
-            .Validate();
+        await provider
+            .GetRequiredService<IAsyncStartupValidator>()
+            .ValidateAsync(TestContext.Current.CancellationToken);
 
         // Act
         var actual = provider.GetRequiredService<IDistributedCache>();
@@ -350,7 +350,7 @@ public sealed class MySqlCacheOptionsTests
             ? identifier!
             : "entries";
 
-        Action act = () => MySqlCacheSchema.GetCreateScript(schemaName, tableName);
+        void act() => MySqlCacheSchema.GetCreateScript(schemaName, tableName);
 
         // Act
         var recordedException = Record.Exception(act);

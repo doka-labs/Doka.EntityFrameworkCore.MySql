@@ -15,7 +15,7 @@ public sealed class NonSharedModelUpdatesMySqlTest : NonSharedModelUpdatesTestBa
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 
     /// <inheritdoc />
     public override async Task DbUpdateException_Entries_is_correct_with_multiple_inserts(
@@ -31,7 +31,7 @@ public sealed class NonSharedModelUpdatesMySqlTest : NonSharedModelUpdatesTestBa
             return;
         }
 
-        var contextFactory = await InitializeAsync<DbContext>(
+        var contextFactory = await InitializeNonSharedTest<DbContext>(
             onModelCreating: modelBuilder => modelBuilder
                 .Entity<Blog>()
                 .HasIndex(blog => blog.Name)

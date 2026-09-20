@@ -155,7 +155,7 @@ public sealed class MySqlServerVersionTests
     )
     {
         // Arrange
-        Action act = () => MySqlServerVersion.Parse(rawServerVersion);
+        void act() => MySqlServerVersion.Parse(rawServerVersion);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -173,7 +173,7 @@ public sealed class MySqlServerVersionTests
     {
         // Arrange
         using var connection = new StubDbConnection(string.Empty);
-        Action act = () => MySqlServerVersion.AutoDetect(connection);
+        void act() => MySqlServerVersion.AutoDetect(connection);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -198,11 +198,11 @@ public sealed class MySqlServerVersionTests
     {
         // Arrange
         await using var connection = new MySqlConnection();
-        Func<object?> act1 = () => useExplicitCompatibilityMode
+        object? act1() => useExplicitCompatibilityMode
             ? MySqlServerVersion.AutoDetect(connection, MySqlServerVersionCompatibilityMode.AllowUnsupported)
             : MySqlServerVersion.AutoDetect(connection);
 
-        Func<object?> act2 = () => connection.ServerVersion;
+        object? act2() => connection.ServerVersion;
 
         // Act
         var recordedException1 = Record.Exception(act1);
@@ -256,7 +256,7 @@ public sealed class MySqlServerVersionTests
     )
     {
         // Arrange
-        Func<object?> act = () => useExplicitCompatibilityMode
+        object? act() => useExplicitCompatibilityMode
             ? MySqlServerVersion.AutoDetect(null!, MySqlServerVersionCompatibilityMode.AllowUnsupported)
             : MySqlServerVersion.AutoDetect((DbConnection)null!);
 
@@ -281,7 +281,7 @@ public sealed class MySqlServerVersionTests
     )
     {
         // Arrange
-        Action act = () => MySqlServerVersion.AutoDetect(connectionString!);
+        void act() => MySqlServerVersion.AutoDetect(connectionString!);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -303,7 +303,7 @@ public sealed class MySqlServerVersionTests
     )
     {
         // Arrange
-        Action act = () => MySqlServerVersion.AutoDetect(connectionString);
+        void act() => MySqlServerVersion.AutoDetect(connectionString);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -380,7 +380,7 @@ public sealed class MySqlServerVersionTests
     public void Factory_rejects_undefined_compatibility_mode()
     {
         // Arrange
-        Action act = () =>
+        static void act() =>
             MySqlServerVersion.MySql(
                 new Version(8, 4, 0),
                 (MySqlServerVersionCompatibilityMode)int.MaxValue);

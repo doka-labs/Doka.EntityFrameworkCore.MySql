@@ -36,6 +36,7 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
         var modelValidationLogger = logger.Logger;
 
         ValidateSequenceSchema(model, modelValidationLogger);
+        ValidateJsonIndexes(model);
         ValidateKeyedAndIndexedPropertyLengths(model, modelValidationLogger);
         ValidateDecimalPrecision(model, modelValidationLogger);
         ValidateConstraintNameLengths(model, modelValidationLogger);
@@ -43,6 +44,38 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
         ValidateTemporalTables(model, modelValidationLogger);
         ValidateApplicationTimeTables(model, modelValidationLogger);
     }
+
+    private static void ValidateJsonIndexes(
+        IModel model
+    )
+    {
+        foreach (var entityType in model.GetEntityTypes())
+        {
+            foreach (var index in entityType.GetIndexes())
+            {
+                var jsonMember = index.Properties.FirstOrDefault(IsMappedToJson);
+                if (jsonMember is null)
+                {
+                    continue;
+                }
+
+                throw new InvalidOperationException(
+                    $"The index '{index.GetDatabaseName() ?? index.Name}' on entity "
+                    + $"'{entityType.DisplayName()}' targets JSON-mapped member '{jsonMember.Name}'. "
+                    + "MySQL and MariaDB do not support direct indexes on JSON storage. "
+                    + "Map the extracted scalar to a generated column and index that scalar property instead.");
+            }
+        }
+    }
+
+    private static bool IsMappedToJson(
+        IPropertyBase property
+    ) => property switch
+    {
+        IComplexProperty complexProperty => complexProperty.ComplexType.IsMappedToJson(),
+        IProperty scalarProperty => scalarProperty.DeclaringType.IsMappedToJson(),
+        _ => false,
+    };
 
     private static void ValidateSequenceSchema(
         IModel model,
@@ -78,7 +111,11 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
         {
             foreach (var key in entityType.GetKeys())
             {
-                foreach (var table in MySqlIndexByteBudget.GetPhysicalIndexTables(entityType, key.Properties))
+                var scalarProperties = key.Properties
+                    .SelectMany(GetIndexScalarProperties)
+                    .ToArray();
+
+                foreach (var table in MySqlIndexByteBudget.GetPhysicalIndexTables(entityType, scalarProperties))
                 {
                     ValidateIndexKeyWidth(
                         entityType,
@@ -99,7 +136,11 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
                     continue;
                 }
 
-                foreach (var table in MySqlIndexByteBudget.GetPhysicalIndexTables(entityType, index.Properties))
+                var scalarProperties = index.Properties
+                    .SelectMany(GetIndexScalarProperties)
+                    .ToArray();
+
+                foreach (var table in MySqlIndexByteBudget.GetPhysicalIndexTables(entityType, scalarProperties))
                 {
                     ValidateIndexKeyWidth(
                         entityType,
@@ -116,7 +157,7 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
 
     private static void ValidateIndexKeyWidth(
         IEntityType entityType,
-        IReadOnlyList<IProperty> properties,
+        IReadOnlyList<IPropertyBase> properties,
         IReadOnlyList<int>? prefixLengths,
         string definition,
         StoreObjectIdentifier table,
@@ -143,9 +184,76 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
         for (var index = 0; index < properties.Count; index++)
         {
             var property = properties[index];
-
             var prefixLength = prefixLengths?[index] ?? 0;
 
+            if (property is IComplexProperty complexProperty)
+            {
+                if (prefixLength > 0)
+                {
+                    throw new InvalidOperationException(
+                        $"The {definition} on entity type '{entityType.DisplayName()}' declares prefix length "
+                        + $"{prefixLength} for complex property '{property.Name}'. Prefix lengths must target "
+                        + "individual scalar properties.");
+                }
+
+                foreach (var nestedProperty in complexProperty.ComplexType.GetFlattenedProperties())
+                {
+                    ValidateIndexedProperty(
+                        entityType,
+                        nestedProperty,
+                        prefixLength: 0,
+                        definition,
+                        table,
+                        tableDefaults,
+                        logger,
+                        ref knownBytes);
+                }
+
+                continue;
+            }
+
+            ValidateIndexedProperty(
+                entityType,
+                (IProperty)property,
+                prefixLength,
+                definition,
+                table,
+                tableDefaults,
+                logger,
+                ref knownBytes);
+        }
+    }
+
+    private static IEnumerable<IProperty> GetIndexScalarProperties(
+        IPropertyBase property
+    )
+    {
+        if (property is IProperty scalarProperty)
+        {
+            yield return scalarProperty;
+            yield break;
+        }
+
+        if (property is IComplexProperty complexProperty)
+        {
+            foreach (var nestedProperty in complexProperty.ComplexType.GetFlattenedProperties())
+            {
+                yield return nestedProperty;
+            }
+        }
+    }
+
+    private static void ValidateIndexedProperty(
+        IEntityType entityType,
+        IProperty property,
+        int prefixLength,
+        string definition,
+        StoreObjectIdentifier table,
+        MySqlIndexByteBudget.TableDefaults tableDefaults,
+        ILogger logger,
+        ref long knownBytes
+    )
+    {
             if (prefixLength == 0
                 && MySqlIndexByteBudget.HasUnboundedStoreType(property))
             {
@@ -183,7 +291,7 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
 
             if (propertyBytes is null)
             {
-                continue;
+            return;
             }
 
             knownBytes += propertyBytes.Value;
@@ -197,7 +305,6 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
                     + "would change index and uniqueness semantics.");
             }
         }
-    }
 
     private static void ValidateDecimalPrecision(
         IModel model,
@@ -327,7 +434,15 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
                         "must target exactly one property");
                 }
 
-                var property = index.Properties[0];
+                if (index.Properties[0] is not IProperty property)
+                {
+                    ThrowInvalidSpatialIndexConfiguration(
+                        logger,
+                        $"{entityType.DisplayName()}.{index.GetDatabaseName() ?? index.Properties[0].Name}",
+                        "must target a scalar NetTopologySuite geometry property");
+
+                    continue;
+                }
 
                 if (!MySqlSpatialTypeSupport.IsSpatialClrType(property.ClrType))
                 {

@@ -2,6 +2,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed partial class MySqlMigrationsSqlGenerator
 {
+
     protected override void Generate(
         AddColumnOperation operation,
         IModel? model,

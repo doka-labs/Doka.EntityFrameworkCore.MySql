@@ -199,7 +199,7 @@ public sealed partial class MySqlUpdateSqlGeneratorTests
                 laterModifications),
         ];
 
-        Action act = () => generator.AppendBulkInsertOperation(
+        void act() => generator.AppendBulkInsertOperation(
             builder,
             commands,
             commandPosition: 0,
@@ -272,7 +272,7 @@ public sealed partial class MySqlUpdateSqlGeneratorTests
             CreateReadWriteCommand("Rows", "p1_value"),
         ];
 
-        Action act = () => generator.AppendBulkInsertOperation(
+        void act() => generator.AppendBulkInsertOperation(
             builder,
             commands,
             commandPosition: 0,

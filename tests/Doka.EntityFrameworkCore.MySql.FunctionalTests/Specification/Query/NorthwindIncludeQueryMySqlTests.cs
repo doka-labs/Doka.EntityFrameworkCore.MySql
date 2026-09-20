@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
@@ -55,7 +54,7 @@ public class
         ss => ss
             .Set<Order>()
             .Include(order => order.OrderDetails)
-            .OrderBy(order => order.Customer.CustomerID != null)
+            .OrderBy(order => order.Customer!.CustomerID != null)
             .ThenBy(order => order.Customer != null
                 ? order.Customer.CustomerID
                 : string.Empty)
@@ -70,6 +69,7 @@ public class
     // These include shapers require a correlated derived table. MariaDB cannot
     // express that boundary because its JOIN grammar has no LATERAL production.
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -77,6 +77,7 @@ public class
         bool async
     ) => base.Filtered_include_with_multiple_ordering(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -84,6 +85,7 @@ public class
         bool async
     ) => base.Include_collection_with_cross_apply_with_filter(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -91,6 +93,7 @@ public class
         bool async
     ) => base.Include_collection_with_outer_apply_with_filter(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -238,7 +241,7 @@ public class
         ss => ss
             .Set<Order>()
             .Include(order => order.OrderDetails)
-            .OrderBy(order => order.Customer.CustomerID != null)
+            .OrderBy(order => order.Customer!.CustomerID != null)
             .ThenBy(order => order.Customer != null
                 ? order.Customer.CustomerID
                 : string.Empty)
@@ -253,6 +256,7 @@ public class
     // These include shapers require a correlated derived table. MariaDB cannot
     // express that boundary because its JOIN grammar has no LATERAL production.
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -260,6 +264,7 @@ public class
         bool async
     ) => base.Filtered_include_with_multiple_ordering(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -267,6 +272,7 @@ public class
         bool async
     ) => base.Include_collection_with_cross_apply_with_filter(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -274,6 +280,7 @@ public class
         bool async
     ) => base.Include_collection_with_outer_apply_with_filter(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -414,7 +421,7 @@ public class
         ss => ss
             .Set<Order>()
             .Include(order => order.OrderDetails)
-            .OrderBy(order => order.Customer.CustomerID != null)
+            .OrderBy(order => order.Customer!.CustomerID != null)
             .ThenBy(order => order.Customer != null
                 ? order.Customer.CustomerID
                 : string.Empty)
@@ -428,6 +435,7 @@ public class
 
     // These no-tracking include shapers require a correlated derived table.
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -435,6 +443,7 @@ public class
         bool async
     ) => base.Filtered_include_with_multiple_ordering(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -442,6 +451,7 @@ public class
         bool async
     ) => base.Include_collection_with_cross_apply_with_filter(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -449,6 +459,7 @@ public class
         bool async
     ) => base.Include_collection_with_outer_apply_with_filter(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -557,6 +568,7 @@ public class
         NorthwindQueryMySqlFixture<NoopModelCustomizer> fixture
     ) : base(fixture) { }
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -564,6 +576,7 @@ public class
         bool async
     ) => base.Filtered_include_with_multiple_ordering(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -571,6 +584,7 @@ public class
         bool async
     ) => base.Include_collection_with_cross_apply_with_filter(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -578,6 +592,7 @@ public class
         bool async
     ) => base.Include_collection_with_outer_apply_with_filter(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -598,6 +613,7 @@ public class NorthwindSplitIncludeNoTrackingQueryMySqlTest : NorthwindSplitInclu
         NorthwindQueryMySqlFixture<NoopModelCustomizer> fixture
     ) : base(fixture) { }
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -605,6 +621,7 @@ public class NorthwindSplitIncludeNoTrackingQueryMySqlTest : NorthwindSplitInclu
         bool async
     ) => base.Filtered_include_with_multiple_ordering(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -612,6 +629,7 @@ public class NorthwindSplitIncludeNoTrackingQueryMySqlTest : NorthwindSplitInclu
         bool async
     ) => base.Include_collection_with_cross_apply_with_filter(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -619,6 +637,7 @@ public class NorthwindSplitIncludeNoTrackingQueryMySqlTest : NorthwindSplitInclu
         bool async
     ) => base.Include_collection_with_outer_apply_with_filter(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -679,7 +698,7 @@ public class
         ss => ss
             .Set<Order>()
             .Include(order => order.OrderDetails)
-            .OrderBy(order => order.Customer.CustomerID != null)
+            .OrderBy(order => order.Customer!.CustomerID != null)
             .ThenBy(order => order.Customer != null
                 ? order.Customer.CustomerID
                 : string.Empty)
@@ -693,6 +712,7 @@ public class
 
     // String-based include rewriting reaches the same MariaDB LATERAL boundary.
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -700,6 +720,7 @@ public class
         bool async
     ) => base.Include_collection_with_cross_apply_with_filter(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -707,6 +728,7 @@ public class
         bool async
     ) => base.Include_collection_with_outer_apply_with_filter(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]

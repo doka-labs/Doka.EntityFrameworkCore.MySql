@@ -5,7 +5,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     /// <summary>Verifies one math translation on the original MySQL 8.4 target.</summary>
     /// <param name="method">The independently reported math operation.</param>
     /// <param name="expected">The expected scalar result.</param>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MySql84 })]
     [InlineData("Abs", 16.7)]
     [InlineData("Ceiling", -16.0)]
     [InlineData("Floor", -17.0)]

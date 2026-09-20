@@ -122,7 +122,7 @@ public sealed class MySqlGuidFormatTests
                         dbName,
                         MySqlTestEnvironment.ServerVersion)))
             {
-                await seedContext.Database.EnsureCreatedAsync();
+                await seedContext.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
             }
 
             await using (var insertContext =
@@ -139,7 +139,7 @@ public sealed class MySqlGuidFormatTests
                         Name = "inserted",
                     });
 
-                await insertContext.SaveChangesAsync();
+                await insertContext.SaveChangesAsync(TestContext.Current.CancellationToken);
             }
 
             await using (var readContext =
@@ -149,8 +149,12 @@ public sealed class MySqlGuidFormatTests
                         dbName,
                         MySqlTestEnvironment.ServerVersion)))
             {
-                var seeded = await readContext.Entities.SingleAsync(e => e.Id == s_seededGuid);
-                var inserted = await readContext.Entities.SingleAsync(e => e.Id == s_insertedGuid);
+                var seeded = await readContext.Entities.SingleAsync(
+                    e => e.Id == s_seededGuid,
+                    TestContext.Current.CancellationToken);
+                var inserted = await readContext.Entities.SingleAsync(
+                    e => e.Id == s_insertedGuid,
+                    TestContext.Current.CancellationToken);
                 var storageShape = await ReadRawIdStringsAsync(
                     connectionString,
                     dbName,
@@ -194,7 +198,7 @@ public sealed class MySqlGuidFormatTests
                         dbName,
                         MySqlTestEnvironment.ServerVersion)))
             {
-                await seedContext.Database.EnsureCreatedAsync();
+                await seedContext.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
             }
 
             await using (var insertContext =
@@ -211,7 +215,7 @@ public sealed class MySqlGuidFormatTests
                         Name = "inserted",
                     });
 
-                await insertContext.SaveChangesAsync();
+                await insertContext.SaveChangesAsync(TestContext.Current.CancellationToken);
             }
 
             await using (var readContext =
@@ -221,8 +225,12 @@ public sealed class MySqlGuidFormatTests
                         dbName,
                         MySqlTestEnvironment.ServerVersion)))
             {
-                var seeded = await readContext.Entities.SingleAsync(e => e.Id == s_seededGuid);
-                var inserted = await readContext.Entities.SingleAsync(e => e.Id == s_insertedGuid);
+                var seeded = await readContext.Entities.SingleAsync(
+                    e => e.Id == s_seededGuid,
+                    TestContext.Current.CancellationToken);
+                var inserted = await readContext.Entities.SingleAsync(
+                    e => e.Id == s_insertedGuid,
+                    TestContext.Current.CancellationToken);
                 var rawHex = await ReadRawIdHexAsync(
                     connectionString,
                     dbName,

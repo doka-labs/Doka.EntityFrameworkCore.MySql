@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Reject an EF Core patch whose generated specification contracts have not
+# Reject an EF Core build whose generated specification contracts have not
 # been reviewed yet. This preflight runs immediately after dependency
 # resolution, before the expensive build and live-engine matrix.
 
@@ -18,8 +18,8 @@ report_remediation() {
     echo "tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts/README.md." >&2
 }
 
-if [[ ! "${ef_core_version}" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
-    echo "EF Core version must be an exact stable version, found '${ef_core_version}'." >&2
+if [[ ! "${ef_core_version}" =~ ^[0-9]+[.][0-9]+[.][0-9]+(-[0-9A-Za-z]+([.][0-9A-Za-z]+)*)?$ ]]; then
+    echo "EF Core version must be one exact stable or prerelease version, found '${ef_core_version}'." >&2
     exit 2
 fi
 

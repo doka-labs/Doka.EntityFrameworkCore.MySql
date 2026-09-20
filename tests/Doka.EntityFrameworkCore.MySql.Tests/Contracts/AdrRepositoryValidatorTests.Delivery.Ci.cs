@@ -191,9 +191,9 @@ public sealed partial class AdrRepositoryValidatorTests
 
         Assert.Contains("needs: schedule-identity", qualification, StringComparison.Ordinal);
         Assert.Empty(EngineeringSurfaceContract.ValidateQualificationWorkflow(shared));
-        Assert.Contains("--filter \"Category=Spec|Category=Live\"", specificationTarget, StringComparison.Ordinal);
+        Assert.Contains(SpecificationFilter, specificationTarget, StringComparison.Ordinal);
         Assert.Contains("  migration-deployment:\n", workflow, StringComparison.Ordinal);
-        Assert.Contains("  efcore-patch-matrix:\n", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("  efcore-patch-matrix:\n", workflow, StringComparison.Ordinal);
         Assert.Contains("  mysqlconnector-patch-matrix:\n", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("  benchmark-smoke:\n", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain(

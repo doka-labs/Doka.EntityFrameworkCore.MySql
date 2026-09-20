@@ -355,7 +355,7 @@ public sealed class MySqlEnumerationQueryTests
         var sql = context.GetService<ISqlExpressionFactory>();
         var limit = new SqlParameterExpression("take", typeof(int), IntTypeMapping.Default);
         var select = CreateSelect(sql.Constant(1), limit: limit);
-        var parameters = new ParametersCacheDecorator(new Dictionary<string, object?>());
+        var parameters = new ParametersCacheDecorator([]);
         var visitor = new MySqlLimitExpressionEvaluatingExpressionVisitor(sql, parameters);
 
         // Act
@@ -386,7 +386,7 @@ public sealed class MySqlEnumerationQueryTests
             IntTypeMapping.Default);
 
         var select = CreateSelect(projection);
-        var parameters = new ParametersCacheDecorator(new Dictionary<string, object?>());
+        var parameters = new ParametersCacheDecorator([]);
         var visitor = new MySqlLimitExpressionEvaluatingExpressionVisitor(sql, parameters);
 
         // Act

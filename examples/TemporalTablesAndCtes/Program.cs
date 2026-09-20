@@ -90,7 +90,7 @@ try
     // server instead of materializing the CTE first.
     var cteItems = await context
         .CteItems
-        .FromSqlInterpolated($"""
+        .FromSql($"""
             WITH RECURSIVE `numbers` (`Value`) AS (
                 SELECT 1
                 UNION ALL

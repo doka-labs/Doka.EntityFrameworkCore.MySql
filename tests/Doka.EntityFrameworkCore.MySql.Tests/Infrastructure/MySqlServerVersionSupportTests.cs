@@ -64,7 +64,7 @@ public sealed class MySqlServerVersionSupportTests
             MySqlServerVersionCompatibilityMode.SupportedOnly);
 
         var (extension, options) = CreateOptions(serverVersion);
-        var act = () => extension.Validate(options);
+        void act() => extension.Validate(options);
 
         // Act
         var recordedException = Record.Exception(act);

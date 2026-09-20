@@ -90,7 +90,7 @@ public sealed class MySqlConnectionContractTests
     )
     {
         // Arrange
-        Action act = () =>
+        void act() =>
             MySqlConnectionContract.NormalizeProviderOwned(
                 $"{BaseConnectionString}{option};",
                 userVariablesRequired: false);
@@ -142,7 +142,7 @@ public sealed class MySqlConnectionContractTests
     )
     {
         // Arrange
-        Action act = () =>
+        void act() =>
             MySqlConnectionContract.NormalizeProviderOwned(
                 $"{BaseConnectionString}GuidFormat={guidFormat};",
                 userVariablesRequired: false);
@@ -162,7 +162,7 @@ public sealed class MySqlConnectionContractTests
     public void Legacy_guid_transport_is_rejected_for_provider_owned_strings()
     {
         // Arrange
-        Action act = () =>
+        static void act() =>
             MySqlConnectionContract.NormalizeProviderOwned(
                 $"{BaseConnectionString}Old Guids=true;",
                 userVariablesRequired: false);
@@ -249,7 +249,7 @@ public sealed class MySqlConnectionContractTests
     )
     {
         // Arrange
-        Action act = () =>
+        void act() =>
             MySqlConnectionContract.NormalizeProviderOwned(
                 $"{BaseConnectionString}{option};",
                 userVariablesRequired: true);
@@ -269,7 +269,7 @@ public sealed class MySqlConnectionContractTests
     public void Malformed_provider_owned_string_uses_a_sanitized_error()
     {
         // Arrange
-        Action act = () =>
+        static void act() =>
             MySqlConnectionContract.NormalizeProviderOwned(
                 $"{BaseConnectionString}Unsupported Secret Option=secret-canary;",
                 userVariablesRequired: false);
@@ -296,7 +296,7 @@ public sealed class MySqlConnectionContractTests
             throwOnConnectionStringRead: true);
 
         connection.Open();
-        var act = () =>
+        void act() =>
             MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: false);
 
         // Act
@@ -363,7 +363,7 @@ public sealed class MySqlConnectionContractTests
         // Arrange
         using var connection = new ContractDbConnection($"{BaseConnectionString}{option};");
         connection.Open();
-        var act = () =>
+        void act() =>
             MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: false);
 
         // Act
@@ -384,7 +384,7 @@ public sealed class MySqlConnectionContractTests
         // Arrange
         var configured = CompatibleBorrowedConnectionString + "UseAffectedRows=true;";
         using var connection = new ContractDbConnection(configured);
-        var act = () =>
+        void act() =>
             MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: false);
 
         // Act
@@ -411,7 +411,7 @@ public sealed class MySqlConnectionContractTests
         using var connection = new ContractDbConnection(
             CompatibleBorrowedConnectionString + option);
 
-        var act = () =>
+        void act() =>
             MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: true);
 
         // Act
@@ -461,7 +461,7 @@ public sealed class MySqlConnectionContractTests
     {
         // Arrange
         using var dataSource = new MySqlDataSourceBuilder(BaseConnectionString + options).Build();
-        Action act = () =>
+        void act() =>
             new MySqlOptionsExtension()
                 .WithDataSource(dataSource)
                 .WithUserVariablesRequired();

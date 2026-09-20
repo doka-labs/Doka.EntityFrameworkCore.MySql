@@ -5,7 +5,8 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
     /// <summary>Provides required and nullable store mappings for every supported scalar and reference shape.</summary>
     public static IEnumerable<object[]> NullableColumnTypeCases()
     {
-        foreach (var mapping in new (string StoreType, string ClrName, bool TextGuidOptIn, string ServerVersion)[]
+        foreach (var (storeType, clrName, textGuidOptIn, serverVersion) in
+            new (string StoreType, string ClrName, bool TextGuidOptIn, string ServerVersion)[]
             {
                 ("tinyint(1)", "bool", false, "8.4.6"),
                 ("tinyint unsigned", "byte", false, "8.4.6"),
@@ -29,8 +30,8 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
                 ("varbinary(64)", "byte[]", false, "8.4.6"),
             })
         {
-            yield return [mapping.StoreType, mapping.ClrName, mapping.TextGuidOptIn, mapping.ServerVersion, false];
-            yield return [mapping.StoreType, mapping.ClrName, mapping.TextGuidOptIn, mapping.ServerVersion, true];
+            yield return [storeType, clrName, textGuidOptIn, serverVersion, false];
+            yield return [storeType, clrName, textGuidOptIn, serverVersion, true];
         }
     }
 

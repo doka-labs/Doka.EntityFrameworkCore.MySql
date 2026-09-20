@@ -57,7 +57,7 @@ internal sealed class ScaffoldingPipelineContext
 
     public bool QualifyNamesWithSchema { get; }
 
-    public Dictionary<string, DatabaseTable> TableLookup { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, DatabaseTable> TableLookup { get; } = [with(StringComparer.Ordinal)];
 
     public Dictionary<(string TableName, string ColumnName), DatabaseColumn> Columns { get; } = [];
 

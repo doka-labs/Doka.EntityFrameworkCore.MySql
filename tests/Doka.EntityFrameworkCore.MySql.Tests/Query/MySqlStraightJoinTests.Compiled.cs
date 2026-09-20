@@ -27,7 +27,7 @@ public sealed partial class MySqlStraightJoinTests
                     Child = right.Id,
                 }));
 
-        Action act = () => _ = query(context, 17)
+        void act() => _ = query(context, 17)
             .ToArray();
 
         // Act
@@ -65,14 +65,14 @@ public sealed partial class MySqlStraightJoinTests
                     Child = right.Id,
                 }));
 
-        var act = async () =>
+        async Task act()
         {
             await foreach (var unused in query(context, 17)
                 .WithCancellation(CancellationToken.None))
             {
                 _ = unused;
             }
-        };
+        }
 
         // Act
         var recordedException = await Record.ExceptionAsync(act);
@@ -158,7 +158,7 @@ public sealed partial class MySqlStraightJoinTests
                         })));
 
         var sql = query.ToQueryString();
-        Func<Task> act = () => query.ToArrayAsync(CancellationToken.None);
+        Task act() => query.ToArrayAsync(CancellationToken.None);
 
         // Act
         var recordedException = await Record.ExceptionAsync(act);

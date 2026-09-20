@@ -109,7 +109,7 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
                     cancellationToken)
                 .ConfigureAwait(false);
 
-            var binaryStorage = await ReadBinaryStorageAsync(connection, cancellationToken)
+            var (value, types) = await ReadBinaryStorageAsync(connection, cancellationToken)
                 .ConfigureAwait(false);
 
             GuidStorageRecord[] binaryRows;
@@ -153,7 +153,7 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
                     cancellationToken)
                 .ConfigureAwait(false);
 
-            var charStorage = await ReadChar36StorageAsync(connection, cancellationToken)
+            var (charValue, charTypes) = await ReadChar36StorageAsync(connection, cancellationToken)
                 .ConfigureAwait(false);
 
             await using var finalContext = new Char36StorageContext(
@@ -170,10 +170,10 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
             Assert.Equal(0L, remainingMalformedSources);
             Assert.Equal(0L, invalidBinaryBackfills);
             Assert.Equal(0L, invalidTextBackfills);
-            Assert.Equal(Convert.ToHexString(s_documentId.ToByteArray(bigEndian: true)), binaryStorage.Value);
-            Assert.Equal(["binary(16)", "binary(16)"], binaryStorage.Types);
-            Assert.Equal(s_documentId.ToString("D", CultureInfo.InvariantCulture), charStorage.Value);
-            Assert.Equal(["char(36)", "char(36)"], charStorage.Types);
+            Assert.Equal(Convert.ToHexString(s_documentId.ToByteArray(bigEndian: true)), value);
+            Assert.Equal(["binary(16)", "binary(16)"], types);
+            Assert.Equal(s_documentId.ToString("D", CultureInfo.InvariantCulture), charValue);
+            Assert.Equal(["char(36)", "char(36)"], charTypes);
             AssertStorageRows(binaryRows);
             AssertStorageRows(finalRows);
         }

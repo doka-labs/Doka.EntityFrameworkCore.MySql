@@ -189,7 +189,7 @@ public sealed class MySqlOptionsExtensionCloningTests
     {
         // Arrange
         var extension = new MySqlOptionsExtension();
-        Action act = () => extension.WithDefaultGuidFormat((MySqlGuidFormat)42);
+        void act() => extension.WithDefaultGuidFormat((MySqlGuidFormat)42);
 
         // Act
         var recordedException = Record.Exception(act);

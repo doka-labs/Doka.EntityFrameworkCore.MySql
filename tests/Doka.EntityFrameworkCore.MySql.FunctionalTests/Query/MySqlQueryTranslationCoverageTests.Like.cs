@@ -176,7 +176,7 @@ public sealed partial class MySqlQueryTranslationCoverageTests
         };
 
         // Act
-        var failure = Record.Exception(() => query.ToQueryString());
+        var failure = Record.Exception(query.ToQueryString);
 
         // Assert
         var exception = Assert.IsType<InvalidOperationException>(failure);

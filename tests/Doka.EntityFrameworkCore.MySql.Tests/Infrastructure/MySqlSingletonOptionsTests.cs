@@ -47,7 +47,7 @@ public sealed class MySqlSingletonOptionsTests
         var changedOptions = CreateOptions(MySqlServerVersion.MariaDb(new Version(11, 8, 0)), MySqlGuidFormat.Binary16);
         var singletonOptions = new MySqlSingletonOptions();
         singletonOptions.Initialize(originalOptions);
-        var act = () => singletonOptions.Validate(changedOptions);
+        void act() => singletonOptions.Validate(changedOptions);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -68,7 +68,7 @@ public sealed class MySqlSingletonOptionsTests
         var changedOptions = CreateOptions(MySqlServerVersion.MySql(new Version(8, 4, 0)), MySqlGuidFormat.Char36);
         var singletonOptions = new MySqlSingletonOptions();
         singletonOptions.Initialize(originalOptions);
-        var act = () => singletonOptions.Validate(changedOptions);
+        void act() => singletonOptions.Validate(changedOptions);
 
         // Act
         var recordedException = Record.Exception(act);

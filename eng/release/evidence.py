@@ -918,7 +918,11 @@ def write_manifest(args: argparse.Namespace) -> None:
     qualification = validate_qualification_manifest(
         root, source["commit"], args.release_version, line
     )
-    validate_efcore_patch_matrix(root, qualification["gates"])
+    # WHY: Exact preview graphs have no GA floor/latest evidence; historical
+    # and admitted GA candidates retain the complete patch-matrix requirement.
+    if line is None or line["upstreamStage"] == "ga":
+        validate_efcore_patch_matrix(root, qualification["gates"])
+
     reconciliation = validate_reconciliation(root, args.run_id, source["commit"])
     dependencies = collect_dependencies(dependency_graph)
     approved_sdk = approved_dotnet_sdk(repo, line)
@@ -1134,7 +1138,8 @@ def verify_manifest(root: Path, repo: Path | None) -> None:
     qualification_gates = qualification.get("gates", [])
     if not isinstance(qualification_gates, list):
         raise EvidenceError("Release evidence has an invalid qualification gate inventory.")
-    validate_efcore_patch_matrix(root, qualification_gates)
+    if line is None or line["upstreamStage"] == "ga":
+        validate_efcore_patch_matrix(root, qualification_gates)
 
 
 def parse_arguments() -> argparse.Namespace:

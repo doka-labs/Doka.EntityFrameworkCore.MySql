@@ -69,7 +69,7 @@ public sealed class BenchmarkDatabaseTargetTests
     )
     {
         // Arrange
-        Action act = () =>
+        void act() =>
             BenchmarkDatabaseTarget.Resolve("mysql84", configuredPort, PerformanceContract.Load());
 
         // Act

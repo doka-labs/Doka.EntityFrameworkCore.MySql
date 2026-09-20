@@ -14,7 +14,7 @@ public sealed class MySqlJsonSeedIntegrationTests
     /// <summary>
     /// Verifies my sql84 executes native JSON seeds.
     /// </summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MySql84 })]
     [InlineData(MySqlGuidFormat.Binary16)]
     [InlineData(MySqlGuidFormat.Char36)]
     public Task MySql84_executes_native_json_seeds(
@@ -24,7 +24,7 @@ public sealed class MySqlJsonSeedIntegrationTests
     /// <summary>
     /// Verifies my sql97 executes native JSON seeds.
     /// </summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql97)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MySql97 })]
     [InlineData(MySqlGuidFormat.Binary16)]
     [InlineData(MySqlGuidFormat.Char36)]
     public Task MySql97_executes_native_json_seeds(
@@ -34,7 +34,7 @@ public sealed class MySqlJsonSeedIntegrationTests
     /// <summary>
     /// Verifies maria db1011 executes native JSON seeds.
     /// </summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MariaDb1011)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MariaDb1011 })]
     [InlineData(MySqlGuidFormat.Binary16)]
     [InlineData(MySqlGuidFormat.Char36)]
     public Task MariaDb1011_executes_native_json_seeds(
@@ -44,7 +44,7 @@ public sealed class MySqlJsonSeedIntegrationTests
     /// <summary>
     /// Verifies maria db114 executes native JSON seeds.
     /// </summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MariaDb114)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MariaDb114 })]
     [InlineData(MySqlGuidFormat.Binary16)]
     [InlineData(MySqlGuidFormat.Char36)]
     public Task MariaDb114_executes_native_json_seeds(
@@ -54,7 +54,7 @@ public sealed class MySqlJsonSeedIntegrationTests
     /// <summary>
     /// Verifies maria db118 executes native JSON seeds.
     /// </summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MariaDb118)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MariaDb118 })]
     [InlineData(MySqlGuidFormat.Binary16)]
     [InlineData(MySqlGuidFormat.Char36)]
     public Task MariaDb118_executes_native_json_seeds(
@@ -64,7 +64,7 @@ public sealed class MySqlJsonSeedIntegrationTests
     /// <summary>
     /// Verifies maria db123 executes native JSON seeds.
     /// </summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MariaDb123)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MariaDb123 })]
     [InlineData(MySqlGuidFormat.Binary16)]
     [InlineData(MySqlGuidFormat.Char36)]
     public Task MariaDb123_executes_native_json_seeds(

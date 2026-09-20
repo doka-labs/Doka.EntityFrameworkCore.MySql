@@ -12,7 +12,7 @@ public sealed class MySqlMaterializedSourceTests
     public void Null_source_is_rejected()
     {
         // Arrange
-        Action act = () =>
+        static void act() =>
             MySqlQueryableExtensions.WithMaterializedSource<int, int>(null!, source => source);
 
         // Act
@@ -29,7 +29,7 @@ public sealed class MySqlMaterializedSourceTests
     {
         // Arrange
         var source = s_values.AsQueryable();
-        Action act = () => source.WithMaterializedSource<int, int>(null!);
+        void act() => source.WithMaterializedSource<int, int>(null!);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -45,7 +45,7 @@ public sealed class MySqlMaterializedSourceTests
     {
         // Arrange
         var source = s_values.AsQueryable();
-        Action act = () => source.WithMaterializedSource(rows => rows);
+        void act() => source.WithMaterializedSource(rows => rows);
 
         // Act
         var recordedException = Record.Exception(act);

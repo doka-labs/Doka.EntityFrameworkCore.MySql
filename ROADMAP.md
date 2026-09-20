@@ -7,7 +7,7 @@ defined by released packages, the support matrix, and release notes.
 
 ## Direction Through July 2027
 
-### Stabilize the EF Core 10 release line
+### Maintain the stable EF Core 10 release line
 
 - Maintain the released .NET 10 / EF Core 10 package line and qualify each
   patch or additive minor release through the shared release contract.
@@ -21,8 +21,9 @@ defined by released packages, the support matrix, and release notes.
 
 ### Maintain supported dependencies and engines
 
-- Keep the supported EF Core 10 patch range and qualified MySqlConnector
-  2.x/3.x range under continuous compatibility and vulnerability review.
+- Keep the supported EF Core 10 maintenance range, the exact EF Core 11 RC.1
+  graph, and the qualified MySqlConnector 2.x/3.x range under compatibility
+  and vulnerability review.
 - Prioritize dependency updates that remediate a relevant vulnerability.
   Routine version churn without compatibility, security, or support value is
   not a roadmap goal.
@@ -52,11 +53,13 @@ defined by released packages, the support matrix, and release notes.
 - Keep database-native timing measurements diagnostic and retain deterministic
   semantic controls and existing allocation ceilings.
 
-### Prepare the next platform major deliberately
+### Qualify the next platform major deliberately
 
 - Keep the separate .NET 11 / EF Core 11 preparation isolated until the
   approved platform cutover. It must retain the applicable feature contracts
   and their independent compatibility evidence.
+- The maintainer-authorized trigger in ADR D-013 has fired; `feature/dotnet-11`
+  owns the exact RC.1 graph.
 - Treat that transition as a new provider major with explicit validation of
   EF Core internal services, public API compatibility, trimming/AOT posture,
   migrations and specification tests.
@@ -77,7 +80,8 @@ The project does not intend to:
 - move application authentication, authorization, tenant isolation, network
   policy, or database privilege ownership into the provider;
 - make benchmarks a release-publication authority; or
-- begin EF Core 11 implementation merely because a preview is available.
+- merge the EF Core 11 line before its exact SDK, package graph, specification
+  contracts, runtime posture, and live-engine matrix are reproducible.
 
 ## Review and Change Process
 

@@ -39,7 +39,7 @@ public sealed class MySqlSqlTokenValidatorTests
     )
     {
         // Arrange
-        Action act = () =>
+        void act() =>
             MySqlSqlTokenValidator.ValidateIdentifier(token, MySqlAnnotationNames.Collation);
 
         // Act
@@ -66,7 +66,7 @@ public sealed class MySqlSqlTokenValidatorTests
     )
     {
         // Arrange
-        Action act = () => MySqlSqlTokenValidator.ValidateIdentifier(token!, tokenName!);
+        void act() => MySqlSqlTokenValidator.ValidateIdentifier(token!, tokenName!);
 
         // Act
         var exception = Record.Exception(act);

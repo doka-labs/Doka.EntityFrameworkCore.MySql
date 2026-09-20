@@ -336,7 +336,7 @@ public sealed partial class MySqlSqlModeContractTests
                     cancellation: null,
 
                     // WHY: A physical close rolls back and releases the row even when explicit rollback would fail.
-                    () => blocker.CloseAsync(),
+                    blocker.CloseAsync,
                     pending,
                     primaryFailure,
                     () => DropSqlModeProbeTableAsync(observer, tableName))
