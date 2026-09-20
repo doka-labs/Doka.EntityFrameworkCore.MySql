@@ -11,7 +11,7 @@ public sealed class IntegrationTheorySelectionTests
         var target = IntegrationTestEnvironment.GetSelectedTargets()[0];
 
         // Act
-        var attribute = new RequiresDatabaseTargetsTheoryAttribute(target);
+        var attribute = new RequiresDatabaseTargetsTheoryAttribute([target]);
 
         // Assert
         Assert.Null(attribute.Skip);
@@ -63,7 +63,7 @@ public sealed class IntegrationTheorySelectionTests
         var selected = IntegrationTestEnvironment.IsTargetSelected(target);
 
         // Act
-        var attribute = new RequiresDatabaseTargetsTheoryAttribute(target);
+        var attribute = new RequiresDatabaseTargetsTheoryAttribute([target]);
 
         // Assert
         Assert.Equal(!selected, attribute.Skip is not null);
@@ -87,9 +87,33 @@ public sealed class IntegrationTheorySelectionTests
         var additionalTarget = Enum.Parse<IntegrationDatabaseTarget>(additionalTargetName);
 
         // Act
-        var attribute = new RequiresDatabaseTargetsTheoryAttribute(selectedTarget, additionalTarget);
+        var attribute = new RequiresDatabaseTargetsTheoryAttribute([selectedTarget, additionalTarget]);
 
         // Assert
         Assert.Null(attribute.Skip);
+    }
+
+    /// <summary>Custom theory selection preserves source information required by xUnit v3.</summary>
+    /// <param name="supportedOnly">Whether the attribute selects every supported engine.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Theory_selection_preserves_explicit_source_information(
+        bool supportedOnly
+    )
+    {
+        // Arrange
+        const string sourceFilePath = "theory-source.cs";
+        const int sourceLineNumber = 42;
+        var target = IntegrationTestEnvironment.GetSelectedTargets()[0];
+
+        // Act
+        TheoryAttribute attribute = supportedOnly
+            ? new RequiresSupportedDatabaseTargetTheoryAttribute(sourceFilePath, sourceLineNumber)
+            : new RequiresDatabaseTargetsTheoryAttribute([target], sourceFilePath, sourceLineNumber);
+
+        // Assert
+        Assert.Equal(sourceFilePath, attribute.SourceFilePath);
+        Assert.Equal(sourceLineNumber, attribute.SourceLineNumber);
     }
 }

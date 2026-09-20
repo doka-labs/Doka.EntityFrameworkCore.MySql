@@ -129,7 +129,7 @@ internal sealed partial class MySqlQuerySqlGenerator
 
         public List<MySqlMaterializedSourceExpression> Definitions { get; } = [];
 
-        public HashSet<string> PhysicalNames { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> PhysicalNames { get; } = [with(StringComparer.OrdinalIgnoreCase)];
 
         public List<string> RawSql { get; } = [];
 

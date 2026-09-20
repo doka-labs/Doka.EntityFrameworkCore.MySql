@@ -4,7 +4,7 @@ Minimal setup for `Doka.EntityFrameworkCore.MySql`.
 
 ## Prerequisites
 
-- .NET 10 SDK
+- .NET 11 SDK
 - MySQL 8.4 (use `docker compose -f ../../docker/compose.yml up -d mysql84`)
 
 ## Run

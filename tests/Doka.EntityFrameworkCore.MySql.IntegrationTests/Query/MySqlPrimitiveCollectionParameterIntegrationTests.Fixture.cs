@@ -12,7 +12,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         private Task? _sqlModeSeed;
 
         /// <summary>Leaves seeding to the first selected test for each engine.</summary>
-        public Task InitializeAsync() => Task.CompletedTask;
+        public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
         /// <summary>Ensures the 2,200-row fixture is written once for the selected engine.</summary>
         /// <param name="target">The selected database engine.</param>
@@ -36,7 +36,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         internal Task EnsureSqlModeSeededAsync() => _sqlModeSeed ??= SeedSqlModeAsync();
 
         /// <summary>Drops every table created by this class, including after test failure.</summary>
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             List<Exception>? failures = null;
 

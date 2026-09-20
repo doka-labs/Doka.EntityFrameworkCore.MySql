@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlColumnDefaultIntegrationTests
 {
     /// <summary>MySQL rejects unparenthesized typed temporal defaults before creating a table.</summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MySql97)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MySql97 })]
     [MemberData(nameof(InvalidTemporalDefaultCases))]
     public async Task MySql_rejects_unparenthesized_temporal_default(
         string targetName,

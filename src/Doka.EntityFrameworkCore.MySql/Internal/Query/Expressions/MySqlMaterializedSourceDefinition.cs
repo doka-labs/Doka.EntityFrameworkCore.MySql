@@ -5,7 +5,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal sealed class MySqlMaterializedSourceDefinition(SelectExpression source)
 {
-    private readonly ConditionalWeakTable<ExpressionVisitor, MySqlMaterializedSourceDefinition> _visited = new();
+    private readonly ConditionalWeakTable<ExpressionVisitor, MySqlMaterializedSourceDefinition> _visited = [];
 
     /// <summary>Gets the immutable, fully projected SQL definition.</summary>
     public SelectExpression Source { get; } = source;

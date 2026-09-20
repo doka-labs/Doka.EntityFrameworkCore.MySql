@@ -1,4 +1,3 @@
-using System.Reflection;
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Infrastructure;
@@ -9,7 +8,7 @@ public sealed class LoggingMySqlTest : LoggingRelationalTestBase<MySqlDbContextO
 {
     protected override DbContextOptionsBuilder CreateOptionsBuilder(
         IServiceCollection services,
-        Action<RelationalDbContextOptionsBuilder<MySqlDbContextOptionsBuilder, MySqlOptionsExtension>> relationalAction
+        Action<RelationalDbContextOptionsBuilder<MySqlDbContextOptionsBuilder, MySqlOptionsExtension>>? relationalAction
     ) => new DbContextOptionsBuilder()
         .UseInternalServiceProvider(
             services
@@ -18,7 +17,7 @@ public sealed class LoggingMySqlTest : LoggingRelationalTestBase<MySqlDbContextO
         .UseMySql(
             MySqlTestEnvironment.ConnectionString,
             MySqlTestEnvironment.ServerVersion,
-            options => relationalAction?.Invoke(options));
+            relationalAction);
 
     protected override Microsoft.EntityFrameworkCore.TestUtilities.TestLogger CreateTestLogger() =>
         new Microsoft.EntityFrameworkCore.TestUtilities.TestLogger<MySqlLoggingDefinitions>();

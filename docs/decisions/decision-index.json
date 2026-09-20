@@ -103,7 +103,8 @@
       "supersededBy": [],
       "amends": [],
       "amendedBy": [
-        "D-023"
+        "D-023",
+        "D-013"
       ]
     },
     {
@@ -143,13 +144,15 @@
     },
     {
       "id": "D-013",
-      "title": "Trigger the EF Core 11 upgrade as a new major line",
+      "title": "Open EF Core 11 as an isolated major line",
       "status": "accepted",
       "date": "2026-05-16",
       "path": "docs/decisions/D-013-ef-core-11-upgrade.md",
       "supersedes": [],
       "supersededBy": [],
-      "amends": [],
+      "amends": [
+        "D-009"
+      ],
       "amendedBy": []
     },
     {

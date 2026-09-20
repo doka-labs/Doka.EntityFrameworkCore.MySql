@@ -1,8 +1,6 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
-/// <summary>
-/// Validates application-time periods, constraints, and shared-table contracts.
-/// </summary>
+/// <summary>Validates application-time periods, constraints, and shared-table contracts.</summary>
 internal sealed partial class MySqlModelValidator
 {
     private void ValidateApplicationTimeTables(
@@ -147,8 +145,7 @@ internal sealed partial class MySqlModelValidator
     {
         var hasApplicationTimeConstraint = entityType
                 .GetKeys()
-                .Any(key => key.FindAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps)
-                    ?.Value is true)
+                .Any(key => key.FindAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps)?.Value is true)
             || entityType
                 .GetIndexes()
                 .Any(index => index.GetMySqlApplicationTimeWithoutOverlaps());
@@ -216,10 +213,7 @@ internal sealed partial class MySqlModelValidator
 
             if (index.GetMySqlSpatialIndex()
                 || index.GetMySqlFullTextIndex()
-                || index
-                    .GetMySqlIndexPrefixLengths()
-                    ?.Any(prefixLength => prefixLength > 0)
-                == true)
+                || index.GetMySqlIndexPrefixLengths()?.Any(prefixLength => prefixLength > 0) == true)
             {
                 ThrowInvalidApplicationTime(
                     logger,
@@ -239,7 +233,7 @@ internal sealed partial class MySqlModelValidator
 
     private static void ValidateApplicationTimeConstraintProperties(
         IReadOnlyEntityType entityType,
-        IReadOnlyList<IReadOnlyProperty> properties,
+        IReadOnlyList<IReadOnlyPropertyBase> properties,
         string periodStartPropertyName,
         string periodEndPropertyName,
         string constraintKind,
@@ -357,12 +351,10 @@ internal sealed partial class MySqlModelValidator
 
         return new ApplicationTimeSharedTableContract(
             entityType.GetMySqlApplicationTimePeriodName()!,
-            entityType
-                .FindProperty(entityType.GetMySqlApplicationTimePeriodStartPropertyName()!)!
-                .GetColumnName(storeObject)!,
-            entityType.FindProperty(entityType
-                .GetMySqlApplicationTimePeriodEndPropertyName()!)!
-                .GetColumnName(storeObject)!,
+            entityType.FindProperty(entityType.GetMySqlApplicationTimePeriodStartPropertyName()!)!.GetColumnName(
+                storeObject)!,
+            entityType.FindProperty(entityType.GetMySqlApplicationTimePeriodEndPropertyName()!)!.GetColumnName(
+                storeObject)!,
             entityType.GetMySqlApplicationTimeWithoutOverlaps()
             || entityType
                 .FindPrimaryKey()

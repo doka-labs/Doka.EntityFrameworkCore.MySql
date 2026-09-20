@@ -99,14 +99,6 @@ updates:
         patterns:
           - "*"
     ignore:
-      # Microsoft.EntityFrameworkCore.* floats inside the [10.0.8, 10.1.0) range
-      # per ADR D-009. The scheduled floor/latest matrix owns patch validation,
-      # while a deliberate provider response is required for 10.1.0+.
-      - dependency-name: "Microsoft.EntityFrameworkCore.*"
-        update-types:
-          - version-update:semver-major
-          - version-update:semver-minor
-          - version-update:semver-patch
       # MySqlConnector 2.5.0 is the supported package floor. The scheduled
       # minimum/latest matrix owns 2.x patch validation and raises the floor
       # only when the provider consumes a newer driver contract. A future

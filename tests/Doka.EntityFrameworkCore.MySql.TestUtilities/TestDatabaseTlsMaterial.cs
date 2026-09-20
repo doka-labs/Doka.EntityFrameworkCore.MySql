@@ -160,10 +160,7 @@ internal sealed class TestDatabaseTlsMaterial : IDisposable
                 critical: true));
         request.CertificateExtensions.Add(
             new X509EnhancedKeyUsageExtension(
-                new OidCollection
-                {
-                    new(isServer ? "1.3.6.1.5.5.7.3.1" : "1.3.6.1.5.5.7.3.2"),
-                },
+                [new(isServer ? "1.3.6.1.5.5.7.3.1" : "1.3.6.1.5.5.7.3.2")],
                 critical: true));
 
         if (isServer)

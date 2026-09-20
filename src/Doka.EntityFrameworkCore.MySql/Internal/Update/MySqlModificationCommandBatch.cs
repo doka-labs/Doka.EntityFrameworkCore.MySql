@@ -48,7 +48,7 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
     /// </summary>
     private const int EstimatedBytesPerParameter = 256;
 
-    private readonly List<IReadOnlyModificationCommand> _pendingBulkInsertCommands = new();
+    private readonly List<IReadOnlyModificationCommand> _pendingBulkInsertCommands = [];
     private readonly ILogger _logger;
     private readonly IRelationalConnection _connection;
     private int _currentParameterCount;

@@ -4,9 +4,12 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
 {
     /// <summary>Verifies the scalar validity function independently of geometry-returning functions.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MySql84,
-        IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MySql84,
+            IntegrationDatabaseTarget.MySql97,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(FunctionTargetCases))]
     public async Task Supported_validity_function_executes(
         string target
@@ -27,9 +30,12 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
 
     /// <summary>Verifies one buffer or aggregate operation with the engine's supported overload.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MySql84,
-        IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MySql84,
+            IntegrationDatabaseTarget.MySql97,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(GeometryFunctionCases))]
     public async Task Supported_geometry_function_executes(
         string target,
@@ -65,10 +71,13 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
 
     /// <summary>Verifies one nullable projection over the complete dimension/order matrix.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(MariaDbCases))]
     public async Task MariaDb_crosses_matches_nts_for_every_dimension_order(
         string target

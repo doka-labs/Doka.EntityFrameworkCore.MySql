@@ -5,13 +5,13 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 public sealed partial class MySqlGuidStoreGenerationTests
 {
-    /// <summary>Custom mapping and converter factories remain authoritative beside a Guid SQL default.</summary>
-    /// <param name="factoryOnMapping">Whether the factory belongs to the mapping rather than converter hints.</param>
+    /// <summary>Explicit property factories remain authoritative beside a Guid SQL default and text converter.</summary>
+    /// <param name="converterOnMapping">Whether the converter belongs to the mapping rather than the property.</param>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public void Sql_default_preserves_custom_guid_text_factory(
-        bool factoryOnMapping
+        bool converterOnMapping
     )
     {
         // Arrange
@@ -24,19 +24,19 @@ public sealed partial class MySqlGuidStoreGenerationTests
 
         entity.HasKey(row => row.Id);
 
-        var converter = factoryOnMapping
-            ? new GuidToStringConverter()
-            : new GuidToStringConverter(
-                new ConverterMappingHints(valueGeneratorFactory: static (_, _) => new FixedGuidGenerator()));
+        var converter = new GuidToStringConverter();
 
-        if (!factoryOnMapping)
+        if (!converterOnMapping)
         {
             property.HasConversion(converter);
         }
 
-        // A mapping-owned converter must not make a custom factory look like EF's inferred factory.
+        // EF Core 11 consumes factories from property metadata, not converter mapping hints.
+        property.HasValueGenerator<FixedGuidGenerator>();
         property.Metadata.SetProviderClrType(typeof(string));
-        property.Metadata.SetTypeMapping(new FactoryGuidTextTypeMapping(converter, factoryOnMapping));
+        property.Metadata.SetTypeMapping(
+            new FactoryGuidTextTypeMapping(converter, static (_, _) => new FixedGuidGenerator()));
+
         var selectedProperty = (IProperty)property.Metadata;
 
         // Act
@@ -55,7 +55,7 @@ public sealed partial class MySqlGuidStoreGenerationTests
         Assert.Equal(ValueGenerated.OnAdd, property.Metadata.ValueGenerated);
         Assert.Equal("UUID()", property.Metadata.GetDefaultValueSql());
 
-        if (factoryOnMapping)
+        if (converterOnMapping)
         {
             Assert.Null(property.Metadata.GetValueConverter());
         }
@@ -63,6 +63,52 @@ public sealed partial class MySqlGuidStoreGenerationTests
         {
             Assert.Same(converter, property.Metadata.GetValueConverter());
         }
+    }
+
+    /// <summary>A mapping-only factory does not override EF Core 11's SQL-default temporary-key contract.</summary>
+    [Fact]
+    public void Sql_default_does_not_consume_a_mapping_owned_guid_factory()
+    {
+        // Arrange
+        using var context = CreateStoreContext("ordinary");
+        var modelBuilder = new ModelBuilder();
+        var entity = modelBuilder.Entity<StoreRow>();
+        var property = entity.Property(row => row.Id)
+            .ValueGeneratedOnAdd()
+            .HasDefaultValueSql("UUID()");
+
+        entity.HasKey(row => row.Id);
+
+        var factoryInvoked = false;
+
+        property.Metadata.SetProviderClrType(typeof(string));
+        property.Metadata.SetTypeMapping(
+            new FactoryGuidTextTypeMapping(
+                new GuidToStringConverter(),
+                (_, _) =>
+                {
+                    factoryInvoked = true;
+
+                    return new FixedGuidGenerator();
+                }));
+
+        var selectedProperty = (IProperty)property.Metadata;
+
+        // Act
+        var selected = context.GetService<IValueGeneratorSelector>()
+            .TrySelect(selectedProperty, selectedProperty.DeclaringType, out var generator);
+
+        var value = generator?.Next(context.Entry(new StoreRow()));
+
+        // Assert
+        Assert.True(selected);
+        Assert.NotNull(generator);
+        Assert.True(generator.GeneratesTemporaryValues);
+        Assert.NotEqual(Guid.Empty, Assert.IsType<Guid>(value));
+        Assert.NotEqual(s_factoryGuid, Assert.IsType<Guid>(value));
+        Assert.False(factoryInvoked);
+        Assert.Null(property.Metadata.GetValueGeneratorFactory());
+        Assert.Equal("UUID()", property.Metadata.GetDefaultValueSql());
     }
 
     /// <summary>Factory identity stays authoritative even when its generator type matches EF's inferred factory.</summary>
@@ -81,10 +127,11 @@ public sealed partial class MySqlGuidStoreGenerationTests
 
         var expectedGenerator = new SequentialGuidValueGenerator();
 
-        // Returning the same generator instance proves the custom delegate was consumed.
+        // Identity proves the explicit property delegate wins even beside a mapping-owned factory.
+        property.HasValueGenerator((_, _) => expectedGenerator);
         property.Metadata.SetProviderClrType(typeof(string));
         property.Metadata.SetTypeMapping(
-            new FactoryGuidTextTypeMapping(new GuidToStringConverter(), (_, _) => expectedGenerator));
+            new FactoryGuidTextTypeMapping(new GuidToStringConverter(), static (_, _) => new FixedGuidGenerator()));
 
         var selectedProperty = (IProperty)property.Metadata;
 
@@ -110,18 +157,6 @@ public sealed partial class MySqlGuidStoreGenerationTests
     /// <summary>Supplies a custom factory without using obsolete factory accessors.</summary>
     private sealed class FactoryGuidTextTypeMapping : RelationalTypeMapping
     {
-        /// <summary>Creates a mapping whose factory comes from either the mapping or converter hints.</summary>
-        public FactoryGuidTextTypeMapping(
-            GuidToStringConverter converter,
-            bool factoryOnMapping
-        ) : base(
-            new RelationalTypeMappingParameters(
-                new CoreTypeMappingParameters(
-                    typeof(string),
-                    converter: converter,
-                    valueGeneratorFactory: factoryOnMapping ? static (_, _) => new FixedGuidGenerator() : null),
-                "varchar(36)")) { }
-
         /// <summary>Creates a mapping with an independently supplied factory delegate.</summary>
         public FactoryGuidTextTypeMapping(
             GuidToStringConverter converter,

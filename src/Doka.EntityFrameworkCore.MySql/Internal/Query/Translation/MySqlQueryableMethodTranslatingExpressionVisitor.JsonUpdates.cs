@@ -1,8 +1,6 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
-/// <summary>
-/// Serializes relational scalars and composes partial JSON update setters.
-/// </summary>
+/// <summary>Serializes relational scalars and composes partial JSON update setters.</summary>
 internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
 {
     /// <summary>
@@ -28,17 +26,31 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
         var valueForJsonObject = NormalizeRelationalScalarForJson(target.Type, value);
         var jsonObject = _sqlExpressionFactory.Function(
             "JSON_OBJECT",
-            [_sqlExpressionFactory.Constant("value"), valueForJsonObject,],
+            [
+                _sqlExpressionFactory.Constant("value"),
+                valueForJsonObject,
+            ],
             nullable: true,
-            argumentsPropagateNullability: [false, true,],
+            argumentsPropagateNullability:
+            [
+                false,
+                true,
+            ],
             typeof(string),
             jsonTypeMapping);
 
         jsonValue = _sqlExpressionFactory.Function(
             "JSON_EXTRACT",
-            [jsonObject, _sqlExpressionFactory.Constant("$.value"),],
+            [
+                jsonObject,
+                _sqlExpressionFactory.Constant("$.value"),
+            ],
             nullable: true,
-            argumentsPropagateNullability: [true, false,],
+            argumentsPropagateNullability:
+            [
+                true,
+                false,
+            ],
             typeof(string),
             jsonTypeMapping);
 
@@ -57,9 +69,16 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
         {
             return _sqlExpressionFactory.Function(
                 "DATE_FORMAT",
-                [value, _sqlExpressionFactory.Constant("%Y-%m-%dT%H:%i:%s.%f", stringTypeMapping),],
+                [
+                    value,
+                    _sqlExpressionFactory.Constant("%Y-%m-%dT%H:%i:%s.%f", stringTypeMapping),
+                ],
                 nullable: true,
-                argumentsPropagateNullability: [true, false,],
+                argumentsPropagateNullability:
+                [
+                    true,
+                    false,
+                ],
                 typeof(string),
                 stringTypeMapping);
         }
@@ -88,7 +107,12 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 _sqlExpressionFactory.Constant(string.Empty, stringTypeMapping),
             ],
             nullable: true,
-            argumentsPropagateNullability: [true, false, false,],
+            argumentsPropagateNullability:
+            [
+                true,
+                false,
+                false,
+            ],
             typeof(string),
             stringTypeMapping);
     }
@@ -125,7 +149,13 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                     _sqlExpressionFactory.Constant("-", stringTypeMapping),
                 ],
                 nullable: true,
-                argumentsPropagateNullability: [true, false, false, false],
+                argumentsPropagateNullability:
+                [
+                    true,
+                    false,
+                    false,
+                    false
+                ],
                 typeof(string),
                 stringTypeMapping);
         }
@@ -161,9 +191,16 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 ? value
                 : _sqlExpressionFactory.Function(
                     "JSON_EXTRACT",
-                    [value, _sqlExpressionFactory.Constant("$"),],
+                    [
+                        value,
+                        _sqlExpressionFactory.Constant("$"),
+                    ],
                     nullable: true,
-                    argumentsPropagateNullability: [true, false,],
+                    argumentsPropagateNullability:
+                    [
+                        true,
+                        false,
+                    ],
                     typeof(string),
                     jsonColumn.TypeMapping);
 
@@ -175,7 +212,12 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 jsonValue,
             ],
             nullable: true,
-            argumentsPropagateNullability: [true, false, false,],
+            argumentsPropagateNullability:
+            [
+                true,
+                false,
+                false,
+            ],
             typeof(string),
             jsonColumn.TypeMapping);
 
@@ -205,9 +247,16 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
 
         return _sqlExpressionFactory.Function(
             "JSON_EXTRACT",
-            [serializedValue, _sqlExpressionFactory.Constant("$"),],
+            [
+                serializedValue,
+                _sqlExpressionFactory.Constant("$"),
+            ],
             nullable: true,
-            argumentsPropagateNullability: [true, false],
+            argumentsPropagateNullability:
+            [
+                true,
+                false
+            ],
             typeof(string),
             jsonTypeMapping);
     }

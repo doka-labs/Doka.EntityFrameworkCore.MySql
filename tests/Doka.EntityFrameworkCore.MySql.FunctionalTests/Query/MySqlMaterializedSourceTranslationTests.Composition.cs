@@ -145,7 +145,7 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
 
         // Act
         var query = context.Collisions
-            .FromSqlInterpolated($"SELECT `Id` FROM `__doka_source_0` WHERE `Id` > {minimum}")
+            .FromSql($"SELECT `Id` FROM `__doka_source_0` WHERE `Id` > {minimum}")
             .Select(row => row.Id)
             .WithMaterializedSource(shared => shared.Concat(shared));
 

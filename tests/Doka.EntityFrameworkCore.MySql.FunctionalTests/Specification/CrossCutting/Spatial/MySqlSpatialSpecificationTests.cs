@@ -58,9 +58,11 @@ public sealed class MySqlSpatialTest : SpatialTestBase<MySqlSpatialFixture>
         IDbContextTransaction transaction
     ) => facade.UseTransaction(transaction.GetDbTransaction());
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-POINT-EMPTY", "mysql84")]
     public override void Translators_handle_static_members() => base.Translators_handle_static_members();
 
+    [Fact]
     [SpecEngineLimitationFact("MYSQL-MARIADB-SPATIAL-ZM-ORDINATES", "mysql84", "mariadb114", "mariadb118")]
     public override void Can_roundtrip_Z_and_M() => base.Can_roundtrip_Z_and_M();
 }

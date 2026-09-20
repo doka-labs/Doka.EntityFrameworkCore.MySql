@@ -84,7 +84,8 @@ public sealed class MySqlSequenceValueGeneratorTests
 
         // Act
         var recordedException = await Record.ExceptionAsync(() =>
-            MySqlSequenceValueGenerator.GetNextValueAsync(connection, "orders", 1, supportsNativeSequences: false));
+            MySqlSequenceValueGenerator.GetNextValueAsync(
+                connection, "orders", 1, supportsNativeSequences: false, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal("connection", Assert.IsType<ArgumentNullException>(recordedException).ParamName);
@@ -94,14 +95,13 @@ public sealed class MySqlSequenceValueGeneratorTests
     /// Supplies the scalar representations returned by connector sequence commands.
     /// </summary>
     public static TheoryData<object, long> ConnectorScalarRepresentations =>
-        new()
-        {
-            { 42L, 42L },
-            { 42, 42L },
-            { 42m, 42L },
-            { 42UL, 42L },
-            { "42", 42L },
-        };
+    [
+        new(42L, 42L),
+        new(42, 42L),
+        new(42m, 42L),
+        new(42UL, 42L),
+        new("42", 42L),
+    ];
 
     /// <summary>
     /// Verifies a connector scalar converts to the signed 64-bit sequence contract.
@@ -151,10 +151,9 @@ public sealed class MySqlSequenceValueGeneratorTests
     /// Supplies the database null scalar separately from a CLR null reference.
     /// </summary>
     public static TheoryData<object> DbNullScalarRepresentation =>
-        new()
-        {
-            DBNull.Value,
-        };
+    [
+        DBNull.Value,
+    ];
 
     /// <summary>
     /// Verifies unsigned connector values cannot overflow the signed 64-bit sequence contract silently.

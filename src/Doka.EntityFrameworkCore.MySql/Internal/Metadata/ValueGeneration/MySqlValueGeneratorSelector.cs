@@ -7,17 +7,6 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSelector
 {
-    // EF 10 still consumes this obsolete hint before relational selection and exposes
-    // no replacement accessor. Compare the exact built-in factory, not its output type,
-    // so an application/plugin factory producing the same generator remains authoritative.
-#pragma warning disable CS0612
-    private static readonly Delegate? s_implicitGuidTextFactory =
-        new GuidToStringConverter().MappingHints?.ValueGeneratorFactory;
-
-    private static readonly Delegate? s_implicitGuidBytesFactory =
-        new GuidToBytesConverter().MappingHints?.ValueGeneratorFactory;
-#pragma warning restore CS0612
-
     private readonly IRawSqlCommandBuilder _rawSqlCommandBuilder;
     private readonly IRelationalConnection _connection;
     private readonly IRelationalCommandDiagnosticsLogger _commandLogger;
@@ -50,6 +39,8 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
         ArgumentNullException.ThrowIfNull(property);
 
         var strategy = property.GetMySqlValueGenerationStrategy();
+        // EF 11 consumes property-owned factories rather than converter or mapping
+        // hints. Delegate to its cache so an explicit factory retains its identity.
         if (property.GetValueGeneratorFactory() is not null)
         {
             return base.TrySelect(property, typeBase, out valueGenerator);
@@ -59,21 +50,6 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
             && (Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType) == typeof(Guid))
         {
             valueGenerator = new MySqlSequentialGuidValueGenerator();
-            return true;
-        }
-
-        // EF's implicit GUID converters carry permanent-generator hints,
-        // which runs before relational SQL-default selection. Only bypass that
-        // inferred converter; application-supplied converters/factories remain authoritative.
-        if (strategy is null
-            && property.ValueGenerated == ValueGenerated.OnAdd
-            && (Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType) == typeof(Guid)
-            && GetEffectiveDefaultValueSql(property, typeBase) is not null
-            && property.GetValueConverter() is null
-            && HasImplicitGuidConverterFactory(property.GetTypeMapping()))
-        {
-            valueGenerator = Cache.GetOrAdd(property, typeBase, static (_, _) => new TemporaryGuidValueGenerator());
-
             return true;
         }
 
@@ -150,21 +126,6 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
         var storeObject = StoreObjectIdentifier.Create(entityType, StoreObjectType.Table);
 
         return storeObject is { } table ? property.GetDefaultValueSql(table) : null;
-    }
-
-    /// <summary>Recognizes only EF 10's inherited Guid conversion generation hints.</summary>
-    private static bool HasImplicitGuidConverterFactory(
-        CoreTypeMapping mapping
-    )
-    {
-        // Keep the compatibility read local: EF 10's factory-first ordering cannot
-        // be intercepted through FindForType, and custom factories must not be discarded.
-#pragma warning disable CS0612
-        return (mapping.Converter?.GetType() == typeof(GuidToStringConverter)
-                && Equals(mapping.ValueGeneratorFactory, s_implicitGuidTextFactory))
-            || (mapping.Converter?.GetType() == typeof(GuidToBytesConverter)
-                && Equals(mapping.ValueGeneratorFactory, s_implicitGuidBytesFactory));
-#pragma warning restore CS0612
     }
 
     private ValueGenerator? CreateHiLoGenerator(

@@ -7,7 +7,7 @@ questions and private reporting channels are routed through
 
 ## Prerequisites
 
-- The exact [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- The exact [.NET 11 SDK](https://dotnet.microsoft.com/download/dotnet/11.0)
   pinned in [`global.json`](global.json)
 - [Docker](https://docs.docker.com/get-docker/) -- required for the MySQL / MariaDB integration test suites
 - [ShellCheck](https://www.shellcheck.net) -- required by the quality gate, which the `pre-commit` hook runs
@@ -104,15 +104,19 @@ explicit `DOKA_SPEC_TEST_TARGET` overrides that local default:
 ```bash
 DOKA_SPEC_TEST_TARGET=mysql84 dotnet test \
   tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
-  --filter "Category=Spec|Category=Live"
+  --filter "FullyQualifiedName~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.|Category=Spec|Category=Live"
 ```
 
 Accepted specification targets are `mysql84`, `mysql97`, `mariadb1011`,
 `mariadb114`, `mariadb118`, and `mariadb123`. Set
 `DOKA_SPEC_TEST_CONNECTION_STRING` together with
 `DOKA_SPEC_TEST_SERVER_VERSION` only when validating an external database.
-The per-event CI matrix runs `Category=Spec|Category=Live` in six independent
-processes, one for every accepted target.
+The per-event CI matrix runs every test in the `Specification` namespace,
+every provider adapter marked `Category=Spec`, and the standalone
+`Category=Live` tests in six independent processes, one for every accepted
+target. The category includes the runtime-migration adapter that resides in
+EF Core's namespace because its generated source resolves the test context
+there.
 
 For the complete local matrix, use the repository runner. It builds once,
 starts a separate test host and test-owned container for every target in the
