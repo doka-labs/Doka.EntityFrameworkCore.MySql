@@ -152,9 +152,6 @@ jobs:
           - stage: runtime
             timeout_minutes: 40
             deadline_seconds: 2100
-          - stage: efcore-patch-matrix
-            timeout_minutes: 60
-            deadline_seconds: 3300
           - stage: mysqlconnector-patch-matrix
             timeout_minutes: 45
             deadline_seconds: 2400
@@ -292,7 +289,6 @@ jobs:
               "artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}/artifact-selections/assemble-input-artifacts.json" \
             --stage migration-deployment \
             --stage runtime \
-            --stage efcore-patch-matrix \
             --stage mysqlconnector-patch-matrix \
             --stage package \
             --stage sbom

@@ -1,10 +1,10 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
-internal sealed class MySqlJsonStringTypeMapping : JsonTypeMapping
+internal sealed class MySqlJsonStringTypeMapping : StringTypeMapping
 {
     public MySqlJsonStringTypeMapping(
         string storeType
-    ) : base(storeType, typeof(string), System.Data.DbType.String) { }
+    ) : base(storeType, System.Data.DbType.String) { }
 
     private MySqlJsonStringTypeMapping(
         RelationalTypeMappingParameters parameters

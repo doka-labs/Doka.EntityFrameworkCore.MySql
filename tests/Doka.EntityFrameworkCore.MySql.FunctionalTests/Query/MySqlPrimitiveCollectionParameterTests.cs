@@ -661,11 +661,11 @@ public sealed class MySqlPrimitiveCollectionParameterTests
     }
 
     /// <summary>
-    /// A model-mapped string collection retains its document representation;
-    /// Base64 is reserved for parameter transport.
+    /// A model-mapped string collection uses direct JSON membership without
+    /// exposing MySQL's correlated <c>IN</c>/<c>JSON_TABLE</c> optimizer bug.
     /// </summary>
     [Fact]
-    public void Model_string_collection_does_not_use_parameter_transport_encoding()
+    public void Model_string_collection_contains_uses_native_json_membership()
     {
         using var context = CreateContext();
 
@@ -674,8 +674,31 @@ public sealed class MySqlPrimitiveCollectionParameterTests
             .Where(item => item.StringValues.Contains("alpha"))
             .ToQueryString();
 
-        Assert.Contains("JSON_UNQUOTE(JSON_QUOTE(`s`.`value`))", sql, StringComparison.Ordinal);
+        Assert.Contains("JSON_CONTAINS(`i`.`StringValues`", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("JSON_TABLE(`i`.`StringValues`", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("FROM_BASE64", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A composed string collection keeps its rowset predicate and decoded
+    /// projection instead of being widened to direct document membership.
+    /// </summary>
+    [Fact]
+    public void Filtered_model_string_collection_contains_preserves_composition()
+    {
+        using var context = CreateContext();
+
+        var sql = context
+            .Items
+            .Where(item => item.StringValues
+                .Where(value => value.Length > 1)
+                .Contains("alpha"))
+            .ToQueryString();
+
+        Assert.Contains("SELECT COUNT(*)", sql, StringComparison.Ordinal);
+        Assert.Contains("JSON_TABLE(`i`.`StringValues`", sql, StringComparison.Ordinal);
+        Assert.Contains("JSON_UNQUOTE(JSON_QUOTE(`s`.`value`))", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("JSON_CONTAINS(`i`.`StringValues`", sql, StringComparison.Ordinal);
     }
 
     /// <summary>

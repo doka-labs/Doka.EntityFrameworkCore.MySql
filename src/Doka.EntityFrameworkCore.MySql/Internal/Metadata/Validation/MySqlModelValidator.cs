@@ -37,6 +37,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
         var modelValidationLogger = logger.Logger;
 
         ValidateSequenceSchema(model, modelValidationLogger);
+        ValidateJsonIndexes(model);
         ValidateKeyedAndIndexedPropertyLengths(model, modelValidationLogger);
         ValidateDecimalPrecision(model, modelValidationLogger);
         ValidateConstraintNameLengths(model, modelValidationLogger);
@@ -44,6 +45,38 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
         ValidateTemporalTables(model, modelValidationLogger);
         ValidateApplicationTimeTables(model, modelValidationLogger);
     }
+
+    private static void ValidateJsonIndexes(
+        IModel model
+    )
+    {
+        foreach (var entityType in model.GetEntityTypes())
+        {
+            foreach (var index in entityType.GetIndexes())
+            {
+                var jsonMember = index.Properties.FirstOrDefault(IsMappedToJson);
+                if (jsonMember is null)
+                {
+                    continue;
+                }
+
+                throw new InvalidOperationException(
+                    $"The index '{index.GetDatabaseName() ?? index.Name}' on entity "
+                    + $"'{entityType.DisplayName()}' targets JSON-mapped member '{jsonMember.Name}'. "
+                    + "MySQL and MariaDB do not support direct indexes on JSON storage. "
+                    + "Map the extracted scalar to a generated column and index that scalar property instead.");
+            }
+        }
+    }
+
+    private static bool IsMappedToJson(
+        IPropertyBase property
+    ) => property switch
+    {
+        IComplexProperty complexProperty => complexProperty.ComplexType.IsMappedToJson(),
+        IProperty scalarProperty => scalarProperty.DeclaringType.IsMappedToJson(),
+        _ => false,
+    };
 
     private static void ValidateSequenceSchema(
         IModel model,
@@ -105,7 +138,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
 
     private static void ValidateIndexKeyWidth(
         IEntityType entityType,
-        IReadOnlyList<IProperty> properties,
+        IReadOnlyList<IPropertyBase> properties,
         IReadOnlyList<int>? prefixLengths,
         string definition,
         ILogger logger
@@ -130,49 +163,79 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
         for (var index = 0; index < properties.Count; index++)
         {
             var property = properties[index];
-
-            if (HasUnboundedStoreType(property))
-            {
-                var propertyKind = property.ClrType.UnwrapNullableType() == typeof(byte[]) ? "binary" : "text";
-
-                MySqlLoggerMessages.KeyOrIndexMaxLengthRequired(
-                    logger,
-                    entityType.DisplayName(),
-                    property.Name,
-                    propertyKind);
-
-                throw new InvalidOperationException(
-                    $"The keyed or indexed {propertyKind} property "
-                    + $"'{entityType.DisplayName()}.{property.Name}' must map to a bounded store type.");
-            }
-
             var prefixLength = prefixLengths?[index] ?? 0;
-            var fullLength = GetStoreTypeLength(property);
 
-            if (prefixLength > 0
-                && prefixLength > fullLength)
+            if (property is IComplexProperty complexProperty)
             {
-                throw new InvalidOperationException(
-                    $"The {definition} on entity type '{entityType.DisplayName()}' declares prefix length "
-                    + $"{prefixLength} for '{property.Name}', which exceeds its store length {fullLength}.");
-            }
+                if (prefixLength > 0)
+                {
+                    throw new InvalidOperationException(
+                        $"The {definition} on entity type '{entityType.DisplayName()}' declares prefix length "
+                        + $"{prefixLength} for complex property '{property.Name}'. Prefix lengths must target "
+                        + "individual scalar properties.");
+                }
 
-            var propertyBytes = GetIndexedBytes(entityType, property, prefixLength, fullLength);
-            if (propertyBytes is null)
-            {
+                foreach (var nestedProperty in complexProperty.ComplexType.GetFlattenedProperties())
+                {
+                    ValidateIndexedProperty(entityType, nestedProperty, prefixLength: 0, definition, logger, ref knownBytes);
+                }
+
                 continue;
             }
 
-            knownBytes += propertyBytes.Value;
-            if (knownBytes > MaximumInnoDbIndexBytes)
-            {
-                throw new InvalidOperationException(
-                    $"The {definition} on entity type '{entityType.DisplayName()}' requires at least "
-                    + $"{knownBytes} bytes and exceeds InnoDB's maximum supported "
-                    + $"{MaximumInnoDbIndexBytes}-byte index-key length. Configure a deliberate prefix "
-                    + "or reduce the indexed column lengths; Doka does not invent a prefix because that "
-                    + "would change index and uniqueness semantics.");
-            }
+            ValidateIndexedProperty(entityType, (IProperty)property, prefixLength, definition, logger, ref knownBytes);
+        }
+    }
+
+    private static void ValidateIndexedProperty(
+        IEntityType entityType,
+        IProperty property,
+        int prefixLength,
+        string definition,
+        ILogger logger,
+        ref long knownBytes
+    )
+    {
+        if (HasUnboundedStoreType(property))
+        {
+            var propertyKind = property.ClrType.UnwrapNullableType() == typeof(byte[]) ? "binary" : "text";
+
+            MySqlLoggerMessages.KeyOrIndexMaxLengthRequired(
+                logger,
+                entityType.DisplayName(),
+                property.Name,
+                propertyKind);
+
+            throw new InvalidOperationException(
+                $"The keyed or indexed {propertyKind} property "
+                + $"'{entityType.DisplayName()}.{property.Name}' must map to a bounded store type.");
+        }
+
+        var fullLength = GetStoreTypeLength(property);
+
+        if (prefixLength > 0
+            && prefixLength > fullLength)
+        {
+            throw new InvalidOperationException(
+                $"The {definition} on entity type '{entityType.DisplayName()}' declares prefix length "
+                + $"{prefixLength} for '{property.Name}', which exceeds its store length {fullLength}.");
+        }
+
+        var propertyBytes = GetIndexedBytes(entityType, property, prefixLength, fullLength);
+        if (propertyBytes is null)
+        {
+            return;
+        }
+
+        knownBytes += propertyBytes.Value;
+        if (knownBytes > MaximumInnoDbIndexBytes)
+        {
+            throw new InvalidOperationException(
+                $"The {definition} on entity type '{entityType.DisplayName()}' requires at least "
+                + $"{knownBytes} bytes and exceeds InnoDB's maximum supported "
+                + $"{MaximumInnoDbIndexBytes}-byte index-key length. Configure a deliberate prefix "
+                + "or reduce the indexed column lengths; Doka does not invent a prefix because that "
+                + "would change index and uniqueness semantics.");
         }
     }
 
@@ -557,7 +620,15 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
                         "must target exactly one property");
                 }
 
-                var property = index.Properties[0];
+                if (index.Properties[0] is not IProperty property)
+                {
+                    ThrowInvalidSpatialIndexConfiguration(
+                        logger,
+                        $"{entityType.DisplayName()}.{index.GetDatabaseName() ?? index.Properties[0].Name}",
+                        "must target a scalar NetTopologySuite geometry property");
+
+                    continue;
+                }
 
                 if (!MySqlSpatialTypeSupport.IsSpatialClrType(property.ClrType))
                 {
@@ -1184,7 +1255,7 @@ internal sealed class MySqlModelValidator : RelationalModelValidator
 
     private static void ValidateApplicationTimeConstraintProperties(
         IReadOnlyEntityType entityType,
-        IReadOnlyList<IReadOnlyProperty> properties,
+        IReadOnlyList<IReadOnlyPropertyBase> properties,
         string periodStartPropertyName,
         string periodEndPropertyName,
         string constraintKind,

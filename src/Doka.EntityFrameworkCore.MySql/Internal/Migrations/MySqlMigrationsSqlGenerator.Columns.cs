@@ -55,7 +55,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return;
         }
 
-        base.ColumnDefinition(schema, table, name, operation, model, builder);
+        AppendStandardColumnDefinition(schema, table, name, operation, model, builder);
 
         if (operation.IsRowVersion
             && IsTemporalRowVersionColumn(operation))
@@ -75,6 +75,33 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         }
 
         AppendCommonColumnOptions(operation, builder);
+    }
+
+    private void AppendStandardColumnDefinition(
+        string? schema,
+        string table,
+        string name,
+        ColumnOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder
+    )
+    {
+        var columnType = operation.ColumnType ?? GetColumnType(schema, table, name, operation, model);
+
+        builder
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(name))
+            .Append(" ")
+            .Append(columnType);
+
+        if (operation.Collation is { } collation)
+        {
+            builder
+                .Append(" COLLATE ")
+                .Append(collation);
+        }
+
+        builder.Append(operation.IsNullable ? " NULL" : " NOT NULL");
+        DefaultValue(operation.DefaultValue, operation.DefaultValueSql, columnType, builder);
     }
 
     protected override void Generate(
@@ -133,7 +160,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
             AppendDropTemporalTriggers(operation.Table, operation.Schema, builder);
             GenerateAddColumn(operation, model, builder, terminate: true);
-            AppendTemporalHistoryColumnAddition(operation, model, targetTemporalContract, builder);
+            AppendTemporalHistoryColumnAddition(operation, targetTemporalContract, builder);
             AppendTemporalTriggersFromModel(
                 operation.Table,
                 operation.Schema,
@@ -258,7 +285,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
             AppendDropTemporalTriggers(operation.Table, operation.Schema, builder);
             GenerateAlterColumn(operation, model, builder);
-            AppendTemporalHistoryColumnAlteration(operation, model, targetTemporalContract, builder);
+            AppendTemporalHistoryColumnAlteration(operation, targetTemporalContract, builder);
             AppendTemporalTriggersFromModel(
                 operation.Table,
                 operation.Schema,
@@ -608,7 +635,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 : "VIRTUAL");
 
         if (!operation.IsNullable
-            && _mySqlSingletonOptions.Profile?.GetSupport(
+            && Profile.GetSupport(
                 ProviderCapability.GeneratedColumnNullabilityClause) == ProviderSupportStatus.Native)
         {
             builder.Append(" NOT NULL");
@@ -664,7 +691,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 MySqlAnnotationNames.SpatialReferenceSystemId)
             ?.Value as int?;
 
-        var spatialReferenceSystemIdSupport = _mySqlSingletonOptions.Profile?.GetSupport(
+        var spatialReferenceSystemIdSupport = Profile.GetSupport(
             ProviderCapability.SpatialColumnSridEnforcement);
 
         if (spatialReferenceSystemId is not null
@@ -694,7 +721,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .FindAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId)
             ?.Value as int?;
 
-        var spatialReferenceSystemIdSupport = _mySqlSingletonOptions.Profile?.GetSupport(
+        var spatialReferenceSystemIdSupport = Profile.GetSupport(
             ProviderCapability.SpatialColumnSridEnforcement);
 
         if (spatialReferenceSystemId is not null
@@ -781,13 +808,13 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return;
         }
 
-        if (_mySqlSingletonOptions.Profile?.GetSupport(ProviderCapability.JsonColumns)
+        if (Profile.GetSupport(ProviderCapability.JsonColumns)
             == ProviderSupportStatus.Emulated)
         {
             return;
         }
 
-        if (_mySqlSingletonOptions.Profile?.GetSupport(ProviderCapability.JsonColumns)
+        if (Profile.GetSupport(ProviderCapability.JsonColumns)
             == ProviderSupportStatus.Native)
         {
             return;
@@ -812,8 +839,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         // an explicitly configured virtual column.
         var isStored = operation.IsStored == true;
         var supportsGeneratedColumns = isStored
-            ? _mySqlSingletonOptions.Profile?.Supports(ProviderCapability.StoredGeneratedColumns) == true
-            : _mySqlSingletonOptions.Profile?.Supports(ProviderCapability.VirtualGeneratedColumns) == true;
+            ? Profile.Supports(ProviderCapability.StoredGeneratedColumns)
+            : Profile.Supports(ProviderCapability.VirtualGeneratedColumns);
 
         if (supportsGeneratedColumns)
         {
@@ -826,8 +853,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
     private string GetStoredGeneratedColumnKeyword()
     {
-        return _mySqlSingletonOptions.Profile?.Engine.Has(
-            EngineCapability.StoredGeneratedColumnUsesPersistentKeyword) == true
+        return Profile.Engine.Has(
+            EngineCapability.StoredGeneratedColumnUsesPersistentKeyword)
                 ? "PERSISTENT"
                 : "STORED";
     }
@@ -849,7 +876,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
     private bool IsMariaDbJsonAliasColumn(
         ColumnOperation operation
-    ) => _mySqlSingletonOptions.Profile?.GetSupport(ProviderCapability.JsonColumns) == ProviderSupportStatus.Emulated
+    ) => Profile.GetSupport(ProviderCapability.JsonColumns) == ProviderSupportStatus.Emulated
         && IsJsonColumn(operation);
 
     private static bool IsSpatialColumn(

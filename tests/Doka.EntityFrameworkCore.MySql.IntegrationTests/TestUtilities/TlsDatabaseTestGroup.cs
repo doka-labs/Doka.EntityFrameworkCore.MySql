@@ -20,7 +20,7 @@ public sealed class TlsDatabaseFixture : IAsyncLifetime
 {
     private TestDatabaseSession? _session;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var requests = IntegrationTestEnvironment
             .GetSelectedTargets()
@@ -32,7 +32,7 @@ public sealed class TlsDatabaseFixture : IAsyncLifetime
             .ConfigureAwait(false);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_session is null)
         {

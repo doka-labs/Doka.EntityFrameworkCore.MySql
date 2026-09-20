@@ -39,10 +39,10 @@ public sealed class IntegrationDatabaseTargetContractTests
     )
     {
         // Act
-        var action = () => IntegrationTestEnvironment.CreateScopedDatabaseName(runId, ownerFilePath);
+        void CreateDatabaseName() => IntegrationTestEnvironment.CreateScopedDatabaseName(runId, ownerFilePath);
 
         // Assert
-        Assert.Throws<ArgumentException>(action);
+        Assert.Throws<ArgumentException>(CreateDatabaseName);
     }
 
     /// <summary>

@@ -248,7 +248,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     }
 
     /// <inheritdoc />
-    public override CoreTypeMapping? FindMapping(
+    public override RelationalTypeMapping? FindMapping(
         IElementType elementType
     )
     {
@@ -277,7 +277,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
 
             ValidateMapping(mapping, property: null);
 
-            return mapping;
+            return (RelationalTypeMapping?)mapping;
         }
 
         return base.FindMapping(elementType);
@@ -722,24 +722,6 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         var storeType = storeSize is > 0 ? $"varbinary({storeSize.Value})" : "longblob";
 
         return new ByteArrayTypeMapping(storeType, DbType.Binary, storeSize is > 0 ? storeSize : null);
-    }
-
-    private static RelationalTypeMapping CreateEnumMapping(
-        Type clrType
-    )
-    {
-        ArgumentNullException.ThrowIfNull(clrType);
-
-        var underlyingType = Enum.GetUnderlyingType(clrType);
-
-        if (s_clrMappings.TryGetValue(underlyingType, out var mapping))
-        {
-            return mapping;
-        }
-
-        throw new InvalidOperationException(
-            $"The enum CLR type '{clrType.FullName ?? clrType.Name}' uses the unsupported "
-            + $"underlying type '{underlyingType.FullName ?? underlyingType.Name}'.");
     }
 
     private static DecimalTypeMapping CreateDecimalMapping(

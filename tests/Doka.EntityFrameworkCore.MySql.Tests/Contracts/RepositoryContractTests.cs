@@ -77,13 +77,13 @@ public sealed class RepositoryContractTests
             + "- Bind the merged commit to its qualified PR tree.\n"
             + "- Reject missing, ambiguous, or changed tree evidence.\n");
 
-        var accepted = RunCommitMessageGate(repositoryRoot, messagePath);
+        var (acceptedExitCode, _) = RunCommitMessageGate(repositoryRoot, messagePath);
         File.WriteAllText(messagePath, "invalid subject\n");
-        var rejected = RunCommitMessageGate(repositoryRoot, messagePath);
+        var (rejectedExitCode, rejectedStandardError) = RunCommitMessageGate(repositoryRoot, messagePath);
 
-        Assert.Equal(0, accepted.ExitCode);
-        Assert.Equal(1, rejected.ExitCode);
-        Assert.Contains("Commit message rejected", rejected.StandardError, StringComparison.Ordinal);
+        Assert.Equal(0, acceptedExitCode);
+        Assert.Equal(1, rejectedExitCode);
+        Assert.Contains("Commit message rejected", rejectedStandardError, StringComparison.Ordinal);
     }
 
     [Fact]

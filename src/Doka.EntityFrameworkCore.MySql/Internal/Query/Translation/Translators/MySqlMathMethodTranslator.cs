@@ -71,7 +71,7 @@ internal sealed class MySqlMathMethodTranslator : IMethodCallTranslator
             nameof(Math.Pow) => TranslateFunction("POWER", arguments, method.ReturnType),
             nameof(double.RadiansToDegrees) => TranslateFunction("DEGREES", arguments, method.ReturnType),
             nameof(Math.Round) => TranslateFunction("ROUND", arguments, method.ReturnType),
-            nameof(Math.Sign) => TranslateFunction("SIGN", arguments, method.ReturnType),
+            nameof(Math.Sign) => TranslateSign(arguments[0]),
             nameof(Math.Sin) => TranslateFunction("SIN", arguments, method.ReturnType),
             nameof(Math.Sinh) => TranslateSinh(arguments[0], method.ReturnType),
             nameof(Math.Sqrt) => TranslateFunction("SQRT", arguments, method.ReturnType),
@@ -118,6 +118,24 @@ internal sealed class MySqlMathMethodTranslator : IMethodCallTranslator
                 arguments[0],
             ],
             resultType);
+
+    private SqlExpression TranslateSign(
+        SqlExpression argument
+    )
+    {
+        var mappedArgument = _sqlExpressionFactory.ApplyDefaultTypeMapping(argument)!;
+        var signFunction = _sqlExpressionFactory.Function(
+            "SIGN",
+            [mappedArgument],
+            nullable: true,
+            argumentsPropagateNullability: s_singleArgumentNullPropagation,
+            mappedArgument.Type,
+            mappedArgument.TypeMapping);
+
+        return mappedArgument.Type == typeof(int)
+            ? signFunction
+            : _sqlExpressionFactory.Convert(signFunction, typeof(int));
+    }
 
     private SqlExpression TranslateTruncate(
         SqlExpression argument,

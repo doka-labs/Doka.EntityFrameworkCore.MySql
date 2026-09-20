@@ -61,14 +61,15 @@ for target in "${supported_target_list[@]}"; do
     echo "Running specification and live functional tests for ${target}..."
     DOKA_SPEC_TEST_TARGET="${target}" \
     DOKA_TEST_DATABASE_EVIDENCE_FILE="${target_results}/test-database-evidence.json" \
-        dotnet test "${functional_project}" \
+        dotnet test --project "${functional_project}" \
             --configuration Release \
             --no-build \
             --no-restore \
             --tl:off \
-            --filter "Category=Spec|Category=Live" \
-            --logger "trx;LogFileName=spec-tests.trx" \
-            --results-directory "${target_results}"
+            --filter "FullyQualifiedName~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.|Category=Spec|Category=Live" \
+            --results-directory "${target_results}" \
+            --report-xunit-trx \
+            --report-xunit-trx-filename spec-tests.trx
 
     bash "${repo_root}/eng/testing/check-spec-results.sh" \
         "${target}" \

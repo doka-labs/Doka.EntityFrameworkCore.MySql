@@ -29,7 +29,6 @@ internal static class Program
                 "publication" => Validate(options, publication: true),
                 "discovery-update" => UpdateDiscovery(options),
                 "discovery-validate" => ValidateDiscovery(options),
-                "classification-validate" => ValidateClassification(options),
                 "trx" => ValidateTrx(options),
                 _ => throw new ArgumentException($"Unknown command '{command}'.", nameof(args)),
             };
@@ -187,28 +186,6 @@ internal static class Program
         return errors.Count == 0 ? 0 : 1;
     }
 
-    private static int ValidateClassification(
-        CommandOptions options
-    )
-    {
-        var all = DiscoveryContract.ParseListOutput(
-            File.ReadAllText(options.RequiredSingle("--all")));
-
-        var classified = DiscoveryContract.ParseListOutput(
-            File.ReadAllText(options.RequiredSingle("--classified")));
-
-        var errors = DiscoveryContract.ValidateClassification(all, classified);
-
-        foreach (var error in errors)
-        {
-            Console.Error.WriteLine(error);
-        }
-
-        Console.WriteLine($"Specification classification: total={all.Count}, Category=Spec={classified.Count}.");
-
-        return errors.Count == 0 ? 0 : 1;
-    }
-
     private static int ValidateTrx(
         CommandOptions options
     )
@@ -280,7 +257,6 @@ internal static class Program
           publication        --root <repository> --provider <dll>
           discovery-update   --contract <json> --actual <list-output> --provider <dll> --target <target>
           discovery-validate --root <repository> --actual <list-output> --target <target>
-          classification-validate --all <list-output> --classified <list-output>
           trx                --root <repository> --trx <file-or-directory> [--trx <path>] --target <target>
         """);
 }

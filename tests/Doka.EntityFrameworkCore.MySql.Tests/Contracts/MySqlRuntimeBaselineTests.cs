@@ -170,11 +170,12 @@ public sealed class MySqlRuntimeBaselineTests
             new RuntimeBaselineContext(CreateOptions("Server=localhost;Database=doka;", serviceProvider));
 
         var databaseCreator = context.GetService<IRelationalDatabaseCreator>();
+        var cancellationToken = TestContext.Current.CancellationToken;
 
-        await databaseCreator.CreateAsync();
-        await databaseCreator.DeleteAsync();
+        await databaseCreator.CreateAsync(cancellationToken);
+        await databaseCreator.DeleteAsync(cancellationToken);
 
-        var hasTables = await databaseCreator.HasTablesAsync();
+        var hasTables = await databaseCreator.HasTablesAsync(cancellationToken);
 
         Assert.True(hasTables);
         Assert.Equal(2, driverFacade.ServerConnections.Count);
@@ -704,7 +705,7 @@ public sealed class MySqlRuntimeBaselineTests
     {
         private ConnectionState _state = ConnectionState.Closed;
 
-        public List<RecordingDbCommand> Commands { get; } = new();
+        public List<RecordingDbCommand> Commands { get; } = [];
 
         public RecordingDbTransaction? LastTransaction { get; private set; }
 
@@ -764,11 +765,11 @@ public sealed class MySqlRuntimeBaselineTests
 
     private sealed class AsyncAwareDriverFacade : IMySqlDriverFacade
     {
-        public List<AsyncAwareDbConnection> DatabaseConnections { get; } = new();
+        public List<AsyncAwareDbConnection> DatabaseConnections { get; } = [];
 
         public string DriverName => "AsyncAware";
 
-        public List<AsyncAwareDbConnection> ServerConnections { get; } = new();
+        public List<AsyncAwareDbConnection> ServerConnections { get; } = [];
 
         public DbConnection CreateConnection(
             string connectionString
@@ -805,7 +806,7 @@ public sealed class MySqlRuntimeBaselineTests
             ConnectionString = connectionString;
         }
 
-        public List<AsyncAwareDbCommand> Commands { get; } = new();
+        public List<AsyncAwareDbCommand> Commands { get; } = [];
 
         [AllowNull]
         public override string ConnectionString { get; set; }
@@ -1042,7 +1043,7 @@ public sealed class MySqlRuntimeBaselineTests
 
     private sealed class RecordingDbParameterCollection : DbParameterCollection
     {
-        private readonly List<DbParameter> _parameters = new();
+        private readonly List<DbParameter> _parameters = [];
 
         public override int Count => _parameters.Count;
 

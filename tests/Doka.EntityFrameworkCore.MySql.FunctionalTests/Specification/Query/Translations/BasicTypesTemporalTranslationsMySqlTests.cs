@@ -50,12 +50,12 @@ public sealed class BasicTypesDateTimeTranslationsMySqlTest
     /// <inheritdoc />
     public override Task Parse_with_constant()
         => ExecuteWithUsEnglishCulture(
-            () => base.Parse_with_constant());
+            base.Parse_with_constant);
 
     /// <inheritdoc />
     public override Task Parse_with_parameter()
         => ExecuteWithUsEnglishCulture(
-            () => base.Parse_with_parameter());
+            base.Parse_with_parameter);
 
     private static async Task ExecuteWithUsEnglishCulture(
         Func<Task> test

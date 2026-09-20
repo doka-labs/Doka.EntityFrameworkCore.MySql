@@ -124,10 +124,10 @@ public sealed class MySqlCacheOptionsTests
             options.DataSource = dataSource;
         });
 
-        var exception = Assert.Throws<OptionsValidationException>(() =>
+        var exception = await Assert.ThrowsAsync<OptionsValidationException>(() =>
             provider
-                .GetRequiredService<IStartupValidator>()
-                .Validate());
+                .GetRequiredService<IAsyncStartupValidator>()
+                .ValidateAsync(TestContext.Current.CancellationToken));
 
         Assert.Contains("AutoEnlist=false", exception.Message, StringComparison.Ordinal);
     }
@@ -193,12 +193,14 @@ public sealed class MySqlCacheOptionsTests
     /// Verifies a very long cleanup interval does not overflow scheduling during resolution.
     /// </summary>
     [Fact]
-    public void Maximum_cleanup_interval_is_accepted_without_timestamp_overflow()
+    public async Task Maximum_cleanup_interval_is_accepted_without_timestamp_overflow()
     {
         using var provider = MySqlCacheTestFactory.CreateProvider(options =>
             options.ExpiredItemsDeletionInterval = TimeSpan.MaxValue);
 
-        provider.GetRequiredService<IStartupValidator>().Validate();
+        await provider
+            .GetRequiredService<IAsyncStartupValidator>()
+            .ValidateAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(provider.GetRequiredService<Microsoft.Extensions.Caching.Distributed.IDistributedCache>());
     }
 

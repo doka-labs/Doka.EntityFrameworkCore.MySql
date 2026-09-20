@@ -79,19 +79,19 @@ internal static class AdrIndexRenderer
         }
         else
         {
-            foreach (var relationship in relationships)
+            foreach (var (id, verb, target) in relationships)
             {
                 builder
                     .Append("  ")
-                    .Append(ToMermaidId(relationship.Id))
+                    .Append(ToMermaidId(id))
                     .Append("[\"")
-                    .Append(relationship.Id)
+                    .Append(id)
                     .Append("\"] -->|\"")
-                    .Append(relationship.Verb)
+                    .Append(verb)
                     .Append("\"| ")
-                    .Append(ToMermaidId(relationship.Target))
+                    .Append(ToMermaidId(target))
                     .Append("[\"")
-                    .Append(relationship.Target)
+                    .Append(target)
                     .AppendLine("\"]");
             }
         }

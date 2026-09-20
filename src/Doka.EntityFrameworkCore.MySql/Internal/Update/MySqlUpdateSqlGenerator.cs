@@ -269,7 +269,7 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
         string? schema
     )
     {
-        if (columnModification.JsonPath is null or "$")
+        if (columnModification.JsonPath is null or { IsRoot: true })
         {
             base.AppendUpdateColumnValue(updateSqlGeneratorHelper, columnModification, stringBuilder, name, schema);
             return;
@@ -278,7 +278,9 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
         stringBuilder.Append("JSON_SET(");
         updateSqlGeneratorHelper.DelimitIdentifier(stringBuilder, columnModification.ColumnName);
         stringBuilder.Append(", ");
-        stringBuilder.Append(_stringTypeMapping.GenerateSqlLiteral(columnModification.JsonPath));
+        var jsonPathBuilder = new StringBuilder();
+        columnModification.JsonPath.AppendTo(jsonPathBuilder);
+        stringBuilder.Append(_stringTypeMapping.GenerateSqlLiteral(jsonPathBuilder.ToString()));
         stringBuilder.Append(", ");
 
         if (columnModification.Property is { IsPrimitiveCollection: false, })

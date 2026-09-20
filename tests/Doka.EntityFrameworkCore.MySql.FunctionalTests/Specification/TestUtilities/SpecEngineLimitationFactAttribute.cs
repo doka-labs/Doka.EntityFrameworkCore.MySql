@@ -10,7 +10,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 /// upgrade can be checked without editing test source.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-public sealed class SpecEngineLimitationFactAttribute : FactAttribute
+public sealed class SpecEngineLimitationFactAttribute : SpecDispositionAttribute
 {
     /// <summary>
     /// Creates an engine-limited fact disposition.
@@ -18,17 +18,30 @@ public sealed class SpecEngineLimitationFactAttribute : FactAttribute
     /// <param name="dispositionId">
     /// Stable identifier of the corresponding machine-readable disposition.
     /// </param>
-    /// <param name="unsupportedTargets">
-    /// Targets covered when the source annotation was authored. The ledger may
-    /// add later LTS targets, but it cannot silently remove an annotated target.
-    /// </param>
+    /// <param name="firstUnsupportedTarget">First target covered by the disposition.</param>
+    /// <param name="secondUnsupportedTarget">Optional second covered target.</param>
+    /// <param name="thirdUnsupportedTarget">Optional third covered target.</param>
     public SpecEngineLimitationFactAttribute(
         string dispositionId,
-        params string[] unsupportedTargets
+        string firstUnsupportedTarget,
+        string? secondUnsupportedTarget = null,
+        string? thirdUnsupportedTarget = null
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dispositionId);
-        ArgumentNullException.ThrowIfNull(unsupportedTargets);
+        ArgumentException.ThrowIfNullOrWhiteSpace(firstUnsupportedTarget);
+
+        var unsupportedTargets = new List<string> { firstUnsupportedTarget };
+
+        if (secondUnsupportedTarget is not null)
+        {
+            unsupportedTargets.Add(secondUnsupportedTarget);
+        }
+
+        if (thirdUnsupportedTarget is not null)
+        {
+            unsupportedTargets.Add(thirdUnsupportedTarget);
+        }
 
         DispositionId = dispositionId;
         UnsupportedTargets = SpecEngineDispositionCatalog.GetTargets(
@@ -39,7 +52,7 @@ public sealed class SpecEngineLimitationFactAttribute : FactAttribute
         if (UnsupportedTargets.Contains(target, StringComparer.OrdinalIgnoreCase)
             && !SpecTestTarget.IsEngineLimitationProbeEnabled())
         {
-            Skip =
+            SkipReason =
                 $"[spec-engine-limit:{dispositionId}] Target '{target}' is covered by "
                 + "the primary-source-backed specification disposition ledger.";
         }

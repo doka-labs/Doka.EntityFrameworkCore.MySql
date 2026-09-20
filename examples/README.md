@@ -19,7 +19,7 @@ qualification always requires all six supported targets.
 
 ## Prerequisites
 
-- .NET 10 SDK
+- .NET 11 SDK
 - Docker for the repository-owned database targets
 
 Start one supported target from the repository root:

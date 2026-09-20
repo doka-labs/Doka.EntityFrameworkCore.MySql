@@ -392,24 +392,9 @@ internal static partial class EngineeringSurfaceContract
             }
 
             consumers.Add(Relative(root, project));
-            var runnerReferences = references
-                .Where(reference => (string?)reference.Attribute("Include") == runner)
-                .ToArray();
-            if (runnerReferences.Length != 1
-                || runnerReferences[0]
-                    .Attribute("Version") is not null
-                || runnerReferences[0]
-                    .Attribute("VersionOverride") is not null
-                || runnerReferences[0]
-                    .Element("PrivateAssets")
-                    ?.Value
-                != "all"
-                || runnerReferences[0]
-                    .Element("ExcludeAssets")
-                    ?.Value
-                != "all")
+            if (references.Any(reference => (string?)reference.Attribute("Include") == runner))
             {
-                errors.Add($"{Relative(root, project)}: specification consumer must exclude runner assets.");
+                errors.Add($"{Relative(root, project)}: non-test specification consumers must not reference a test runner.");
             }
         }
 

@@ -71,6 +71,23 @@ public sealed class EngineeringToolContractTests
     }
 
     [Fact]
+    public void Repository_test_filter_excludes_both_specification_routes()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var testRunner = File.ReadAllText(Path.Combine(repositoryRoot, "eng/testing/test.sh"));
+
+        Assert.Contains(
+            "FullyQualifiedName!~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification."
+            + "&Category!=Spec&Category!=Live",
+            testRunner,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "Specification.&Category!=Live\"",
+            testRunner,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Vulnerability_gate_accepts_a_complete_clean_audit()
     {
         var result = RunVulnerabilityGate(
@@ -103,7 +120,7 @@ public sealed class EngineeringToolContractTests
                         {
                             new
                             {
-                                framework = "net10.0",
+                                framework = "net11.0",
                                 transitivePackages = new[]
                                 {
                                     new

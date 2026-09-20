@@ -1,4 +1,3 @@
-using System.Reflection;
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
@@ -11,52 +10,49 @@ public sealed class AdHocAdvancedMappingsQueryMySqlTest : AdHocAdvancedMappingsQ
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 
-    [DirectTheory]
-    [InlineData(null, "")]
-    [InlineData(1, " (Scale = 1)")]
-    [InlineData(2, " (Scale = 2)")]
-    [InlineData(3, " (Scale = 3)")]
-    [InlineData(4, " (Scale = 4)")]
-    [InlineData(5, " (Scale = 5)")]
-    [InlineData(6, " (Scale = 6)")]
-    public override Task Query_generates_correct_datetime2_parameter_definition(
+    public override async Task Query_generates_correct_datetime2_parameter_definition(
         int? fractionalSeconds,
         string postfix
-    ) => base.Query_generates_correct_datetime2_parameter_definition(fractionalSeconds, postfix);
+    )
+    {
+        if (fractionalSeconds == 7)
+        {
+            await AssertInvalidTemporalPrecision(
+                () => base.Query_generates_correct_datetime2_parameter_definition(fractionalSeconds, postfix));
 
-    [SpecEngineLimitationFact("MYSQL-MARIADB-TEMPORAL-MICROSECOND-PRECISION", "mysql84", "mariadb114", "mariadb118")]
-    public Task Query_generates_correct_datetime2_parameter_definition_at_precision_7() =>
-        base.Query_generates_correct_datetime2_parameter_definition(7, " (Scale = 7)");
+            return;
+        }
 
-    [DirectTheory]
-    [InlineData(null, "")]
-    [InlineData(1, " (Scale = 1)")]
-    [InlineData(2, " (Scale = 2)")]
-    [InlineData(3, " (Scale = 3)")]
-    [InlineData(4, " (Scale = 4)")]
-    [InlineData(5, " (Scale = 5)")]
-    [InlineData(6, " (Scale = 6)")]
-    public override Task Query_generates_correct_timespan_parameter_definition(
+        await base.Query_generates_correct_datetime2_parameter_definition(fractionalSeconds, postfix);
+    }
+
+    public override async Task Query_generates_correct_timespan_parameter_definition(
         int? fractionalSeconds,
         string postfix
-    ) => base.Query_generates_correct_timespan_parameter_definition(fractionalSeconds, postfix);
+    )
+    {
+        if (fractionalSeconds == 7)
+        {
+            await AssertInvalidTemporalPrecision(
+                () => base.Query_generates_correct_timespan_parameter_definition(fractionalSeconds, postfix));
 
-    [SpecEngineLimitationFact("MYSQL-MARIADB-TEMPORAL-MICROSECOND-PRECISION", "mysql84", "mariadb114", "mariadb118")]
-    public Task Query_generates_correct_timespan_parameter_definition_at_precision_7() =>
-        base.Query_generates_correct_timespan_parameter_definition(7, " (Scale = 7)");
-}
+            return;
+        }
 
-[Trait("Category", "Spec")]
-[Collection(FunctionalDatabaseTestGroup.Name)]
-public sealed class AdHocComplexTypeQueryMySqlTest : AdHocComplexTypeQueryRelationalTestBase
-{
-    public AdHocComplexTypeQueryMySqlTest(
-        NonSharedFixture fixture
-    ) : base(fixture) { }
+        await base.Query_generates_correct_timespan_parameter_definition(fractionalSeconds, postfix);
+    }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    private static async Task AssertInvalidTemporalPrecision(
+        Func<Task> action
+    )
+    {
+        var exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(action);
+
+        Assert.Equal("precision", exception.ParamName);
+        Assert.Equal(7, exception.ActualValue);
+    }
 }
 
 [Trait("Category", "Spec")]
@@ -67,7 +63,7 @@ public sealed partial class AdHocNavigationsQueryMySqlTest : AdHocNavigationsQue
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 }
 
 [Trait("Category", "Spec")]
@@ -78,7 +74,7 @@ public sealed partial class AdHocQueryFiltersQueryMySqlTest : AdHocQueryFiltersQ
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 }
 
 [Trait("Category", "Spec")]
@@ -89,7 +85,7 @@ public sealed class EntitySplittingQueryMySqlTest : EntitySplittingQueryTestBase
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 }
 
 [Trait("Category", "Spec")]
@@ -100,7 +96,7 @@ public sealed class OperatorsProceduralQueryMySqlTest : OperatorsProceduralQuery
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 }
 
 [Trait("Category", "Spec")]
@@ -111,7 +107,7 @@ public sealed class OperatorsQueryMySqlTest : OperatorsQueryTestBase
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 }
 
 [Trait("Category", "Spec")]
@@ -122,7 +118,7 @@ public sealed class ToSqlQueryMySqlTest : ToSqlQueryTestBase
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 }
 
 [Trait("Category", "Spec")]
@@ -133,7 +129,7 @@ public sealed partial class AdHocMiscellaneousQueryMySqlTest : AdHocMiscellaneou
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 
     protected override DbContextOptionsBuilder SetParameterizedCollectionMode(
         DbContextOptionsBuilder optionsBuilder,
@@ -154,12 +150,53 @@ public sealed partial class AdHocMiscellaneousQueryMySqlTest : AdHocMiscellaneou
         await context.Database.ExecuteSqlRawAsync("INSERT INTO `ZeroKey` (`Id`) VALUES (NULL)");
     }
 
+    protected override async Task Seed30915(
+        Context30915 context
+    )
+    {
+        context.Statuses.AddRange(
+            new Context30915.PickupStatus30915
+            {
+                PickupStatusId = 1,
+                Name = "Active",
+            },
+            new Context30915.PickupStatus30915
+            {
+                PickupStatusId = 2,
+                Name = "NoRequests",
+            },
+            new Context30915.PickupStatus30915
+            {
+                PickupStatusId = 3,
+                Name = "Busy",
+            });
+
+        context.Requests.AddRange(
+            new Context30915.PickupRequest30915
+            {
+                PickupStatusId = 1,
+                Priority = 5,
+            },
+            new Context30915.PickupRequest30915
+            {
+                PickupStatusId = 1,
+                Priority = null,
+            },
+            new Context30915.PickupRequest30915
+            {
+                PickupStatusId = 3,
+                Priority = 7,
+            });
+
+        await context.SaveChangesAsync();
+    }
+
     public override async Task Multiple_different_entity_type_from_different_namespaces(
         bool async
     )
     {
-        var contextFactory = await InitializeAsync<Context23981>();
-        using var context = contextFactory.CreateContext();
+        var contextFactory = await InitializeNonSharedTest<Context23981>();
+        using var context = contextFactory.CreateDbContext();
         var query = context
             .Set<NameSpace1.TestQuery>()
             .FromSqlRaw("SELECT CAST(NULL AS SIGNED) AS `MyValue`");
@@ -169,8 +206,8 @@ public sealed partial class AdHocMiscellaneousQueryMySqlTest : AdHocMiscellaneou
 
     public override async Task Mapping_JsonElement_property_throws_a_meaningful_exception()
     {
-        var contextFactory = await InitializeAsync<Context34752>();
-        await using var context = contextFactory.CreateContext();
+        var contextFactory = await InitializeNonSharedTest<Context34752>();
+        await using var context = contextFactory.CreateDbContext();
         using var document = JsonDocument.Parse("""{"enabled":true}""");
 
         context.Entities.Add(
@@ -192,28 +229,6 @@ public sealed partial class AdHocMiscellaneousQueryMySqlTest : AdHocMiscellaneou
 
 [Trait("Category", "Spec")]
 [Collection(FunctionalDatabaseTestGroup.Name)]
-public sealed partial class
-    NonSharedPrimitiveCollectionsQueryMySqlTest : NonSharedPrimitiveCollectionsQueryRelationalTestBase
-{
-    public NonSharedPrimitiveCollectionsQueryMySqlTest(
-        NonSharedFixture fixture
-    ) : base(fixture) { }
-
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
-
-    protected override DbContextOptionsBuilder SetParameterizedCollectionMode(
-        DbContextOptionsBuilder optionsBuilder,
-        ParameterTranslationMode parameterizedCollectionMode
-    )
-    {
-        new MySqlDbContextOptionsBuilder(optionsBuilder).UseParameterizedCollectionMode(parameterizedCollectionMode);
-
-        return optionsBuilder;
-    }
-}
-
-[Trait("Category", "Spec")]
-[Collection(FunctionalDatabaseTestGroup.Name)]
 public sealed class AdHocQuerySplittingQueryMySqlTest : AdHocQuerySplittingQueryTestBase
 {
     private static readonly FieldInfo s_querySplittingBehaviorField =
@@ -226,7 +241,7 @@ public sealed class AdHocQuerySplittingQueryMySqlTest : AdHocQuerySplittingQuery
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 
     protected override DbContextOptionsBuilder SetQuerySplittingBehavior(
         DbContextOptionsBuilder optionsBuilder,

@@ -1,6 +1,6 @@
-using System.Reflection;
 using System.Text.RegularExpressions;
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
+using Xunit.v3;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification;
 
@@ -106,13 +106,17 @@ public class SpecDispositionContractTests
     [Fact]
     public void Inherited_theory_data_uses_the_nearest_data_bearing_base_declaration()
     {
-        var method = typeof(Query.Associations.OwnedNavigationsProjectionMySqlTest).GetMethod(
-            nameof(Query.Associations.OwnedNavigationsProjectionMySqlTest
-                .Select_subquery_optional_related_FirstOrDefault))!;
+        var method = typeof(Query.ComplexNavigationsQueryMySqlTest).GetMethod(
+            nameof(Query.ComplexNavigationsQueryMySqlTest.SelectMany_subquery_with_custom_projection))!;
 
-        var attribute = method.GetCustomAttribute<InheritedTheoryDataAttribute>()!;
+        var dataDeclaration = TheoryDataInheritance.FindNearestDataDeclaration(method);
 
-        Assert.NotEmpty(attribute.GetData(method));
+        Assert.NotNull(dataDeclaration);
+        Assert.StartsWith(
+            "ComplexNavigationsQueryTestBase`1",
+            dataDeclaration.DeclaringType!.Name,
+            StringComparison.Ordinal);
+        Assert.NotEmpty(dataDeclaration.GetCustomAttributes<DataAttribute>(inherit: false));
     }
 
     /// <summary>
@@ -161,6 +165,35 @@ public class SpecDispositionContractTests
             + string.Join(
                 Environment.NewLine,
                 inheritedSkips.Select(item => FormatInheritedSkip(item.ProviderType, item.Method))));
+    }
+
+    /// <summary>
+    /// Prevents provider metadata from adding a second xUnit fact or theory attribute to an
+    /// inherited EF Core specification test.
+    /// </summary>
+    [Fact]
+    public void Specification_methods_expose_at_most_one_xunit_test_attribute()
+    {
+        var duplicateTestAttributes = SpecificationMethods()
+            .Select(method => new
+            {
+                Method = method,
+                Attributes = method.GetCustomAttributes<FactAttribute>(inherit: true).ToArray(),
+            })
+            .Where(item => item.Attributes.Length > 1)
+            .OrderBy(item => item.Method.DeclaringType!.FullName, StringComparer.Ordinal)
+            .ThenBy(item => item.Method.Name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(
+            duplicateTestAttributes.Length == 0,
+            "Specification methods expose multiple xUnit test attributes:"
+            + Environment.NewLine
+            + string.Join(
+                Environment.NewLine,
+                duplicateTestAttributes.Select(item =>
+                    $"{item.Method.DeclaringType!.FullName}.{item.Method.Name}: "
+                    + string.Join(", ", item.Attributes.Select(attribute => attribute.GetType().Name)))));
     }
 
     /// <summary>
@@ -347,11 +380,11 @@ public class SpecDispositionContractTests
     }
 
     /// <summary>
-    /// Reconciles every disposition with every supported target in both patch-bound
-    /// discovery contracts so a new Theory row or renamed test cannot inherit an old waiver.
+    /// Reconciles every disposition with each active version-bound discovery contract so a
+    /// new Theory row or renamed test cannot inherit a waiver from another EF Core graph.
     /// </summary>
     [Fact]
-    public void Disposition_ids_match_every_version_bound_discovery_contract()
+    public void Disposition_ids_match_active_version_bound_discovery_contracts()
     {
         using var ledger = LoadLedger();
         var dispositions = ledger.RootElement
@@ -366,12 +399,18 @@ public class SpecDispositionContractTests
             "Specification",
             "Contracts");
 
-        var contractPaths = Directory
-            .EnumerateFiles(contractsDirectory, "SpecDiscovery.*.json")
-            .OrderBy(path => path, StringComparer.Ordinal)
+        using var baseline = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(contractsDirectory, "SpecSuiteBaseline.json")));
+
+        var contractPaths = StringValues(baseline.RootElement.GetProperty("efCoreVersions"))
+            .Select(version => Path.Combine(contractsDirectory, $"SpecDiscovery.{version}.json"))
+            .OrderBy(static path => path, StringComparer.Ordinal)
             .ToArray();
 
         Assert.NotEmpty(contractPaths);
+        Assert.All(
+            contractPaths,
+            path => Assert.True(File.Exists(path), $"Missing discovery contract '{path}'."));
 
         foreach (var contractPath in contractPaths)
         {

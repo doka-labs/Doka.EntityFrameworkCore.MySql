@@ -1005,16 +1005,17 @@ public sealed class MySqlMigrationDslTests
     )
     {
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
-        var contexts = CreateNativeTemporalSchemaChangeContexts(schemaChange, serverVersion);
+        var (sourceContext, targetContext) = CreateNativeTemporalSchemaChangeContexts(schemaChange, serverVersion);
 
-        using var sourceContext = contexts.Source;
-        using var targetContext = contexts.Target;
+        using (sourceContext)
+        using (targetContext)
+        {
+            var exception = Assert.Throws<InvalidOperationException>(
+                () => GenerateMigrationSql(sourceContext, targetContext));
 
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => GenerateMigrationSql(sourceContext, targetContext));
-
-        Assert.Contains("native MariaDB temporal table", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("history", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("native MariaDB temporal table", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("history", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     /// <summary>
