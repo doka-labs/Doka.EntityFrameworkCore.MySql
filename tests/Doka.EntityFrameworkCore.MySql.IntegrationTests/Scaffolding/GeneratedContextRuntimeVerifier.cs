@@ -63,6 +63,15 @@ internal static class GeneratedContextRuntimeVerifier
     )
     {
         var repositoryRoot = FindRepositoryRoot();
+
+        // The child process starts below /tmp, so SDK discovery cannot see the
+        // repository global.json. Copy the repository contract into the isolated
+        // project to prevent a newer machine-wide SDK from changing analyzers.
+        File.Copy(
+            Path.Combine(repositoryRoot, "global.json"),
+            Path.Combine(temporaryDirectory, "global.json"),
+            overwrite: true);
+
         var providerProject = EscapeXml(
             Path.Combine(
                 repositoryRoot,

@@ -25,6 +25,13 @@ internal sealed class MySqlQueryTranslationPostprocessor : RelationalQueryTransl
     {
         var processed = base.Process(query);
 
+        // EF Core requires structural projections to contain columns while it
+        // applies projections. Decode document values only afterwards, when a
+        // function expression can no longer invalidate that structural shape.
+        processed = MySqlJsonTableDocumentDecodingExpressionVisitor.Rewrite(
+            processed,
+            RelationalDependencies.SqlExpressionFactory);
+
         MySqlCollectionIdentityValidatingExpressionVisitor.Validate(processed);
 
         return processed;

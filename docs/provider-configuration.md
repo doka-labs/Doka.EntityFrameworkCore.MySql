@@ -314,6 +314,39 @@ inside non-collection complex types. Complex collections mapped as JSON retain
 their JSON document contract rather than receiving per-member relational GUID
 column metadata.
 
+Parameterized primitive collections preserve the effective storage
+representation of the property they are compared with. For example,
+`EF.Parameter(keys).Contains(entity.Id)` decodes the JSON parameter as the
+configured `binary(16)` representation for `Binary16` and as value-preserving,
+collation-coercible text for `Char36`. String values that begin and end with
+quotes remain ordinary string values rather than being interpreted as a second
+JSON document. Parameterized strings and application values converted to a
+string provider type are transported as Base64-encoded UTF-8 inside the JSON
+array and decoded as coercible `utf8mb4` text. This keeps quote, backslash,
+empty-string, and non-ASCII values independent of MariaDB's
+`NO_BACKSLASH_ESCAPES` mode while leaving the property column authoritative for
+collation semantics, including columns with non-default collations on MariaDB
+10.11.
+
+Nullable elements, `Guid.Empty`, duplicate keys, empty collections, and large
+single-parameter collections retain normal LINQ membership semantics. The same
+encoding rules apply when a model-mapped GUID collection is expanded through
+`JSON_TABLE`. Application-owned converters retain their configured
+model/provider conversion while `JSON_TABLE` extracts the provider type through
+a lossless intermediate mapping. For composed parameter collections and
+`ToJson()`-owned collections, those intermediate mappings preserve strings,
+decimals, temporal values, GUIDs, and binary values. Property length, numeric
+scale, and fractional-second precision are applied by the final comparison
+instead of truncating or rounding a JSON value first. Positive and negative
+`TimeSpan` values above 24 hours are converted from EF Core's JSON
+representation to MySQL's elapsed-hour representation before that comparison.
+Native and application-converted parameter values outside MySQL's signed
+`TIME` range of `-838:59:59` through `838:59:59` are rejected during collection
+serialization. This prevents the server from saturating an invalid comparison
+value to a boundary that could match an unrelated row. `ToJson()` document
+persistence remains unrestricted because those values are not converted to a
+relational `TIME` value while being stored.
+
 ## Runnable Verification
 
 - [HostExamples](../examples/Doka.EntityFrameworkCore.MySql.HostExamples/README.md)
@@ -379,3 +412,19 @@ Retrieved 2026-09-13 for character-set and collation migration fidelity:
 - [MySQL 8.4 foreign-key constraints](https://dev.mysql.com/doc/refman/8.4/en/create-table-foreign-keys.html)
 - [MariaDB character-set and collation configuration](https://mariadb.com/docs/server/reference/data-types/string-data-types/character-sets/setting-character-sets-and-collations)
 - [MariaDB supported character sets and collations](https://mariadb.com/docs/server/reference/data-types/string-data-types/character-sets/supported-character-sets-and-collations)
+
+Retrieved 2026-09-19 for parameterized primitive-collection representation:
+
+- [EF Core 10 parameterized collection translation](https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-10.0/breaking-changes#parameterized-collections-now-use-multiple-parameters-by-default)
+- [MySQL 8.4 `JSON_TABLE`](https://dev.mysql.com/doc/refman/8.4/en/json-table-functions.html)
+- [MySQL 8.4 `JSON_QUOTE`](https://dev.mysql.com/doc/refman/8.4/en/json-creation-functions.html)
+- [MySQL 8.4 `JSON_UNQUOTE`](https://dev.mysql.com/doc/refman/8.4/en/json-modification-functions.html)
+- [MySQL 8.4 cast functions and operators](https://dev.mysql.com/doc/refman/8.4/en/cast-functions.html)
+- [MySQL 8.4 `FROM_BASE64`](https://dev.mysql.com/doc/refman/8.4/en/string-functions.html#function_from-base64)
+- [MySQL 8.4 `TIME` type](https://dev.mysql.com/doc/refman/8.4/en/time.html)
+- [MariaDB `JSON_TABLE`](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_table)
+- [MariaDB `JSON_QUOTE`](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_quote)
+- [MariaDB `JSON_UNQUOTE`](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_unquote)
+- [MariaDB `FROM_BASE64`](https://mariadb.com/docs/server/reference/sql-functions/secondary-functions/encryption-hashing-and-compression-functions/from_base64)
+- [MariaDB `CONVERT`](https://mariadb.com/docs/server/reference/sql-functions/string-functions/convert)
+- [MariaDB `TIME` type](https://mariadb.com/docs/server/reference/data-types/date-and-time-data-types/time)

@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal sealed class MySqlMigrationWarningCommandInterceptor : DbCommandInterceptor
 {
-    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<DbCommand, WarningCapture> _captures = new();
+    private readonly ConditionalWeakTable<DbCommand, WarningCapture> _captures = new();
 
     public override InterceptionResult<int> NonQueryExecuting(
         DbCommand command,

@@ -223,6 +223,26 @@ public sealed class MySqlTypeMappingBaselineTests
         Assert.Equal("'27:00:00'", timeSpanSecondMapping.GenerateSqlLiteral(timeSpan));
     }
 
+    /// <summary>
+    /// TimeSpan document persistence retains EF Core's unrestricted JSON
+    /// representation; the MySQL TIME range applies only at relational and
+    /// parameter-collection boundaries.
+    /// </summary>
+    [Fact]
+    public void TimeSpan_mapping_preserves_the_standard_json_reader_writer()
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+
+        var mapping = context
+            .GetService<IRelationalTypeMappingSource>()
+            .FindMapping(typeof(TimeSpan), "time(6)");
+
+        Assert.NotNull(mapping);
+        Assert.Same(
+            JsonTimeSpanReaderWriter.Instance,
+            mapping.JsonValueReaderWriter);
+    }
+
     [Theory]
     [InlineData(0, "TIME '12:34:56'", "'27:00:00'", "'-27:00:00'")]
     [InlineData(1, "TIME '12:34:56.1'", "'27:00:00.1'", "'-27:00:00.1'")]
@@ -348,18 +368,237 @@ public sealed class MySqlTypeMappingBaselineTests
     /// Verifies that unsupported server precision is rejected before an
     /// invalid temporal literal can enter generated SQL.
     /// </summary>
-    [Fact]
-    public void Time_mappings_reject_fractional_precision_above_six()
+    [Theory]
+    [InlineData(typeof(DateTime), "datetime(7)")]
+    [InlineData(typeof(DateTime), "timestamp(7)")]
+    [InlineData(typeof(TimeOnly), "time(7)")]
+    [InlineData(typeof(TimeSpan), "time(7)")]
+    public void Temporal_mapping_source_rejects_fractional_precision_above_six(
+        Type clrType,
+        string storeType
+    )
     {
         using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
         var typeMappingSource = context.GetService<IRelationalTypeMappingSource>();
 
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            typeMappingSource.FindMapping(typeof(TimeOnly), "time(7)"));
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            typeMappingSource.FindMapping(typeof(TimeSpan), "time(7)"));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new MySqlTimeOnlyTypeMapping("time", -1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new MySqlTimeSpanTypeMapping("time", -1));
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            typeMappingSource.FindMapping(clrType, storeType));
+
+        Assert.Equal("precision", exception.ParamName);
+        Assert.Equal(7, exception.ActualValue);
+    }
+
+    /// <summary>
+    /// Verifies that cloning cannot bypass DateTime precision validation.
+    /// </summary>
+    [Fact]
+    public void Datetime_mapping_clone_rejects_fractional_precision_above_six()
+    {
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            MySqlDateTimeTypeMapping.Default.WithPrecisionAndScale(7, null));
+
+        Assert.Equal("precision", exception.ParamName);
+        Assert.Equal(7, exception.ActualValue);
+    }
+
+    /// <summary>
+    /// Verifies that public time-mapping constructors reject negative precision.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(MySqlTimeOnlyTypeMapping))]
+    [InlineData(typeof(MySqlTimeSpanTypeMapping))]
+    public void Time_mapping_constructors_reject_negative_precision(
+        Type mappingType
+    )
+    {
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            _ = mappingType == typeof(MySqlTimeOnlyTypeMapping)
+                ? new MySqlTimeOnlyTypeMapping("time", -1)
+                : (RelationalTypeMapping)new MySqlTimeSpanTypeMapping("time", -1);
+        });
+
+        Assert.Equal("precision", exception.ParamName);
+        Assert.Equal(-1, exception.ActualValue);
+    }
+
+    /// <summary>
+    /// Verifies every fractional-seconds precision supported by both MySQL and
+    /// MariaDB across the provider's DateTime, TimeOnly, and TimeSpan mappings.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    public void Temporal_mappings_accept_every_supported_precision(
+        int precision
+    )
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var typeMappingSource = context.GetService<IRelationalTypeMappingSource>();
+
+        var dateTime = typeMappingSource.FindMapping(typeof(DateTime), $"datetime({precision})");
+        var timestamp = typeMappingSource.FindMapping(typeof(DateTime), $"timestamp({precision})");
+        var timeOnly = typeMappingSource.FindMapping(typeof(TimeOnly), $"time({precision})");
+        var timeSpan = typeMappingSource.FindMapping(typeof(TimeSpan), $"time({precision})");
+
+        Assert.Equal($"datetime({precision})", dateTime?.StoreType);
+        Assert.Equal($"timestamp({precision})", timestamp?.StoreType);
+        Assert.Equal($"time({precision})", timeOnly?.StoreType);
+        Assert.Equal($"time({precision})", timeSpan?.StoreType);
+    }
+
+    /// <summary>
+    /// Verifies that fluent DateTime precision from zero through six produces
+    /// the corresponding provider mapping without opening a connection.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    public void Fluent_datetime_precision_accepts_every_supported_value(
+        int precision
+    )
+    {
+        var connectionProbe = new ConnectionOpeningProbe();
+        var builder = CreateTemporalPrecisionOptions(connectionProbe);
+        using var context = new TemporalPrecisionContext(builder.Options, precision, storeType: null);
+
+        var property = context.Model
+            .FindEntityType(typeof(TemporalPrecisionEntity))!
+            .FindProperty(nameof(TemporalPrecisionEntity.Value))!;
+
+        Assert.Equal($"datetime({precision})", property.GetColumnType());
+        Assert.Equal(0, connectionProbe.OpenCount);
+    }
+
+    /// <summary>
+    /// Verifies that temporal store types without a precision facet remain
+    /// valid and retain their explicit store type.
+    /// </summary>
+    [Fact]
+    public void Explicit_temporal_store_types_accept_an_omitted_precision()
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var typeMappingSource = context.GetService<IRelationalTypeMappingSource>();
+
+        var dateTime = typeMappingSource.FindMapping(typeof(DateTime), "datetime");
+        var timestamp = typeMappingSource.FindMapping(typeof(DateTime), "timestamp");
+        var timeOnly = typeMappingSource.FindMapping(typeof(TimeOnly), "time");
+        var timeSpan = typeMappingSource.FindMapping(typeof(TimeSpan), "time");
+
+        Assert.Equal("datetime", dateTime?.StoreType);
+        Assert.Equal("timestamp", timestamp?.StoreType);
+        Assert.Equal("time", timeOnly?.StoreType);
+        Assert.Equal("time", timeSpan?.StoreType);
+    }
+
+    /// <summary>
+    /// Verifies that SQL-significant precision remains strict while harmless
+    /// whitespace accepted by the engines does not become invalid metadata.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(DateTime), "datetime( 3 )")]
+    [InlineData(typeof(DateTime), "timestamp( 3 )")]
+    [InlineData(typeof(TimeOnly), "time( 3 )")]
+    [InlineData(typeof(TimeSpan), "time( 3 )")]
+    public void Explicit_temporal_store_types_accept_whitespace_around_precision(
+        Type clrType,
+        string storeType
+    )
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var typeMappingSource = context.GetService<IRelationalTypeMappingSource>();
+
+        var mapping = typeMappingSource.FindMapping(clrType, storeType);
+
+        Assert.Equal(storeType, mapping?.StoreType);
+    }
+
+    /// <summary>
+    /// Verifies that partially formed or trailing precision metadata is not
+    /// silently normalized into a different temporal store type.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(DateTime), "datetime()")]
+    [InlineData(typeof(DateTime), "datetime(x)")]
+    [InlineData(typeof(DateTime), "datetime(-1)")]
+    [InlineData(typeof(DateTime), "datetime(1")]
+    [InlineData(typeof(DateTime), "datetime(1) trailing")]
+    [InlineData(typeof(DateTime), "timestamp((1))")]
+    [InlineData(typeof(TimeOnly), "time()")]
+    [InlineData(typeof(TimeOnly), "time(x)")]
+    [InlineData(typeof(TimeSpan), "time(1) trailing")]
+    public void Explicit_temporal_store_types_reject_malformed_precision(
+        Type clrType,
+        string storeType
+    )
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var typeMappingSource = context.GetService<IRelationalTypeMappingSource>();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            typeMappingSource.FindMapping(clrType, storeType));
+
+        Assert.Contains(storeType, exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that fluent DateTime precision and explicit temporal store
+    /// types fail while the model is built, before a connection can open.
+    /// </summary>
+    [Theory]
+    [InlineData(7, null)]
+    [InlineData(null, "datetime(7)")]
+    [InlineData(null, "timestamp(7)")]
+    public void Invalid_datetime_precision_fails_before_database_io(
+        int? precision,
+        string? storeType
+    )
+    {
+        var connectionProbe = new ConnectionOpeningProbe();
+        var builder = CreateTemporalPrecisionOptions(connectionProbe);
+        using var context = new TemporalPrecisionContext(builder.Options, precision, storeType);
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => _ = context.Model);
+
+        Assert.Equal("precision", exception.ParamName);
+        Assert.Equal(precision ?? 7, exception.ActualValue);
+        Assert.Equal(0, connectionProbe.OpenCount);
+    }
+
+    /// <summary>
+    /// Verifies that temporal precision on JSON collection elements remains
+    /// model metadata instead of becoming an invalid relational store facet.
+    /// </summary>
+    [Theory]
+    [InlineData(nameof(JsonTemporalElementEntity.DateTimes), "datetime(6)")]
+    [InlineData(nameof(JsonTemporalElementEntity.Times), "time(6)")]
+    [InlineData(nameof(JsonTemporalElementEntity.Durations), "time(6)")]
+    public void Json_temporal_element_precision_does_not_declare_relational_precision(
+        string propertyName,
+        string expectedStoreType
+    )
+    {
+        using var context = new JsonTemporalElementPrecisionContext(
+            CreateOptions<JsonTemporalElementPrecisionContext>());
+        var elementType = context.Model
+            .FindEntityType(typeof(JsonTemporalElementEntity))!
+            .FindProperty(propertyName)!
+            .GetElementType()!;
+
+        var mapping = Assert.IsAssignableFrom<RelationalTypeMapping>(elementType.GetTypeMapping());
+
+        Assert.Equal(12, elementType.GetPrecision());
+        Assert.Equal(expectedStoreType, mapping.StoreType);
     }
 
     /// <summary>
@@ -464,6 +703,21 @@ public sealed class MySqlTypeMappingBaselineTests
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
         return builder.Options;
+    }
+
+    private static DbContextOptionsBuilder<TemporalPrecisionContext> CreateTemporalPrecisionOptions(
+        ConnectionOpeningProbe connectionProbe
+    )
+    {
+        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<TemporalPrecisionContext>();
+        builder
+            .AddInterceptors(connectionProbe)
+            .EnableServiceProviderCaching(false)
+            .UseMySql(
+                "Server=localhost;Database=doka;User ID=root;Password=password;",
+                MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        return builder;
     }
 
     private static char ReadCharProviderValue(
@@ -577,6 +831,72 @@ public sealed class MySqlTypeMappingBaselineTests
         }
     }
 
+    private sealed class TemporalPrecisionContext(
+        DbContextOptions<TemporalPrecisionContext> options,
+        int? precision,
+        string? storeType
+    ) : DbContext(options)
+    {
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            var property = modelBuilder
+                .Entity<TemporalPrecisionEntity>()
+                .Property(entity => entity.Value);
+
+            if (precision is not null)
+            {
+                property.HasPrecision(precision.Value);
+            }
+
+            if (storeType is not null)
+            {
+                property.HasColumnType(storeType);
+            }
+        }
+    }
+
+    private sealed class JsonTemporalElementPrecisionContext(
+        DbContextOptions<JsonTemporalElementPrecisionContext> options
+    ) : DbContext(options)
+    {
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<JsonTemporalElementEntity>(entity =>
+            {
+                entity.HasKey(item => item.Id);
+                entity
+                    .PrimitiveCollection(item => item.DateTimes)
+                    .ElementType(element => element.HasPrecision(12));
+                entity
+                    .PrimitiveCollection(item => item.Times)
+                    .ElementType(element => element.HasPrecision(12));
+                entity
+                    .PrimitiveCollection(item => item.Durations)
+                    .ElementType(element => element.HasPrecision(12));
+            });
+        }
+    }
+
+    private sealed class ConnectionOpeningProbe : DbConnectionInterceptor
+    {
+        public int OpenCount { get; private set; }
+
+        public override InterceptionResult ConnectionOpening(
+            DbConnection connection,
+            ConnectionEventData eventData,
+            InterceptionResult result
+        )
+        {
+            OpenCount++;
+
+            return result;
+        }
+    }
+
     private sealed class TypeMappingEntity
     {
         public int Id { get; set; }
@@ -620,6 +940,24 @@ public sealed class MySqlTypeMappingBaselineTests
         public int Id { get; set; }
 
         public byte[] Token { get; set; } = Array.Empty<byte>();
+    }
+
+    private sealed class TemporalPrecisionEntity
+    {
+        public int Id { get; set; }
+
+        public DateTime Value { get; set; }
+    }
+
+    private sealed class JsonTemporalElementEntity
+    {
+        public int Id { get; set; }
+
+        public List<DateTime> DateTimes { get; set; } = [];
+
+        public List<TimeOnly> Times { get; set; } = [];
+
+        public List<TimeSpan> Durations { get; set; } = [];
     }
 
     private enum StatusCode : short

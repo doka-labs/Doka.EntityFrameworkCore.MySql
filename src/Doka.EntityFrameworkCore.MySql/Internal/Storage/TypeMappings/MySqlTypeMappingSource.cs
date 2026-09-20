@@ -242,6 +242,42 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
             .Single();
     }
 
+    /// <inheritdoc />
+    public override CoreTypeMapping? FindMapping(
+        IElementType elementType
+    )
+    {
+        ArgumentNullException.ThrowIfNull(elementType);
+
+        var storeType = (string?)elementType[RelationalAnnotationNames.StoreType];
+        var converter = elementType.GetValueConverter();
+        var providerClrType = (elementType.GetProviderClrType()
+                ?? converter?.ProviderClrType
+                ?? elementType.ClrType)
+            .UnwrapNullableType();
+        var precision = elementType.GetPrecision();
+
+        if (string.IsNullOrWhiteSpace(storeType)
+            && precision is < 0 or > 6
+            && IsTemporalPrecisionType(providerClrType))
+        {
+            // Primitive-collection element facets describe JSON model metadata;
+            // they do not declare a MySQL temporal column. Preserve the facet on
+            // IElementType while using the provider's valid default mapping for
+            // serialization. Explicit temporal store types remain fail-closed.
+            var mappingInfo = new RelationalTypeMappingInfo(elementType) with { Precision = null };
+            var mapping = FindMapping(mappingInfo)?.WithComposedConverter(
+                converter,
+                jsonValueReaderWriter: mappingInfo.JsonValueReaderWriter);
+
+            ValidateMapping(mapping, property: null);
+
+            return mapping;
+        }
+
+        return base.FindMapping(elementType);
+    }
+
     protected override RelationalTypeMapping? FindMapping(
         in RelationalTypeMappingInfo mappingInfo
     )
@@ -378,6 +414,12 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
 
         return base.FindMapping(mappingInfo);
     }
+
+    private static bool IsTemporalPrecisionType(
+        Type clrType
+    ) => clrType == typeof(DateTime)
+        || clrType == typeof(TimeOnly)
+        || clrType == typeof(TimeSpan);
 
     private static RelationalTypeMapping ResolveTinyIntMapping(
         RelationalTypeMappingInfo mappingInfo
@@ -705,7 +747,9 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
             return new MySqlDateTimeTypeMapping(mappingInfo.StoreTypeName);
         }
 
-        var precision = mappingInfo.Precision ?? DefaultDateTimePrecision;
+        var precision = MySqlTemporalLiteralFormatter.ValidatePrecision(
+            mappingInfo.Precision ?? DefaultDateTimePrecision);
+
         var storeTypeBase = normalizedStoreType == "timestamp" ? "timestamp" : "datetime";
 
         return new MySqlDateTimeTypeMapping($"{storeTypeBase}({precision})");
@@ -719,7 +763,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         {
             return new MySqlTimeOnlyTypeMapping(
                 mappingInfo.StoreTypeName,
-                GetExplicitTimePrecision(mappingInfo.StoreTypeName));
+                MySqlTemporalLiteralFormatter.ParsePrecision(mappingInfo.StoreTypeName));
         }
 
         if (mappingInfo.Precision is null)
@@ -740,7 +784,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         {
             return new MySqlTimeSpanTypeMapping(
                 mappingInfo.StoreTypeName,
-                GetExplicitTimePrecision(mappingInfo.StoreTypeName));
+                MySqlTemporalLiteralFormatter.ParsePrecision(mappingInfo.StoreTypeName));
         }
 
         if (mappingInfo.Precision is null)
@@ -753,28 +797,4 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         return new MySqlTimeSpanTypeMapping($"time({precision})", precision);
     }
 
-    private static int GetExplicitTimePrecision(
-        string storeType
-    )
-    {
-        var openParenthesis = storeType.IndexOf('(');
-        if (openParenthesis < 0)
-        {
-            return 0;
-        }
-
-        var closeParenthesis = storeType.IndexOf(')', openParenthesis + 1);
-        if (closeParenthesis <= openParenthesis + 1
-            || !int.TryParse(
-                storeType.AsSpan(openParenthesis + 1, closeParenthesis - openParenthesis - 1),
-                NumberStyles.None,
-                CultureInfo.InvariantCulture,
-                out var precision))
-        {
-            throw new InvalidOperationException(
-                $"The MySQL-family time store type '{storeType}' has an invalid fractional-seconds precision.");
-        }
-
-        return precision;
-    }
 }

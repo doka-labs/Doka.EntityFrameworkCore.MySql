@@ -7,6 +7,57 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.4.2] - 2026-09-20
+
+Stable patch release preserving provider representations through EF Core
+parameterized primitive collections and owned JSON queries. It keeps GUID,
+binary, string, numeric, and temporal values lossless across `JSON_TABLE`
+translation, prevents collation and SQL-mode drift, and validates MySQL-family
+temporal precision and `TIME` range boundaries before database I/O.
+
+Install the stable packages through normal NuGet version resolution. Add the
+spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.2
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.4.2
+dotnet package add Doka.Caching.MySql --version 10.4.2
+```
+
+### Fixed
+
+- Preserve provider GUID encoding when EF Core applies a primitive-collection
+  element mapping after initial query translation. Explicitly parameterized
+  collections now decode JSON text for `Binary16`, retain `Char36` collation
+  semantics, and preserve nullable values on every supported MySQL and MariaDB
+  target. Ordinary collection membership remains compatible. The same deferred
+  path also retains Base64 decoding for binary collections. String parameters
+  and application values converted to strings use Base64-encoded UTF-8 inside
+  JSON so quotes and backslashes remain stable under MariaDB's
+  `NO_BACKSLASH_ESCAPES` mode. Decoded values remain coercible on every
+  supported engine, including MariaDB 10.11, so non-default column collations
+  remain authoritative. Composed collection queries use lossless intermediate
+  mappings instead of inheriting length, numeric scale, or temporal precision
+  that could alter a value before comparison. Equivalent transport mappings
+  are reused across query compilations instead of growing EF Core's mapping
+  cache with reference-distinct clones. `DateTime` values use a valid
+  `datetime(6)` intermediate even for `date` columns. `TimeSpan` parameters
+  with positive or negative day components are normalized to MySQL's
+  elapsed-hour syntax without narrowing the supported `TIME` range. Parameter
+  values outside that signed range are rejected before JSON transport so MySQL
+  cannot silently saturate them into false-positive boundary matches. Owned
+  JSON documents retain EF Core's unrestricted `TimeSpan` JSON representation.
+  Owned JSON collections and application value converters use the same
+  lossless provider-type extraction boundary, preventing JSON members from
+  inheriting relational string length, decimal scale, or temporal precision
+  facets while preserving Binary16, Char36, binary, and elapsed-time encodings.
+- Reject temporal precision outside the MySQL-family range of zero through six
+  at model/type-mapping time. This covers `DateTime`, `TimeOnly`, and `TimeSpan`,
+  including explicit `datetime(...)`, `timestamp(...)`, and `time(...)` store
+  types, malformed precision facets, and cloned mappings, before database I/O.
+  Harmless whitespace around an otherwise valid precision remains compatible
+  with the engine grammar.
+
 ## [10.4.1] - 2026-09-13
 
 Stable patch release preserving database character-set and collation metadata
@@ -1234,7 +1285,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.4.1...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.4.2...HEAD
+[10.4.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.2
 [10.4.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.1
 [10.4.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.0
 [10.3.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.3.0

@@ -95,13 +95,16 @@ expressions and are therefore emitted as parenthesized column defaults. The
 same policy covers expression-default forms for text, binary, JSON, and every
 spatial store type, including store types with modifiers.
 
-TimeOnly and TimeSpan literals are truncated to the declared fractional-second
-precision before SQL is generated. Precision is limited to the engine range of
-zero through six; an explicit `time` store type therefore emits no fractional
-digits, while the provider default `time(6)` emits microseconds. This avoids a
-result that depends on an engine's rounding mode. CLR `char` literals use the
-same SQL-mode-independent text encoding as provider string mappings, including
-backslash and NUL values.
+DateTime, TimeOnly, and TimeSpan precision is limited to the engine range of
+zero through six before migration SQL is generated. Explicit `datetime(...)`,
+`timestamp(...)`, and `time(...)` metadata is parsed strictly; malformed or
+out-of-range facets fail during model/type-mapping construction rather than at
+the database boundary. TimeOnly and TimeSpan literals are truncated to the
+declared precision. An explicit `time` store type therefore emits no
+fractional digits, while the provider default `time(6)` emits microseconds.
+This avoids a result that depends on an engine's rounding mode. CLR `char`
+literals use the same SQL-mode-independent text encoding as provider string
+mappings, including backslash and NUL values.
 
 MariaDB JSON aliases and spatial column definitions retain literal or SQL
 defaults, comments, visibility, computed expressions, storage, and SRID

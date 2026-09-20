@@ -883,7 +883,10 @@ internal sealed class
                 + $"'{sqlExpression.Type}' is not enumerable.");
 
         var unwrapped = sequenceType.UnwrapNullableType();
-        var jsonTableValueMapping = GetJsonTableValueMapping(unwrapped, elementTypeMapping);
+        var jsonTableValueMapping = MySqlJsonTableValueEncoding.GetExtractionTypeMapping(
+            unwrapped,
+            elementTypeMapping,
+            _typeMappingSource);
 
         var columns = new List<MySqlJsonTableExpression.ColumnInfo>(2);
 
@@ -924,13 +927,17 @@ internal sealed class
             name: "value",
             tableAlias: tableAlias,
             type: jsonTableValueMapping?.ClrType ?? unwrapped,
-            typeMapping: jsonTableValueMapping ?? _typeMappingSource.FindMapping(unwrapped)!,
+            // A parameter collection has no element mapping until its consumer
+            // is scanned. Applying the provider default here would conflict
+            // with an explicit per-property mapping such as Char36.
+            typeMapping: jsonTableValueMapping,
             nullable: isNullable);
 
-        var valueProjection = DecodeJsonTableValue(
+        var valueProjection = MySqlJsonTableValueEncoding.Decode(
             valueColumn,
             unwrapped,
-            elementTypeMapping);
+            elementTypeMapping,
+            _sqlExpressionFactory);
 
         var keyColumn = new ColumnExpression(
             name: ordinalityColumnName,
@@ -964,99 +971,6 @@ internal sealed class
         }
 
         return new ShapedQueryExpression(select, shaper);
-    }
-
-    private RelationalTypeMapping? GetJsonTableValueMapping(
-        Type elementType,
-        RelationalTypeMapping? elementTypeMapping
-    )
-    {
-        if (elementTypeMapping is null)
-        {
-            return null;
-        }
-
-        if (elementType == typeof(Guid)
-            && elementTypeMapping.StoreType.StartsWith("binary", StringComparison.OrdinalIgnoreCase))
-        {
-            return _typeMappingSource.FindMapping(typeof(string), "char(36)");
-        }
-
-        return elementType == typeof(byte[])
-            ? _typeMappingSource.FindMapping(typeof(string), "longtext")
-            : elementTypeMapping;
-    }
-
-    /// <summary>
-    /// Restores JSON string encodings to their relational binary representation.
-    /// </summary>
-    private SqlExpression DecodeJsonTableValue(
-        ColumnExpression valueColumn,
-        Type elementType,
-        RelationalTypeMapping? elementTypeMapping
-    )
-    {
-        if (elementType == typeof(string))
-        {
-            // JSON_UNQUOTE leaves an already unquoted string unchanged, but gives the
-            // expression coercible collation. The compared model column can therefore
-            // supply its configured collation instead of colliding with JSON_TABLE's
-            // connection-default implicit collation on MariaDB.
-            return _sqlExpressionFactory.Function(
-                "JSON_UNQUOTE",
-                [valueColumn],
-                nullable: true,
-                argumentsPropagateNullability: [true],
-                typeof(string),
-                valueColumn.TypeMapping);
-        }
-
-        if (elementTypeMapping is null)
-        {
-            return valueColumn;
-        }
-
-        if (elementType == typeof(byte[]))
-        {
-            return _sqlExpressionFactory.Function(
-                "FROM_BASE64",
-                [valueColumn],
-                nullable: true,
-                argumentsPropagateNullability: [true],
-                typeof(byte[]),
-                elementTypeMapping);
-        }
-
-        if (elementType != typeof(Guid)
-            || !elementTypeMapping.StoreType.StartsWith("binary", StringComparison.OrdinalIgnoreCase))
-        {
-            return valueColumn;
-        }
-
-        var normalized = _sqlExpressionFactory.Function(
-            "REPLACE",
-            [
-                valueColumn,
-                _sqlExpressionFactory.Constant("-", valueColumn.TypeMapping),
-                _sqlExpressionFactory.Constant(string.Empty, valueColumn.TypeMapping),
-            ],
-            nullable: true,
-            argumentsPropagateNullability:
-            [
-                true,
-                false,
-                false,
-            ],
-            typeof(string),
-            valueColumn.TypeMapping);
-
-        return _sqlExpressionFactory.Function(
-            "UNHEX",
-            [normalized],
-            nullable: true,
-            argumentsPropagateNullability: [true],
-            typeof(Guid),
-            elementTypeMapping);
     }
 
     /// <summary>
@@ -1093,14 +1007,20 @@ internal sealed class
 
             var typeMapping = prop.GetRelationalTypeMapping();
             var asJson = typeMapping.ElementTypeMapping is not null;
+            var extractionTypeMapping = asJson
+                ? typeMapping
+                : MySqlJsonTableValueEncoding.GetDocumentExtractionTypeMapping(
+                    typeMapping,
+                    _typeMappingSource);
 
             columns.Add(
                 new MySqlJsonTableExpression.ColumnInfo(
                     Name: jsonPropertyName,
-                    TypeMapping: typeMapping,
+                    TypeMapping: extractionTypeMapping,
                     Path: [new PathSegment(jsonPropertyName)],
                     AsJson: asJson,
-                    ForOrdinality: false));
+                    ForOrdinality: false,
+                    ResultTypeMapping: asJson ? null : typeMapping));
         }
 
         var containerColumnName = structuralType.GetContainerColumnName()
