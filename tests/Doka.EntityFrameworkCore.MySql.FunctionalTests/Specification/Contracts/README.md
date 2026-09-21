@@ -36,17 +36,17 @@ unique xUnit method definitions, and 19,659 effective base-to-method
 assignments. Every base is implemented or covered by the upstream-defined
 `NonSharedModelTestBase` exemption; the provider suite debt is `0/0`.
 
-Discovery regenerated on 2026-09-19 records 30,422 exact specification test
+Discovery regenerated on 2026-09-21 records 30,429 exact specification test
 IDs for each supported target:
 
 | EF Core | Target | Discovered |
 | --- | --- | ---: |
-| 11.0.0-rc.1.26425.128 | MySQL 8.4 | 30,422 |
-| 11.0.0-rc.1.26425.128 | MySQL 9.7 | 30,422 |
-| 11.0.0-rc.1.26425.128 | MariaDB 10.11 | 30,422 |
-| 11.0.0-rc.1.26425.128 | MariaDB 11.4 | 30,422 |
-| 11.0.0-rc.1.26425.128 | MariaDB 11.8 | 30,422 |
-| 11.0.0-rc.1.26425.128 | MariaDB 12.3 | 30,422 |
+| 11.0.0-rc.1.26425.128 | MySQL 8.4 | 30,429 |
+| 11.0.0-rc.1.26425.128 | MySQL 9.7 | 30,429 |
+| 11.0.0-rc.1.26425.128 | MariaDB 10.11 | 30,429 |
+| 11.0.0-rc.1.26425.128 | MariaDB 11.4 | 30,429 |
+| 11.0.0-rc.1.26425.128 | MariaDB 11.8 | 30,429 |
+| 11.0.0-rc.1.26425.128 | MariaDB 12.3 | 30,429 |
 
 ## Historical 10.x evidence
 
