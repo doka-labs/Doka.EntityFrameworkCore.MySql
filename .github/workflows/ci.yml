@@ -16,7 +16,7 @@ concurrency:
 jobs:
   quality-gates:
     if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -45,7 +45,7 @@ jobs:
     if: >-
       github.event_name == 'schedule'
       || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -79,7 +79,7 @@ jobs:
 
   repo-tests:
     if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     permissions:
@@ -124,7 +124,7 @@ jobs:
     if: >-
       github.event_name == 'schedule'
       || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -168,7 +168,7 @@ jobs:
     if: >-
       github.event_name == 'schedule'
       || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     strategy:
@@ -217,7 +217,7 @@ jobs:
     # An explicit name keeps the status-check identity stable and readable;
     # the generated form would repeat every matrix value.
     name: spec-test-suite (${{ matrix.engine.name }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
 
     strategy:
@@ -290,7 +290,7 @@ jobs:
 
   coverage-gate:
     if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: [repo-tests, spec-test-suite, integration-smoke]
 
@@ -394,7 +394,7 @@ jobs:
 
   integration-smoke:
     if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     services:
@@ -466,7 +466,7 @@ jobs:
       - spec-test-suite
       - integration-smoke
       - coverage-gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
 
     permissions:

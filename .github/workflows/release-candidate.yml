@@ -23,7 +23,7 @@ env:
 
 jobs:
   preflight:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     permissions:
@@ -95,7 +95,7 @@ jobs:
 
   foundation:
     needs: preflight
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
 
     env:
@@ -139,7 +139,7 @@ jobs:
 
   engine-contracts:
     needs: foundation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
       fail-fast: false
@@ -200,7 +200,7 @@ jobs:
 
   sbom:
     needs: foundation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     permissions:
@@ -252,7 +252,7 @@ jobs:
       - foundation
       - engine-contracts
       - sbom
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
 
     permissions:
@@ -373,7 +373,7 @@ jobs:
 
   attest:
     needs: assemble
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     outputs:
@@ -448,7 +448,7 @@ jobs:
     needs:
       - assemble
       - attest
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     environment:
       name: nuget
