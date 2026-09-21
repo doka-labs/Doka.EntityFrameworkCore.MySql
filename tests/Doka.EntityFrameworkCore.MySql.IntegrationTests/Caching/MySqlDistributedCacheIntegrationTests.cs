@@ -1357,6 +1357,8 @@ public sealed class MySqlDistributedCacheIntegrationTests
     {
         await using var command = observer.CreateCommand();
 
+        // WHY: RemoveAsync and cleanup both issue DELETE statements. The cleanup-only predicate requires the
+        // cleanup command's primary-index clause so cancellation never interrupts foreground removal instead.
         // Unique-key locking reads can wait in optimization before INNODB_TRX exposes the wait.
         command.CommandText = """
                               SELECT COUNT(*) FROM information_schema.PROCESSLIST
@@ -1365,7 +1367,8 @@ public sealed class MySqlDistributedCacheIntegrationTests
                                   AND (UPPER(INFO) LIKE '%FOR UPDATE%'
                                       OR UPPER(LTRIM(INFO)) LIKE 'UPDATE %'
                                       OR UPPER(LTRIM(INFO)) LIKE 'DELETE %')
-                                  AND (@cleanupOnly = FALSE OR UPPER(LTRIM(INFO)) LIKE 'DELETE %');
+                                  AND (@cleanupOnly = FALSE
+                                      OR UPPER(LTRIM(INFO)) LIKE 'DELETE % FROM % FORCE INDEX (PRIMARY)%');
                               """;
 
         command.Parameters.AddWithValue("@tableName", tableName);
