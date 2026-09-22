@@ -123,7 +123,7 @@ public sealed class MySqlPrimitiveCollectionParameterIntegrationTests
             string?[] expectedModelValues = ["\"quoted\"", "\"\\q\"", string.Empty, "gr\u00FCn", null];
 
             var parameterIds = await context.Items
-                .Where(item => EF.Parameter(values).Contains(item.Value))
+                .Where(item => values.Contains(item.Value))
                 .OrderBy(item => item.Id)
                 .Select(item => item.Id)
                 .ToArrayAsync(CancellationToken.None);
@@ -306,11 +306,11 @@ public sealed class MySqlPrimitiveCollectionParameterIntegrationTests
             var results = new PrimitiveCollectionResults(
                 await SelectIdsAsync(context.Items.Where(item => EF.Parameter(oneGuid).Contains(item.BinaryId))),
                 await SelectIdsAsync(context.Items.Where(item => EF.Parameter(threeGuids).Contains(item.BinaryId))),
-                await SelectIdsAsync(context.Items.Where(item => EF.Parameter(allGuids).Contains(item.BinaryId))),
-                await SelectIdsAsync(context.Items.Where(item => EF.Parameter(charGuids).Contains(item.CharId))),
-                await SelectIdsAsync(context.Items.Where(item => EF.Parameter(emptyGuids).Contains(item.BinaryId))),
+                await SelectIdsAsync(context.Items.Where(item => allGuids.Contains(item.BinaryId))),
+                await SelectIdsAsync(context.Items.Where(item => charGuids.Contains(item.CharId))),
+                await SelectIdsAsync(context.Items.Where(item => emptyGuids.Contains(item.BinaryId))),
                 await SelectIdsAsync(
-                    context.Items.Where(item => EF.Parameter(duplicateAndAbsentGuids).Contains(item.BinaryId))),
+                    context.Items.Where(item => duplicateAndAbsentGuids.Contains(item.BinaryId))),
                 await SelectIdsAsync(
                     context.Items.Where(item => EF.Parameter(nullableGuids).Contains(item.OptionalBinaryId))),
                 await SelectIdsAsync(

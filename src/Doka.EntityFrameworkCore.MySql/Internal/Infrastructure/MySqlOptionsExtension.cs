@@ -63,6 +63,14 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
 
         base.Validate(options);
 
+        // Callers can change the inherited relational option after UseMySql.
+        // Validate the final snapshot as well as the initial provider callback.
+        if (!Enum.IsDefined(ParameterizedCollectionMode))
+        {
+            throw new InvalidOperationException(
+                $"Parameterized collection mode '{ParameterizedCollectionMode}' is not defined.");
+        }
+
         if (ServerVersion is null)
         {
             LogInvalidConfiguration(

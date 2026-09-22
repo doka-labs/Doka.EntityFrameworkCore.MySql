@@ -80,14 +80,32 @@ public sealed class MySqlQueryTranslationBaselineTests
     }
 
     /// <summary>
-    /// Verifies that a parameterized-collection <c>Contains</c> against an entity column resolves
-    /// the collection type-mapping path (FindCollectionMapping inherited from base) and expands
-    /// into inlined SQL constants at translation time. A null <c>FindCollectionMapping</c> override
-    /// would re-introduce the NullTypeMappingInSqlTree failure observed on the EF Core 10
-    /// specification suite (NorthwindWhereQueryRelationalTestBase, 16 IN-Contains tests).
+    /// Verifies that explicit constant collection membership resolves the
+    /// collection type mapping and expands into inlined SQL constants.
+    /// A null <c>FindCollectionMapping</c> override would re-introduce the
+    /// NullTypeMappingInSqlTree failure observed in the EF Core specification suite.
     /// </summary>
     [Fact]
-    public void Collection_parameter_contains_translates_to_inline_in_constants()
+    public void Collection_constant_contains_translates_to_inline_in_constants()
+    {
+        using var context = new QueryTranslationContext(CreateOptions());
+        var names = new List<string> { "alpha", "beta", "gamma" };
+
+        var sql = context
+            .Entities.Where(entity => EF.Constant(names).Contains(entity.Name))
+            .ToQueryString();
+
+        Assert.Contains("IN (", sql, StringComparison.Ordinal);
+        Assert.Contains("'alpha'", sql, StringComparison.Ordinal);
+        Assert.Contains("'beta'", sql, StringComparison.Ordinal);
+        Assert.Contains("'gamma'", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ordinary collection membership follows Doka's single JSON parameter default.
+    /// </summary>
+    [Fact]
+    public void Collection_parameter_contains_translates_to_json_table()
     {
         using var context = new QueryTranslationContext(CreateOptions());
         var names = new List<string> { "alpha", "beta", "gamma" };
@@ -96,10 +114,9 @@ public sealed class MySqlQueryTranslationBaselineTests
             .Entities.Where(entity => names.Contains(entity.Name))
             .ToQueryString();
 
-        Assert.Contains("IN (", sql, StringComparison.Ordinal);
-        Assert.Contains("'alpha'", sql, StringComparison.Ordinal);
-        Assert.Contains("'beta'", sql, StringComparison.Ordinal);
-        Assert.Contains("'gamma'", sql, StringComparison.Ordinal);
+        Assert.Contains("@names", sql, StringComparison.Ordinal);
+        Assert.Contains("JSON_TABLE", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("'alpha'", sql, StringComparison.Ordinal);
     }
 
     /// <summary>

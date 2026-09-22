@@ -30,5 +30,6 @@ public sealed class LoggingMySqlTest : LoggingRelationalTestBase<MySqlDbContextO
             ?.InformationalVersion
         ?? string.Empty;
 
-    protected override string DefaultOptions => $"using Doka MySql ({MySqlTestEnvironment.ServerVersion}) ";
+    protected override string DefaultOptions =>
+        $"ParameterizedCollectionTranslationMode=Parameter using Doka MySql ({MySqlTestEnvironment.ServerVersion}) ";
 }

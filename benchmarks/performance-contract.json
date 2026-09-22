@@ -1,6 +1,6 @@
 {
   "schemaVersion": 11,
-  "contractVersion": "2026-08-26",
+  "contractVersion": "2026-09-22",
   "requiredTargets": {
     "mysql84": {
       "displayName": "MySQL 8.4",
@@ -703,6 +703,62 @@
       "method": "DispatchExactTypeMatrix",
       "metric": "allocatedBytes",
       "maximum": 0
+    },
+    {
+      "id": "parameterized-collection-binary16-multiple-throughput",
+      "type": "ParameterizedCollectionBenchmark",
+      "baselineMethod": "MultipleParametersBinary16",
+      "method": "DefaultParameterBinary16",
+      "metric": "meanRatio",
+      "maximum": 0.8
+    },
+    {
+      "id": "parameterized-collection-binary16-multiple-allocation",
+      "type": "ParameterizedCollectionBenchmark",
+      "baselineMethod": "MultipleParametersBinary16",
+      "method": "DefaultParameterBinary16",
+      "metric": "allocationRatio",
+      "maximum": 0.3
+    },
+    {
+      "id": "parameterized-collection-binary16-constant-allocation",
+      "type": "ParameterizedCollectionBenchmark",
+      "baselineMethod": "ConstantBinary16",
+      "method": "DefaultParameterBinary16",
+      "metric": "allocationRatio",
+      "maximum": 0.65
+    },
+    {
+      "id": "parameterized-collection-char36-multiple-throughput",
+      "type": "ParameterizedCollectionBenchmark",
+      "baselineMethod": "MultipleParametersChar36",
+      "method": "DefaultParameterChar36",
+      "metric": "meanRatio",
+      "maximum": 0.75
+    },
+    {
+      "id": "parameterized-collection-char36-multiple-allocation",
+      "type": "ParameterizedCollectionBenchmark",
+      "baselineMethod": "MultipleParametersChar36",
+      "method": "DefaultParameterChar36",
+      "metric": "allocationRatio",
+      "maximum": 0.35
+    },
+    {
+      "id": "parameterized-collection-char36-constant-throughput",
+      "type": "ParameterizedCollectionBenchmark",
+      "baselineMethod": "ConstantChar36",
+      "method": "DefaultParameterChar36",
+      "metric": "meanRatio",
+      "maximum": 0.85
+    },
+    {
+      "id": "parameterized-collection-char36-constant-allocation",
+      "type": "ParameterizedCollectionBenchmark",
+      "baselineMethod": "ConstantChar36",
+      "method": "DefaultParameterChar36",
+      "metric": "allocationRatio",
+      "maximum": 0.85
     }
   ],
   "soakBudgets": {

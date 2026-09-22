@@ -35,7 +35,7 @@ public static class MySqlDbContextOptionsBuilderExtensions
             .WithServerVersion(serverVersion);
 
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
-        mySqlOptionsAction?.Invoke(new MySqlDbContextOptionsBuilder(optionsBuilder));
+        ConfigureProviderOptions(optionsBuilder, mySqlOptionsAction);
 
         return optionsBuilder;
     }
@@ -81,7 +81,7 @@ public static class MySqlDbContextOptionsBuilderExtensions
         }
 
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
-        mySqlOptionsAction?.Invoke(new MySqlDbContextOptionsBuilder(optionsBuilder));
+        ConfigureProviderOptions(optionsBuilder, mySqlOptionsAction);
 
         return optionsBuilder;
     }
@@ -127,7 +127,7 @@ public static class MySqlDbContextOptionsBuilderExtensions
         }
 
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
-        mySqlOptionsAction?.Invoke(new MySqlDbContextOptionsBuilder(optionsBuilder));
+        ConfigureProviderOptions(optionsBuilder, mySqlOptionsAction);
 
         return optionsBuilder;
     }
@@ -219,6 +219,33 @@ public static class MySqlDbContextOptionsBuilderExtensions
     private static MySqlOptionsExtension GetOrCreateExtension(
         DbContextOptionsBuilder optionsBuilder
     ) => optionsBuilder.Options.FindExtension<MySqlOptionsExtension>() ?? new MySqlOptionsExtension();
+
+    private static void ConfigureProviderOptions(
+        DbContextOptionsBuilder optionsBuilder,
+        Action<MySqlDbContextOptionsBuilder>? mySqlOptionsAction
+    )
+    {
+        // EF Core 10 defaults to one scalar parameter per collection element.
+        // MySQL and MariaDB pay that client, command-text, and protocol cost for
+        // large collections even though Doka can preserve the collection as one
+        // JSON parameter and expand it through JSON_TABLE on the server.
+        var providerBuilder = new MySqlDbContextOptionsBuilder(optionsBuilder)
+            .UseParameterizedCollectionMode(ParameterTranslationMode.Parameter);
+
+        mySqlOptionsAction?.Invoke(providerBuilder);
+
+        var configuredMode = GetOrCreateExtension(optionsBuilder).ParameterizedCollectionMode;
+
+        // EF Core stores undefined enum values without rejecting them here.
+        // Reject invalid callback values immediately. The extension also
+        // validates its final snapshot when options are used, since callers
+        // can change the inherited relational option after UseMySql.
+        if (!Enum.IsDefined(configuredMode))
+        {
+            throw new InvalidOperationException(
+                $"Parameterized collection mode '{configuredMode}' is not defined.");
+        }
+    }
 
     private static void ConfigureWarnings(
         DbContextOptionsBuilder optionsBuilder

@@ -315,18 +315,56 @@ their JSON document contract rather than receiving per-member relational GUID
 column metadata.
 
 Parameterized primitive collections preserve the effective storage
-representation of the property they are compared with. For example,
-`EF.Parameter(keys).Contains(entity.Id)` decodes the JSON parameter as the
+representation of the property they are compared with. Doka configures
+`ParameterTranslationMode.Parameter` as the context default, so ordinary
+`keys.Contains(entity.Id)` transports the collection as one JSON parameter and
+expands it through `JSON_TABLE`. `EF.Parameter(keys).Contains(entity.Id)`
+selects the same strategy explicitly. The JSON parameter is decoded as the
 configured `binary(16)` representation for `Binary16` and as value-preserving,
-collation-coercible text for `Char36`. String values that begin and end with
-quotes remain ordinary string values rather than being interpreted as a second
-JSON document. Parameterized strings and application values converted to a
-string provider type are transported as Base64-encoded UTF-8 inside the JSON
-array and decoded as coercible `utf8mb4` text. This keeps quote, backslash,
-empty-string, and non-ASCII values independent of MariaDB's
-`NO_BACKSLASH_ESCAPES` mode while leaving the property column authoritative for
-collation semantics, including columns with non-default collations on MariaDB
-10.11.
+collation-coercible text for `Char36`.
+
+EF Core's two alternative strategies remain available per query:
+
+```csharp
+var parameterRows = await context.Entities
+    .Where(entity => EF.MultipleParameters(keys).Contains(entity.Id))
+    .ToListAsync();
+
+var constantRows = await context.Entities
+    .Where(entity => EF.Constant(keys).Contains(entity.Id))
+    .ToListAsync();
+```
+
+Use a provider option only when every parameterized collection in the context
+should use another default:
+
+```csharp
+options.UseMySql(connectionString, serverVersion, mysql =>
+    mysql.UseParameterizedCollectionMode(
+        ParameterTranslationMode.MultipleParameters));
+```
+
+The provider sets its default before invoking the application callback, so an
+explicit callback value always wins. The single-parameter default bounds
+client-side command and parameter amplification for large collections. A
+small or cardinality-sensitive predicate can still benefit from another query
+shape; use a per-query override and verify its plan on every supported engine.
+Different collection modes also produce separate EF Core internal service
+providers, so a compiled query for one mode cannot determine another
+context's translation. The options extension validates the final mode when
+EF Core builds its internal service provider, including changes made after
+`UseMySql`.
+The selective one-million-row comparison and its limits are recorded in the
+[performance evidence reference](operations/performance-evidence-reference.md#selective-membership-check).
+
+String values that begin and end with quotes remain ordinary string values
+rather than being interpreted as a second JSON document. Parameterized strings
+and application values converted to a string provider type are transported as
+Base64-encoded UTF-8 inside the JSON array and decoded as coercible `utf8mb4`
+text. This keeps quote, backslash, empty-string, and non-ASCII values
+independent of MariaDB's `NO_BACKSLASH_ESCAPES` mode while leaving the property
+column authoritative for collation semantics, including columns with
+non-default collations on MariaDB 10.11.
 
 Nullable elements, `Guid.Empty`, duplicate keys, empty collections, and large
 single-parameter collections retain normal LINQ membership semantics. The same

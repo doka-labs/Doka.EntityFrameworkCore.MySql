@@ -7,6 +7,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- Use one JSON parameter as the default translation for ordinary parameterized
+  collections. This avoids one command parameter per value and substantially
+  reduces command-processing time and managed allocations for large GUID
+  membership predicates on both `Binary16` and `Char36`. Applications retain
+  per-query `EF.MultipleParameters(...)` and `EF.Constant(...)` overrides and
+  can replace the context default through the provider options callback.
+  Different context modes now isolate their compiled-query services, and
+  invalid mode values are rejected even after later option changes.
+
 ## [10.4.2] - 2026-09-20
 
 Stable patch release preserving provider representations through EF Core

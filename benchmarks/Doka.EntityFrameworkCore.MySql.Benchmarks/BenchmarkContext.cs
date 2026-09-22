@@ -14,6 +14,12 @@ public sealed class BenchmarkContext : DbContext
 
     public DbSet<SpatialBenchmarkEntity> SpatialEntities => Set<SpatialBenchmarkEntity>();
 
+    /// <summary>
+    /// Gets the indexed corpus used by parameterized-collection benchmarks.
+    /// </summary>
+    public DbSet<ParameterizedCollectionBenchmarkEntity> ParameterizedCollectionEntities =>
+        Set<ParameterizedCollectionBenchmarkEntity>();
+
     protected override void OnModelCreating(
         ModelBuilder modelBuilder
     )
@@ -44,6 +50,18 @@ public sealed class BenchmarkContext : DbContext
                 .Property(property => property.Location)
                 .HasColumnType("point")
                 .HasSrid(4326);
+        });
+
+        modelBuilder.Entity<ParameterizedCollectionBenchmarkEntity>(entity =>
+        {
+            entity
+                .Property(property => property.BinaryId)
+                .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+            entity
+                .Property(property => property.CharId)
+                .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+            entity.HasIndex(property => property.BinaryId).IsUnique();
+            entity.HasIndex(property => property.CharId).IsUnique();
         });
     }
 }
@@ -159,6 +177,22 @@ public sealed class SpatialBenchmarkEntity
     public int Id { get; set; }
 
     public Point Location { get; set; } = default!;
+}
+
+/// <summary>
+/// Represents one indexed row used to compare parameterized GUID collection
+/// strategies at production-scale cardinalities.
+/// </summary>
+public sealed class ParameterizedCollectionBenchmarkEntity
+{
+    /// <summary>Gets or sets the deterministic row identifier.</summary>
+    public int Id { get; set; }
+
+    /// <summary>Gets or sets the GUID stored in the native binary format.</summary>
+    public Guid BinaryId { get; set; }
+
+    /// <summary>Gets or sets the GUID stored in the interoperable character format.</summary>
+    public Guid CharId { get; set; }
 }
 
 internal sealed class LargeBenchmarkContext : DbContext

@@ -279,10 +279,27 @@ modelBuilder.Entity<OrderWithGuid>()
         Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Binary16);
 ```
 
-Parameterized GUID collections retain the effective property mapping. Both
-`EF.Parameter(keys).Contains(order.Id)` and ordinary `keys.Contains(order.Id)`
-work with `Binary16`, `Char36`, nullable values, and large single-parameter
-collections; Doka performs the required JSON text decoding in generated SQL.
+Parameterized GUID collections retain the effective property mapping. Ordinary
+`keys.Contains(order.Id)` uses one JSON parameter by default instead of one
+scalar parameter per key. `EF.Parameter(keys).Contains(order.Id)` selects the
+same strategy explicitly. Both forms work with `Binary16`, `Char36`, nullable
+values, and large collections; Doka performs the required JSON text decoding
+in generated SQL. Use `EF.MultipleParameters(keys)` or `EF.Constant(keys)` for
+a deliberate per-query override. A context-wide override remains available:
+
+```csharp
+options.UseMySql(connectionString, serverVersion, mysql =>
+    mysql.UseParameterizedCollectionMode(
+        ParameterTranslationMode.MultipleParameters));
+```
+
+The default avoids large command text, parameter collections, and connector
+allocations. An explicit override can still be useful when a small collection
+benefits from a different query plan; measure that workload on every supported
+engine before changing the context-wide policy. A [selective one-million-row
+comparison](docs/operations/performance-evidence-reference.md#selective-membership-check)
+and its measurement limits are documented separately.
+
 Composed parameter-collection queries extract strings, decimals, and temporal
 values through lossless intermediate mappings so property length, scale, or
 fractional-second facets cannot change a parameter before comparison. This
