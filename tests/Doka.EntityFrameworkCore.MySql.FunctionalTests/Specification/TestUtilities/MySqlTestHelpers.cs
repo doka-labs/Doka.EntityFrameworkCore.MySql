@@ -34,7 +34,14 @@ public sealed class MySqlTestHelpers : RelationalTestHelpers
     ) => optionsBuilder.UseMySql(
         DummyConnectionString,
         s_serverVersion,
-        provider => provider.UseNetTopologySuite());
+        provider =>
+        {
+            provider.UseNetTopologySuite();
+
+            // Keep infrastructure-only specification tests aligned with EF
+            // Core 10. Provider-specific tests cover Doka's JSON parameter default.
+            provider.UseParameterizedCollectionMode(ParameterTranslationMode.MultipleParameters);
+        });
 
     /// <inheritdoc />
     public override LoggingDefinitions LoggingDefinitions { get; } =

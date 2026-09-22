@@ -18,6 +18,7 @@ public sealed class MySqlFunctionalTestOptionsTests
         "Infrastructure/MySqlOptionsRegistrationTests.cs:Repeated_UseMySql_calls_keep_a_single_extension_instance",
         "Infrastructure/MySqlOptionsRegistrationTests.cs:Repeated_UseMySql_calls_replace_the_connection_path_consistently",
         "Migrations/MySqlMigrationOperationHandlerTests.cs:CreateContext",
+        "Query/MySqlPrimitiveCollectionParameterTests.cs:CreateContext",
         "Specification/CrossCutting/Infrastructure/MySqlLoggingSpecificationTests.cs:CreateOptionsBuilder",
         "Specification/Query/RelationalModelQueryMySqlTests.cs:CreateContext",
         "Specification/Update/TransactionMySqlTest.cs:CreateContextWithConnectionString",

@@ -43,14 +43,26 @@ public class MySqlTestStore : RelationalTestStore
             ? builder.UseMySql(
                 Connection,
                 ServerVersion,
-                provider => provider.UseNetTopologySuite())
+                ConfigureSpecificationProvider)
             : builder.UseMySql(
                 Connection.ConnectionString,
                 ServerVersion,
-                provider => provider.UseNetTopologySuite()))
+                ConfigureSpecificationProvider))
         .ConfigureWarnings(
             warnings => warnings.Log(
                 RelationalEventId.MultipleCollectionIncludeWarning));
+
+    private static void ConfigureSpecificationProvider(
+        MySqlDbContextOptionsBuilder provider
+    )
+    {
+        provider.UseNetTopologySuite();
+
+        // The inherited EF Core 10 specification suite asserts its own
+        // MultipleParameters default. Provider-specific tests separately pin
+        // Doka's production default to the single JSON parameter strategy.
+        provider.UseParameterizedCollectionMode(ParameterTranslationMode.MultipleParameters);
+    }
 
     /// <summary>
     /// Default <see langword="true"/>: the test-store's owned <see cref="DbConnection"/> is

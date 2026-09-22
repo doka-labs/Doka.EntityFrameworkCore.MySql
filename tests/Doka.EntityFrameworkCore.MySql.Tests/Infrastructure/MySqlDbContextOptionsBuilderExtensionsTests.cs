@@ -22,6 +22,73 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         Assert.Equal(serverVersion, extension.ServerVersion);
         Assert.Null(extension.RetryOptions);
         Assert.Equal(MySqlGuidFormat.Binary16, extension.DefaultGuidFormat);
+        Assert.Equal(ParameterTranslationMode.Parameter, extension.ParameterizedCollectionMode);
+    }
+
+    /// <summary>
+    /// Verifies that Doka selects its single-parameter collection transport
+    /// instead of inheriting EF Core's multiple-parameter default.
+    /// </summary>
+    [Fact]
+    public void UseMySql_defaults_parameterized_collections_to_one_parameter()
+    {
+        var extension = BuildExtension(_ => { });
+
+        Assert.Equal(ParameterTranslationMode.Parameter, extension.ParameterizedCollectionMode);
+    }
+
+    /// <summary>
+    /// Verifies that every supported EF Core collection-translation mode can
+    /// replace Doka's provider default through the provider options callback.
+    /// </summary>
+    [Theory]
+    [InlineData(ParameterTranslationMode.Constant)]
+    [InlineData(ParameterTranslationMode.MultipleParameters)]
+    [InlineData(ParameterTranslationMode.Parameter)]
+    public void Explicit_parameterized_collection_mode_overrides_the_provider_default(
+        ParameterTranslationMode mode
+    )
+    {
+        var extension = BuildExtension(options => options.UseParameterizedCollectionMode(mode));
+
+        Assert.Equal(mode, extension.ParameterizedCollectionMode);
+    }
+
+    /// <summary>
+    /// Verifies that an undefined collection-translation mode fails during
+    /// options construction instead of reaching query compilation.
+    /// </summary>
+    [Fact]
+    public void Explicit_parameterized_collection_mode_rejects_undefined_value()
+    {
+        const ParameterTranslationMode invalidMode = (ParameterTranslationMode)99;
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            BuildExtension(options => options.UseParameterizedCollectionMode(invalidMode)));
+
+        Assert.Equal("Parameterized collection mode '99' is not defined.", exception.Message);
+    }
+
+    /// <summary>
+    /// A later mutation through EF Core's inherited relational builder is
+    /// rejected when the final options snapshot is validated.
+    /// </summary>
+    [Fact]
+    public void Later_undefined_parameterized_collection_mode_is_rejected()
+    {
+        var builder = new DbContextOptionsBuilder();
+        builder.UseMySql(
+            "Server=localhost;Database=doka;User ID=root;Password=password;",
+            MySqlServerVersion.MySql(new Version(8, 4, 0)));
+        new MySqlDbContextOptionsBuilder(builder)
+            .UseParameterizedCollectionMode((ParameterTranslationMode)99);
+        var extension = Assert.IsType<MySqlOptionsExtension>(
+            builder.Options.FindExtension<MySqlOptionsExtension>());
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            extension.Validate(builder.Options));
+
+        Assert.Equal("Parameterized collection mode '99' is not defined.", exception.Message);
     }
 
     /// <summary>
@@ -119,6 +186,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
 
         Assert.True(extension.UserVariablesRequired);
         Assert.Same(connection, extension.Connection);
+        Assert.Equal(ParameterTranslationMode.Parameter, extension.ParameterizedCollectionMode);
     }
 
     /// <summary>
@@ -153,7 +221,10 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         var builder = new DbContextOptionsBuilder();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 
-        builder.UseMySql(dataSource, serverVersion);
+        builder.UseMySql(
+            dataSource,
+            serverVersion,
+            options => options.UseParameterizedCollectionMode(ParameterTranslationMode.MultipleParameters));
 
         var extension = Assert.IsType<MySqlOptionsExtension>(builder.Options.FindExtension<MySqlOptionsExtension>());
 
@@ -161,6 +232,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         Assert.Null(extension.ConnectionString);
         Assert.Null(extension.Connection);
         Assert.Equal(serverVersion, extension.ServerVersion);
+        Assert.Equal(ParameterTranslationMode.MultipleParameters, extension.ParameterizedCollectionMode);
     }
 
     /// <summary>

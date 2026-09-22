@@ -2,8 +2,8 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
 /// Tests for <c>MySqlOptionsExtensionInfo</c>: covers the ServerVersion-null LogFragment arm,
-/// the multi-field GetServiceProviderHashCode + ShouldUseSameServiceProvider chain (the latter
-/// drives the 10-branch && conjunction), and PopulateDebugInfo's structured-info contract.
+/// the multi-field GetServiceProviderHashCode + ShouldUseSameServiceProvider chain, and
+/// PopulateDebugInfo's structured-info contract.
 /// </summary>
 public sealed class MySqlOptionsExtensionInfoTests
 {
@@ -51,7 +51,7 @@ public sealed class MySqlOptionsExtensionInfoTests
         Assert.True(dict.ContainsKey("DokaMySql"));
     }
 
-    // -- ShouldUseSameServiceProvider 10-branch chain --
+    // -- ShouldUseSameServiceProvider identity branches --
 
     [Fact]
     public void ShouldUseSameServiceProvider_for_equivalent_extensions_is_true()
@@ -105,6 +105,21 @@ public sealed class MySqlOptionsExtensionInfoTests
             .WithDefaultGuidFormat(MySqlGuidFormat.Char36));
 
         Assert.False(infoA.ShouldUseSameServiceProvider(infoB));
+    }
+
+    [Fact]
+    public void Parameterized_collection_mode_separates_internal_service_providers()
+    {
+        var parameter = WithVersion(new MySqlOptionsExtension())
+            .WithUseParameterizedCollectionMode(ParameterTranslationMode.Parameter);
+        var multiple = WithVersion(new MySqlOptionsExtension())
+            .WithUseParameterizedCollectionMode(ParameterTranslationMode.MultipleParameters);
+
+        Assert.NotEqual(
+            parameter.Info.GetServiceProviderHashCode(),
+            multiple.Info.GetServiceProviderHashCode());
+        Assert.False(parameter.Info.ShouldUseSameServiceProvider(multiple.Info));
+        Assert.False(multiple.Info.ShouldUseSameServiceProvider(parameter.Info));
     }
 
     [Fact]

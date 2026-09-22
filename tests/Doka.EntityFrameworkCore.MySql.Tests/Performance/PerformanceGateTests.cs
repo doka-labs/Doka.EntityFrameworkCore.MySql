@@ -238,6 +238,60 @@ public sealed class PerformanceGateTests
         }
     }
 
+    [Fact]
+    public void Parameterized_collection_controls_accept_the_calibrated_relative_profile()
+    {
+        var controlsJson = ParameterizedCollectionControlsJson();
+        var observations = ParameterizedCollectionObservations(
+            binaryDefaultMean: 0.6,
+            charDefaultAllocatedBytes: 0.3);
+        using var fixture = PerformanceGateFixture.Create(
+            controlsJson: controlsJson,
+            controlObservations: observations);
+
+        var result = fixture.Evaluate();
+
+        Assert.Empty(result.InvalidEvidence);
+        Assert.Empty(result.Regressions);
+        Assert.Equal(7, result.ControlCount);
+    }
+
+    [Fact]
+    public void Parameterized_collection_controls_reject_a_binary16_throughput_regression()
+    {
+        var controlsJson = ParameterizedCollectionControlsJson();
+        var observations = ParameterizedCollectionObservations(
+            binaryDefaultMean: 0.81,
+            charDefaultAllocatedBytes: 0.3);
+        using var fixture = PerformanceGateFixture.Create(
+            controlsJson: controlsJson,
+            controlObservations: observations);
+
+        var result = fixture.Evaluate();
+
+        var regression = Assert.Single(result.Regressions);
+        Assert.Empty(result.InvalidEvidence);
+        Assert.Contains("parameterized-collection-binary16-multiple-throughput", regression);
+    }
+
+    [Fact]
+    public void Parameterized_collection_controls_reject_a_char36_allocation_regression()
+    {
+        var controlsJson = ParameterizedCollectionControlsJson();
+        var observations = ParameterizedCollectionObservations(
+            binaryDefaultMean: 0.6,
+            charDefaultAllocatedBytes: 0.36);
+        using var fixture = PerformanceGateFixture.Create(
+            controlsJson: controlsJson,
+            controlObservations: observations);
+
+        var result = fixture.Evaluate();
+
+        var regression = Assert.Single(result.Regressions);
+        Assert.Empty(result.InvalidEvidence);
+        Assert.Contains("parameterized-collection-char36-multiple-allocation", regression);
+    }
+
     [Theory]
     [InlineData(0, true, 0)]
     [InlineData(1, true, 1)]
@@ -285,6 +339,58 @@ public sealed class PerformanceGateTests
             Assert.Equal(expectedExitCode, fixture.Run());
         }
     }
+
+    private static string ParameterizedCollectionControlsJson()
+    {
+        using var document = JsonDocument.Parse(
+            File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "performance-contract.json")));
+
+        var controls = document.RootElement
+            .GetProperty("benchmarkDotNetControls")
+            .EnumerateArray()
+            .Where(control => control.GetProperty("type").GetString()
+                == nameof(Benchmarks.ParameterizedCollectionBenchmark))
+            .ToArray();
+
+        return JsonSerializer.Serialize(controls);
+    }
+
+    private static object[] ParameterizedCollectionObservations(
+        double binaryDefaultMean,
+        double charDefaultAllocatedBytes
+    ) =>
+    [
+        PerformanceGateFixture.ControlObservation(
+            nameof(Benchmarks.ParameterizedCollectionBenchmark.DefaultParameterBinary16),
+            binaryDefaultMean,
+            allocatedBytes: 0.2,
+            type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
+        PerformanceGateFixture.ControlObservation(
+            nameof(Benchmarks.ParameterizedCollectionBenchmark.MultipleParametersBinary16),
+            mean: 1,
+            allocatedBytes: 1,
+            type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
+        PerformanceGateFixture.ControlObservation(
+            nameof(Benchmarks.ParameterizedCollectionBenchmark.ConstantBinary16),
+            mean: 1,
+            allocatedBytes: 0.4,
+            type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
+        PerformanceGateFixture.ControlObservation(
+            nameof(Benchmarks.ParameterizedCollectionBenchmark.DefaultParameterChar36),
+            mean: 0.4,
+            allocatedBytes: charDefaultAllocatedBytes,
+            type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
+        PerformanceGateFixture.ControlObservation(
+            nameof(Benchmarks.ParameterizedCollectionBenchmark.MultipleParametersChar36),
+            mean: 1,
+            allocatedBytes: 1,
+            type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
+        PerformanceGateFixture.ControlObservation(
+            nameof(Benchmarks.ParameterizedCollectionBenchmark.ConstantChar36),
+            mean: 1,
+            allocatedBytes: 0.5,
+            type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
+    ];
 
     [Theory]
     [InlineData("", "exactly one")]

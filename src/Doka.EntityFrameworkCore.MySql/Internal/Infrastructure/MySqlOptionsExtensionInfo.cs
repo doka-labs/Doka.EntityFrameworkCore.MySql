@@ -19,10 +19,13 @@ public sealed partial class MySqlOptionsExtension
                 ? "using Doka MySql "
                 : FormattableString.Invariant($"using Doka MySql ({_extension.ServerVersion}) "));
 
+        // Collection mode changes compiled SQL, so contexts with different
+        // modes must not share EF Core's internal compiled-query cache.
         public override int GetServiceProviderHashCode() => HashCode.Combine(
             _extension.ServerVersion,
             _extension.RetryOptions,
             _extension.DefaultGuidFormat,
+            _extension.ParameterizedCollectionMode,
             _extension.Connection is not null,
             _extension.DataSource is not null);
 
@@ -42,6 +45,7 @@ public sealed partial class MySqlOptionsExtension
             && Equals(_extension.ServerVersion, otherInfo._extension.ServerVersion)
             && Equals(_extension.RetryOptions, otherInfo._extension.RetryOptions)
             && _extension.DefaultGuidFormat == otherInfo._extension.DefaultGuidFormat
+            && _extension.ParameterizedCollectionMode == otherInfo._extension.ParameterizedCollectionMode
             && (_extension.Connection is not null) == (otherInfo._extension.Connection is not null)
             && (_extension.DataSource is not null) == (otherInfo._extension.DataSource is not null);
     }

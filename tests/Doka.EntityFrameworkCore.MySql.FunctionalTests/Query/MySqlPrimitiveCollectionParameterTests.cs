@@ -9,6 +9,122 @@ public sealed class MySqlPrimitiveCollectionParameterTests
     private static readonly Guid s_second = Guid.Parse("00000002-0002-0003-0405-060708090a0b");
 
     /// <summary>
+    /// Ordinary collection membership uses Doka's single JSON parameter by
+    /// default and retains the compared Binary16 property representation.
+    /// </summary>
+    [Fact]
+    public void Ordinary_binary_guid_collection_uses_single_parameter_by_default()
+    {
+        using var context = CreateContext();
+        var values = new[] { s_first, s_second };
+
+        var sql = context
+            .Items
+            .Where(item => values.Contains(item.BinaryId))
+            .ToQueryString();
+
+        Assert.Contains("JSON_TABLE", sql, StringComparison.Ordinal);
+        Assert.Contains("`value` char(36) PATH '$'", sql, StringComparison.Ordinal);
+        Assert.Contains("UNHEX(REPLACE(`v`.`value`, '-', ''))", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("IN (@", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ordinary collection membership uses Doka's single JSON parameter by
+    /// default and retains the compared Char36 property representation.
+    /// </summary>
+    [Fact]
+    public void Ordinary_char_guid_collection_uses_single_parameter_by_default()
+    {
+        using var context = CreateContext();
+        var values = new[] { s_first, s_second };
+
+        var sql = context
+            .Items
+            .Where(item => values.Contains(item.CharId))
+            .ToQueryString();
+
+        Assert.Contains("JSON_TABLE", sql, StringComparison.Ordinal);
+        Assert.Contains("`value` char(36) PATH '$'", sql, StringComparison.Ordinal);
+        Assert.Contains("JSON_UNQUOTE(JSON_QUOTE(`v`.`value`))", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("UNHEX(", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("IN (@", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An explicit multiple-parameter mode remains available when a workload
+    /// benefits from exposing collection cardinality to the query planner.
+    /// </summary>
+    [Fact]
+    public void Multiple_parameter_override_bypasses_json_table()
+    {
+        using var context = CreateContext(
+            parameterTranslationMode: ParameterTranslationMode.MultipleParameters);
+        var values = new[] { s_first, s_second };
+
+        var sql = context
+            .Items
+            .Where(item => values.Contains(item.BinaryId))
+            .ToQueryString();
+
+        Assert.Contains(" IN (", sql, StringComparison.Ordinal);
+        Assert.Contains("@values", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("JSON_TABLE", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An explicit constant mode remains available without being rewritten to
+    /// Doka's single-parameter default.
+    /// </summary>
+    [Fact]
+    public void Constant_override_bypasses_json_table_and_parameters()
+    {
+        using var context = CreateContext(
+            parameterTranslationMode: ParameterTranslationMode.Constant);
+        var values = new[] { s_first, s_second };
+
+        var sql = context
+            .Items
+            .Where(item => values.Contains(item.CharId))
+            .ToQueryString();
+
+        Assert.Contains(" IN (", sql, StringComparison.Ordinal);
+        Assert.Contains(s_first.ToString(), sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("JSON_TABLE", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("@values", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Contexts of one CLR type with different collection modes must compile
+    /// their own query shape regardless of which mode executes first.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Collection_modes_do_not_share_a_compiled_query(
+        bool parameterFirst
+    )
+    {
+        var firstMode = parameterFirst
+            ? ParameterTranslationMode.Parameter
+            : ParameterTranslationMode.MultipleParameters;
+        var secondMode = parameterFirst
+            ? ParameterTranslationMode.MultipleParameters
+            : ParameterTranslationMode.Parameter;
+        var values = new[] { s_first, s_second };
+
+        // This test must use EF Core's shared internal-provider cache. The
+        // normal functional helper disables it and could not catch cache bleed.
+        using var first = CreateContext(parameterTranslationMode: firstMode, cacheServiceProvider: true);
+        using var second = CreateContext(parameterTranslationMode: secondMode, cacheServiceProvider: true);
+        var firstSql = Query(first, values).ToQueryString();
+        var secondSql = Query(second, values).ToQueryString();
+
+        Assert.Equal(parameterFirst, firstSql.Contains("JSON_TABLE", StringComparison.Ordinal));
+        Assert.Equal(!parameterFirst, secondSql.Contains("JSON_TABLE", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// A deferred Binary16 element mapping must decode the JSON GUID text before comparison.
     /// </summary>
     [Fact]
@@ -99,7 +215,7 @@ public sealed class MySqlPrimitiveCollectionParameterTests
 
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.Name))
+            .Where(item => values.Contains(item.Name))
             .ToQueryString();
 
         Assert.Contains("`value` longtext PATH '$'", sql, StringComparison.Ordinal);
@@ -123,7 +239,7 @@ public sealed class MySqlPrimitiveCollectionParameterTests
 
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.OptionalName))
+            .Where(item => values.Contains(item.OptionalName))
             .ToQueryString();
 
         Assert.Contains(
@@ -169,7 +285,7 @@ public sealed class MySqlPrimitiveCollectionParameterTests
 
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.Status))
+            .Where(item => values.Contains(item.Status))
             .ToQueryString();
 
         Assert.Contains("`value` longtext PATH '$'", sql, StringComparison.Ordinal);
@@ -598,15 +714,33 @@ public sealed class MySqlPrimitiveCollectionParameterTests
         Assert.Same(sourceMapping, actual);
     }
 
+    private static IQueryable<PrimitiveCollectionEntity> Query(
+        PrimitiveCollectionContext context,
+        Guid[] values
+    ) => context.Items.Where(item => values.Contains(item.BinaryId));
+
     private static PrimitiveCollectionContext CreateContext(
-        MySqlGuidFormat defaultGuidFormat = MySqlGuidFormat.Binary16
+        MySqlGuidFormat defaultGuidFormat = MySqlGuidFormat.Binary16,
+        ParameterTranslationMode? parameterTranslationMode = null,
+        bool cacheServiceProvider = false
     )
     {
-        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<PrimitiveCollectionContext>();
+        var builder = cacheServiceProvider
+            ? new DbContextOptionsBuilder<PrimitiveCollectionContext>()
+                .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning))
+            : MySqlFunctionalTestOptions.CreateTransientBuilder<PrimitiveCollectionContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)),
-            options => options.DefaultGuidFormat(defaultGuidFormat));
+            options =>
+            {
+                options.DefaultGuidFormat(defaultGuidFormat);
+
+                if (parameterTranslationMode is not null)
+                {
+                    options.UseParameterizedCollectionMode(parameterTranslationMode.Value);
+                }
+            });
 
         return new PrimitiveCollectionContext(builder.Options);
     }
