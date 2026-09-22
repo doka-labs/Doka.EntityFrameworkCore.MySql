@@ -7,6 +7,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.4.3] - 2026-09-22
+
+Stable patch release changing the default SQL shape of ordinary parameterized
+collection membership. Doka now sends one JSON parameter and expands it with
+`JSON_TABLE` instead of sending one scalar parameter per value. This reduces
+command and allocation amplification for large collections while retaining
+the provider representations established in `10.4.2`. Query plans can differ;
+use `EF.MultipleParameters(...)` for a measured per-query exception or
+`UseParameterizedCollectionMode(ParameterTranslationMode.MultipleParameters)`
+to retain the previous context-wide default.
+
+Install the stable packages through normal NuGet version resolution. Add the
+spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.3
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.4.3
+dotnet package add Doka.Caching.MySql --version 10.4.3
+```
+
 ### Changed
 
 - Use one JSON parameter as the default translation for ordinary parameterized
@@ -1296,7 +1316,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.4.2...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.4.3...HEAD
+[10.4.3]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.3
 [10.4.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.2
 [10.4.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.1
 [10.4.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.0

@@ -315,13 +315,13 @@ their JSON document contract rather than receiving per-member relational GUID
 column metadata.
 
 Parameterized primitive collections preserve the effective storage
-representation of the property they are compared with. Doka configures
-`ParameterTranslationMode.Parameter` as the context default, so ordinary
-`keys.Contains(entity.Id)` transports the collection as one JSON parameter and
-expands it through `JSON_TABLE`. `EF.Parameter(keys).Contains(entity.Id)`
-selects the same strategy explicitly. The JSON parameter is decoded as the
-configured `binary(16)` representation for `Binary16` and as value-preserving,
-collation-coercible text for `Char36`.
+representation of the property they are compared with. From 10.4.3, Doka
+configures `ParameterTranslationMode.Parameter` as the context default, so
+ordinary `keys.Contains(entity.Id)` transports the collection as one JSON
+parameter and expands it through `JSON_TABLE`.
+`EF.Parameter(keys).Contains(entity.Id)` selects the same strategy explicitly.
+The JSON parameter is decoded as the configured `binary(16)` representation
+for `Binary16` and as value-preserving, collation-coercible text for `Char36`.
 
 EF Core's two alternative strategies remain available per query:
 
@@ -354,6 +354,7 @@ providers, so a compiled query for one mode cannot determine another
 context's translation. The options extension validates the final mode when
 EF Core builds its internal service provider, including changes made after
 `UseMySql`.
+
 The selective one-million-row comparison and its limits are recorded in the
 [performance evidence reference](operations/performance-evidence-reference.md#selective-membership-check).
 

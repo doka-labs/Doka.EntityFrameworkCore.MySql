@@ -21,7 +21,7 @@ Replace the `Pomelo.EntityFrameworkCore.MySql` package reference with
 stable package explicitly so the migration uses the documented version:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.2
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.3
 ```
 
 Use:
@@ -292,6 +292,13 @@ EF Core's non-generic `Like`; explicit `Like<string>` has the same SQL
 semantics. Remove Pomelo extensions before using the Doka generic overloads
 to avoid ambiguous calls. See [Scalar LIKE](query-functions.md#scalar-like)
 for supported types, GUID mapping, escaping, and index boundaries.
+
+From 10.4.3, ordinary `keys.Contains(entity.Id)` uses one JSON parameter
+expanded through `JSON_TABLE`. It does not reproduce an earlier provider's SQL
+shape. Verify representative query plans after migration, particularly for
+selective predicates on large tables. Use `EF.MultipleParameters(keys)` for a
+measured per-query exception; see [Provider Configuration](provider-configuration.md)
+for the context-wide override and GUID representation rules.
 
 Replace `Pomelo.Extensions.Caching.MySql` with the separate
 `Doka.Caching.MySql` package and its namespace. Existing `IDistributedCache`
