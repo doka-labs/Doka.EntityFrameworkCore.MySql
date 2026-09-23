@@ -70,16 +70,17 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.4.3` uses one JSON parameter for ordinary collection membership instead
-of one scalar parameter per value. This reduces command and allocation costs
-for large collections while preserving the `Binary16`, `Char36`, string,
-numeric, and temporal mapping fixes from `10.4.2`. Because the SQL shape and
-query plan can change, retain the previous multiple-parameter behavior for a
-measured workload with `EF.MultipleParameters(...)` or a context-wide option.
+`10.4.4` restores EF Core 10's multiple-parameter default for ordinary
+collection membership. The single-JSON-parameter default introduced in
+`10.4.3` caused excessive latency and a timeout in a selective relationship
+query; incorrect results were not reported. The `Binary16`, `Char36`, string,
+numeric, and temporal mapping fixes remain available; use `EF.Parameter(...)`
+only where the JSON translation has been measured on the actual query shape.
+
 Pin the current stable version explicitly when validating an application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.3
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.4
 ```
 
 See [Provider Configuration][provider-configuration] for collection transport
@@ -280,23 +281,23 @@ modelBuilder.Entity<OrderWithGuid>()
 ```
 
 Parameterized GUID collections retain the effective property mapping. Ordinary
-`keys.Contains(order.Id)` uses one JSON parameter by default instead of one
-scalar parameter per key. `EF.Parameter(keys).Contains(order.Id)` selects the
-same strategy explicitly. Both forms work with `Binary16`, `Char36`, nullable
-values, and large collections; Doka performs the required JSON text decoding
-in generated SQL. Use `EF.MultipleParameters(keys)` or `EF.Constant(keys)` for
-a deliberate per-query override. A context-wide override remains available:
+`keys.Contains(order.Id)` uses EF Core 10's multiple scalar parameters by
+default. `EF.Parameter(keys).Contains(order.Id)` opts into one JSON parameter
+and `JSON_TABLE` for a measured query; Doka decodes the configured `Binary16`
+or `Char36` representation in generated SQL. `EF.MultipleParameters(keys)`
+and `EF.Constant(keys)` remain available for deliberate per-query overrides.
+The JSON strategy can also be selected for an entire context:
 
 ```csharp
 options.UseMySql(connectionString, serverVersion, mysql =>
     mysql.UseParameterizedCollectionMode(
-        ParameterTranslationMode.MultipleParameters));
+        ParameterTranslationMode.Parameter));
 ```
 
-The default avoids large command text, parameter collections, and connector
-allocations. An explicit override can still be useful when a small collection
-benefits from a different query plan; measure that workload on every supported
-engine before changing the context-wide policy. A [selective one-million-row
+The default exposes collection cardinality to the query planner. JSON can
+reduce command text, parameter collections, and connector allocations for
+large lists, but can produce a worse plan for other queries. Measure the
+complete workload before changing the context-wide policy. A [selective one-million-row
 comparison](docs/operations/performance-evidence-reference.md#selective-membership-check)
 and its measurement limits are documented separately.
 

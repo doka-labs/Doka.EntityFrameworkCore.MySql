@@ -243,8 +243,8 @@ public sealed class PerformanceGateTests
     {
         var controlsJson = ParameterizedCollectionControlsJson();
         var observations = ParameterizedCollectionObservations(
-            binaryDefaultMean: 0.6,
-            charDefaultAllocatedBytes: 0.3);
+            binaryJsonMean: 0.6,
+            charJsonAllocatedBytes: 0.3);
         using var fixture = PerformanceGateFixture.Create(
             controlsJson: controlsJson,
             controlObservations: observations);
@@ -261,8 +261,8 @@ public sealed class PerformanceGateTests
     {
         var controlsJson = ParameterizedCollectionControlsJson();
         var observations = ParameterizedCollectionObservations(
-            binaryDefaultMean: 0.81,
-            charDefaultAllocatedBytes: 0.3);
+            binaryJsonMean: 0.81,
+            charJsonAllocatedBytes: 0.3);
         using var fixture = PerformanceGateFixture.Create(
             controlsJson: controlsJson,
             controlObservations: observations);
@@ -279,8 +279,8 @@ public sealed class PerformanceGateTests
     {
         var controlsJson = ParameterizedCollectionControlsJson();
         var observations = ParameterizedCollectionObservations(
-            binaryDefaultMean: 0.6,
-            charDefaultAllocatedBytes: 0.36);
+            binaryJsonMean: 0.6,
+            charJsonAllocatedBytes: 0.36);
         using var fixture = PerformanceGateFixture.Create(
             controlsJson: controlsJson,
             controlObservations: observations);
@@ -356,13 +356,13 @@ public sealed class PerformanceGateTests
     }
 
     private static object[] ParameterizedCollectionObservations(
-        double binaryDefaultMean,
-        double charDefaultAllocatedBytes
+        double binaryJsonMean,
+        double charJsonAllocatedBytes
     ) =>
     [
         PerformanceGateFixture.ControlObservation(
-            nameof(Benchmarks.ParameterizedCollectionBenchmark.DefaultParameterBinary16),
-            binaryDefaultMean,
+            nameof(Benchmarks.ParameterizedCollectionBenchmark.JsonParameterBinary16),
+            binaryJsonMean,
             allocatedBytes: 0.2,
             type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
         PerformanceGateFixture.ControlObservation(
@@ -376,9 +376,9 @@ public sealed class PerformanceGateTests
             allocatedBytes: 0.4,
             type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
         PerformanceGateFixture.ControlObservation(
-            nameof(Benchmarks.ParameterizedCollectionBenchmark.DefaultParameterChar36),
+            nameof(Benchmarks.ParameterizedCollectionBenchmark.JsonParameterChar36),
             mean: 0.4,
-            allocatedBytes: charDefaultAllocatedBytes,
+            allocatedBytes: charJsonAllocatedBytes,
             type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
         PerformanceGateFixture.ControlObservation(
             nameof(Benchmarks.ParameterizedCollectionBenchmark.MultipleParametersChar36),

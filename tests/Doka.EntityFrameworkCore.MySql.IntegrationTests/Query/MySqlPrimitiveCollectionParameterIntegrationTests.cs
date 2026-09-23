@@ -123,7 +123,7 @@ public sealed class MySqlPrimitiveCollectionParameterIntegrationTests
             string?[] expectedModelValues = ["\"quoted\"", "\"\\q\"", string.Empty, "gr\u00FCn", null];
 
             var parameterIds = await context.Items
-                .Where(item => values.Contains(item.Value))
+                .Where(item => EF.Parameter(values).Contains(item.Value))
                 .OrderBy(item => item.Id)
                 .Select(item => item.Id)
                 .ToArrayAsync(CancellationToken.None);
@@ -159,6 +159,71 @@ public sealed class MySqlPrimitiveCollectionParameterIntegrationTests
                 await SetSqlModeAsync(context.Database.GetDbConnection(), previousSqlMode);
             }
 
+            await context.Database.CloseConnectionAsync();
+            await DropSqlModeTableAsync(context);
+        }
+    }
+
+    /// <summary>
+    /// Verifies ordinary scalar string parameters when the connection's
+    /// escaping contract matches the server's NO_BACKSLASH_ESCAPES mode.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
+    public async Task MariaDb118_default_scalar_strings_match_configured_sql_mode()
+    {
+        var connectionString = new MySqlConnectionStringBuilder(
+            IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118))
+        {
+            NoBackslashEscapes = true,
+        }.ConnectionString;
+        var builder = IntegrationTestDbContextOptions.Create<SqlModeStringCollectionContext>();
+        builder.UseMySql(
+            connectionString,
+            IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb118));
+        await using var context = new SqlModeStringCollectionContext(builder.Options);
+        await DropSqlModeTableAsync(context);
+        await context.Database.OpenConnectionAsync(CancellationToken.None);
+
+        var connection = context.Database.GetDbConnection();
+        var previousSqlMode = await ReadSqlModeAsync(connection);
+
+        try
+        {
+            await SetSqlModeAsync(connection, "NO_BACKSLASH_ESCAPES");
+            await context.Database.ExecuteSqlRawAsync(
+                context.Database.GenerateCreateScript(),
+                CancellationToken.None);
+            context.AddRange(
+                new SqlModeStringCollectionEntity
+                {
+                    Id = 1,
+                    Value = "\"\\q\"",
+                    ConvertedText = new TextValue("\"\\q\""),
+                },
+                new SqlModeStringCollectionEntity
+                {
+                    Id = 2,
+                    Value = "\"q\"",
+                    ConvertedText = new TextValue("\"q\""),
+                });
+            await context.SaveChangesAsync(CancellationToken.None);
+            context.ChangeTracker.Clear();
+
+            string[] values = ["\"\\q\"", "missing"];
+            var query = context.Items.Where(item => values.Contains(item.Value));
+
+            var sql = query.ToQueryString();
+            var ids = await query
+                .Select(item => item.Id)
+                .ToArrayAsync(CancellationToken.None);
+
+            Assert.Contains(" IN (", sql, StringComparison.Ordinal);
+            Assert.DoesNotContain("JSON_TABLE", sql, StringComparison.Ordinal);
+            Assert.Equal([1], ids);
+        }
+        finally
+        {
+            await SetSqlModeAsync(connection, previousSqlMode);
             await context.Database.CloseConnectionAsync();
             await DropSqlModeTableAsync(context);
         }
@@ -306,7 +371,7 @@ public sealed class MySqlPrimitiveCollectionParameterIntegrationTests
             var results = new PrimitiveCollectionResults(
                 await SelectIdsAsync(context.Items.Where(item => EF.Parameter(oneGuid).Contains(item.BinaryId))),
                 await SelectIdsAsync(context.Items.Where(item => EF.Parameter(threeGuids).Contains(item.BinaryId))),
-                await SelectIdsAsync(context.Items.Where(item => allGuids.Contains(item.BinaryId))),
+                await SelectIdsAsync(context.Items.Where(item => EF.Parameter(allGuids).Contains(item.BinaryId))),
                 await SelectIdsAsync(context.Items.Where(item => charGuids.Contains(item.CharId))),
                 await SelectIdsAsync(context.Items.Where(item => emptyGuids.Contains(item.BinaryId))),
                 await SelectIdsAsync(

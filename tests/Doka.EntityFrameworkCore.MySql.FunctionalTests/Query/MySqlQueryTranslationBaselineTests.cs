@@ -102,7 +102,8 @@ public sealed class MySqlQueryTranslationBaselineTests
     }
 
     /// <summary>
-    /// Ordinary collection membership follows Doka's single JSON parameter default.
+    /// An explicit single-parameter marker remains available when ordinary
+    /// collection membership uses multiple parameters by default.
     /// </summary>
     [Fact]
     public void Collection_parameter_contains_translates_to_json_table()
@@ -111,7 +112,7 @@ public sealed class MySqlQueryTranslationBaselineTests
         var names = new List<string> { "alpha", "beta", "gamma" };
 
         var sql = context
-            .Entities.Where(entity => names.Contains(entity.Name))
+            .Entities.Where(entity => EF.Parameter(names).Contains(entity.Name))
             .ToQueryString();
 
         Assert.Contains("@names", sql, StringComparison.Ordinal);

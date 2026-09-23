@@ -225,12 +225,12 @@ public static class MySqlDbContextOptionsBuilderExtensions
         Action<MySqlDbContextOptionsBuilder>? mySqlOptionsAction
     )
     {
-        // EF Core 10 defaults to one scalar parameter per collection element.
-        // MySQL and MariaDB pay that client, command-text, and protocol cost for
-        // large collections even though Doka can preserve the collection as one
-        // JSON parameter and expand it through JSON_TABLE on the server.
+        // Keep EF Core 10's cardinality-visible default. A JSON_TABLE default
+        // can choose an unsuitable plan for selective relationship queries;
+        // callers can opt into one JSON parameter for measured large lists.
+        // Re-evaluate this explicit pin when adopting a new EF Core major.
         var providerBuilder = new MySqlDbContextOptionsBuilder(optionsBuilder)
-            .UseParameterizedCollectionMode(ParameterTranslationMode.Parameter);
+            .UseParameterizedCollectionMode(ParameterTranslationMode.MultipleParameters);
 
         mySqlOptionsAction?.Invoke(providerBuilder);
 

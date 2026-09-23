@@ -31,5 +31,5 @@ public sealed class LoggingMySqlTest : LoggingRelationalTestBase<MySqlDbContextO
         ?? string.Empty;
 
     protected override string DefaultOptions =>
-        $"ParameterizedCollectionTranslationMode=Parameter using Doka MySql ({MySqlTestEnvironment.ServerVersion}) ";
+        $"ParameterizedCollectionTranslationMode=MultipleParameters using Doka MySql ({MySqlTestEnvironment.ServerVersion}) ";
 }

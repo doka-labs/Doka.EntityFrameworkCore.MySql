@@ -52,10 +52,10 @@ public class ParameterizedCollectionBenchmark : IDisposable
         // without issuing concurrent operations on one DbContext.
         var matchCounts = new[]
         {
-            DefaultParameterBinary16().GetAwaiter().GetResult(),
+            JsonParameterBinary16().GetAwaiter().GetResult(),
             MultipleParametersBinary16().GetAwaiter().GetResult(),
             ConstantBinary16().GetAwaiter().GetResult(),
-            DefaultParameterChar36().GetAwaiter().GetResult(),
+            JsonParameterChar36().GetAwaiter().GetResult(),
             MultipleParametersChar36().GetAwaiter().GetResult(),
             ConstantChar36().GetAwaiter().GetResult(),
         };
@@ -68,15 +68,15 @@ public class ParameterizedCollectionBenchmark : IDisposable
     }
 
     /// <summary>
-    /// Executes the provider-default single-parameter strategy for Binary16 GUIDs.
+    /// Executes EF Core's explicit JSON-parameter strategy for Binary16 GUIDs.
     /// </summary>
     [Benchmark]
-    public Task<int> DefaultParameterBinary16()
+    public Task<int> JsonParameterBinary16()
     {
         var context = GetContext();
 
         return context.ParameterizedCollectionEntities.CountAsync(
-            entity => _filterIds.Contains(entity.BinaryId),
+            entity => EF.Parameter(_filterIds).Contains(entity.BinaryId),
             CancellationToken.None);
     }
 
@@ -107,15 +107,15 @@ public class ParameterizedCollectionBenchmark : IDisposable
     }
 
     /// <summary>
-    /// Executes the provider-default single-parameter strategy for Char36 GUIDs.
+    /// Executes EF Core's explicit JSON-parameter strategy for Char36 GUIDs.
     /// </summary>
     [Benchmark]
-    public Task<int> DefaultParameterChar36()
+    public Task<int> JsonParameterChar36()
     {
         var context = GetContext();
 
         return context.ParameterizedCollectionEntities.CountAsync(
-            entity => _filterIds.Contains(entity.CharId),
+            entity => EF.Parameter(_filterIds).Contains(entity.CharId),
             CancellationToken.None);
     }
 

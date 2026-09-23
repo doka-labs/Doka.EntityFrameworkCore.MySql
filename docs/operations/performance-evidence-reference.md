@@ -82,22 +82,24 @@ promote historical evidence across hosted runners.
 ## Parameterized-Collection Ratio Calibration
 
 `ParameterizedCollectionBenchmark` measures indexed membership over 14,000
-rows with a 10,000-value GUID collection. It runs the provider default,
-`EF.MultipleParameters(...)`, and `EF.Constant(...)` for both `Binary16` and
-`Char36`. Setup and corpus creation occur outside the measured methods.
+rows with a 10,000-value GUID collection. It runs explicit `EF.Parameter(...)`
+(JSON), `EF.MultipleParameters(...)`, and `EF.Constant(...)` for both `Binary16`
+and `Char36`. Setup and corpus creation occur outside the measured methods.
 
 The controls compare methods from the same BenchmarkDotNet run. Throughput is
 guarded only where both calibrated engine families show a material advantage;
-allocation ratios also guard the default against constant expansion. No
+allocation ratios also guard the JSON opt-in against constant expansion. No
 absolute elapsed-time budget is used, because host CPU capacity is not a
 portable performance contract.
+
+Each ratio below divides the explicit JSON method by the named baseline.
 
 Initial calibration on 2026-09-22 covered every required target with the
 digest-pinned contract images, .NET 10.0.12, SDK 10.0.401, and BenchmarkDotNet
 0.15.8 on Apple M2 Max Arm64. Each target used one launch, one warmup, and three
 measurement iterations per method.
 
-| Target | B16 multi time | B16 multi alloc | B16 constant alloc | Char36 multi time | Char36 multi alloc | Char36 constant time | Char36 constant alloc |
+| Target | B16 JSON/multi time | B16 JSON/multi alloc | B16 JSON/constant alloc | Char36 JSON/multi time | Char36 JSON/multi alloc | Char36 JSON/constant time | Char36 JSON/constant alloc |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | MySQL 8.4 | 0.576 | 0.174 | 0.491 | 0.482 | 0.240 | 0.592 | 0.738 |
 | MySQL 9.7 | 0.549 | 0.174 | 0.491 | 0.482 | 0.242 | 0.585 | 0.738 |
@@ -117,13 +119,13 @@ any ceiling changes.
 The 10,000-value benchmark does not establish the right default for small
 collections. A separate 2026-09-22 diagnostic used 1,000,000 rows with unique
 indexes on both GUID columns and 1, 5, 50, or 500 matching keys. The same
-`CountAsync` LINQ predicate was executed with Doka's JSON parameter and with
-`EF.MultipleParameters(...)` for `Binary16` and `Char36`. Each case had five
-warmup calls followed by five batches of twenty calls. The table reports the
-range of the median batch-time ratios from two repeated runs on the populated
-table, with JSON time divided by multiple-parameter time. Values above 1
-mean that JSON was slower. The isolated, digest-pinned
-MySQL 8.4 and MariaDB 11.8 containers ran on the Apple M2 Max Arm64 host.
+`CountAsync` LINQ predicate was executed with the explicit `EF.Parameter(...)`
+JSON strategy and with `EF.MultipleParameters(...)` for `Binary16` and `Char36`.
+Each case had five warmup calls followed by five batches of twenty calls. The
+table reports the range of the median batch-time ratios from two repeated runs
+on the populated table, with JSON time divided by multiple-parameter time.
+Values above 1 mean that JSON was slower. The isolated, digest-pinned MySQL 8.4
+and MariaDB 11.8 containers ran on the Apple M2 Max Arm64 host.
 
 | Target and GUID format | 1 key | 5 keys | 50 keys | 500 keys |
 | --- | ---: | ---: | ---: | ---: |
@@ -146,8 +148,10 @@ between runs.
 
 This was a targeted diagnostic, not BenchmarkDotNet evidence or an automated
 gate. It confirms that the observed large-collection gain does not require a
-table scan for the tested selective shapes. Query plans and small-set latency
-can still change with other predicates, data distributions, engine versions,
+table scan for the tested selective shapes. It did not cover relationship
+includes or split queries; a selective relationship query timed out under the
+JSON default in 10.4.3. No incorrect results were reported. Query plans and
+latency can change with other predicates, data distributions, engine versions,
 and hosts. EF Core's [collection translation guidance][ef-collections] also
 calls out this workload dependence. Keep the per-query mode override for
 measured exceptions; do not infer a universal optimal mode from these ratios.
