@@ -315,17 +315,23 @@ their JSON document contract rather than receiving per-member relational GUID
 column metadata.
 
 Parameterized primitive collections preserve the effective storage
-representation of the property they are compared with. From 10.4.3, Doka
-configures `ParameterTranslationMode.Parameter` as the context default, so
-ordinary `keys.Contains(entity.Id)` transports the collection as one JSON
-parameter and expands it through `JSON_TABLE`.
-`EF.Parameter(keys).Contains(entity.Id)` selects the same strategy explicitly.
+representation of the property they are compared with. From 10.4.4, Doka
+again uses EF Core 10's `MultipleParameters` default: ordinary
+`keys.Contains(entity.Id)` emits scalar parameters so the database can see
+collection cardinality. The one-JSON-parameter default in 10.4.3 could cause
+excessive latency, including a timeout, on a selective relationship query.
+No incorrect results were reported. Opt into `JSON_TABLE` only for measured
+workloads with `EF.Parameter(keys).Contains(entity.Id)`.
 The JSON parameter is decoded as the configured `binary(16)` representation
 for `Binary16` and as value-preserving, collation-coercible text for `Char36`.
 
-EF Core's two alternative strategies remain available per query:
+All three strategies remain available per query:
 
 ```csharp
+var jsonRows = await context.Entities
+    .Where(entity => EF.Parameter(keys).Contains(entity.Id))
+    .ToListAsync();
+
 var parameterRows = await context.Entities
     .Where(entity => EF.MultipleParameters(keys).Contains(entity.Id))
     .ToListAsync();
@@ -341,14 +347,14 @@ should use another default:
 ```csharp
 options.UseMySql(connectionString, serverVersion, mysql =>
     mysql.UseParameterizedCollectionMode(
-        ParameterTranslationMode.MultipleParameters));
+        ParameterTranslationMode.Parameter));
 ```
 
 The provider sets its default before invoking the application callback, so an
-explicit callback value always wins. The single-parameter default bounds
-client-side command and parameter amplification for large collections. A
-small or cardinality-sensitive predicate can still benefit from another query
-shape; use a per-query override and verify its plan on every supported engine.
+explicit callback value always wins. The multiple-parameter default exposes
+collection cardinality to the optimizer. A large-list query can benefit from
+one JSON parameter, but list length alone does not determine the best plan;
+use a per-query override and verify its plan on every supported engine.
 Different collection modes also produce separate EF Core internal service
 providers, so a compiled query for one mode cannot determine another
 context's translation. The options extension validates the final mode when
@@ -357,6 +363,12 @@ EF Core builds its internal service provider, including changes made after
 
 The selective one-million-row comparison and its limits are recorded in the
 [performance evidence reference](operations/performance-evidence-reference.md#selective-membership-check).
+
+If a connection uses the server's `NO_BACKSLASH_ESCAPES` SQL mode, configure
+MySqlConnector's `NoBackslashEscapes=true` connection option to match it. Scalar
+string parameters can otherwise compare incorrectly when they contain a
+backslash. This is a driver/session-mode contract, not a reason to select JSON
+globally. See [MySqlConnector connection options](https://mysqlconnector.net/connection-options/#NoBackslashEscapes).
 
 String values that begin and end with quotes remain ordinary string values
 rather than being interpreted as a second JSON document. Parameterized strings

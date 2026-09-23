@@ -61,12 +61,12 @@ path; without a collection mapping the `InExpression.ValuesParameter` produced f
 a JSON-collection-string mapping with the element mapping wired through to
 `SqlNullabilityProcessor.ProcessInExpressionValues`, which expands the parameter into
 inlined SQL constants per `ParameterTranslationMode.MultipleParameters` (the EF Core
-default at that time; the current inherited spec harness selects it explicitly).
-The inherited SQL-baseline suite therefore does not exercise Doka's current
-single-parameter default. Provider-owned functional and live integration tests
-cover ordinary collection queries for both GUID formats, strings, nullable
-strings, and converted enums with that default; the inherited suite continues
-to verify EF Core's other translation contracts with its own baseline shape.
+10 default). During 10.4.3 the inherited spec harness selected that mode
+explicitly because Doka's default was one JSON parameter. Version 10.4.4
+restores the EF Core default and removes the redundant harness override.
+Provider-owned functional and live integration tests separately cover explicit
+JSON transport for GUIDs, strings, nullable strings, and converted enums.
+The inherited suite continues to verify EF Core's other translation contracts.
 Closed 16 NorthwindWhereQueryMySqlTest failures across `@orderIds`, `@customerIds`,
 `@array`, `@cities`, and `@entity_equality_customer_Orders_OrderID` parameter cases.)
 - NorthwindWhereQueryMySqlTest (mysql:8.4, 10 tests) -- "syntax error near 'bigint)'".

@@ -9,57 +9,13 @@ public sealed class MySqlPrimitiveCollectionParameterTests
     private static readonly Guid s_second = Guid.Parse("00000002-0002-0003-0405-060708090a0b");
 
     /// <summary>
-    /// Ordinary collection membership uses Doka's single JSON parameter by
-    /// default and retains the compared Binary16 property representation.
+    /// Ordinary Binary16 membership retains EF Core's multiple-parameter
+    /// default instead of entering the JSON_TABLE translation path.
     /// </summary>
     [Fact]
-    public void Ordinary_binary_guid_collection_uses_single_parameter_by_default()
+    public void Ordinary_binary_guid_collection_uses_multiple_parameters_by_default()
     {
         using var context = CreateContext();
-        var values = new[] { s_first, s_second };
-
-        var sql = context
-            .Items
-            .Where(item => values.Contains(item.BinaryId))
-            .ToQueryString();
-
-        Assert.Contains("JSON_TABLE", sql, StringComparison.Ordinal);
-        Assert.Contains("`value` char(36) PATH '$'", sql, StringComparison.Ordinal);
-        Assert.Contains("UNHEX(REPLACE(`v`.`value`, '-', ''))", sql, StringComparison.Ordinal);
-        Assert.DoesNotContain("IN (@", sql, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// Ordinary collection membership uses Doka's single JSON parameter by
-    /// default and retains the compared Char36 property representation.
-    /// </summary>
-    [Fact]
-    public void Ordinary_char_guid_collection_uses_single_parameter_by_default()
-    {
-        using var context = CreateContext();
-        var values = new[] { s_first, s_second };
-
-        var sql = context
-            .Items
-            .Where(item => values.Contains(item.CharId))
-            .ToQueryString();
-
-        Assert.Contains("JSON_TABLE", sql, StringComparison.Ordinal);
-        Assert.Contains("`value` char(36) PATH '$'", sql, StringComparison.Ordinal);
-        Assert.Contains("JSON_UNQUOTE(JSON_QUOTE(`v`.`value`))", sql, StringComparison.Ordinal);
-        Assert.DoesNotContain("UNHEX(", sql, StringComparison.Ordinal);
-        Assert.DoesNotContain("IN (@", sql, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// An explicit multiple-parameter mode remains available when a workload
-    /// benefits from exposing collection cardinality to the query planner.
-    /// </summary>
-    [Fact]
-    public void Multiple_parameter_override_bypasses_json_table()
-    {
-        using var context = CreateContext(
-            parameterTranslationMode: ParameterTranslationMode.MultipleParameters);
         var values = new[] { s_first, s_second };
 
         var sql = context
@@ -73,8 +29,70 @@ public sealed class MySqlPrimitiveCollectionParameterTests
     }
 
     /// <summary>
+    /// Ordinary Char36 membership retains EF Core's multiple-parameter
+    /// default instead of entering the JSON_TABLE translation path.
+    /// </summary>
+    [Fact]
+    public void Ordinary_char_guid_collection_uses_multiple_parameters_by_default()
+    {
+        using var context = CreateContext();
+        var values = new[] { s_first, s_second };
+
+        var sql = context
+            .Items
+            .Where(item => values.Contains(item.CharId))
+            .ToQueryString();
+
+        Assert.Contains(" IN (", sql, StringComparison.Ordinal);
+        Assert.Contains("@values", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("JSON_TABLE", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An explicit context-wide JSON mode remains available for workloads
+    /// where its plan and command cost have been measured.
+    /// </summary>
+    [Fact]
+    public void Single_parameter_context_override_uses_json_table()
+    {
+        using var context = CreateContext(
+            parameterTranslationMode: ParameterTranslationMode.Parameter);
+        var values = new[] { s_first, s_second };
+
+        var sql = context
+            .Items
+            .Where(item => values.Contains(item.BinaryId))
+            .ToQueryString();
+
+        Assert.Contains("JSON_TABLE", sql, StringComparison.Ordinal);
+        Assert.Contains("`value` char(36) PATH '$'", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain(" IN (@", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A per-query multiple-parameter marker overrides a JSON context mode,
+    /// so callers can recover a cardinality-visible plan without a new context.
+    /// </summary>
+    [Fact]
+    public void Multiple_parameter_query_override_bypasses_json_context_mode()
+    {
+        using var context = CreateContext(
+            parameterTranslationMode: ParameterTranslationMode.Parameter);
+        var values = new[] { s_first, s_second };
+
+        var sql = context
+            .Items
+            .Where(item => EF.MultipleParameters(values).Contains(item.BinaryId))
+            .ToQueryString();
+
+        Assert.Contains(" IN (", sql, StringComparison.Ordinal);
+        Assert.Contains("@values", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("JSON_TABLE", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// An explicit constant mode remains available without being rewritten to
-    /// Doka's single-parameter default.
+    /// the multiple-parameter default.
     /// </summary>
     [Fact]
     public void Constant_override_bypasses_json_table_and_parameters()
@@ -215,7 +233,7 @@ public sealed class MySqlPrimitiveCollectionParameterTests
 
         var sql = context
             .Items
-            .Where(item => values.Contains(item.Name))
+            .Where(item => EF.Parameter(values).Contains(item.Name))
             .ToQueryString();
 
         Assert.Contains("`value` longtext PATH '$'", sql, StringComparison.Ordinal);
@@ -239,7 +257,7 @@ public sealed class MySqlPrimitiveCollectionParameterTests
 
         var sql = context
             .Items
-            .Where(item => values.Contains(item.OptionalName))
+            .Where(item => EF.Parameter(values).Contains(item.OptionalName))
             .ToQueryString();
 
         Assert.Contains(
@@ -285,7 +303,7 @@ public sealed class MySqlPrimitiveCollectionParameterTests
 
         var sql = context
             .Items
-            .Where(item => values.Contains(item.Status))
+            .Where(item => EF.Parameter(values).Contains(item.Status))
             .ToQueryString();
 
         Assert.Contains("`value` longtext PATH '$'", sql, StringComparison.Ordinal);

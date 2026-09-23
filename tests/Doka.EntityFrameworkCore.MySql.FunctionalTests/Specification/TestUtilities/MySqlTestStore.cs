@@ -54,15 +54,7 @@ public class MySqlTestStore : RelationalTestStore
 
     private static void ConfigureSpecificationProvider(
         MySqlDbContextOptionsBuilder provider
-    )
-    {
-        provider.UseNetTopologySuite();
-
-        // The inherited EF Core 10 specification suite asserts its own
-        // MultipleParameters default. Provider-specific tests separately pin
-        // Doka's production default to the single JSON parameter strategy.
-        provider.UseParameterizedCollectionMode(ParameterTranslationMode.MultipleParameters);
-    }
+    ) => provider.UseNetTopologySuite();
 
     /// <summary>
     /// Default <see langword="true"/>: the test-store's owned <see cref="DbConnection"/> is

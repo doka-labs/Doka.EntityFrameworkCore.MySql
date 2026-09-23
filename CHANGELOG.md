@@ -7,6 +7,36 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.4.4] - 2026-09-23
+
+Stable patch release restoring EF Core 10's multiple-parameter default for
+ordinary collection membership. The one-JSON-parameter default introduced in
+`10.4.3` caused a severe latency regression, including a timeout, for a
+selective relationship query; no incorrect results were reported. That SQL
+shape is no longer imposed on every application query. The lossless JSON
+transport remains available through `EF.Parameter(...)` or an explicit context
+option for workloads measured to benefit from it.
+
+Install the stable packages through normal NuGet version resolution. Add the
+spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.4
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.4.4
+dotnet package add Doka.Caching.MySql --version 10.4.4
+```
+
+### Fixed
+
+- Restore multiple scalar parameters for ordinary parameterized `Contains`
+  collections on MySQL and MariaDB. This exposes collection cardinality to
+  the optimizer again without requiring every affected application query to
+  use `EF.MultipleParameters(...)`. Explicit per-query and context-wide modes
+  still override the default; the `10.4.2` representation fixes remain intact.
+- Keep the calibrated JSON-versus-multiple-parameter and JSON-versus-constant
+  benchmark controls tied to explicit `EF.Parameter(...)` after the default
+  changes, rather than measuring the default against itself.
+
 ## [10.4.3] - 2026-09-22
 
 Stable patch release changing the default SQL shape of ordinary parameterized
@@ -1316,7 +1346,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.4.3...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.4.4...HEAD
+[10.4.4]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.4
 [10.4.3]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.3
 [10.4.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.2
 [10.4.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.1

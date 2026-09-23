@@ -22,19 +22,19 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         Assert.Equal(serverVersion, extension.ServerVersion);
         Assert.Null(extension.RetryOptions);
         Assert.Equal(MySqlGuidFormat.Binary16, extension.DefaultGuidFormat);
-        Assert.Equal(ParameterTranslationMode.Parameter, extension.ParameterizedCollectionMode);
+        Assert.Equal(ParameterTranslationMode.MultipleParameters, extension.ParameterizedCollectionMode);
     }
 
     /// <summary>
-    /// Verifies that Doka selects its single-parameter collection transport
-    /// instead of inheriting EF Core's multiple-parameter default.
+    /// Verifies that ordinary collections retain EF Core 10's cardinality-visible
+    /// multiple-parameter default.
     /// </summary>
     [Fact]
-    public void UseMySql_defaults_parameterized_collections_to_one_parameter()
+    public void UseMySql_defaults_parameterized_collections_to_multiple_parameters()
     {
         var extension = BuildExtension(_ => { });
 
-        Assert.Equal(ParameterTranslationMode.Parameter, extension.ParameterizedCollectionMode);
+        Assert.Equal(ParameterTranslationMode.MultipleParameters, extension.ParameterizedCollectionMode);
     }
 
     /// <summary>
@@ -186,7 +186,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
 
         Assert.True(extension.UserVariablesRequired);
         Assert.Same(connection, extension.Connection);
-        Assert.Equal(ParameterTranslationMode.Parameter, extension.ParameterizedCollectionMode);
+        Assert.Equal(ParameterTranslationMode.MultipleParameters, extension.ParameterizedCollectionMode);
     }
 
     /// <summary>
