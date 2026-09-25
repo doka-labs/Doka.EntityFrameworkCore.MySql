@@ -14,6 +14,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
     private const string StringTableName = "IncompleteDiscriminatorEntities";
     private const string IntTableName = "IncompleteIntDiscriminatorEntities";
     private const string ConvertedTableName = "IncompleteConvertedDiscriminatorEntities";
+    private const string KnownConvertedValue = "K'\\nown";
 
     /// <summary>
     /// An incomplete mapping filters rows whose discriminator is unknown to the model.
@@ -289,7 +290,10 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             var sql = query.ToQueryString();
 
             Assert.Contains("WHERE", sql, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("'K'", sql, StringComparison.Ordinal);
+            Assert.Contains(
+                $"_utf8mb4 X'{Convert.ToHexString(Encoding.UTF8.GetBytes(KnownConvertedValue))}'",
+                sql,
+                StringComparison.Ordinal);
 
             var syncEntities = query.ToList();
             var asyncEntities = await query
@@ -452,17 +456,21 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                 $"""
                 CREATE TABLE `{ConvertedTableName}` (
                     `Id` int NOT NULL,
-                    `Discriminator` char(1) NOT NULL,
+                    `Discriminator` char(16) NOT NULL,
                     `Name` varchar(100) NOT NULL,
                     `KnownValue` varchar(100) NULL,
                     CONSTRAINT `PK_{ConvertedTableName}` PRIMARY KEY (`Id`)
                 ) CHARACTER SET utf8mb4;
-
-                INSERT INTO `{ConvertedTableName}` (`Id`, `Discriminator`, `Name`, `KnownValue`)
-                VALUES
-                    (1, 'K', 'known', 'mapped'),
-                    (2, 'F', 'future', NULL);
                 """,
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        // Parameterize fixture rows so the query assertion, not test SQL,
+        // qualifies the provider's escaping of the converted value.
+        await context.Database.ExecuteSqlRawAsync(
+                $"INSERT INTO `{ConvertedTableName}` (`Id`, `Discriminator`, `Name`, `KnownValue`) "
+                + "VALUES (1, {0}, 'known', 'mapped'), (2, {1}, 'future', NULL);",
+                new object[] { KnownConvertedValue, "F" },
                 CancellationToken.None)
             .ConfigureAwait(false);
     }
@@ -608,7 +616,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                 entity
                     .Property(item => item.Discriminator)
                     .HasConversion<TestEnumValueConverter<ConvertedDiscriminator>>()
-                    .HasMaxLength(1)
+                    .HasMaxLength(16)
                     .IsFixedLength();
             });
 
@@ -692,7 +700,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
 
     private enum ConvertedDiscriminator
     {
-        [JsonStringEnumMemberName("K")]
+        [JsonStringEnumMemberName(KnownConvertedValue)]
         Known,
 
         [EnumMember(Value = "F")]
