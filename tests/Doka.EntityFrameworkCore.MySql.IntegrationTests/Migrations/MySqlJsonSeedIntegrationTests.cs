@@ -146,11 +146,11 @@ public sealed class MySqlJsonSeedIntegrationTests
 internal static class JsonSeedIntegrationContract
 {
     public const string Table = "DokaJsonSeedRecords";
-    public const string ElementJson = """{"kind":"element","value":1}""";
-    public const string DocumentJson = """{"kind":"document","value":2}""";
-    public const string NodeJson = """{"kind":"node","value":3}""";
-    public const string ObjectJson = """{"kind":"object","value":4}""";
-    public const string ArrayJson = """["array",5,true]""";
+    public const string ElementJson = """{"kind":"element","value":"it's here"}""";
+    public const string DocumentJson = """{"kind":"document","value":"C:\\data"}""";
+    public const string NodeJson = """{"kind":"node","value":"quoted \"value\""}""";
+    public const string ObjectJson = "{\"kind\":\"object\",\"value\":\"gr\u00FCn\"}";
+    public const string ArrayJson = """["array","line\nbreak","it's here"]""";
 }
 
 internal sealed class JsonSeedIntegrationContext : DbContext
