@@ -10,7 +10,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 /// EF Core update can be checked without editing test source.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-public sealed class SpecFrameworkLimitationFactAttribute : FactAttribute
+public sealed class SpecFrameworkLimitationFactAttribute : SpecDispositionAttribute
 {
     /// <summary>
     /// Creates a framework-limited specification fact linked to a stable ledger entry.
@@ -18,16 +18,14 @@ public sealed class SpecFrameworkLimitationFactAttribute : FactAttribute
     /// <param name="dispositionId">
     /// Stable identifier of the corresponding framework disposition.
     /// </param>
-    public SpecFrameworkLimitationFactAttribute(
-        string dispositionId
-    )
+    public SpecFrameworkLimitationFactAttribute(string dispositionId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dispositionId);
         DispositionId = dispositionId;
 
         if (!SpecTestTarget.IsFrameworkLimitationProbeEnabled())
         {
-            Skip = $"[spec-framework-limit:{dispositionId}] The consumed EF Core version skips "
+            SkipReason = $"[spec-framework-limit:{dispositionId}] The consumed EF Core version skips "
                 + "this shape due to a framework-owned limitation outside provider SQL "
                 + "generation. See SpecDispositions.json.";
         }

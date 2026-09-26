@@ -4,36 +4,40 @@ internal sealed class MySqlExecutionStrategyFactory : IExecutionStrategyFactory
 {
     private readonly IMySqlTransientExceptionDetector _transientExceptionDetector;
     private readonly ExecutionStrategyDependencies _dependencies;
-    private readonly MySqlSingletonOptions _singletonOptions;
 
     public MySqlExecutionStrategyFactory(
         ExecutionStrategyDependencies dependencies,
-        IEnumerable<ISingletonOptions> singletonOptions,
         IMySqlTransientExceptionDetector transientExceptionDetector
     )
     {
         _dependencies = dependencies ?? throw new ArgumentNullException(nameof(dependencies));
-
-        _singletonOptions = (singletonOptions ?? throw new ArgumentNullException(nameof(singletonOptions)))
-            .OfType<MySqlSingletonOptions>()
-            .Single();
-
         _transientExceptionDetector = transientExceptionDetector
             ?? throw new ArgumentNullException(nameof(transientExceptionDetector));
     }
 
     public IExecutionStrategy Create()
     {
-        var retryOptions = _singletonOptions.RetryOptions;
+        var extension = _dependencies.Options.FindExtension<MySqlOptionsExtension>()
+            ?? throw new InvalidOperationException("The Doka MySQL options extension is not configured.");
+
+
+        var serverVersion = extension.ServerVersion
+            ?? throw new InvalidOperationException("A MySQL server version must be configured.");
+
+        var retryOptions = extension.RetryOptions;
         IExecutionStrategy innerStrategy = retryOptions is null
             ? new NonRetryingExecutionStrategy(_dependencies)
-            : new MySqlExecutionStrategy(_dependencies, _singletonOptions, _transientExceptionDetector);
+            : new MySqlExecutionStrategy(
+                _dependencies,
+                retryOptions,
+                serverVersion.Profile.Engine.Family,
+                _transientExceptionDetector);
 
         return new MySqlLoggingExecutionStrategy(
             _dependencies,
             innerStrategy,
             retryOptions,
-            _singletonOptions,
+            serverVersion.Profile.Engine.Family,
             _dependencies
                 .Options.FindExtension<CoreOptionsExtension>()
                 ?.LoggerFactory?.CreateLogger(MySqlLoggerCategory.Resilience),

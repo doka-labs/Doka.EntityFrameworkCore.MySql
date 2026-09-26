@@ -340,7 +340,7 @@ internal sealed class MySqlDynamicOffsetRewritingExpressionVisitor : MySqlShaped
 
     private sealed class ColumnAliasCollector : ExpressionVisitor
     {
-        private readonly HashSet<string> _aliases = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _aliases = [with(StringComparer.Ordinal)];
 
         public static HashSet<string> Collect(
             Expression expression

@@ -15,8 +15,11 @@ not architecture decisions.
 - `SpecDiscovery.<version>.json` records the exact xUnit display IDs discovered
   for every active LTS target. It detects missing fixtures, missing Theory rows,
   duplicate IDs, and unexpected discovery growth.
-- The discovery gate also compares the complete specification namespace with
-  `Category=Spec`, so an adapter cannot silently fall out of the release matrix.
+- The release matrix selects the complete provider `Specification` namespace
+  and provider adapters marked `Category=Spec`. The latter includes the runtime
+  migration adapter that upstream source generation requires in EF Core's
+  namespace. The discovery parser admits only that adapter's exact external
+  prefix, and the gate reconciles the resulting exact test IDs.
 - `../SpecDispositions.json` records only executable engine, upstream-framework,
   and structurally not-applicable outcomes. Each disposition names its exact
   discovered test IDs. Provider debt is never a permitted disposition.
@@ -28,19 +31,27 @@ amend an ADR.
 
 ## Current baseline
 
-EF Core 10.0.8, 10.0.10, 10.0.11, and 10.0.12 expose 327 official compliance
-bases. The 10.0.8 inventory contains 9,031 unique xUnit method definitions and
-19,176 effective base-to-method assignments. The 10.0.10 inventory contains
-9,039 definitions and 19,191 assignments. The 10.0.11 and 10.0.12 inventories
-each contain 9,040 definitions and 19,192 assignments.
+EF Core `11.0.0-rc.1.26425.128` exposes 329 official compliance bases, 9,299
+unique xUnit method definitions, and 19,659 effective base-to-method
+assignments. Every base is implemented or covered by the upstream-defined
+`NonSharedModelTestBase` exemption; the provider suite debt is `0/0`.
 
-The baseline retrieved on 2026-07-27 recorded 9 implemented base mappings,
-1 official compliance exemption, and 317 provider-owned gaps. Those 317 gaps
-are now closed: the repository validator reports provider suite debt `0/317`
-for every registered EF Core patch contract.
+Discovery regenerated on 2026-09-21 records 30,429 exact specification test
+IDs for each supported target:
 
-Discovery regenerated through 2026-09-10 records the complete concrete provider
-surface:
+| EF Core | Target | Discovered |
+| --- | --- | ---: |
+| 11.0.0-rc.1.26425.128 | MySQL 8.4 | 30,429 |
+| 11.0.0-rc.1.26425.128 | MySQL 9.7 | 30,429 |
+| 11.0.0-rc.1.26425.128 | MariaDB 10.11 | 30,429 |
+| 11.0.0-rc.1.26425.128 | MariaDB 11.4 | 30,429 |
+| 11.0.0-rc.1.26425.128 | MariaDB 11.8 | 30,429 |
+| 11.0.0-rc.1.26425.128 | MariaDB 12.3 | 30,429 |
+
+## Historical 10.x evidence
+
+The stable 10.x line recorded the following exact discovery counts before the
+11.x contract replaced its floor/latest patch matrix:
 
 | EF Core | Target | Discovered |
 | --- | --- | ---: |
@@ -94,20 +105,9 @@ on 2026-08-16:
 | 10.0.11 | MariaDB 12.3 | 28,731 | 695 | 0 | 29,426 |
 
 Each raw 10.0.11 run also passed two provider-owned `Category=Live` checks
-that sit outside the version-bound upstream discovery inventory.
-
-The TRX totals and display IDs matched the discovery contracts regenerated
-through 2026-08-16. Every skip matched its ledger ID, method, and target; every other
-discovered test passed. The three newly admitted targets were also executed
-against the minimum EF Core 10.0.8 patch on the same date. The scheduled patch
-matrix continues to execute both supported dependency endpoints in full.
-Release qualification re-resolves and records the deterministic floor graph,
-then fully executes the highest exact patch already registered in the reviewed
-baseline. Scheduled CI alone resolves floating `10.0.*` to detect a newer
-upstream patch; the commit-exact `repository-qualification` check already owns
-full floor behavior across all six active LTS targets.
-The source contract also rejects inherited upstream skips unless the provider
-activates the assertion or records an executable framework disposition.
+outside its version-bound upstream discovery inventory. The TRX totals and
+display IDs matched the historical discovery contracts, and every skip matched
+its ledger ID, method, and target.
 
 The publication gate still calculates this state from the provider assembly.
 These figures are evidence, not a substitute for the zero-debt check.
@@ -122,9 +122,8 @@ bash eng/testing/check-spec-contract.sh
 bash eng/testing/check-spec-discovery.sh
 ```
 
-The floor/latest patch runner invokes the exact-version preflight immediately
-after reading back NuGet's resolved graph and before starting the repository or
-live-engine suites.
+The repository and release workflows validate the exact restored EF Core RC.1
+graph before starting the live-engine suites.
 
 After a live specification run, reconcile its TRX results with the exact
 discovery and disposition contracts:
@@ -136,23 +135,22 @@ bash eng/testing/check-spec-results.sh mysql84 artifacts/spec-tests/mysql84
 Before publication, run the stricter official compliance and zero-debt gate:
 
 ```bash
-bash eng/check-publication-readiness.sh \
-  --ef-core-version 10.0.8 \
+bash eng/release/check-publication-readiness.sh \
   --mysqlconnector-version 2.5.0
 ```
 
 Inventories are generated by the in-repository
-`Doka.EntityFrameworkCore.MySql.SpecificationContract` tool. Regeneration must
-use an explicit EF Core version and record the retrieval date. Review the JSON
-diff before accepting an upstream patch.
+`Doka.EntityFrameworkCore.MySql.SpecificationContract` tool. Regeneration
+records the exact restored EF Core version and retrieval date. Review the JSON
+diff before accepting an upstream prerelease update.
 
 ## Primary sources
 
-Retrieved on 2026-09-10:
+Retrieved on 2026-09-19:
 
 - NuGet package versions:
   <https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.relational.specification.tests/index.json>
-- EF Core `ComplianceTestBase` 10.0.12:
-  <https://github.com/dotnet/efcore/blob/v10.0.12/test/EFCore.Specification.Tests/ComplianceTestBase.cs>
-- EF Core `RelationalComplianceTestBase` 10.0.12:
-  <https://github.com/dotnet/efcore/blob/v10.0.12/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs>
+- EF Core `ComplianceTestBase` at the RC.1 source commit:
+  <https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/test/EFCore.Specification.Tests/ComplianceTestBase.cs>
+- EF Core `RelationalComplianceTestBase` at the RC.1 source commit:
+  <https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs>

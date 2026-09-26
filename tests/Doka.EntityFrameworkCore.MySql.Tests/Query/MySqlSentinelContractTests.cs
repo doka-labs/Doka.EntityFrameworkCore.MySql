@@ -117,6 +117,10 @@ public sealed class MySqlSentinelContractTests
             or MySqlSentinelKind.GuidToString
             or MySqlSentinelKind.StringJsonDecode
             or MySqlSentinelKind.TimeSpanJsonDecode
+            or MySqlSentinelKind.IsNotTrue
+            or MySqlSentinelKind.DateTimeOffsetDateTime
+            or MySqlSentinelKind.DateTimeOffsetUtcDateTime
+            or MySqlSentinelKind.DateTimeOffsetLocalDateTime
             or MySqlSentinelKind.TimeOfDayTicks
             or MySqlSentinelKind.OnesComplement => 1,
         MySqlSentinelKind.JsonSet => 3,

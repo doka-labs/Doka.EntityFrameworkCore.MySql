@@ -199,7 +199,7 @@ internal sealed record SpecificationBaselineEntry(
 internal static class ProviderAssembly
 {
     private static readonly Lock s_sync = new();
-    private static readonly HashSet<string> s_probeDirectories = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> s_probeDirectories = new(0, StringComparer.Ordinal);
 
     static ProviderAssembly()
     {

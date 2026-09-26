@@ -723,8 +723,8 @@ internal static partial class AdrParser
             if (line.StartsWith("  ", StringComparison.Ordinal)
                 && sourceEntries.Count > 0)
             {
-                var entry = sourceEntries[^1];
-                sourceEntries[^1] = ($"{entry.Text} {line.Trim()}", entry.LineNumber);
+                var (text, lineNumber) = sourceEntries[^1];
+                sourceEntries[^1] = ($"{text} {line.Trim()}", lineNumber);
                 continue;
             }
 

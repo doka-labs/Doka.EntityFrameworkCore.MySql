@@ -150,6 +150,15 @@ probes, and re-evaluation triggers.
 
 - The provider test infrastructure owns isolated test databases and records
   exact image and endpoint evidence.
+- The active EF Core `11.0.0-rc.1.26425.128` inventory contains 329 official
+  compliance bases, 9,299 unique test definitions, and 19,659 effective
+  assignments. Provider debt is `0/0`, and every supported target discovers
+  exactly 30,422 tests.
+- The 11.x release matrix selects the provider `Specification` namespace plus
+  provider adapters marked `Category=Spec`. Exact discovery includes the one
+  runtime-migration adapter that must reside in EF Core's namespace.
+- The 10.x inventories below remain historical evidence for the separate
+  maintenance line.
 - Version-bound inventories enumerate all 327 official compliance bases for
   EF Core 10.0.8, 10.0.10, 10.0.11, and 10.0.12.
 - Exact EF Core 10.0.8 discovery contracts contain 29,746 tests for each MySQL
@@ -168,9 +177,10 @@ probes, and re-evaluation triggers.
   complete baseline membership, and six-target discovery contract already
   exist. Newly published upstream tests therefore become a reviewed contract
   change before an expensive live matrix can begin.
-- A classification-drift gate proves that every test below the provider's
-  `Specification` namespace carries `Category=Spec`; this prevents an
-  unclassified official fixture from silently escaping the release matrix.
+- The release matrix selects the complete provider `Specification` namespace
+  directly, and the exact discovery contract detects missing or additional
+  test IDs. Inherited xUnit v3 methods therefore cannot escape because a trait
+  declared on the provider class is not inherited by their base declaration.
 - An inherited-skip gate rejects every upstream skip unless the provider
   activates the assertion or records an executable framework disposition.
 - D-021 defines the monotonic provider-debt baseline, permitted dispositions,
@@ -216,6 +226,9 @@ probes, and re-evaluation triggers.
 - 2026-09-10: Added the EF Core 10.0.12 inventory and six-target discovery
   contract. The complete inventory and discovered provider IDs are unchanged
   from 10.0.11.
+- 2026-09-19: Added the exact EF Core 11 RC.1 inventory and six-target
+  discovery contract with 329 bases, 30,422 test IDs per target, and zero
+  provider debt.
 
 ### Implementation References
 
@@ -231,7 +244,16 @@ probes, and re-evaluation triggers.
   (primary source; retrieved 2026-09-10)
 - [Relational specification package 10.0.12][ef-relational-spec-package]
   (primary source; retrieved 2026-09-10)
+- [EF Core RC.1 `ComplianceTestBase`][ef11-compliance]
+  (primary source; retrieved 2026-09-19)
+- [EF Core RC.1 `RelationalComplianceTestBase`][ef11-relational-compliance]
+  (primary source; retrieved 2026-09-19)
+- [Relational specification package 11.0.0 RC.1][ef11-relational-spec-package]
+  (primary source; retrieved 2026-09-19)
 
 [ef-compliance]: https://github.com/dotnet/efcore/blob/v10.0.12/test/EFCore.Specification.Tests/ComplianceTestBase.cs
 [ef-relational-compliance]: https://github.com/dotnet/efcore/blob/v10.0.12/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs
 [ef-relational-spec-package]: https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Relational.Specification.Tests/10.0.12
+[ef11-compliance]: https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/test/EFCore.Specification.Tests/ComplianceTestBase.cs
+[ef11-relational-compliance]: https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs
+[ef11-relational-spec-package]: https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Relational.Specification.Tests/11.0.0-rc.1.26425.128

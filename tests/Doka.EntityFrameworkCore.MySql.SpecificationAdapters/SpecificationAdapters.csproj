@@ -6,14 +6,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational.Specification.Tests" />
-    <!--
-      Pin the centrally reviewed transitive version without loading the Visual
-      Studio test adapter into this non-test specification library.
-    -->
-    <PackageReference Include="xunit.runner.visualstudio">
-      <PrivateAssets>all</PrivateAssets>
-      <ExcludeAssets>all</ExcludeAssets>
-    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>

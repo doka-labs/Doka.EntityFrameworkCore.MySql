@@ -8,223 +8,165 @@ informed: [Provider contributors]
 scope: "EF Core 11 and .NET 11 major-version strategy"
 supersedes: []
 superseded-by: []
-amends: []
+amends: [D-009]
 amended-by: []
 madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
 
-# D-013 -- Trigger the EF Core 11 upgrade as a new major line
+# D-013 -- Open EF Core 11 as an isolated major line
 
 ## Context and Problem Statement
 
-EF Core 11 preview builds are already available (the pre-plan probe
-recorded `11.0.0-preview.4` at retrieval time). The Microsoft .NET 11
-release is on the published roadmap. Both releases will land within the
-v1.0.x lifetime of this provider.
+The published 10.x packages target .NET 10 and EF Core 10. EF Core provider
+dependencies include internal `EF1001` surfaces, design-time services,
+migration code generation, query translation, and the upstream relational
+specification fixtures. A platform-major update therefore requires a new
+provider line and complete requalification rather than a dependency-only bump.
 
-The provider's foundation has explicit EF Core 10 commitments:
-
-- D-001 (`EfCoreServiceDecorator`) reaches into `EF1001` internal
-  surface whose constructor signatures and service-registration order
-  are not stability-promised across majors.
-- D-009 (patch-range pinning) caps the EF Core dependency at
-  `[10.0.4, 11.0.0)`. The next major requires a deliberate ADR-driven
-  widening or a parallel-target branch.
-- The AOT and trim suppressions in the provider are validated against
-  the .NET 10 analyzer set; .NET 11's trim analyzer may surface new
-  diagnostics.
-- The specification-test subclasses (D-011) target the
-  `EntityFrameworkCore.Relational.Specification.Tests` package shipped
-  with EF Core 10; an EF Core 11 jump requires re-running the suite
-  against the EF Core 11 fixtures and triaging any new failures.
-
-The premortem ranked the EF Core 11 / .NET 11 jump as the highest
-medium-term risk to the provider's continuity.
+The original decision deferred implementation until either EF Core 11 reached
+GA or a documented consumer requirement justified earlier work. On 2026-09-19,
+the maintainer authorized the release-candidate path after Microsoft published
+.NET 11 RC.1 as a go-live release and the matching EF Core RC.1 packages.
 
 ## Decision Drivers
 
-- EF1001 dependencies make a major upgrade compatibility-sensitive.
-- .NET 10 consumers need a stable supported line.
-- Preview churn must not destabilize the v1.0 release.
+- Keep the published .NET 10 / EF Core 10 packages stable and supportable.
+- Test one exact prerelease graph instead of floating across preview builds.
+- Exercise the actual .NET 11 runtime and reference assemblies.
+- Revalidate every provider-owned dependency on EF Core internals.
+- Preserve normal CLI and IDE operation without workstation-specific setup.
 
 ## Considered Options
 
-- Trigger-driven EF Core 11 major line
-- Multi-target EF Core 10 and 11 immediately
-- Remain on EF Core 10 until support ends
+- Isolated single-target 11.x provider line
+- Multi-target EF Core 10 and EF Core 11 in one package
+- Keep the provider on EF Core 10 until EF Core 11 GA
 
 ## Decision Outcome
 
-Chosen option: "Trigger-driven EF Core 11 major line", because a major-line trigger protects current consumers while defining the complete upgrade scope.
+Chosen option: "Isolated single-target 11.x provider line", because it keeps
+the released 10.x line stable while letting the next major validate the real
+.NET 11 and EF Core 11 surface without a conditional dual-provider build.
 
-Adopt a trigger-driven multi-target strategy rather than a default
-multi-target. The v1.0 line targets `net10.0` only. When the trigger
-fires, a long-lived branch `next/ef-core-11` enables
-`<TargetFrameworks>net10.0;net11.0</TargetFrameworks>` across the
-solution and absorbs the work below.
+The `feature/dotnet-11` line targets `net11.0` only. It pins SDK
+`11.0.100-rc.1.26425.128` and EF Core `11.0.0-rc.1.26425.128` exactly. The
+matching RC dependency graph is intentional: a prerelease provider-facing API
+change requires a reviewed code and evidence update rather than a floating
+restore.
 
-### Trigger predicate (any of)
+The published 10.x packages remain the .NET 10 / EF Core 10 maintenance line.
+They are not multi-targeted and are not changed by the 11.x branch.
 
-- Microsoft publishes EF Core 11 as a GA release on the NuGet
-  registry (not a preview tag, not an RC tag).
-- A v1.0 consumer (recorded via issue tracker) requires .NET 11
-  consumption for a documented reason; the trigger fires at the first
-  such request.
-- The .NET 10 LTS-window end date enters the 18-month notice horizon.
+The 11.x line may ship only after all of the following contracts pass:
 
-### Branch-work scope when the trigger fires
+1. Provider, spatial, cache, tools, examples, and tests build warning-free on
+   the pinned .NET 11 SDK.
+2. Public API and package validation pass for all three shipped packages.
+3. Every upstream relational specification base is mapped with zero provider
+   debt, and exact discovery and TRX reconciliation pass on all six supported
+   database targets.
+4. Unit, functional, integration, runtime-posture, trimming, packaging, and
+   release-qualification gates pass against the exact RC graph.
+5. CLI and IDE test discovery work from checked-in project configuration; no
+   local runner setting is part of the repository contract.
 
-1. **EF1001-surface revalidation.** Run the `EfCoreServiceDecorator`
-   against the EF Core 11 internal-service registration. Capture
-   constructor-signature deltas; fail loudly via the helper's
-   diagnostic rather than silently degrading.
-2. **`EngineProfile`-table extension.** Add lookup rows for MySQL 9.x
-   and MariaDB 12 (assuming both ship within the EF Core 11 window).
-   The static table append is the lightest-touch path; consumers
-   downgrade gracefully when the runtime engine version does not
-   match a registered row.
-3. **AOT / trim revalidation.** Run the provider's full publish-AOT
-   smoke against .NET 11 analyzers; resolve any new diagnostics by
-   refactor rather than suppression per the workaround-discipline
-   rule.
-4. **Specification-test re-run.** Subclass the EF Core 11 specification
-   fixtures; triage new failures per D-011's discipline.
-5. **Patch-range widening.** Update `Directory.Packages.props` to
-   `[11.0.0, 12.0.0)` (or the equivalent EF Core 11 baseline) and
-   re-anchor the `EfCorePatchMatrixCI` to the new minor.
-6. **Source-compatibility tail-plan.** Document for consumers what
-   changes between provider-on-net10 and provider-on-net11 in a
-   dedicated migration section of the changelog.
-
-### Branch merge strategy
-
-The branch lives in parallel until both target frameworks are green
-across the full test matrix. At merge time the provider's release line
-forks: the existing v1.0.x line continues on net10.0; a new v2.0.0
-release ships the multi-target. Consumers on net10.0 stay on v1.0.x
-indefinitely; consumers on net11.0 (or who consume both) adopt v2.0.
+At EF Core 11 GA, the line moves from the exact RC pins to exact GA pins and is
+requalified before the first stable 11.x release. An RC qualification cannot be
+reused as GA evidence.
 
 ### Consequences
 
-- Good, because the provider enters EF Core 11 with deliberate compatibility and SemVer evidence.
-- Bad, because backports and forward ports require explicit dual-line discipline.
-
-#### Positive
-
-- The v1.0 line stays focused; the EF Core 11 work does not destabilize
-  v1.0 releases.
-- The trigger predicate makes the decision data-driven rather than
-  calendar-driven; the provider does not chase preview tags.
-- The branch-work scope is fully enumerated in advance, so the actual
-  branch work is execution rather than planning.
-
-#### Negative
-
-- The provider carries two release lines during the overlap window.
-  Backports for v1.0.x patches need explicit forward-port discipline.
-- The trigger predicate is conservative; an early-adopter consumer on
-  EF Core 11 preview does not get a supported path. The premortem
-  accepts this trade-off as the cost of v1.0 stability.
-
-#### Neutral
-
-- The `next/ef-core-11` branch is a planning artifact today; it does
-  not exist in the repository until the trigger fires.
+- Good, because .NET 10 consumers keep an unchanged stable line.
+- Good, because the 11.x package has one runtime and one EF Core contract.
+- Good, because preview drift cannot enter through restore without review.
+- Bad, because fixes applicable to both majors require deliberate backport and
+  forward-port decisions.
+- Bad, because an RC-to-GA update repeats the complete qualification path.
 
 ### Confirmation
 
-- Check the [official .NET support policy][dotnet-support-policy] and
-  [EF Core package versions][efcore-package-versions] before each release.
-- When a trigger fires, establish the EF Core 11 release line before changing target
-  frameworks.
+- `global.json` pins the exact .NET 11 SDK and Microsoft Testing Platform
+  runner.
+- `Directory.Build.props` targets `net11.0` and declares the 11.x package line.
+- `Directory.Packages.props` pins one exact EF Core RC.1 graph.
+- The versioned specification inventory and discovery files identify that
+  exact EF Core version.
+- Repository scripts reject stale framework, package, discovery, and evidence
+  contracts.
 
 ## Pros and Cons of the Options
 
-### Trigger-driven EF Core 11 major line
+### Isolated single-target 11.x provider line
 
-- Good, because work begins from observable GA or consumer-demand predicates.
-- Bad, because the provider will maintain overlapping major release lines.
+- Good, because framework and provider behavior are unambiguous.
+- Good, because 10.x remains untouched.
+- Bad, because the project maintains two release lines during the overlap.
 
-### Multi-target EF Core 10 and 11 immediately
+### Multi-target EF Core 10 and EF Core 11 in one package
 
-- Good, because compatibility work starts before GA and consumers see one package line.
-- Bad, because preview churn doubles matrix cost during v1.0 stabilization.
+- Good, because consumers would select one package version.
+- Bad, because provider internals, test fixtures, package dependencies, and
+  migration design-time services would require conditional dual
+  implementations in one artifact.
+- Bad, because one package could no longer communicate one EF Core contract.
 
-### Remain on EF Core 10 until support ends
+### Keep the provider on EF Core 10 until EF Core 11 GA
 
-- Good, because the current line avoids near-term upgrade work.
-- Bad, because EF Core 11 consumers would have no supported provider path.
+- Good, because no prerelease graph enters provider development.
+- Bad, because EF Core 11 compatibility work and regressions would be deferred
+  until the stable release boundary.
 
 ## More Information
 
 ### Implementation Snapshot
 
-The trigger has not fired, so no EF Core 11 implementation is active.
+As of 2026-09-19, the isolated 11.x branch targets the exact .NET 11 RC.1 SDK
+and EF Core RC.1 packages. The provider source, upstream specification
+adapters, xUnit v3 test projects, repository scripts, runtime posture, package
+locks, documentation, and release contracts are being qualified as one change.
 
-### Current source snapshot
-
-As retrieved on 2026-08-24, [.NET 11 remains a preview][dotnet-11-whats-new],
-and the official [EF Core package index][efcore-package-versions] contains EF
-Core 11 previews but no stable `11.0.0`. The GA trigger has therefore not
-fired. The [official .NET release index][dotnet-release-index] captures the
-support-window state at retrieval. Future checks use the living
-[.NET support policy][dotnet-support-policy].
-
-### Additional Alternative Rationale
-
-- **EF Core 11 in a v1.1 minor release.** Rejected: the EF Core major
-  jump touches EF1001 internals (D-001 service decorator), the public
-  surface (PublicApiAnalyzers per D-008), and the AOT-suppression set.
-  v1.1 cannot ship those changes without breaking SemVer for v1.0
-  consumers.
-- **Multi-target from v1.0.** Rejected: doubles CI cost and forces v1.0
-  to absorb EF Core 11 preview churn during stabilization. v1.0's
-  job is to ship a clean .NET 10 baseline.
-- **Drop .NET 10 support when EF Core 11 ships.** Rejected: .NET 10 is
-  an LTS release; consumers staying on .NET 10 deserve a continuing
-  support line. The fork-at-trigger approach delivers both lines.
+The exact upstream contract contains 329 compliance bases, 9,299 test
+definitions, and 19,659 provider assignments. Each supported target discovers
+30,422 tests. The versioned inventory and six target-specific discovery files
+are release inputs, not descriptive snapshots.
 
 ### Re-evaluation Triggers
 
-- EF Core 11 RC ships and the public API surface deltas land before
-  the GA trigger fires; the branch-work scope may need to extend to
-  cover an API change not yet anticipated.
-- Microsoft announces a deferral of EF Core 11 beyond the .NET 11 LTS
-  window; the trigger reverts to a calendar-driven shape.
-- A different MySQL/MariaDB-protocol fork (Aurora, TiDB, Vitess)
-  ships a release that requires EF Core 11 features; the trigger
-  fires on consumer demand rather than upstream GA.
-- Microsoft publishes EF Core 11 GA.
-- A documented consumer requirement needs .NET 11 before GA.
-- The .NET 10 support end enters the eighteen-month notice horizon.
+- Microsoft publishes .NET 11 or EF Core 11 GA.
+- A later RC changes a provider-facing API or upstream specification inventory.
+- The 10.x support policy changes.
+- A consumer requires one package to support both EF Core majors.
 
 ### Decision History
 
 - 2026-05-16: Decision recorded with status accepted.
-- 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-05-16: Defined a GA or consumer-demand implementation trigger.
+- 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the outcome.
+- 2026-09-19: Maintainer authorized the .NET 11 RC.1 line; replaced the planned
+  multi-target shape with an isolated single-target 11.x line.
 
 ### Implementation References
 
+- `global.json`
+- `Directory.Build.props`
 - `Directory.Packages.props`
-- `.github/workflows/ci.yml`
+- `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/`
+- `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts/`
+- `eng/testing/test-spec-matrix.sh`
 
 ### Sources
 
-- [.NET release index snapshot (commit-bound)][dotnet-release-index]
-  (primary source; retrieved 2026-08-24)
-- [.NET support policy (living support-window trigger)][dotnet-support-policy]
-  (primary source; retrieved 2026-08-24)
-- [What's new in .NET 11 (living release trigger)][dotnet-11-whats-new]
-  (primary source; retrieved 2026-08-24)
-- [EF Core package versions (living GA trigger)][efcore-package-versions]
-  (primary source; retrieved 2026-08-24)
+- [.NET 11 RC.1 release notes][dotnet-11-rc1]
+  (primary source; retrieved 2026-09-19)
+- [.NET release index][dotnet-release-index]
+  (primary source; retrieved 2026-09-19)
+- [EF Core 11 RC.1 package][efcore-11-rc1]
+  (primary source; retrieved 2026-09-19)
 
+[dotnet-11-rc1]:
+  https://github.com/dotnet/core/blob/main/release-notes/11.0/preview/rc1/11.0.0-rc.1.md
 [dotnet-release-index]:
-  https://github.com/dotnet/core/blob/ca8df8aff093a8c024b3042b85e3063a607b57fb/release-notes/releases-index.json
-[dotnet-support-policy]:
-  https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core
-[dotnet-11-whats-new]:
-  https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-11/overview
-[efcore-package-versions]:
-  https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore/index.json
+  https://github.com/dotnet/core/blob/main/release-notes/releases-index.json
+[efcore-11-rc1]:
+  https://www.nuget.org/packages/Microsoft.EntityFrameworkCore/11.0.0-rc.1.26425.128

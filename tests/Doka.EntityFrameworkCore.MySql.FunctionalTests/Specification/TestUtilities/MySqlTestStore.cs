@@ -143,7 +143,8 @@ public class MySqlTestStore : RelationalTestStore
     }
 
     public override async Task CleanAsync(
-        DbContext context
+        DbContext context,
+        bool createTables = true
     )
     {
         // CleanAsync is invoked when the spec-test framework explicitly requests a per-test
@@ -153,7 +154,11 @@ public class MySqlTestStore : RelationalTestStore
         // engine-agnostically. The provider's own MySqlRelationalDatabaseCreator handles
         // the recreate path consistently with the rest of the suite.
         await context.Database.EnsureDeletedAsync();
-        await context.Database.EnsureCreatedAsync();
+
+        if (createTables)
+        {
+            await context.Database.EnsureCreatedAsync();
+        }
     }
 
     public override async ValueTask DisposeAsync()

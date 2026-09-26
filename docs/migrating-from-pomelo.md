@@ -18,10 +18,10 @@ disposable database or a restored copy, not production.
 
 Replace the `Pomelo.EntityFrameworkCore.MySql` package reference with
 `Doka.EntityFrameworkCore.MySql` and remove Pomelo namespaces. Install the
-stable package explicitly so the migration uses the documented version:
+release candidate explicitly so the migration uses the documented version:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.4
+dotnet package add Doka.EntityFrameworkCore.MySql --version 11.0.0-rc.1
 ```
 
 Use:
@@ -31,9 +31,10 @@ using Doka.EntityFrameworkCore.MySql;
 using Microsoft.EntityFrameworkCore;
 ```
 
-The application must target .NET 10 and EF Core 10. Keep EF Core package
-versions aligned. Replacing an older provider does not perform the separate
-EF Core major-version migration for the application.
+The application must target .NET 11 and the exact EF Core release candidate
+pinned by this repository. Keep every EF Core package on
+`11.0.0-rc.1.26425.128`. Replacing an older provider does not perform the
+separate EF Core major-version migration for the application.
 
 Search known direct references and generated forms from the consumer root:
 

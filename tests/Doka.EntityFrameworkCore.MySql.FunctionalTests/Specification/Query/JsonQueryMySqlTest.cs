@@ -19,7 +19,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 /// </summary>
 [Trait("Category", "Spec")]
 [Collection(FunctionalDatabaseTestGroup.Name)]
-public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest.JsonQueryMySqlFixture>
+public partial class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest.JsonQueryMySqlFixture>
 {
     public JsonQueryMySqlTest(
         JsonQueryMySqlFixture fixture
@@ -40,7 +40,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
     /// redeclares inheritable test data on two base levels for this method; direct discovery
     /// prevents duplicate IDs without changing the assertion.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public override Task Project_json_reference_in_tracking_query_fails(
@@ -51,7 +51,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
     /// Executes the relational collection-tracking assertion once per async mode while
     /// excluding duplicate inherited data rows.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public override Task Project_json_collection_in_tracking_query_fails(
@@ -62,7 +62,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
     /// Executes the relational owner-present tracking assertion once per async mode while
     /// excluding duplicate inherited data rows.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public override Task Project_json_entity_in_tracking_query_fails_even_when_owner_is_present(
@@ -73,6 +73,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
     /// Activates the upstream-skipped distinct anonymous JSON projection so provider support
     /// is verified rather than inferred from the referenced EF Core issue.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-31397")]
     [InlineData(false)]
     [InlineData(true)]
@@ -83,6 +84,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
     /// <summary>
     /// Activates the upstream-skipped JSON scalar grouping and ordered FirstOrDefault shape.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-29287")]
     [InlineData(false)]
     [InlineData(true)]
@@ -93,6 +95,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
     /// <summary>
     /// Activates the upstream-skipped JSON FirstOrDefault entity comparison shape.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-28733")]
     [InlineData(false)]
     [InlineData(true)]
@@ -103,6 +106,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
     /// <summary>
     /// Activates the upstream-skipped JSON parent backtracking projection.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-28645")]
     [InlineData(false)]
     [InlineData(true)]
@@ -113,7 +117,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
     /// <summary>
     /// Activates the upstream-skipped single-pushdown JSON anonymous projection.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public override Task Json_subquery_reference_pushdown_reference_anonymous_projection(
@@ -123,6 +127,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
     /// <summary>
     /// Activates the upstream-skipped double-pushdown JSON anonymous projection.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-24263")]
     [InlineData(false)]
     [InlineData(true)]
@@ -133,6 +138,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
     /// <summary>
     /// Activates the upstream-skipped nullable enum converter predicate with null handling.
     /// </summary>
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-29416")]
     [InlineData(false)]
     [InlineData(true)]
@@ -144,6 +150,18 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
     // has no LATERAL derived-table form. The attributes below turn that engine boundary
     // into visible xUnit skips linked to the primary-source-backed disposition ledger.
 
+    [Theory]
+    [SpecEngineLimitationTheory(
+        "MDB-CORRELATED-DERIVED-TABLE",
+        "mariadb114",
+        "mariadb118")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task Entity_including_collection_with_json_and_separate_json_projection_AsNoTrackingWithIdentityResolution(
+        bool async
+    ) => base.Entity_including_collection_with_json_and_separate_json_projection_AsNoTrackingWithIdentityResolution(async);
+
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -154,6 +172,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_collection_Distinct_Count_with_predicate(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -164,6 +183,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_collection_OrderByDescending_Skip_ElementAt(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -174,6 +194,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_collection_Skip(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -184,6 +205,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_collection_Select_entity_in_anonymous_object_ElementAt(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -194,6 +216,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_collection_Select_entity_with_initializer_ElementAt(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -204,6 +227,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_collection_skip_take_in_projection(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -214,6 +238,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_collection_skip_take_in_projection_project_into_anonymous_type(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -224,6 +249,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_collection_skip_take_in_projection_with_json_reference_access_as_final_operation(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -234,6 +260,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_collection_distinct_in_projection(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -244,6 +271,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_branch_collection_distinct_and_other_collection(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -254,6 +282,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_leaf_collection_distinct_and_other_collection(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -268,13 +297,14 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
     /// Keeps the leaf-filter projection active on every supported target. The current
     /// relational tree no longer requires a correlated derived-table boundary.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public override Task Json_collection_leaf_filter_in_projection(
         bool async
     ) => base.Json_collection_leaf_filter_in_projection(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -285,6 +315,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_primitive_arrays(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -295,6 +326,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_scalars(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -305,6 +337,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_multiple_collection_projections(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -315,6 +348,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_nested_collection_anonymous_projection_in_projection(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -325,6 +359,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_nested_collection_anonymous_projection_of_primitives_in_projection_NoTrackingWithIdentityResolution(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
         "mariadb114",
@@ -335,6 +370,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Json_nested_collection_filter_in_projection(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-JSON-TABLE-SUBDOCUMENT",
         "mariadb114",
@@ -345,6 +381,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     ) => base.Custom_naming_projection_everything(async);
 
+    [Theory]
     [SpecEngineLimitationTheory(
         "MDB-JSON-TABLE-SUBDOCUMENT",
         "mariadb114",

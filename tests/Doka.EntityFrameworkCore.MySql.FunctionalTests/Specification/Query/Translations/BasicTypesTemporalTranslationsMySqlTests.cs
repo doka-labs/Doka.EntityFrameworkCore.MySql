@@ -31,6 +31,99 @@ public sealed class BasicTypesDateTimeOffsetTranslationsMySqlTest
     ) : base(fixture)
     {
     }
+
+    /// <summary>
+    /// Verifies that a captured <see cref="TimeSpan"/> remains parameterized and
+    /// is validated before it reaches the provider's <see cref="DateTimeOffset.ToOffset(TimeSpan)"/>
+    /// translation.
+    /// </summary>
+    [Fact]
+    public Task ToOffset_with_parameter()
+    {
+        var offset = TimeSpan.FromHours(2);
+
+        return AssertQuery(source => source
+            .Set<BasicTypesEntity>()
+            .Where(entity => entity.DateTimeOffset.ToOffset(offset)
+                == new DateTimeOffset(1998, 5, 4, 17, 30, 10, offset)));
+    }
+
+    /// <summary>
+    /// Verifies that the two-argument <see cref="DateTimeOffset"/> constructor
+    /// accepts and validates a captured offset parameter.
+    /// </summary>
+    [Fact]
+    public Task Constructor_with_parameter_offset()
+    {
+        var offset = TimeSpan.FromHours(2);
+
+        return AssertQuery(source => source
+            .Set<BasicTypesEntity>()
+            .Where(entity => entity.DateTime.Year > 1)
+            .Where(entity => new DateTimeOffset(entity.DateTime, offset)
+                == new DateTimeOffset(1998, 5, 4, 15, 30, 10, offset)));
+    }
+
+    /// <summary>
+    /// Verifies that runtime offset parameters preserve the
+    /// <see cref="DateTimeOffset"/> whole-minute and range contracts.
+    /// </summary>
+    [Theory]
+    [InlineData(-15, 0, 0, "between -14:00 and +14:00")]
+    [InlineData(0, 0, 30, "whole minutes")]
+    [InlineData(15, 0, 0, "between -14:00 and +14:00")]
+    public async Task Invalid_parameter_offset_is_rejected_before_execution(
+        int hours,
+        int minutes,
+        int seconds,
+        string expectedMessage
+    )
+    {
+        await using var context = Fixture.CreateContext();
+        var offset = new TimeSpan(hours, minutes, seconds);
+        var query = context
+            .Set<BasicTypesEntity>()
+            .Where(entity => entity.DateTimeOffset.ToOffset(offset) == entity.DateTimeOffset);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => query.ToListAsync(CancellationToken.None));
+
+        Assert.Contains(expectedMessage, exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that a row-dependent offset is rejected because MySQL cannot
+    /// validate its whole-minute and fourteen-hour constraints before execution.
+    /// </summary>
+    [Fact]
+    public void ToOffset_with_column_offset_is_not_translated()
+    {
+        using var context = Fixture.CreateContext();
+        var query = context
+            .Set<BasicTypesEntity>()
+            .Where(entity => entity.DateTimeOffset.ToOffset(entity.TimeSpan) == entity.DateTimeOffset);
+
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
+
+        Assert.Contains("could not be translated", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies that the two-argument constructor rejects a row-dependent offset
+    /// for the same pre-execution validation requirement as <see cref="DateTimeOffset.ToOffset(TimeSpan)"/>.
+    /// </summary>
+    [Fact]
+    public void Constructor_with_column_offset_is_not_translated()
+    {
+        using var context = Fixture.CreateContext();
+        var query = context
+            .Set<BasicTypesEntity>()
+            .Where(entity => new DateTimeOffset(entity.DateTime, entity.TimeSpan) == entity.DateTimeOffset);
+
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
+
+        Assert.Contains("could not be translated", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 /// <summary>
@@ -50,12 +143,12 @@ public sealed class BasicTypesDateTimeTranslationsMySqlTest
     /// <inheritdoc />
     public override Task Parse_with_constant()
         => ExecuteWithUsEnglishCulture(
-            () => base.Parse_with_constant());
+            base.Parse_with_constant);
 
     /// <inheritdoc />
     public override Task Parse_with_parameter()
         => ExecuteWithUsEnglishCulture(
-            () => base.Parse_with_parameter());
+            base.Parse_with_parameter);
 
     private static async Task ExecuteWithUsEnglishCulture(
         Func<Task> test

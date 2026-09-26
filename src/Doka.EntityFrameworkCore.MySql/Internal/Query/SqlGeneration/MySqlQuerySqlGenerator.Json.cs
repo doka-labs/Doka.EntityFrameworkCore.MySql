@@ -148,10 +148,10 @@ internal sealed partial class MySqlQuerySqlGenerator
                 Offset: var offset,
                 Projection:
                 [
-                { Expression: ColumnExpression { Name: "value", TableAlias: var projectionAlias, }, },
+                { Expression: var valueProjection, },
                 ],
             }
-            || projectionAlias != jsonTable.Alias)
+            || !IsJsonTableValueProjection(valueProjection, jsonTable.Alias!))
         {
             return false;
         }
@@ -161,6 +161,7 @@ internal sealed partial class MySqlQuerySqlGenerator
             && orderings.Count == 0
             && limit is null
             && offset is null
+            && IsNativeJsonValueProjection(valueProjection, jsonTable.Alias!)
             && CanUseNativeJsonCandidate(inExpression.Item.Type))
         {
             if (negated)
@@ -203,13 +204,10 @@ internal sealed partial class MySqlQuerySqlGenerator
                 Sql.Append(" AND ");
             }
 
-            Visit(
-                new ColumnExpression(
-                    "value",
-                    jsonTable.Alias!,
-                    inExpression.Item.Type,
-                    inExpression.Item.TypeMapping,
-                    nullable: true));
+            // Use the complete decoder selected by the type-mapping pipeline.
+            // Reconstructing a bare value column here would lose Binary16,
+            // Base64, temporal, and model-converter semantics.
+            Visit(valueProjection);
             Sql.Append(" <=> ");
             Visit(inExpression.Item);
 
@@ -258,6 +256,66 @@ internal sealed partial class MySqlQuerySqlGenerator
         Sql.Append(negated ? ") = 0" : ") > 0");
 
         return true;
+    }
+
+    private static bool IsNativeJsonValueProjection(
+        SqlExpression expression,
+        string tableAlias
+    ) => expression switch
+    {
+        ColumnExpression { Name: "value", TableAlias: var projectionAlias, }
+            => projectionAlias == tableAlias,
+        SqlFunctionExpression
+        {
+            Name: "JSON_UNQUOTE",
+            Arguments: [ColumnExpression { Name: "value", TableAlias: var projectionAlias, },],
+        } => projectionAlias == tableAlias,
+        SqlFunctionExpression
+        {
+            Name: "JSON_UNQUOTE",
+            Arguments:
+            [
+                SqlFunctionExpression
+                {
+                    Name: "JSON_QUOTE",
+                    Arguments: [ColumnExpression { Name: "value", TableAlias: var projectionAlias, },],
+                },
+            ],
+        } => projectionAlias == tableAlias,
+        _ => false,
+    };
+
+    private static bool IsJsonTableValueProjection(
+        SqlExpression expression,
+        string tableAlias
+    )
+    {
+        if (IsNativeJsonValueProjection(expression, tableAlias))
+        {
+            return true;
+        }
+
+        return expression switch
+        {
+            SqlFunctionExpression
+            {
+                Name: "FROM_BASE64" or "UNHEX",
+                Arguments: [var value,],
+            } => IsJsonTableValueProjection(value, tableAlias),
+            SqlFunctionExpression
+            {
+                Name: "REPLACE",
+                Arguments: [var value, SqlConstantExpression, SqlConstantExpression,],
+            } => IsJsonTableValueProjection(value, tableAlias),
+            SqlFunctionExpression
+            {
+                Name: var name,
+                Arguments: [var value,],
+            } when name == MySqlSentinelContract.GetName(MySqlSentinelKind.StringJsonDecode)
+                || name == MySqlSentinelContract.GetName(MySqlSentinelKind.TimeSpanJsonDecode)
+                => IsJsonTableValueProjection(value, tableAlias),
+            _ => false,
+        };
     }
 
     private static bool CanUseNativeJsonCandidate(

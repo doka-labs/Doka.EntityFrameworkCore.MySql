@@ -1,4 +1,3 @@
-using System.Reflection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
@@ -587,8 +586,8 @@ public sealed class MySqlMigrationOperationHandlerTests
         Assert.Equal(expectedFailureCode, exception.FailureCode);
     }
 
-    public static TheoryData<MigrationsSqlGenerationOptions> GenerationModes => new()
-    {
+    public static TheoryData<MigrationsSqlGenerationOptions> GenerationModes =>
+    [
         MigrationsSqlGenerationOptions.Default,
         MigrationsSqlGenerationOptions.Script,
         MigrationsSqlGenerationOptions.Idempotent,
@@ -600,7 +599,7 @@ public sealed class MySqlMigrationOperationHandlerTests
         | MigrationsSqlGenerationOptions.Idempotent
         | MigrationsSqlGenerationOptions.NoTransactions,
         (MigrationsSqlGenerationOptions)8,
-    };
+    ];
 
     private static IReadOnlyList<MySqlServerVersion> ActiveLtsServerVersions =>
     [

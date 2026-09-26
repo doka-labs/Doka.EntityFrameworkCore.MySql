@@ -91,7 +91,7 @@ public sealed class MySqlIndexKeyIntegrationTests
                     serverVersion,
                     IndexKeyMigrationContract.OverlongHistoryTable));
 
-            var exception = Assert.Throws<InvalidOperationException>(() => context.Database.Migrate());
+            var exception = Assert.Throws<InvalidOperationException>(context.Database.Migrate);
 
             Assert.Contains("server code 1071", exception.Message, StringComparison.Ordinal);
             Assert.Empty(context.Database.GetAppliedMigrations());

@@ -15,11 +15,11 @@ validated ADR metadata. Manual edits are rejected by the governance gate.
 | [D-006](D-006-default-decimal-breaking-change.md) | implemented | 2026-05-16 | Use decimal(18,2) as the default mapping | - |
 | [D-007](D-007-multirow-insert-returning.md) | implemented | 2026-05-16 | Use shape-aware multi-row INSERT and RETURNING | - |
 | [D-008](D-008-public-api-vertrag.md) | implemented | 2026-05-16 | Gate the public API with PublicApiAnalyzers | - |
-| [D-009](D-009-efcore-patch-coupling.md) | implemented | 2026-05-16 | Support an EF Core patch range with a floor/latest matrix | amended by D-023 |
+| [D-009](D-009-efcore-patch-coupling.md) | implemented | 2026-05-16 | Support an EF Core patch range with a floor/latest matrix | amended by D-023, D-013 |
 | [D-010](D-010-activity-meter-surface.md) | implemented | 2026-05-16 | Emit a diagnostic triple for significant operations | - |
 | [D-011](D-011-spec-test-subklassen-strategie.md) | implemented | 2026-05-16 | Adopt the official EF Core relational specification corpus | amended by D-021 |
 | [D-012](D-012-spatial-engine-detail.md) | implemented | 2026-05-16 | Adapt spatial materialization per engine | - |
-| [D-013](D-013-ef-core-11-upgrade.md) | accepted | 2026-05-16 | Trigger the EF Core 11 upgrade as a new major line | - |
+| [D-013](D-013-ef-core-11-upgrade.md) | accepted | 2026-05-16 | Open EF Core 11 as an isolated major line | amends D-009 |
 | [D-014](D-014-mysql-8.0-support.md) | accepted | 2026-05-16 | Exclude MySQL 8.0 from the supported release matrix | - |
 | [D-015](D-015-json-query-warning-suppression.md) | implemented | 2026-05-17 | Scope JSON query warning behavior to its fixture | - |
 | [D-016](D-016-scalar-convert-to-boolean-vocabulary.md) | implemented | 2026-05-18 | Keep scalar boolean parsing aligned with the BCL | - |
@@ -41,6 +41,7 @@ validated ADR metadata. Manual edits are rejected by the governance gate.
 
 ```mermaid
 flowchart LR
+  D_013["D-013"] -->|"amends"| D_009["D-009"]
   D_021["D-021"] -->|"amends"| D_011["D-011"]
   D_023["D-023"] -->|"amends"| D_009["D-009"]
   D_023["D-023"] -->|"amends"| D_018["D-018"]

@@ -371,6 +371,40 @@ public sealed class MySqlNewFeatureTests
         Assert.Contains("argument 1 cannot be translated to SQL", exception.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// EF Core 11's relational JSON-path predicate uses the engines' native
+    /// one-path existence mode while keeping a captured path parameterized.
+    /// </summary>
+    [Fact]
+    public void JsonPathExists_translates_to_parameterized_json_contains_path_sql()
+    {
+        using var context = CreateContext<JsonFunctionContext>();
+        var path = "$.name";
+
+        var query = context
+            .Set<JsonFunctionEntity>()
+            .Where(entity => EF.Functions.JsonPathExists(entity.Data, path))
+            .ToQueryString();
+
+        Assert.Contains("JSON_CONTAINS_PATH(`j`.`Data`, 'one', @path) = 1", query, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Composite client objects cannot cross the relational JSON-path boundary.
+    /// </summary>
+    [Fact]
+    public void JsonPathExists_rejects_an_unsupported_client_json_value_before_execution()
+    {
+        using var context = CreateContext<JsonFunctionContext>();
+
+        var exception = Assert.Throws<InvalidOperationException>(() => context
+            .Set<JsonFunctionEntity>()
+            .Where(entity => EF.Functions.JsonPathExists(new UnsupportedJsonValue(entity.Data), "$.name"))
+            .ToQueryString());
+
+        Assert.Contains("could not be translated", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     // -- JSON Inspection Functions --
 
     /// <summary>

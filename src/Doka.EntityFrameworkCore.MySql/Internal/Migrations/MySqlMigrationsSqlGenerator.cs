@@ -3,29 +3,26 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 {
     private const string PreviousDdlCommentSqlModeVariable = "@__doka_previous_sql_mode";
-    private readonly MySqlSingletonOptions _mySqlSingletonOptions;
-    private readonly MySqlMigrationFeatureSet _migrationFeatures;
     private readonly MySqlMigrationOperationHandlerRegistry _operationHandlerRegistry;
     private DdlCommentSqlModeCommands? _ddlCommentSqlModeCommands;
+    private MySqlMigrationFeatureSet? _migrationFeatures;
+    private MySqlServerVersion? _serverVersion;
     private int _operationOrdinal = -1;
 
-    private ProviderProfile Profile => _mySqlSingletonOptions.Profile
+    private ProviderProfile Profile => ServerVersion.Profile;
+
+    private MySqlServerVersion ServerVersion => _serverVersion ??= Dependencies
+        .CurrentContext.Context.GetService<IDbContextOptions>()
+        .FindExtension<MySqlOptionsExtension>()
+        ?.ServerVersion
         ?? throw new InvalidOperationException(
-            "The provider profile must be initialized before migration SQL generation.");
+            "The server version must be configured before migration SQL generation.");
 
     public MySqlMigrationsSqlGenerator(
         MigrationsSqlGeneratorDependencies dependencies,
-        IEnumerable<ISingletonOptions> singletonOptions,
         IEnumerable<IMySqlMigrationOperationHandler>? operationHandlers = null
     ) : base(dependencies)
     {
-        ArgumentNullException.ThrowIfNull(singletonOptions);
-
-        _mySqlSingletonOptions = singletonOptions
-            .OfType<MySqlSingletonOptions>()
-            .Single();
-        _migrationFeatures = new MySqlMigrationFeatureSet(Profile);
-
         try
         {
             _operationHandlerRegistry = new MySqlMigrationOperationHandlerRegistry(
@@ -43,8 +40,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
                 operationType,
                 "default",
                 "invalid_registration",
-                Profile.Engine.Family,
-                exception.FailureCode.ToString());
+                engineFamily: null,
+                errorType: exception.FailureCode.ToString());
 
             MySqlMeter.MigrationOperationHandlerContractViolationsTotal.Add(1, tags);
 

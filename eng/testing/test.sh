@@ -74,18 +74,23 @@ bash "${repo_root}/eng/testing/check-spec-discovery.sh"
 # Running it here prevents local build residue from hiding a clean-runner RC
 # failure and moves the failure before merge instead of after expensive gates.
 bash "${repo_root}/eng/release/check-publication-readiness.sh" \
-    --ef-core-version "${DOKA_PUBLICATION_EF_CORE_VERSION:-10.0.8}" \
     --mysqlconnector-version "${DOKA_PUBLICATION_MYSQLCONNECTOR_VERSION:-2.5.0}"
-dotnet test "${unit_test_project}" --configuration Release --no-build --no-restore --tl:off \
-    --collect:"XPlat Code Coverage" \
+dotnet test --project "${unit_test_project}" --configuration Release --no-build --no-restore --tl:off \
+    --coverlet \
+    --coverlet-output-format cobertura \
+    --coverlet-file-prefix unit \
     --results-directory "${coverage_results_dir}" \
-    --logger trx
-# Specification-suite tests (Category=Spec) and any standalone live-database tests
-# (Category=Live, e.g. MySqlGuidFormatTests) require a live MySQL / MariaDB and run
-# in the spec-test / container-matrix CI jobs against test-owned containers; they
-# are excluded from the repo-tests path, which intentionally does not start Docker.
-dotnet test "${functional_test_project}" --configuration Release --no-build --no-restore --tl:off \
-    --filter "Category!=Spec&Category!=Live" \
-    --collect:"XPlat Code Coverage" \
+    --report-xunit-trx \
+    --report-xunit-trx-filename unit.trx
+# Tests in the Specification namespace, external namespace adapters marked
+# Category=Spec, and standalone Category=Live tests require a live MySQL or
+# MariaDB target. The repository-test path excludes all three forms because it
+# intentionally does not start Docker.
+dotnet test --project "${functional_test_project}" --configuration Release --no-build --no-restore --tl:off \
+    --filter "FullyQualifiedName!~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.&Category!=Spec&Category!=Live" \
+    --coverlet \
+    --coverlet-output-format cobertura \
+    --coverlet-file-prefix functional \
     --results-directory "${coverage_results_dir}" \
-    --logger trx
+    --report-xunit-trx \
+    --report-xunit-trx-filename functional.trx

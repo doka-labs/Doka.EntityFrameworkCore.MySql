@@ -1,5 +1,3 @@
-using Xunit.Sdk;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 
 /// <summary>
@@ -12,12 +10,8 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 /// Setting <c>DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true</c> disables the skip so an EF Core
 /// update can be checked without editing test source.
 /// </remarks>
-[XunitTestCaseDiscoverer(
-    "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities."
-    + "DirectTheoryDiscoverer",
-    "Doka.EntityFrameworkCore.MySql.FunctionalTests")]
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-public sealed class SpecFrameworkLimitationTheoryAttribute : TheoryAttribute
+public sealed class SpecFrameworkLimitationTheoryAttribute : SpecDispositionAttribute
 {
     /// <summary>
     /// Creates a framework-limited specification theory linked to a stable ledger entry.
@@ -25,16 +19,14 @@ public sealed class SpecFrameworkLimitationTheoryAttribute : TheoryAttribute
     /// <param name="dispositionId">
     /// Stable identifier of the corresponding framework disposition.
     /// </param>
-    public SpecFrameworkLimitationTheoryAttribute(
-        string dispositionId
-    )
+    public SpecFrameworkLimitationTheoryAttribute(string dispositionId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dispositionId);
         DispositionId = dispositionId;
 
         if (!SpecTestTarget.IsFrameworkLimitationProbeEnabled())
         {
-            Skip =
+            SkipReason =
                 $"[spec-framework-limit:{dispositionId}] The consumed EF Core version skips "
                 + "this shape due to a framework-owned limitation outside provider SQL "
                 + "generation. See SpecDispositions.json.";

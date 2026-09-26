@@ -84,10 +84,48 @@ internal sealed partial class MySqlQuerySqlGenerator
                     return sqlFunctionExpression;
                 }
 
+            case MySqlSentinelKind.IsNotTrue:
+                {
+                    Sql.Append("((");
+                    Visit(arguments[0]);
+                    Sql.Append(") IS NOT TRUE)");
+                    return sqlFunctionExpression;
+                }
+
             case MySqlSentinelKind.DateTimeOffsetNow:
             case MySqlSentinelKind.DateTimeOffsetUtcNow:
                 {
                     EmitDateTimeOffsetNow(utc: sentinel.Kind == MySqlSentinelKind.DateTimeOffsetUtcNow);
+                    return sqlFunctionExpression;
+                }
+
+            case MySqlSentinelKind.DateTimeOffsetDateTime:
+                {
+                    EmitDateTimeOffsetDateTime(sqlFunctionExpression);
+                    return sqlFunctionExpression;
+                }
+
+            case MySqlSentinelKind.DateTimeOffsetUtcDateTime:
+                {
+                    EmitDateTimeOffsetUtcDateTime(sqlFunctionExpression);
+                    return sqlFunctionExpression;
+                }
+
+            case MySqlSentinelKind.DateTimeOffsetLocalDateTime:
+                {
+                    EmitDateTimeOffsetLocalDateTime(sqlFunctionExpression);
+                    return sqlFunctionExpression;
+                }
+
+            case MySqlSentinelKind.DateTimeOffsetConstruct:
+                {
+                    EmitDateTimeOffsetConstruct(sqlFunctionExpression);
+                    return sqlFunctionExpression;
+                }
+
+            case MySqlSentinelKind.DateTimeOffsetToOffset:
+                {
+                    EmitDateTimeOffsetToOffset(sqlFunctionExpression);
                     return sqlFunctionExpression;
                 }
 
@@ -522,6 +560,167 @@ internal sealed partial class MySqlQuerySqlGenerator
         Sql.Append("CASE WHEN TIMEDIFF(NOW(), UTC_TIMESTAMP()) < 0 ");
         Sql.Append("THEN TIME_FORMAT(TIMEDIFF(NOW(), UTC_TIMESTAMP()), '%H:%i') ");
         Sql.Append("ELSE CONCAT('+', TIME_FORMAT(TIMEDIFF(NOW(), UTC_TIMESTAMP()), '%H:%i')) END)");
+    }
+
+    private void EmitDateTimeOffsetDateTime(
+        SqlFunctionExpression expression
+    )
+    {
+        var instance = GetRequiredArguments(expression, 1)[0];
+
+        EmitDateTimeOffsetLocalValue(instance);
+    }
+
+    private void EmitDateTimeOffsetUtcDateTime(
+        SqlFunctionExpression expression
+    )
+    {
+        var instance = GetRequiredArguments(expression, 1)[0];
+
+        EmitDateTimeOffsetUtcValue(instance);
+    }
+
+    private void EmitDateTimeOffsetLocalDateTime(
+        SqlFunctionExpression expression
+    )
+    {
+        var instance = GetRequiredArguments(expression, 1)[0];
+
+        Sql.Append("COALESCE(CONVERT_TZ(");
+        EmitDateTimeOffsetUtcValue(instance);
+        Sql.Append(", '+00:00', @@session.time_zone), TIMESTAMPADD(SECOND, ");
+        Sql.Append("TIME_TO_SEC(TIMEDIFF(NOW(), UTC_TIMESTAMP())), ");
+        EmitDateTimeOffsetUtcValue(instance);
+        Sql.Append("))");
+    }
+
+    private void EmitDateTimeOffsetConstruct(
+        SqlFunctionExpression expression
+    )
+    {
+        var arguments = GetRequiredArguments(expression, 2);
+        EmitCanonicalDateTimeOffset(arguments[0], arguments[1], adjustExistingValue: false);
+    }
+
+    private void EmitDateTimeOffsetToOffset(
+        SqlFunctionExpression expression
+    )
+    {
+        var arguments = GetRequiredArguments(expression, 2);
+        EmitCanonicalDateTimeOffset(arguments[0], arguments[1], adjustExistingValue: true);
+    }
+
+    private void EmitCanonicalDateTimeOffset(
+        SqlExpression value,
+        SqlExpression offset,
+        bool adjustExistingValue
+    )
+    {
+        Sql.Append("CONCAT(DATE_FORMAT(");
+        EmitDateTimeOffsetResultValue(value, offset, adjustExistingValue);
+        Sql.Append(", '%Y-%m-%d %H:%i:%s'), CASE WHEN ");
+        EmitDateTimeOffsetFraction(value, offset, adjustExistingValue);
+        Sql.Append(" = '' THEN '' ELSE CONCAT('.', ");
+        EmitDateTimeOffsetFraction(value, offset, adjustExistingValue);
+        Sql.Append(") END, ");
+        EmitDateTimeOffsetText(offset);
+        Sql.Append(")");
+    }
+
+    private void EmitDateTimeOffsetFraction(
+        SqlExpression value,
+        SqlExpression offset,
+        bool adjustExistingValue
+    )
+    {
+        Sql.Append("TRIM(TRAILING '0' FROM CONCAT(DATE_FORMAT(");
+        EmitDateTimeOffsetResultValue(value, offset, adjustExistingValue);
+        Sql.Append(", '%f'), ");
+
+        if (adjustExistingValue)
+        {
+            Sql.Append("CASE WHEN LOCATE('.', ");
+            Visit(value);
+            Sql.Append(") > 0 THEN SUBSTRING(");
+            Visit(value);
+            Sql.Append(", 27, 1) ELSE '0' END");
+        }
+        else
+        {
+            Sql.Append("'0'");
+        }
+
+        Sql.Append("))");
+    }
+
+    private void EmitDateTimeOffsetResultValue(
+        SqlExpression value,
+        SqlExpression offset,
+        bool adjustExistingValue
+    )
+    {
+        if (!adjustExistingValue)
+        {
+            Visit(value);
+            return;
+        }
+
+        Sql.Append("TIMESTAMPADD(SECOND, TIME_TO_SEC(");
+        Visit(offset);
+        Sql.Append(") - ");
+        EmitDateTimeOffsetSeconds(value);
+        Sql.Append(", ");
+        EmitDateTimeOffsetLocalValue(value);
+        Sql.Append(")");
+    }
+
+    private void EmitDateTimeOffsetLocalValue(
+        SqlExpression instance
+    )
+    {
+        Sql.Append("STR_TO_DATE(LEFT(");
+        Visit(instance);
+        Sql.Append(", CASE WHEN LOCATE('.', ");
+        Visit(instance);
+        Sql.Append(") > 0 THEN 26 ELSE 19 END), '%Y-%m-%d %H:%i:%s.%f')");
+    }
+
+    private void EmitDateTimeOffsetUtcValue(
+        SqlExpression instance
+    )
+    {
+        Sql.Append("TIMESTAMPADD(SECOND, -(");
+        EmitDateTimeOffsetSeconds(instance);
+        Sql.Append("), ");
+        EmitDateTimeOffsetLocalValue(instance);
+        Sql.Append(")");
+    }
+
+    private void EmitDateTimeOffsetSeconds(
+        SqlExpression instance
+    )
+    {
+        Sql.Append("(CASE WHEN SUBSTRING(");
+        Visit(instance);
+        Sql.Append(", -6, 1) = '-' THEN -1 ELSE 1 END * (");
+        Sql.Append("CAST(SUBSTRING(");
+        Visit(instance);
+        Sql.Append(", -5, 2) AS SIGNED) * 3600 + CAST(SUBSTRING(");
+        Visit(instance);
+        Sql.Append(", -2, 2) AS SIGNED) * 60))");
+    }
+
+    private void EmitDateTimeOffsetText(
+        SqlExpression offset
+    )
+    {
+        Sql.Append("CASE WHEN TIME_TO_SEC(");
+        Visit(offset);
+        Sql.Append(") < 0 THEN CONCAT('-', TIME_FORMAT(ABS(");
+        Visit(offset);
+        Sql.Append("), '%H:%i')) ELSE CONCAT('+', TIME_FORMAT(");
+        Visit(offset);
+        Sql.Append(", '%H:%i')) END");
     }
 
     /// <summary>

@@ -94,7 +94,8 @@ internal sealed class MySqlJsonTableDocumentDecodingExpressionVisitor : Expressi
             if (rewritten is null
                 && visited != expression)
             {
-                rewritten = new List<TExpression>(expressions.Count);
+                rewritten = [];
+                rewritten.EnsureCapacity(expressions.Count);
 
                 for (var previousIndex = 0; previousIndex < index; previousIndex++)
                 {

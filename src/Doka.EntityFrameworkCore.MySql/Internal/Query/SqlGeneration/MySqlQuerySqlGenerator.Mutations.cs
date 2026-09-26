@@ -142,6 +142,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         else if (selectExpression.Tables.Count > 1)
         {
             var tables = selectExpression.Tables;
+
             var targetOccursInSource = tables.Any(table =>
                 updateExpression.Table.Equals(table is JoinExpressionBase join ? join.Table : table));
 

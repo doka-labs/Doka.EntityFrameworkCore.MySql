@@ -682,7 +682,7 @@ public sealed class MySqlTlsAuthenticationContractTests
         await using var connection = new MySqlConnection(connectionString);
 
         _ = await Assert
-            .ThrowsAsync<MySqlException>(() => connection.OpenAsync())
+            .ThrowsAsync<MySqlException>(connection.OpenAsync)
             .ConfigureAwait(false);
     }
 

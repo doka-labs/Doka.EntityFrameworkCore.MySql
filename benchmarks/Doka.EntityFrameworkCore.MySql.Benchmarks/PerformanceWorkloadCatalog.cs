@@ -6,7 +6,7 @@ internal sealed class PerformanceWorkloadCatalog : IDisposable
 
     private PerformanceWorkloadCatalog() { }
 
-    public Dictionary<string, PerformanceWorkload> Workloads { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, PerformanceWorkload> Workloads { get; } = [];
 
     public static PerformanceWorkloadCatalog Create()
     {

@@ -9,6 +9,9 @@ internal static class SpecificationInventory
 {
     internal const int SchemaVersion = 1;
 
+    private const string SpecificationContractFacadeAttributeName =
+        "Doka.EntityFrameworkCore.MySql.TestUtilities.SpecificationContractFacadeAttribute";
+
     /// <summary>
     /// Creates a deterministic inventory for the EF Core packages loaded by this process.
     /// </summary>
@@ -162,7 +165,8 @@ internal static class SpecificationInventory
 
         if (!interfaceOrBaseType.IsGenericTypeDefinition)
         {
-            return interfaceOrBaseType.IsAssignableFrom(type);
+            return interfaceOrBaseType.IsAssignableFrom(type)
+                || ImplementsSpecificationFacade(type, interfaceOrBaseType);
         }
 
         var candidates = interfaceOrBaseType.IsInterface
@@ -174,6 +178,42 @@ internal static class SpecificationInventory
         return candidates
             .Append(type)
             .Any(candidate => candidate.IsGenericType && candidate.GetGenericTypeDefinition() == interfaceOrBaseType);
+    }
+
+    private static bool ImplementsSpecificationFacade(
+        Type type,
+        Type contractType
+    )
+    {
+        var declaredContracts = type
+            .GetCustomAttributesData()
+            .Where(attribute => attribute.AttributeType.FullName == SpecificationContractFacadeAttributeName)
+            .SelectMany(attribute => attribute.ConstructorArguments)
+            .Select(argument => argument.Value as Type)
+            .Where(static declaredContract => declaredContract is not null)
+            .Cast<Type>();
+
+        var facadeMethods = TestMethods(
+                type,
+                BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public)
+            .Select(TestMethodSignature)
+            .ToHashSet(StringComparer.Ordinal);
+
+        return declaredContracts.Any(declaredContract =>
+        {
+            if (!contractType.IsAssignableFrom(declaredContract))
+            {
+                return false;
+            }
+
+            var requiredMethods = TestMethods(
+                    declaredContract,
+                    BindingFlags.Instance | BindingFlags.Public)
+                .Select(TestMethodSignature)
+                .ToHashSet(StringComparer.Ordinal);
+
+            return requiredMethods.Count > 0 && requiredMethods.IsSubsetOf(facadeMethods);
+        });
     }
 
     private static SpecificationBaseDescriptor CreateDescriptor(
@@ -276,6 +316,19 @@ internal static class SpecificationInventory
                 .Select(parameter => TypeName(parameter.ParameterType)));
 
         return $"{TypeName(method.DeclaringType!)}.{method.Name}({parameters})";
+    }
+
+    private static string TestMethodSignature(
+        MethodInfo method
+    )
+    {
+        var parameters = string.Join(
+            ",",
+            method
+                .GetParameters()
+                .Select(parameter => TypeName(parameter.ParameterType)));
+
+        return $"{method.Name}({parameters})";
     }
 
     private static string SuiteDomain(

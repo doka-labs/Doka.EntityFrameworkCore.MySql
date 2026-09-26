@@ -1,7 +1,6 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Fixtures;
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestModels.ManyToManyModel;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Tracking;
 

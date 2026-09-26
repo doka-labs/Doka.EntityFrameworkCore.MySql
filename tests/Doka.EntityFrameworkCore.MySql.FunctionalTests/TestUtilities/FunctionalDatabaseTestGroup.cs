@@ -16,7 +16,7 @@ public sealed class FunctionalDatabaseFixture : IAsyncLifetime
     private TestDatabaseEndpoint? _endpoint;
     private TestDatabaseSession? _session;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var request = CreateRequest();
         var session = await TestDatabaseSession
@@ -40,7 +40,7 @@ public sealed class FunctionalDatabaseFixture : IAsyncLifetime
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_session is null
             || _endpoint is null)

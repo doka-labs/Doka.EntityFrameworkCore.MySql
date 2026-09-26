@@ -1,7 +1,8 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <DokaEfCoreVersion Condition="'$(DokaEfCoreVersion)' == ''">[10.0.8, 10.1.0)</DokaEfCoreVersion>
+    <DokaEfCoreVersion
+        Condition="'$(DokaEfCoreVersion)' == ''">11.0.0-rc.1.26425.128</DokaEfCoreVersion>
     <DokaMySqlConnectorVersion
         Condition="'$(DokaMySqlConnectorVersion)' == ''">[2.5.0, 3.0.0)</DokaMySqlConnectorVersion>
   </PropertyGroup>
@@ -16,11 +17,9 @@
       src/Doka.EntityFrameworkCore.MySql.NetTopologySuite
       src/Doka.Caching.MySql
 
-    EF Core packages float across patch releases on the 10.0.x line so
-    downstream consumers can pick up Microsoft patch updates without waiting
-    for a provider bump. The next minor (10.1.0) requires a deliberate provider
-    response per ADR D-009; the EfCorePatchMatrixCI workflow validates the
-    supported floor and the latest 10.0.x patch against the provider surface.
+    EF Core packages are pinned to the exact release candidate validated by
+    this branch. Prerelease updates can change provider-facing APIs and
+    therefore require a deliberate provider response.
 
     MySqlConnector 2.5.0 is the supported driver floor. The scheduled driver
     matrix validates that floor and the latest stable 2.x release against live
@@ -31,14 +30,7 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="$(DokaEfCoreVersion)" />
     <PackageVersion Include="MySqlConnector" Version="$(DokaMySqlConnectorVersion)" />
     <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
-    <PackageVersion Include="System.IO.Hashing" Version="10.0.12" />
-  </ItemGroup>
-
-  <ItemGroup Label="Cache production" Condition="'$(MSBuildProjectName)' == 'Doka.Caching.MySql'">
-    <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.12" />
+    <PackageVersion Include="System.IO.Hashing" Version="11.0.0-rc.1.26425.128" />
   </ItemGroup>
 
   <!--
@@ -64,14 +56,13 @@
       tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke
   -->
   <ItemGroup Label="Tests">
-    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
-    <PackageVersion Include="FsCheck.Xunit" Version="3.4.0" />
+    <PackageVersion Include="coverlet.MTP" Version="10.0.1" />
+    <PackageVersion Include="FsCheck.Xunit.v3" Version="3.4.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational.Specification.Tests" Version="$(DokaEfCoreVersion)" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
-    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
     <PackageVersion Include="Testcontainers.MariaDb" Version="4.15.0" />
     <PackageVersion Include="Testcontainers.MySql" Version="4.15.0" />
-    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.v3" Version="4.0.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
   </ItemGroup>
 
@@ -94,7 +85,7 @@
       examples/Doka.EntityFrameworkCore.MySql.HostExamples
   -->
   <ItemGroup Label="Example hosts">
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0-rc.1.26425.128" />
     <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.19.1" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.19.1" />
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />

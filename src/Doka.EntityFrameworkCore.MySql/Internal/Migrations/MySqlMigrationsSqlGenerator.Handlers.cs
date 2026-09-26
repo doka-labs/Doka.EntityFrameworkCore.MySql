@@ -69,12 +69,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         MySqlMigrationOperationHandlerRegistry.Registration registration
     )
     {
-        var serverVersion = _mySqlSingletonOptions.ServerVersion
-            ?? throw new InvalidOperationException(
-                "The server version must be initialized before migration SQL generation.");
+        var serverVersion = ServerVersion;
 
         var generationMode = GetGenerationMode(Options);
         var operationType = registration.OperationType.FullName ?? registration.OperationType.Name;
+        var migrationFeatures = _migrationFeatures ??= new MySqlMigrationFeatureSet(serverVersion.Profile);
 
         MySqlLoggerMessages.MigrationOperationHandlerSelected(
             Dependencies.MigrationsLogger.Logger,
@@ -94,7 +93,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             model,
             Options,
             serverVersion,
-            _migrationFeatures,
+            migrationFeatures,
             _operationOrdinal,
             registration.HandlerId,
             standardOperation => RenderStandardOperation(standardOperation, model));
@@ -395,7 +394,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         string operationType,
         string generationMode,
         string outcome,
-        EngineFamily engineFamily,
+        EngineFamily? engineFamily,
         string? errorType = null
     )
     {
@@ -405,8 +404,12 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             { MySqlDiagnosticTags.MigrationOperationType, operationType },
             { MySqlDiagnosticTags.MigrationGenerationMode, generationMode },
             { MySqlDiagnosticTags.MigrationHandlerOutcome, outcome },
-            { MySqlDiagnosticTags.Engine, MySqlDiagnosticTags.GetDatabaseSystem(engineFamily) },
         };
+
+        if (engineFamily is not null)
+        {
+            tags.Add(MySqlDiagnosticTags.Engine, MySqlDiagnosticTags.GetDatabaseSystem(engineFamily.Value));
+        }
 
         if (errorType is not null)
         {

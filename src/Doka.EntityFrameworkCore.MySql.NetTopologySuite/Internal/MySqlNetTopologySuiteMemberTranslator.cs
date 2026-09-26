@@ -96,12 +96,25 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
                 scalarFunctionName = "ST_NumInteriorRings";
             }
 
-            var translated = TranslateFunction(scalarFunctionName, instance, returnType, typeMapping);
+            // EF may remove an explicit null guard when a function claims that
+            // its argument propagates null. MariaDB's ST_IsSimple violates that
+            // contract by returning -1 for NULL, so its guard must survive the
+            // relational nullability processor.
+            var argumentPropagatesNullability =
+                !_supportsMariaDbSpatialFunctions || scalarFunctionName != "ST_IsSimple";
+
+            var translated = TranslateFunction(
+                scalarFunctionName,
+                instance,
+                returnType,
+                typeMapping,
+                argumentPropagatesNullability);
 
             if (_supportsMariaDbSpatialFunctions && scalarFunctionName == "ST_IsSimple")
             {
-                // MariaDB 11.x returns -1 for ST_IsSimple(NULL), although its
-                // documentation specifies NULL. Preserve the NTS nullable contract.
+                // Supported MariaDB releases return -1 for ST_IsSimple(NULL),
+                // although their documentation specifies NULL. Preserve the NTS
+                // nullable contract.
                 return _sqlExpressionFactory.Case(
                     [
                         new CaseWhenClause(
@@ -172,12 +185,13 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
         string functionName,
         SqlExpression instance,
         Type returnType,
-        RelationalTypeMapping? typeMapping
+        RelationalTypeMapping? typeMapping,
+        bool argumentPropagatesNullability = true
     ) => _sqlExpressionFactory.Function(
         functionName,
         [instance],
         nullable: true,
-        argumentsPropagateNullability: [true],
+        argumentsPropagateNullability: [argumentPropagatesNullability],
         returnType,
         typeMapping);
 

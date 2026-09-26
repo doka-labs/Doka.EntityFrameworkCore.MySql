@@ -10,7 +10,7 @@ public sealed class IntegrationDatabaseFixture : IAsyncLifetime
 {
     private TestDatabaseSession? _session;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var requests = IntegrationTestEnvironment
             .GetSelectedTargets()
@@ -35,7 +35,7 @@ public sealed class IntegrationDatabaseFixture : IAsyncLifetime
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_session is null)
         {

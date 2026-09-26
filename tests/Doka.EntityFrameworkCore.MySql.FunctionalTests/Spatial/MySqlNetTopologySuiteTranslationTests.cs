@@ -126,8 +126,54 @@ public sealed class MySqlNetTopologySuiteTranslationTests
     }
 
     /// <summary>
-    /// Rejects each spatial function that MariaDB 11.x does not expose instead of
-    /// emitting SQL that can only fail when the query reaches the server.
+    /// Preserves MySQL's native <c>ST_IsSimple</c> null propagation without an
+    /// unnecessary provider guard.
+    /// </summary>
+    [Fact]
+    public void MySql_is_simple_uses_native_null_propagation()
+    {
+        using var context =
+            new SpatialTranslationContext(CreateOptions(MySqlServerVersion.MySql(new Version(8, 4, 0))));
+
+        var sql = context
+            .Entities
+            .Select(entity => (bool?)entity.OptionalShape!.IsSimple)
+            .ToQueryString();
+
+        Assert.Contains("ST_IsSimple(", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("THEN NULL", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Preserves the explicit null guard required by every supported MariaDB
+    /// line after EF's relational nullability processing.
+    /// </summary>
+    [Theory]
+    [InlineData(10, 11)]
+    [InlineData(11, 4)]
+    [InlineData(11, 8)]
+    [InlineData(12, 3)]
+    public void MariaDb_is_simple_preserves_null_guard_through_sql_processing(
+        int major,
+        int minor
+    )
+    {
+        using var context =
+            new SpatialTranslationContext(CreateOptions(MySqlServerVersion.MariaDb(new Version(major, minor, 0))));
+
+        var sql = context
+            .Entities
+            .Select(entity => (bool?)entity.OptionalShape!.IsSimple)
+            .ToQueryString();
+
+        Assert.Contains("`OptionalShape` IS NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("THEN NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("ST_IsSimple(", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Rejects each spatial function that the supported MariaDB releases do
+    /// not expose instead of emitting SQL that can only fail at the server.
     /// </summary>
     [Theory]
     [InlineData(10, 11)]
