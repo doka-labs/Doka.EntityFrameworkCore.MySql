@@ -64,7 +64,7 @@
       tests/Doka.EntityFrameworkCore.MySql.RuntimeSmoke
   -->
   <ItemGroup Label="Tests">
-    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
+    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
     <PackageVersion Include="FsCheck.Xunit" Version="3.4.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational.Specification.Tests" Version="$(DokaEfCoreVersion)" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
