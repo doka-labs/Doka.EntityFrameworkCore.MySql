@@ -7,21 +7,21 @@
       "engineFamily": "MySQL",
       "serverVersion": "8.4.0",
       "hostPort": 33068,
-      "serverImage": "mysql:8.4.11@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb"
+      "serverImage": "mysql:8.4.11@sha256:6ea90827b1100f8f2ae306a539f86d2c264a26ed435a2a9f75551dd5c3aeb242"
     },
     "mysql97": {
       "displayName": "MySQL 9.7",
       "engineFamily": "MySQL",
       "serverVersion": "9.7.0",
       "hostPort": 33070,
-      "serverImage": "mysql:9.7.2@sha256:257388edf9c84dbc04c763625446d5f3fa6ed60d1b0873bc552c614ba0a7ab4e"
+      "serverImage": "mysql:9.7.2@sha256:e2bde46db6563855d7177adb5f0b57b9dc663f5a20927a90f4259d3312068497"
     },
     "mariadb1011": {
       "displayName": "MariaDB 10.11",
       "engineFamily": "MariaDB",
       "serverVersion": "10.11.0",
       "hostPort": 33066,
-      "serverImage": "mariadb:10.11.19@sha256:7f22313fc130a377a44999965bcb0a08dd5b21e8502824c1b864f792f9bc66ab"
+      "serverImage": "mariadb:10.11.19@sha256:7db29378d4fdab73f8123bbc2b48905c90d1a4b00cf848b028f1e81e623257f2"
     },
     "mariadb114": {
       "displayName": "MariaDB 11.4",
