@@ -10,6 +10,7 @@ cd "${repo_root}"
 
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest \
     eng.tests.test_github_release \
+    eng.tests.test_integration_target_parallelism \
     eng.tests.test_local_package_consumer \
     eng.tests.test_materialize_sbom_assets \
     eng.tests.test_migration_bundle_isolation \
