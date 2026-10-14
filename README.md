@@ -70,17 +70,20 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.4.4` restores EF Core 10's multiple-parameter default for ordinary
-collection membership. The single-JSON-parameter default introduced in
-`10.4.3` caused excessive latency and a timeout in a selective relationship
-query; incorrect results were not reported. The `Binary16`, `Char36`, string,
-numeric, and temporal mapping fixes remain available; use `EF.Parameter(...)`
-only where the JSON translation has been measured on the actual query shape.
+`10.5.0` adds opt-in MariaDB-native `uuid` storage for `Guid` properties on
+MariaDB 10.7 or later. The existing `Binary16` default and `Char36` option
+remain unchanged. Existing `varbinary(16)` columns used for application-owned
+`byte[]` values may produce an `AlterColumn` migration to `varbinary(17)`;
+review that schema change before deployment. The collection-translation
+default remains multiple scalar parameters; use `EF.Parameter(...)` only
+where the JSON translation has been measured on the actual query shape.
+Applications using the optional SafeMigrations MySQL adapter must verify that
+its published dependency range includes 10.5.0 before upgrading the provider.
 
 Pin the current stable version explicitly when validating an application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.4
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.5.0
 ```
 
 See [Provider Configuration][provider-configuration] for collection transport
@@ -231,9 +234,9 @@ explicit escape hatch without a support guarantee and emits
 - **MySQL-family query translation:** JSON functions, regular expressions,
   full-text search, scalar `Like<T>`, CTE composition, bulk update/delete, and
   engine-specific SQL selected from declared capabilities.
-- **Provider-owned type mappings:** JSON DOM types, `Binary16` and `Char36`
-  GUIDs, temporal CLR types, generated defaults, complex types, and optional
-  NetTopologySuite geometries.
+- **Provider-owned type mappings:** JSON DOM types, `Binary16`, `Char36`, and
+  opt-in MariaDB-native `UUID` GUID storage, temporal CLR types, generated
+  defaults, complex types, and optional NetTopologySuite geometries.
 - **Production behavior:** transient-failure retries, savepoints, connection
   pooling, structured diagnostics, trimming analysis, compiled models, and
   precompiled query coverage.
@@ -280,12 +283,22 @@ modelBuilder.Entity<OrderWithGuid>()
         Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Binary16);
 ```
 
+On MariaDB 10.7 or later, use `MySqlGuidFormat.Uuid` as a context
+default or property override to store a `Guid` in the native `uuid` type.
+This is opt-in: existing `Binary16` and `Char36` mappings do not change.
+Native `uuid` uses 16-byte server storage but textual connector values;
+it is not byte-for-byte interchangeable with `binary(16)`. Stage and verify
+any conversion of existing columns rather than altering them in place. Native
+UUID ordering can also differ from `Char36` and `Binary16`; see
+[Supported Databases][supported-databases].
+
 Parameterized GUID collections retain the effective property mapping. Ordinary
 `keys.Contains(order.Id)` uses EF Core 10's multiple scalar parameters by
 default. `EF.Parameter(keys).Contains(order.Id)` opts into one JSON parameter
-and `JSON_TABLE` for a measured query; Doka decodes the configured `Binary16`
-or `Char36` representation in generated SQL. `EF.MultipleParameters(keys)`
-and `EF.Constant(keys)` remain available for deliberate per-query overrides.
+and `JSON_TABLE` for a measured query; Doka decodes the configured `Binary16`,
+`Char36`, or MariaDB-native `UUID` representation in generated SQL.
+`EF.MultipleParameters(keys)` and `EF.Constant(keys)` remain available for
+deliberate per-query overrides.
 The JSON strategy can also be selected for an entire context:
 
 ```csharp
@@ -496,9 +509,13 @@ release publication; its measurement and triage contract lives in the
 
 ## License
 
-MIT -- see [LICENSE][license].
+The product is MIT-licensed. See [LICENSE][license]. The adapted
+[Code of Conduct][code-of-conduct] is separately licensed under
+[CC BY-SA 4.0][cc-by-sa].
 
 [changelog]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/CHANGELOG.md
+[cc-by-sa]: https://creativecommons.org/licenses/by-sa/4.0/
+[code-of-conduct]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/CODE_OF_CONDUCT.md#attribution
 [common-table-expressions]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/ctes.md
 [complex-types]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/complex-types.md
 [contributing]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/CONTRIBUTING.md

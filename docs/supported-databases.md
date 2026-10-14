@@ -61,6 +61,34 @@ all six exact LTS targets from the performance contract. It remains a short,
 non-qualifying path and does not replace the hosted scorecard or release
 qualification.
 
+## MariaDB Native UUID
+
+All four supported MariaDB lines can use the native `uuid` column type through
+the explicit `MySqlGuidFormat.Uuid` model option. MySQL targets reject
+it. [MariaDB introduced the type in 10.7](https://mariadb.com/docs/server/reference/data-types/string-data-types/uuid-data-type);
+its server storage is 16 bytes and its retrieved representation is UUID text.
+Native storage is not the same byte layout as Doka's `Binary16` mapping.
+Neither a smaller footprint than `Char36` nor MariaDB's index-oriented storage
+order establishes an end-to-end query performance advantage for a particular
+workload. The default remains
+`Binary16` on every target.
+
+MariaDB compares and orders native `uuid` values by its storage order, not
+necessarily by their canonical text. In particular, version-1 UUIDs are
+reordered for index storage, so `ORDER BY`, range predicates, and keyset
+cursors can produce a different order from `Char36` or Doka's `Binary16`.
+MariaDB changed version-6-and-later storage in 10.11.5 and 10.10.6 to avoid
+that byte swap; its release notes say older tables remain supported and old
+and new representations are compared and converted transparently.
+[MariaDB UUID type](https://mariadb.com/docs/server/reference/data-types/string-data-types/uuid-data-type),
+[MariaDB 10.11.5 release notes](https://mariadb.com/docs/release-notes/community-server/10.11/10.11.5).
+The 10.7 capability gate establishes type availability, not identical ordering
+on every later patch. MariaDB also records a version-7 comparison defect in
+10.11.5, fixed in 10.11.6; the qualified 10.11 image above is newer.
+[MDEV-31926](https://jira.mariadb.org/browse/MDEV-31926).
+Recheck ordering and cursor boundaries when changing GUID storage or upgrading
+across those server patches.
+
 ## Binary16 Default Metadata
 
 The provider emits and stores a Binary16 Guid default in RFC 4122 byte order on

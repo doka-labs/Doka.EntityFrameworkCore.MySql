@@ -9,7 +9,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// - Idempotent migration script on live DB
 /// - EnsureCreated / EnsureDeleted round-trip
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlComprehensiveCoverageTests
 {
     // ======================================================================

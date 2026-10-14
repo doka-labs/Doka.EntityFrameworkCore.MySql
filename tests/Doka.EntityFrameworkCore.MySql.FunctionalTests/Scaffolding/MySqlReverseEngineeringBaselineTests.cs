@@ -281,6 +281,40 @@ public sealed class MySqlReverseEngineeringBaselineTests
     }
 
     /// <summary>
+    /// MariaDB's native UUID is unambiguously a Guid, unlike an arbitrary char(36) column.
+    /// </summary>
+    [Fact]
+    public void Reverse_engineering_native_uuid_scaffolds_guid_without_text_guid_opt_in()
+    {
+        var scaffoldedModel = ScaffoldModel(
+            CreateSingleColumnDatabaseModel("native_uuid_entry", "ExternalId", "uuid"),
+            detectedServerVersionText: "11.8.3-MariaDB");
+        var entityCode = scaffoldedModel.AdditionalFiles.Single().Code;
+
+        Assert.Contains("public Guid ExternalId { get; set; }", entityCode, StringComparison.Ordinal);
+        Assert.Contains("HasColumnType(\"uuid\")", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
+        Assert.Contains("HasMySqlGuidFormat(MySqlGuidFormat.Uuid)", scaffoldedModel.ContextFile.Code,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("HasMaxLength(36)", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsFixedLength()", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A stubbed UUID column must not make MySQL emit a model it cannot create.
+    /// </summary>
+    [Fact]
+    public void Reverse_engineering_native_uuid_rejects_non_mariadb_server()
+    {
+        var databaseModel = CreateSingleColumnDatabaseModel("native_uuid_entry", "ExternalId", "uuid");
+
+        var exception = Assert.Throws<NotSupportedException>(() => ScaffoldModel(
+            databaseModel,
+            detectedServerVersionText: "8.4.6"));
+
+        Assert.Contains("MariaDB 10.7", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies that a plain signed tinyint column reverse-engineers to the numeric CLR type instead of text or bool.
     /// </summary>
     [Fact]

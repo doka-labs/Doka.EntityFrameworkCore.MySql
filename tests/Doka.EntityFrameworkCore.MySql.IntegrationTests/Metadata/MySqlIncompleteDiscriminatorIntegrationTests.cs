@@ -8,7 +8,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Verifies complete and incomplete TPH discriminator mappings against live servers.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlIncompleteDiscriminatorIntegrationTests
 {
     private const string StringTableName = "IncompleteDiscriminatorEntities";

@@ -4,7 +4,8 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Proves that EF Core, the provider, and MySqlConnector expose one correlated,
 /// privacy-bounded observability path against representative live engines.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
+[Collection(ProcessWideIntegrationTestGroup.Name)]
 [Trait("Category", "DriverContract")]
 [Trait("Category", "ObservabilityContract")]
 public sealed class MySqlCrossLayerObservabilityTests

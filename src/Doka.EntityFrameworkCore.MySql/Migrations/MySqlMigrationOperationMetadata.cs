@@ -99,7 +99,13 @@ public sealed class MySqlMigrationOperationMetadata
             return true;
         }
 
-        var expectedStoreType = format == MySqlGuidFormat.Binary16 ? "binary(16)" : "char(36)";
+        var expectedStoreType = format switch
+        {
+            MySqlGuidFormat.Binary16 => "binary(16)",
+            MySqlGuidFormat.Char36 => "char(36)",
+            MySqlGuidFormat.Uuid => "uuid",
+            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unsupported GUID storage format."),
+        };
 
         return columnType
             .AsSpan()

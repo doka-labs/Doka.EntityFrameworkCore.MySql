@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies the spatial contracts that differ by driver shape or engine version
 /// against live supported servers.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlNetTopologySuiteContractIntegrationTests
 {
     private const string MaterializationTable = "DokaSpatialMaterialization";

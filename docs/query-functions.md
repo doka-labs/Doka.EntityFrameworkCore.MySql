@@ -99,14 +99,16 @@ var guidMatches = context.Orders.Where(order =>
 | --- | --- |
 | Numeric and `DateTime` | Direct `LIKE`; the database converts the operand using its own text representation, not .NET culture or `ToString()` formatting. |
 | `Guid` mapped as `Char36` | Direct `LIKE` against the stored text and its collation. |
+| `Guid` mapped as MariaDB-native `UUID` | Direct `LIKE` against the server's canonical UUID text representation. |
 | `Guid` mapped as `Binary16` | Converts to canonical lowercase, hyphenated GUID text using the same SQL as Doka's `Guid.ToString()` translation, then applies `LIKE`. |
 | Nullable supported scalar | Same mapping; null operands remain null and do not produce a positive `WHERE` match. |
 | Other CLR types, such as `DateOnly`, `TimeOnly`, enums, or custom wrappers | Query translation fails; there is no `object.ToString()` or client-evaluation fallback. |
 
 GUID formatting follows the effective property mapping, including a `Binary16`
 override in a `Char36` model and the built-in `GuidToStringConverter`.
-`Guid.ToString()` returns canonical lowercase text for both supported storage
-formats; text-mapped `LIKE` retains the column's collation and stored casing.
+`Guid.ToString()` returns canonical lowercase text for all three supported
+storage formats; `Char36`-mapped `LIKE` retains the column's collation and
+stored casing.
 Arbitrary GUID converters, including the standard little-endian
 `GuidToBytesConverter`, are not assumed to use Doka's big-endian `Binary16`
 layout: these text translations fail explicitly instead of returning a

@@ -212,20 +212,22 @@ internal sealed class MySqlMigrationsModelDiffer : IMigrationsModelDiffer
         operation.ClrType = typeof(Guid);
         operation.DefaultValue = format switch
         {
-            MySqlGuidFormat.Char36 => NormalizeChar36Default(operation),
+            MySqlGuidFormat.Char36 => NormalizeTextDefault(operation, MySqlGuidFormat.Char36),
             MySqlGuidFormat.Binary16 => NormalizeBinary16Default(operation),
+            MySqlGuidFormat.Uuid => NormalizeTextDefault(operation, MySqlGuidFormat.Uuid),
             _ => throw new InvalidOperationException($"Unsupported provider-owned GUID format '{format}'."),
         };
     }
 
-    private static object? NormalizeChar36Default(
-        ColumnOperation operation
+    private static object? NormalizeTextDefault(
+        ColumnOperation operation,
+        MySqlGuidFormat format
     ) => operation.DefaultValue switch
     {
         null or Guid => operation.DefaultValue,
         "" => Guid.Empty,
         string value when Guid.TryParseExact(value, "D", out var guid) => guid,
-        _ => ThrowInvalidProviderGuidDefault(operation, MySqlGuidFormat.Char36),
+        _ => ThrowInvalidProviderGuidDefault(operation, format),
     };
 
     private static object? NormalizeBinary16Default(

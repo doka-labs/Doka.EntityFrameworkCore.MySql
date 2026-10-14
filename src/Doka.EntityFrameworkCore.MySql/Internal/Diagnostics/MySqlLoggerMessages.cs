@@ -246,6 +246,7 @@ internal static class MySqlLoggerMessages
     [
         ("SchemaOperations", ProviderCapability.SchemaOperations),
         ("JsonColumns", ProviderCapability.JsonColumns),
+        ("NativeUuidColumns", ProviderCapability.NativeUuidColumns),
         ("CheckConstraints", ProviderCapability.CheckConstraints),
         ("DescendingIndexes", ProviderCapability.DescendingIndexes),
         ("FilteredIndexes", ProviderCapability.FilteredIndexes),

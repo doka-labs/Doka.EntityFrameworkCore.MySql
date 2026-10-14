@@ -78,6 +78,12 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
 
         format ??= _singletonOptions.DefaultGuidFormat;
 
+        if (format == MySqlGuidFormat.Uuid)
+        {
+            MySqlMariaDbUuidSupport.EnsureSupported(_singletonOptions.Profile
+                ?? throw new InvalidOperationException("The server profile is not initialized."));
+        }
+
         mutableProperty.SetMySqlGuidFormat(format);
 
         switch (format)
@@ -96,13 +102,21 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
                 mutableProperty.SetProviderClrType(null);
                 mutableProperty.SetValueConverter((ValueConverter?)null);
                 break;
+            case MySqlGuidFormat.Uuid:
+                // MariaDB's UUID type has no length facet despite its textual wire representation.
+                mutableProperty.SetMaxLength(null);
+                mutableProperty.SetIsFixedLength(null);
+                mutableProperty.SetColumnType("uuid");
+                mutableProperty.SetProviderClrType(null);
+                mutableProperty.SetValueConverter((ValueConverter?)null);
+                break;
             default:
                 ThrowUnsupportedGuidFormat(format.Value);
                 break;
         }
     }
 
-    private static bool TryApplyExplicitStoreTypeGuidMapping(
+    private bool TryApplyExplicitStoreTypeGuidMapping(
         IMutableProperty property,
         string? explicitStoreType
     )
@@ -142,6 +156,18 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
                 property.SetMaxLength(16);
                 property.SetIsFixedLength(true);
                 property.SetColumnType("binary(16)");
+                property.SetProviderClrType(null);
+                property.SetValueConverter((ValueConverter?)null);
+
+                return true;
+
+            case "uuid":
+                MySqlMariaDbUuidSupport.EnsureSupported(_singletonOptions.Profile
+                    ?? throw new InvalidOperationException("The server profile is not initialized."));
+                property.SetMySqlGuidFormat(MySqlGuidFormat.Uuid);
+                property.SetMaxLength(null);
+                property.SetIsFixedLength(null);
+                property.SetColumnType("uuid");
                 property.SetProviderClrType(null);
                 property.SetValueConverter((ValueConverter?)null);
 

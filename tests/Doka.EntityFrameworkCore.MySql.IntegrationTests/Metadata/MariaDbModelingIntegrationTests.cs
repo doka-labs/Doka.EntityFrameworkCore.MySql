@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// MariaDB 11.8 parity tests for EF Core modeling features.
 /// Mirrors MySqlModelingIntegrationTests to ensure engine parity.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MariaDbModelingIntegrationTests
 {
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]

@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Verifies the MariaDB compatibility baseline against the supported MariaDB targets.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MariaDbCompatibilityBaselineTests
 {
     private const string TableName = "Phase3MariaDbEntities";

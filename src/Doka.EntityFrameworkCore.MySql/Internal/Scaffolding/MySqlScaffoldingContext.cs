@@ -34,6 +34,11 @@ internal sealed class MySqlScaffoldingContext
         DetectedServerVersionText = detectedServerVersionText,
     };
 
+    /// <summary>
+    /// Gets the server version detected for the active scaffolding invocation.
+    /// </summary>
+    public string? DetectedServerVersionText => Current.DetectedServerVersionText;
+
     public void SetUsesNetTopologySuiteScaffolding(
         bool usesNetTopologySuiteScaffolding
     ) => _current.Value = Current with

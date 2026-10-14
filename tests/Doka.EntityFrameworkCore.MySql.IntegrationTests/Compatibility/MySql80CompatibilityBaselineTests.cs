@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Retains an external-only MySQL 8.0 legacy compatibility baseline outside the supported matrix.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySql80CompatibilityBaselineTests
 {
     private const string TableName = "Phase4MySql80Entities";

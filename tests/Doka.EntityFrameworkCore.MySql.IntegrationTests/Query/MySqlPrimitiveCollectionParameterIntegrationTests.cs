@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies parameterized primitive collections against the stored provider
 /// representation on every supported database engine.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlPrimitiveCollectionParameterIntegrationTests
 {
     private const string TableName = "IntPrimitiveCollectionItems";

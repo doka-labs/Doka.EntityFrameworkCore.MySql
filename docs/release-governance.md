@@ -77,6 +77,9 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - local path: `./eng/test-integration.sh`
   - targets: `mysql84`, `mysql97`, `mariadb1011`, `mariadb114`, `mariadb118`,
     and `mariadb123`
+  - local runner: at most two target-isolated test processes run concurrently;
+    each collector uses a private copy of the built test output, and each
+    target writes separate coverage and lifecycle evidence
   - includes the complete configuration, security, and failure categories
   - retained evidence:
     - `artifacts/integration/<run-id>/compatibility-matrix-summary.md`

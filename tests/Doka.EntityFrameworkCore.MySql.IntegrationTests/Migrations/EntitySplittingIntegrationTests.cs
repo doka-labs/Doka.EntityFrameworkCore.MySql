@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Verifies generated-key ownership for entity splitting against both engine families.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class EntitySplittingIntegrationTests
 {
     private const string PrincipalTable = "EntitySplitInventory";

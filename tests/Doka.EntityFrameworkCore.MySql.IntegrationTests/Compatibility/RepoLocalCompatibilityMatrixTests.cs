@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Makes the approved repo-local compatibility matrix explicit and version-sensitive in live tests.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class RepoLocalCompatibilityMatrixTests
 {
     /// <summary>

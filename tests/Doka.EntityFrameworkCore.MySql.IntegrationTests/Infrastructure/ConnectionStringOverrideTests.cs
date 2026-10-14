@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies that EF Core runtime connection-string overrides remain authoritative
 /// for server-level provider operations such as database creation.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class ConnectionStringOverrideTests
 {
     /// <summary>

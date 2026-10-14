@@ -10,7 +10,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Every active MySQL and MariaDB LTS target shares the modern path; the snapshot
 /// DDL test pins both paths against live servers to keep the fallback honest.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlMigrationRenameColumnTests
 {
     private const string ColumnComment = "rename\\comment 'quoted'";

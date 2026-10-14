@@ -4,7 +4,10 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies the live MySqlConnector contracts that the supported driver range
 /// must preserve independently of a specific engine family.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
+// WHY: ClearAllPoolsAsync affects every connection string in this process;
+// concurrent pool-reuse assertions must not observe this class's reset.
+[Collection(ProcessWideIntegrationTestGroup.Name)]
 [Trait("Category", "DriverContract")]
 public sealed class MySqlDriverCompatibilityTests
 {

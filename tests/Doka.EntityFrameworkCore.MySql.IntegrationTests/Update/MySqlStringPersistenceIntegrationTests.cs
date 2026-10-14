@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies that string writes preserve their exact bytes across the supported
 /// database engines and SQL modes.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 [Trait("VerificationLane", "FullIntegration")]
 public sealed class MySqlStringPersistenceIntegrationTests
 {

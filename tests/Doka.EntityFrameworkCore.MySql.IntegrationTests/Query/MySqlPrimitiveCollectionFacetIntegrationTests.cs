@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies that parameterized primitive collections are extracted without
 /// applying lossy property facets before comparison.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlPrimitiveCollectionFacetIntegrationTests
 {
     private const string TableName = "IntPrimitiveCollectionFacetItems";

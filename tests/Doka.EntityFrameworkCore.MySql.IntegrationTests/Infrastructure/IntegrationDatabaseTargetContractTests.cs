@@ -6,6 +6,45 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// </summary>
 public sealed class IntegrationDatabaseTargetContractTests
 {
+    [Fact]
+    public void Class_database_names_are_stable_for_one_owner_and_distinct_for_another()
+    {
+        // Arrange
+        const string runId = "0123456789abcdef0123456789abcdef";
+        const string firstOwner = "/tests/FirstIntegrationTests.cs";
+        const string secondOwner = "/tests/SecondIntegrationTests.cs";
+
+        // Act
+        var firstName = IntegrationTestEnvironment.CreateScopedDatabaseName(runId, firstOwner);
+        var repeatedName = IntegrationTestEnvironment.CreateScopedDatabaseName(runId, firstOwner);
+        var secondName = IntegrationTestEnvironment.CreateScopedDatabaseName(runId, secondOwner);
+        var nextRunName = IntegrationTestEnvironment.CreateScopedDatabaseName(
+            "fedcba9876543210fedcba9876543210",
+            firstOwner);
+
+        // Assert
+        Assert.Equal(firstName, repeatedName);
+        Assert.NotEqual(firstName, secondName);
+        Assert.NotEqual(firstName, nextRunName);
+        Assert.StartsWith($"doka_it_{runId}_", firstName, StringComparison.Ordinal);
+        Assert.True(firstName.Length <= 64);
+    }
+
+    [Theory]
+    [InlineData("", "/tests/FirstIntegrationTests.cs")]
+    [InlineData("0123456789ab", "")]
+    public void Class_database_name_rejects_missing_identity(
+        string runId,
+        string ownerFilePath
+    )
+    {
+        // Act
+        var action = () => IntegrationTestEnvironment.CreateScopedDatabaseName(runId, ownerFilePath);
+
+        // Assert
+        Assert.Throws<ArgumentException>(action);
+    }
+
     /// <summary>
     /// Guards capability selection against drifting away from a target's
     /// independently declared supported line.

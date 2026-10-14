@@ -38,6 +38,7 @@ integration_evidence_file="${integration_artifacts_dir}/compatibility-matrix-evi
 database_evidence_file="$(
     resolve_repo_path "${DOKA_TEST_DATABASE_EVIDENCE_FILE:-${integration_artifacts_dir}/test-database-evidence.json}"
 )"
+database_evidence_written=0
 integration_targets_var="DOKA_INTEGRATION_TARGETS"
 
 mysql80_target_id="mysql80"
@@ -59,6 +60,9 @@ integration_test_filter="${DOKA_INTEGRATION_TEST_FILTER:-}"
 require_full_configuration_matrix="${DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX:-0}"
 target_selection_label=""
 selected_targets=()
+active_target_pids=()
+active_target_pid_count=0
+isolated_test_root=""
 mysql80_target_enabled=0
 mysql84_target_enabled=0
 mysql97_target_enabled=0
@@ -101,6 +105,26 @@ EOF
 
 cleanup() {
     local exit_code="$1"
+    local target_pid
+
+    if (( active_target_pid_count > 0 )); then
+        for target_pid in "${active_target_pids[@]}"; do
+            kill "${target_pid}" 2>/dev/null || true
+        done
+
+        for target_pid in "${active_target_pids[@]}"; do
+            wait "${target_pid}" 2>/dev/null || true
+        done
+    fi
+
+    if [[ -n "${isolated_test_root}" && -d "${isolated_test_root}" ]]; then
+        if ! rm -r -- "${isolated_test_root}"; then
+            echo "Could not remove isolated integration-test binaries from '${isolated_test_root}'." >&2
+            if [[ "${exit_code}" -eq 0 ]]; then
+                exit_code=1
+            fi
+        fi
+    fi
 
     if [[ "${should_stop_compose_on_exit}" -eq 1 ]]; then
         set +e
@@ -120,6 +144,8 @@ cleanup() {
 }
 
 trap 'cleanup "$?"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 configure_target_selection() {
     local normalized_target
@@ -313,12 +339,20 @@ configure_compose_overrides() {
 run_integration_tests() {
     local coverage_results_dir
     local target_evidence_dir="${integration_artifacts_dir}/database-targets"
+    local test_assembly_path
+    local test_output_dir
+    local target_test_output_dir
     local matrix_exit_code=0
+    local max_parallel_targets=2
+    local batch_start
+    local batch_offset
+    local batch_index
     local target
     local target_exit_code
     local target_evidence_file
     local target_results_dir
     local target_evidence_files=()
+    local batch_targets=()
 
     coverage_results_dir="$(
         resolve_repo_path "${DOKA_COVERAGE_RESULTS_DIR:-artifacts/coverage/integration}"
@@ -330,6 +364,15 @@ run_integration_tests() {
         "${target_evidence_dir}" \
         "$(dirname "${database_evidence_file}")"
 
+    # A retried run must not accept a previous target's cleanup evidence when
+    # its current process exits before writing new evidence.
+    for target in "${selected_targets[@]}"; do
+        target_evidence_file="${target_evidence_dir}/${target}/test-database-evidence.json"
+        target_evidence_files+=("${target_evidence_file}")
+        mkdir -p "$(dirname "${target_evidence_file}")" "${coverage_results_dir}/${target}"
+        rm -f "${target_evidence_file}" || return 1
+    done
+
     "${repo_root}/eng/common/verify-dotnet.sh" || return $?
     dotnet restore "${integration_test_project}" --tl:off || return $?
     dotnet build \
@@ -338,42 +381,89 @@ run_integration_tests() {
         --no-restore \
         --tl:off || return $?
 
-    # EF Core caches internal service providers process-wide. Server profiles
-    # legitimately differ between LTS targets, so one process per target keeps
-    # those singleton contracts isolated while preserving one operator command.
-    for target in "${selected_targets[@]}"; do
-        target_evidence_file="${target_evidence_dir}/${target}/test-database-evidence.json"
-        target_results_dir="${coverage_results_dir}/${target}"
-        target_evidence_files+=("${target_evidence_file}")
+    test_assembly_path="$(
+        dotnet msbuild "${integration_test_project}" \
+            -getProperty:TargetPath \
+            -property:Configuration=Release \
+            -nologo
+    )" || return $?
 
-        mkdir -p "$(dirname "${target_evidence_file}")" "${target_results_dir}"
+    if [[ ! -f "${test_assembly_path}" ]]; then
+        echo "Built integration-test assembly '${test_assembly_path}' does not exist." >&2
+        return 1
+    fi
 
-        local test_arguments=(
-            --configuration Release
-            --no-build
-            --no-restore
-            --tl:off
-            --collect:"XPlat Code Coverage"
-            --results-directory "${target_results_dir}"
-            --logger trx
-        )
+    test_output_dir="$(dirname "${test_assembly_path}")"
 
-        if [[ -n "${integration_test_filter}" ]]; then
-            test_arguments+=(--filter "${integration_test_filter}")
-        fi
+    # Some integration tests locate the repository from AppContext.BaseDirectory.
+    # Keep the isolated copies under the ignored artifact tree so that lookup
+    # remains valid without sharing instrumented binaries between targets.
+    isolated_test_root="$(mktemp -d "${repo_root}/artifacts/integration-tests.XXXXXXXX")" || return $?
 
-        echo "Running isolated integration process for ${target}..."
-        DOKA_INTEGRATION_TARGETS="${target}" \
-        DOKA_TEST_DATABASE_EVIDENCE_FILE="${target_evidence_file}" \
-            dotnet test "${integration_test_project}" "${test_arguments[@]}"
-        target_exit_code=$?
+    # Coverlet rewrites assemblies in the test output during collection.
+    # Separate result directories cannot isolate concurrent collectors, so
+    # each target runs from a private copy of the one shared build.
+    for (( batch_start = 0; batch_start < ${#selected_targets[@]}; batch_start += max_parallel_targets )); do
+        active_target_pids=()
+        batch_targets=()
 
-        if [[ "${target_exit_code}" -ne 0 ]]; then
-            matrix_exit_code="${target_exit_code}"
-        fi
+        for (( batch_offset = 0;
+            batch_offset < max_parallel_targets && batch_start + batch_offset < ${#selected_targets[@]};
+            batch_offset++ )); do
+            target="${selected_targets[$((batch_start + batch_offset))]}"
+            target_evidence_file="${target_evidence_dir}/${target}/test-database-evidence.json"
+            target_results_dir="${coverage_results_dir}/${target}"
+            target_test_output_dir="${isolated_test_root}/${target}"
+            mkdir -p "${target_test_output_dir}"
+            cp -R "${test_output_dir}/." "${target_test_output_dir}/" || return $?
+
+            local test_arguments=(
+                --configuration Release
+                --no-build
+                --no-restore
+                --output "${target_test_output_dir}"
+                --tl:off
+                --collect:"XPlat Code Coverage"
+                --results-directory "${target_results_dir}"
+                --logger trx
+            )
+
+            if [[ -n "${integration_test_filter}" ]]; then
+                test_arguments+=(--filter "${integration_test_filter}")
+            fi
+
+            echo "Starting isolated integration process for ${target}..."
+            DOKA_INTEGRATION_TARGETS="${target}" \
+            DOKA_TEST_DATABASE_EVIDENCE_FILE="${target_evidence_file}" \
+                dotnet test "${integration_test_project}" "${test_arguments[@]}" &
+            active_target_pids+=("$!")
+            active_target_pid_count=$((active_target_pid_count + 1))
+            batch_targets+=("${target}")
+        done
+
+        for batch_index in "${!active_target_pids[@]}"; do
+            target_exit_code=0
+            wait "${active_target_pids[batch_index]}" || target_exit_code=$?
+            echo "Integration target ${batch_targets[batch_index]} exited with code ${target_exit_code}."
+
+            if [[ "${target_exit_code}" -ne 0 ]]; then
+                matrix_exit_code=1
+            fi
+        done
+
+        active_target_pid_count=0
+        active_target_pids=()
+
+        for target in "${batch_targets[@]}"; do
+            rm -r -- "${isolated_test_root:?}/${target:?}" || matrix_exit_code=1
+        done
     done
 
-    merge_database_evidence "${target_evidence_files[@]}" || matrix_exit_code=1
+    if merge_database_evidence "${target_evidence_files[@]}"; then
+        database_evidence_written=1
+    else
+        matrix_exit_code=1
+    fi
 
     return "${matrix_exit_code}"
 }
@@ -431,7 +521,7 @@ write_matrix_evidence() {
         echo "The test database evidence records exact images, dynamic endpoints, ownership source, and cleanup state."
     } > "${integration_summary_file}"
 
-    if [[ -f "${database_evidence_file}" ]]; then
+    if [[ "${database_evidence_written}" -eq 1 && -f "${database_evidence_file}" ]]; then
         jq \
             --arg generatedUtc "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
             --arg integrationRunId "${integration_run_id}" \

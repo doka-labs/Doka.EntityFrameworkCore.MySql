@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies supported temporal precision against representative MySQL and
 /// MariaDB servers.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlTemporalPrecisionIntegrationTests
 {
     private const string TableName = "IntTemporalPrecisionItems";

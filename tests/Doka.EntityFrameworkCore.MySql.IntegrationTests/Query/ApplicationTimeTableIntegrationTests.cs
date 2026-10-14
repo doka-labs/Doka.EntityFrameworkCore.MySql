@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Verifies MariaDB application-time and bitemporal contracts against supported live engines.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class ApplicationTimeTableIntegrationTests
 {
     private const string TableName = "IntBitemporalItems";

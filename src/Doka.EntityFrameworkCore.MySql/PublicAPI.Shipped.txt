@@ -143,6 +143,7 @@ Doka.EntityFrameworkCore.MySql.MySqlFloatTypeMapping.MySqlFloatTypeMapping(strin
 Doka.EntityFrameworkCore.MySql.MySqlGuidFormat
 Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Binary16 = 0 -> Doka.EntityFrameworkCore.MySql.MySqlGuidFormat
 Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Char36 = 1 -> Doka.EntityFrameworkCore.MySql.MySqlGuidFormat
+Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Uuid = 2 -> Doka.EntityFrameworkCore.MySql.MySqlGuidFormat
 Doka.EntityFrameworkCore.MySql.MySqlGuidStringTypeMapping
 Doka.EntityFrameworkCore.MySql.MySqlGuidStringTypeMapping.MySqlGuidStringTypeMapping(string! storeType, System.Data.DbType dbType, int size, bool useKeyComparison) -> void
 Doka.EntityFrameworkCore.MySql.MySqlGuidBinaryTypeMapping

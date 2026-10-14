@@ -190,6 +190,11 @@ public static class MySqlPropertyBuilderExtensions
     /// <param name="propertyBuilder">The property builder.</param>
     /// <param name="format">The GUID storage format.</param>
     /// <returns>The same <see cref="PropertyBuilder"/> instance.</returns>
+    /// <remarks>
+    /// <see cref="MySqlGuidFormat.Uuid"/> selects MariaDB's native
+    /// <c>uuid</c> type on MariaDB 10.7 or later. Changing an existing column
+    /// to this format requires a reviewed data migration.
+    /// </remarks>
     public static PropertyBuilder HasMySqlGuidFormat(
         this PropertyBuilder propertyBuilder,
         MySqlGuidFormat format
@@ -214,6 +219,11 @@ public static class MySqlPropertyBuilderExtensions
     /// <param name="propertyBuilder">The property builder.</param>
     /// <param name="format">The GUID storage format.</param>
     /// <returns>The same <see cref="PropertyBuilder{TProperty}"/> instance.</returns>
+    /// <remarks>
+    /// <see cref="MySqlGuidFormat.Uuid"/> selects MariaDB's native
+    /// <c>uuid</c> type on MariaDB 10.7 or later. Changing an existing column
+    /// to this format requires a reviewed data migration.
+    /// </remarks>
     public static PropertyBuilder<TProperty> HasMySqlGuidFormat<TProperty>(
         this PropertyBuilder<TProperty> propertyBuilder,
         MySqlGuidFormat format
@@ -232,6 +242,11 @@ public static class MySqlPropertyBuilderExtensions
     /// <param name="propertyBuilder">The complex-type property builder.</param>
     /// <param name="format">The GUID storage format.</param>
     /// <returns>The same <see cref="ComplexTypePropertyBuilder"/> instance.</returns>
+    /// <remarks>
+    /// <see cref="MySqlGuidFormat.Uuid"/> selects MariaDB's native
+    /// <c>uuid</c> type on MariaDB 10.7 or later. Changing an existing column
+    /// to this format requires a reviewed data migration.
+    /// </remarks>
     public static ComplexTypePropertyBuilder HasMySqlGuidFormat(
         this ComplexTypePropertyBuilder propertyBuilder,
         MySqlGuidFormat format
@@ -256,6 +271,11 @@ public static class MySqlPropertyBuilderExtensions
     /// <param name="propertyBuilder">The typed complex-type property builder.</param>
     /// <param name="format">The GUID storage format.</param>
     /// <returns>The same <see cref="ComplexTypePropertyBuilder{TProperty}"/> instance.</returns>
+    /// <remarks>
+    /// <see cref="MySqlGuidFormat.Uuid"/> selects MariaDB's native
+    /// <c>uuid</c> type on MariaDB 10.7 or later. Changing an existing column
+    /// to this format requires a reviewed data migration.
+    /// </remarks>
     public static ComplexTypePropertyBuilder<TProperty> HasMySqlGuidFormat<TProperty>(
         this ComplexTypePropertyBuilder<TProperty> propertyBuilder,
         MySqlGuidFormat format
@@ -273,10 +293,29 @@ public static class MySqlPropertyBuilderExtensions
         MySqlGuidFormat format
     )
     {
+        switch (format)
+        {
+            case MySqlGuidFormat.Binary16:
+                property.SetIsFixedLength(true);
+                property.SetMaxLength(16);
+                property.SetColumnType("binary(16)");
+                break;
+            case MySqlGuidFormat.Char36:
+                property.SetIsFixedLength(true);
+                property.SetMaxLength(36);
+                property.SetColumnType("char(36)");
+                break;
+            case MySqlGuidFormat.Uuid:
+                // UUID is a native type, not a sized or fixed-length text column.
+                property.SetIsFixedLength(null);
+                property.SetMaxLength(null);
+                property.SetColumnType("uuid");
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(format), format, "Unsupported GUID storage format.");
+        }
+
         property.SetMySqlGuidFormat(format);
-        property.SetIsFixedLength(true);
-        property.SetMaxLength(format == MySqlGuidFormat.Binary16 ? 16 : 36);
-        property.SetColumnType(format == MySqlGuidFormat.Binary16 ? "binary(16)" : "char(36)");
         property.SetProviderClrType(null);
         property.SetValueConverter((ValueConverter?)null);
     }

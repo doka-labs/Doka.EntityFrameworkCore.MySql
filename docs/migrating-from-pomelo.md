@@ -21,7 +21,7 @@ Replace the `Pomelo.EntityFrameworkCore.MySql` package reference with
 stable package explicitly so the migration uses the documented version:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.4
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.5.0
 ```
 
 Use:
@@ -152,9 +152,11 @@ Use `HasMySqlGuidFormat(...)` to preserve mixed per-property formats. Changing
 namespace cleanup. Doka rejects a generated in-place alteration whenever a
 provider-owned GUID side resolves to a different physical representation.
 
-Provider-owned `Char36` and `Binary16` properties remain `Guid` or `Guid?` in
-the model, designer, snapshot, and generated `CreateTable`, `AddColumn`, and
-`AlterColumn` operations. Do not add
+Provider-owned `Char36`, `Binary16`, and opt-in MariaDB-native `UUID` properties
+remain `Guid` or `Guid?` in the model, designer, snapshot, and generated
+`CreateTable`, `AddColumn`, and `AlterColumn` operations. Native `UUID` requires
+MariaDB 10.7 or later and is not a drop-in conversion of an existing column.
+Do not add
 `GuidToStringConverter` or configure a provider CLR type of `string` merely
 because the store column is `char(36)`. Upgrade to 10.1.1 or later before
 diagnosing `AlterColumn<string>(...)`, `AlterColumn<byte[]>(...)`, or unintended

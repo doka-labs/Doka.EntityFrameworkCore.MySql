@@ -92,6 +92,11 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
             throw new NotSupportedException(message);
         }
 
+        if (DefaultGuidFormat == MySqlGuidFormat.Uuid)
+        {
+            MySqlMariaDbUuidSupport.EnsureSupported(ServerVersion.Profile);
+        }
+
         var configuredInputCount = 0;
 
         if (!string.IsNullOrWhiteSpace(ConnectionString))

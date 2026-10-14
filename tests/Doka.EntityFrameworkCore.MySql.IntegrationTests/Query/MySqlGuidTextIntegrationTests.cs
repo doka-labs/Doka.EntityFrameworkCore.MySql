@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies GUID formatting, matching, and generated values against the stored
 /// representation on every supported database engine.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlGuidTextIntegrationTests
 {
     private const string TableName = "IntGuidTextItems";
