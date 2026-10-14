@@ -70,17 +70,20 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.4.4` restores EF Core 10's multiple-parameter default for ordinary
-collection membership. The single-JSON-parameter default introduced in
-`10.4.3` caused excessive latency and a timeout in a selective relationship
-query; incorrect results were not reported. The `Binary16`, `Char36`, string,
-numeric, and temporal mapping fixes remain available; use `EF.Parameter(...)`
-only where the JSON translation has been measured on the actual query shape.
+`10.5.0` adds opt-in MariaDB-native `uuid` storage for `Guid` properties on
+MariaDB 10.7 or later. The existing `Binary16` default and `Char36` option
+remain unchanged. Existing `varbinary(16)` columns used for application-owned
+`byte[]` values may produce an `AlterColumn` migration to `varbinary(17)`;
+review that schema change before deployment. The collection-translation
+default remains multiple scalar parameters; use `EF.Parameter(...)` only
+where the JSON translation has been measured on the actual query shape.
+Applications using the optional SafeMigrations MySQL adapter must verify that
+its published dependency range includes 10.5.0 before upgrading the provider.
 
 Pin the current stable version explicitly when validating an application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.4.4
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.5.0
 ```
 
 See [Provider Configuration][provider-configuration] for collection transport

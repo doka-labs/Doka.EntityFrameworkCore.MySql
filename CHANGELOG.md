@@ -7,6 +7,23 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.5.0] - 2026-10-14
+
+Stable minor release adding an explicit MariaDB-native UUID mapping. Existing
+GUID defaults remain unchanged. Review generated migrations for application-owned
+binary columns before deployment. Applications using the optional SafeMigrations
+MySQL adapter must verify that its published dependency range includes 10.5.0
+before upgrading the provider.
+
+Install the stable packages through normal NuGet version resolution. Add the
+spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.5.0
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.5.0
+dotnet package add Doka.Caching.MySql --version 10.5.0
+```
+
 ### Added
 
 - Support MariaDB's native `uuid` column type as an explicit `MySqlGuidFormat.Uuid`
@@ -1362,7 +1379,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.4.4...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.5.0...HEAD
+[10.5.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.5.0
 [10.4.4]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.4
 [10.4.3]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.3
 [10.4.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.2

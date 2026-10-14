@@ -1,2 +1,1 @@
 #nullable enable
-Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Uuid = 2 -> Doka.EntityFrameworkCore.MySql.MySqlGuidFormat
