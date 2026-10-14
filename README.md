@@ -506,9 +506,13 @@ release publication; its measurement and triage contract lives in the
 
 ## License
 
-MIT -- see [LICENSE][license].
+The product is MIT-licensed. See [LICENSE][license]. The adapted
+[Code of Conduct][code-of-conduct] is separately licensed under
+[CC BY-SA 4.0][cc-by-sa].
 
 [changelog]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/CHANGELOG.md
+[cc-by-sa]: https://creativecommons.org/licenses/by-sa/4.0/
+[code-of-conduct]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/CODE_OF_CONDUCT.md#attribution
 [common-table-expressions]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/ctes.md
 [complex-types]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/complex-types.md
 [contributing]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/CONTRIBUTING.md
