@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Validates the contract for externally supplied integration-test connection strings.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class IntegrationConnectionStringTests
 {
     /// <summary>

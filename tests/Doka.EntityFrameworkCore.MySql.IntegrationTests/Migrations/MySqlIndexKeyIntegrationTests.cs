@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Verifies index-width safety and provider-owned prefix evolution.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 [Trait("Category", "MigrationContract")]
 [Trait("VerificationLane", "FullIntegration")]
 public sealed class MySqlIndexKeyIntegrationTests

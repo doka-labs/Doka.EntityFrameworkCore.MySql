@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies that core relational metadata survives live reverse engineering and
 /// provider code generation on every supported database family and release line.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlScaffoldingRoundTripTests
 {
     private const string ParentTable = "doka_scaffold_core_parent";

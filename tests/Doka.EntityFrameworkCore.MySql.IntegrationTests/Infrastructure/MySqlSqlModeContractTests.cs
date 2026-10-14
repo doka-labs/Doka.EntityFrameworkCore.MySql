@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Executes provider-generated text literals under the SQL modes whose string
 /// parsing rules differ across supported MySQL and MariaDB engines.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 [Trait("Category", "ConfigurationContract")]
 [Trait("VerificationLane", "FullIntegration")]
 public sealed class MySqlSqlModeContractTests

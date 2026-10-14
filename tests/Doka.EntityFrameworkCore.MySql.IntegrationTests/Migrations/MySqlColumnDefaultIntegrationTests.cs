@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Executes provider-generated column defaults against every supported server.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 [Trait("Category", "MigrationContract")]
 [Trait("VerificationLane", "FullIntegration")]
 public sealed class MySqlColumnDefaultIntegrationTests

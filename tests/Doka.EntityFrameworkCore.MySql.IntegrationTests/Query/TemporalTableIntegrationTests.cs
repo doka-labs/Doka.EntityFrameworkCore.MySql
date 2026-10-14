@@ -3,13 +3,15 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Verifies the temporal-table contract against every supported live engine.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class TemporalTableIntegrationTests
 {
     private const string TableName = "IntTemporalItems";
     private const string HistoryTableName = "IntTemporalItemsHistory";
     private const string PeriodStartColumnName = "ValidFrom";
     private const string PeriodEndColumnName = "ValidTo";
+    // WHY: The history schema is part of this test's fixed model and source
+    // assertions. No other parallel class uses the container's base database.
     private const string TestDatabaseName = "doka_provider";
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
@@ -38,7 +40,7 @@ public sealed class TemporalTableIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
+        var connectionString = IntegrationTestEnvironment.GetBaseConnectionString(target);
 
         await using var connection = new MySqlConnection(connectionString);
         await connection.OpenAsync();
@@ -556,10 +558,10 @@ public sealed class TemporalTableIntegrationTests
     {
         Assert.Equal(
             TestDatabaseName,
-            new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target)).Database);
+            new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetBaseConnectionString(target)).Database);
 
         var optionsBuilder = IntegrationTestDbContextOptions.Create<TemporalContext>().UseMySql(
-            IntegrationTestEnvironment.GetConnectionString(target),
+            IntegrationTestEnvironment.GetBaseConnectionString(target),
             IntegrationTestEnvironment.GetServerVersion(target));
 
         if (interceptors.Length > 0)
@@ -575,7 +577,7 @@ public sealed class TemporalTableIntegrationTests
     )
     {
         var options = IntegrationTestDbContextOptions.Create<NonTemporalContext>().UseMySql(
-                IntegrationTestEnvironment.GetConnectionString(target),
+                IntegrationTestEnvironment.GetBaseConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
             .Options;
 
@@ -587,7 +589,7 @@ public sealed class TemporalTableIntegrationTests
     )
     {
         var options = IntegrationTestDbContextOptions.Create<EmptyTemporalContext>().UseMySql(
-                IntegrationTestEnvironment.GetConnectionString(target),
+                IntegrationTestEnvironment.GetBaseConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
             .Options;
 

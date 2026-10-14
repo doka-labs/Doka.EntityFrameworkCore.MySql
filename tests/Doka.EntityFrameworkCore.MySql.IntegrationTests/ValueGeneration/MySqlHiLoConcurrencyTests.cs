@@ -9,7 +9,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// under concurrent inserts; cache-instance sharing itself is covered by the unit
 /// tests in MySqlHiLoStateCacheTests.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlHiLoConcurrencyTests
 {
     private const string SequenceName = "hilo_concurrency_seq";

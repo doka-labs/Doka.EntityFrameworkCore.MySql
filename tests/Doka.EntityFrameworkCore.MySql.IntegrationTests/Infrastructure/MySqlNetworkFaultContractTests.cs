@@ -5,7 +5,8 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// boundaries, then proves provider recovery, commit reconciliation, and
 /// duplicate-effect protection against representative supported engines.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
+[Collection(ProcessWideIntegrationTestGroup.Name)]
 [Trait("Category", "DriverContract")]
 [Trait("Category", "FaultContract")]
 public sealed class MySqlNetworkFaultContractTests

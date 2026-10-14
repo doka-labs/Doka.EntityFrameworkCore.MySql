@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Verifies database-default collation migrations against every supported server.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 [Trait("Category", "MigrationContract")]
 [Trait("VerificationLane", "FullIntegration")]
 public sealed class MySqlDatabaseCollationMigrationIntegrationTests

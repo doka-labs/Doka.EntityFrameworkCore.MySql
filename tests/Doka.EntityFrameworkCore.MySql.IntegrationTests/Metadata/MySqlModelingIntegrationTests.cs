@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Integration tests for EF Core modeling features against live MySQL/MariaDB.
 /// Covers TPH CRUD, OwnsOne, cascade delete, self-referencing FK, M2M.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlModelingIntegrationTests
 {
     /// <summary>

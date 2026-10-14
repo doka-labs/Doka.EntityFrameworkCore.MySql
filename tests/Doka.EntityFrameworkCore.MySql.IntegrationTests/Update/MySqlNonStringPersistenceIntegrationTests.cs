@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies byte-exact writes for character and binary properties across the
 /// supported database engines and SQL modes.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 [Trait("VerificationLane", "FullIntegration")]
 public sealed class MySqlNonStringPersistenceIntegrationTests
 {

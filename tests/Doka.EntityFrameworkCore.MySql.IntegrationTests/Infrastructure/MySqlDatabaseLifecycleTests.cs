@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Integration tests for database creator lifecycle, advisory locks, and
 /// sequence value generation against supported live engines.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlDatabaseLifecycleTests
 {
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]

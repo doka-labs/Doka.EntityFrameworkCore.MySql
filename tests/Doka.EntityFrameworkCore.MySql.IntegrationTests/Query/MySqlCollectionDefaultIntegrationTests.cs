@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies the ordinary collection translation used by relationship queries
 /// on every supported database engine.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlCollectionDefaultIntegrationTests
 {
     private const string ApprovalTableName = "IntCollectionDefaultApprovals";

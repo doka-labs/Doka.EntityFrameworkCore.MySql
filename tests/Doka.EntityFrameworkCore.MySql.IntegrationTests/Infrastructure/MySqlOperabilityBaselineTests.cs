@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Verifies the operability baseline against representative live targets.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 [Trait("Category", "DriverContract")]
 public sealed class MySqlOperabilityBaselineTests
 {

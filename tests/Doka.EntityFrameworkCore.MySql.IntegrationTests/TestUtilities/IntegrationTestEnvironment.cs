@@ -1,3 +1,6 @@
+using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
+
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 internal static class IntegrationTestEnvironment
@@ -14,15 +17,37 @@ internal static class IntegrationTestEnvironment
     ];
 
     private static TestDatabaseSession? s_session;
+    private static readonly ConcurrentDictionary<(IntegrationDatabaseTarget Target, string Owner), Lazy<string>>
+        s_scopedConnections = new();
+    private static string? s_runId;
 
     public static string GetConnectionString(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        [CallerFilePath] string ownerFilePath = ""
     )
     {
-        return GetSession()
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerFilePath);
+
+        var baseConnectionString = GetSession()
             .GetEndpoint(GetTargetId(target))
             .ConnectionString;
+
+        // WHY: xUnit runs distinct classes concurrently. The caller's source
+        // file gives all cases in one class one schema without a per-call stack walk.
+        return s_scopedConnections.GetOrAdd(
+                (target, ownerFilePath),
+                static (key, connectionString) => new Lazy<string>(
+                    () => CreateScopedConnectionString(key.Owner, connectionString),
+                    LazyThreadSafetyMode.ExecutionAndPublication),
+                baseConnectionString)
+            .Value;
     }
+
+    internal static string GetBaseConnectionString(
+        IntegrationDatabaseTarget target
+    ) => GetSession()
+        .GetEndpoint(GetTargetId(target))
+        .ConnectionString;
 
     /// <summary>
     /// Returns the provider version that exactly matches an integration target.
@@ -204,9 +229,11 @@ internal static class IntegrationTestEnvironment
         {
             throw new InvalidOperationException("The integration database session is already initialized.");
         }
+
+        s_runId = Guid.NewGuid().ToString("N");
     }
 
-    public static void Reset(
+    public static async Task ResetAsync(
         TestDatabaseSession session
     )
     {
@@ -216,6 +243,71 @@ internal static class IntegrationTestEnvironment
         {
             throw new InvalidOperationException("The integration database session does not own the active environment.");
         }
+
+        List<Exception>? cleanupFailures = null;
+
+        try
+        {
+            foreach (var scopedConnection in s_scopedConnections.Values)
+            {
+                if (scopedConnection.IsValueCreated)
+                {
+                    try
+                    {
+                        await IntegrationDatabaseUtilities
+                            .DropDatabaseAsync(scopedConnection.Value)
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception exception)
+                    {
+                        cleanupFailures ??= [];
+                        cleanupFailures.Add(exception);
+                    }
+                }
+            }
+        }
+        finally
+        {
+            s_scopedConnections.Clear();
+            s_runId = null;
+        }
+
+        if (cleanupFailures is not null)
+        {
+            throw new AggregateException("Failed to drop one or more integration-test databases.", cleanupFailures);
+        }
+    }
+
+    internal static string CreateScopedDatabaseName(
+        string runId,
+        string ownerFilePath
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(runId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerFilePath);
+
+        var ownerHash = SHA256.HashData(Encoding.UTF8.GetBytes(ownerFilePath));
+
+        return $"doka_it_{runId}_{Convert.ToHexString(ownerHash.AsSpan(0, 8)).ToLowerInvariant()}";
+    }
+
+    private static string CreateScopedConnectionString(
+        string ownerFilePath,
+        string baseConnectionString
+    )
+    {
+        var runId = Volatile.Read(ref s_runId)
+            ?? throw new InvalidOperationException("The integration database run has not started.");
+        var databaseName = CreateScopedDatabaseName(runId, ownerFilePath);
+        var scopedConnectionString = IntegrationDatabaseUtilities.BuildConnectionString(
+            baseConnectionString,
+            databaseName);
+
+        // WHY: This synchronous compatibility surface is used by both sync and
+        // async tests; schema provisioning runs once per class and target.
+        IntegrationDatabaseUtilities.EnsureDatabaseExists(scopedConnectionString);
+
+        return scopedConnectionString;
     }
 
     private static TestDatabaseSession GetSession()
@@ -223,7 +315,7 @@ internal static class IntegrationTestEnvironment
         return Volatile.Read(ref s_session)
             ?? throw new InvalidOperationException(
                 "The integration database fixture has not initialized. "
-                + $"Live integration test classes must use collection '{IntegrationDatabaseTestGroup.Name}'.");
+                + "Live integration test classes must carry IntegrationDatabaseTestAttribute.");
     }
 
     private static IntegrationDatabaseTarget ParseTargetId(

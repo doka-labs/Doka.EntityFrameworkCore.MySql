@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Verifies model-differ visibility transitions against live MySQL-family metadata.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class InvisibleColumnIntegrationTests
 {
     private const string TableName = "InvisibleColumnRecords";

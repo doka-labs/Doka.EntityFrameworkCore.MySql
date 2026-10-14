@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies that an entirely commandless custom migration still participates
 /// in EF Core's provider-owned migration-history lifecycle.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 [Trait("Category", "MigrationContract")]
 [Trait("VerificationLane", "FullIntegration")]
 public sealed class MySqlConsumedMigrationOperationIntegrationTests

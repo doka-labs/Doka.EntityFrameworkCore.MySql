@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Executes provider-generated spatial seed operations and verifies their
 /// materialization against every supported server.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 [Trait("Category", "MigrationContract")]
 [Trait("VerificationLane", "FullIntegration")]
 public sealed class MySqlSpatialSeedIntegrationTests

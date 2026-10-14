@@ -63,10 +63,33 @@ projects that execute Doka translation markers do not report a false positive.
 The provider's functional and integration tests remain the executable proof
 that each documented marker translates or fails through EF Core.
 
+## Integration test parallelism in Rider
+
+The integration test assembly runs independent classes as separate xUnit
+collections, with at most four active collections. One test-run-owned server
+session supplies the selected engines; each class receives its own database on
+each engine it uses. Test methods in one class remain serial. The runner drops
+the class databases and then stops its containers, including for a filtered
+Rider run. Classes that inspect process-wide diagnostics or clear all driver
+connection pools, as well as the separately owned TLS fixture, stay nonparallel.
+
+The database owner is the test class's source file. Keep one live test class
+per file; a shared test helper that obtains a connection must forward its
+caller's file path, as the cache test store does.
+
+Running one integration test in Rider still starts the selected database
+targets. Set `DOKA_INTEGRATION_TARGETS` in the Rider test-runner environment to
+restrict a local run to a particular target, for example `mysql84`. This does
+not change the six-engine release matrix. A coverage run may disable parallel
+execution in Rider independently of the xUnit configuration.
+
 ## Primary Sources
 
-Retrieved 2026-08-21:
+Retrieved 2026-08-21 (inspection settings) and 2026-10-14 (test parallelism):
 
 - [JetBrains Rider 2026.2 inspection configuration](https://www.jetbrains.com/help/rider/Code_Analysis__Configuring_Warnings.html)
 - [JetBrains Rider 2026.2 inspection settings](https://www.jetbrains.com/help/rider/Settings_Inspection_Settings.html)
 - [JetBrains Rider 2026.2 ReSharper settings layers](https://www.jetbrains.com/help/rider/Settings_Tools_ReSharper.html)
+- [xUnit.net parallel test collections](https://xunit.net/docs/running-tests-in-parallel)
+- [JetBrains Rider unit testing](https://www.jetbrains.com/help/rider/Unit_Testing__Index.html)
+- [JetBrains Rider coverage-run parallelism](https://www.jetbrains.com/help/rider/Cover_Testing_Platform_Tests.html)

@@ -50,8 +50,10 @@ Use Testcontainers for .NET as the canonical lifecycle owner for live integratio
 
 - `Testcontainers.MySql` provisions MySQL.
 - `Testcontainers.MariaDb` provisions MariaDB; both modules use the same centrally managed version.
-- One container per selected engine is shared by an xUnit collection fixture for the lifetime of one test assembly.
-- Tests isolate mutable state with per-test databases and existing cleanup helpers; they do not create one container per test.
+- One container per selected engine is shared by the integration assembly runner for the lifetime of one selected test run.
+- Integration test classes use separate, run-owned databases on those servers; methods within one class remain serialized by xUnit. The runner drops class databases before disposing the containers.
+- The temporal-history contract retains exclusive use of the container's base database because its modeled history schema is a fixed identifier.
+- Tests that observe process-wide diagnostics or clear every driver pool use a nonparallel collection; TLS tests keep their independently owned, nonparallel fixture.
 - Supported images are pinned by patch version and multi-platform manifest digest in one shared source file.
 - Host ports and container names are allocated dynamically.
 - Testcontainers resource cleanup remains enabled. Experimental resource reuse is not used.
@@ -133,6 +135,9 @@ Compose remains an operator-selected debugging and benchmark mechanism. `eng/tes
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
 - 2026-08-11: Extended the test-owned lifecycle and exact image evidence to
   MySQL 9.7 and MariaDB 10.11 / 12.3 as part of the six-line active-LTS matrix.
+- 2026-10-14: Moved integration server ownership to an assembly runner and
+  isolated databases by test class so collection-level parallelism also works
+  in IDE runs without multiplying containers.
 
 ### Implementation References
 

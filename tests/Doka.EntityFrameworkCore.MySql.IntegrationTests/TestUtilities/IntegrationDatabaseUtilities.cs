@@ -25,6 +25,35 @@ internal static class IntegrationDatabaseUtilities
     }
 
     /// <summary>
+    /// Provisions a class-owned database for synchronous integration test paths.
+    /// </summary>
+    /// <param name="connectionString">Connection string selecting the database.</param>
+    public static void EnsureDatabaseExists(
+        string connectionString
+    )
+    {
+        var builder = new MySqlConnectionStringBuilder(connectionString);
+        var databaseName = builder.Database;
+
+        if (string.IsNullOrWhiteSpace(databaseName))
+        {
+            throw new InvalidOperationException("The integration-test connection string must contain a database name.");
+        }
+
+        builder.Database = string.Empty;
+        builder.AutoEnlist = false;
+        builder.Pooling = false;
+
+        using var connection = new MySqlConnection(builder.ConnectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        // WHY: A run-owned schema must never silently reuse another run's data.
+        command.CommandText = $"CREATE DATABASE {DelimitIdentifier(databaseName)};";
+        command.ExecuteNonQuery();
+    }
+
+    /// <summary>
     /// Creates the database selected by the supplied connection string when it
     /// does not already exist.
     /// </summary>
@@ -42,6 +71,8 @@ internal static class IntegrationDatabaseUtilities
         }
 
         builder.Database = string.Empty;
+        builder.AutoEnlist = false;
+        builder.Pooling = false;
 
         await using var connection = new MySqlConnection(builder.ConnectionString);
         await connection
@@ -73,6 +104,8 @@ internal static class IntegrationDatabaseUtilities
         }
 
         builder.Database = string.Empty;
+        builder.AutoEnlist = false;
+        builder.Pooling = false;
 
         await using var connection = new MySqlConnection(builder.ConnectionString);
         await connection

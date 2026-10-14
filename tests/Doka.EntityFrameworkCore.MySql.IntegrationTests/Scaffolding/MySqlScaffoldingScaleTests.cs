@@ -9,7 +9,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Enforces the declared large-schema, least-privilege, latency, allocation, managed
 /// heap, query-count, determinism, and cleanup contract for reverse engineering.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlScaffoldingScaleTests
 {
     private const string TablePrefix = "doka_scale_t";

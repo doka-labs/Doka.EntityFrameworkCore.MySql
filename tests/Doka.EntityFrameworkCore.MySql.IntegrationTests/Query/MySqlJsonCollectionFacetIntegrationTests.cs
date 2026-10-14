@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies that relational facets do not narrow values stored inside owned
 /// JSON collections before filtering or materialization.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlJsonCollectionFacetIntegrationTests
 {
     private const string TableName = "IntJsonCollectionFacetOwners";

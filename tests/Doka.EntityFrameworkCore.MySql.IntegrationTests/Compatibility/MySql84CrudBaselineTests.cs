@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// <summary>
 /// Verifies the first real MySQL 8.4 CRUD and migration baseline against a live server.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySql84CrudBaselineTests
 {
     private const string CrudTableName = "Phase1CrudEntities";

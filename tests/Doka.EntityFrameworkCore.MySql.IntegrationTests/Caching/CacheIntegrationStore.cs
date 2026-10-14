@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 internal sealed class CacheIntegrationStore : IAsyncDisposable
@@ -35,10 +37,13 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
     public IBufferDistributedCache Cache { get; }
 
     public static async Task<CacheIntegrationStore> CreateAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        [CallerFilePath] string ownerFilePath = ""
     )
     {
-        var builder = new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target))
+        // WHY: Forward the test-class source path so both cache test classes
+        // retain separate databases even though connection creation is shared.
+        var builder = new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target, ownerFilePath))
         {
             DateTimeKind = MySqlDateTimeKind.Unspecified,
             MaximumPoolSize = 16,

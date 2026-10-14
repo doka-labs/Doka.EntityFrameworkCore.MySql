@@ -7,7 +7,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// serialize, with the third caller observing a <see cref="TimeoutException"/>
 /// when the lock timeout is exhausted.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlMigrationConcurrencyTests
 {
     /// <summary>

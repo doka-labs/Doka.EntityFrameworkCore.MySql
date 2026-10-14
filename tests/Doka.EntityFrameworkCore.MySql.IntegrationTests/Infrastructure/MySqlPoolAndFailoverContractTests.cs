@@ -7,7 +7,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies bounded pool behavior, session cleanup, broken-connection eviction,
 /// and ordered multi-host failover through the provider's connection path.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 [Trait("Category", "FailureConfigurationContract")]
 [Trait("VerificationLane", "FullIntegration")]
 public sealed class MySqlPoolAndFailoverContractTests

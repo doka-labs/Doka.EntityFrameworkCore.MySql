@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Verifies that an operating-system-level migrator failure cannot strand the
 /// provider migration lock or prevent a later deployment from converging.
 /// </summary>
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MigrationProcessRecoveryTests
 {
     private const string ConnectionStringEnvironmentVariable = "DOKA_MIGRATION_CONNECTION_STRING";

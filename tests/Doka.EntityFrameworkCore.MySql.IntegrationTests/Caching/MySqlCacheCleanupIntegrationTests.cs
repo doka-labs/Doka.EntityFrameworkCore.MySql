@@ -1,6 +1,6 @@
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
-[Collection(IntegrationDatabaseTestGroup.Name)]
+[IntegrationDatabaseTest]
 public sealed class MySqlCacheCleanupIntegrationTests
 {
     [Fact]
