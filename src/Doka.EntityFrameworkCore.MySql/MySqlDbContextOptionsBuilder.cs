@@ -36,6 +36,11 @@ public sealed class MySqlDbContextOptionsBuilder
     /// </summary>
     /// <param name="format">The default GUID storage format.</param>
     /// <returns>The current builder instance.</returns>
+    /// <remarks>
+    /// <see cref="MySqlGuidFormat.Uuid"/> selects MariaDB's native
+    /// <c>uuid</c> type for new models on MariaDB 10.7 or later. It does not
+    /// convert existing GUID columns or change the default <see cref="MySqlGuidFormat.Binary16"/>.
+    /// </remarks>
     public MySqlDbContextOptionsBuilder DefaultGuidFormat(
         MySqlGuidFormat format
     ) => Enum.IsDefined(format)

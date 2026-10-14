@@ -109,8 +109,9 @@ flowchart LR
 
 Matched-row semantics and the connector's `Binary16` GUID transport are
 provider invariants, not optional tuning switches. Column-level GUID storage
-remains owned by Doka type mappings, so `Char36` and `Binary16` properties can
-coexist under one connector transport. `RequireUserVariables()` adds one
+remains owned by Doka type mappings, so `Char36`, `Binary16`, and opt-in
+MariaDB-native `UUID` properties can coexist under one connector transport.
+`RequireUserVariables()` adds one
 immutable capability requirement: an omitted option can be enabled on an owned
 string, while a borrowed input must already provide it. No connection-string
 parsing occurs per command, parameter, row, or repeated open.

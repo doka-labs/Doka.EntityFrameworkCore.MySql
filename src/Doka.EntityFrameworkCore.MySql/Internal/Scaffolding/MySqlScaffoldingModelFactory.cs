@@ -679,6 +679,24 @@ internal sealed class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
         var storeType = column.StoreType;
         var normalizedStoreType = storeType.ToLowerInvariant();
 
+        if (normalizedStoreType == "uuid")
+        {
+            // Reverse engineering does not finalize a runtime model, so reject
+            // an impossible engine/type pairing before generating unusable code.
+            var detectedVersion = _scaffoldingContext.DetectedServerVersionText
+                ?? throw new InvalidOperationException("The detected server version is unavailable for UUID scaffolding.");
+
+            MySqlMariaDbUuidSupport.EnsureSupported(MySqlServerVersion.Parse(detectedVersion).Profile);
+
+            return new ColumnMapping(
+                typeof(Guid),
+                MaxLength: null,
+                IsFixedLength: null,
+                Precision: null,
+                Scale: null,
+                GuidFormat: MySqlGuidFormat.Uuid);
+        }
+
         if (normalizedStoreType is "char(36)" or "varchar(36)")
         {
             if (_reverseEngineeringOptions.ScaffoldTextGuidsAsGuids)

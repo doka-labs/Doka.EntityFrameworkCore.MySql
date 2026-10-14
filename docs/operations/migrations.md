@@ -157,10 +157,11 @@ snapshot and derives `InsertData`, `UpdateData`, and `DeleteData` operations.
 The generated model and the executable operation therefore have different CLR
 boundaries when a provider-owned value converter is present.
 
-For native `Char36` and `Binary16` properties, snapshots and migration
-designers reconstruct `Guid` or `Guid?` values. For native JSON properties,
-they reconstruct `JsonElement`, `JsonDocument`, `JsonNode`, `JsonObject`, or
-`JsonArray` values through the corresponding `System.Text.Json` parser.
+For native `Char36`, `Binary16`, and MariaDB `UUID` properties, snapshots and
+migration designers reconstruct `Guid` or `Guid?` values. For native JSON
+properties, they reconstruct `JsonElement`, `JsonDocument`, `JsonNode`,
+`JsonObject`, or `JsonArray` values through the corresponding
+`System.Text.Json` parser.
 Explicit model-managed values on Doka's `byte[]` row-version mapping remain
 byte arrays instead of leaking the provider-side `DateTime` representation.
 NetTopologySuite model-managed spatial values likewise retain their concrete
@@ -191,9 +192,9 @@ belongs in EF's runtime seeding APIs or in an explicit reviewed data migration.
 
 Provider-owned GUID literal defaults follow the model boundary as well.
 Snapshots and migration designers emit typed `Guid` values for native
-`Char36` and `Binary16` properties, including nullable properties and
-`Guid.Empty`. Application-owned converters continue to emit their provider
-representation. A generated `HasDefaultValue("...")` on a provider-owned
+`Char36`, `Binary16`, and MariaDB `UUID` properties, including nullable
+properties and `Guid.Empty`. Application-owned converters continue to emit
+their provider representation. A generated `HasDefaultValue("...")` on a provider-owned
 `Guid` property is invalid because the saved model cannot initialize it.
 Native JSON literal defaults likewise reconstruct their JSON CLR type rather
 than a provider-side string.
@@ -241,19 +242,21 @@ inconsistent with the model.
 
 ### GUID representation changes
 
-Do not apply a generated in-place alteration between text GUID storage and
-`Binary16`. Doka rejects native `Char36`/`Binary16` changes and also rejects a
-transition where only one side is provider-owned but the other side resolves
-to a different physical representation. An application converter backed by
-`binary(16)` is not proof of native `Binary16` compatibility: its byte order is
-not represented by the SQL type.
+Do not apply a generated in-place alteration between `Char36`, `Binary16`,
+and MariaDB-native `UUID`. Doka rejects changes between these provider-owned
+formats and also rejects a transition where only one side is provider-owned
+but the other side resolves to a different physical representation. An
+application converter backed by `binary(16)` is not proof of native `Binary16`
+compatibility: its byte order is not represented by the SQL type. MariaDB's
+native `UUID` has its own internal
+storage order, so its 16-byte size does not prove binary equivalence either.
 
 Use an application-reviewed staged migration:
 
 1. Confirm the source text format or binary byte order from representative
    existing values.
 2. Add a nullable destination column without dropping the source.
-3. Validate every source value before invoking `UNHEX`, `HEX`, or another
+3. Validate every source value before invoking `UNHEX`, `HEX`, `CAST`, or another
    conversion expression. Strict server modes can reject malformed input
    instead of returning a value that a later check could detect.
 4. Backfill the destination and verify source-to-destination and
@@ -263,10 +266,10 @@ Use an application-reviewed staged migration:
 7. Verify the EF model and representative stored values after deployment.
 
 Canonical application-owned `char(36)` or `varchar(36)` and native `Char36`
-remain a text-equivalent transition. Provider-owned `Char36` and `Binary16`
-remain `Guid`-typed in generated `CreateTable`, `AddColumn`, and `AlterColumn`
-operations; a generated `string` or `byte[]` at those native surfaces is a
-stop-the-line signal.
+remain a text-equivalent transition. Provider-owned `Char36`, `Binary16`, and
+MariaDB-native `UUID` remain `Guid`-typed in generated `CreateTable`,
+`AddColumn`, and `AlterColumn` operations; a generated `string` or `byte[]` at
+those native surfaces is a stop-the-line signal.
 
 MySQL atomic DDL does not make surrounding data transformations generally
 transactional, and MariaDB DDL causes an implicit commit. Back up the affected

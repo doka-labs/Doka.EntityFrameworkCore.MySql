@@ -19,6 +19,7 @@ internal sealed record ProviderProfile(EngineProfile Engine)
             Engine.Has(EngineCapability.NativeJsonType) ? ProviderSupportStatus.Native :
             Engine.Has(EngineCapability.JsonValidationFunction) ? ProviderSupportStatus.Emulated :
             ProviderSupportStatus.UnsupportedByEngine,
+        ProviderCapability.NativeUuidColumns => NativeWhen(EngineCapability.NativeUuidType),
         ProviderCapability.CheckConstraints => NativeWhen(EngineCapability.CheckConstraints),
         ProviderCapability.DescendingIndexes => NativeWhen(EngineCapability.DescendingIndexes),
         ProviderCapability.FilteredIndexes => ProviderSupportStatus.UnsupportedByEngine,

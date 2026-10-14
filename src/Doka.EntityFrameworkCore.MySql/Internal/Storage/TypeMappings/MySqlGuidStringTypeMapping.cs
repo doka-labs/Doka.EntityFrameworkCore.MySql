@@ -1,7 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Maps textual GUID provider values to MySQL-family character columns.
+/// Maps textual GUID provider values to MySQL-family character columns and
+/// MariaDB's native <c>uuid</c> type.
 /// </summary>
 public sealed class MySqlGuidStringTypeMapping : StringTypeMapping
 {
@@ -24,6 +25,14 @@ public sealed class MySqlGuidStringTypeMapping : StringTypeMapping
         36,
         useKeyComparison: false);
 
+    // Native UUID arrives as text on the wire. Do not bind its Guid model value
+    // through MySqlConnector's process-wide Binary16 transport contract.
+    internal static MySqlGuidStringTypeMapping Uuid { get; } = new(
+        "uuid",
+        System.Data.DbType.String,
+        size: null,
+        useKeyComparison: false);
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MySqlGuidStringTypeMapping"/> class.
     /// </summary>
@@ -35,6 +44,13 @@ public sealed class MySqlGuidStringTypeMapping : StringTypeMapping
         string storeType,
         DbType dbType,
         int size,
+        bool useKeyComparison
+    ) : this(storeType, dbType, (int?)size, useKeyComparison) { }
+
+    private MySqlGuidStringTypeMapping(
+        string storeType,
+        DbType dbType,
+        int? size,
         bool useKeyComparison
     ) : base(
         new RelationalTypeMappingParameters(

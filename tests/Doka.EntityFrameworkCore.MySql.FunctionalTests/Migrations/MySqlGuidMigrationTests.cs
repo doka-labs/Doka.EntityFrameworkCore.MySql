@@ -72,6 +72,53 @@ public sealed class MySqlGuidMigrationTests
     }
 
     /// <summary>
+    /// A native UUID annotation on only one side cannot prove that an
+    /// application-owned source or destination has equivalent values.
+    /// </summary>
+    [Theory]
+    [InlineData("varchar(36)", false)]
+    [InlineData("varchar(36)", true)]
+    [InlineData("uuid", false)]
+    [InlineData("uuid", true)]
+    [InlineData("binary(16)", false)]
+    [InlineData("binary(16)", true)]
+    public void Application_owned_and_native_uuid_transitions_require_explicit_data_migration(
+        string applicationStoreType,
+        bool nativeIsSource
+    )
+    {
+        using var context = new NativeBinary16GuidContext(CreateOptions<NativeBinary16GuidContext>());
+        var applicationClrType = applicationStoreType == "binary(16)" ? typeof(byte[]) : typeof(string);
+        var operation = new AlterColumnOperation
+        {
+            Table = "Records",
+            Name = "Id",
+            ClrType = nativeIsSource ? applicationClrType : typeof(Guid),
+            ColumnType = nativeIsSource ? applicationStoreType : "uuid",
+        };
+
+        operation.OldColumn.ClrType = nativeIsSource ? typeof(Guid) : applicationClrType;
+        operation.OldColumn.ColumnType = nativeIsSource ? "uuid" : applicationStoreType;
+
+        if (nativeIsSource)
+        {
+            operation.OldColumn[MySqlAnnotationNames.GuidFormat] = MySqlGuidFormat.Uuid;
+        }
+        else
+        {
+            operation[MySqlAnnotationNames.GuidFormat] = MySqlGuidFormat.Uuid;
+        }
+
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate(
+            [operation],
+            context.GetService<IDesignTimeModel>().Model));
+
+        Assert.Contains("explicit data migration", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Adding a provider-native Char36 relationship keeps the migration operation
     /// and generated migration source typed as Guid.
     /// </summary>
@@ -114,6 +161,7 @@ public sealed class MySqlGuidMigrationTests
     [Theory]
     [InlineData(MySqlGuidFormat.Char36, "char(36)")]
     [InlineData(MySqlGuidFormat.Binary16, "binary(16)")]
+    [InlineData(MySqlGuidFormat.Uuid, "uuid")]
     public void Native_guid_nullability_transitions_use_guid_migration_types_in_both_directions(
         MySqlGuidFormat guidFormat,
         string storeType
@@ -151,6 +199,10 @@ public sealed class MySqlGuidMigrationTests
     [Theory]
     [InlineData(MySqlGuidFormat.Char36, "char(36)", MySqlGuidFormat.Binary16, "binary(16)")]
     [InlineData(MySqlGuidFormat.Binary16, "binary(16)", MySqlGuidFormat.Char36, "char(36)")]
+    [InlineData(MySqlGuidFormat.Char36, "char(36)", MySqlGuidFormat.Uuid, "uuid")]
+    [InlineData(MySqlGuidFormat.Uuid, "uuid", MySqlGuidFormat.Char36, "char(36)")]
+    [InlineData(MySqlGuidFormat.Binary16, "binary(16)", MySqlGuidFormat.Uuid, "uuid")]
+    [InlineData(MySqlGuidFormat.Uuid, "uuid", MySqlGuidFormat.Binary16, "binary(16)")]
     public void Native_guid_storage_format_transitions_use_guid_migration_types(
         MySqlGuidFormat sourceFormat,
         string sourceStoreType,
@@ -198,6 +250,10 @@ public sealed class MySqlGuidMigrationTests
     [InlineData(MySqlGuidFormat.Char36, "char(36)", MySqlGuidFormat.Binary16, "binary(16)", false)]
     [InlineData(MySqlGuidFormat.Binary16, "binary(16)", MySqlGuidFormat.Char36, "char(36)", true)]
     [InlineData(MySqlGuidFormat.Binary16, "binary(16)", MySqlGuidFormat.Char36, "char(36)", false)]
+    [InlineData(MySqlGuidFormat.Uuid, "uuid", MySqlGuidFormat.Char36, "char(36)", true)]
+    [InlineData(MySqlGuidFormat.Uuid, "uuid", MySqlGuidFormat.Char36, "char(36)", false)]
+    [InlineData(MySqlGuidFormat.Char36, "char(36)", MySqlGuidFormat.Uuid, "uuid", true)]
+    [InlineData(MySqlGuidFormat.Char36, "char(36)", MySqlGuidFormat.Uuid, "uuid", false)]
     public void Native_guid_combined_storage_and_nullability_transitions_use_guid_migration_types(
         MySqlGuidFormat sourceFormat,
         string sourceStoreType,
@@ -289,21 +345,26 @@ public sealed class MySqlGuidMigrationTests
 
     /// <summary>
     /// Invalid provider values cannot be emitted as defaults for Guid-typed
-    /// native Char36 migration operations.
+    /// native textual migration operations.
     /// </summary>
-    [Fact]
-    public void Native_char36_invalid_provider_default_fails_closed()
+    [Theory]
+    [InlineData(MySqlGuidFormat.Char36, "char(36)")]
+    [InlineData(MySqlGuidFormat.Uuid, "uuid")]
+    public void Native_text_guid_invalid_provider_default_fails_closed(
+        MySqlGuidFormat format,
+        string storeType
+    )
     {
         var operation = new AddColumnOperation
         {
             Name = "OwnerId",
             Table = "Records",
             ClrType = typeof(string),
-            ColumnType = "char(36)",
+            ColumnType = storeType,
             DefaultValue = "not-a-guid",
         };
 
-        operation[MySqlAnnotationNames.GuidFormat] = MySqlGuidFormat.Char36;
+        operation[MySqlAnnotationNames.GuidFormat] = format;
 
         var differ = new MySqlMigrationsModelDiffer(new FixedMigrationsModelDiffer(operation));
         var exception = Assert.Throws<InvalidOperationException>(() => differ.GetDifferences(null, null));
@@ -313,11 +374,16 @@ public sealed class MySqlGuidMigrationTests
     }
 
     /// <summary>
-    /// A canonical provider-side Char36 default is restored to its Guid model
+    /// A canonical provider-side textual default is restored to its Guid model
     /// value before generated migration source is rendered.
     /// </summary>
-    [Fact]
-    public void Native_char36_provider_default_is_restored_to_guid()
+    [Theory]
+    [InlineData(MySqlGuidFormat.Char36, "char(36)")]
+    [InlineData(MySqlGuidFormat.Uuid, "uuid")]
+    public void Native_text_guid_provider_default_is_restored_to_guid(
+        MySqlGuidFormat format,
+        string storeType
+    )
     {
         var expected = Guid.Parse("a78b2b53-dca4-4e94-8ae9-77118371db3a");
         var operation = new AddColumnOperation
@@ -325,11 +391,11 @@ public sealed class MySqlGuidMigrationTests
             Name = "OwnerId",
             Table = "Records",
             ClrType = typeof(string),
-            ColumnType = "char(36)",
+            ColumnType = storeType,
             DefaultValue = expected.ToString("D", CultureInfo.InvariantCulture),
         };
 
-        operation[MySqlAnnotationNames.GuidFormat] = MySqlGuidFormat.Char36;
+        operation[MySqlAnnotationNames.GuidFormat] = format;
 
         var differ = new MySqlMigrationsModelDiffer(new FixedMigrationsModelDiffer(operation));
         var normalized = Assert.Single(differ.GetDifferences(null, null));

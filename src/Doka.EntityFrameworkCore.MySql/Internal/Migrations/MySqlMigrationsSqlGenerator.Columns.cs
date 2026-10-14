@@ -18,6 +18,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ValidateJsonSupport(operation);
         ValidateGeneratedColumnSupport(operation);
         ValidateSpatialColumnSupport(operation);
+        ValidateNativeUuidSupport(operation);
 
         if (operation.Collation is { } collation)
         {
@@ -380,6 +381,17 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             + "then replace the source column and restore its constraints.");
     }
 
+    private void ValidateNativeUuidSupport(
+        ColumnOperation operation
+    )
+    {
+        if (GetNativeGuidFormat(operation) == MySqlGuidFormat.Uuid
+            || operation.ColumnType.AsSpan().Trim().Equals("uuid", StringComparison.OrdinalIgnoreCase))
+        {
+            MySqlMariaDbUuidSupport.EnsureSupported(Profile);
+        }
+    }
+
     private static MySqlGuidFormat? GetNativeGuidFormat(
         ColumnOperation operation
     ) => operation.FindAnnotation(MySqlAnnotationNames.GuidFormat)?.Value is MySqlGuidFormat format
@@ -400,6 +412,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             || MatchesGuidStoreType(operation, "varbinary", 16))
         {
             return MySqlGuidFormat.Binary16;
+        }
+
+        if (operation.ColumnType.AsSpan().Trim().Equals("uuid", StringComparison.OrdinalIgnoreCase))
+        {
+            return MySqlGuidFormat.Uuid;
         }
 
         return null;

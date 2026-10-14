@@ -68,6 +68,11 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     // wire footprint at one byte per character.
     private static readonly RelationalTypeMapping s_guidChar36Mapping = MySqlGuidStringTypeMapping.Default;
 
+    private static readonly RelationalTypeMapping s_uuidMapping = MySqlGuidStringTypeMapping.Uuid;
+
+    private static readonly RelationalTypeMapping s_uuidGuidMapping =
+        (RelationalTypeMapping)s_uuidMapping.WithComposedConverter(new GuidToStringConverter());
+
     private static readonly RelationalTypeMapping s_guidVarchar36Mapping =
         new MySqlGuidStringTypeMapping("varchar(36)", DbType.String, 36, useKeyComparison: false);
 
@@ -284,6 +289,18 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     {
         var clrType = mappingInfo.ClrType?.UnwrapNullableType();
 
+        if (mappingInfo.StoreTypeName is { } storeTypeName
+            && storeTypeName.AsSpan().Trim().Equals("uuid", StringComparison.OrdinalIgnoreCase)
+            && clrType is not null
+            && clrType != typeof(Guid)
+            && clrType != typeof(string))
+        {
+            // Returning null would let EF Core compose an unrelated numeric
+            // converter and silently attach its mapping to a UUID column.
+            throw new InvalidOperationException(
+                $"MariaDB UUID columns require a Guid or string provider CLR type, not '{clrType.FullName}'.");
+        }
+
         if (clrType == typeof(byte[])
             && mappingInfo.ElementTypeMapping is not null)
         {
@@ -371,6 +388,18 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
             if (normalizedStoreType == "bit")
             {
                 return ResolveBitMapping(mappingInfo);
+            }
+
+            if (normalizedStoreType == "uuid")
+            {
+                var mapping = GetUuidMapping();
+
+                if (clrType is null || clrType == typeof(Guid))
+                {
+                    return s_uuidGuidMapping;
+                }
+
+                return clrType == typeof(string) ? mapping : null;
             }
 
             if (normalizedStoreType is "enum" or "set")
@@ -484,7 +513,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         return normalizedStoreType == "tinyint(1)" || normalizedStoreType == "tinyint(1) unsigned";
     }
 
-    private RelationalTypeMapping AdjustMappingForFacets(
+    private static RelationalTypeMapping AdjustMappingForFacets(
         RelationalTypeMapping mapping,
         RelationalTypeMappingInfo mappingInfo,
         string? normalizedStoreType
@@ -555,14 +584,33 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
             "binary" => size == 16
                 ? s_guidBinaryMapping
                 : new MySqlGuidBinaryTypeMapping($"binary({size.GetValueOrDefault(16)})"),
-            _ => _mySqlSingletonOptions.DefaultGuidFormat == MySqlGuidFormat.Char36
-                ? s_guidChar36Mapping
-                : s_guidBinaryMapping
+            "uuid" => GetUuidMapping(),
+            _ => _mySqlSingletonOptions.DefaultGuidFormat switch
+            {
+                MySqlGuidFormat.Binary16 => s_guidBinaryMapping,
+                MySqlGuidFormat.Char36 => s_guidChar36Mapping,
+                MySqlGuidFormat.Uuid => GetUuidMapping(),
+                _ => throw new InvalidOperationException(
+                    $"Unsupported default GUID format '{_mySqlSingletonOptions.DefaultGuidFormat}'."),
+            },
         };
+
+        if (ReferenceEquals(mapping, s_uuidMapping))
+        {
+            return s_uuidGuidMapping;
+        }
 
         return mapping.ClrType == typeof(string)
             ? (RelationalTypeMapping)mapping.WithComposedConverter(new GuidToStringConverter())
             : mapping;
+    }
+
+    private RelationalTypeMapping GetUuidMapping()
+    {
+        MySqlMariaDbUuidSupport.EnsureSupported(_mySqlSingletonOptions.Profile
+            ?? throw new InvalidOperationException("The server profile is not initialized."));
+
+        return s_uuidMapping;
     }
 
     private static StringTypeMapping CreateStringMapping(
@@ -631,7 +679,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
                 useKeyComparison: mappingInfo.IsKeyOrIndex);
     }
 
-    private ByteArrayTypeMapping CreateByteArrayMapping(
+    private static ByteArrayTypeMapping CreateByteArrayMapping(
         RelationalTypeMappingInfo mappingInfo,
         string? normalizedStoreType
     )
@@ -664,7 +712,6 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         var storeSize =
             size == 16
             && normalizedStoreType is null
-            && _mySqlSingletonOptions.DefaultGuidFormat == MySqlGuidFormat.Binary16
                 ? 17
                 : size;
 

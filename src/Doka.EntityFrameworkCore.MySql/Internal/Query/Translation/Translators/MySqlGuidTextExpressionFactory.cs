@@ -46,7 +46,7 @@ internal sealed class MySqlGuidTextExpressionFactory
             throw new InvalidOperationException(
                 $"GUID text translation does not support store type '{mapping?.StoreType}' "
                 + $"with converter '{mapping?.Converter?.GetType().FullName ?? "<none>"}'. "
-                + "Use the provider's Binary16 or Char36 GUID mapping, or GuidToStringConverter.");
+                + "Use the provider's Binary16, Char36, or native UUID GUID mapping, or GuidToStringConverter.");
         }
 
         var hexadecimal = _sqlExpressionFactory.Function(

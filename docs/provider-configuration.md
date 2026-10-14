@@ -100,7 +100,7 @@ The callback passed to `UseMySql(...)` exposes:
 | Option | Contract |
 | --- | --- |
 | `CommandTimeout(seconds)` | Positive timeout applied to provider commands, including migrations and advisory-lock acquisition. |
-| `DefaultGuidFormat(format)` | Default `Binary16` or `Char36` mapping for GUID properties. |
+| `DefaultGuidFormat(format)` | Default `Binary16`, `Char36`, or native `Uuid` mapping for GUID properties. |
 | `EnableRetryOnFailure(count, delay)` | Opts into the provider execution strategy for classified transient failures. |
 | `MaxBatchSize(count)` | Caps statements in one modification batch; packet and parameter ceilings can split it further. |
 | `MinBatchSize(count)` | Sets the minimum accumulated statement count for batched modification execution. |
@@ -282,6 +282,8 @@ Design-time registration uses `AddEntityFrameworkDokaMySqlDesignTime(...)`.
 Its `ScaffoldTextGuidsAsGuids()` option asks reverse engineering to treat
 compatible `char(36)` and `varchar(36)` columns as `Guid`; it is opt-in because
 text columns are not intrinsically GUID columns.
+MariaDB's native `uuid` type is unambiguously scaffolded as `Guid` without
+that text-column opt-in; the detected server must support native UUID.
 
 ## Configuration Precedence
 
@@ -300,15 +302,36 @@ Caller-owned connections and data sources must nevertheless set connector
 `GuidFormat=Binary16` as the one wire-transport prerequisite; Doka validates it
 without treating it as a column-format choice.
 
-For provider-owned `Char36` and `Binary16`, keep the model CLR type as `Guid` or
-`Guid?`. The relational type mapping owns conversion to `char(36)` or the
-provider's big-endian `binary(16)` layout; adding an application converter or
-provider CLR type duplicates that responsibility and can create conflicting
-relationship conversions. Application-owned conversions remain authoritative,
-but every property in a relationship chain must use a compatible conversion
-contract. Changing between text and binary storage, or adopting native
+For provider-owned `Char36`, `Binary16`, and `Uuid`, keep the model CLR
+type as `Guid` or `Guid?`. The relational type mapping owns conversion to
+`char(36)`, the provider's big-endian `binary(16)` layout, or MariaDB's native
+`uuid` type; adding an application converter or provider CLR type duplicates
+that responsibility and can create conflicting relationship conversions.
+`Uuid` is available only on MariaDB 10.7 or later and remains opt-in;
+`Binary16` is still the default on every supported engine. Native `uuid` uses
+16-byte server storage and textual connector values under the same
+`GuidFormat=Binary16` connection contract. It is not the same byte layout as
+`binary(16)` and is not a general performance promise. Application-owned
+conversions remain authoritative, but every property in a relationship chain
+must use a compatible conversion contract. Changing between `Char36`,
+`Binary16`, and native `UUID`, or adopting native
 `Binary16` from an application byte converter, requires the staged data
 migration described in [Migration Operations](operations/migrations.md#guid-representation-changes).
+Native UUID can also change sort, range, and keyset behavior; see
+[Supported Databases](supported-databases.md#mariadb-native-uuid).
+
+For a new MariaDB-native column, select the format explicitly:
+
+```csharp
+modelBuilder.Entity<Order>()
+    .Property(order => order.Id)
+    .HasMySqlGuidFormat(MySqlGuidFormat.Uuid);
+```
+
+Alternatively, pass `mysql => mysql.DefaultGuidFormat(MySqlGuidFormat.Uuid)`
+to `UseMySql(...)` for a new MariaDB-only model. Neither setting converts
+existing data; review the physical storage change before deploying a migration.
+
 The context default and property override also apply to scalar GUID properties
 inside non-collection complex types. Complex collections mapped as JSON retain
 their JSON document contract rather than receiving per-member relational GUID
@@ -323,7 +346,8 @@ excessive latency, including a timeout, on a selective relationship query.
 No incorrect results were reported. Opt into `JSON_TABLE` only for measured
 workloads with `EF.Parameter(keys).Contains(entity.Id)`.
 The JSON parameter is decoded as the configured `binary(16)` representation
-for `Binary16` and as value-preserving, collation-coercible text for `Char36`.
+for `Binary16`, as value-preserving text for `Char36`, and as canonical UUID
+text for native `Uuid` columns.
 
 All three strategies remain available per query:
 

@@ -8,6 +8,7 @@ internal enum ProviderCapability
 {
     SchemaOperations,
     JsonColumns,
+    NativeUuidColumns,
     CheckConstraints,
     DescendingIndexes,
     FilteredIndexes,

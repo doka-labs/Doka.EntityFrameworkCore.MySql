@@ -195,6 +195,41 @@ public sealed class MySqlDesignTimeRoundTripTests
     }
 
     /// <summary>
+    /// Native UUID metadata and model-managed values retain Guid model types in
+    /// both generated model surfaces and the initial migration.
+    /// </summary>
+    [Fact]
+    public void MariaDb_uuid_snapshot_and_designer_roundtrip_guid_seed_without_pending_operations()
+    {
+        using var context = new MariaDbUuidDesignContext(
+            CreateOptions<MariaDbUuidDesignContext>(
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                MySqlGuidFormat.Uuid));
+        var generated = GenerateAndCompile(context);
+        var operations = context.GetService<IMigrationsModelDiffer>().GetDifferences(
+            null,
+            context.GetService<IDesignTimeModel>().Model.GetRelationalModel());
+
+        Assert.Contains(".Property<System.Guid>(\"Id\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".Property<System.Guid?>(\"OptionalId\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".HasMySqlGuidFormat(MySqlGuidFormat.Uuid)", generated.SnapshotCode,
+            StringComparison.Ordinal);
+        Assert.Contains("Id = new Guid(", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.Contains(".HasMySqlGuidFormat(MySqlGuidFormat.Uuid)", generated.DesignerCode,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(".Property<string>(\"Id\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Property<string>(\"Id\")", generated.DesignerCode, StringComparison.Ordinal);
+        AssertRoundTripsWithoutOperations(context, generated.SnapshotModel);
+        AssertRoundTripsWithoutOperations(context, generated.DesignerModel);
+        var createTable = Assert.Single(operations.OfType<CreateTableOperation>());
+        var insert = Assert.Single(operations.OfType<InsertDataOperation>());
+        Assert.All(createTable.Columns, column => Assert.Equal("uuid", column.ColumnType));
+        Assert.Equal(typeof(Guid), Assert.Single(createTable.Columns, column => column.Name == "Id").ClrType);
+        Assert.IsType<string>(Assert.Single(GetColumnValues(insert, "Id")));
+        _ = Compile(GenerateMigrationCode(operations));
+    }
+
+    /// <summary>
     /// A context-level Char36 default remains a Guid model contract when one
     /// property participates in multiple relationship chains.
     /// </summary>
@@ -1686,6 +1721,52 @@ public sealed class BitemporalDesignRecord
     /// Gets or sets the key.
     /// </summary>
     public int Id { get; set; }
+}
+
+/// <summary>
+/// Test context for generated provider-native MariaDB UUID migration models.
+/// </summary>
+public sealed class MariaDbUuidDesignContext : DbContext
+{
+    /// <summary>
+    /// Creates the native UUID design context.
+    /// </summary>
+    public MariaDbUuidDesignContext(
+        DbContextOptions<MariaDbUuidDesignContext> options
+    ) : base(options) { }
+
+    /// <inheritdoc />
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
+    {
+        modelBuilder.Entity<MariaDbUuidDesignRecord>(entity =>
+        {
+            entity.ToTable("MariaDbUuidDesignRecords");
+            entity.HasKey(record => record.Id);
+            entity.HasData(new MariaDbUuidDesignRecord
+            {
+                Id = new Guid("bf1da273-beed-4197-ab57-4cf8395244d4"),
+                OptionalId = null,
+            });
+        });
+    }
+}
+
+/// <summary>
+/// Seeded entity used to verify native UUID design-time model values.
+/// </summary>
+public sealed class MariaDbUuidDesignRecord
+{
+    /// <summary>
+    /// Gets or sets the native UUID key.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets an optional native UUID value.
+    /// </summary>
+    public Guid? OptionalId { get; set; }
 }
 
 /// <summary>

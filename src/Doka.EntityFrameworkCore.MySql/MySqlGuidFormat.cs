@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Defines the supported default storage formats for <see cref="Guid"/> values.
+/// Defines provider-owned storage formats for <see cref="Guid"/> values.
 /// </summary>
 public enum MySqlGuidFormat
 {
@@ -14,4 +14,9 @@ public enum MySqlGuidFormat
     /// Stores GUID values as canonical hyphenated text in <c>char(36)</c>.
     /// </summary>
     Char36 = 1,
+
+    /// <summary>
+    /// Stores GUID values in MariaDB's native <c>uuid</c> column type (10.7 or later).
+    /// </summary>
+    Uuid = 2,
 }

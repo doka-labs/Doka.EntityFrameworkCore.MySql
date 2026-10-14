@@ -231,9 +231,9 @@ explicit escape hatch without a support guarantee and emits
 - **MySQL-family query translation:** JSON functions, regular expressions,
   full-text search, scalar `Like<T>`, CTE composition, bulk update/delete, and
   engine-specific SQL selected from declared capabilities.
-- **Provider-owned type mappings:** JSON DOM types, `Binary16` and `Char36`
-  GUIDs, temporal CLR types, generated defaults, complex types, and optional
-  NetTopologySuite geometries.
+- **Provider-owned type mappings:** JSON DOM types, `Binary16`, `Char36`, and
+  opt-in MariaDB-native `UUID` GUID storage, temporal CLR types, generated
+  defaults, complex types, and optional NetTopologySuite geometries.
 - **Production behavior:** transient-failure retries, savepoints, connection
   pooling, structured diagnostics, trimming analysis, compiled models, and
   precompiled query coverage.
@@ -280,12 +280,22 @@ modelBuilder.Entity<OrderWithGuid>()
         Doka.EntityFrameworkCore.MySql.MySqlGuidFormat.Binary16);
 ```
 
+On MariaDB 10.7 or later, use `MySqlGuidFormat.Uuid` as a context
+default or property override to store a `Guid` in the native `uuid` type.
+This is opt-in: existing `Binary16` and `Char36` mappings do not change.
+Native `uuid` uses 16-byte server storage but textual connector values;
+it is not byte-for-byte interchangeable with `binary(16)`. Stage and verify
+any conversion of existing columns rather than altering them in place. Native
+UUID ordering can also differ from `Char36` and `Binary16`; see
+[Supported Databases][supported-databases].
+
 Parameterized GUID collections retain the effective property mapping. Ordinary
 `keys.Contains(order.Id)` uses EF Core 10's multiple scalar parameters by
 default. `EF.Parameter(keys).Contains(order.Id)` opts into one JSON parameter
-and `JSON_TABLE` for a measured query; Doka decodes the configured `Binary16`
-or `Char36` representation in generated SQL. `EF.MultipleParameters(keys)`
-and `EF.Constant(keys)` remain available for deliberate per-query overrides.
+and `JSON_TABLE` for a measured query; Doka decodes the configured `Binary16`,
+`Char36`, or MariaDB-native `UUID` representation in generated SQL.
+`EF.MultipleParameters(keys)` and `EF.Constant(keys)` remain available for
+deliberate per-query overrides.
 The JSON strategy can also be selected for an entire context:
 
 ```csharp

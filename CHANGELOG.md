@@ -7,6 +7,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Support MariaDB's native `uuid` column type as an explicit `MySqlGuidFormat.Uuid`
+  GUID format on MariaDB 10.7 or later. The existing `Binary16` default and
+  `Char36` option are unchanged. Native UUID retains `Guid` model and migration
+  types through relationships, seeds, snapshots, and reverse engineering;
+  unsupported engines and unsafe storage transitions fail closed.
+
+### Changed
+
+- Implicit 16-byte application-owned binary mappings now use `varbinary(17)`
+  under `Char36` and `Uuid` defaults as well as `Binary16`. MySqlConnector's
+  required `GuidFormat=Binary16` would otherwise read a 16-byte binary column
+  as `Guid` instead of `byte[]`. Existing `varbinary(16)` columns can therefore
+  produce an `AlterColumn` migration; review that schema change before deployment.
+
 ## [10.4.4] - 2026-09-23
 
 Stable patch release restoring EF Core 10's multiple-parameter default for

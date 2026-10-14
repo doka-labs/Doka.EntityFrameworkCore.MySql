@@ -8,6 +8,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal enum EngineCapability
 {
     NativeJsonType,
+    NativeUuidType,
     JsonValidationFunction,
     ReturningClause,
     Savepoints,
