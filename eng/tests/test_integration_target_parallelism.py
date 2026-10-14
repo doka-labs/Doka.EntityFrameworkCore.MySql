@@ -29,6 +29,13 @@ class IntegrationTargetParallelismTests(unittest.TestCase):
 
         tool_directory = self.root / "bin"
         tool_directory.mkdir()
+        build_directory = self.root / "build"
+        build_directory.mkdir()
+        self.test_assembly = (
+            build_directory / "Doka.EntityFrameworkCore.MySql.IntegrationTests.dll"
+        )
+        self.test_assembly.write_bytes(b"isolated-test-assembly")
+
         dotnet = tool_directory / "dotnet"
         dotnet.write_text(
             """#!/usr/bin/env bash
@@ -41,8 +48,33 @@ case "${1:-}" in
     restore|build)
         exit 0
         ;;
+    msbuild)
+        printf '%s\\n' "${FAKE_TEST_ASSEMBLY_PATH:?}"
+        ;;
     test)
         target="${DOKA_INTEGRATION_TARGETS:?}"
+        shift
+        test_output=""
+
+        while (( $# > 0 )); do
+            if [[ "$1" == "--output" ]]; then
+                test_output="${2:?}"
+                shift 2
+            else
+                shift
+            fi
+        done
+
+        copied_assembly="${test_output}/$(basename "${FAKE_TEST_ASSEMBLY_PATH:?}")"
+        if [[ -z "${test_output}" || "${copied_assembly}" == "${FAKE_TEST_ASSEMBLY_PATH}" \
+            || ! -f "${copied_assembly}" ]]; then
+            exit 31
+        fi
+
+        cmp -s "${FAKE_TEST_ASSEMBLY_PATH}" "${copied_assembly}" || exit 32
+        # A hard link would still let Coverlet rewrite the shared build.
+        [[ ! "${FAKE_TEST_ASSEMBLY_PATH}" -ef "${copied_assembly}" ]] || exit 33
+        printf '%s\\n' "${test_output}" > "${FAKE_BARRIER_DIR:?}/${target}.output"
         printf 'start:%s\\n' "${target}" >> "${FAKE_EVENT_PATH:?}"
 
         if [[ "${FAKE_WAIT_FOR_SIGNAL:-0}" == "1" ]]; then
@@ -116,6 +148,7 @@ esac
                 "FAKE_DOTNET_VERSION": json.loads(
                     (self.repository / "global.json").read_text(encoding="utf-8")
                 )["sdk"]["version"],
+                "FAKE_TEST_ASSEMBLY_PATH": str(self.test_assembly),
                 "FAKE_EVENT_PATH": str(self.events),
                 "FAKE_BARRIER_DIR": str(self.barrier),
                 "DOKA_INTEGRATION_TARGETS": "mysql84,mariadb1011,mariadb114",
@@ -141,6 +174,7 @@ esac
         # Assert
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self._assert_bounded_events()
+        self._assert_isolated_outputs()
         evidence = self._read_matrix_evidence()
         self.assertEqual(0, evidence["testExitCode"])
         self.assertEqual(
@@ -159,6 +193,7 @@ esac
         # Assert
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self._assert_bounded_events()
+        self._assert_isolated_outputs()
         evidence = self._read_matrix_evidence()
         self.assertEqual(1, evidence["testExitCode"])
         self.assertEqual(3, len(evidence["testDatabase"]["targets"]))
@@ -276,6 +311,21 @@ esac
         self.assertEqual(2, max_active)
         self.assertEqual(3, sum(event.startswith("start:") for event in events))
         self.assertFalse(active_targets)
+
+    def _assert_isolated_outputs(self) -> None:
+        output_directories = [
+            Path((self.barrier / f"{target}.output").read_text(encoding="ascii").strip())
+            for target in ("mysql84", "mariadb1011", "mariadb114")
+        ]
+
+        self.assertEqual(3, len(set(output_directories)))
+        self.assertTrue(
+            all(
+                directory.is_relative_to(self.repository / "artifacts")
+                for directory in output_directories
+            )
+        )
+        self.assertTrue(all(not directory.exists() for directory in output_directories))
 
 
 if __name__ == "__main__":

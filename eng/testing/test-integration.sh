@@ -62,6 +62,7 @@ target_selection_label=""
 selected_targets=()
 active_target_pids=()
 active_target_pid_count=0
+isolated_test_root=""
 mysql80_target_enabled=0
 mysql84_target_enabled=0
 mysql97_target_enabled=0
@@ -114,6 +115,15 @@ cleanup() {
         for target_pid in "${active_target_pids[@]}"; do
             wait "${target_pid}" 2>/dev/null || true
         done
+    fi
+
+    if [[ -n "${isolated_test_root}" && -d "${isolated_test_root}" ]]; then
+        if ! rm -r -- "${isolated_test_root}"; then
+            echo "Could not remove isolated integration-test binaries from '${isolated_test_root}'." >&2
+            if [[ "${exit_code}" -eq 0 ]]; then
+                exit_code=1
+            fi
+        fi
     fi
 
     if [[ "${should_stop_compose_on_exit}" -eq 1 ]]; then
@@ -329,6 +339,9 @@ configure_compose_overrides() {
 run_integration_tests() {
     local coverage_results_dir
     local target_evidence_dir="${integration_artifacts_dir}/database-targets"
+    local test_assembly_path
+    local test_output_dir
+    local target_test_output_dir
     local matrix_exit_code=0
     local max_parallel_targets=2
     local batch_start
@@ -368,8 +381,28 @@ run_integration_tests() {
         --no-restore \
         --tl:off || return $?
 
-    # EF Core caches server profiles process-wide. Separate processes retain
-    # that isolation, while two-at-a-time execution bounds Docker pressure.
+    test_assembly_path="$(
+        dotnet msbuild "${integration_test_project}" \
+            -getProperty:TargetPath \
+            -property:Configuration=Release \
+            -nologo
+    )" || return $?
+
+    if [[ ! -f "${test_assembly_path}" ]]; then
+        echo "Built integration-test assembly '${test_assembly_path}' does not exist." >&2
+        return 1
+    fi
+
+    test_output_dir="$(dirname "${test_assembly_path}")"
+
+    # Some integration tests locate the repository from AppContext.BaseDirectory.
+    # Keep the isolated copies under the ignored artifact tree so that lookup
+    # remains valid without sharing instrumented binaries between targets.
+    isolated_test_root="$(mktemp -d "${repo_root}/artifacts/integration-tests.XXXXXXXX")" || return $?
+
+    # Coverlet rewrites assemblies in the test output during collection.
+    # Separate result directories cannot isolate concurrent collectors, so
+    # each target runs from a private copy of the one shared build.
     for (( batch_start = 0; batch_start < ${#selected_targets[@]}; batch_start += max_parallel_targets )); do
         active_target_pids=()
         batch_targets=()
@@ -380,11 +413,15 @@ run_integration_tests() {
             target="${selected_targets[$((batch_start + batch_offset))]}"
             target_evidence_file="${target_evidence_dir}/${target}/test-database-evidence.json"
             target_results_dir="${coverage_results_dir}/${target}"
+            target_test_output_dir="${isolated_test_root}/${target}"
+            mkdir -p "${target_test_output_dir}"
+            cp -R "${test_output_dir}/." "${target_test_output_dir}/" || return $?
 
             local test_arguments=(
                 --configuration Release
                 --no-build
                 --no-restore
+                --output "${target_test_output_dir}"
                 --tl:off
                 --collect:"XPlat Code Coverage"
                 --results-directory "${target_results_dir}"
@@ -416,6 +453,10 @@ run_integration_tests() {
 
         active_target_pid_count=0
         active_target_pids=()
+
+        for target in "${batch_targets[@]}"; do
+            rm -r -- "${isolated_test_root:?}/${target:?}" || matrix_exit_code=1
+        done
     done
 
     if merge_database_evidence "${target_evidence_files[@]}"; then
