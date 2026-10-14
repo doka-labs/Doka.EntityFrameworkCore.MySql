@@ -14,9 +14,27 @@ MySQL and MariaDB, built on the asynchronous
 EF Core model across both database families while keeping engine differences
 explicit, testable, and observable.
 
-Use it when an application needs current .NET and EF Core support, a small
-public API, portable MySQL/MariaDB behavior, and qualification against every
-advertised LTS line.
+## When to Consider Doka
+
+Consider Doka when an application needs these explicit MySQL and MariaDB
+contracts:
+
+- **Qualified support boundaries:** Six named LTS lines are tested against
+  exact, digest-pinned server images. Other lines are rejected by default;
+  the explicit compatibility mode has no support guarantee and emits a
+  diagnostic. See [Supported Databases][supported-databases].
+- **Portable temporal modeling:** One model and query API uses MariaDB-native
+  temporal tables or provider-owned MySQL history-table emulation, according
+  to the selected engine. See [Temporal Tables][temporal-tables].
+- **Extensible migrations:** Extension packages can handle their own custom
+  migration operations through a public SPI without replacing the provider's
+  SQL generator. See [Migration Operation Handlers][migration-operation-handlers].
+
+Doka is not a drop-in replacement for Pomelo-derived providers. Existing
+applications must review provider APIs, mappings, and migration history; start
+with [Migrating from Pomelo][migrating-from-pomelo]. Amazon Aurora MySQL and
+Azure Database for MySQL are not advertised compatibility targets; see
+[Compatibility Boundaries](#compatibility-boundaries).
 
 ## Packages
 
