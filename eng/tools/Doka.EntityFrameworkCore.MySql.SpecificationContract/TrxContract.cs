@@ -27,9 +27,7 @@ internal static class TrxContract
 
         var results = trxPaths
             .SelectMany(ParseResults)
-            .Where(result => result.TestId.StartsWith(
-                DiscoveryContract.SpecificationTestPrefix,
-                StringComparison.Ordinal))
+            .Where(result => DiscoveryContract.IsSpecificationTestId(result.TestId))
             .ToArray();
 
         var duplicates = results

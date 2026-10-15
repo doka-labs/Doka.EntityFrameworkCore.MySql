@@ -1,7 +1,6 @@
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json.Serialization;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
@@ -448,7 +447,7 @@ public sealed class MySqlScaffoldingScaleTests
         await using var connection = new MySqlConnection(restrictedConnectionString);
 
         var exception = await Assert.ThrowsAsync<MySqlException>(
-                () => connection.OpenAsync())
+                connection.OpenAsync)
             .ConfigureAwait(false);
 
         Assert.Equal(1045, exception.Number);
@@ -468,7 +467,7 @@ public sealed class MySqlScaffoldingScaleTests
         command.CommandText = $"SELECT COUNT(*) FROM {DelimitIdentifier(deniedTableName)};";
 
         var exception = await Assert.ThrowsAsync<MySqlException>(
-                () => command.ExecuteScalarAsync())
+                command.ExecuteScalarAsync)
             .ConfigureAwait(false);
 
         Assert.Equal(1142, exception.Number);

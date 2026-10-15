@@ -99,7 +99,7 @@ public sealed class MySqlMigrationBaselineTests
 
         using var context = new BaselineContext(options);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => context.GetService<IHistoryRepository>());
+        var exception = Assert.Throws<InvalidOperationException>(context.GetService<IHistoryRepository>);
         var entry = Assert.Single(sink.Entries, entry => entry.EventId.Id == MySqlEventId.SchemaUnsupported.Id);
 
         Assert.Contains("migrations history table schema", exception.Message, StringComparison.OrdinalIgnoreCase);

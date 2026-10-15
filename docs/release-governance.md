@@ -62,7 +62,7 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - cadence: weekly for the three drift jobs; on demand for product and drift
     lanes together
   - migration deployment lifecycle: `./eng/test-migration-deployment.sh`
-  - EF Core floor/latest matrix: `efcore-patch-matrix`
+  - exact EF Core 11 RC.1 graph: repository and six-engine specification gates
   - MySqlConnector floor/latest matrix: `mysqlconnector-patch-matrix`
   - supported MySqlConnector range: `[2.5.0, 3.0.0)`
   - driver evidence:

@@ -117,8 +117,8 @@ public sealed class SymbolReadbackManifestBuilderTests
     )
     {
         var pdbPath = Path.ChangeExtension(assemblyPath, ".pdb");
-        var assemblyEntry = $"lib/net10.0/{packageId}.dll";
-        var pdbEntry = $"lib/net10.0/{packageId}.pdb";
+        var assemblyEntry = $"lib/net11.0/{packageId}.dll";
+        var pdbEntry = $"lib/net11.0/{packageId}.pdb";
         var packagesRoot = Path.Combine(candidateRoot, "packages");
 
         using (var package = ZipFile.Open(

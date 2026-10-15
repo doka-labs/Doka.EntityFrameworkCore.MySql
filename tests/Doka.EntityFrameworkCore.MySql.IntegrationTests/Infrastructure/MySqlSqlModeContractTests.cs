@@ -198,16 +198,16 @@ public sealed class MySqlSqlModeContractTests
 
         Assert.NotNull(escapeMethod);
 
-        foreach (var @case in cases)
+        foreach (var (propertyName, expected) in cases)
         {
-            var escapedSegment = Assert.IsType<string>(escapeMethod.Invoke(null, [@case.PropertyName]));
+            var escapedSegment = Assert.IsType<string>(escapeMethod.Invoke(null, [propertyName]));
             var jsonLiteral = MySqlSqlLiteralGenerator.Generate(json);
             var pathLiteral = MySqlSqlLiteralGenerator.Generate($"$.{escapedSegment}");
             await using var command = connection.CreateCommand();
             command.CommandText = $"SELECT JSON_UNQUOTE(JSON_EXTRACT({jsonLiteral}, {pathLiteral}));";
 
             Assert.Equal(
-                @case.Expected,
+                expected,
                 Assert.IsType<string>(
                     await command
                         .ExecuteScalarAsync(CancellationToken.None)

@@ -11,7 +11,7 @@ public sealed class MySqlMigrationOperationContractTests
     {
         MigrationOperation operation = null!;
 
-        Assert.Throws<ArgumentNullException>(() => operation.GetMySqlMigrationMetadata());
+        Assert.Throws<ArgumentNullException>(operation.GetMySqlMigrationMetadata);
     }
 
     [Theory]
@@ -145,7 +145,7 @@ public sealed class MySqlMigrationOperationContractTests
             : CreateColumnOperation();
         operation[annotationName] = "invalid";
 
-        Assert.Throws<InvalidOperationException>(() => operation.GetMySqlMigrationMetadata());
+        Assert.Throws<InvalidOperationException>(operation.GetMySqlMigrationMetadata);
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public sealed class MySqlMigrationOperationContractTests
         var operation = CreateColumnOperation();
         operation[MySqlAnnotationNames.GuidFormat] = (MySqlGuidFormat)int.MaxValue;
 
-        Assert.Throws<InvalidOperationException>(() => operation.GetMySqlMigrationMetadata());
+        Assert.Throws<InvalidOperationException>(operation.GetMySqlMigrationMetadata);
     }
 
     [Theory]
@@ -172,7 +172,7 @@ public sealed class MySqlMigrationOperationContractTests
         operation.ColumnType = columnType;
         operation[MySqlAnnotationNames.GuidFormat] = format;
 
-        Assert.Throws<InvalidOperationException>(() => operation.GetMySqlMigrationMetadata());
+        Assert.Throws<InvalidOperationException>(operation.GetMySqlMigrationMetadata);
     }
 
     [Theory]
@@ -220,7 +220,7 @@ public sealed class MySqlMigrationOperationContractTests
         var operation = new SqlOperation { Sql = "SELECT 1;" };
         operation[annotationName] = annotationValue ?? new[] { 0 };
 
-        Assert.Throws<InvalidOperationException>(() => operation.GetMySqlMigrationMetadata());
+        Assert.Throws<InvalidOperationException>(operation.GetMySqlMigrationMetadata);
     }
 
     [Fact]
@@ -234,7 +234,7 @@ public sealed class MySqlMigrationOperationContractTests
         };
         operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { -1 };
 
-        Assert.Throws<InvalidOperationException>(() => operation.GetMySqlMigrationMetadata());
+        Assert.Throws<InvalidOperationException>(operation.GetMySqlMigrationMetadata);
     }
 
     [Fact]
@@ -248,7 +248,7 @@ public sealed class MySqlMigrationOperationContractTests
         };
         operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { 16 };
 
-        Assert.Throws<InvalidOperationException>(() => operation.GetMySqlMigrationMetadata());
+        Assert.Throws<InvalidOperationException>(operation.GetMySqlMigrationMetadata);
     }
 
     [Fact]
@@ -262,7 +262,7 @@ public sealed class MySqlMigrationOperationContractTests
         };
         operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { 16 };
 
-        Assert.Throws<InvalidOperationException>(() => operation.GetMySqlMigrationMetadata());
+        Assert.Throws<InvalidOperationException>(operation.GetMySqlMigrationMetadata);
     }
 
     [Fact]

@@ -50,7 +50,7 @@ public sealed class MySqlJsonElementTypeMappingTests
     public void Native_json_mappings_generate_executable_model_value_literals()
     {
         using var sourceDocument = JsonDocument.Parse("""{"kind":"document"}""");
-        var cases = new (MySqlJsonTypeMapping Mapping, object Value, Type ExpectedType)[]
+        var cases = new (RelationalTypeMapping Mapping, object Value, Type ExpectedType)[]
         {
             (
                 MySqlJsonTypeMapping.CreateJsonElementMapping(),
@@ -94,7 +94,7 @@ public sealed class MySqlJsonElementTypeMappingTests
     [Fact]
     public void Native_json_mappings_reject_non_json_code_literal_values()
     {
-        var mappings = new[]
+        RelationalTypeMapping[] mappings =
         {
             MySqlJsonTypeMapping.CreateJsonElementMapping(),
             MySqlJsonTypeMapping.CreateJsonDocumentMapping(),

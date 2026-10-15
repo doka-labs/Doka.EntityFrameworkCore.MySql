@@ -30,6 +30,58 @@ public sealed class MySqlModelValidatorAndDdlTests
     }
 
     /// <summary>
+    /// A direct index over a JSON complex value is rejected before invalid DDL
+    /// reaches the server.
+    /// </summary>
+    [Fact]
+    public void Direct_index_on_json_complex_property_is_rejected()
+    {
+        using var context = new JsonIndexContext<JsonComplexPropertyScenario>(
+            CreateOptions<JsonIndexContext<JsonComplexPropertyScenario>>());
+
+        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+
+        Assert.Contains("targets JSON-mapped member 'Payload'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("generated column", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A direct index over a scalar path inside JSON storage is rejected rather
+    /// than being emitted as an index over the container column.
+    /// </summary>
+    [Fact]
+    public void Direct_index_on_json_scalar_path_is_rejected()
+    {
+        using var context = new JsonIndexContext<JsonScalarPathScenario>(
+            CreateOptions<JsonIndexContext<JsonScalarPathScenario>>());
+
+        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+
+        Assert.Contains("targets JSON-mapped member 'Code'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("generated column", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An indexed scalar generated from JSON remains a supported, explicit
+    /// representation of the engine's indirect-indexing contract.
+    /// </summary>
+    [Fact]
+    public void Generated_scalar_index_for_json_path_is_accepted()
+    {
+        using var context = new JsonIndexContext<JsonGeneratedColumnScenario>(
+            CreateOptions<JsonIndexContext<JsonGeneratedColumnScenario>>());
+
+        var entityType = context.Model.FindEntityType(typeof(JsonIndexEntity));
+        var index = Assert.Single(entityType!.GetIndexes());
+        var property = Assert.IsAssignableFrom<IProperty>(Assert.Single(index.Properties));
+
+        Assert.Equal(nameof(JsonIndexEntity.PayloadCode), property.Name);
+        Assert.Equal(
+            "JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.Code'))",
+            property.GetComputedColumnSql());
+    }
+
+    /// <summary>
     /// An explicitly bounded utf8mb4 index that exceeds the largest InnoDB key
     /// budget is rejected before SQL generation.
     /// </summary>
@@ -268,7 +320,9 @@ public sealed class MySqlModelValidatorAndDdlTests
         var dependent = context.Model.FindEntityType(typeof(ForeignKeyIndexWidthDependent));
         var index = Assert.Single(dependent!.GetIndexes());
 
-        Assert.True(index.Properties.Single().IsForeignKey());
+        Assert.Contains(
+            dependent.GetForeignKeys(),
+            foreignKey => foreignKey.Properties.SequenceEqual(index.Properties));
     }
 
     [Fact]
@@ -585,6 +639,64 @@ public sealed class MySqlModelValidatorAndDdlTests
                 entity.HasIndex(item => item.Body);
             });
         }
+    }
+
+    private sealed class JsonIndexContext<TScenario> : DbContext
+        where TScenario : class
+    {
+        public JsonIndexContext(
+            DbContextOptions<JsonIndexContext<TScenario>> options
+        ) : base(options) { }
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<JsonIndexEntity>(entity =>
+            {
+                entity.HasKey(item => item.Id);
+                entity.ComplexProperty(item => item.Payload, complex => complex.ToJson());
+
+                if (typeof(TScenario) == typeof(JsonComplexPropertyScenario))
+                {
+                    entity.HasIndex(item => item.Payload);
+                }
+                else if (typeof(TScenario) == typeof(JsonScalarPathScenario))
+                {
+                    entity.HasIndex(["Payload.Code"]);
+                }
+                else
+                {
+                    entity
+                        .Property(item => item.PayloadCode)
+                        .HasColumnType("varchar(64)")
+                        .HasComputedColumnSql(
+                            "JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.Code'))",
+                            stored: false);
+                    entity.HasIndex(item => item.PayloadCode);
+                }
+            });
+        }
+    }
+
+    private sealed class JsonComplexPropertyScenario;
+
+    private sealed class JsonScalarPathScenario;
+
+    private sealed class JsonGeneratedColumnScenario;
+
+    private sealed class JsonIndexEntity
+    {
+        public int Id { get; set; }
+
+        public JsonIndexPayload Payload { get; set; } = new();
+
+        public string? PayloadCode { get; set; }
+    }
+
+    private sealed class JsonIndexPayload
+    {
+        public string? Code { get; set; }
     }
 
     private sealed class IndexWidthContext<TScenario> : DbContext

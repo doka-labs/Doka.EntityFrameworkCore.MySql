@@ -503,7 +503,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
             _listener = new ActivityListener
             {
                 ShouldListenTo = source => source.Name == MySqlDiagnostics.SourceName,
-                Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+                Sample = SampleAllData,
                 ActivityStopped = Activities.Enqueue,
             };
             ActivitySource.AddActivityListener(_listener);
@@ -513,6 +513,10 @@ public sealed class MySqlActivityAndMeterSmokeTests
         // emitted by parallel test collections. Concurrent capture keeps both
         // writes and assertion enumeration safe without disabling parallelism.
         public ConcurrentQueue<Activity> Activities { get; } = new();
+
+        private static ActivitySamplingResult SampleAllData(
+            ref ActivityCreationOptions<ActivityContext> _
+        ) => ActivitySamplingResult.AllData;
 
         public void Dispose() => _listener.Dispose();
     }
@@ -558,8 +562,8 @@ public sealed class MySqlActivityAndMeterSmokeTests
         where T : struct
     {
         private readonly MeterListener _listener;
-        private readonly List<double> _measurements = new();
-        private readonly ConcurrentQueue<IReadOnlyDictionary<string, object?>> _tagSets = new();
+        private readonly List<double> _measurements = [];
+        private readonly ConcurrentQueue<IReadOnlyDictionary<string, object?>> _tagSets = [];
         private readonly Lock _lock = new();
 
         public HistogramSink(

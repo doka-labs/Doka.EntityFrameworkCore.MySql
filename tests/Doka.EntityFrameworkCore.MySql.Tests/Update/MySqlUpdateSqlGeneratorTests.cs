@@ -335,17 +335,17 @@ public sealed class MySqlUpdateSqlGeneratorTests
         var modifications = new IColumnModification[columns.Length];
         for (var index = 0; index < columns.Length; index++)
         {
-            var column = columns[index];
+            var (name, read, write) = columns[index];
             modifications[index] = new ColumnModification(
                 new ColumnModificationParameters(
-                    column.Name,
+                    name,
                     originalValue: null,
                     value: 1,
                     property: null,
                     columnType: "int",
                     typeMapping: IntTypeMapping.Default,
-                    read: column.Read,
-                    write: column.Write,
+                    read,
+                    write,
                     key: false,
                     condition: false,
                     sensitiveLoggingEnabled: false,

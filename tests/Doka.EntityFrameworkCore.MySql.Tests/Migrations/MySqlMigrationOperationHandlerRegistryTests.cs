@@ -206,14 +206,14 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
         Assert.DoesNotContain(secret, exception.Message, StringComparison.Ordinal);
     }
 
-    public static TheoryData<Type> InvalidOperationTypes => new()
-    {
+    public static TheoryData<Type> InvalidOperationTypes =>
+    [
         null!,
         typeof(string),
         typeof(MigrationOperation),
         typeof(AbstractOperation),
         typeof(OpenGenericOperation<>),
-    };
+    ];
 
     private static MySqlMigrationOperationHandlerRegistry.Registration AssertRegistration(
         MySqlMigrationOperationHandlerRegistry registry,

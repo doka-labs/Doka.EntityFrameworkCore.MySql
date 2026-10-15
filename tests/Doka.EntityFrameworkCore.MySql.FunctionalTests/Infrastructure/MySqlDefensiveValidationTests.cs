@@ -567,7 +567,7 @@ public sealed class MySqlDefensiveValidationTests
             .Set<DefensiveEntity>()
             .Where(entity => EF.Functions.Collate(entity.Name, collation) == "value");
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
         Assert.Contains(MySqlAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(collation, exception.Message, StringComparison.Ordinal);

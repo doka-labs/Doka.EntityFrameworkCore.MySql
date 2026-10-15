@@ -1,5 +1,4 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-using Xunit.Abstractions;
 using OwnedJson = Microsoft.EntityFrameworkCore.Query.Associations.OwnedJson;
 using OwnedNavigations = Microsoft.EntityFrameworkCore.Query.Associations.OwnedNavigations;
 using OwnedTable = Microsoft.EntityFrameworkCore.Query.Associations.OwnedTableSplitting;

@@ -1,7 +1,6 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Fixtures;
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestModels.NullSemanticsModel;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
@@ -55,7 +54,7 @@ public sealed partial class GearsOfWarQueryMySqlTest : GearsOfWarQueryRelational
     /// Executes the upstream take-then-order contract without assigning a deterministic
     /// relative order to rows whose requested <c>Rank</c> values are equal.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InheritedTheoryData]
     public override Task Take_without_orderby_followed_by_orderBy_is_pushed_down1(
         bool async
@@ -65,12 +64,13 @@ public sealed partial class GearsOfWarQueryMySqlTest : GearsOfWarQueryRelational
     /// Executes the equivalent query-syntax contract without assigning a deterministic
     /// relative order to rows whose requested <c>Rank</c> values are equal.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InheritedTheoryData]
     public override Task Take_without_orderby_followed_by_orderBy_is_pushed_down2(
         bool async
     ) => AssertTakeThenOrderByRank(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MYSQL-MARIADB-TEMPORAL-MICROSECOND-PRECISION", "mysql84", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]

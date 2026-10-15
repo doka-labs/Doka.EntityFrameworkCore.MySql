@@ -365,6 +365,24 @@ public sealed class MySqlTypeMappingBaselineTests
     }
 
     /// <summary>
+    /// Verifies that explicit DateTime store types preserve MySQL's highest
+    /// supported fractional-seconds precision.
+    /// </summary>
+    [Fact]
+    public void DateTime_mappings_accept_explicit_fractional_precision_six()
+    {
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var typeMappingSource = context.GetService<IRelationalTypeMappingSource>();
+
+        Assert.Equal(
+            "datetime(6)",
+            typeMappingSource.FindMapping(typeof(DateTime), "datetime(6)")!.StoreType);
+        Assert.Equal(
+            "timestamp(6)",
+            typeMappingSource.FindMapping(typeof(DateTime), "timestamp(6)")!.StoreType);
+    }
+
+    /// <summary>
     /// Verifies that unsupported server precision is rejected before an
     /// invalid temporal literal can enter generated SQL.
     /// </summary>

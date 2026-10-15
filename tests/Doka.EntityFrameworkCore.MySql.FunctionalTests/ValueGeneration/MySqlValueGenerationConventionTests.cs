@@ -237,11 +237,9 @@ public sealed class MySqlValueGenerationConventionTests
     {
         public int Id { get; set; }
 
-        public ICollection<OwnedCollectionElement> Elements { get; } =
-            new List<OwnedCollectionElement>();
+        public ICollection<OwnedCollectionElement> Elements { get; } = [];
 
-        public ICollection<CompositeOwnedCollectionElement> CompositeElements { get; } =
-            new List<CompositeOwnedCollectionElement>();
+        public ICollection<CompositeOwnedCollectionElement> CompositeElements { get; } = [];
     }
 
     private sealed class OwnedCollectionElement
@@ -258,8 +256,7 @@ public sealed class MySqlValueGenerationConventionTests
     {
         public Guid Id { get; set; }
 
-        public ICollection<GuidStringDependent> Dependents { get; } =
-            new List<GuidStringDependent>();
+        public ICollection<GuidStringDependent> Dependents { get; } = [];
     }
 
     private sealed class GuidStringDependent

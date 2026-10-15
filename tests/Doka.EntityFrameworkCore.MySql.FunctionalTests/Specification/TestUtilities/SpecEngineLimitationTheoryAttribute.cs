@@ -1,5 +1,3 @@
-using Xunit.Sdk;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 
 /// <summary>
@@ -9,20 +7,16 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 /// entry in <c>Specification/SpecDispositions.json</c>.
 /// </summary>
 /// <remarks>
-/// Target selection is evaluated during xUnit discovery from
-/// <c>DOKA_SPEC_TEST_TARGET</c>. This produces an actual skipped test case and prevents an
-/// engine exception from being hidden behind a successful no-op method body.
+/// Target selection is evaluated by the xUnit v3 execution pipeline from
+/// <c>DOKA_SPEC_TEST_TARGET</c>. This produces an actual skipped test case without adding a
+/// second theory attribute to the inherited EF Core test method.
 /// Data rows may be declared on the provider override or inherited from its nearest base
-/// declaration; the custom discoverer consumes exactly one source.
+/// declaration through <see cref="InheritedTheoryDataAttribute"/>.
 /// Setting <c>DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true</c> deliberately disables these skips
 /// so the documented failure can be reproduced without editing test source.
 /// </remarks>
-[XunitTestCaseDiscoverer(
-    "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities."
-    + "DirectTheoryDiscoverer",
-    "Doka.EntityFrameworkCore.MySql.FunctionalTests")]
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-public sealed class SpecEngineLimitationTheoryAttribute : TheoryAttribute
+public sealed class SpecEngineLimitationTheoryAttribute : SpecDispositionAttribute
 {
     /// <summary>
     /// Creates an engine-limited theory disposition.
@@ -30,17 +24,30 @@ public sealed class SpecEngineLimitationTheoryAttribute : TheoryAttribute
     /// <param name="dispositionId">
     /// Stable identifier of the corresponding machine-readable disposition.
     /// </param>
-    /// <param name="unsupportedTargets">
-    /// Targets covered when the source annotation was authored. The ledger may
-    /// add later LTS targets, but it cannot silently remove an annotated target.
-    /// </param>
+    /// <param name="firstUnsupportedTarget">First target covered by the disposition.</param>
+    /// <param name="secondUnsupportedTarget">Optional second covered target.</param>
+    /// <param name="thirdUnsupportedTarget">Optional third covered target.</param>
     public SpecEngineLimitationTheoryAttribute(
         string dispositionId,
-        params string[] unsupportedTargets
+        string firstUnsupportedTarget,
+        string? secondUnsupportedTarget = null,
+        string? thirdUnsupportedTarget = null
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dispositionId);
-        ArgumentNullException.ThrowIfNull(unsupportedTargets);
+        ArgumentException.ThrowIfNullOrWhiteSpace(firstUnsupportedTarget);
+
+        var unsupportedTargets = new List<string> { firstUnsupportedTarget };
+
+        if (secondUnsupportedTarget is not null)
+        {
+            unsupportedTargets.Add(secondUnsupportedTarget);
+        }
+
+        if (thirdUnsupportedTarget is not null)
+        {
+            unsupportedTargets.Add(thirdUnsupportedTarget);
+        }
 
         DispositionId = dispositionId;
         UnsupportedTargets = SpecEngineDispositionCatalog.GetTargets(
@@ -51,7 +58,7 @@ public sealed class SpecEngineLimitationTheoryAttribute : TheoryAttribute
         if (UnsupportedTargets.Contains(target, StringComparer.OrdinalIgnoreCase)
             && !SpecTestTarget.IsEngineLimitationProbeEnabled())
         {
-            Skip =
+            SkipReason =
                 $"[spec-engine-limit:{dispositionId}] Target '{target}' is covered by "
                 + "the primary-source-backed specification disposition ledger.";
         }

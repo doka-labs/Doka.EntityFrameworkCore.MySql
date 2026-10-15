@@ -9,7 +9,7 @@ scope: "EF Core package range and compatibility verification"
 supersedes: []
 superseded-by: []
 amends: []
-amended-by: [D-023]
+amended-by: [D-023, D-013]
 madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
@@ -53,6 +53,10 @@ scenarios that the consumer would hit at runtime.
 ## Decision Outcome
 
 Chosen option: "Patch range with floor and latest matrix", because a bounded patch range balances consumer patching with evidence-backed compatibility.
+
+This decision governs the published 10.x maintenance line. D-013 amends it for
+the isolated 11.x line, which uses one exact EF Core RC graph and does not run
+the 10.x floor/latest matrix.
 
 Pin `Microsoft.EntityFrameworkCore.*` packages to the range
 `[10.0.8, 10.1.0)` in `Directory.Packages.props`. The range covers the
@@ -148,14 +152,12 @@ missing, swapped, widened, or non-exact row.
 
 ### Implementation Snapshot
 
-- `Directory.Packages.props` applies the `DokaEfCoreVersion` property to the
-  three Microsoft.EntityFrameworkCore.* packages and defaults it to
-  `[10.0.8, 10.1.0)`. `.github/workflows/ci.yml` runs the default floor in its
-  fast lane. Its weekly and manually dispatched exhaustive lane overrides the
-  property with `10.0.8` and `10.0.*`, asserts the resolved package graph, and
-  runs non-live, specification, live, and integration coverage for both matrix
-  entries. Release qualification instead selects the numerically highest exact
-  10.0.x patch already listed in `SpecSuiteBaseline.json`.
+- The published 10.x maintenance line retains the bounded patch-range policy
+  and its historical floor/latest evidence.
+- The isolated 11.x line is governed by D-013. Its
+  `Directory.Packages.props` applies one exact RC.1 version through
+  `DokaEfCoreVersion`; repository and release workflows verify that exact
+  resolved graph instead of invoking the retired 10.x patch-matrix runner.
 
 ### Implementation Notes
 
@@ -231,14 +233,16 @@ missing, swapped, widened, or non-exact row.
   patch already registered in the reviewed specification baseline. Scheduled
   verification retains floating `10.0.*` discovery so a newly published patch
   cannot alter a previously green release commit.
+- 2026-09-19: Amended by D-013 for the isolated 11.x line. The 10.x range and
+  its evidence remain a maintenance-line contract; 11.x uses an exact RC graph.
 
 ### Implementation References
 
 - `Directory.Packages.props`
 - `.github/workflows/ci.yml`
 - `eng/testing/check-spec-version-contract.sh`
-- `eng/testing/test-efcore-matrix.sh`
 - `eng/release/evidence.py`
+- `docs/decisions/D-013-ef-core-11-upgrade.md`
 
 ### Sources
 

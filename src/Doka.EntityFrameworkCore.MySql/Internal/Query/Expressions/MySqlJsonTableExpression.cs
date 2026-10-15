@@ -42,7 +42,7 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
         RelationalTypeMapping? ResultTypeMapping = null
     );
 
-    public SqlExpression JsonExpression => Arguments[0];
+    public SqlExpression JsonExpression => (SqlExpression)Arguments[0];
 
     public IReadOnlyList<PathSegment>? Path { get; }
 
@@ -199,7 +199,7 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
             : Expression.ListInit(
                 Expression.New(typeof(List<ColumnInfo>)),
                 ColumnInfos.Select(column => Expression.ElementInit(
-                    s_columnInfoAddMethod ??= typeof(List<ColumnInfo>).GetMethod(nameof(List<ColumnInfo>.Add))!,
+                    s_columnInfoAddMethod ??= typeof(List<ColumnInfo>).GetMethod(nameof(List<>.Add))!,
                     Expression.New(
                         s_columnInfoQuotingConstructor ??= typeof(ColumnInfo).GetConstructor(
                         [
@@ -228,7 +228,7 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
     ) => Expression.ListInit(
         Expression.New(typeof(List<PathSegment>)),
         path.Select(segment => Expression.ElementInit(
-            s_pathSegmentAddMethod ??= typeof(List<PathSegment>).GetMethod(nameof(List<PathSegment>.Add))!,
+            s_pathSegmentAddMethod ??= typeof(List<PathSegment>).GetMethod(nameof(List<>.Add))!,
             segment.Quote())));
 
     protected override void Print(

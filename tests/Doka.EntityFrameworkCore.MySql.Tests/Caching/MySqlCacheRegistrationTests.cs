@@ -226,7 +226,7 @@ public sealed class MySqlCacheRegistrationTests
     /// Verifies validation at startup without requiring a cache operation.
     /// </summary>
     [Fact]
-    public void Startup_validation_rejects_missing_configuration_before_the_first_operation()
+    public async Task Startup_validation_rejects_missing_configuration_before_the_first_operation()
     {
         var services = new ServiceCollection();
         services.AddDistributedMySqlCache(static _ =>
@@ -234,8 +234,10 @@ public sealed class MySqlCacheRegistrationTests
         });
         using var provider = services.BuildServiceProvider();
 
-        var exception = Assert.Throws<OptionsValidationException>(() =>
-            provider.GetRequiredService<IStartupValidator>().Validate());
+        var exception = await Assert.ThrowsAsync<OptionsValidationException>(() =>
+            provider
+                .GetRequiredService<IAsyncStartupValidator>()
+                .ValidateAsync(TestContext.Current.CancellationToken));
 
         Assert.Contains(exception.Failures, failure => failure.Contains("ConnectionString", StringComparison.Ordinal));
         Assert.Contains(exception.Failures, failure => failure.Contains("SchemaName", StringComparison.Ordinal));
@@ -286,7 +288,7 @@ public sealed class MySqlCacheRegistrationTests
     /// Verifies that the system-time fallback resolves without requiring a clock or database connection.
     /// </summary>
     [Fact]
-    public void Startup_and_resolution_without_a_time_provider_do_not_connect_or_create_the_schema()
+    public async Task Startup_and_resolution_without_a_time_provider_do_not_connect_or_create_the_schema()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -294,7 +296,9 @@ public sealed class MySqlCacheRegistrationTests
         using var provider = MySqlCacheTestFactory.CreateProvider(options =>
             options.ConnectionString = $"Server=127.0.0.1;Port={port};User ID=cache;Pooling=false");
 
-        provider.GetRequiredService<IStartupValidator>().Validate();
+        await provider
+            .GetRequiredService<IAsyncStartupValidator>()
+            .ValidateAsync(TestContext.Current.CancellationToken);
         _ = provider.GetRequiredService<IDistributedCache>();
         _ = provider.GetRequiredService<IBufferDistributedCache>();
 
@@ -327,9 +331,9 @@ public sealed class MySqlCacheRegistrationTests
             .Configure<MySqlDataSource>((options, source) => options.DataSource = source);
 
         await using var provider = services.BuildServiceProvider();
-        provider
-            .GetRequiredService<IStartupValidator>()
-            .Validate();
+        await provider
+            .GetRequiredService<IAsyncStartupValidator>()
+            .ValidateAsync(TestContext.Current.CancellationToken);
 
         Assert.Same(
             provider.GetRequiredService<IDistributedCache>(),
