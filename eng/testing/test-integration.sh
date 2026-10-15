@@ -415,16 +415,16 @@ run_integration_tests() {
             mkdir -p "${target_test_output_dir}"
             cp -R "${test_output_dir}/." "${target_test_output_dir}/" || return $?
 
+            # MTP uses --output for console verbosity. Select the copied module
+            # explicitly so Coverlet never instruments the shared build output.
             local test_arguments=(
-                --configuration Release
-                --no-build
-                --no-restore
-                --output "${target_test_output_dir}"
-                --tl:off
+                --test-modules "$(basename "${test_assembly_path}")"
+                --root-directory "${target_test_output_dir}"
+                --results-directory "${target_results_dir}"
+                --
                 --coverlet
                 --coverlet-output-format cobertura
                 --coverlet-file-prefix "integration-${target}"
-                --results-directory "${target_results_dir}"
                 --report-xunit-trx
                 --report-xunit-trx-filename integration.trx
             )
@@ -436,7 +436,7 @@ run_integration_tests() {
             echo "Starting isolated integration process for ${target}..."
             DOKA_INTEGRATION_TARGETS="${target}" \
             DOKA_TEST_DATABASE_EVIDENCE_FILE="${target_evidence_file}" \
-                dotnet test --project "${integration_test_project}" "${test_arguments[@]}" &
+                dotnet test "${test_arguments[@]}" &
             active_target_pids+=("$!")
             active_target_pid_count=$((active_target_pid_count + 1))
             batch_targets+=("${target}")
