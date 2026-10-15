@@ -67,19 +67,33 @@ case "${1:-}" in
     test)
         target="${DOKA_INTEGRATION_TARGETS:?}"
         shift
-        test_output=""
+        test_module=""
+        test_root=""
 
         while (( $# > 0 )); do
-            if [[ "$1" == "--output" ]]; then
-                test_output="${2:?}"
-                shift 2
-            else
-                shift
-            fi
+            case "$1" in
+                --test-modules)
+                    test_module="${2:?}"
+                    shift 2
+                    ;;
+                --root-directory)
+                    test_root="${2:?}"
+                    shift 2
+                    ;;
+                --project|--output)
+                    # In MTP, --output controls verbosity rather than the
+                    # test assembly path. Reject the former VSTest invocation.
+                    exit 34
+                    ;;
+                *)
+                    shift
+                    ;;
+            esac
         done
 
-        copied_assembly="${test_output}/$(basename "${FAKE_TEST_ASSEMBLY_PATH:?}")"
-        if [[ -z "${test_output}" || "${copied_assembly}" == "${FAKE_TEST_ASSEMBLY_PATH}" \
+        copied_assembly="${test_root}/${test_module}"
+        if [[ "${test_module}" != "$(basename "${FAKE_TEST_ASSEMBLY_PATH:?}")" \
+            || -z "${test_root}" || "${copied_assembly}" == "${FAKE_TEST_ASSEMBLY_PATH}" \
             || ! -f "${copied_assembly}" ]]; then
             exit 31
         fi
@@ -87,7 +101,7 @@ case "${1:-}" in
         cmp -s "${FAKE_TEST_ASSEMBLY_PATH}" "${copied_assembly}" || exit 32
         # A hard link would still let Coverlet rewrite the shared build.
         [[ ! "${FAKE_TEST_ASSEMBLY_PATH}" -ef "${copied_assembly}" ]] || exit 33
-        printf '%s\\n' "${test_output}" > "${FAKE_BARRIER_DIR:?}/${target}.output"
+        printf '%s\\n' "${test_root}" > "${FAKE_BARRIER_DIR:?}/${target}.output"
         printf 'start:%s\\n' "${target}" >> "${FAKE_EVENT_PATH:?}"
 
         if [[ "${FAKE_WAIT_FOR_SIGNAL:-0}" == "1" ]]; then
