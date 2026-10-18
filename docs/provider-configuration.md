@@ -61,7 +61,17 @@ options.UseMySql(
 
 `MySqlServerVersion.MySql(...)` and `MariaDb(...)` avoid family inference.
 `Parse(...)` accepts a server version string, including MariaDB's legacy
-`5.5.5-...-MariaDB` prefix. Detection has two ownership contracts:
+`5.5.5-...-MariaDB` prefix.
+
+The unreleased `context.Database.IsMariaDb()` extension reads the family from
+the server version configured by `UseMySql`. It does not open a connection,
+autodetect a version, or verify that the reachable server matches the
+configuration. It remains independent of supplied or compiled model
+annotations. Import `Doka.EntityFrameworkCore.MySql` to use the extension;
+contexts without Doka provider options or a configured server version fail
+instead of silently assuming MySQL.
+
+Detection has two ownership contracts:
 
 | Entry point | I/O and lifetime |
 | --- | --- |

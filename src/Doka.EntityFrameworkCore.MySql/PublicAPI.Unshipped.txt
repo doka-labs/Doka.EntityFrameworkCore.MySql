@@ -1,1 +1,5 @@
 #nullable enable
+Doka.EntityFrameworkCore.MySql.MySqlDatabaseFacadeExtensions
+static Doka.EntityFrameworkCore.MySql.MySqlDatabaseFacadeExtensions.IsMariaDb(this Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade! database) -> bool
+Doka.EntityFrameworkCore.MySql.MySqlQueryableExtensions
+static Doka.EntityFrameworkCore.MySql.MySqlQueryableExtensions.WithMaterializedSource<TSource, TResult>(this System.Linq.IQueryable<TSource>! source, System.Linq.Expressions.Expression<System.Func<System.Linq.IQueryable<TSource>!, System.Linq.IQueryable<TResult>!>!>! compose) -> System.Linq.IQueryable<TResult>!

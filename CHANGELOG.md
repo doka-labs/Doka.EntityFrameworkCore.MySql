@@ -7,6 +7,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Add `Database.IsMariaDb()` to read the server family configured by
+  `UseMySql` without opening a connection or detecting the live server. See
+  [provider configuration](docs/provider-configuration.md#connection-and-server-configuration).
+- Add `WithMaterializedSource` for composing one statement over a shared SQL
+  source. Repeated references retain the same selected occurrences, paging,
+  duplicate rows, and computed values, including volatile SQL projections.
+  The operator preserves native mappings and normal EF parameterization,
+  tracking, cancellation, and query-cache behavior. Named/shared entity
+  mapping and temporal root lineage remain intact through navigation and entity
+  set operations. Completed source filters are not reapplied to its references.
+  Supported owned-reference sources retain their captured data. Unsupported
+  client/collection sources, contributing non-owned-reference eager-loading
+  sources, collection includes directly on bound entities, foreign contexts,
+  and split execution fail before SQL execution. Normal reference includes
+  remain available on composed output. Materialization is an explicit contract,
+  not a guarantee of a faster or more selective consuming query. See
+  [the source-binding guide](docs/ctes.md#bind-one-source-for-several-references).
+
 ## [10.5.0] - 2026-10-14
 
 Stable minor release adding an explicit MariaDB-native UUID mapping. Existing

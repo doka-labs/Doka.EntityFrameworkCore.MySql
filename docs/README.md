@@ -32,7 +32,8 @@ and operational procedures.
   storage, query operators, migrations, reverse engineering,
   application-time periods, and bitemporal storage.
 - [Common Table Expressions](ctes.md) covers recursive and non-recursive query
-  roots, parameterization, composability, and data-modification boundaries.
+  roots, statement-local materialized LINQ sources, parameterization,
+  composability, and data-modification boundaries.
 - [Migration Operation Handlers](migration-operation-handlers.md) defines the
   additive custom-operation SPI, registration boundary, capability projection,
   failure contract, and package-author verification matrix.

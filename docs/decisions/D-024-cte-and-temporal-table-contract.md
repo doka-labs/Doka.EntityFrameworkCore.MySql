@@ -30,6 +30,16 @@ system-versioned tables. MySQL 8.4 does not provide the corresponding native
 table feature, so portable provider behavior requires a provider-owned history
 table and trigger implementation rather than an unsupported-provider result.
 
+A later concrete consumer also needs the same completed SQL source in several
+references: once for scalar bound aggregates and again for exact result pairs,
+or in disjoint `UNION ALL` branches. The source can contain duplicates, paging,
+and volatile computed values. Repeating its expression is not equivalent to
+binding those occurrences once. Native MariaDB 11.8.9 controls found that an
+ordinary CTE, including a window fence, can be cloned per reference; a recursive
+CTE with an empty recursive arm retained the selected values. MySQL 8.4.11 also
+retained those values with the empty-arm form. This semantic requirement is
+separate from choosing indexes or proving a selective query plan.
+
 ## Decision Drivers
 
 - The provider must not be the limiting factor when an engine can perform the
@@ -37,6 +47,13 @@ table and trigger implementation rather than an unsupported-provider result.
 - Engine limitations and provider implementation status must remain separate.
 - CTE composition must retain EF Core parameterization, tracking, async, and
   query-pipeline behavior.
+- Repeated references to an explicitly bound source must preserve its original
+  occurrences, paging, native mappings, and stored volatile values.
+- Bound entity references must preserve exact named mapping identity and the
+  original temporal/application-time root semantics through navigation and
+  entity set-operation validation.
+- A consumed source-binding capability must not grow into a general CTE DSL,
+  application data cache, session-table protocol, or domain-specific query API.
 - Temporal queries need one public, engine-independent EF-style contract.
 - MariaDB must use its native system-versioning syntax and semantics.
 - MySQL must receive equivalent provider semantics through explicit emulation.
@@ -57,13 +74,53 @@ Chosen option: "Native CTEs plus native-or-emulated temporal routing", because
 it preserves native engine behavior while presenting one complete provider
 contract on every supported engine.
 
-CTEs use EF Core's existing composable SQL surface. The provider recognizes
+CTEs retain EF Core's existing composable SQL surface. The provider recognizes
 `WITH` and `WITH RECURSIVE`, validates the configured engine boundary, and
 retains parameter binding through `FromSql`, `FromSqlRaw`, `SqlQuery`, and
-`SqlQueryRaw`. The provider does not invent a LINQ-to-named-CTE rewrite API:
-EF Core 10 exposes CTE composition through its raw SQL query roots, and a
-provider-specific expression DSL would duplicate query-shaping surface without
-an upstream contract.
+`SqlQueryRaw`.
+
+For the concrete shared-source requirement, add exactly one operator:
+`MySqlQueryableExtensions.WithMaterializedSource<TSource, TResult>(
+IQueryable<TSource>, Expression<Func<IQueryable<TSource>, IQueryable<TResult>>>)`.
+The expression parameter gives references lexical identity without public CTE
+names, arbitrary recursion, or a second query language. The original decision
+against a general LINQ-to-named-CTE DSL remains: the added operator implements
+a demonstrated evaluation contract that repeating an ordinary IQueryable does
+not provide, rather than duplicating EF's query-shaping operators.
+
+The source is a completed, flat SQL relation, including its filters, duplicate
+occurrences, projected SQL values, and ordered page. Mapped entities and flat
+scalar projections retain native type mappings, nullability, collations,
+converters, and EF result identifiers. Reference filters do not alter other
+references. Independent bindings remain independent. Needed volatile source
+values are stored once for the bound occurrence; unused expressions and SQL
+side effects have no evaluation-order guarantee. Composed result ordering must
+be explicit, independently of the source page ordering. Bound entities retain
+the exact `IEntityType`, including named shared mappings, and their original
+query-root lineage. `TemporalAsOf` navigation retains the source instant;
+incompatible temporal entity set roots remain invalid. Application-time
+mutation/navigation and range-compatibility guards remain authoritative.
+
+Construction performs no I/O and returns `IQueryable<TResult>`. Normal EF
+terminal operators execute one parameterized statement per execution attempt,
+with the caller's exact cancellation token, execution strategy, transaction,
+and snapshot. There is no source preload, client evaluation fallback, extra
+connection, or temporary-session-table lifetime. Foreign provider/context use,
+escaped references, deferred client/collection source projections, contributing
+collection/non-owned-reference eager-loading sources, and multi-command split
+results fail before SQL execution. Supported owned-reference sources retain
+their captured values. Reference `Include` on composed output remains valid,
+including after binding; only collection `Include` directly on a bound entity
+is rejected. Normal entity/reference/collection output and scalar rejoins to
+mapped entities still follow EF's single-query shaping rules. The guide records
+the supported source/output distinction in detail.
+
+The provider lowers the binding to a native recursive CTE with an explicitly
+typed empty recursive arm and `UNION ALL`. This keeps one selected source bag
+without deduplicating its occurrences, and avoids MariaDB's observed cloning
+of ordinary multi-reference CTEs. The lowering is internal; it guarantees no
+particular physical temporary-table count, index use, or query complexity.
+Every supported engine line requires its own live qualification.
 
 Explicit `EF.CompileQuery` delegates around `FromSql` or temporal `DbSet`
 extensions are not part of this provider contract. EF Core replaces a `DbSet`
@@ -71,8 +128,11 @@ receiver with an `IQueryable` query root while funcletizing a compiled query,
 then rejects the extension call before provider translation because its method
 parameter remains `DbSet<T>`. The official EF Core 10 SQL Server temporal API
 uses the same receiver contract. Normal query execution still uses EF Core's
-query-shape compilation cache; the provider does not introduce a second,
-incompatible query API to bypass an upstream expression-pipeline boundary.
+query-shape compilation cache. That `DbSet` receiver boundary does not by itself
+apply to the new `IQueryable`-based source-binding operator. Its compiled-query
+shapes must be qualified against EF's own constraints. The binding uses normal
+parameter extraction and deterministic statement-local identities and aliases;
+it introduces no separate query/data cache or retained context state.
 
 MySQL 8.4 / 9.7 also accept CTEs as read sources for `UPDATE` and `DELETE`.
 MariaDB 12.3 provides the corresponding data-modification grammar; MariaDB
@@ -136,6 +196,12 @@ materialize that separate owned navigation remain valid.
   pipeline instead of introducing string concatenation or a parallel query DSL.
 - Good, because temporal schema and query differences are isolated behind
   typed capabilities and annotations.
+- Good, because one narrow source-binding contract preserves bags, paging,
+  native values, and multi-reference evaluation without a general CTE DSL.
+- Bad, because forced materialization consumes server resources and does not
+  make every consuming query faster or selective.
+- Bad, because provider-owned relational expression handling depends on exact
+  EF translation, cloning, and pruning behavior across the supported EF range.
 - Good, because MariaDB application-time and bitemporal behavior is available
   without raw SQL and round-trips through migrations and scaffolding.
 - Bad, because MySQL temporal emulation owns trigger correctness, schema-change
@@ -152,6 +218,45 @@ materialize that separate owned navigation remain valid.
   every supported engine. Verify that the caller's exact cancellation token
   reaches the relational command boundary. Run data-modification use on MySQL
   and verify the documented MariaDB engine boundary independently.
+- Run source-binding unit, functional, and all-six-engine integration contracts:
+  volatile values and selection, bags, paging, independent bindings, empty
+  sources, native mappings, supported model shapes, tracking, cache/parameter
+  reuse, context lifetime, exact cancellation, and one command per attempt.
+  Verify that foreign contexts, escaped references, client/collection source
+  shapes, contributing collection/non-owned-reference eager-loading sources,
+  and split results fail before a command. Distinguish preserved owned-reference
+  sources, scalar projections that eliminate source Includes, reference Include
+  after binding, and collection Include on an ordinary mapped rejoin target.
+- Verify quoted SQL reconstruction, shared definition identity, independent
+  top-level quotation scopes, aliases/annotations, and explicit cycle rejection.
+  `Quote_preserves_binding_source_schema_and_annotations` must retain original
+  string, Boolean, and null annotation values, including the null-valued entry.
+  Also exercise EF's actual C# translation path: compiling the quotation as an
+  expression alone does not establish generated-C# support. The
+  `Actual_csharp_translation_*` cases retain required constructor unsafe
+  accessors, parse the generated expression/declarations, reject cyclic graphs,
+  and bound definition growth, generated size, and allocations at depths
+  4/8/12 after warming the exact reference or owning-SELECT path. These are
+  translation and syntax checks, not cross-assembly compilation. NativeAOT
+  remains governed by D-017 rather than inferred from either quotation check.
+- Run `Raw_sql_name_collision_preserves_identifier_limit` and execute its
+  generated statement on native MySQL and MariaDB. Long reserved-name prefixes
+  in valid raw SQL must not force oversized CTE names; verify deterministic
+  collision resolution, no physical-name collision, and unchanged ordinary names.
+- Run `MySqlMaterializedSourceLineageTests` for exact named/shared mappings,
+  identity/join/navigation selectors, AsOf instant propagation, matching and
+  incompatible temporal entity set roots, source/outer and navigated-target
+  query filters with explicit filter opt-out, and application-time navigation
+  and range rejection. Translation tests establish those boundaries without
+  I/O; they do not replace native execution qualification.
+- Compare EF-generated statements with unbound references on native MariaDB and
+  MySQL. Read full results; record plans, source evaluation, intermediate work,
+  query-construction allocations, and server memory separately. Include broad,
+  deep, balanced, forest, and disjoint-chain data, sparse and dense inputs, and
+  one and 1,000 sources. Keep negative controls and timeouts visible; no
+  host-dependent latency threshold is a CI gate.
+- Run source-binding tests on EF Core 10.0.8 and 10.0.13 and repeat the existing
+  runtime-posture checks; NativeAOT remains governed by D-017.
 - Run temporal metadata validation and migration round trips for every supported
   engine route.
 - Run temporal query-boundary contracts for every query root, UTC precision,
@@ -173,6 +278,10 @@ materialize that separate owned navigation remain valid.
 - Good, because native engine facilities remain visible in generated SQL.
 - Bad, because the MySQL emulation path requires more migration and lifecycle
   tests than a native-only implementation.
+- Good, because the consumed source binder expresses one semantic requirement
+  that ordinary repeated query expressions cannot preserve.
+- Bad, because its native materialization and EF expression seams require
+  version-specific regression and performance evidence.
 
 ### Expose only raw SQL and native MariaDB temporal tables
 
@@ -197,10 +306,186 @@ MariaDB `BETWEEN` includes both bounds, while `FROM ... TO ...` excludes the
 upper bound. The provider's temporal query expressions preserve those distinct
 semantics instead of normalizing them into one approximate range operation.
 
+### Source-Binding Alternatives and Framework Seams
+
+A general named-CTE/recursive LINQ DSL remains rejected. It would introduce
+consumer alias management and recursive query semantics that neither active
+consumer needs. Repeating the source or using a normal/window-fenced CTE is
+also rejected for this contract: the MariaDB native counterexample changes
+volatile values between references. A key-only rejoin cannot preserve an
+arbitrary projection or identical duplicate occurrences. Client preloading and
+session temporary tables change command count, snapshot/lifetime, cancellation,
+and memory behavior. A separate provider query cache would compete with EF's
+parameter extraction and plan lifetime without solving those semantics.
+
+The preprocessor replaces each bound parameter with a deterministic leaf query
+root and records its completed source separately. Each definition is processed
+once. Embedding the complete source expression beneath every reference was
+rejected after nested-binding measurements exposed repeated traversal of the
+same dependency graph. A leaf reference carries identity and row shape, not a
+second copy of its source expression. Reference equality/hash work therefore
+does not recursively walk that dependency graph.
+
+Entity leaves also retain the exact `IEntityType` and a detached original query
+root. Looking up only the CLR type would lose named/shared mapping identity;
+replacing the root with a plain entity root would lose temporal semantics.
+`SourceOrigin` retains the operation and its boundaries without retaining the
+source query provider. `MySqlNavigationExpansionExtensibilityHelper` unwraps
+that origin at all three EF hooks: `CreateQueryRoot`,
+`ValidateQueryRootCreation`, and `AreQueryRootsCompatible`. AsOf navigation
+therefore creates temporal targets at the same instant, while current versus
+historical or different-instant entity set roots cannot pass compatibility
+checks as ordinary current roots. The same unwrapping retains the existing
+application-time mutation-only navigation guard and exact range checks.
+
+Binding queries use EF Core 10's preprocessing sequence with a narrow
+`NavigationExpandingExpressionVisitor` subclass. EF creates that visitor inside
+`QueryTranslationPreprocessor.Process` and exposes no replacement factory at
+that point; the provider mirrors the sequence to insert the bound-root filter
+seam. One visitor handles definitions and the composition for the whole
+statement. Separate visitors would create independent context-filter runtime
+parameter namespaces, allowing different filters to collide. A completed
+entity source has already applied its global filters: a query-compilation
+context override suppresses that second application only while visiting its
+bound entity root, then restores ordinary filtering for other roots. Tracking
+and query-filter metadata are normalized in EF's statement-wide precedence
+order before the definitions are separated.
+
+The normal relational translator supplies projections, identifiers, mappings,
+aliases, and shaping. A canonical source select is pushed down once; reference
+clones need only their own aliases and retain the same definition. The CTE table
+node participates in visiting, cloning, quoting, and SQL pruning. An
+`IMySqlMaterializedSourceVisitor` traversal preserves the complete definition
+schema: columns needed by another reference must not disappear when pruning
+one use.
+
+Source pushdown unwraps only owned-reference Include wrappers. The outer bound
+entity root recreates EF's owned-reference shaping against the captured
+navigation projection. Unwrapping an arbitrary non-owned reference Include
+would instead drop its related data or reload it independently of the selected
+source. Contributing non-owned-reference and collection eager-loading source
+shapes therefore fail explicitly. An Include eliminated before a flat scalar
+projection does not contribute such a source shape. This source boundary does
+not prohibit normal reference Includes on composed output or collection
+shaping on an ordinary entity query joined to the bound scalar values.
+Unwrapping an owned Include can leave an entity shaper bound to EF's client
+projection indexes. Before source pushdown, the translator clears that list
+through EF's `ReplaceProjection` API and restores the captured structural
+projection under a `ProjectionMember`. Keeping the stale client list would
+make EF skip finalizing scalar projections in the composition. This restores
+EF's member-projection state; it does not reevaluate the source or discard its
+owned navigation values.
+
+The shared SQL definitions form a directed acyclic graph. Each definition owns
+a non-static `ConditionalWeakTable` keyed by the actual `ExpressionVisitor`,
+memoizing only its immutable rewritten definition. Without that memo, walking
+each reference recursively can repeat dependency rewrites exponentially. Weak
+keys do not retain visitors after their normal EF lifetime. EF creates fresh
+parameter/nullability visitors for execution processing; a result from another
+attempt must not be reused. This is graph-traversal bookkeeping, not a query-plan
+or row cache, and does not replace EF's compilation cache or share
+parameter-sensitive rewrites between processing attempts. Parameter changes,
+repeated execution, pooled-context lifetimes, and nested bindings require
+explicit regression coverage.
+
+Quotation preserves that same shared-definition graph during SQL-expression
+reconstruction. Each top-level `Quote` call creates its own builder and local
+definition variables, initialized in dependency order. Repeated references
+within that scope reuse the variable; independent top-level calls share no
+reconstruction state. An unfinished definition encountered again is an invalid
+cycle and fails explicitly. A temporary table-expression quotation proxy lets
+EF quote the ordinary select while replacing its bound references with those
+local variables, retaining their aliases and annotations. No global factory,
+context cache, or data cache owns this bookkeeping.
+
+The reconstruction body is a typed factory lambda invoked through its delegate
+`Invoke` method. EF Core 10's precompiled-query generator lifts constants before
+C# translation, but the C# translator can call a relational expression's `Quote`
+later while rendering an otherwise unknown constant. A bare block returned at
+that point can leave declaration statements at top-level expression scope;
+`Expression.Invoke` can also be inlined. The typed lambda/delegate method call
+keeps declarations inside one reconstruction scope instead. It describes SQL
+expression reconstruction, not a separately compiled result delegate or query
+execution. Confirmation therefore requires semantic reconstruction and actual
+EF C# translation as separate checks; neither establishes NativeAOT support.
+D-017 remains unchanged.
+
+The source-binding quotation helper also reconstructs its own annotations.
+EF Core 10.0.13's `RelationalExpressionQuotingUtilities.QuoteAnnotations`
+requests a constructor on `IDictionary<string, IAnnotation>`, an interface,
+and supplies an `IAnnotation` wrapper as the newly constructed annotation's
+value. A source binding with annotations therefore cannot use that helper to
+preserve its payloads. The local routine creates a concrete
+`Dictionary<string, IAnnotation>` and reconstructs each annotation from its name
+and original object value, preserving a null-valued entry as well. Regression
+checks cover string, Boolean, and null payloads. This routine belongs only to
+source-binding quotation; it is not a replacement for EF's annotation handling
+across unrelated expression types.
+
+Generated CTE names use the deterministic binding-ID prefix already selected
+for ordinary queries. If that name conflicts with physical names or appears in
+trusted raw SQL, collision resolution adds a numeric suffix rather than an
+ever-growing run of underscores. A valid raw SQL comment can contain many
+underscore-prefixed candidates; repeatedly appending an underscore would let
+that input drive the generated name beyond server identifier limits. The
+numeric suffix bounds name growth by its numeric representation. Names without
+collisions retain their ordinary prefix, and no global alias counter or random
+name enters the query shape.
+
+EF Core 10.0.8 and 10.0.13 expose `SelectExpression.SetTables` and `Clone`, and
+`SqlTreePruner.PruneSelect` provides the projection-preserving traversal seam.
+These are framework seams with explicit consumers: redirect aliased source
+references without losing their identifier/type metadata, and traverse the
+materialized source without pruning columns that another reference needs.
+The preprocessing pass order, navigation visitor's filter/runtime-parameter
+state, and fresh parameter-processing visitors are additional versioned EF
+seams. Their upstream source, rather than public visibility alone, defines the
+behavior the provider qualifies on its EF patch matrix.
+The provider owns those narrow uses rather than reflection over EF private
+fields, SQL string rewriting, or a parallel expression compiler. Their public
+visibility does not promise a stable provider-independent API; changes require
+the confirmation tests and re-evaluation below. D-017 remains authoritative for
+the experimental NativeAOT boundary.
+
 ### Re-evaluation Triggers
 
 - EF Core adds a provider-independent CTE expression or temporal metadata
   contract that can replace the provider-specific public surface.
+- EF changes its preprocessing pass order or adds a navigation-visitor factory
+  that permits replacing the mirrored sequence without changing source filters,
+  metadata precedence, or statement-wide runtime-parameter names.
+- EF changes navigation-filter expansion, parameter/nullability visitor lifetime,
+  select cloning, table replacement, projection/identifier pruning, or quoting
+  so source-binding, parameter-reuse, nested-allocation, or trim tests fail on a
+  supported EF version. Reassess the weak per-visitor rewrite memo if visitors
+  become stateful across attempts or require revisiting one node in new state.
+- EF changes owned Include/client-projection normalization or
+  `ReplaceProjection` semantics so captured owned values or composed scalar
+  projections no longer survive member-projection restoration.
+- EF changes relational quotation timing, constant lifting, lambda/delegate
+  invocation translation, or declaration scoping so semantic reconstruction or
+  actual C# translation fails. Replace the local factory seam only with a
+  scope-preserving route that retains shared identity without global state.
+- EF's annotation quotation helper constructs concrete storage and preserves
+  actual payloads on every supported EF version. Prefer that upstream helper
+  once string, Boolean, null, and actual C# translation checks prove it can
+  replace this source-binding-local routine.
+- Engine identifier rules or source naming change so physical/raw-SQL collision
+  tests fail; retain deterministic bounded names rather than lengthening a name
+  once per collision.
+- An upstream shared-relation expression can replace the provider node while
+  preserving bags, mappings, paging, and volatile values with less owned code.
+- A qualified engine provides a simpler materialization primitive that passes
+  the same repeated-reference tests and improves native work or server memory.
+- Actual consuming queries exceed their established query-build allocation or
+  native-work budgets; reassess projection width and lowering with paired
+  evidence instead of weakening source semantics.
+- EF changes entity-root mapping identity, provider detachment, or the three
+  navigation-extension hooks so named/shared identity or temporal/application
+  lineage tests fail. Restore the original mapping/root semantics rather than
+  recreating a root solely from its CLR type.
+- A real consumer needs a source shape outside the documented flat-relation
+  boundary; decide its semantics and tests before expanding the API.
 - MySQL adds native system-versioned tables compatible with the portable
   temporal contract.
 - MariaDB changes native history retention or safe `ALTER TABLE` behavior.
@@ -222,6 +507,29 @@ semantics instead of normalizing them into one approximate range operation.
   the separate current-owned materialization boundary explicit.
 - 2026-08-18: Deferred application-time endpoint defaults until action-based
   configuration completes, preventing unconsumed conventional shadow columns.
+- 2026-10-18: Added one consumed statement-local materialized-source operator,
+  retaining the rejection of a general CTE DSL, and recorded the native
+  empty-recursive-arm rationale, source/output boundaries, and EF seams.
+- 2026-10-18: Replaced embedded definition expressions with leaf references and
+  one-time preprocessing, retained one statement-wide navigation visitor, and
+  bounded repeated SQL-DAG rewrites with weak per-visitor memoization.
+- 2026-10-18: Retained exact named/shared entity metadata and detached temporal
+  or application-time source roots on bound leaves; all navigation-extension
+  hooks restore that lineage before propagation and compatibility checks.
+- 2026-10-18: Restricted source Include unwrapping to captured owned references;
+  distinguished rejected contributing non-owned-reference/collection sources
+  from supported reference Includes on composed output and ordinary mapped
+  rejoin collection shaping.
+- 2026-10-18: Restored member projections after owned Include normalization and
+  added local, dependency-ordered quotation reconstruction without global state;
+  separated its semantic checks from EF C# translation and the D-017 AOT boundary.
+- 2026-10-18: Preserved actual source annotation payloads with local concrete
+  dictionary quotation, and bounded CTE collision names with numeric suffixes
+  after long raw-SQL reserved-name prefixes exposed identifier growth.
+- 2026-10-18: Qualified actual late-quotation C# translation on EF 10.0.8 and
+  10.0.13 with an owner-approved private EF.Design unit-test reference; retained
+  unsafe-accessor declarations and separated syntax from cross-assembly/AOT
+  compilation.
 
 ### Implementation References
 
@@ -230,6 +538,18 @@ semantics instead of normalizing them into one approximate range operation.
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Migrations`
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Metadata`
 - `src/Doka.EntityFrameworkCore.MySql/MySqlDbSetExtensions.cs`
+- `src/Doka.EntityFrameworkCore.MySql/MySqlQueryableExtensions.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Processing/MySqlQueryTranslationPreprocessor.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Compilation/MySqlQueryCompilationContext.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Expressions/MySqlMaterializedSourceDefinition.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Expressions/MySqlMaterializedSourceQuoting.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Translation/MySqlQueryableMethodTranslatingExpressionVisitor.MaterializedSources.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Expressions/MySqlMaterializedQueryRootExpression.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Translation/MySqlNavigationExpansionExtensibilityHelper.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Query/MySqlMaterializedSourceLineageTests.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Query/MySqlMaterializedSourceTranslationTests.Names.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.Tests/Query/MySqlMaterializedSourceExpressionTests.cs`
+- `docs/ctes.md`
 - `src/Doka.EntityFrameworkCore.MySql/MySqlTableBuilderExtensions.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Query`
 - `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests`
@@ -298,6 +618,61 @@ semantics instead of normalizing them into one approximate range operation.
   (primary source; retrieved 2026-08-18)
 - [EF Core issue 29303: temporal table splitting](https://github.com/dotnet/efcore/issues/29303)
   (primary source; retrieved 2026-08-18)
+
+- [MySQL 8.4 derived-table and CTE materialization](https://dev.mysql.com/doc/refman/8.4/en/derived-table-optimization.html)
+  (primary source; retrieved 2026-10-18)
+- [MariaDB CTE cloning, MDEV-35357](https://jira.mariadb.org/browse/MDEV-35357)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.13 SelectExpression source](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore.Relational/Query/SqlExpressions/SelectExpression.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.13 SqlTreePruner source](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore.Relational/Query/SqlTreePruner.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.8 SelectExpression source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Query/SqlExpressions/SelectExpression.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.8 SqlTreePruner source](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Query/SqlTreePruner.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core client and server evaluation](https://learn.microsoft.com/en-us/ef/core/querying/client-eval)
+  (primary source; retrieved 2026-10-18)
+- [EF Core single and split queries](https://learn.microsoft.com/en-us/ef/core/querying/single-split-queries)
+  (primary source; retrieved 2026-10-18)
+
+- [EF Core 10.0.13 query preprocessor](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore/Query/QueryTranslationPreprocessor.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.13 navigation expansion](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore/Query/Internal/NavigationExpandingExpressionVisitor.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.13 parameter-based SQL processor](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore.Relational/Query/RelationalParameterBasedSqlProcessor.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.8 query preprocessor](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore/Query/QueryTranslationPreprocessor.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.8 navigation expansion](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore/Query/Internal/NavigationExpandingExpressionVisitor.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.8 parameter-based SQL processor](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Query/RelationalParameterBasedSqlProcessor.cs)
+  (primary source; retrieved 2026-10-18)
+
+- [EF Core 10.0.13 entity query root](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore/Query/EntityQueryRootExpression.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.13 navigation extension hooks](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore/Query/NavigationExpansionExtensibilityHelper.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.8 entity query root](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore/Query/EntityQueryRootExpression.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.8 navigation extension hooks](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore/Query/NavigationExpansionExtensibilityHelper.cs)
+  (primary source; retrieved 2026-10-18)
+
+- [EF Core 10.0.13 LINQ-to-C# translation](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore.Design/Query/Internal/LinqToCSharpSyntaxTranslator.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.13 precompiled-query generation](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore.Design/Query/Internal/PrecompiledQueryCodeGenerator.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.8 LINQ-to-C# translation](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Design/Query/Internal/LinqToCSharpSyntaxTranslator.cs)
+  (primary source; retrieved 2026-10-18)
+- [EF Core 10.0.8 precompiled-query generation](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Design/Query/Internal/PrecompiledQueryCodeGenerator.cs)
+  (primary source; retrieved 2026-10-18)
+
+- [EF Core 10.0.13 relational expression quotation utilities](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore.Relational/Query/RelationalExpressionQuotingUtilities.cs)
+  (primary source; retrieved 2026-10-18)
+- [MySQL 8.4 identifier length limits](https://dev.mysql.com/doc/refman/8.4/en/identifier-length.html)
+  (primary source; retrieved 2026-10-18)
+- [MariaDB identifier names and length limits](https://mariadb.com/docs/server/reference/sql-structure/sql-language-structure/identifier-names)
+  (primary source; retrieved 2026-10-18)
 
 [mariadb-periods]:
   https://mariadb.com/docs/server/reference/system-tables/information-schema/information-schema-tables/information-schema-periods-table

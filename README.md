@@ -148,6 +148,11 @@ MariaDB uses the same provider surface with a different version factory:
 var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
 ```
 
+The unreleased `context.Database.IsMariaDb()` extension reports the family
+configured by `UseMySql` without database I/O. It does not inspect the
+connected server and is not part of the current stable `10.5.0` package. See
+[Provider Configuration][provider-configuration].
+
 When the exact server version is not known during configuration, detect it from
 an open connection:
 
@@ -250,7 +255,8 @@ explicit escape hatch without a support guarantee and emits
   bitemporal tables plus provider-owned MySQL history-table emulation behind
   one model and query API.
 - **MySQL-family query translation:** JSON functions, regular expressions,
-  full-text search, scalar `Like<T>`, CTE composition, bulk update/delete, and
+  full-text search, scalar `Like<T>`, CTE composition, statement-local materialized
+  sources, bulk update/delete, and
   engine-specific SQL selected from declared capabilities.
 - **Provider-owned type mappings:** JSON DOM types, `Binary16`, `Char36`, and
   opt-in MariaDB-native `UUID` GUID storage, temporal CLR types, generated

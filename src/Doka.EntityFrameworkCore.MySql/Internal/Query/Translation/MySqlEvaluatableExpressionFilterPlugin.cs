@@ -9,5 +9,6 @@ internal sealed class MySqlEvaluatableExpressionFilterPlugin : IEvaluatableExpre
     public bool IsEvaluatableExpression(
         Expression expression
     ) => expression is not MethodCallExpression methodCall
-        || methodCall.Method.DeclaringType != typeof(MySqlDbFunctionsExtensions);
+        || (methodCall.Method.DeclaringType != typeof(MySqlDbFunctionsExtensions)
+            && methodCall.Method.DeclaringType != typeof(MySqlQueryableExtensions));
 }
