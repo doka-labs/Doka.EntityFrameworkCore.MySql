@@ -28,18 +28,20 @@ amend an ADR.
 
 ## Current baseline
 
-EF Core 10.0.8, 10.0.10, 10.0.11, and 10.0.12 expose 327 official compliance
+EF Core 10.0.8, 10.0.10, 10.0.11, 10.0.12, and 10.0.13 expose 327 official compliance
 bases. The 10.0.8 inventory contains 9,031 unique xUnit method definitions and
 19,176 effective base-to-method assignments. The 10.0.10 inventory contains
 9,039 definitions and 19,191 assignments. The 10.0.11 and 10.0.12 inventories
-each contain 9,040 definitions and 19,192 assignments.
+each contain 9,040 definitions and 19,192 assignments. The 10.0.13 inventory
+contains 9,041 definitions and 19,193 assignments; its only new method is
+`ComplexCollectionJsonUpdateTestBase.Set_nullable_complex_property_with_nested_collection_to_null`.
 
 The baseline retrieved on 2026-07-27 recorded 9 implemented base mappings,
 1 official compliance exemption, and 317 provider-owned gaps. Those 317 gaps
-are now closed: the repository validator reports provider suite debt `0/317`
-for every registered EF Core patch contract.
+are now closed: the regenerated baseline and repository validator report
+provider suite debt `0/0` for every registered EF Core patch contract.
 
-Discovery regenerated through 2026-09-10 records the complete concrete provider
+Discovery regenerated through 2026-10-19 records the complete concrete provider
 surface:
 
 | EF Core | Target | Discovered |
@@ -68,6 +70,16 @@ surface:
 | 10.0.12 | MariaDB 11.4 | 29,419 |
 | 10.0.12 | MariaDB 11.8 | 29,420 |
 | 10.0.12 | MariaDB 12.3 | 29,426 |
+| 10.0.13 | MySQL 8.4 | 29,756 |
+| 10.0.13 | MySQL 9.7 | 29,756 |
+| 10.0.13 | MariaDB 10.11 | 29,422 |
+| 10.0.13 | MariaDB 11.4 | 29,420 |
+| 10.0.13 | MariaDB 11.8 | 29,421 |
+| 10.0.13 | MariaDB 12.3 | 29,427 |
+
+All 21 complex-collection JSON update tests, including the new 10.0.13 method,
+passed in targeted live runs on both MySQL 8.4 and MariaDB 11.8 on 2026-10-19.
+This is not a claim that the complete 10.0.13 live matrix has run locally.
 
 The complete six-target matrix was executed in full against EF Core 10.0.10
 on 2026-08-11:
@@ -148,11 +160,13 @@ diff before accepting an upstream patch.
 
 ## Primary sources
 
-Retrieved on 2026-09-10:
+Retrieved on 2026-10-19:
 
 - NuGet package versions:
   <https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.relational.specification.tests/index.json>
-- EF Core `ComplianceTestBase` 10.0.12:
-  <https://github.com/dotnet/efcore/blob/v10.0.12/test/EFCore.Specification.Tests/ComplianceTestBase.cs>
-- EF Core `RelationalComplianceTestBase` 10.0.12:
-  <https://github.com/dotnet/efcore/blob/v10.0.12/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs>
+- EF Core `ComplianceTestBase` 10.0.13:
+  <https://github.com/dotnet/efcore/blob/v10.0.13/test/EFCore.Specification.Tests/ComplianceTestBase.cs>
+- EF Core `RelationalComplianceTestBase` 10.0.13:
+  <https://github.com/dotnet/efcore/blob/v10.0.13/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs>
+- EF Core 10.0.12 to 10.0.13 specification diff:
+  <https://github.com/dotnet/efcore/compare/v10.0.12...v10.0.13>
