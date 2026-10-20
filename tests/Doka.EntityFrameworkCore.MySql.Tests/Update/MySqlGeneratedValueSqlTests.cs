@@ -101,6 +101,10 @@ public sealed partial class MySqlGeneratedValueSqlTests
     [InlineData("extra-read-column")]
     [InlineData("different-write-order")]
     [InlineData("no-physical-table")]
+    [InlineData("wrong-state")]
+    [InlineData("wrong-table-name")]
+    [InlineData("wrong-schema")]
+    [InlineData("foreign-column")]
     public void UnsafeLaterCommandDoesNotEnterPositionalReadback(
         string failure
     )
@@ -159,6 +163,63 @@ public sealed partial class MySqlGeneratedValueSqlTests
         Assert.Equal(ResultSetMapping.LastInResultSet, mapping);
         Assert.Equal(2, Regex.Count(sql.ToString(), "INSERT INTO"));
         Assert.DoesNotContain("UNION ALL", sql.ToString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Every supported integer key shape treats a written zero as a server-generated identity.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(NumericIdentityTables))]
+    public void NumericAutoIncrementZeroCannotCorrelateReadback(
+        string tableName
+    )
+    {
+        using var context = CreateContext();
+        var commands = CreateCommands(context, tableName, 2, firstKey: 0);
+        var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
+        var sql = new StringBuilder();
+
+        var mapping = generator.AppendBulkInsertOperation(sql, commands, 0, out _);
+
+        Assert.Equal(ResultSetMapping.LastInResultSet, mapping);
+        Assert.Equal(2, Regex.Count(sql.ToString(), "INSERT INTO"));
+        Assert.DoesNotContain("UNION ALL", sql.ToString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Explicit nonzero integer identities remain stable across the insert and keyed readback.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(NumericIdentityTables))]
+    public void NumericAutoIncrementNonzeroKeysCanCorrelateReadback(
+        string tableName
+    )
+    {
+        using var context = CreateContext();
+        var commands = CreateCommands(context, tableName, 2);
+        var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
+        var sql = new StringBuilder();
+
+        var mapping = generator.AppendBulkInsertOperation(sql, commands, 0, out _);
+
+        Assert.True(mapping.HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled));
+        Assert.Equal(1, Regex.Count(sql.ToString(), "INSERT INTO"));
+        Assert.Contains("UNION ALL", sql.ToString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Supplies all signed and unsigned integer CLR types accepted by the identity guard.
+    /// </summary>
+    public static IEnumerable<object[]> NumericIdentityTables()
+    {
+        yield return ["SByteIdentityRows"];
+        yield return ["ByteIdentityRows"];
+        yield return ["Int16IdentityRows"];
+        yield return ["UInt16IdentityRows"];
+        yield return ["Int32IdentityRows"];
+        yield return ["UInt32IdentityRows"];
+        yield return ["Int64IdentityRows"];
+        yield return ["UInt64IdentityRows"];
     }
 
     /// <summary>

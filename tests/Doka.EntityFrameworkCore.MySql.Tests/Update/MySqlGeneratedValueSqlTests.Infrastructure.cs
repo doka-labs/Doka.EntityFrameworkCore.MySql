@@ -35,13 +35,13 @@ public sealed partial class MySqlGeneratedValueSqlTests
             {
                 var column = table.PrimaryKey.Columns[index];
                 var propertyType = column.PropertyMappings[0].Property.ClrType;
-                object value = propertyType == typeof(Guid)
+                var value = propertyType == typeof(Guid)
                     ? new Guid(key, 0, 0, new byte[8])
                     : propertyType == typeof(string)
                         ? "key-" + key
                         : propertyType == typeof(ConvertedKey)
                             ? new ConvertedKey(key)
-                            : key;
+                            : Convert.ChangeType(key, propertyType, System.Globalization.CultureInfo.InvariantCulture);
 
                 modifications.Add(CreateModification(column, value, $"p{row}_{index}", read: false, write: true));
             }
@@ -128,6 +128,23 @@ public sealed partial class MySqlGeneratedValueSqlTests
                 break;
             case "no-physical-table":
                 return new TestCommand(null, modifications);
+            case "wrong-state":
+                return new TestCommand(table, modifications, state: EntityState.Modified);
+            case "wrong-table-name":
+                return new TestCommand(table, modifications, tableName: "OtherRows");
+            case "wrong-schema":
+                return new TestCommand(table, modifications, schema: "other");
+            case "foreign-column":
+                var foreignTable = context.Model.GetRelationalModel().Tables
+                    .Single(candidate => candidate.Name == "StringRows");
+
+                modifications[^1] = CreateModification(
+                    foreignTable.FindColumn("Generated")!,
+                    null,
+                    "foreign_generated",
+                    true,
+                    false);
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(failure));
         }
@@ -182,6 +199,14 @@ public sealed partial class MySqlGeneratedValueSqlTests
                 .HasConversion(new ValueConverter<ConvertedKey, int>(
                     key => key.Value,
                     value => new ConvertedKey(value)));
+            AddNumericIdentityTable<sbyte>(modelBuilder, "SByteIdentityRows");
+            AddNumericIdentityTable<byte>(modelBuilder, "ByteIdentityRows");
+            AddNumericIdentityTable<short>(modelBuilder, "Int16IdentityRows");
+            AddNumericIdentityTable<ushort>(modelBuilder, "UInt16IdentityRows");
+            AddNumericIdentityTable<int>(modelBuilder, "Int32IdentityRows");
+            AddNumericIdentityTable<uint>(modelBuilder, "UInt32IdentityRows");
+            AddNumericIdentityTable<long>(modelBuilder, "Int64IdentityRows");
+            AddNumericIdentityTable<ulong>(modelBuilder, "UInt64IdentityRows");
             var composite = AddTable<int>(modelBuilder, "CompositeRows");
             composite.Property<int>("Tenant");
             composite.HasKey("Id", "Tenant");
@@ -278,6 +303,19 @@ public sealed partial class MySqlGeneratedValueSqlTests
 
             return entity;
         }
+
+        private static void AddNumericIdentityTable<TKey>(
+            ModelBuilder modelBuilder,
+            string name
+        )
+        {
+            var entity = AddTable<TKey>(modelBuilder, name);
+
+            // WHY: The convention intentionally does not select every signed/unsigned
+            // integer CLR type, but explicit AUTO_INCREMENT still needs a stable-key guard.
+            entity.Property<TKey>("Id")
+                .HasMySqlValueGenerationStrategy(MySqlValueGenerationStrategy.AutoIncrement);
+        }
     }
 
     private sealed class SharedPrincipal<TMapping>
@@ -340,26 +378,32 @@ public sealed partial class MySqlGeneratedValueSqlTests
     {
         public TestCommand(
             ITable? table,
-            IReadOnlyList<IColumnModification> modifications
+            IReadOnlyList<IColumnModification> modifications,
+            EntityState state = EntityState.Added,
+            string? tableName = null,
+            string? schema = null
         )
         {
             Table = table;
             ColumnModifications = modifications;
+            EntityState = state;
+            TableName = tableName ?? table?.Name ?? "Rows";
+            Schema = schema ?? table?.Schema;
         }
 
         public ITable? Table { get; }
 
         public IStoreStoredProcedure? StoreStoredProcedure => null;
 
-        public string TableName => Table?.Name ?? "Rows";
+        public string TableName { get; }
 
-        public string? Schema => Table?.Schema;
+        public string? Schema { get; }
 
         public IReadOnlyList<IColumnModification> ColumnModifications { get; }
 
         public IReadOnlyList<IUpdateEntry> Entries => [];
 
-        public EntityState EntityState => EntityState.Added;
+        public EntityState EntityState { get; }
 
         public IColumnBase? RowsAffectedColumn => null;
 
