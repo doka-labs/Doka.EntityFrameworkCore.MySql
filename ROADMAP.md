@@ -21,7 +21,7 @@ defined by released packages, the support matrix, and release notes.
 
 ### Maintain supported dependencies and engines
 
-- Keep the supported EF Core 10 maintenance range, the exact EF Core 11 RC.1
+- Keep the supported EF Core 10 maintenance range, the exact EF Core 11 RC.2
   graph, and the qualified MySqlConnector 2.x/3.x range under compatibility
   and vulnerability review.
 - Prioritize dependency updates that remediate a relevant vulnerability.
@@ -59,7 +59,7 @@ defined by released packages, the support matrix, and release notes.
   approved platform cutover. It must retain the applicable feature contracts
   and their independent compatibility evidence.
 - The maintainer-authorized trigger in ADR D-013 has fired; `feature/dotnet-11`
-  owns the exact RC.1 graph.
+  owns the exact RC.2 graph.
 - Treat that transition as a new provider major with explicit validation of
   EF Core internal services, public API compatibility, trimming/AOT posture,
   migrations and specification tests.

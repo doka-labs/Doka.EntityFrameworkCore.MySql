@@ -40,7 +40,7 @@
     <!-- WHY: Shipping packages, tests and engineering tools retain one version identity.
          Package metadata is scoped separately under src/Directory.Build.props. -->
     <VersionPrefix>11.0.0</VersionPrefix>
-    <VersionSuffix>rc.1</VersionSuffix>
+    <VersionSuffix>rc.2</VersionSuffix>
   </PropertyGroup>
 
   <PropertyGroup Label="Debug information and CI">

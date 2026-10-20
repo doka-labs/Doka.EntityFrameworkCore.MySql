@@ -12,12 +12,12 @@ is required. The 11.x package line targets .NET 11.
 Install the exact release candidate represented by this branch:
 
 ```bash
-dotnet package add Doka.Caching.MySql --version 11.0.0-rc.1
+dotnet package add Doka.Caching.MySql --version 11.0.0-rc.2
 ```
 
 This package is available from 10.1.0; it is not part of the 10.0.0 release.
-Use `--version 10.7.0` after publication to pin this coordinated release. The
-cache API and schema are unchanged. MySqlConnector 2.6.1 or later is required to
+For the stable .NET 10 line, use `--version 10.7.0`. Its cache API and schema
+are unchanged. MySqlConnector 2.6.1 or later is required to
 address
 [GHSA-473q-m89c-ghf8](https://github.com/advisories/GHSA-473q-m89c-ghf8).
 
