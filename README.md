@@ -29,6 +29,21 @@ contracts:
 - **Extensible migrations:** Extension packages can handle their own custom
   migration operations through a public SPI without replacing the provider's
   SQL generator. See [Migration Operation Handlers][migration-operation-handlers].
+- **Directed query composition:** `WithMaterializedSource` binds repeated
+  references to one completed SQL source; `StraightJoin` directs one selected
+  inner-join edge without changing ordinary joins or result ordering. Neither
+  operator guarantees a faster query. See
+  [CTEs and query composition][common-table-expressions].
+- **Physical index-key fidelity:** Implicit indexed lengths account for the
+  complete key's byte budget while explicit lengths and prefixes remain
+  application-owned. Known oversized definitions fail instead of silently
+  changing index semantics. See
+  [Index key byte fidelity][index-key-byte-fidelity].
+- **Shape-aware generated-value readback:** Eligible MySQL multi-row inserts
+  with known physical keys use one insert and one ordinal-checked readback
+  under transaction protection. Other shapes retain their fallbacks; this is
+  not a blanket throughput guarantee. See
+  [Generated-value readback][generated-value-readback].
 
 Doka is not a drop-in replacement for Pomelo-derived providers. Existing
 applications must review provider APIs, mappings, and migration history; start
@@ -88,20 +103,19 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.5.0` adds opt-in MariaDB-native `uuid` storage for `Guid` properties on
-MariaDB 10.7 or later. The existing `Binary16` default and `Char36` option
-remain unchanged. Existing `varbinary(16)` columns used for application-owned
-`byte[]` values may produce an `AlterColumn` migration to `varbinary(17)`;
-review that schema change before deployment. The collection-translation
-default remains multiple scalar parameters; use `EF.Parameter(...)` only
-where the JSON translation has been measured on the actual query shape.
+`10.6.0` adds `Database.IsMariaDb()`, `WithMaterializedSource`, and
+`StraightJoin`. The query operators are opt-in and do not guarantee faster
+plans. Physical index-key budgeting and MySQL generated-value readback are
+hardened; review generated migrations for indexed string or binary
+column-length changes before deployment. Existing GUID formats and the
+multiple-parameter collection-translation default remain unchanged.
 Applications using the optional SafeMigrations MySQL adapter must verify that
-its published dependency range includes 10.5.0 before upgrading the provider.
+its published dependency range includes 10.6.0 before upgrading the provider.
 
 Pin the current stable version explicitly when validating an application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.5.0
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.0
 ```
 
 See [Provider Configuration][provider-configuration] for collection transport
@@ -147,6 +161,10 @@ MariaDB uses the same provider surface with a different version factory:
 ```csharp
 var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
 ```
+
+The `context.Database.IsMariaDb()` extension reports the family configured by
+`UseMySql` without database I/O. It does not inspect the connected server.
+See [Provider Configuration][provider-configuration].
 
 When the exact server version is not known during configuration, detect it from
 an open connection:
@@ -244,20 +262,21 @@ explicit escape hatch without a support guarantee and emits
 
 - **Engine-aware migrations and scaffolding:** advisory-lock protection,
   idempotent scripts, rename and sequence handling, generated and invisible
-  columns, spatial indexes, JSON aliases, and custom migration-operation
-  handlers.
+  columns, physical index-key budgets, spatial indexes, JSON aliases, and
+  custom migration-operation handlers.
 - **Portable temporal modeling:** native MariaDB system, application, and
   bitemporal tables plus provider-owned MySQL history-table emulation behind
   one model and query API.
 - **MySQL-family query translation:** JSON functions, regular expressions,
-  full-text search, scalar `Like<T>`, CTE composition, bulk update/delete, and
-  engine-specific SQL selected from declared capabilities.
+  full-text search, scalar `Like<T>`, CTE composition, statement-local materialized
+  sources, directed `StraightJoin` edges, bulk update/delete, and engine-specific
+  SQL selected from declared capabilities.
 - **Provider-owned type mappings:** JSON DOM types, `Binary16`, `Char36`, and
   opt-in MariaDB-native `UUID` GUID storage, temporal CLR types, generated
   defaults, complex types, and optional NetTopologySuite geometries.
 - **Production behavior:** transient-failure retries, savepoints, connection
-  pooling, structured diagnostics, trimming analysis, compiled models, and
-  precompiled query coverage.
+  pooling, shape-aware generated-value readback, structured diagnostics,
+  trimming analysis, compiled models, and precompiled query coverage.
 - **Standalone distributed caching:** standard .NET cache contracts,
   database-UTC expiration, buffer-based reads, and bounded expired-row cleanup
   without an EF Core dependency.
@@ -369,8 +388,9 @@ var history = await context.Employees
 ```
 
 See [Temporal Tables][temporal-tables] and
-[Common Table Expressions][common-table-expressions] for portability rules and
-complete query examples.
+[Common Table Expressions][common-table-expressions] for portability rules,
+shared materialized sources, directed `StraightJoin` edges, and complete query
+examples.
 
 ### Enable spatial support
 
@@ -540,9 +560,11 @@ The product is MIT-licensed. See [LICENSE][license]. The adapted
 [documentation-index]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/README.md
 [distributed-cache]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/distributed-cache.md
 [external-limitations]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/limitations.md
+[generated-value-readback]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/provider-configuration.md#generated-value-readback
 [global-json]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/global.json
 [host-integration]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/host-integration-examples.md
 [ide-integration]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/ide-integration.md
+[index-key-byte-fidelity]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/provider-configuration.md#index-key-byte-fidelity
 [license]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/LICENSE
 [migration-operation-handlers]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/migration-operation-handlers.md
 [migrating-from-pomelo]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/migrating-from-pomelo.md

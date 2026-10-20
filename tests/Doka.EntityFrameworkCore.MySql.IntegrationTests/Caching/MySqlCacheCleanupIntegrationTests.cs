@@ -3,6 +3,28 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [IntegrationDatabaseTest]
 public sealed class MySqlCacheCleanupIntegrationTests
 {
+    /// <summary>Binary command bytes do not hide the cleanup statement from its plan probe.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
+    public async Task Primary_range_probe_handles_binary_process_text()
+    {
+        await using var connection = new MySqlConnection(
+            IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql97));
+        await connection.OpenAsync(CancellationToken.None);
+        await using var command = connection.CreateCommand();
+        command.CommandText = GetPrimaryRangeProbeSql(
+            "(SELECT CONNECTION_ID() + 1 AS ID, @statement AS INFO) AS process");
+        var statement = Encoding.ASCII.GetBytes("DELETE `DokaProbe` FROM `DokaProbe` FORCE INDEX (PRIMARY) ")
+            .Concat(new byte[] { 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD })
+            .ToArray();
+        command.Parameters.AddWithValue("@statement", statement);
+        command.Parameters.AddWithValue("@tableName", "DokaProbe");
+
+        var observed = Assert.IsType<string>(
+            await command.ExecuteScalarAsync(CancellationToken.None));
+
+        Assert.StartsWith("DELETE `DokaProbe` FROM `DokaProbe` FORCE INDEX (PRIMARY)", observed);
+    }
+
     [Fact]
     public async Task Registered_time_provider_controls_public_DI_cleanup_schedule()
     {
@@ -305,7 +327,12 @@ public sealed class MySqlCacheCleanupIntegrationTests
 
         try
         {
-            await AssertCleanupWaitsForRowAsync(observer, store.TableName, pending, otherCache is null ? 1 : 2)
+            await AssertCleanupWaitsForRowAsync(
+                    observer,
+                    target,
+                    store.TableName,
+                    pending,
+                    otherCache is null ? 1 : 2)
                 .ConfigureAwait(false);
 
             await AssertPrimaryRangePlanAsync(observer, store.TableName)
@@ -399,18 +426,34 @@ public sealed class MySqlCacheCleanupIntegrationTests
 
     private static async Task AssertCleanupWaitsForRowAsync(
         MySqlConnection observer,
+        IntegrationDatabaseTarget target,
         string tableName,
         Task pending,
         int expectedWaiters
     )
     {
+        // WHY: MySQL exposes live lock relationships in Performance Schema;
+        // MariaDB uses the INNODB_TRX view for this test contract.
+        var lockProbe = target is IntegrationDatabaseTarget.MySql84 or IntegrationDatabaseTarget.MySql97
+            ? """
+              SELECT COUNT(DISTINCT waits.REQUESTING_THREAD_ID)
+              FROM performance_schema.data_lock_waits AS waits
+              JOIN performance_schema.data_locks AS locks
+                  ON locks.ENGINE = waits.ENGINE
+                  AND locks.ENGINE_LOCK_ID = waits.REQUESTING_ENGINE_LOCK_ID
+              WHERE locks.OBJECT_SCHEMA = DATABASE()
+                  AND locks.OBJECT_NAME = @tableName
+                  AND locks.LOCK_TYPE = 'RECORD';
+              """
+            : """
+              SELECT COUNT(*) FROM information_schema.INNODB_TRX
+              WHERE TRX_STATE = 'LOCK WAIT'
+                  AND LOCATE(@tableName, COALESCE(CONVERT(CAST(TRX_QUERY AS BINARY) USING latin1), '')) > 0
+                  AND UPPER(LTRIM(CONVERT(CAST(TRX_QUERY AS BINARY) USING latin1))) LIKE 'DELETE %';
+              """;
+
         await using var command = new MySqlCommand(
-            """
-            SELECT COUNT(*) FROM information_schema.INNODB_TRX
-            WHERE TRX_STATE = 'LOCK WAIT'
-                AND LOCATE(@tableName, COALESCE(TRX_QUERY, '')) > 0
-                AND UPPER(LTRIM(TRX_QUERY)) LIKE 'DELETE %';
-            """,
+            lockProbe,
             observer);
 
         command.Parameters.AddWithValue("@tableName", tableName);
@@ -418,6 +461,11 @@ public sealed class MySqlCacheCleanupIntegrationTests
 
         while (timeout.Elapsed < TimeSpan.FromSeconds(15))
         {
+            if (pending.IsFaulted)
+            {
+                await pending.ConfigureAwait(false);
+            }
+
             Assert.False(pending.IsCompleted, "Cleanup completed before reaching the locked primary record.");
 
             var waiting = Convert.ToInt64(
@@ -438,11 +486,13 @@ public sealed class MySqlCacheCleanupIntegrationTests
         }
 
         command.CommandText = """
-                              SELECT GROUP_CONCAT(CONCAT_WS(' | ', p.ID, p.STATE, t.TRX_STATE, t.TRX_OPERATION_STATE, p.INFO)
+                              SELECT GROUP_CONCAT(CONCAT_WS(' | ', p.ID, p.STATE, t.TRX_STATE, t.TRX_OPERATION_STATE,
+                                  CONVERT(CAST(p.INFO AS BINARY) USING latin1))
                                   SEPARATOR '\n')
                               FROM information_schema.PROCESSLIST AS p
                               LEFT JOIN information_schema.INNODB_TRX AS t ON t.TRX_MYSQL_THREAD_ID = p.ID
-                              WHERE p.ID <> CONNECTION_ID() AND LOCATE(@tableName, COALESCE(p.INFO, '')) > 0;
+                              WHERE p.ID <> CONNECTION_ID()
+                                  AND LOCATE(@tableName, COALESCE(CONVERT(CAST(p.INFO AS BINARY) USING latin1), '')) > 0;
                               """;
 
         var diagnostics = await command
@@ -458,12 +508,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
     )
     {
         await using var command = new MySqlCommand(
-            """
-            SELECT INFO FROM information_schema.PROCESSLIST
-            WHERE ID <> CONNECTION_ID() AND LOCATE(@tableName, COALESCE(INFO, '')) > 0
-                AND UPPER(LTRIM(INFO)) LIKE 'DELETE %'
-            LIMIT 1;
-            """,
+            GetPrimaryRangeProbeSql("information_schema.PROCESSLIST"),
             observer);
 
         command.Parameters.AddWithValue("@tableName", tableName);
@@ -492,4 +537,16 @@ public sealed class MySqlCacheCleanupIntegrationTests
                 .ReadAsync(CancellationToken.None)
                 .ConfigureAwait(false));
     }
+
+    // WHY: PROCESSLIST.INFO can contain parameter bytes that are not valid in
+    // its declared text character set; inspect its bytes in a single-byte set.
+    private static string GetPrimaryRangeProbeSql(string processSource) => $$"""
+        SELECT StatementText FROM (
+            SELECT ID, CONVERT(CAST(INFO AS BINARY) USING latin1) AS StatementText
+            FROM {{processSource}}
+        ) AS observed
+        WHERE ID <> CONNECTION_ID() AND LOCATE(@tableName, COALESCE(StatementText, '')) > 0
+            AND UPPER(LTRIM(StatementText)) LIKE 'DELETE %'
+        LIMIT 1;
+        """;
 }

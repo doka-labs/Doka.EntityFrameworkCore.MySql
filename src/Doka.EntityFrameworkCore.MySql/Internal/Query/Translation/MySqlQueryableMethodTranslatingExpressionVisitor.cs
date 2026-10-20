@@ -7,7 +7,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// entity collections) so the cross-engine JSON_TABLE grammar gets emitted in place of the
 /// "no LINQ translation" fallback the base provider would otherwise hit.
 /// </summary>
-internal sealed class
+internal sealed partial class
     MySqlQueryableMethodTranslatingExpressionVisitor : RelationalQueryableMethodTranslatingExpressionVisitor
 {
     private const string MySqlValuesOrderingColumnName = "_ord";
@@ -35,6 +35,7 @@ internal sealed class
         _typeMappingSource = parentVisitor._typeMappingSource;
         _sqlExpressionFactory = parentVisitor._sqlExpressionFactory;
         _queryCompilationContext = parentVisitor._queryCompilationContext;
+        _straightJoinOwner = parentVisitor._straightJoinOwner ?? parentVisitor;
     }
 
     protected override QueryableMethodTranslatingExpressionVisitor CreateSubqueryVisitor() =>
@@ -49,6 +50,11 @@ internal sealed class
         Expression extensionExpression
     )
     {
+        if (extensionExpression is IMySqlMaterializedQueryRoot materializedSource)
+        {
+            return TranslateMaterializedSource(materializedSource);
+        }
+
         if (extensionExpression is MySqlApplicationTimeQueryRootExpression applicationTimeQueryRoot)
         {
             return TranslateApplicationTimeQueryRoot(applicationTimeQueryRoot);
@@ -870,7 +876,7 @@ internal sealed class
     /// an inline array constant, etc.) into a JSON_TABLE call exposing two columns: <c>value</c>
     /// (the element value) and <c>key</c> (its 1-based ordinality position).
     /// </summary>
-    protected override ShapedQueryExpression? TranslatePrimitiveCollection(
+    protected override ShapedQueryExpression TranslatePrimitiveCollection(
         SqlExpression sqlExpression,
         IProperty? property,
         string tableAlias
@@ -981,7 +987,7 @@ internal sealed class
     /// to <c>JsonQueryLinqOperatorsNotSupported</c>; this override is what lets owned-JSON
     /// collections survive LINQ composition (`.Where`, `.Select`, `.OrderBy`, `.Count`, ...).
     /// </summary>
-    protected override ShapedQueryExpression? TransformJsonQueryToTable(
+    protected override ShapedQueryExpression TransformJsonQueryToTable(
         JsonQueryExpression jsonQueryExpression
     )
     {

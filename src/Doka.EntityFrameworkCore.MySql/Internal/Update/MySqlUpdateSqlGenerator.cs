@@ -1,16 +1,12 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// MySQL update-SQL surface. Single-row INSERTs emit through the base generator on
-/// MySQL and through INSERT ... RETURNING on MariaDB 10.5+ so the auto-increment value
-/// (plus any trigger-modified column) comes back in a single round-trip instead of
-/// the LAST_INSERT_ID + follow-up SELECT pattern. Multi-row INSERTs collapse into a
-/// single INSERT INTO ... VALUES (...),(...),(...) statement when consecutive commands
-/// target the same table + column set; on MariaDB 10.5+ the multi-row form is
-/// extended with RETURNING so the generated values come back without a per-row
-/// round-trip.
+/// Emits MySQL-family update SQL. Compatible inserts share a multirow VALUES list;
+/// MariaDB uses native RETURNING, while MySQL correlates generated values through
+/// stable physical primary keys and an explicit row ordinal. Unsafe key or trigger
+/// contracts retain the existing per-row insert/readback protocol.
 /// </summary>
-internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
+internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
 {
     private readonly MySqlSingletonOptions _singletonOptions;
     private readonly RelationalTypeMapping _stringTypeMapping;
@@ -296,18 +292,30 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
     }
 
     /// <summary>
-    /// Multi-row INSERT entry point invoked by <see cref="MySqlModificationCommandBatch"/>.
-    /// Routes to one of three paths: single-command delegation, multi-row VALUES list
-    /// (write-only), or multi-row VALUES list with RETURNING (MariaDB 10.5+). When the
-    /// engine does not support RETURNING and the commands need read-back, falls back
-    /// to per-command single-row INSERTs because <c>LAST_INSERT_ID()</c> reports only
-    /// the first auto-increment value across a multi-row batch and the remaining ids
-    /// would need server-side correlation the provider does not perform today.
+    /// Consolidates compatible inserts and reads generated values through native RETURNING
+    /// or a physical-key-correlated result set when a transaction can protect both statements.
     /// </summary>
     public ResultSetMapping AppendBulkInsertOperation(
         StringBuilder commandStringBuilder,
         IReadOnlyList<IReadOnlyModificationCommand> modificationCommands,
         int commandPosition,
+        out bool requiresTransaction
+    ) => AppendBulkInsertOperation(
+        commandStringBuilder,
+        modificationCommands,
+        commandPosition,
+        allowKeyedReadback: true,
+        out requiresTransaction);
+
+    /// <summary>
+    /// Emits a consolidated insert only when its generated-value correlation and
+    /// transaction requirements are satisfied by the current batch.
+    /// </summary>
+    public ResultSetMapping AppendBulkInsertOperation(
+        StringBuilder commandStringBuilder,
+        IReadOnlyList<IReadOnlyModificationCommand> modificationCommands,
+        int commandPosition,
+        bool allowKeyedReadback,
         out bool requiresTransaction
     )
     {
@@ -351,9 +359,19 @@ internal sealed class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
                 out requiresTransaction);
         }
 
-        // Fallback: per-row INSERT loop. MySQL's LAST_INSERT_ID() returns only the first
-        // auto-increment value of a multi-row INSERT; correlating subsequent generated
-        // values without RETURNING requires server-side hops the provider does not take.
+        if (allowKeyedReadback && CanUseKeyedReadback(modificationCommands))
+        {
+            return AppendBulkInsertKeyedReadbackOperation(
+                commandStringBuilder,
+                modificationCommands,
+                writeOperations,
+                readOperations,
+                reusableWriteOperations,
+                out requiresTransaction);
+        }
+
+        // WHY: Generated or temporary keys, triggers and unsafe physical mappings cannot
+        // correlate a multirow insert reliably. The existing per-row path retains its semantics.
         requiresTransaction = modificationCommands.Count > 1;
         foreach (var modification in modificationCommands)
         {

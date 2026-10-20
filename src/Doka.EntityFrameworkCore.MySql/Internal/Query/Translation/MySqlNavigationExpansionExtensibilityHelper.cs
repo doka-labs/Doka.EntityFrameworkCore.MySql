@@ -19,6 +19,8 @@ internal sealed class MySqlNavigationExpansionExtensibilityHelper : NavigationEx
         EntityQueryRootExpression? source
     )
     {
+        source = GetSourceOrigin(source);
+
         if (source is MySqlTemporalQueryRootExpression { Operation: MySqlTemporalQueryOperation.AsOf, } temporalRoot)
         {
             // AsOf describes one consistent database instant and is therefore the only
@@ -40,6 +42,8 @@ internal sealed class MySqlNavigationExpansionExtensibilityHelper : NavigationEx
         EntityQueryRootExpression? source
     )
     {
+        source = GetSourceOrigin(source);
+
         if (source is MySqlApplicationTimeQueryRootExpression
             && !entityType.IsMappedToJson()
             && !OwnedEntityMappedToSameTableAsOwner(entityType))
@@ -91,6 +95,9 @@ internal sealed class MySqlNavigationExpansionExtensibilityHelper : NavigationEx
         EntityQueryRootExpression? second
     )
     {
+        first = GetSourceOrigin(first);
+        second = GetSourceOrigin(second);
+
         if (!base.AreQueryRootsCompatible(first, second))
         {
             return false;
@@ -134,6 +141,11 @@ internal sealed class MySqlNavigationExpansionExtensibilityHelper : NavigationEx
         return true;
     }
 
+    /// <summary>Restores the exact original mapping and temporal semantics of a completed source leaf.</summary>
+    private static EntityQueryRootExpression? GetSourceOrigin(
+        EntityQueryRootExpression? source
+    ) => source is MySqlMaterializedEntityQueryRootExpression bound ? bound.SourceOrigin : source;
+
     private static bool HaveEquivalentTemporalSemantics(
         MySqlTemporalQueryRootExpression first,
         MySqlTemporalQueryRootExpression second
@@ -146,7 +158,8 @@ internal sealed class MySqlNavigationExpansionExtensibilityHelper : NavigationEx
         IEntityType entityType
     ) => entityType.IsOwned()
         && entityType.FindOwnership()!
-            .PrincipalEntityType.GetTableMappings()
+            .PrincipalEntityType
+            .GetTableMappings()
             .FirstOrDefault()
             ?.Table is { } ownerTable
         && entityType

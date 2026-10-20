@@ -17,7 +17,8 @@ and operational procedures.
 - [IDE Integration](ide-integration.md) records provider-aware Rider and
   ReSharper inspection behavior and scoped consumer-project configuration.
 - [Provider Configuration](provider-configuration.md) maps connection,
-  context-option, model, reverse-engineering, and optional-package setup.
+  context-option, model, reverse-engineering, and optional-package setup,
+  including index-key byte budgets and generated-value readback.
 - [Migrating from Pomelo](migrating-from-pomelo.md) maps the known configuration,
   query, cache, migration, designer, and snapshot changes without claiming an
   exhaustive inventory of consumer applications.
@@ -31,8 +32,10 @@ and operational procedures.
 - [Temporal Tables](temporal-tables.md) covers portable system-versioned
   storage, query operators, migrations, reverse engineering,
   application-time periods, and bitemporal storage.
-- [Common Table Expressions](ctes.md) covers recursive and non-recursive query
-  roots, parameterization, composability, and data-modification boundaries.
+- [CTEs and Query Composition](ctes.md) covers recursive and non-recursive
+  query roots, statement-local materialized LINQ sources, directed
+  `StraightJoin` edges, parameterization, composability, and data-modification
+  boundaries.
 - [Migration Operation Handlers](migration-operation-handlers.md) defines the
   additive custom-operation SPI, registration boundary, capability projection,
   failure contract, and package-author verification matrix.

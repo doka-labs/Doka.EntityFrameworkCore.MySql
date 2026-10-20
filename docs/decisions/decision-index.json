@@ -73,7 +73,7 @@
     },
     {
       "id": "D-007",
-      "title": "Use shape-aware multi-row INSERT and RETURNING",
+      "title": "Use shape-aware multi-row INSERT and generated-value readback",
       "status": "implemented",
       "date": "2026-05-16",
       "path": "docs/decisions/D-007-multirow-insert-returning.md",
@@ -275,7 +275,7 @@
     },
     {
       "id": "D-024",
-      "title": "Support native CTEs and portable temporal tables",
+      "title": "Support native CTEs, directed joins, and portable temporal tables",
       "status": "accepted",
       "date": "2026-08-04",
       "path": "docs/decisions/D-024-cte-and-temporal-table-contract.md",

@@ -5,6 +5,23 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal sealed class MySqlQueryCompilationContext : RelationalQueryCompilationContext
 {
+    private Dictionary<int, ShapedQueryExpression>? _materializedSources;
+    private Dictionary<int, Expression>? _materializedSourceQueries;
+
+    /// <summary>Gets the once-preprocessed lexical source definitions for this compilation.</summary>
+    internal Dictionary<int, Expression> MaterializedSourceQueries => _materializedSourceQueries ??= [];
+
+    /// <summary>
+    /// Gets the canonical shapes owned exclusively by this query compilation.
+    /// </summary>
+    internal Dictionary<int, ShapedQueryExpression> MaterializedSources => _materializedSources ??= [];
+
+    /// <summary>Gets or sets the narrow navigation-expansion scope of an already filtered entity source.</summary>
+    internal bool VisitingMaterializedEntityRoot { get; set; }
+
+    /// <inheritdoc />
+    public override bool IgnoreQueryFilters => VisitingMaterializedEntityRoot || base.IgnoreQueryFilters;
+
     private const string LazyLoadingProxyAnnotation = "Proxies:LazyLoading";
 
     /// <summary>

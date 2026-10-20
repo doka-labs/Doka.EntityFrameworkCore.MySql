@@ -33,8 +33,44 @@ internal sealed class MySqlQueryTranslationPostprocessor : RelationalQueryTransl
             RelationalDependencies.SqlExpressionFactory);
 
         MySqlCollectionIdentityValidatingExpressionVisitor.Validate(processed);
+        MaterializedSourceExecutionValidator.Validate(processed);
+        MySqlMaterializedSourceIncludeValidator.Validate(processed);
 
         return processed;
+    }
+
+    /// <summary>
+    /// Prevents a bound source from silently being evaluated in multiple split-query commands.
+    /// </summary>
+    private sealed class MaterializedSourceExecutionValidator : MySqlShapedQueryTraversingExpressionVisitor
+    {
+        private bool _hasBinding;
+        private bool _hasSplitCollection;
+
+        public static void Validate(
+            Expression expression
+        )
+        {
+            var visitor = new MaterializedSourceExecutionValidator();
+            visitor.Visit(expression);
+
+            if (visitor._hasBinding
+                && visitor._hasSplitCollection)
+            {
+                throw new InvalidOperationException(
+                    "Materialized sources require a single SQL statement; split collection queries cannot be bound.");
+            }
+        }
+
+        protected override Expression VisitExtension(
+            Expression node
+        )
+        {
+            _hasBinding |= node is MySqlMaterializedSourceExpression;
+            _hasSplitCollection |= node is RelationalSplitCollectionShaperExpression;
+
+            return base.VisitExtension(node);
+        }
     }
 
     /// <summary>
@@ -65,7 +101,7 @@ internal sealed class MySqlQueryTranslationPostprocessor : RelationalQueryTransl
         Expression query
     )
     {
-        var pruned = base.Prune(query);
+        var pruned = new MySqlMaterializedSourcePruner().Prune(query);
         var dynamicOffsets = new MySqlDynamicOffsetRewritingExpressionVisitor(
                 RelationalDependencies.SqlExpressionFactory,
                 RelationalDependencies.TypeMappingSource,

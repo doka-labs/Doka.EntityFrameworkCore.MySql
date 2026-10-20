@@ -18,7 +18,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <see cref="MySqlEventId.BulkInsertParameterCountCapped"/> /
 /// <see cref="MySqlEventId.BulkInsertPacketSizeCapped"/>.
 /// </summary>
-internal sealed class MySqlModificationCommandBatch : AffectedCountModificationCommandBatch
+internal sealed partial class MySqlModificationCommandBatch : AffectedCountModificationCommandBatch
 {
     private const int DefaultMaxBatchSize = 1000;
 
@@ -50,18 +50,28 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
 
     private readonly List<IReadOnlyModificationCommand> _pendingBulkInsertCommands = new();
     private readonly ILogger _logger;
+    private readonly IRelationalConnection _connection;
     private int _currentParameterCount;
+    private long _additionalReadbackPacketBytes;
     private int _pendingProviderParameters;
     private bool _parameterCountWarningEmitted;
     private bool _packetSizeWarningEmitted;
 
+    /// <summary>
+    /// Creates a bounded command batch using the current context's transaction boundary.
+    /// </summary>
+    /// <param name="dependencies">The scoped EF update services.</param>
+    /// <param name="maxBatchSize">The requested command limit, capped at 1,000 commands.</param>
+    /// <param name="connection">The current context's relational connection.</param>
     public MySqlModificationCommandBatch(
         ModificationCommandBatchFactoryDependencies dependencies,
-        int maxBatchSize
+        int maxBatchSize,
+        IRelationalConnection connection
     ) : base(dependencies, Math.Min(maxBatchSize, DefaultMaxBatchSize))
     {
         ArgumentNullException.ThrowIfNull(dependencies);
 
+        _connection = connection ?? throw new ArgumentNullException(nameof(connection));
         _logger = dependencies.UpdateLogger.Logger;
     }
 
@@ -80,9 +90,19 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
 
         _pendingProviderParameters = 0;
 
-        var commandParameterCount = CountCommandParameters(modificationCommand);
+        var commandParameterCount = CountCommandParameters(modificationCommand, out var hasReadOperations);
         var projectedParameterCount = _currentParameterCount + commandParameterCount;
-        var projectedPacketSize = (long)projectedParameterCount * EstimatedBytesPerParameter;
+        var additionalReadbackBytes = hasReadOperations
+            && AllowsKeyedReadback()
+            && UpdateSqlGenerator.TryGetKeyedReadbackCost(modificationCommand, out var readbackBytes)
+                ? readbackBytes
+                : 0;
+
+        var projectedReadbackPacketBytes = _additionalReadbackPacketBytes + additionalReadbackBytes;
+        // WHY: Readback repeats key values in a separate SELECT; its placeholder count is bounded by the written keys,
+        // but its serialized values and SQL still consume the same command packet.
+        var projectedPacketSize = ((long)projectedParameterCount * EstimatedBytesPerParameter)
+            + projectedReadbackPacketBytes;
 
         // First command is always accepted even when it alone exceeds a cap: the
         // server raises a clear error on submit rather than the batch silently
@@ -125,6 +145,7 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
         if (added)
         {
             _currentParameterCount = projectedParameterCount;
+            _additionalReadbackPacketBytes = projectedReadbackPacketBytes;
         }
 
         return added;
@@ -264,7 +285,12 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
                 {
                     if (onResultSet == false)
                     {
-                        throw new InvalidOperationException(RelationalStrings.MissingResultSetWhenSaving);
+                        var missingResultSet = new InvalidOperationException(
+                            RelationalStrings.MissingResultSetWhenSaving);
+
+                        throw resultSetMapping.HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled)
+                            ? GeneratedValueReadbackException(commandIndex, missingResultSet)
+                            : missingResultSet;
                     }
 
                     var lastHandledCommandIndex =
@@ -330,7 +356,12 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
                 {
                     if (onResultSet == false)
                     {
-                        throw new InvalidOperationException(RelationalStrings.MissingResultSetWhenSaving);
+                        var missingResultSet = new InvalidOperationException(
+                            RelationalStrings.MissingResultSetWhenSaving);
+
+                        throw resultSetMapping.HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled)
+                            ? GeneratedValueReadbackException(commandIndex, missingResultSet)
+                            : missingResultSet;
                     }
 
                     var lastHandledCommandIndex =
@@ -438,14 +469,19 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
     ) => compareWriteColumns ? modification.IsWrite : modification.IsRead;
 
     private static int CountCommandParameters(
-        IReadOnlyModificationCommand modificationCommand
+        IReadOnlyModificationCommand modificationCommand,
+        out bool hasReadOperations
     )
     {
         var count = 0;
+        hasReadOperations = false;
         var modifications = modificationCommand.ColumnModifications;
+
+        // WHY: Generated read columns need not have parameters. Reuse this traversal to bypass inactive readback work.
         for (var index = 0; index < modifications.Count; index++)
         {
             var modification = modifications[index];
+            hasReadOperations = hasReadOperations || modification.IsRead;
             if (modification.UseCurrentValueParameter)
             {
                 count++;
@@ -688,6 +724,23 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
         return onResultSet;
     }
 
+    /// <summary>
+    /// Preserves EF's explicit transaction opt-out instead of requiring an absent transaction for keyed readback.
+    /// </summary>
+    private bool AllowsKeyedReadback()
+    {
+        if (Dependencies.CurrentContext.Context.Database.AutoTransactionBehavior != AutoTransactionBehavior.Never
+            || _connection.CurrentTransaction is not null)
+        {
+            return true;
+        }
+
+        // WHY: An existing enlisted or ambient transaction still supplies the atomic INSERT/readback boundary.
+        var enlistment = _connection as ITransactionEnlistmentManager;
+
+        return enlistment?.EnlistedTransaction is not null || enlistment?.CurrentAmbientTransaction is not null;
+    }
+
     private void ApplyPendingBulkInsertCommands()
     {
         if (_pendingBulkInsertCommands.Count == 0)
@@ -702,6 +755,7 @@ internal sealed class MySqlModificationCommandBatch : AffectedCountModificationC
             SqlBuilder,
             _pendingBulkInsertCommands,
             commandPosition,
+            AllowsKeyedReadback(),
             out var requiresTransaction);
 
         SetRequiresTransaction(!wasCachedCommandTextEmpty || requiresTransaction);

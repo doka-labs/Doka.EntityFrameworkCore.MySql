@@ -7,6 +7,84 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.6.0] - 2026-10-20
+
+Stable minor release adding explicit query-composition controls and a
+configured MariaDB-family lookup. Physical index-key budgeting and MySQL
+generated-value readback are hardened. Review generated migrations for indexed
+string or binary column-length changes before deployment. Query operators are
+opt-in and require workload-specific plan measurements; they do not guarantee
+faster queries. Applications using the optional SafeMigrations MySQL adapter
+must verify that its published dependency range includes 10.6.0 before
+upgrading the provider.
+
+Install the stable packages through normal NuGet version resolution. Add the
+spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.0
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.6.0
+dotnet package add Doka.Caching.MySql --version 10.6.0
+```
+
+### Added
+
+- Add `Database.IsMariaDb()` to read the server family configured by
+  `UseMySql` without opening a connection or detecting the live server. See
+  [provider configuration](docs/provider-configuration.md#connection-and-server-configuration).
+- Add `WithMaterializedSource` for composing one statement over a shared SQL
+  source. Repeated references retain the same selected occurrences, paging,
+  duplicate rows, and computed values, including volatile SQL projections.
+  The operator preserves native mappings and normal EF parameterization,
+  tracking, cancellation, and query-cache behavior. Named/shared entity
+  mapping and temporal root lineage remain intact through navigation and entity
+  set operations. Completed source filters are not reapplied to its references.
+  Supported owned-reference sources retain their captured data. Unsupported
+  client/collection sources, contributing non-owned-reference eager-loading
+  sources, collection includes directly on bound entities, foreign contexts,
+  and split execution fail before SQL execution. Normal reference includes
+  remain available on composed output. Materialization is an explicit contract,
+  not a guarantee of a faster or more selective consuming query. See
+  [the source-binding guide](docs/ctes.md#bind-one-source-for-several-references).
+
+- Add `StraightJoin` to retain outer-before-inner direction for one selected
+  inner join edge on MySQL and MariaDB. Preserve ordinary EF join matching,
+  duplicate, key, null, projection, and shaping semantics. Other joins remain
+  ordinary joins; this is neither a global join-order modifier nor a result
+  ordering, source materialization, or performance guarantee. See
+  [directed joins](docs/ctes.md#direct-one-inner-join-edge).
+
+### Changed
+
+- Allocate implicit indexed string and binary lengths against the complete
+  physical index-byte budget, including fixed-width parts, explicit lengths,
+  provider mappings, overlapping indexes, shared-column aliases, and compatible
+  principal-derived foreign-key lengths. Preserve application facets and
+  convention ownership; reject impossible definitions
+  without inventing index prefixes. Review generated column-length changes in
+  migrations. See [index key byte fidelity](docs/provider-configuration.md#index-key-byte-fidelity).
+- Batch MySQL generated-value readback when every inserted row has a complete,
+  written, non-temporary physical key and the table has no declared triggers.
+  Use one multi-row insert and one compound, ordinal-checked readback while
+  preserving native key comparisons, transaction protection, and bounded batch
+  accounting. Retain existing MariaDB `RETURNING` and unsupported-shape
+  fallbacks. The physical table must use InnoDB, and the EF model must
+  declare all table triggers and remain consistent with the deployed engine.
+  See [generated-value readback](docs/provider-configuration.md#generated-value-readback).
+
+### Fixed
+
+- Correct the seven-digit remainder in packed `DECIMAL` index-byte accounting,
+  including the default `decimal(18,2)` mapping. Model validation and implicit
+  index-length allocation now reject keys beyond InnoDB's 3072-byte limit.
+- Preserve original annotation payloads, including null-valued entries, when
+  reconstructing provider-owned materialized-source and directed-join SQL
+  expressions through EF's actual C# generator. Use concrete dictionary
+  construction over single-argument pair initializers so reconstruction works
+  with the supported EF Core 10 quotation and C# translation seams. This does
+  not extend the documented NativeAOT contract. See
+  [query-expression verification](docs/ctes.md#runnable-verification).
+
 ## [10.5.0] - 2026-10-14
 
 Stable minor release adding an explicit MariaDB-native UUID mapping. Existing
@@ -1379,7 +1457,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.5.0...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.0...HEAD
+[10.6.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.0
 [10.5.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.5.0
 [10.4.4]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.4
 [10.4.3]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.3

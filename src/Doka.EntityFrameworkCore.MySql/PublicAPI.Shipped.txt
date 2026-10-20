@@ -360,3 +360,8 @@ static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.Like<T>(this Mi
 static Doka.EntityFrameworkCore.MySql.MySqlDbFunctionsExtensions.Like<T>(this Microsoft.EntityFrameworkCore.DbFunctions! functions, T matchExpression, string? pattern, string? escapeCharacter) -> bool
 static Doka.EntityFrameworkCore.MySql.MySqlServerVersion.AutoDetect(string! connectionString) -> Doka.EntityFrameworkCore.MySql.MySqlServerVersion!
 static Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult.Consumed(string! outcomeCode) -> Doka.EntityFrameworkCore.MySql.MySqlMigrationOperationResult!
+Doka.EntityFrameworkCore.MySql.MySqlDatabaseFacadeExtensions
+static Doka.EntityFrameworkCore.MySql.MySqlDatabaseFacadeExtensions.IsMariaDb(this Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade! database) -> bool
+Doka.EntityFrameworkCore.MySql.MySqlQueryableExtensions
+static Doka.EntityFrameworkCore.MySql.MySqlQueryableExtensions.WithMaterializedSource<TSource, TResult>(this System.Linq.IQueryable<TSource>! source, System.Linq.Expressions.Expression<System.Func<System.Linq.IQueryable<TSource>!, System.Linq.IQueryable<TResult>!>!>! compose) -> System.Linq.IQueryable<TResult>!
+static Doka.EntityFrameworkCore.MySql.MySqlQueryableExtensions.StraightJoin<TOuter, TInner, TKey, TResult>(this System.Linq.IQueryable<TOuter>! outer, System.Linq.IQueryable<TInner>! inner, System.Linq.Expressions.Expression<System.Func<TOuter, TKey>!>! outerKeySelector, System.Linq.Expressions.Expression<System.Func<TInner, TKey>!>! innerKeySelector, System.Linq.Expressions.Expression<System.Func<TOuter, TInner, TResult>!>! resultSelector) -> System.Linq.IQueryable<TResult>!
