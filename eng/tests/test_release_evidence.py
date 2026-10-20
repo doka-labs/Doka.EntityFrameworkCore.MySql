@@ -488,7 +488,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         """Reject an exact SDK identity that is not a stable release."""
         path = self.repo / "global.json"
         payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["sdk"]["version"] = "11.0.100-rc.1.25451.107"
+        payload["sdk"]["version"] = "11.0.100-rc.2.26504.105"
         path.write_text(json.dumps(payload) + "\n", encoding="ascii")
 
         with self.assertRaisesRegex(

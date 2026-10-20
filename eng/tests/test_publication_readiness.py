@@ -107,7 +107,7 @@ class PublicationReadinessTests(unittest.TestCase):
                 "bash",
                 str(self.script),
                 "--ef-core-version",
-                "11.0.0-rc.1.26425.128",
+                "11.0.0-rc.2.26504.105",
                 "--mysqlconnector-version",
                 "2.6.1",
             ),
@@ -151,8 +151,7 @@ class PublicationReadinessTests(unittest.TestCase):
 
                 # Act
                 result = subprocess.run(
-                    ("bash", str(self.script), "--ef-core-version", "10.0.8",
-                     "--mysqlconnector-version", version),
+                    ("bash", str(self.script), "--mysqlconnector-version", version),
                     cwd=self.repo, env=environment, check=False,
                     capture_output=True, text=True,
                 )
@@ -173,8 +172,7 @@ class PublicationReadinessTests(unittest.TestCase):
 
                 # Act
                 result = subprocess.run(
-                    ("bash", str(self.script), "--ef-core-version", "10.0.8",
-                     "--mysqlconnector-version", version),
+                    ("bash", str(self.script), "--mysqlconnector-version", version),
                     cwd=self.repo, env=environment, check=False,
                     capture_output=True, text=True,
                 )
@@ -194,8 +192,7 @@ class PublicationReadinessTests(unittest.TestCase):
 
         # Act
         result = subprocess.run(
-            ("bash", str(self.script), "--ef-core-version", "10.0.14",
-             "--mysqlconnector-version", "2.6.2"),
+            ("bash", str(self.script), "--mysqlconnector-version", "2.6.2"),
             cwd=self.repo, env=environment, check=False,
             capture_output=True, text=True,
         )

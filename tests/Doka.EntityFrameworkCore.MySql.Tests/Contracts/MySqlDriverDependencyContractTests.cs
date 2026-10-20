@@ -47,7 +47,7 @@ public sealed class MySqlDriverDependencyContractTests
         var driver = document
             .RootElement
             .GetProperty("dependencies")
-            .GetProperty("net10.0")
+            .GetProperty("net11.0")
             .GetProperty("MySqlConnector");
 
         var resolved = Version.Parse(

@@ -123,7 +123,7 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - cadence: weekly or explicit maintenance dispatch for branch-applicable
     drift jobs; ordinary manual CI calls the shared qualifier once
   - migration deployment lifecycle: `./eng/test-migration-deployment.sh`
-  - exact EF Core 11 RC.1 graph: repository and six-engine specification gates
+  - exact EF Core 11 RC.2 graph: repository and six-engine specification gates
     qualify the branch's pinned prerelease; no stable EF floor/latest or
     floating patch-range gate is declared on this line
   - independent floating MySqlConnector drift probe:
