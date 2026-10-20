@@ -375,8 +375,9 @@ var history = await context.Employees
 ```
 
 See [Temporal Tables][temporal-tables] and
-[Common Table Expressions][common-table-expressions] for portability rules and
-complete query examples.
+[Common Table Expressions][common-table-expressions] for portability rules,
+shared materialized sources, directed `StraightJoin` edges, and complete query
+examples.
 
 ### Enable spatial support
 

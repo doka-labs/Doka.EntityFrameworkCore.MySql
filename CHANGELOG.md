@@ -27,6 +27,44 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   not a guarantee of a faster or more selective consuming query. See
   [the source-binding guide](docs/ctes.md#bind-one-source-for-several-references).
 
+- Add `StraightJoin` to retain outer-before-inner direction for one selected
+  inner join edge on MySQL and MariaDB. Preserve ordinary EF join matching,
+  duplicate, key, null, projection, and shaping semantics. Other joins remain
+  ordinary joins; this is neither a global join-order modifier nor a result
+  ordering, source materialization, or performance guarantee. See
+  [directed joins](docs/ctes.md#direct-one-inner-join-edge).
+
+### Changed
+
+- Allocate implicit indexed string and binary lengths against the complete
+  physical index-byte budget, including fixed-width parts, explicit lengths,
+  provider mappings, overlapping indexes, shared-column aliases, and compatible
+  principal-derived foreign-key lengths. Preserve application facets and
+  convention ownership; reject impossible definitions
+  without inventing index prefixes. Review generated column-length changes in
+  migrations. See [index key byte fidelity](docs/provider-configuration.md#index-key-byte-fidelity).
+
+### Fixed
+
+- Correct the seven-digit remainder in packed `DECIMAL` index-byte accounting,
+  including the default `decimal(18,2)` mapping. Model validation and implicit
+  index-length allocation now reject keys beyond InnoDB's 3072-byte limit.
+- Preserve original annotation payloads, including null-valued entries, when
+  reconstructing provider-owned materialized-source and directed-join SQL
+  expressions through EF's actual C# generator. Use concrete dictionary
+  construction over single-argument pair initializers so reconstruction works
+  with the supported EF Core 10 quotation and C# translation seams. This does
+  not extend the documented NativeAOT contract. See
+  [query-expression verification](docs/ctes.md#runnable-verification).
+- Batch MySQL generated-value readback when every inserted row has a complete,
+  written, non-temporary physical key and the table has no declared triggers.
+  Use one multi-row insert and one compound, ordinal-checked readback while
+  preserving native key comparisons, transaction protection, and bounded batch
+  accounting. Retain existing MariaDB `RETURNING` and unsupported-shape
+  fallbacks. The physical table must use InnoDB, and the EF model must
+  declare all table triggers and remain consistent with the deployed engine.
+  See [generated-value readback](docs/provider-configuration.md#generated-value-readback).
+
 ## [10.5.0] - 2026-10-14
 
 Stable minor release adding an explicit MariaDB-native UUID mapping. Existing

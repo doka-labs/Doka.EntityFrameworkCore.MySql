@@ -282,6 +282,47 @@ public sealed class MySqlMigrationConcurrencyTests
         }
     }
 
+    /// <summary>The synchronous lock path reports either server or driver deadline as a lock timeout.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
+    public async Task Synchronous_provider_lock_timeout_honors_configured_command_timeout()
+    {
+        var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+        var dbName = $"doka_lock_st_{Guid.NewGuid():N}"[..30];
+
+        await CreateDatabaseAsync(baseConnectionString, dbName)
+            .ConfigureAwait(false);
+        var scopedConnectionString = BuildConnectionString(baseConnectionString, dbName);
+
+        try
+        {
+            await using var holderContext = new LockContext(CreateOptions(scopedConnectionString));
+            await using var contenderContext = new LockContext(
+                CreateOptions(scopedConnectionString, commandTimeout: 1));
+
+            var holderHistory = holderContext.GetService<IHistoryRepository>();
+            var contenderHistory = contenderContext.GetService<IHistoryRepository>();
+
+            await using var heldLock = await holderHistory
+                .AcquireDatabaseLockAsync()
+                .ConfigureAwait(false);
+
+            var stopwatch = Stopwatch.StartNew();
+
+            Assert.Throws<TimeoutException>(() => contenderHistory.AcquireDatabaseLock());
+            stopwatch.Stop();
+
+            Assert.InRange(
+                stopwatch.Elapsed,
+                TimeSpan.FromMilliseconds(750),
+                TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            await DropDatabaseAsync(baseConnectionString, dbName)
+                .ConfigureAwait(false);
+        }
+    }
+
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Provider_lock_acquire_honors_cancellation_and_cleans_up()
     {

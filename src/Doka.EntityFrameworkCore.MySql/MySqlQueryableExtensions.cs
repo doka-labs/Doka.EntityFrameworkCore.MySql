@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <summary>
 /// Composes statement-local sources using the Doka MySQL provider.
 /// </summary>
-public static class MySqlQueryableExtensions
+public static partial class MySqlQueryableExtensions
 {
     internal static readonly MethodInfo WithMaterializedSourceMethod =
         typeof(MySqlQueryableExtensions).GetMethod(nameof(WithMaterializedSource))!;

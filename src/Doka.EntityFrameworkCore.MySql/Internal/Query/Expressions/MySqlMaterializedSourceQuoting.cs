@@ -22,12 +22,6 @@ internal static class MySqlMaterializedSourceQuoting
     private static readonly MethodInfo s_invoke =
         typeof(Func<MySqlMaterializedSourceExpression>).GetMethod(nameof(Func<>.Invoke))!;
 
-    private static readonly ConstructorInfo s_annotationConstructor =
-        typeof(Annotation).GetConstructor([typeof(string), typeof(object)])!;
-
-    private static readonly MethodInfo s_annotationAdd =
-        typeof(Dictionary<string, IAnnotation>).GetMethod(nameof(Dictionary<,>.Add))!;
-
     /// <summary>Quotes a source DAG without retaining a global cache or duplicating its definitions.</summary>
     public static Expression Quote(
         MySqlMaterializedSourceExpression expression
@@ -41,29 +35,6 @@ internal static class MySqlMaterializedSourceQuoting
         // WHY: EF's C# translator lifts a bare block or inlines Expression.Invoke(lambda). The
         // delegate method call keeps declaration statements inside this one reconstruction scope.
         return Expression.Call(Expression.Convert(factory, typeof(Func<MySqlMaterializedSourceExpression>)), s_invoke);
-    }
-
-    /// <summary>Reconstructs concrete annotation storage while preserving the original values and nullability.</summary>
-    private static Expression QuoteAnnotations(
-        IReadOnlyDictionary<string, IAnnotation> annotations
-    )
-    {
-        if (annotations.Count == 0)
-        {
-            return Expression.Constant(null, typeof(IReadOnlyDictionary<string, IAnnotation>));
-        }
-
-        // WHY: EF 10's helper looks for an interface constructor and quotes each IAnnotation
-        // wrapper as its value. Construct the concrete dictionary and the actual object values.
-        return Expression.ListInit(
-            Expression.New(typeof(Dictionary<string, IAnnotation>)),
-            annotations.Select(annotation => Expression.ElementInit(
-                s_annotationAdd,
-                Expression.Constant(annotation.Key),
-                Expression.New(
-                    s_annotationConstructor,
-                    Expression.Constant(annotation.Key),
-                    Expression.Constant(annotation.Value.Value, typeof(object))))));
     }
 
     /// <summary>Owns local definition identity for exactly one top-level quotation.</summary>
@@ -106,7 +77,7 @@ internal static class MySqlMaterializedSourceQuoting
                 Expression.Constant(expression.Alias),
                 Expression.Constant(expression.BindingId),
                 definition.Variable,
-                QuoteAnnotations(
+                MySqlRelationalExpressionQuoting.QuoteAnnotations(
                     expression
                         .GetAnnotations()
                         .ToDictionary(annotation => annotation.Name, StringComparer.Ordinal)));
@@ -177,7 +148,7 @@ internal static class MySqlMaterializedSourceQuoting
         ) => new QuotedReference(
             Alias,
             annotations,
-            _quote.Update([.. _quote.Arguments.Take(3), QuoteAnnotations(annotations)]));
+            _quote.Update([.. _quote.Arguments.Take(3), MySqlRelationalExpressionQuoting.QuoteAnnotations(annotations)]));
 
         /// <inheritdoc />
         protected override void Print(

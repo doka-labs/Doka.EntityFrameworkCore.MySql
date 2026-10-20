@@ -35,6 +35,7 @@ internal sealed partial class
         _typeMappingSource = parentVisitor._typeMappingSource;
         _sqlExpressionFactory = parentVisitor._sqlExpressionFactory;
         _queryCompilationContext = parentVisitor._queryCompilationContext;
+        _straightJoinOwner = parentVisitor._straightJoinOwner ?? parentVisitor;
     }
 
     protected override QueryableMethodTranslatingExpressionVisitor CreateSubqueryVisitor() =>

@@ -16,7 +16,10 @@ internal sealed class MySqlQueryTranslationPreprocessor(
         Expression query
     )
     {
-        if (!SourceBindingDetector.Contains(query))
+        var operators = new MySqlStraightJoinLowering();
+        query = operators.Visit(query);
+
+        if (!operators.ContainsMaterializedSource)
         {
             return base.Process(query);
         }
@@ -51,31 +54,6 @@ internal sealed class MySqlQueryTranslationPreprocessor(
         }
 
         return definitions.Count == 0 ? base.Process(query) : ProcessCore(query, navigationVisitor);
-    }
-
-    /// <summary>Retains the upstream fast path for queries without this operator.</summary>
-    private sealed class SourceBindingDetector : ExpressionVisitor
-    {
-        private bool _found;
-
-        public static bool Contains(
-            Expression query
-        )
-        {
-            var detector = new SourceBindingDetector();
-            detector.Visit(query);
-
-            return detector._found;
-        }
-
-        protected override Expression VisitMethodCall(
-            MethodCallExpression node
-        )
-        {
-            _found |= node.Method.DeclaringType == typeof(MySqlQueryableExtensions);
-
-            return _found ? node : base.VisitMethodCall(node);
-        }
     }
 
     /// <summary>

@@ -13,7 +13,7 @@ validated ADR metadata. Manual edits are rejected by the governance gate.
 | [D-004](D-004-engineprofile-modell.md) | implemented | 2026-05-16 | Route engine behavior through EngineProfile | amended by D-024 |
 | [D-005](D-005-scaffolding-loader-hierarchy.md) | implemented | 2026-05-16 | Split reverse engineering into aspect loaders | - |
 | [D-006](D-006-default-decimal-breaking-change.md) | implemented | 2026-05-16 | Use decimal(18,2) as the default mapping | - |
-| [D-007](D-007-multirow-insert-returning.md) | implemented | 2026-05-16 | Use shape-aware multi-row INSERT and RETURNING | - |
+| [D-007](D-007-multirow-insert-returning.md) | implemented | 2026-05-16 | Use shape-aware multi-row INSERT and generated-value readback | - |
 | [D-008](D-008-public-api-vertrag.md) | implemented | 2026-05-16 | Gate the public API with PublicApiAnalyzers | - |
 | [D-009](D-009-efcore-patch-coupling.md) | implemented | 2026-05-16 | Support an EF Core patch range with a floor/latest matrix | amended by D-023 |
 | [D-010](D-010-activity-meter-surface.md) | implemented | 2026-05-16 | Emit a diagnostic triple for significant operations | - |
@@ -30,7 +30,7 @@ validated ADR metadata. Manual edits are rejected by the governance gate.
 | [D-021](D-021-provider-completeness-and-spec-dispositions.md) | implemented | 2026-07-27 | Enforce a zero provider-gap specification ledger | amends D-011 |
 | [D-022](D-022-madr-enterprise-profile.md) | implemented | 2026-07-27 | Adopt MADR 4.0.0 with the Doka enterprise profile | - |
 | [D-023](D-023-tiered-ci-verification.md) | superseded | 2026-07-31 | Use tiered CI verification under a fixed runner budget | superseded by D-025; amends D-009, D-018 |
-| [D-024](D-024-cte-and-temporal-table-contract.md) | accepted | 2026-08-04 | Support native CTEs and portable temporal tables | amends D-004 |
+| [D-024](D-024-cte-and-temporal-table-contract.md) | accepted | 2026-08-04 | Support native CTEs, directed joins, and portable temporal tables | amends D-004 |
 | [D-025](D-025-public-repository-verification-model.md) | accepted | 2026-08-08 | Qualify pull-request changes once and harden public workflows | supersedes D-023; amended by D-026 |
 | [D-026](D-026-release-qualification-and-paired-performance.md) | implemented | 2026-08-09 | Qualify releases from PR-bound, tree-exact evidence | amends D-019, D-025 |
 | [D-027](D-027-migration-operation-handler-spi.md) | implemented | 2026-08-11 | Expose exact-type migration operation handlers | - |

@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [IntegrationDatabaseTest]
 [Trait("Category", "MigrationContract")]
 [Trait("VerificationLane", "FullIntegration")]
-public sealed class MySqlIndexKeyIntegrationTests
+public sealed partial class MySqlIndexKeyIntegrationTests
 {
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_validates_index_key_contracts() =>

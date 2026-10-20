@@ -162,6 +162,85 @@ Retry policy, commit-unknown handling, and proxy requirements are owned by
 dependency injection, telemetry, health checks, and data-source setup are owned
 by [Host Integration](host-integration-examples.md).
 
+## Generated-value Readback
+
+`SaveChanges(...)` and `SaveChangesAsync(...)` select the insert/readback path
+from the configured engine, modification shape, and actual physical primary
+key. No additional application option is required.
+
+| Insert group | SQL path |
+| --- | --- |
+| No values must be returned | Existing multi-row `INSERT ... VALUES` path. |
+| MariaDB supports `RETURNING` | Existing multi-row `INSERT ... RETURNING` path. |
+| MySQL, multiple compatible rows, every physical primary-key component is known, written, and non-temporary | One multi-row `INSERT` followed by one compound `SELECT ... UNION ALL ...` readback. |
+| Unavailable server-generated, temporary, or incomplete physical keys; incompatible shape; explicitly configured non-InnoDB engine; declared trigger | Existing per-row insert/readback path. |
+
+A client-generated key can qualify once its actual value is available. An
+identity that the server still has to generate cannot. Composite, converted,
+and shadow keys retain their provider mappings. Each readback branch compares
+the real table's complete key directly with the original parameters, so the
+column's database comparison and collation remain authoritative. Doka does not
+infer subsequent identities from `LAST_INSERT_ID()` or match keys with CLR
+string equality.
+
+Each returned row also carries a group-relative ordinal. The result reader
+streams generated values to that command and checks column count, ordinal
+range, uniqueness, exact row count, and the final end of the result set. It
+does not depend on database result ordering or buffer all returned values.
+Malformed or incomplete results fail the save rather than accepting a partial
+assignment of generated values.
+
+The EF model must describe every trigger on an inserted table, including
+triggers created outside EF migrations:
+
+```csharp
+modelBuilder.Entity<Document>()
+    .ToTable(table => table.HasTrigger("DocumentsBeforeInsert"));
+```
+
+A declared trigger on any mapping of the physical table disables the MySQL
+keyed readback optimization. The same applies to Doka's trigger-backed MySQL
+temporal tables. Doka does not query the database catalog on each save to
+discover undeclared triggers. An undeclared trigger that rewrites keys can
+invalidate the key-to-entry correlation; declaring triggers is therefore a
+correctness prerequisite, including when a compiled model is supplied.
+
+The keyed path also requires the physical table to use InnoDB. Without an
+explicit storage-engine annotation, Doka leaves `ENGINE` out of the table DDL
+and eligibility assumes that the server default and the deployed schema use
+InnoDB. For portable DDL, configure the existing model API explicitly:
+
+```csharp
+modelBuilder.Entity<Document>().UseStorageEngine("InnoDB");
+```
+
+Keep the model and physical schema consistent. Doka does not discover a
+manually altered engine or a different `default_storage_engine` during each
+save. For example, a table created under a MyISAM default, or changed to
+MyISAM outside the model, cannot gain rollback protection merely because EF
+opens a transaction. An explicit non-InnoDB annotation selects the fallback;
+omitting the annotation does not make a nontransactional table eligible for
+the physical InnoDB contract.
+
+The keyed path requires a transaction even for a single modification batch.
+EF creates it when needed or uses the caller's existing transaction. With
+`AutoTransactionBehavior.Never`, Doka retains the per-row fallback unless a
+current, enlisted, or ambient transaction already protects the operation.
+Cancellation and readback failures retain EF's existing rollback/savepoint and
+generated-value failure behavior; opting out of EF automatic transactions does
+not gain a new atomicity guarantee for the fallback path.
+
+The configured batch size remains capped at 1000 commands, the 65535-parameter
+ceiling, and the existing 4-MB packet-size estimate. Readback accounting includes
+the repeated key values and additional SQL text. These estimates can split a
+group before the configured maximum; they do not replace the server's actual
+packet limit. The multi-row insert and its compound readback are two server SQL
+statements. They can share one ADO command; statement counts alone do not
+establish network round-trip counts or an application-wide speedup.
+
+See [D-007](decisions/D-007-multirow-insert-returning.md) for the routing decision
+and alternatives.
+
 ## Model Configuration
 
 | Scope | API | Contract |
@@ -236,10 +315,41 @@ parts. A definition above InnoDB's largest supported 3072-byte limit is
 rejected during model validation. Full-text, spatial, and functional indexes
 retain their separate feature contracts.
 
+For implicit string and binary lengths, the convention and final validator
+use the same physical-width calculation. The convention considers all
+participating keys and ordinary indexes before publishing lengths, including
+overlapping indexes and properties that alias one physical column. The
+strictest applicable budget wins independently of declaration order. Calculated
+lengths retain convention ownership instead of becoming explicit application
+configuration.
+
+Compatible implicit foreign-key lengths retain EF's principal-derived mapping
+while their complete index budgets are solved together. This includes
+composite and transitive relationships and shared physical principal columns.
+A deliberate dependent length or different converter, collation, or store
+representation remains application-owned. This is an EF inference contract,
+not a requirement that every native foreign-key pair have equal string lengths.
+
+Explicit maximum lengths, store types, converter mappings, character sets,
+GUID formats, and configured prefixes remain authoritative. The convention
+adjusts only implicit lengths, reserves the actual bytes of fixed and explicit
+key parts, and rejects a definition that cannot fit even at its minimum
+implicit lengths. It never repairs an oversized key by narrowing an explicit
+facet or inventing a prefix. Character counts are converted to bytes using the
+effective character set; binary and GUID widths use their physical mapping.
+
+An update can therefore change convention-derived column lengths in a generated
+migration. Review the resulting column operations and existing data before
+deployment. Already generated migrations are unchanged; regenerate an
+unpublished migration or create a reviewed forward migration for deployed
+schemas.
+
 `HasPrefixLength(...)` is an explicit semantic choice. A positive entry limits
 that key part; zero selects the complete value. Doka rejects a prefix longer
 than its column and never creates a prefix automatically because doing so can
 change selectivity and the meaning of a unique index.
+An implicit column used only through a prefix retains its full conventional
+length; a separate complete index may still require a shorter column.
 
 Changing, adding, or removing the configured prefix lengths rebuilds the
 existing physical index through one drop and one create migration operation.
@@ -513,3 +623,18 @@ Retrieved 2026-09-19 for parameterized primitive-collection representation:
 - [MariaDB `FROM_BASE64`](https://mariadb.com/docs/server/reference/sql-functions/secondary-functions/encryption-hashing-and-compression-functions/from_base64)
 - [MariaDB `CONVERT`](https://mariadb.com/docs/server/reference/sql-functions/string-functions/convert)
 - [MariaDB `TIME` type](https://mariadb.com/docs/server/reference/data-types/date-and-time-data-types/time)
+
+Retrieved 2026-10-19 for implicit index allocation and grouped generated-value readback:
+
+- [MySQL 8.4 `CREATE INDEX`](https://dev.mysql.com/doc/refman/8.4/en/create-index.html)
+- [MySQL 8.4 supported character sets](https://dev.mysql.com/doc/refman/8.4/en/charset-charsets.html)
+- [MySQL 8.4 information functions](https://dev.mysql.com/doc/refman/8.4/en/information-functions.html)
+- [MySQL 8.4 set operations](https://dev.mysql.com/doc/refman/8.4/en/set-operations.html)
+- [MySQL 8.4 trigger syntax](https://dev.mysql.com/doc/refman/8.4/en/trigger-syntax.html)
+- [MariaDB `INSERT ... RETURNING`](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/inserting-loading-data/insertreturning)
+- [EF Core 10.0.8 transaction execution](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Update/Internal/BatchExecutor.cs)
+- [EF Core 10.0.8 failed-save generated-value discard](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore/ChangeTracking/Internal/StateManager.cs)
+- [MySQL 8.4 `CREATE TABLE` storage-engine selection](https://dev.mysql.com/doc/refman/8.4/en/create-table.html)
+- [MySQL 8.4 rollback failure for nontransactional tables](https://dev.mysql.com/doc/refman/8.4/en/nontransactional-tables.html)
+- [MySQL 8.4 foreign-key type and string-length rules](https://dev.mysql.com/doc/refman/8.4/en/create-table-foreign-keys.html)
+- [MariaDB foreign-key requirements](https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/optimization-and-indexes/foreign-keys)

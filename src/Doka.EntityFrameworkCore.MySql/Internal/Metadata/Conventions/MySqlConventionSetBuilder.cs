@@ -28,14 +28,15 @@ internal sealed class MySqlConventionSetBuilder : RelationalConventionSetBuilder
                 MaxIdentifierLength,
                 Dependencies,
                 RelationalDependencies));
-        conventionSet.ModelFinalizingConventions.Add(
-            new MySqlIndexLengthConvention());
         var temporalConvention = new MySqlTemporalConvention(_singletonOptions);
 
         conventionSet.EntityTypeAnnotationChangedConventions.Add(temporalConvention);
         conventionSet.SkipNavigationForeignKeyChangedConventions.Add(temporalConvention);
         conventionSet.ModelFinalizingConventions.Add(temporalConvention);
         conventionSet.ModelFinalizingConventions.Add(new MySqlValueGenerationConvention(_singletonOptions));
+        // WHY: GUID normalization determines the physical key width used by the budget.
+        conventionSet.ModelFinalizingConventions.Add(
+            new MySqlIndexLengthConvention((IRelationalTypeMappingSource)Dependencies.TypeMappingSource));
 
         return conventionSet;
     }

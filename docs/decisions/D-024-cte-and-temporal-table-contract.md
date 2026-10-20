@@ -5,7 +5,7 @@ date: 2026-08-04
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
 informed: [Provider contributors]
-scope: "Common-table-expression and temporal-table provider contracts"
+scope: "Common-table-expression, directed-join, and temporal-table provider contracts"
 supersedes: []
 superseded-by: []
 amends: [D-004]
@@ -14,7 +14,7 @@ madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
 
-# D-024 -- Support native CTEs and portable temporal tables
+# D-024 -- Support native CTEs, directed joins, and portable temporal tables
 
 ## Context and Problem Statement
 
@@ -40,6 +40,13 @@ CTE with an empty recursive arm retained the selected values. MySQL 8.4.11 also
 retained those values with the empty-arm form. This semantic requirement is
 separate from choosing indexes or proving a selective query plan.
 
+The same consumer requires one chosen join input to precede the other. Source
+binding alone cannot express that direction; a materialized relation can still
+be scanned in a poor join order. A generic directed inner-join operator exposes
+that separate engine capability while retaining EF's ordinary relational join
+and result-shaping semantics. It does not encode the consumer's hierarchy or
+its index policy in the provider.
+
 ## Decision Drivers
 
 - The provider must not be the limiting factor when an engine can perform the
@@ -54,6 +61,8 @@ separate from choosing indexes or proving a selective query plan.
   entity set-operation validation.
 - A consumed source-binding capability must not grow into a general CTE DSL,
   application data cache, session-table protocol, or domain-specific query API.
+- One consumed join direction must remain local to its selected SQL edge,
+  without a global join-order modifier or a second join/shaping implementation.
 - Temporal queries need one public, engine-independent EF-style contract.
 - MariaDB must use its native system-versioning syntax and semantics.
 - MySQL must receive equivalent provider semantics through explicit emulation.
@@ -79,7 +88,7 @@ CTEs retain EF Core's existing composable SQL surface. The provider recognizes
 retains parameter binding through `FromSql`, `FromSqlRaw`, `SqlQuery`, and
 `SqlQueryRaw`.
 
-For the concrete shared-source requirement, add exactly one operator:
+For the concrete shared-source requirement, add one source-binding operator:
 `MySqlQueryableExtensions.WithMaterializedSource<TSource, TResult>(
 IQueryable<TSource>, Expression<Func<IQueryable<TSource>, IQueryable<TResult>>>)`.
 The expression parameter gives references lexical identity without public CTE
@@ -121,6 +130,22 @@ without deduplicating its occurrences, and avoids MariaDB's observed cloning
 of ordinary multi-reference CTEs. The lowering is internal; it guarantees no
 particular physical temporary-table count, index use, or query complexity.
 Every supported engine line requires its own live qualification.
+
+For the independent direction requirement, add
+`MySqlQueryableExtensions.StraightJoin<TOuter, TInner, TKey, TResult>` with the
+ordinary EF `Join` sources, key selectors, and result selector. Both inputs
+must use the same asynchronous EF query-provider instance. Construction is
+synchronous and performs no I/O; normal EF terminal operators execute later.
+The provider reuses EF's join translation, then replaces only its selected
+inner-join edge with `MySqlStraightJoinExpression`. Matching, duplicate
+multiplication, key/null semantics, filters, projections, paging, tracking, and
+navigation shaping retain the corresponding EF `Join` contract. MySQL and
+MariaDB emit `STRAIGHT_JOIN` for that edge; other edges remain ordinary joins.
+No global `SELECT STRAIGHT_JOIN` modifier is added. Result ordering, snapshot,
+source materialization, index choice, and performance are separate concerns.
+The engine directive can still restrict optimizer transformations elsewhere:
+MySQL's documented semijoin/antijoin eligibility excludes the join type in the
+outer query. Qualification must inspect the complete consuming plan.
 
 Explicit `EF.CompileQuery` delegates around `FromSql` or temporal `DbSet`
 extensions are not part of this provider contract. EF Core replaces a `DbSet`
@@ -198,6 +223,10 @@ materialize that separate owned navigation remain valid.
   typed capabilities and annotations.
 - Good, because one narrow source-binding contract preserves bags, paging,
   native values, and multi-reference evaluation without a general CTE DSL.
+- Good, because one directed edge retains EF's join/shaping semantics without
+  changing the SQL kind of unrelated joins or exposing a global directive.
+- Bad, because a directed edge constrains the optimizer and can disable other
+  transformations; it requires representative complete-query plan evidence.
 - Bad, because forced materialization consumes server resources and does not
   make every consuming query faster or selective.
 - Bad, because provider-owned relational expression handling depends on exact
@@ -237,8 +266,22 @@ materialize that separate owned navigation remain valid.
   accessors, parse the generated expression/declarations, reject cyclic graphs,
   and bound definition growth, generated size, and allocations at depths
   4/8/12 after warming the exact reference or owning-SELECT path. These are
-  translation and syntax checks, not cross-assembly compilation. NativeAOT
-  remains governed by D-017 rather than inferred from either quotation check.
+  translation and syntax checks, not cross-assembly compilation. Separately,
+  `Actual_quote_and_csharp_generator_preserve_the_dependent_source_dag` and
+  `Completed_source_annotations_survive_actual_csharp_reconstruction` compile
+  and execute the generated C# with Roslyn in a collectible load context under
+  the provider's existing test friend-assembly identity. Verify actual source
+  payloads, null-valued entries, shared dependency identity, directed-edge
+  retention, and equivalent generated SQL. This does not establish arbitrary
+  consumer cross-assembly or NativeAOT support. D-017 remains authoritative.
+- Run `MySqlStraightJoinTests` against both configured engine families and
+  both null-semantics modes: scalar/composite/nullable/converted/constant keys,
+  duplicate-preserving projections, paging, mixed ordinary/directed edges,
+  tracking and scalar-subquery composition. Verify null arguments,
+  LINQ-to-Objects and different provider instances fail without a command.
+  Retain synchronous/asynchronous compiled-query composition and dependency
+  sharing with materialized sources. Clone, update, TRUE-predicate, and quote
+  tests must retain the exact edge, annotations, and pruning metadata.
 - Run `Raw_sql_name_collision_preserves_identifier_limit` and execute its
   generated statement on native MySQL and MariaDB. Long reserved-name prefixes
   in valid raw SQL must not force oversized CTE names; verify deterministic
@@ -410,17 +453,21 @@ execution. Confirmation therefore requires semantic reconstruction and actual
 EF C# translation as separate checks; neither establishes NativeAOT support.
 D-017 remains unchanged.
 
-The source-binding quotation helper also reconstructs its own annotations.
-EF Core 10.0.13's `RelationalExpressionQuotingUtilities.QuoteAnnotations`
-requests a constructor on `IDictionary<string, IAnnotation>`, an interface,
-and supplies an `IAnnotation` wrapper as the newly constructed annotation's
-value. A source binding with annotations therefore cannot use that helper to
-preserve its payloads. The local routine creates a concrete
-`Dictionary<string, IAnnotation>` and reconstructs each annotation from its name
-and original object value, preserving a null-valued entry as well. Regression
-checks cover string, Boolean, and null payloads. This routine belongs only to
-source-binding quotation; it is not a replacement for EF's annotation handling
-across unrelated expression types.
+`MySqlRelationalExpressionQuoting` reconstructs annotations on provider-owned
+materialized-source and directed-join nodes. On both EF Core 10.0.8 and
+10.0.13, `RelationalExpressionQuotingUtilities.QuoteAnnotations` requests a
+constructor on the `IDictionary<string, IAnnotation>` interface and supplies
+an `IAnnotation` wrapper as the newly constructed annotation's value. A local
+concrete dictionary alone fixes neither actual C# translation nor payload
+identity: EF's `LinqToCSharpSyntaxTranslator` also rejects list initializers
+whose `Add` call has more than one argument. The shared provider helper uses
+`Dictionary<string, IAnnotation>(IEnumerable<KeyValuePair<string, IAnnotation>>)`
+over a list whose `Add` receives one reconstructed pair at a time. Each
+annotation retains its original name and object value, including a null-valued
+entry. Expression round trips cover string, Boolean, integer, and null
+payloads; actual generated-C# compilation and execution cover annotated source
+and directed-edge reconstruction. The helper is local to these provider-owned
+nodes; it does not replace EF's annotation handling for unrelated expressions.
 
 Generated CTE names use the deterministic binding-ID prefix already selected
 for ordinary queries. If that name conflicts with physical names or appears in
@@ -447,6 +494,28 @@ visibility does not promise a stable provider-independent API; changes require
 the confirmation tests and re-evaluation below. D-017 remains authoritative for
 the experimental NativeAOT boundary.
 
+### Directed-Join Alternatives and Framework Seams
+
+A global `SELECT STRAIGHT_JOIN` modifier is rejected because it would constrain
+all joins in the query block. Repeating ordinary `Join` syntax cannot express
+the engine direction contract. SQL text replacement would bypass EF's edge,
+projection, nullability, and shaping metadata. A second join translator would
+duplicate those responsibilities. The selected route lowers the public marker
+through ordinary EF join processing, tracks only its marked inner input, and
+replaces the resulting `InnerJoinExpression` with an immutable directed node.
+Unrelated queries allocate no marker set. One lazy reference-identity set is
+shared only by the translation visitor and its subquery visitors, then leaves
+with that compilation; it is not model-, context-, or process-global state.
+
+`SelectExpression.SetTables` is the same narrow EF seam already used by source
+binding. The join path replaces a copied table array after ordinary
+`TranslateJoin` completes, because the setter clears its backing list. Cloning,
+visiting, annotation quotation, SQL printing, and pruning retain the directed
+node. A TRUE join predicate remains a directed edge rather than becoming an
+ordinary cross join. The direction operator and source binder compose without
+coupling their contracts, sharing only the provider-owned relational
+annotation quotation helper.
+
 ### Re-evaluation Triggers
 
 - EF Core adds a provider-independent CTE expression or temporal metadata
@@ -469,7 +538,16 @@ the experimental NativeAOT boundary.
 - EF's annotation quotation helper constructs concrete storage and preserves
   actual payloads on every supported EF version. Prefer that upstream helper
   once string, Boolean, null, and actual C# translation checks prove it can
-  replace this source-binding-local routine.
+  replace this provider-node-local routine, including the C# translator's
+  single-argument initializer constraint.
+- EF changes ordinary join lowering, appended-edge identity, constant-key
+  simplification, nullability, cloning, pruning, or subquery-visitor lifetime so
+  directed and ordinary join equivalence or mixed-edge tests fail. Prefer an
+  upstream directed-edge seam if it preserves the same local contract with
+  less provider-owned handling.
+- MySQL or MariaDB changes directed join semantics or optimizer restrictions,
+  or a consuming native plan regresses; requalify the complete query rather
+  than inferring performance from the presence of `STRAIGHT_JOIN` alone.
 - Engine identifier rules or source naming change so physical/raw-SQL collision
   tests fail; retain deterministic bounded names rather than lengthening a name
   once per collision.
@@ -531,6 +609,14 @@ the experimental NativeAOT boundary.
   unsafe-accessor declarations and separated syntax from cross-assembly/AOT
   compilation.
 
+- 2026-10-19: Added one generic directed inner-join edge using ordinary EF join
+  processing, with explicit optimizer consequences, source-binding independence,
+  mixed-edge/compiled-query coverage, and versioned replacement seams.
+- 2026-10-19: Shared provider-node annotation quotation through concrete
+  dictionary construction over single-argument pair initializers; recorded
+  actual generated-C# compilation/execution under the existing friend identity
+  separately from earlier syntax checks and the unchanged D-017 AOT boundary.
+
 ### Implementation References
 
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Capabilities/EngineProfileTable.cs`
@@ -549,6 +635,16 @@ the experimental NativeAOT boundary.
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Query/MySqlMaterializedSourceLineageTests.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Query/MySqlMaterializedSourceTranslationTests.Names.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.Tests/Query/MySqlMaterializedSourceExpressionTests.cs`
+- `src/Doka.EntityFrameworkCore.MySql/MySqlQueryableExtensions.StraightJoin.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Processing/MySqlStraightJoinLowering.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Translation/MySqlQueryableMethodTranslatingExpressionVisitor.StraightJoins.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Expressions/MySqlStraightJoinExpression.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Expressions/MySqlRelationalExpressionQuoting.cs`
+- `src/Doka.EntityFrameworkCore.MySql/Internal/Query/SqlGeneration/MySqlQuerySqlGenerator.StraightJoins.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.Tests/Query/MySqlStraightJoinTests.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.Tests/Query/MySqlStraightJoinTests.Compiled.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.Tests/Query/MySqlStraightJoinTests.Tracking.cs`
+- `tests/Doka.EntityFrameworkCore.MySql.Tests/Query/MySqlStraightJoinExpressionTests.cs`
 - `docs/ctes.md`
 - `src/Doka.EntityFrameworkCore.MySql/MySqlTableBuilderExtensions.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Query`
@@ -659,20 +755,33 @@ the experimental NativeAOT boundary.
   (primary source; retrieved 2026-10-18)
 
 - [EF Core 10.0.13 LINQ-to-C# translation](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore.Design/Query/Internal/LinqToCSharpSyntaxTranslator.cs)
-  (primary source; retrieved 2026-10-18)
+  (primary source; retrieved 2026-10-19)
 - [EF Core 10.0.13 precompiled-query generation](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore.Design/Query/Internal/PrecompiledQueryCodeGenerator.cs)
   (primary source; retrieved 2026-10-18)
 - [EF Core 10.0.8 LINQ-to-C# translation](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Design/Query/Internal/LinqToCSharpSyntaxTranslator.cs)
-  (primary source; retrieved 2026-10-18)
+  (primary source; retrieved 2026-10-19)
 - [EF Core 10.0.8 precompiled-query generation](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Design/Query/Internal/PrecompiledQueryCodeGenerator.cs)
   (primary source; retrieved 2026-10-18)
 
 - [EF Core 10.0.13 relational expression quotation utilities](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore.Relational/Query/RelationalExpressionQuotingUtilities.cs)
-  (primary source; retrieved 2026-10-18)
+  (primary source; retrieved 2026-10-19)
 - [MySQL 8.4 identifier length limits](https://dev.mysql.com/doc/refman/8.4/en/identifier-length.html)
   (primary source; retrieved 2026-10-18)
 - [MariaDB identifier names and length limits](https://mariadb.com/docs/server/reference/sql-structure/sql-language-structure/identifier-names)
   (primary source; retrieved 2026-10-18)
+
+- [MySQL 8.4 join syntax and direction](https://dev.mysql.com/doc/refman/8.4/en/join.html)
+  (primary source; retrieved 2026-10-19)
+- [MySQL 8.4 semijoin and antijoin restrictions](https://dev.mysql.com/doc/refman/8.4/en/semijoins-antijoins.html)
+  (primary source; retrieved 2026-10-19)
+- [MariaDB join syntax](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/joins/join-syntax)
+  (primary source; retrieved 2026-10-19)
+- [MariaDB join-order and index directives](https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/query-optimizations/index-hints-how-to-force-query-plans)
+  (primary source; retrieved 2026-10-19)
+- [EF Core complex query operators](https://learn.microsoft.com/en-us/ef/core/querying/complex-query-operators)
+  (primary source; retrieved 2026-10-19)
+- [EF Core 10.0.8 relational annotation quotation](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Query/RelationalExpressionQuotingUtilities.cs)
+  (primary source; retrieved 2026-10-19)
 
 [mariadb-periods]:
   https://mariadb.com/docs/server/reference/system-tables/information-schema/information-schema-tables/information-schema-periods-table

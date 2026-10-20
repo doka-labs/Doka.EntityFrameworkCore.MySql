@@ -226,9 +226,10 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
 
         internal string LockName => _lockName;
 
-        private TimeoutException BuildLockTimeoutException() => new(
+        private TimeoutException BuildLockTimeoutException(Exception? innerException = null) => new(
             $"Could not acquire the MySQL advisory lock scope '{_lockScopeId}' within {_lockTimeoutSeconds} seconds. "
-            + "Another migration process may be running concurrently.");
+            + "Another migration process may be running concurrently.",
+            innerException);
 
         /// <summary>
         /// Acquires a MySQL advisory lock using GET_LOCK on a dedicated connection.
@@ -266,11 +267,20 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                 {
                     connection.Open();
 
-                    var result = ExecuteOnConnection(
-                        connection,
-                        "SELECT GET_LOCK(@name, @timeout)",
-                        ("@name", _lockName),
-                        ("@timeout", _lockTimeoutSeconds));
+                    object? result;
+                    try
+                    {
+                        result = ExecuteOnConnection(
+                            connection,
+                            "SELECT GET_LOCK(@name, @timeout)",
+                            ("@name", _lockName),
+                            ("@timeout", _lockTimeoutSeconds));
+                    }
+                    catch (MySqlException exception) when (exception.ErrorCode == MySqlErrorCode.CommandTimeoutExpired)
+                    {
+                        // The driver and GET_LOCK share the same deadline; either can report it first.
+                        throw BuildLockTimeoutException(exception);
+                    }
 
                     if (!MySqlScalarConvert.ToBoolean(result))
                     {
@@ -344,13 +354,22 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                         .OpenAsync(cancellationToken)
                         .ConfigureAwait(false);
 
-                    var result = await ExecuteOnConnectionAsync(
-                            connection,
-                            "SELECT GET_LOCK(@name, @timeout)",
-                            cancellationToken,
-                            ("@name", _lockName),
-                            ("@timeout", _lockTimeoutSeconds))
-                        .ConfigureAwait(false);
+                    object? result;
+                    try
+                    {
+                        result = await ExecuteOnConnectionAsync(
+                                connection,
+                                "SELECT GET_LOCK(@name, @timeout)",
+                                cancellationToken,
+                                ("@name", _lockName),
+                                ("@timeout", _lockTimeoutSeconds))
+                            .ConfigureAwait(false);
+                    }
+                    catch (MySqlException exception) when (exception.ErrorCode == MySqlErrorCode.CommandTimeoutExpired)
+                    {
+                        // The driver and GET_LOCK share the same deadline; either can report it first.
+                        throw BuildLockTimeoutException(exception);
+                    }
 
                     if (!MySqlScalarConvert.ToBoolean(result))
                     {

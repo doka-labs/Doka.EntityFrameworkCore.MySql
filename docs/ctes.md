@@ -3,8 +3,9 @@
 Common table expressions use EF Core's composable SQL query roots. A narrow
 `WithMaterializedSource` LINQ operator additionally binds one complete source
 when multiple query references must share its selected rows and computed
-values. It is not a general named-CTE or recursion language. Both supported
-engine families execute non-recursive and recursive read CTEs natively.
+values. A separate `StraightJoin` operator retains the direction of one inner
+join edge. Neither API is a general named-CTE or recursion language. Both
+supported engine families execute non-recursive and recursive read CTEs natively.
 
 ## Support Matrix
 
@@ -13,6 +14,7 @@ engine families execute non-recursive and recursive read CTEs natively.
 | Non-recursive CTE query | Native | Native | Native |
 | Recursive CTE query | Native | Native | Native |
 | Composable `FromSql` query root | Supported | Supported | Supported |
+| Directed `StraightJoin` LINQ edge | Native `STRAIGHT_JOIN` | Native `STRAIGHT_JOIN` | Native `STRAIGHT_JOIN` |
 | CTE `UPDATE` / `DELETE` engine SQL | Native | Unsupported by engine | Native |
 
 CTE data modification on MariaDB is an engine-version boundary: the MariaDB
@@ -284,6 +286,66 @@ still matter. Bind the narrow SQL values that the composition needs. Inspect
 native plans and fully read representative results when assessing performance.
 Do not replace a simple single-reference query merely to introduce a CTE.
 
+## Direct One Inner Join Edge
+
+`MySqlQueryableExtensions.StraightJoin` has the key and result selectors of
+EF's ordinary `Join`. It marks only that join edge for outer-before-inner
+processing on MySQL and MariaDB:
+
+```csharp
+public static IQueryable<TResult> StraightJoin<TOuter, TInner, TKey, TResult>(
+    this IQueryable<TOuter> outer,
+    IQueryable<TInner> inner,
+    Expression<Func<TOuter, TKey>> outerKeySelector,
+    Expression<Func<TInner, TKey>> innerKeySelector,
+    Expression<Func<TOuter, TInner, TResult>> resultSelector);
+```
+
+For example, for nodes with a `Guid` key and nullable `Guid` parent key:
+
+```csharp
+var parents = context.Nodes.Where(node => node.TreeId == treeId);
+var children = context.Nodes.Where(node => node.TreeId == treeId);
+var query = parents.StraightJoin(
+    children,
+    parent => (Guid?)parent.Id,
+    child => child.ParentId,
+    (parent, child) => new
+    {
+        ParentId = parent.Id,
+        ChildId = child.Id,
+    });
+
+var pairs = await query
+    .OrderBy(pair => pair.ParentId)
+    .ThenBy(pair => pair.ChildId)
+    .ToListAsync(cancellationToken);
+```
+
+Import `Doka.EntityFrameworkCore.MySql` for the operator. Both inputs must use
+exactly the same asynchronous EF query-provider instance. LINQ-to-Objects and
+different provider instances, including separate contexts, are rejected while
+constructing the query. Another provider cannot translate this Doka operator.
+Construction is synchronous and performs no I/O; ordinary EF async terminal
+operators execute the query and accept the cancellation token.
+
+Matching, duplicate multiplication, key and null semantics, filters, paging,
+projection, tracking, and navigation shaping follow the corresponding ordinary
+EF `Join`. Doka translates that join with EF and changes its selected SQL edge
+to `STRAIGHT_JOIN`. Other joins remain ordinary joins; Doka does not emit the
+global `SELECT STRAIGHT_JOIN` modifier. An explicit `OrderBy` still determines
+result order. The directive can affect optimizer transformations beyond the
+marked edge: MySQL excludes statements using the join type from its documented
+semijoin and antijoin transformations. Compare complete native plans and fully
+read results before choosing it for a consuming query.
+
+Join direction does not select an index, create a database snapshot,
+materialize either input, or guarantee a faster query. Use
+`WithMaterializedSource` independently when several references must share one
+completed source; it can compose with `StraightJoin`, but neither operator
+substitutes for the other's contract. Application-specific isolation and
+visibility predicates remain the application's responsibility.
+
 ## Runnable Verification
 
 The [TemporalTablesAndCtes example](../examples/TemporalTablesAndCtes/README.md)
@@ -294,6 +356,17 @@ composability, parameterization, synchronous and asynchronous execution, and
 affected command boundaries. Live integration tests exercise CTE data
 modification on MySQL 8.4 / 9.7 and MariaDB 12.3.
 
+`MySqlStraightJoinTests` compares directed and ordinary join translation for
+scalar, composite, nullable, converted, constant, and paged keys, mixed join
+edges, deferred construction, foreign-provider rejection, and compiled-query
+composition. `MySqlStraightJoinExpressionTests` verifies cloning, quotation,
+shared source dependencies, and annotation reconstruction. Its actual EF C#
+generator tests compile and execute the generated code in a collectible load
+context using the existing provider test friend-assembly identity. These checks
+do not establish arbitrary consumer cross-assembly or NativeAOT support;
+[D-017](decisions/D-017-nativeaot-smoke-deferred.md)
+retains the runtime-posture contract.
+
 ## Related Limitations
 
 The cross-feature [limitations index](limitations.md) records MariaDB CTE data
@@ -303,7 +376,8 @@ only the exact documented shapes; read CTEs remain supported.
 ## Primary Sources
 
 The original raw SQL sources were retrieved on 2026-08-11. The source-binding
-references below were checked on 2026-10-18.
+references below were checked on 2026-10-18. Directed-join and generated-C#
+references were checked on 2026-10-19.
 
 - [MySQL 8.4 common table expressions](https://dev.mysql.com/doc/refman/8.4/en/with.html)
 - [MySQL 8.4 `SELECT`](https://dev.mysql.com/doc/refman/8.4/en/select.html)
@@ -322,3 +396,12 @@ references below were checked on 2026-10-18.
 - [MariaDB CTE cloning, MDEV-35357](https://jira.mariadb.org/browse/MDEV-35357)
 - [EF Core client and server evaluation](https://learn.microsoft.com/en-us/ef/core/querying/client-eval)
 - [EF Core single and split queries](https://learn.microsoft.com/en-us/ef/core/querying/single-split-queries)
+- [MySQL 8.4 join syntax and direction](https://dev.mysql.com/doc/refman/8.4/en/join.html)
+- [MySQL 8.4 semijoin and antijoin restrictions](https://dev.mysql.com/doc/refman/8.4/en/semijoins-antijoins.html)
+- [MariaDB join syntax](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/joins/join-syntax)
+- [MariaDB join-order and index directives](https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/query-optimizations/index-hints-how-to-force-query-plans)
+- [EF Core complex query operators](https://learn.microsoft.com/en-us/ef/core/querying/complex-query-operators)
+- [EF Core 10.0.8 relational annotation quotation](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Query/RelationalExpressionQuotingUtilities.cs)
+- [EF Core 10.0.13 relational annotation quotation](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore.Relational/Query/RelationalExpressionQuotingUtilities.cs)
+- [EF Core 10.0.8 expression-to-C# translation](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Design/Query/Internal/LinqToCSharpSyntaxTranslator.cs)
+- [EF Core 10.0.13 expression-to-C# translation](https://github.com/dotnet/efcore/blob/v10.0.13/src/EFCore.Design/Query/Internal/LinqToCSharpSyntaxTranslator.cs)
