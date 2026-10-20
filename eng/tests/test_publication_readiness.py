@@ -107,7 +107,7 @@ class PublicationReadinessTests(unittest.TestCase):
                 "bash",
                 str(self.script),
                 "--ef-core-version",
-                "11.0.0-rc.1.26425.128",
+                "11.0.0-rc.2.26504.105",
                 "--mysqlconnector-version",
                 "2.6.1",
             ),

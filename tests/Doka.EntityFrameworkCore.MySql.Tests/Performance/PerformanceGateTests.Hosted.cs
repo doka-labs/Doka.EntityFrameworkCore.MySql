@@ -42,8 +42,10 @@ public sealed partial class PerformanceGateTests
         using var process = System.Diagnostics.Process.Start(startInfo)
             ?? throw new InvalidOperationException("Could not start the benchmark evaluator.");
 
-        var output = process.StandardOutput.ReadToEndAsync();
-        var error = process.StandardError.ReadToEndAsync();
+        // WHY: Drain both streams with the same non-cancellable lifetime as the
+        // owned evaluator below, so cancellation cannot leave unread output.
+        var output = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var error = process.StandardError.ReadToEndAsync(CancellationToken.None);
         await process.WaitForExitAsync(CancellationToken.None);
         var diagnostics = await output + await error;
 

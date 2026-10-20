@@ -1,6 +1,6 @@
 # EF Core Limitations
 
-This inventory contains only contracts that EF Core 11 RC.1 rejects or cannot
+This inventory contains only contracts that EF Core 11 RC.2 rejects or cannot
 represent before provider translation. Engine restrictions are documented
 separately in [Database Engine Limitations](database-engines.md), and the
 [cross-feature index](../limitations.md) defines the governing zero-gap
@@ -29,7 +29,7 @@ engine target.
 ### Struct elements in complex collections
 
 - **Unavailable contract:** Persisting a complex collection whose element type
-  is a struct on EF Core 11 RC.1.
+  is a struct on EF Core 11 RC.2.
 - **Available contracts:** Reference-type complex collections mapped to JSON,
   and individual struct complex properties, remain supported.
 - **Responsibility:** EF Core documents struct complex properties but does

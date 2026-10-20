@@ -150,10 +150,10 @@ probes, and re-evaluation triggers.
 
 - The provider test infrastructure owns isolated test databases and records
   exact image and endpoint evidence.
-- The active EF Core `11.0.0-rc.1.26425.128` inventory contains 329 official
-  compliance bases, 9,299 unique test definitions, and 19,659 effective
+- The active EF Core `11.0.0-rc.2.26504.105` inventory contains 329 official
+  compliance bases, 9,305 unique test definitions, and 19,665 effective
   assignments. Provider debt is `0/0`, and every supported target discovers
-  exactly 30,422 tests.
+  exactly 30,440 tests.
 - The 11.x release matrix selects the provider `Specification` namespace plus
   provider adapters marked `Category=Spec`. Exact discovery includes the one
   runtime-migration adapter that must reside in EF Core's namespace.
@@ -250,6 +250,8 @@ probes, and re-evaluation triggers.
   (primary source; retrieved 2026-09-19)
 - [Relational specification package 11.0.0 RC.1][ef11-relational-spec-package]
   (primary source; retrieved 2026-09-19)
+- [Relational specification package 11.0.0 RC.2][ef11-relational-spec-package-rc2]
+  (primary source; retrieved 2026-10-20)
 
 [ef-compliance]: https://github.com/dotnet/efcore/blob/v10.0.12/test/EFCore.Specification.Tests/ComplianceTestBase.cs
 [ef-relational-compliance]: https://github.com/dotnet/efcore/blob/v10.0.12/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs
@@ -257,3 +259,4 @@ probes, and re-evaluation triggers.
 [ef11-compliance]: https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/test/EFCore.Specification.Tests/ComplianceTestBase.cs
 [ef11-relational-compliance]: https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs
 [ef11-relational-spec-package]: https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Relational.Specification.Tests/11.0.0-rc.1.26425.128
+[ef11-relational-spec-package-rc2]: https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Relational.Specification.Tests/11.0.0-rc.2.26504.105

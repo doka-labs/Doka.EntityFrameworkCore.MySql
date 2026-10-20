@@ -145,7 +145,9 @@ public sealed partial class MySqlMigrationOperationContractTests
         try
         {
             await rendererEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
-            deactivation = s_renderWorkers.StartNew(context.Deactivate);
+            // WHY: Synchronous lease closing has no cancellation contract;
+            // its owner must release and drain the worker even after a failure.
+            deactivation = s_renderWorkers.StartNew(context.Deactivate, CancellationToken.None);
             // WHY: Probe the actual closed lease rather than a signal emitted
             // before Deactivate enters it. A broken guard must not block cleanup.
             expirationProbe = s_renderWorkers.StartNew(() => SpinWait.SpinUntil(

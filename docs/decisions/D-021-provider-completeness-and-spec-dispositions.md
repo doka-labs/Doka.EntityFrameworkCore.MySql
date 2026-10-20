@@ -250,11 +250,11 @@ Both sources were retrieved on 2026-07-30.
 
 ### Verified target matrix
 
-The active EF Core `11.0.0-rc.1.26425.128` contract contains 329 compliance
-bases, 9,299 unique test definitions, 19,659 effective assignments, and zero
-provider debt. Exact discovery regenerated on 2026-09-19 contains 30,422 test
+The active EF Core `11.0.0-rc.2.26504.105` contract contains 329 compliance
+bases, 9,305 unique test definitions, 19,665 effective assignments, and zero
+provider debt. Exact discovery regenerated on 2026-10-20 contains 30,440 test
 IDs for each of the six supported targets. These files establish the expected
-RC.1 inventory and discovery set; they do not claim that the complete live
+RC.2 inventory and discovery set; they do not claim that the complete live
 matrix has executed.
 
 The tables below retain the dated full-matrix evidence from the 10.x line.

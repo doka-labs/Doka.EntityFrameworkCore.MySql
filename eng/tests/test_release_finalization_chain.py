@@ -13,6 +13,7 @@ that the finalizer's semantic gate creates every assembly it consumes.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shlex
