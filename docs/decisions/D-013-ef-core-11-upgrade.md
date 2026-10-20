@@ -50,7 +50,7 @@ the released 10.x line stable while letting the next major validate the real
 .NET 11 and EF Core 11 surface without a conditional dual-provider build.
 
 The `feature/dotnet-11` line targets `net11.0` only. It pins SDK
-`11.0.100-rc.1.26425.128` and EF Core `11.0.0-rc.1.26425.128` exactly. The
+`11.0.100-rc.2.26504.105` and EF Core `11.0.0-rc.2.26504.105` exactly. The
 matching RC dependency graph is intentional: a prerelease provider-facing API
 change requires a reviewed code and evidence update rather than a floating
 restore.
@@ -89,7 +89,7 @@ reused as GA evidence.
 - `global.json` pins the exact .NET 11 SDK and Microsoft Testing Platform
   runner.
 - `Directory.Build.props` targets `net11.0` and declares the 11.x package line.
-- `Directory.Packages.props` pins one exact EF Core RC.1 graph.
+- `Directory.Packages.props` pins one exact EF Core RC.2 graph.
 - The versioned specification inventory and discovery files identify that
   exact EF Core version.
 - Repository scripts reject stale framework, package, discovery, and evidence
@@ -121,14 +121,14 @@ reused as GA evidence.
 
 ### Implementation Snapshot
 
-As of 2026-09-19, the isolated 11.x branch targets the exact .NET 11 RC.1 SDK
-and EF Core RC.1 packages. The provider source, upstream specification
+As of 2026-10-20, the isolated 11.x branch targets the exact .NET 11 RC.2 SDK
+and EF Core RC.2 packages. The provider source, upstream specification
 adapters, xUnit v3 test projects, repository scripts, runtime posture, package
 locks, documentation, and release contracts are being qualified as one change.
 
-The exact upstream contract contains 329 compliance bases, 9,299 test
-definitions, and 19,659 provider assignments. Each supported target discovers
-30,422 tests. The versioned inventory and six target-specific discovery files
+The exact upstream contract contains 329 compliance bases, 9,305 test
+definitions, and 19,665 provider assignments. Each supported target discovers
+30,440 tests. The versioned inventory and six target-specific discovery files
 are release inputs, not descriptive snapshots.
 
 ### Re-evaluation Triggers
@@ -145,6 +145,8 @@ are release inputs, not descriptive snapshots.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the outcome.
 - 2026-09-19: Maintainer authorized the .NET 11 RC.1 line; replaced the planned
   multi-target shape with an isolated single-target 11.x line.
+- 2026-10-20: Updated the exact SDK and EF Core dependency graph to RC.2 and
+  regenerated the upstream specification and discovery contracts.
 
 ### Implementation References
 
@@ -163,6 +165,10 @@ are release inputs, not descriptive snapshots.
   (primary source; retrieved 2026-09-19)
 - [EF Core 11 RC.1 package][efcore-11-rc1]
   (primary source; retrieved 2026-09-19)
+- [.NET 11 RC.2 release notes][dotnet-11-rc2]
+  (primary source; retrieved 2026-10-20)
+- [EF Core 11 RC.2 package][efcore-11-rc2]
+  (primary source; retrieved 2026-10-20)
 
 [dotnet-11-rc1]:
   https://github.com/dotnet/core/blob/main/release-notes/11.0/preview/rc1/11.0.0-rc.1.md
@@ -170,3 +176,7 @@ are release inputs, not descriptive snapshots.
   https://github.com/dotnet/core/blob/main/release-notes/releases-index.json
 [efcore-11-rc1]:
   https://www.nuget.org/packages/Microsoft.EntityFrameworkCore/11.0.0-rc.1.26425.128
+[dotnet-11-rc2]:
+  https://github.com/dotnet/core/blob/main/release-notes/11.0/preview/rc2/11.0.0-rc.2.md
+[efcore-11-rc2]:
+  https://www.nuget.org/packages/Microsoft.EntityFrameworkCore/11.0.0-rc.2.26504.105

@@ -157,12 +157,12 @@ class ReleaseEvidenceTests(unittest.TestCase):
         """Permit prerelease selection only when the exact pin is prerelease."""
         path = self.repo / "global.json"
         payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["sdk"]["version"] = "11.0.100-rc.1.26425.128"
+        payload["sdk"]["version"] = "11.0.100-rc.2.26504.105"
         payload["sdk"]["allowPrerelease"] = True
         path.write_text(json.dumps(payload) + "\n", encoding="ascii")
 
         self.assertEqual(
-            "11.0.100-rc.1.26425.128",
+            "11.0.100-rc.2.26504.105",
             release_evidence.approved_dotnet_sdk(self.repo),
         )
 
@@ -170,7 +170,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         """Reject a prerelease pin that cannot select prerelease SDKs."""
         path = self.repo / "global.json"
         payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["sdk"]["version"] = "11.0.100-rc.1.26425.128"
+        payload["sdk"]["version"] = "11.0.100-rc.2.26504.105"
         payload["sdk"]["allowPrerelease"] = False
         path.write_text(json.dumps(payload) + "\n", encoding="ascii")
 
@@ -455,11 +455,11 @@ class ReleaseEvidenceTests(unittest.TestCase):
                             "topLevelPackages": [
                                 {
                                     "id": "Microsoft.EntityFrameworkCore.Design",
-                                    "resolvedVersion": "11.0.0-rc.1.26425.128",
+                                    "resolvedVersion": "11.0.0-rc.2.26504.105",
                                 },
                                 {
                                     "id": "Microsoft.EntityFrameworkCore.Relational",
-                                    "resolvedVersion": "11.0.0-rc.1.26425.128",
+                                    "resolvedVersion": "11.0.0-rc.2.26504.105",
                                 },
                                 {
                                     "id": "MySqlConnector",

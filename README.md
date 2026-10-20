@@ -66,7 +66,7 @@ not present in the `10.0.0` packages.
 ## Requirements
 
 - An application targeting .NET 11
-- EF Core `11.0.0-rc.1.26425.128` for the provider and spatial extension
+- EF Core `11.0.0-rc.2.26504.105` for the provider and spatial extension
 - MySqlConnector 2.x; the supported package range is `>= 2.5.0` and `< 3.0.0`
 - A supported MySQL or MariaDB server from the matrix below
 
@@ -80,20 +80,20 @@ The following .NET 11 command installs the exact provider release candidate
 represented by this branch once the package is published:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 11.0.0-rc.1
+dotnet package add Doka.EntityFrameworkCore.MySql --version 11.0.0-rc.2
 ```
 
 Add the spatial extension only when the model uses NetTopologySuite types:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 11.0.0-rc.1
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 11.0.0-rc.2
 ```
 
 Install the standalone distributed cache only when the application needs a
 MySQL or MariaDB-backed `IDistributedCache`:
 
 ```bash
-dotnet package add Doka.Caching.MySql --version 11.0.0-rc.1
+dotnet package add Doka.Caching.MySql --version 11.0.0-rc.2
 ```
 
 For reproducible installs, add `--version` followed by the exact version from
@@ -102,8 +102,8 @@ or NuGet.org package page.
 
 ### Current Release Candidate
 
-`11.0.0-rc.1` is the first isolated .NET 11 and EF Core 11 line. It targets
-`net11.0`, pins the exact .NET and EF Core RC.1 toolchain, and does not change
+`11.0.0-rc.2` is the isolated .NET 11 and EF Core 11 line. It targets
+`net11.0`, pins the exact .NET and EF Core RC.2 toolchain, and does not change
 the supported MySQL, MariaDB, or MySqlConnector ranges. The stable 10.x line
 remains available for .NET 10 applications.
 
@@ -448,7 +448,7 @@ package: neither the EF Core provider nor a `DbContext` is required.
 Install the package:
 
 ```bash
-dotnet package add Doka.Caching.MySql --version 11.0.0-rc.1
+dotnet package add Doka.Caching.MySql --version 11.0.0-rc.2
 ```
 
 First, generate the cache table script for an existing database:
