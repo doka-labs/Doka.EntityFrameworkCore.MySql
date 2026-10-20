@@ -103,20 +103,19 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.5.0` adds opt-in MariaDB-native `uuid` storage for `Guid` properties on
-MariaDB 10.7 or later. The existing `Binary16` default and `Char36` option
-remain unchanged. Existing `varbinary(16)` columns used for application-owned
-`byte[]` values may produce an `AlterColumn` migration to `varbinary(17)`;
-review that schema change before deployment. The collection-translation
-default remains multiple scalar parameters; use `EF.Parameter(...)` only
-where the JSON translation has been measured on the actual query shape.
+`10.6.0` adds `Database.IsMariaDb()`, `WithMaterializedSource`, and
+`StraightJoin`. The query operators are opt-in and do not guarantee faster
+plans. Physical index-key budgeting and MySQL generated-value readback are
+hardened; review generated migrations for indexed string or binary
+column-length changes before deployment. Existing GUID formats and the
+multiple-parameter collection-translation default remain unchanged.
 Applications using the optional SafeMigrations MySQL adapter must verify that
-its published dependency range includes 10.5.0 before upgrading the provider.
+its published dependency range includes 10.6.0 before upgrading the provider.
 
 Pin the current stable version explicitly when validating an application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.5.0
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.0
 ```
 
 See [Provider Configuration][provider-configuration] for collection transport

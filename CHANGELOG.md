@@ -7,6 +7,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.6.0] - 2026-10-20
+
+Stable minor release adding explicit query-composition controls and a
+configured MariaDB-family lookup. Physical index-key budgeting and MySQL
+generated-value readback are hardened. Review generated migrations for indexed
+string or binary column-length changes before deployment. Query operators are
+opt-in and require workload-specific plan measurements; they do not guarantee
+faster queries. Applications using the optional SafeMigrations MySQL adapter
+must verify that its published dependency range includes 10.6.0 before
+upgrading the provider.
+
+Install the stable packages through normal NuGet version resolution. Add the
+spatial and cache packages only when needed:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.0
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.6.0
+dotnet package add Doka.Caching.MySql --version 10.6.0
+```
+
 ### Added
 
 - Add `Database.IsMariaDb()` to read the server family configured by
@@ -1437,7 +1457,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.5.0...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.0...HEAD
+[10.6.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.0
 [10.5.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.5.0
 [10.4.4]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.4
 [10.4.3]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.3
