@@ -63,7 +63,7 @@ options.UseMySql(
 `Parse(...)` accepts a server version string, including MariaDB's legacy
 `5.5.5-...-MariaDB` prefix.
 
-The unreleased `context.Database.IsMariaDb()` extension reads the family from
+The `context.Database.IsMariaDb()` extension reads the family from
 the server version configured by `UseMySql`. It does not open a connection,
 autodetect a version, or verify that the reachable server matches the
 configuration. It remains independent of supplied or compiled model

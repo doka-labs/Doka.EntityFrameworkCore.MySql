@@ -340,12 +340,16 @@ dotnet ef migrations add DokaMigrationProbe
 ```
 
 Review the full script for preserved generated keys, charsets, collations,
-GUID formats, custom SQL, and table names. Compare an incremental script from
-the last deployed migration with the intended upgrade. A no-schema-change
-provider replacement should produce an empty probe `Up` and `Down`; investigate
-any operations instead of accepting them automatically. Do not apply the
-probe. After reviewing it, remove only that newly created, unapplied probe
-with `dotnet ef migrations remove`.
+GUID formats, custom SQL, and table names. Compare convention-derived lengths
+of indexed string and binary columns with the existing schema: a provider
+upgrade can change them when calculating the physical index-key byte budget.
+See [Index key byte fidelity](provider-configuration.md#index-key-byte-fidelity).
+
+Compare an incremental script from the last deployed migration with the
+intended upgrade. A no-schema-change provider replacement should produce an
+empty probe `Up` and `Down`; investigate any operations instead of accepting
+them automatically. Do not apply the probe. After reviewing it, remove only
+that newly created, unapplied probe with `dotnet ef migrations remove`.
 
 Apply the reviewed migration chain to a fresh disposable database and the
 incremental path to a restored database with existing migration history.

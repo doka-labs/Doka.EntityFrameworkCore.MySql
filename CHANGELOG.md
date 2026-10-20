@@ -43,6 +43,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   convention ownership; reject impossible definitions
   without inventing index prefixes. Review generated column-length changes in
   migrations. See [index key byte fidelity](docs/provider-configuration.md#index-key-byte-fidelity).
+- Batch MySQL generated-value readback when every inserted row has a complete,
+  written, non-temporary physical key and the table has no declared triggers.
+  Use one multi-row insert and one compound, ordinal-checked readback while
+  preserving native key comparisons, transaction protection, and bounded batch
+  accounting. Retain existing MariaDB `RETURNING` and unsupported-shape
+  fallbacks. The physical table must use InnoDB, and the EF model must
+  declare all table triggers and remain consistent with the deployed engine.
+  See [generated-value readback](docs/provider-configuration.md#generated-value-readback).
 
 ### Fixed
 
@@ -56,14 +64,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   with the supported EF Core 10 quotation and C# translation seams. This does
   not extend the documented NativeAOT contract. See
   [query-expression verification](docs/ctes.md#runnable-verification).
-- Batch MySQL generated-value readback when every inserted row has a complete,
-  written, non-temporary physical key and the table has no declared triggers.
-  Use one multi-row insert and one compound, ordinal-checked readback while
-  preserving native key comparisons, transaction protection, and bounded batch
-  accounting. Retain existing MariaDB `RETURNING` and unsupported-shape
-  fallbacks. The physical table must use InnoDB, and the EF model must
-  declare all table triggers and remain consistent with the deployed engine.
-  See [generated-value readback](docs/provider-configuration.md#generated-value-readback).
 
 ## [10.5.0] - 2026-10-14
 
