@@ -155,7 +155,7 @@ missing, swapped, widened, or non-exact row.
 - The published 10.x maintenance line retains the bounded patch-range policy
   and its historical floor/latest evidence.
 - The isolated 11.x line is governed by D-013. Its
-  `Directory.Packages.props` applies one exact RC.1 version through
+  `Directory.Packages.props` applies one exact RC.2 version through
   `DokaEfCoreVersion`; repository and release workflows verify that exact
   resolved graph instead of invoking the retired 10.x patch-matrix runner.
 

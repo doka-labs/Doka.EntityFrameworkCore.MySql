@@ -1,6 +1,6 @@
 # Complex Types
 
-The provider implements the provider-owned portion of the EF Core 11 RC.1
+The provider implements the provider-owned portion of the EF Core 11 RC.2
 relational complex-type contract on every supported LTS target.
 Complex types use the standard EF Core model API; no provider-specific opt-in
 or alternative change-tracking model is required. "Supported" below always
@@ -21,12 +21,12 @@ represent and track.
 | Inheritance table splitting for EF Core-valid CLR-backed shapes | Supported | None |
 | Nested flattened complex members used as keys or indexes | Supported | None |
 | Direct indexes over JSON complex values or JSON member paths | Rejected; index an extracted generated scalar column | Database engine |
-| Selected struct, readonly-struct, record, and array complex-collection tracking shapes | Unavailable in EF Core 11 RC.1 | EF Core |
-| Complex-collection store values through affected `EntityEntry` APIs | Unavailable in EF Core 11 RC.1 | EF Core |
-| Nested complex members through affected concurrency and database-value APIs | Unavailable in EF Core 11 RC.1 | EF Core |
-| Shadow complex properties and table-splitting shapes that require them | Unavailable in EF Core 11 RC.1 | EF Core |
+| Selected struct, readonly-struct, record, and array complex-collection tracking shapes | Unavailable in EF Core 11 RC.2 | EF Core |
+| Complex-collection store values through affected `EntityEntry` APIs | Unavailable in EF Core 11 RC.2 | EF Core |
+| Nested complex members through affected concurrency and database-value APIs | Unavailable in EF Core 11 RC.2 | EF Core |
+| Shadow complex properties and table-splitting shapes that require them | Unavailable in EF Core 11 RC.2 | EF Core |
 
-The unavailable rows are exact EF Core 11 RC.1 framework boundaries. They are
+The unavailable rows are exact EF Core 11 RC.2 framework boundaries. They are
 not database-engine limitations and do not represent missing provider work.
 The remaining shapes are governed by the upstream issues linked from
 [External Engine and EF Core Limitations](limitations.md).
@@ -165,6 +165,7 @@ Unless noted otherwise, sources were retrieved on 2026-09-19.
 
 - [EF Core 11 complex-type improvements](https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-11.0/whatsnew)
 - [EF Core 11 RC.1 relational specification source](https://github.com/dotnet/efcore/tree/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/test/EFCore.Relational.Specification.Tests)
+- [EF Core 11 RC.2 relational specification package](https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Relational.Specification.Tests/11.0.0-rc.2.26504.105) (retrieved 2026-10-20)
 - [EF Core JSON columns](https://learn.microsoft.com/en-us/ef/core/modeling/json)
 - [EF Core NativeAOT and precompiled queries](https://learn.microsoft.com/en-us/ef/core/performance/nativeaot-and-precompiled-queries)
 - [MySQL 8.4 JSON data type](https://dev.mysql.com/doc/refman/8.4/en/json.html)
