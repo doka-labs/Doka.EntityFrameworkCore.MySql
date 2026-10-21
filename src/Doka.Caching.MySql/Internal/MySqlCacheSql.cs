@@ -104,4 +104,34 @@ internal sealed class MySqlCacheSql
     public string Remove { get; }
     public string SelectExpired { get; }
     public string DeleteExpiredPrefix { get; }
+
+    /// <summary>Configures the bounded primary-key deletion for the selected expired keys.</summary>
+    internal void ConfigureDeleteExpiredCommand(
+        MySqlCommand command,
+        List<byte[]> candidates
+    )
+    {
+        command.Parameters.Clear();
+        var sql = new StringBuilder(DeleteExpiredPrefix);
+
+        // WHY: OR ranges avoid MariaDB's IN-to-subquery conversion at the full 1,000-key batch size.
+        for (var index = 0; index < candidates.Count; index++)
+        {
+            if (index > 0)
+            {
+                sql.Append(" OR ");
+            }
+
+            var parameterName = "@key" + index.ToString(CultureInfo.InvariantCulture);
+            sql
+                .Append("`Id` = ")
+                .Append(parameterName);
+
+            command.Parameters.Add(parameterName, MySqlDbType.VarBinary).Value = candidates[index];
+        }
+
+        command.CommandText = sql
+            .Append(");")
+            .ToString();
+    }
 }

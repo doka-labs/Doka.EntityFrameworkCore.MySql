@@ -9,6 +9,9 @@ public sealed class MySqlTransactionOperabilityTests
 {
     private const string TransactionTableName = "Phase3TransactionEntities";
 
+    /// <summary>Reports ambient-transaction rollback independently per selected engine.</summary>
+    public static TheoryData<string> RollbackTargets => CreateRollbackTargets();
+
     /// <summary>
     /// Verifies every reusable transaction-operability contract against MySQL 9.7.
     /// </summary>
@@ -180,17 +183,32 @@ public sealed class MySqlTransactionOperabilityTests
             .ConfigureAwait(false);
     }
 
-    [Fact]
-    public async Task Transaction_scope_async_flow_rolls_back_when_not_completed()
+    /// <summary>Verifies ambient transaction rollback on every selected engine.</summary>
+    [Theory]
+    [MemberData(nameof(RollbackTargets))]
+    public Task Transaction_scope_async_flow_rolls_back_when_not_completed(
+        string targetName
+    )
     {
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        return AssertTransactionScopeAsyncFlowAsync(
+            target,
+            IntegrationTestEnvironment.GetServerVersion(target),
+            complete: false);
+    }
+
+    private static TheoryData<string> CreateRollbackTargets()
+    {
+        var cases = new TheoryData<string>();
+
+        // WHY: Public xUnit theory methods cannot expose the internal target enum.
         foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
         {
-            await AssertTransactionScopeAsyncFlowAsync(
-                    target,
-                    IntegrationTestEnvironment.GetServerVersion(target),
-                    complete: false)
-                .ConfigureAwait(true);
+            cases.Add(target.ToString());
         }
+
+        return cases;
     }
 
     private static async Task AssertTransactionOperabilityContractAsync(

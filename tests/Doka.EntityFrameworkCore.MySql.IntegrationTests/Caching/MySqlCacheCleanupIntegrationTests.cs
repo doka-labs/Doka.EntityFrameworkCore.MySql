@@ -1,72 +1,108 @@
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
+/// <summary>Verifies bounded cache cleanup against the selected database engines.</summary>
 [IntegrationDatabaseTest]
 public sealed class MySqlCacheCleanupIntegrationTests
 {
-    /// <summary>Binary command bytes do not hide the cleanup statement from its plan probe.</summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public async Task Primary_range_probe_handles_binary_process_text()
-    {
-        await using var connection = new MySqlConnection(
-            IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql97));
-        await connection.OpenAsync(CancellationToken.None);
-        await using var command = connection.CreateCommand();
-        command.CommandText = GetPrimaryRangeProbeSql(
-            "(SELECT CONNECTION_ID() + 1 AS ID, @statement AS INFO) AS process");
-        var statement = Encoding.ASCII.GetBytes("DELETE `DokaProbe` FROM `DokaProbe` FORCE INDEX (PRIMARY) ")
-            .Concat(new byte[] { 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD })
-            .ToArray();
-        command.Parameters.AddWithValue("@statement", statement);
-        command.Parameters.AddWithValue("@tableName", "DokaProbe");
+    /// <summary>Reports each selected engine for the public DI cleanup contract.</summary>
+    public static TheoryData<string> SelectedTargets => CreateSelectedTargets();
 
-        var observed = Assert.IsType<string>(
-            await command.ExecuteScalarAsync(CancellationToken.None));
+    /// <summary>Reports each selected engine and cleanup-concurrency variant.</summary>
+    public static TheoryData<string, bool, int, bool> CleanupCases => CreateCleanupCases();
 
-        Assert.StartsWith("DELETE `DokaProbe` FROM `DokaProbe` FORCE INDEX (PRIMARY)", observed);
-    }
+    /// <summary>Reports each selected engine and binary-key access mode.</summary>
+    public static TheoryData<string, bool> BinaryKeyCases => CreateBinaryKeyCases();
 
+    /// <summary>Cleanup keeps binary candidate keys as binary SQL parameters.</summary>
     [Fact]
-    public async Task Registered_time_provider_controls_public_DI_cleanup_schedule()
+    public void Cleanup_command_preserves_binary_candidate_keys()
     {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertPublicDiCleanupScheduleAsync(target)
-                .ConfigureAwait(true);
-        }
+        // Arrange
+        var sql = new MySqlCacheSql("`DokaProbe`");
+        using var command = new MySqlCommand();
+        byte[] candidate = [0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD];
+
+        // Act
+        sql.ConfigureDeleteExpiredCommand(command, [candidate]);
+
+        // Assert
+        Assert.Contains("FORCE INDEX (PRIMARY)", command.CommandText, StringComparison.Ordinal);
+
+        var parameter = Assert.Single(command.Parameters);
+        Assert.Equal(MySqlDbType.VarBinary, parameter.MySqlDbType);
+        Assert.Equal(candidate, Assert.IsType<byte[]>(parameter.Value));
     }
 
+    /// <summary>Verifies that DI forwards the cleanup clock on each selected engine.</summary>
     [Theory]
-    [InlineData(false, 2, false)]
-    [InlineData(true, 2, false)]
-    [InlineData(false, 1005, false)]
-    [InlineData(true, 1005, false)]
-    [InlineData(false, 1005, true)]
-    [InlineData(true, 1005, true)]
-    public async Task Cleanup_uses_primary_ranges_preserves_upserts_and_continues_full_batches(
+    [MemberData(nameof(SelectedTargets))]
+    public Task Registered_time_provider_controls_public_DI_cleanup_schedule(
+        string targetName
+    ) => AssertPublicDiCleanupScheduleAsync(Enum.Parse<IntegrationDatabaseTarget>(targetName));
+
+    /// <summary>Verifies bounded primary-key cleanup with and without overlapping upserts.</summary>
+    [Theory]
+    [MemberData(nameof(CleanupCases))]
+    public Task Cleanup_uses_primary_ranges_preserves_upserts_and_continues_full_batches(
+        string targetName,
         bool useAsync,
         int expiredCount,
         bool overlappingCleanup
-    )
+    ) => AssertConcurrentUpsertAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        useAsync,
+        expiredCount,
+        overlappingCleanup);
+
+    /// <summary>Verifies that cleanup deletes expired binary keys only.</summary>
+    [Theory]
+    [MemberData(nameof(BinaryKeyCases))]
+    public Task Cleanup_deletes_expired_binary_keys_without_touching_live_entries(
+        string targetName,
+        bool useAsync
+    ) => AssertBinaryKeysAsync(Enum.Parse<IntegrationDatabaseTarget>(targetName), useAsync);
+
+    private static TheoryData<string> CreateSelectedTargets()
     {
+        var cases = new TheoryData<string>();
+
+        // WHY: Public xUnit theory methods cannot expose the internal target enum.
         foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
         {
-            await AssertConcurrentUpsertAsync(target, useAsync, expiredCount, overlappingCleanup)
-                .ConfigureAwait(true);
+            cases.Add(target.ToString());
         }
+
+        return cases;
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Cleanup_deletes_expired_binary_keys_without_touching_live_entries(
-        bool useAsync
-    )
+    private static TheoryData<string, bool, int, bool> CreateCleanupCases()
     {
+        var cases = new TheoryData<string, bool, int, bool>();
+
         foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
         {
-            await AssertBinaryKeysAsync(target, useAsync)
-                .ConfigureAwait(true);
+            cases.Add(target.ToString(), false, 2, false);
+            cases.Add(target.ToString(), true, 2, false);
+            cases.Add(target.ToString(), false, 1005, false);
+            cases.Add(target.ToString(), true, 1005, false);
+            cases.Add(target.ToString(), false, 1005, true);
+            cases.Add(target.ToString(), true, 1005, true);
         }
+
+        return cases;
+    }
+
+    private static TheoryData<string, bool> CreateBinaryKeyCases()
+    {
+        var cases = new TheoryData<string, bool>();
+
+        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
+        {
+            cases.Add(target.ToString(), false);
+            cases.Add(target.ToString(), true);
+        }
+
+        return cases;
     }
 
     private static async Task AssertBinaryKeysAsync(
@@ -335,7 +371,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
                     otherCache is null ? 1 : 2)
                 .ConfigureAwait(false);
 
-            await AssertPrimaryRangePlanAsync(observer, store.TableName)
+            await AssertPrimaryRangePlanAsync(observer, store)
                 .ConfigureAwait(false);
 
             // Use the real upsert while holding its primary record; cleanup must not own the expiry entry first.
@@ -417,10 +453,10 @@ public sealed class MySqlCacheCleanupIntegrationTests
         CancellationToken cancellationToken
     )
     {
-        // WHY: The synchronous cleanup needs its own thread while the test coordinates a database lock.
-        // ReSharper disable once MethodHasAsyncOverload
         return useAsync
             ? cache.GetAsync("cleanup-miss", cancellationToken)
+            // WHY: The synchronous cleanup needs its own thread while the test coordinates a database lock.
+            // ReSharper disable once MethodHasAsyncOverload
             : Task.Run(() => cache.Get("cleanup-miss"), CancellationToken.None);
     }
 
@@ -504,21 +540,36 @@ public sealed class MySqlCacheCleanupIntegrationTests
 
     private static async Task AssertPrimaryRangePlanAsync(
         MySqlConnection observer,
-        string tableName
+        CacheIntegrationStore store
     )
     {
-        await using var command = new MySqlCommand(
-            GetPrimaryRangeProbeSql("information_schema.PROCESSLIST"),
-            observer);
+        var sql = new MySqlCacheSql(store.QualifiedTableName);
+        List<byte[]> candidates = [];
 
-        command.Parameters.AddWithValue("@tableName", tableName);
-        var statement = Assert.IsType<string>(
-            await command
-                .ExecuteScalarAsync(CancellationToken.None)
-                .ConfigureAwait(false));
+        // WHY: Process-list SQL is not reliable here: MySQL 9.7 can reject an
+        // unrelated binary statement, and Performance Schema truncates large
+        // cleanup batches. Build the exact command through production SQL instead.
+        await using (var select = new MySqlCommand(sql.SelectExpired, observer))
+        {
+            select.Parameters.Add("@batchSize", MySqlDbType.Int32).Value = MySqlCacheDatabaseOperations.CleanupBatchSize;
 
-        command.CommandText = "EXPLAIN FORMAT=TRADITIONAL " + statement;
-        command.Parameters.Clear();
+            await using var candidateReader = await select
+                .ExecuteReaderAsync(CommandBehavior.SequentialAccess, CancellationToken.None)
+                .ConfigureAwait(false);
+
+            while (await candidateReader
+                       .ReadAsync(CancellationToken.None)
+                       .ConfigureAwait(false))
+            {
+                candidates.Add(candidateReader.GetFieldValue<byte[]>(0));
+            }
+        }
+
+        Assert.NotEmpty(candidates);
+
+        await using var command = new MySqlCommand { Connection = observer };
+        sql.ConfigureDeleteExpiredCommand(command, candidates);
+        command.CommandText = "EXPLAIN FORMAT=TRADITIONAL " + command.CommandText;
 
         await using var reader = await command
             .ExecuteReaderAsync(CancellationToken.None)
@@ -538,15 +589,4 @@ public sealed class MySqlCacheCleanupIntegrationTests
                 .ConfigureAwait(false));
     }
 
-    // WHY: PROCESSLIST.INFO can contain parameter bytes that are not valid in
-    // its declared text character set; inspect its bytes in a single-byte set.
-    private static string GetPrimaryRangeProbeSql(string processSource) => $$"""
-        SELECT StatementText FROM (
-            SELECT ID, CONVERT(CAST(INFO AS BINARY) USING latin1) AS StatementText
-            FROM {{processSource}}
-        ) AS observed
-        WHERE ID <> CONNECTION_ID() AND LOCATE(@tableName, COALESCE(StatementText, '')) > 0
-            AND UPPER(LTRIM(StatementText)) LIKE 'DELETE %'
-        LIMIT 1;
-        """;
 }

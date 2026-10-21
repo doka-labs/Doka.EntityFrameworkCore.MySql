@@ -5,73 +5,1106 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// representation on every supported database engine.
 /// </summary>
 [IntegrationDatabaseTest]
-public sealed class MySqlPrimitiveCollectionParameterIntegrationTests
+public sealed class MySqlPrimitiveCollectionParameterIntegrationTests :
+    IClassFixture<MySqlPrimitiveCollectionParameterIntegrationTests.SeededDatabaseFixture>
 {
     private const string TableName = "IntPrimitiveCollectionItems";
     private const string CharTableName = "IntCharGuidCollectionItems";
     private const string SqlModeTableName = "IntSqlModeStringCollectionItems";
     private const int RowCount = 2200;
 
-    /// <summary>
-    /// Verifies collection parameter semantics on MySQL 8.4.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_preserves_primitive_collection_parameter_contracts() =>
-        AssertPrimitiveCollectionParameterContractsAsync(IntegrationDatabaseTarget.MySql84);
+    private readonly SeededDatabaseFixture _fixture;
 
-    /// <summary>
-    /// Verifies collection parameter semantics on MySQL 9.7.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task MySql97_preserves_primitive_collection_parameter_contracts() =>
-        AssertPrimitiveCollectionParameterContractsAsync(IntegrationDatabaseTarget.MySql97);
+    /// <summary>Returns one independently reported case per selected supported engine.</summary>
+    // WHY: MySql80 is a legacy opt-in target, not part of this six-engine contract.
+    // The companion theory attribute skips a run that selects only that target.
+    public static IEnumerable<object[]> SelectedTargets => IntegrationTestEnvironment
+        .GetSelectedTargets()
+        .Where(target => IntegrationTestEnvironment.GetSupportedTargets().Contains(target))
+        .Select(target => new object[] { target.ToString() });
 
-    /// <summary>
-    /// Verifies collection parameter semantics on MariaDB 10.11.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_preserves_primitive_collection_parameter_contracts() =>
-        AssertPrimitiveCollectionParameterContractsAsync(IntegrationDatabaseTarget.MariaDb1011);
+    /// <summary>Creates a test case with the shared per-engine seed fixture.</summary>
+    /// <param name="fixture">The class-owned, lazily seeded database fixture.</param>
+    public MySqlPrimitiveCollectionParameterIntegrationTests(
+        SeededDatabaseFixture fixture
+    ) => _fixture = fixture;
 
-    /// <summary>
-    /// Verifies collection parameter semantics on MariaDB 11.4.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_preserves_primitive_collection_parameter_contracts() =>
-        AssertPrimitiveCollectionParameterContractsAsync(IntegrationDatabaseTarget.MariaDb114);
-
-    /// <summary>
-    /// Verifies collection parameter semantics on MariaDB 11.8.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_preserves_primitive_collection_parameter_contracts() =>
-        AssertPrimitiveCollectionParameterContractsAsync(IntegrationDatabaseTarget.MariaDb118);
-
-    /// <summary>
-    /// Verifies collection parameter semantics on MariaDB 12.3.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_preserves_primitive_collection_parameter_contracts() =>
-        AssertPrimitiveCollectionParameterContractsAsync(IntegrationDatabaseTarget.MariaDb123);
-
-    /// <summary>
-    /// Verifies JSON-like string values when MariaDB disables SQL-literal
-    /// backslash escapes.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task MariaDb118_preserves_string_collections_with_no_backslash_escapes()
+    /// <summary>Verifies binary guid single parameter matches one row on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Binary_guid_single_parameter_matches_one_row(
+        string targetName
+    )
     {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        Guid[] values = [CreateGuid(0)];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.BinaryId)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Verifies binary guid three parameters match three rows on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Binary_guid_three_parameters_match_three_rows(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        Guid[] values = [CreateGuid(0), CreateGuid(1), CreateGuid(2)];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.BinaryId)));
+
+        // Assert
+        Assert.Equal([1, 2, 3], ids);
+    }
+
+    /// <summary>Verifies binary guid large parameter matches all rows on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Binary_guid_large_parameter_matches_all_rows(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var values = Enumerable.Range(0, RowCount).Select(CreateGuid).ToArray();
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.BinaryId)));
+
+        // Assert
+        Assert.Equal(Enumerable.Range(1, RowCount), ids);
+    }
+
+    /// <summary>Verifies char guid parameter matches selected rows on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Char_guid_parameter_matches_selected_rows(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        Guid[] values = [CreateGuid(0), CreateGuid(2)];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => values.Contains(item.CharId)));
+
+        // Assert
+        Assert.Equal([1, 3], ids);
+    }
+
+    /// <summary>Verifies empty guid parameter matches no rows on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Empty_guid_parameter_matches_no_rows(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        Guid[] values = [];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => values.Contains(item.BinaryId)));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Verifies duplicate and absent guid parameters match once on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Duplicate_and_absent_guid_parameters_match_once(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        Guid[] values = [CreateGuid(0), CreateGuid(0), CreateGuid(RowCount + 1)];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => values.Contains(item.BinaryId)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Verifies nullable binary guid parameter matches value and null on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Nullable_binary_guid_parameter_matches_value_and_null(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        Guid?[] values = [CreateGuid(0), null];
+
+        // Act
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalBinaryId)));
+
+        // Assert
+        Assert.Equal([1, 2], ids);
+    }
+
+    /// <summary>Verifies nullable char guid parameter matches value and null on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Nullable_char_guid_parameter_matches_value_and_null(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        Guid?[] values = [CreateGuid(0), null];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalCharId)));
+
+        // Assert
+        Assert.Equal([1, 2], ids);
+    }
+
+    /// <summary>Verifies default guid contains matches selected rows on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Default_guid_contains_matches_selected_rows(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        Guid[] values = [CreateGuid(1), CreateGuid(2)];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => values.Contains(item.BinaryId)));
+
+        // Assert
+        Assert.Equal([2, 3], ids);
+    }
+
+    /// <summary>Verifies scalar guid equality matches one row on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Scalar_guid_equality_matches_one_row(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => item.BinaryId == CreateGuid(0)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Verifies integer parameter matches first and last rows on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Integer_parameter_matches_first_and_last_rows(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        int[] values = [1, RowCount];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.Id)));
+
+        // Assert
+        Assert.Equal([1, RowCount], ids);
+    }
+
+    /// <summary>Verifies string parameter preserves quotes and backslashes on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task String_parameter_preserves_quotes_and_backslashes(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        string[] values = ["alpha", "\"quoted\"", "\"\\q\""];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.Name)));
+
+        // Assert
+        Assert.Equal([1, 2, 3], ids);
+    }
+
+    /// <summary>Verifies nullable string parameter matches value and null on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Nullable_string_parameter_matches_value_and_null(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        string?[] values = ["alpha", null];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalName)));
+
+        // Assert
+        Assert.Equal([1, 2], ids);
+    }
+
+    /// <summary>Verifies converted string parameter matches provider representation on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Converted_string_parameter_matches_provider_representation(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        string[] values = ["alpha"];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedName)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Verifies converted string parameter respects binary collation on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Converted_string_parameter_respects_binary_collation(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        string[] values = ["Alpha"];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedName)));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Verifies case insensitive string parameter uses column collation on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Case_insensitive_string_parameter_uses_column_collation(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        string[] values = ["Alpha"];
+
+        // Act
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.CaseInsensitiveName)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Verifies converted text parameter preserves escaped content on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Converted_text_parameter_preserves_escaped_content(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        TextValue[] values = [new("\"\\q\"")];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedText)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Verifies enum parameter matches converted string on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Enum_parameter_matches_converted_string(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        CollectionStatus[] values = [CollectionStatus.Active];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.Status)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Verifies unknown enum parameter matches no rows on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Unknown_enum_parameter_matches_no_rows(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        CollectionStatus[] values = [(CollectionStatus)42];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.Status)));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Verifies nullable enum parameter matches value and null on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Nullable_enum_parameter_matches_value_and_null(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        CollectionStatus?[] values = [CollectionStatus.Active, null];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalStatus)));
+
+        // Assert
+        Assert.Equal([1, 2], ids);
+    }
+
+    /// <summary>Verifies exact decimal parameter matches converted price on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Exact_decimal_parameter_matches_converted_price(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        PriceValue[] values = [new(3.1m)];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedPrice)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Verifies overprecise decimal parameter does not match rounded price on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Overprecise_decimal_parameter_does_not_match_rounded_price(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        PriceValue[] values = [new(3.14159m)];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedPrice)));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Verifies converted guid parameter matches binary storage on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Converted_guid_parameter_matches_binary_storage(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        StrongGuid[] values = [new(CreateGuid(0))];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedGuid)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Verifies absent converted guid parameter matches no rows on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Absent_converted_guid_parameter_matches_no_rows(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        StrongGuid[] values = [new(CreateGuid(RowCount + 1))];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedGuid)));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Verifies converted duration parameter matches time storage on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Converted_duration_parameter_matches_time_storage(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        ElapsedValue[] values = [new(TimeSpan.FromHours(27))];
+
+        // Act
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedDuration)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Verifies subsecond duration parameter does not match zero precision on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Subsecond_duration_parameter_does_not_match_zero_precision(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        ElapsedValue[] values = [new(TimeSpan.FromHours(27).Add(TimeSpan.FromMilliseconds(500)))];
+
+        // Act
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedDuration)));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Verifies positive out of range duration parameter is rejected on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Positive_out_of_range_duration_parameter_is_rejected(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        ElapsedValue[] values = [new(TimeSpan.FromHours(839))];
+
+        // Act
+        var error = await Record.ExceptionAsync(() => SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedDuration))));
+
+        // Assert
+        Assert.Contains("exceeds the MySQL TIME range", Assert.IsType<InvalidOperationException>(error).Message,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>Verifies negative out of range duration parameter is rejected on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Negative_out_of_range_duration_parameter_is_rejected(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        ElapsedValue[] values = [new(TimeSpan.FromHours(-839))];
+
+        // Act
+        var error = await Record.ExceptionAsync(() => SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedDuration))));
+
+        // Assert
+        Assert.Contains("exceeds the MySQL TIME range", Assert.IsType<InvalidOperationException>(error).Message,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>Verifies converted timestamp parameter matches utc storage on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Converted_timestamp_parameter_matches_utc_storage(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        DateTimeOffset[] values = [new(2026, 9, 19, 10, 0, 0, TimeSpan.Zero)];
+
+        // Act
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedTimestamp)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Verifies subsecond timestamp parameter does not match zero precision on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Subsecond_timestamp_parameter_does_not_match_zero_precision(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        DateTimeOffset[] values = [new DateTimeOffset(2026, 9, 19, 10, 0, 0, TimeSpan.Zero).AddMilliseconds(500)];
+
+        // Act
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedTimestamp)));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Verifies converted binary parameter matches payload on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Converted_binary_parameter_matches_payload(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        BinaryValue[] values = [new("payload-0")];
+
+        // Act
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedPayload)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Verifies absent converted binary parameter matches no rows on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Absent_converted_binary_parameter_matches_no_rows(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        BinaryValue[] values = [new("missing")];
+
+        // Act
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedPayload)));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Verifies binary collation rejects differently cased name on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Binary_collation_rejects_differently_cased_name(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        string[] values = ["Alpha"];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.Name)));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Verifies binary payload parameter matches selected rows on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Binary_payload_parameter_matches_selected_rows(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        byte[][] values = [BitConverter.GetBytes(0), BitConverter.GetBytes(2)];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.Payload)));
+
+        // Assert
+        Assert.Equal([1, 3], ids);
+    }
+
+    /// <summary>Verifies binary guid model collection round trips on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Binary_guid_model_collection_round_trips(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+
+        // Act
+        // Project the decoded rowset directly, without correlated-IN optimizer semantics.
+        var values = await context.Items
+            .Where(item => item.Id == 11)
+            .SelectMany(item => item.GuidValues)
+            .ToArrayAsync(CancellationToken.None);
+
+        // Assert
+        Assert.Equal([CreateGuid(10), Guid.Empty], values);
+    }
+
+    /// <summary>Verifies char guid model collection round trips on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Char_guid_model_collection_round_trips(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateCharContext(target);
+
+        // Act
+        var values = await context.Items
+            .SelectMany(item => item.GuidValues)
+            .ToArrayAsync(CancellationToken.None);
+
+        // Assert
+        Assert.Equal([CreateGuid(10), Guid.Empty], values);
+    }
+
+    /// <summary>Verifies decoded string expression has coercible collation on each engine.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Decoded_string_expression_has_coercible_collation(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+
+        // Act
+        var coercibility = await ReadStringDecodeCoercibilityAsync(context);
+
+        // Assert
+        Assert.True(
+            coercibility > 2,
+            $"Expected coercible string decoding, but COERCIBILITY returned {coercibility}.");
+    }
+
+    /// <summary>Verifies string parameters under MariaDB's no-backslash SQL mode.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
+    public async Task MariaDb118_no_backslash_escapes_matches_string_parameters()
+    {
+        // Arrange
+        await _fixture.EnsureSqlModeSeededAsync();
+        string[] values = ["\"quoted\"", "\"\\q\"", string.Empty, "gr\u00FCn"];
+
+        // Act
+        var ids = await ExecuteWithNoBackslashEscapesAsync(context => context.Items
+            .Where(item => EF.Parameter(values).Contains(item.Value))
+            .OrderBy(item => item.Id)
+            .Select(item => item.Id)
+            .ToArrayAsync(CancellationToken.None));
+
+        // Assert
+        Assert.Equal([1, 2, 3, 4], ids);
+    }
+
+    /// <summary>Verifies nullable string parameters under MariaDB's no-backslash SQL mode.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
+    public async Task MariaDb118_no_backslash_escapes_matches_nullable_string_parameters()
+    {
+        // Arrange
+        await _fixture.EnsureSqlModeSeededAsync();
+        string?[] values = ["\"quoted\"", null];
+
+        // Act
+        var ids = await ExecuteWithNoBackslashEscapesAsync(context => context.Items
+            .Where(item => EF.Parameter(values).Contains(item.OptionalValue))
+            .OrderBy(item => item.Id)
+            .Select(item => item.Id)
+            .ToArrayAsync(CancellationToken.None));
+
+        // Assert
+        Assert.Equal([1, 2], ids);
+    }
+
+    /// <summary>Verifies converted string parameters under MariaDB's no-backslash SQL mode.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
+    public async Task MariaDb118_no_backslash_escapes_matches_converted_string_parameters()
+    {
+        // Arrange
+        await _fixture.EnsureSqlModeSeededAsync();
+        string[] values = ["alpha"];
+
+        // Act
+        var ids = await ExecuteWithNoBackslashEscapesAsync(context => context.Items
+            .Where(item => EF.Parameter(values).Contains(item.ConvertedValue))
+            .Select(item => item.Id)
+            .ToArrayAsync(CancellationToken.None));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Verifies converted text parameters under MariaDB's no-backslash SQL mode.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
+    public async Task MariaDb118_no_backslash_escapes_matches_converted_text_parameters()
+    {
+        // Arrange
+        await _fixture.EnsureSqlModeSeededAsync();
+        TextValue[] values = [new("\"\\q\""), new("gr\u00FCn")];
+
+        // Act
+        var ids = await ExecuteWithNoBackslashEscapesAsync(context => context.Items
+            .Where(item => EF.Parameter(values).Contains(item.ConvertedText))
+            .OrderBy(item => item.Id)
+            .Select(item => item.Id)
+            .ToArrayAsync(CancellationToken.None));
+
+        // Assert
+        Assert.Equal([2, 4], ids);
+    }
+
+    /// <summary>Verifies model string collections under MariaDB's no-backslash SQL mode.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
+    public async Task MariaDb118_no_backslash_escapes_preserves_model_string_collections()
+    {
+        // Arrange
+        await _fixture.EnsureSqlModeSeededAsync();
+        string?[] expected = ["\"quoted\"", "\"\\q\"", string.Empty, "gr\u00FCn", null];
+
+        // Act
+        var values = await ExecuteWithNoBackslashEscapesAsync(context => context.Items
+            .Where(item => item.Id == 1)
+            .SelectMany(item => item.Values)
+            .ToArrayAsync(CancellationToken.None));
+
+        // Assert
+        Assert.Equal(expected, values);
+    }
+
+    /// <summary>
+    /// Verifies ordinary scalar string parameters when the connection's
+    /// escaping contract matches the server's NO_BACKSLASH_ESCAPES mode.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
+    public async Task MariaDb118_default_scalar_strings_match_configured_sql_mode()
+    {
+        // Arrange
+        await _fixture.EnsureSqlModeSeededAsync();
+        string[] values = ["\"\\q\"", "missing"];
+
+        // Act
+        var (sql, ids) = await ExecuteWithNoBackslashEscapesAsync(async context =>
+        {
+            var query = context.Items.Where(item => values.Contains(item.Value));
+
+            return (
+                query.ToQueryString(),
+                await query.Select(item => item.Id).ToArrayAsync(CancellationToken.None));
+        }, configureConnector: true);
+
+        // Assert
+        Assert.Contains(" IN (", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("JSON_TABLE", sql, StringComparison.Ordinal);
+        Assert.Equal([2], ids);
+    }
+
+    // WHY: both factories stay in this file because the caller path owns the
+    // isolated schema, including calls made from the class fixture.
+    private static PrimitiveCollectionContext CreateContext(
+        IntegrationDatabaseTarget target
+    )
+    {
+        var builder = IntegrationTestDbContextOptions.Create<PrimitiveCollectionContext>();
+        builder.UseMySql(
+            IntegrationTestEnvironment.GetConnectionString(target),
+            IntegrationTestEnvironment.GetServerVersion(target),
+            options => options.DefaultGuidFormat(MySqlGuidFormat.Binary16));
+
+        return new PrimitiveCollectionContext(builder.Options);
+    }
+
+    private static CharGuidCollectionContext CreateCharContext(
+        IntegrationDatabaseTarget target
+    )
+    {
+        var builder = IntegrationTestDbContextOptions.Create<CharGuidCollectionContext>();
+        builder.UseMySql(
+            IntegrationTestEnvironment.GetConnectionString(target),
+            IntegrationTestEnvironment.GetServerVersion(target),
+            options => options.DefaultGuidFormat(MySqlGuidFormat.Char36));
+
+        return new CharGuidCollectionContext(builder.Options);
+    }
+
+    private static SqlModeStringCollectionContext CreateSqlModeContext(
+        bool configureConnector = false
+    )
+    {
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
+
+        if (configureConnector)
+        {
+            connectionString = new MySqlConnectionStringBuilder(connectionString)
+            {
+                NoBackslashEscapes = true,
+            }.ConnectionString;
+        }
+
         var builder = IntegrationTestDbContextOptions.Create<SqlModeStringCollectionContext>();
         builder.UseMySql(
-            IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118),
+            connectionString,
             IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb118));
-        await using var context = new SqlModeStringCollectionContext(builder.Options);
-        await DropSqlModeTableAsync(context);
 
-        string? previousSqlMode = null;
+        return new SqlModeStringCollectionContext(builder.Options);
+    }
+
+    private static async Task<TResult> ExecuteWithNoBackslashEscapesAsync<TResult>(
+        Func<SqlModeStringCollectionContext, Task<TResult>> execute,
+        bool configureConnector = false
+    )
+    {
+        await using var context = CreateSqlModeContext(configureConnector);
+        await context.Database.OpenConnectionAsync(CancellationToken.None);
+
+        var connection = context.Database.GetDbConnection();
+        var previousSqlMode = await ReadSqlModeAsync(connection);
 
         try
         {
+            await SetSqlModeAsync(connection, "NO_BACKSLASH_ESCAPES");
+
+            return await execute(context);
+        }
+        finally
+        {
+            // WHY: sql_mode is session state; always restore it before this
+            // connection can return to MySqlConnector's pool.
+            await SetSqlModeAsync(connection, previousSqlMode);
+        }
+    }
+
+    /// <summary>
+    /// Owns one lazily seeded, class-scoped schema per selected engine.
+    /// </summary>
+    public sealed class SeededDatabaseFixture : IAsyncLifetime
+    {
+        private readonly Dictionary<IntegrationDatabaseTarget, Task> _seeds = new();
+        private Task? _sqlModeSeed;
+
+        /// <summary>Leaves seeding to the first selected test for each engine.</summary>
+        public Task InitializeAsync() => Task.CompletedTask;
+
+        /// <summary>Ensures the 2,200-row fixture is written once for the selected engine.</summary>
+        /// <param name="target">The selected database engine.</param>
+        /// <returns>A task that completes when both primitive-collection tables are ready.</returns>
+        internal Task EnsureSeededAsync(
+            IntegrationDatabaseTarget target
+        )
+        {
+            // WHY: xUnit serializes methods in this class. Retaining the Task
+            // also retains seed failures, so later cases do not retry partial DDL.
+            if (!_seeds.TryGetValue(target, out var seed))
+            {
+                seed = SeedAsync(target);
+                _seeds.Add(target, seed);
+            }
+
+            return seed;
+        }
+
+        /// <summary>Ensures the MariaDB SQL-mode rows are written once for this class.</summary>
+        internal Task EnsureSqlModeSeededAsync() => _sqlModeSeed ??= SeedSqlModeAsync();
+
+        /// <summary>Drops every table created by this class, including after test failure.</summary>
+        public async Task DisposeAsync()
+        {
+            List<Exception>? failures = null;
+
+            foreach (var target in _seeds.Keys)
+            {
+                // WHY: a partially initialized engine may fail to drop one table;
+                // the other table and remaining engines still need cleanup.
+                try
+                {
+                    await using var charContext = CreateCharContext(target);
+                    await DropCharTableAsync(charContext);
+                }
+                catch (Exception exception)
+                {
+                    (failures ??= new List<Exception>()).Add(
+                        new InvalidOperationException($"Could not drop {CharTableName} on {target}.", exception));
+                }
+
+                try
+                {
+                    await using var context = CreateContext(target);
+                    await DropTableAsync(context);
+                }
+                catch (Exception exception)
+                {
+                    (failures ??= new List<Exception>()).Add(
+                        new InvalidOperationException($"Could not drop {TableName} on {target}.", exception));
+                }
+            }
+
+            if (_sqlModeSeed is not null)
+            {
+                try
+                {
+                    await using var context = CreateSqlModeContext();
+                    await DropSqlModeTableAsync(context);
+                }
+                catch (Exception exception)
+                {
+                    (failures ??= new List<Exception>()).Add(
+                        new InvalidOperationException($"Could not drop {SqlModeTableName} on MariaDb118.", exception));
+                }
+            }
+
+            if (failures is not null)
+            {
+                throw new AggregateException("Primitive collection fixture cleanup failed.", failures);
+            }
+        }
+
+        private static async Task SeedSqlModeAsync()
+        {
+            await using var context = CreateSqlModeContext();
+            await DropSqlModeTableAsync(context);
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
                 CancellationToken.None);
@@ -110,148 +1143,19 @@ public sealed class MySqlPrimitiveCollectionParameterIntegrationTests
                     ConvertedText = new TextValue("gr\u00FCn"),
                 });
             await context.SaveChangesAsync(CancellationToken.None);
-            context.ChangeTracker.Clear();
-            await context.Database.OpenConnectionAsync(CancellationToken.None);
-
-            var connection = context.Database.GetDbConnection();
-            previousSqlMode = await ReadSqlModeAsync(connection);
-            await SetSqlModeAsync(connection, "NO_BACKSLASH_ESCAPES");
-            string[] values = ["\"quoted\"", "\"\\q\"", string.Empty, "gr\u00FCn"];
-            string?[] nullableValues = ["\"quoted\"", null];
-            string[] convertedValues = ["alpha"];
-            TextValue[] convertedTextValues = [new("\"\\q\""), new("gr\u00FCn")];
-            string?[] expectedModelValues = ["\"quoted\"", "\"\\q\"", string.Empty, "gr\u00FCn", null];
-
-            var parameterIds = await context.Items
-                .Where(item => EF.Parameter(values).Contains(item.Value))
-                .OrderBy(item => item.Id)
-                .Select(item => item.Id)
-                .ToArrayAsync(CancellationToken.None);
-            var nullableIds = await context.Items
-                .Where(item => EF.Parameter(nullableValues).Contains(item.OptionalValue))
-                .OrderBy(item => item.Id)
-                .Select(item => item.Id)
-                .ToArrayAsync(CancellationToken.None);
-            var convertedIds = await context.Items
-                .Where(item => EF.Parameter(convertedValues).Contains(item.ConvertedValue))
-                .Select(item => item.Id)
-                .ToArrayAsync(CancellationToken.None);
-            var convertedTextIds = await context.Items
-                .Where(item => EF.Parameter(convertedTextValues).Contains(item.ConvertedText))
-                .OrderBy(item => item.Id)
-                .Select(item => item.Id)
-                .ToArrayAsync(CancellationToken.None);
-            var modelValues = await context.Items
-                .Where(item => item.Id == 1)
-                .SelectMany(item => item.Values)
-                .ToArrayAsync(CancellationToken.None);
-
-            Assert.Equal([1, 2, 3, 4], parameterIds);
-            Assert.Equal([1, 2], nullableIds);
-            Assert.Equal([1], convertedIds);
-            Assert.Equal([2, 4], convertedTextIds);
-            Assert.Equal(expectedModelValues, modelValues);
         }
-        finally
+
+        private static async Task SeedAsync(
+            IntegrationDatabaseTarget target
+        )
         {
-            if (previousSqlMode is not null)
-            {
-                await SetSqlModeAsync(context.Database.GetDbConnection(), previousSqlMode);
-            }
+            await using var context = CreateContext(target);
+            await using var charContext = CreateCharContext(target);
+            await DropTableAsync(context);
+            await DropCharTableAsync(charContext);
 
-            await context.Database.CloseConnectionAsync();
-            await DropSqlModeTableAsync(context);
-        }
-    }
-
-    /// <summary>
-    /// Verifies ordinary scalar string parameters when the connection's
-    /// escaping contract matches the server's NO_BACKSLASH_ESCAPES mode.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task MariaDb118_default_scalar_strings_match_configured_sql_mode()
-    {
-        var connectionString = new MySqlConnectionStringBuilder(
-            IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118))
-        {
-            NoBackslashEscapes = true,
-        }.ConnectionString;
-        var builder = IntegrationTestDbContextOptions.Create<SqlModeStringCollectionContext>();
-        builder.UseMySql(
-            connectionString,
-            IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb118));
-        await using var context = new SqlModeStringCollectionContext(builder.Options);
-        await DropSqlModeTableAsync(context);
-        await context.Database.OpenConnectionAsync(CancellationToken.None);
-
-        var connection = context.Database.GetDbConnection();
-        var previousSqlMode = await ReadSqlModeAsync(connection);
-
-        try
-        {
-            await SetSqlModeAsync(connection, "NO_BACKSLASH_ESCAPES");
-            await context.Database.ExecuteSqlRawAsync(
-                context.Database.GenerateCreateScript(),
-                CancellationToken.None);
-            context.AddRange(
-                new SqlModeStringCollectionEntity
-                {
-                    Id = 1,
-                    Value = "\"\\q\"",
-                    ConvertedText = new TextValue("\"\\q\""),
-                },
-                new SqlModeStringCollectionEntity
-                {
-                    Id = 2,
-                    Value = "\"q\"",
-                    ConvertedText = new TextValue("\"q\""),
-                });
-            await context.SaveChangesAsync(CancellationToken.None);
-            context.ChangeTracker.Clear();
-
-            string[] values = ["\"\\q\"", "missing"];
-            var query = context.Items.Where(item => values.Contains(item.Value));
-
-            var sql = query.ToQueryString();
-            var ids = await query
-                .Select(item => item.Id)
-                .ToArrayAsync(CancellationToken.None);
-
-            Assert.Contains(" IN (", sql, StringComparison.Ordinal);
-            Assert.DoesNotContain("JSON_TABLE", sql, StringComparison.Ordinal);
-            Assert.Equal([1], ids);
-        }
-        finally
-        {
-            await SetSqlModeAsync(connection, previousSqlMode);
-            await context.Database.CloseConnectionAsync();
-            await DropSqlModeTableAsync(context);
-        }
-    }
-
-    private static async Task AssertPrimitiveCollectionParameterContractsAsync(
-        IntegrationDatabaseTarget target
-    )
-    {
-        var builder = IntegrationTestDbContextOptions.Create<PrimitiveCollectionContext>();
-        builder.UseMySql(
-            IntegrationTestEnvironment.GetConnectionString(target),
-            IntegrationTestEnvironment.GetServerVersion(target),
-            options => options.DefaultGuidFormat(MySqlGuidFormat.Binary16));
-        await using var context = new PrimitiveCollectionContext(builder.Options);
-
-        var charBuilder = IntegrationTestDbContextOptions.Create<CharGuidCollectionContext>();
-        charBuilder.UseMySql(
-            IntegrationTestEnvironment.GetConnectionString(target),
-            IntegrationTestEnvironment.GetServerVersion(target),
-            options => options.DefaultGuidFormat(MySqlGuidFormat.Char36));
-        await using var charContext = new CharGuidCollectionContext(charBuilder.Options);
-
-        await DropTableAsync(context);
-        await DropCharTableAsync(charContext);
-
-        try
-        {
+            // WHY: each independent assertion needs the same large cardinality;
+            // one seed per engine avoids multiplying schema DDL and 2,200 inserts.
             var entities = Enumerable
                 .Range(0, RowCount)
                 .Select(index => new PrimitiveCollectionEntity
@@ -308,7 +1212,7 @@ public sealed class MySqlPrimitiveCollectionParameterIntegrationTests
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
                 CancellationToken.None);
-            context.AddRange(entities);
+            context.Items.AddRange(entities);
             await context.SaveChangesAsync(CancellationToken.None);
             context.ChangeTracker.Clear();
 
@@ -323,186 +1227,6 @@ public sealed class MySqlPrimitiveCollectionParameterIntegrationTests
                 });
             await charContext.SaveChangesAsync(CancellationToken.None);
             charContext.ChangeTracker.Clear();
-
-            var oneGuid = new[] { CreateGuid(0) };
-            var threeGuids = Enumerable.Range(0, 3).Select(CreateGuid).ToArray();
-            var allGuids = Enumerable.Range(0, RowCount).Select(CreateGuid).ToArray();
-            var charGuids = new[] { CreateGuid(0), CreateGuid(2) };
-            var emptyGuids = Array.Empty<Guid>();
-            var duplicateAndAbsentGuids = new[] { CreateGuid(0), CreateGuid(0), CreateGuid(RowCount + 1) };
-            Guid?[] nullableGuids = [CreateGuid(0), null];
-            var defaultContainsGuids = new[] { CreateGuid(1), CreateGuid(2) };
-            var integerKeys = new[] { 1, RowCount };
-            string[] names = ["alpha", "\"quoted\"", "\"\\q\""];
-            string?[] nullableNames = ["alpha", null];
-            string[] convertedNames = ["alpha"];
-            string[] differentlyCasedConvertedName = ["Alpha"];
-            string[] differentlyCasedNames = ["Alpha"];
-            TextValue[] convertedTexts = [new("\"\\q\"")];
-            CollectionStatus[] statuses = [CollectionStatus.Active];
-            CollectionStatus[] absentStatuses = [(CollectionStatus)42];
-            CollectionStatus?[] nullableStatuses = [CollectionStatus.Active, null];
-            PriceValue[] exactConvertedPrices = [new(3.1m)];
-            PriceValue[] roundedConvertedPrices = [new(3.14159m)];
-            StrongGuid[] convertedGuids = [new(CreateGuid(0))];
-            StrongGuid[] absentConvertedGuids = [new(CreateGuid(RowCount + 1))];
-            ElapsedValue[] convertedDurations = [new(TimeSpan.FromHours(27))];
-            ElapsedValue[] truncatedConvertedDurations =
-            [
-                new(TimeSpan.FromHours(27).Add(TimeSpan.FromMilliseconds(500))),
-            ];
-            ElapsedValue[] positiveOutOfRangeConvertedDurations = [new(TimeSpan.FromHours(839))];
-            ElapsedValue[] negativeOutOfRangeConvertedDurations = [new(TimeSpan.FromHours(-839))];
-            DateTimeOffset[] convertedTimestamps =
-            [
-                new(2026, 9, 19, 10, 0, 0, TimeSpan.Zero),
-            ];
-            DateTimeOffset[] truncatedConvertedTimestamps =
-            [
-                new DateTimeOffset(2026, 9, 19, 10, 0, 0, TimeSpan.Zero)
-                    .AddMilliseconds(500),
-            ];
-            BinaryValue[] convertedPayloads = [new("payload-0")];
-            BinaryValue[] absentConvertedPayloads = [new("missing")];
-            var differentlyCasedName = new[] { "Alpha" };
-            byte[][] payloads = [BitConverter.GetBytes(0), BitConverter.GetBytes(2)];
-            var stringDecodeCoercibility = await ReadStringDecodeCoercibilityAsync(context);
-
-            var results = new PrimitiveCollectionResults(
-                await SelectIdsAsync(context.Items.Where(item => EF.Parameter(oneGuid).Contains(item.BinaryId))),
-                await SelectIdsAsync(context.Items.Where(item => EF.Parameter(threeGuids).Contains(item.BinaryId))),
-                await SelectIdsAsync(context.Items.Where(item => EF.Parameter(allGuids).Contains(item.BinaryId))),
-                await SelectIdsAsync(context.Items.Where(item => charGuids.Contains(item.CharId))),
-                await SelectIdsAsync(context.Items.Where(item => emptyGuids.Contains(item.BinaryId))),
-                await SelectIdsAsync(
-                    context.Items.Where(item => duplicateAndAbsentGuids.Contains(item.BinaryId))),
-                await SelectIdsAsync(
-                    context.Items.Where(item => EF.Parameter(nullableGuids).Contains(item.OptionalBinaryId))),
-                await SelectIdsAsync(
-                    context.Items.Where(item => EF.Parameter(nullableGuids).Contains(item.OptionalCharId))),
-                await SelectIdsAsync(context.Items.Where(item => defaultContainsGuids.Contains(item.BinaryId))),
-                await SelectIdsAsync(context.Items.Where(item => item.BinaryId == CreateGuid(0))),
-                await SelectIdsAsync(context.Items.Where(item => EF.Parameter(integerKeys).Contains(item.Id))),
-                await SelectIdsAsync(context.Items.Where(item => EF.Parameter(names).Contains(item.Name))),
-                await SelectIdsAsync(
-                    context.Items.Where(item => EF.Parameter(nullableNames).Contains(item.OptionalName))),
-                await SelectIdsAsync(
-                    context.Items.Where(item => EF.Parameter(convertedNames).Contains(item.ConvertedName))),
-                await SelectIdsAsync(
-                    context.Items.Where(
-                        item => EF.Parameter(differentlyCasedConvertedName).Contains(item.ConvertedName))),
-                await SelectIdsAsync(
-                    context.Items.Where(
-                        item => EF.Parameter(differentlyCasedNames).Contains(item.CaseInsensitiveName))),
-                await SelectIdsAsync(
-                    context.Items.Where(item => EF.Parameter(convertedTexts).Contains(item.ConvertedText))),
-                await SelectIdsAsync(context.Items.Where(item => EF.Parameter(statuses).Contains(item.Status))),
-                await SelectIdsAsync(
-                    context.Items.Where(item => EF.Parameter(absentStatuses).Contains(item.Status))),
-                await SelectIdsAsync(
-                    context.Items.Where(
-                        item => EF.Parameter(nullableStatuses).Contains(item.OptionalStatus))),
-                await SelectIdsAsync(
-                    context.Items.Where(
-                        item => EF.Parameter(exactConvertedPrices).Contains(item.ConvertedPrice))),
-                await SelectIdsAsync(
-                    context.Items.Where(
-                        item => EF.Parameter(roundedConvertedPrices).Contains(item.ConvertedPrice))),
-                await SelectIdsAsync(
-                    context.Items.Where(item => EF.Parameter(convertedGuids).Contains(item.ConvertedGuid))),
-                await SelectIdsAsync(
-                    context.Items.Where(
-                        item => EF.Parameter(absentConvertedGuids).Contains(item.ConvertedGuid))),
-                await SelectIdsAsync(
-                    context.Items.Where(
-                        item => EF.Parameter(convertedDurations).Contains(item.ConvertedDuration))),
-                await SelectIdsAsync(
-                    context.Items.Where(
-                        item => EF.Parameter(truncatedConvertedDurations).Contains(item.ConvertedDuration))),
-                await Record.ExceptionAsync(() => SelectIdsAsync(
-                    context.Items.Where(
-                        item => EF.Parameter(positiveOutOfRangeConvertedDurations)
-                            .Contains(item.ConvertedDuration)))),
-                await Record.ExceptionAsync(() => SelectIdsAsync(
-                    context.Items.Where(
-                        item => EF.Parameter(negativeOutOfRangeConvertedDurations)
-                            .Contains(item.ConvertedDuration)))),
-                await SelectIdsAsync(
-                    context.Items.Where(
-                        item => EF.Parameter(convertedTimestamps).Contains(item.ConvertedTimestamp))),
-                await SelectIdsAsync(
-                    context.Items.Where(
-                        item => EF.Parameter(truncatedConvertedTimestamps).Contains(item.ConvertedTimestamp))),
-                await SelectIdsAsync(
-                    context.Items.Where(
-                        item => EF.Parameter(convertedPayloads).Contains(item.ConvertedPayload))),
-                await SelectIdsAsync(
-                    context.Items.Where(
-                        item => EF.Parameter(absentConvertedPayloads).Contains(item.ConvertedPayload))),
-                await SelectIdsAsync(
-                    context.Items.Where(item => EF.Parameter(differentlyCasedName).Contains(item.Name))),
-                await SelectIdsAsync(context.Items.Where(item => EF.Parameter(payloads).Contains(item.Payload))),
-                // Project the decoded rowset directly so this assertion covers
-                // mapping without adding correlated-IN optimizer semantics.
-                await context.Items
-                    .Where(item => item.Id == 11)
-                    .SelectMany(item => item.GuidValues)
-                    .ToArrayAsync(CancellationToken.None),
-                await charContext.Items
-                    .SelectMany(item => item.GuidValues)
-                    .ToArrayAsync(CancellationToken.None),
-                stringDecodeCoercibility);
-
-            Assert.Equal([1], results.OneBinaryGuid);
-            Assert.Equal([1, 2, 3], results.ThreeBinaryGuids);
-            Assert.Equal(Enumerable.Range(1, RowCount), results.AllBinaryGuids);
-            Assert.Equal([1, 3], results.CharGuids);
-            Assert.Empty(results.EmptyGuids);
-            Assert.Equal([1], results.DuplicateAndAbsentGuids);
-            Assert.Equal([1, 2], results.NullableBinaryGuids);
-            Assert.Equal([1, 2], results.NullableCharGuids);
-            Assert.Equal([2, 3], results.DefaultContainsGuids);
-            Assert.Equal([1], results.ScalarGuid);
-            Assert.Equal([1, RowCount], results.IntegerKeys);
-            Assert.Equal([1, 2, 3], results.Names);
-            Assert.Equal([1, 2], results.NullableNames);
-            Assert.Equal([1], results.ConvertedNames);
-            Assert.Empty(results.DifferentlyCasedConvertedName);
-            Assert.Equal([1], results.DifferentlyCasedNames);
-            Assert.Equal([1], results.ConvertedTexts);
-            Assert.Equal([1], results.Statuses);
-            Assert.Empty(results.AbsentStatuses);
-            Assert.Equal([1, 2], results.NullableStatuses);
-            Assert.Equal([1], results.ExactConvertedPrices);
-            Assert.Empty(results.RoundedConvertedPrices);
-            Assert.Equal([1], results.ConvertedGuids);
-            Assert.Empty(results.AbsentConvertedGuids);
-            Assert.Equal([1], results.ConvertedDurations);
-            Assert.Empty(results.TruncatedConvertedDurations);
-            Assert.Contains(
-                "exceeds the MySQL TIME range",
-                Assert.IsType<InvalidOperationException>(results.PositiveOutOfRangeConvertedDuration).Message,
-                StringComparison.Ordinal);
-            Assert.Contains(
-                "exceeds the MySQL TIME range",
-                Assert.IsType<InvalidOperationException>(results.NegativeOutOfRangeConvertedDuration).Message,
-                StringComparison.Ordinal);
-            Assert.Equal([1], results.ConvertedTimestamps);
-            Assert.Empty(results.TruncatedConvertedTimestamps);
-            Assert.Equal([1], results.ConvertedPayloads);
-            Assert.Empty(results.AbsentConvertedPayloads);
-            Assert.Empty(results.DifferentlyCasedName);
-            Assert.Equal([1, 3], results.Payloads);
-            Assert.Equal([CreateGuid(10), Guid.Empty], results.BinaryModelGuidCollection);
-            Assert.Equal([CreateGuid(10), Guid.Empty], results.CharModelGuidCollection);
-            Assert.True(
-                results.StringDecodeCoercibility > 2,
-                $"Expected coercible string decoding, but COERCIBILITY returned {results.StringDecodeCoercibility}.");
-        }
-        finally
-        {
-            await DropCharTableAsync(charContext);
-            await DropTableAsync(context);
         }
     }
 
@@ -585,45 +1309,6 @@ public sealed class MySqlPrimitiveCollectionParameterIntegrationTests
         }
     }
 
-    private sealed record PrimitiveCollectionResults(
-        int[] OneBinaryGuid,
-        int[] ThreeBinaryGuids,
-        int[] AllBinaryGuids,
-        int[] CharGuids,
-        int[] EmptyGuids,
-        int[] DuplicateAndAbsentGuids,
-        int[] NullableBinaryGuids,
-        int[] NullableCharGuids,
-        int[] DefaultContainsGuids,
-        int[] ScalarGuid,
-        int[] IntegerKeys,
-        int[] Names,
-        int[] NullableNames,
-        int[] ConvertedNames,
-        int[] DifferentlyCasedConvertedName,
-        int[] DifferentlyCasedNames,
-        int[] ConvertedTexts,
-        int[] Statuses,
-        int[] AbsentStatuses,
-        int[] NullableStatuses,
-        int[] ExactConvertedPrices,
-        int[] RoundedConvertedPrices,
-        int[] ConvertedGuids,
-        int[] AbsentConvertedGuids,
-        int[] ConvertedDurations,
-        int[] TruncatedConvertedDurations,
-        Exception? PositiveOutOfRangeConvertedDuration,
-        Exception? NegativeOutOfRangeConvertedDuration,
-        int[] ConvertedTimestamps,
-        int[] TruncatedConvertedTimestamps,
-        int[] ConvertedPayloads,
-        int[] AbsentConvertedPayloads,
-        int[] DifferentlyCasedName,
-        int[] Payloads,
-        Guid[] BinaryModelGuidCollection,
-        Guid[] CharModelGuidCollection,
-        int StringDecodeCoercibility
-    );
 
     private sealed class PrimitiveCollectionContext(
         DbContextOptions<PrimitiveCollectionContext> options
@@ -717,8 +1402,8 @@ public sealed class MySqlPrimitiveCollectionParameterIntegrationTests
                 entity
                     .Property(item => item.ConvertedPayload)
                     .HasConversion(
-                        value => System.Text.Encoding.UTF8.GetBytes(value.Value),
-                        value => new BinaryValue(System.Text.Encoding.UTF8.GetString(value)))
+                        value => Encoding.UTF8.GetBytes(value.Value),
+                        value => new BinaryValue(Encoding.UTF8.GetString(value)))
                     .HasColumnType("varbinary(32)");
                 entity
                     .Property(item => item.Payload)

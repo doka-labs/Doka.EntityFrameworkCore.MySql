@@ -246,7 +246,9 @@ publication authorization, and public package and GitHub release readback. Never
 ## Code Style
 
 - Follow the existing naming, formatting, and layout conventions in the codebase.
+- Use the repository `.editorconfig` and existing Rider-formatted code as the layout reference. Do not run `dotnet format whitespace`; its output does not match the repository's Rider layout.
 - All code comments must be in English.
+- Document public APIs with XML comments and add documentation for internal APIs when it helps IDE users understand a non-obvious contract. Explain non-obvious implementation choices with short WHY comments rather than narrating the code.
 - `<Nullable>enable</Nullable>`, `TreatWarningsAsErrors`, trim analysis, AOT analysis, and build-enforced code-style analyzers are configured solution-wide via `Directory.Build.props`.
 - Do not add third-party library dependencies without first opening an issue to discuss the rationale.
 - Engine differences must flow through the internal `EngineProfile` model; avoid ad-hoc version checks across unrelated subsystems.
@@ -275,7 +277,9 @@ changes to `docs/decisions/README.md` or `decision-index.json` are rejected.
 
 ## Test Conventions
 
-- Every integration test class that uses a live database MUST belong to `IntegrationDatabaseTestGroup`. Every target-specific method MUST use `[RequiresDatabaseTargetFact(IntegrationDatabaseTarget.X)]`, not `[Fact]`, so a scoped matrix run only executes tests for provisioned targets. Method-name suffix `_on_<target>` is the usual but not mandatory cue; the attribute is the source of truth.
+- Every integration test class that uses a live database MUST carry `[IntegrationDatabaseTest]`. A fixed target uses `[RequiresDatabaseTargetFact(IntegrationDatabaseTarget.X)]`; a selected-target theory uses `[MemberData]`, plus `[RequiresSupportedDatabaseTargetTheory]` when it excludes unsupported targets. Do not use an unconditional `[Fact]` for target-specific work, so a scoped matrix run only executes tests for provisioned targets. Method-name suffix `_on_<target>` is the usual but not mandatory cue; the attribute or theory data is the source of truth.
+- New and changed tests should separate `// Arrange`, `// Act`, and `// Assert` with blank lines. Keep one behavior and one Act phase per test; use separate tests for distinct positive and negative cases. Share expensive database setup through a fixture only when each test remains independent and filtered runs still work.
+- Add a short WHY comment when a non-obvious test setup, ordering constraint, or provider behavior would otherwise be easy to break. Do not add comments that merely restate the next statement.
 - Any raw-SQL helper that interpolates an identifier into backticked DDL (e.g. `` $"DROP TABLE IF EXISTS `{name}`;" ``) must backtick-escape the interpolated value with `name.Replace("`", "``", StringComparison.Ordinal)` so the helper is safe-by-construction, regardless of caller-supplied input. The `EF1002` analyzer is enforced in unit and functional tests; it is suppressed only under `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/**` where fixture-controlled DDL is expected.
 - Culture-sensitive string comparison analyzers (`CA1304/1307/1309/1311`) are enforced in all test projects. When a test deliberately uses `string.ToUpper()` / `ToLower()` / `Equals` inside an `IQueryable` expression tree (where EF translates the call server-side and the CLR culture never applies), suppress the warnings per-line with `#pragma warning disable CA1304, CA1311` + `#pragma warning restore CA1304, CA1311` plus a short rationale comment.
 

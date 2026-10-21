@@ -16,147 +16,142 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
     private const string ConvertedTableName = "IncompleteConvertedDiscriminatorEntities";
     private const string KnownConvertedValue = "K'\\nown";
 
-    /// <summary>
-    /// An incomplete mapping filters rows whose discriminator is unknown to the model.
-    /// </summary>
-    [RequiresDatabaseTargetFact(
-        IntegrationDatabaseTarget.MySql84,
-        IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
-    public async Task Incomplete_mapping_filters_unknown_discriminator_values()
+    private enum DiscriminatorProbe
     {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertIncompleteMappingAsync(target)
-                .ConfigureAwait(true);
-        }
+        Sql,
+        Sync,
+        Async,
     }
 
     /// <summary>
-    /// A complete mapping rejects a row whose discriminator is unknown to the model.
+    /// Reports SQL generation, synchronous execution, and asynchronous execution
+    /// independently for each selected supported engine.
     /// </summary>
-    [RequiresDatabaseTargetFact(
-        IntegrationDatabaseTarget.MySql84,
-        IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
-    public async Task Complete_mapping_rejects_unknown_discriminator_values()
-    {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertCompleteMappingAsync(target)
-                .ConfigureAwait(true);
-        }
-    }
+    public static TheoryData<string, string> DiscriminatorCases => CreateDiscriminatorCases();
 
-    /// <summary>
-    /// An incomplete mapping filters unknown values for a non-string discriminator property.
-    /// </summary>
-    [RequiresDatabaseTargetFact(
-        IntegrationDatabaseTarget.MySql84,
-        IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
-    public async Task Incomplete_mapping_filters_unknown_int_discriminator_values()
-    {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertIncompleteIntMappingAsync(target)
-                .ConfigureAwait(true);
-        }
-    }
+    /// <summary>An incomplete string mapping filters rows with an unknown discriminator.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(DiscriminatorCases))]
+    public Task Incomplete_mapping_filters_unknown_discriminator_values(
+        string targetName,
+        string probe
+    ) => AssertIncompleteMappingAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        Enum.Parse<DiscriminatorProbe>(probe));
 
-    /// <summary>
-    /// A complete mapping rejects an unknown value for a non-string discriminator property.
-    /// </summary>
-    [RequiresDatabaseTargetFact(
-        IntegrationDatabaseTarget.MySql84,
-        IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
-    public async Task Complete_mapping_rejects_unknown_int_discriminator_values()
-    {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertCompleteIntMappingAsync(target)
-                .ConfigureAwait(true);
-        }
-    }
+    /// <summary>A complete string mapping rejects an unknown discriminator.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(DiscriminatorCases))]
+    public Task Complete_mapping_rejects_unknown_discriminator_values(
+        string targetName,
+        string probe
+    ) => AssertCompleteMappingAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        Enum.Parse<DiscriminatorProbe>(probe));
 
-    /// <summary>
-    /// An incomplete mapping converts known values before filtering provider values.
-    /// </summary>
-    [RequiresDatabaseTargetFact(
-        IntegrationDatabaseTarget.MySql84,
-        IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
-    public async Task Incomplete_mapping_filters_unknown_converted_discriminator_values()
-    {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertIncompleteConvertedMappingAsync(target)
-                .ConfigureAwait(true);
-        }
-    }
+    /// <summary>An incomplete integer mapping filters rows with an unknown discriminator.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(DiscriminatorCases))]
+    public Task Incomplete_mapping_filters_unknown_int_discriminator_values(
+        string targetName,
+        string probe
+    ) => AssertIncompleteIntMappingAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        Enum.Parse<DiscriminatorProbe>(probe));
 
-    /// <summary>
-    /// A complete mapping converts an unknown provider value before rejecting it.
-    /// </summary>
-    [RequiresDatabaseTargetFact(
-        IntegrationDatabaseTarget.MySql84,
-        IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
-    public async Task Complete_mapping_rejects_unknown_converted_discriminator_values()
+    /// <summary>A complete integer mapping rejects an unknown discriminator.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(DiscriminatorCases))]
+    public Task Complete_mapping_rejects_unknown_int_discriminator_values(
+        string targetName,
+        string probe
+    ) => AssertCompleteIntMappingAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        Enum.Parse<DiscriminatorProbe>(probe));
+
+    /// <summary>An incomplete converted mapping filters rows with an unknown discriminator.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(DiscriminatorCases))]
+    public Task Incomplete_mapping_filters_unknown_converted_discriminator_values(
+        string targetName,
+        string probe
+    ) => AssertIncompleteConvertedMappingAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        Enum.Parse<DiscriminatorProbe>(probe));
+
+    /// <summary>A complete converted mapping rejects an unknown discriminator.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(DiscriminatorCases))]
+    public Task Complete_mapping_rejects_unknown_converted_discriminator_values(
+        string targetName,
+        string probe
+    ) => AssertCompleteConvertedMappingAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        Enum.Parse<DiscriminatorProbe>(probe));
+
+    private static TheoryData<string, string> CreateDiscriminatorCases()
     {
+        var cases = new TheoryData<string, string>();
+
+        // WHY: Public xUnit theory methods cannot expose the internal target enum.
         foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
         {
-            await AssertCompleteConvertedMappingAsync(target)
-                .ConfigureAwait(true);
+            if (target == IntegrationDatabaseTarget.MySql80)
+            {
+                continue;
+            }
+
+            cases.Add(target.ToString(), nameof(DiscriminatorProbe.Sql));
+            cases.Add(target.ToString(), nameof(DiscriminatorProbe.Sync));
+            cases.Add(target.ToString(), nameof(DiscriminatorProbe.Async));
         }
+
+        return cases;
     }
 
     private static async Task AssertIncompleteMappingAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        DiscriminatorProbe probe
     )
     {
+        // Arrange
         await using var context = new IncompleteDiscriminatorContext(
             CreateOptions<IncompleteDiscriminatorContext>(target));
+
+        var query = context
+            .Entities
+            .AsNoTracking()
+            .OrderBy(entity => entity.Id);
+
+        if (probe == DiscriminatorProbe.Sql)
+        {
+            // Act
+            var sql = query.ToQueryString();
+
+            // Assert
+            Assert.Contains("WHERE", sql, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Known", sql, StringComparison.Ordinal);
+
+            return;
+        }
 
         await RecreateStringTableWithUnknownDiscriminatorAsync(context)
             .ConfigureAwait(false);
 
         try
         {
-            var query = context.Entities
-                .AsNoTracking()
-                .OrderBy(entity => entity.Id);
-            var sql = query.ToQueryString();
+            // Act
+            var entities = probe switch
+            {
+                DiscriminatorProbe.Sync => query.ToList(),
+                DiscriminatorProbe.Async => await query
+                    .ToListAsync(CancellationToken.None)
+                    .ConfigureAwait(false),
+                _ => throw new ArgumentOutOfRangeException(nameof(probe))
+            };
 
-            Assert.Contains("WHERE", sql, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("Known", sql, StringComparison.Ordinal);
-
-            var syncEntities = query.ToList();
-            var asyncEntities = await query
-                .ToListAsync(CancellationToken.None)
-                .ConfigureAwait(false);
-
-            AssertKnownStringEntity(syncEntities);
-            AssertKnownStringEntity(asyncEntities);
+            // Assert
+            AssertKnownStringEntity(entities);
         }
         finally
         {
@@ -166,33 +161,48 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
     }
 
     private static async Task AssertCompleteMappingAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        DiscriminatorProbe probe
     )
     {
-        await using var context = new CompleteDiscriminatorContext(
-            CreateOptions<CompleteDiscriminatorContext>(target));
+        // Arrange
+        await using var context = new CompleteDiscriminatorContext(CreateOptions<CompleteDiscriminatorContext>(target));
+
+        var query = context
+            .Entities
+            .AsNoTracking()
+            .OrderBy(entity => entity.Id);
+
+        if (probe == DiscriminatorProbe.Sql)
+        {
+            // Act
+            var sql = query.ToQueryString();
+
+            // Assert
+            Assert.DoesNotContain("WHERE", sql, StringComparison.OrdinalIgnoreCase);
+
+            return;
+        }
 
         await RecreateStringTableWithUnknownDiscriminatorAsync(context)
             .ConfigureAwait(false);
 
         try
         {
-            var query = context.Entities
-                .AsNoTracking()
-                .OrderBy(entity => entity.Id);
-            var sql = query.ToQueryString();
-
-            Assert.DoesNotContain("WHERE", sql, StringComparison.OrdinalIgnoreCase);
-
-            var syncException = Assert.Throws<InvalidOperationException>(() => query.ToList());
-            var asyncException = await Assert.ThrowsAsync<InvalidOperationException>(
-                    async () => await query
+            // Act
+            var exception = probe switch
+            {
+                DiscriminatorProbe.Sync => Assert.Throws<InvalidOperationException>(() => query.ToList()),
+                DiscriminatorProbe.Async => await Assert
+                    .ThrowsAsync<InvalidOperationException>(async () => await query
                         .ToListAsync(CancellationToken.None)
                         .ConfigureAwait(false))
-                .ConfigureAwait(false);
+                    .ConfigureAwait(false),
+                _ => throw new ArgumentOutOfRangeException(nameof(probe))
+            };
 
-            AssertUnknownDiscriminatorException(syncException, "Future");
-            AssertUnknownDiscriminatorException(asyncException, "Future");
+            // Assert
+            AssertUnknownDiscriminatorException(exception, "Future");
         }
         finally
         {
@@ -202,32 +212,48 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
     }
 
     private static async Task AssertIncompleteIntMappingAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        DiscriminatorProbe probe
     )
     {
+        // Arrange
         await using var context = new IncompleteIntDiscriminatorContext(
             CreateOptions<IncompleteIntDiscriminatorContext>(target));
+
+        var query = context
+            .Entities
+            .AsNoTracking()
+            .OrderBy(entity => entity.Id);
+
+        if (probe == DiscriminatorProbe.Sql)
+        {
+            // Act
+            var sql = query.ToQueryString();
+
+            // Assert
+            Assert.Contains("WHERE", sql, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(nameof(IntDiscriminatorEntity.Discriminator), sql, StringComparison.Ordinal);
+
+            return;
+        }
 
         await RecreateIntTableWithUnknownDiscriminatorAsync(context)
             .ConfigureAwait(false);
 
         try
         {
-            var query = context.Entities
-                .AsNoTracking()
-                .OrderBy(entity => entity.Id);
-            var sql = query.ToQueryString();
+            // Act
+            var entities = probe switch
+            {
+                DiscriminatorProbe.Sync => query.ToList(),
+                DiscriminatorProbe.Async => await query
+                    .ToListAsync(CancellationToken.None)
+                    .ConfigureAwait(false),
+                _ => throw new ArgumentOutOfRangeException(nameof(probe))
+            };
 
-            Assert.Contains("WHERE", sql, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains(nameof(IntDiscriminatorEntity.Discriminator), sql, StringComparison.Ordinal);
-
-            var syncEntities = query.ToList();
-            var asyncEntities = await query
-                .ToListAsync(CancellationToken.None)
-                .ConfigureAwait(false);
-
-            AssertKnownIntEntity(syncEntities);
-            AssertKnownIntEntity(asyncEntities);
+            // Assert
+            AssertKnownIntEntity(entities);
         }
         finally
         {
@@ -237,33 +263,49 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
     }
 
     private static async Task AssertCompleteIntMappingAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        DiscriminatorProbe probe
     )
     {
+        // Arrange
         await using var context = new CompleteIntDiscriminatorContext(
             CreateOptions<CompleteIntDiscriminatorContext>(target));
+
+        var query = context
+            .Entities
+            .AsNoTracking()
+            .OrderBy(entity => entity.Id);
+
+        if (probe == DiscriminatorProbe.Sql)
+        {
+            // Act
+            var sql = query.ToQueryString();
+
+            // Assert
+            Assert.DoesNotContain("WHERE", sql, StringComparison.OrdinalIgnoreCase);
+
+            return;
+        }
 
         await RecreateIntTableWithUnknownDiscriminatorAsync(context)
             .ConfigureAwait(false);
 
         try
         {
-            var query = context.Entities
-                .AsNoTracking()
-                .OrderBy(entity => entity.Id);
-            var sql = query.ToQueryString();
-
-            Assert.DoesNotContain("WHERE", sql, StringComparison.OrdinalIgnoreCase);
-
-            var syncException = Assert.Throws<InvalidOperationException>(() => query.ToList());
-            var asyncException = await Assert.ThrowsAsync<InvalidOperationException>(
-                    async () => await query
+            // Act
+            var exception = probe switch
+            {
+                DiscriminatorProbe.Sync => Assert.Throws<InvalidOperationException>(() => query.ToList()),
+                DiscriminatorProbe.Async => await Assert
+                    .ThrowsAsync<InvalidOperationException>(async () => await query
                         .ToListAsync(CancellationToken.None)
                         .ConfigureAwait(false))
-                .ConfigureAwait(false);
+                    .ConfigureAwait(false),
+                _ => throw new ArgumentOutOfRangeException(nameof(probe))
+            };
 
-            AssertUnknownDiscriminatorException(syncException, "2");
-            AssertUnknownDiscriminatorException(asyncException, "2");
+            // Assert
+            AssertUnknownDiscriminatorException(exception, "2");
         }
         finally
         {
@@ -273,35 +315,51 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
     }
 
     private static async Task AssertIncompleteConvertedMappingAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        DiscriminatorProbe probe
     )
     {
+        // Arrange
         await using var context = new IncompleteConvertedDiscriminatorContext(
             CreateOptions<IncompleteConvertedDiscriminatorContext>(target));
 
-        await RecreateConvertedTableWithUnknownDiscriminatorAsync(context)
-            .ConfigureAwait(false);
+        var query = context
+            .Entities
+            .AsNoTracking()
+            .OrderBy(entity => entity.Id);
 
-        try
+        if (probe == DiscriminatorProbe.Sql)
         {
-            var query = context.Entities
-                .AsNoTracking()
-                .OrderBy(entity => entity.Id);
+            // Act
             var sql = query.ToQueryString();
 
+            // Assert
             Assert.Contains("WHERE", sql, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(
                 $"_utf8mb4 X'{Convert.ToHexString(Encoding.UTF8.GetBytes(KnownConvertedValue))}'",
                 sql,
                 StringComparison.Ordinal);
 
-            var syncEntities = query.ToList();
-            var asyncEntities = await query
-                .ToListAsync(CancellationToken.None)
-                .ConfigureAwait(false);
+            return;
+        }
 
-            AssertKnownConvertedEntity(syncEntities);
-            AssertKnownConvertedEntity(asyncEntities);
+        await RecreateConvertedTableWithUnknownDiscriminatorAsync(context)
+            .ConfigureAwait(false);
+
+        try
+        {
+            // Act
+            var entities = probe switch
+            {
+                DiscriminatorProbe.Sync => query.ToList(),
+                DiscriminatorProbe.Async => await query
+                    .ToListAsync(CancellationToken.None)
+                    .ConfigureAwait(false),
+                _ => throw new ArgumentOutOfRangeException(nameof(probe))
+            };
+
+            // Assert
+            AssertKnownConvertedEntity(entities);
         }
         finally
         {
@@ -311,33 +369,49 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
     }
 
     private static async Task AssertCompleteConvertedMappingAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        DiscriminatorProbe probe
     )
     {
+        // Arrange
         await using var context = new CompleteConvertedDiscriminatorContext(
             CreateOptions<CompleteConvertedDiscriminatorContext>(target));
+
+        var query = context
+            .Entities
+            .AsNoTracking()
+            .OrderBy(entity => entity.Id);
+
+        if (probe == DiscriminatorProbe.Sql)
+        {
+            // Act
+            var sql = query.ToQueryString();
+
+            // Assert
+            Assert.DoesNotContain("WHERE", sql, StringComparison.OrdinalIgnoreCase);
+
+            return;
+        }
 
         await RecreateConvertedTableWithUnknownDiscriminatorAsync(context)
             .ConfigureAwait(false);
 
         try
         {
-            var query = context.Entities
-                .AsNoTracking()
-                .OrderBy(entity => entity.Id);
-            var sql = query.ToQueryString();
-
-            Assert.DoesNotContain("WHERE", sql, StringComparison.OrdinalIgnoreCase);
-
-            var syncException = Assert.Throws<InvalidOperationException>(() => query.ToList());
-            var asyncException = await Assert.ThrowsAsync<InvalidOperationException>(
-                    async () => await query
+            // Act
+            var exception = probe switch
+            {
+                DiscriminatorProbe.Sync => Assert.Throws<InvalidOperationException>(() => query.ToList()),
+                DiscriminatorProbe.Async => await Assert
+                    .ThrowsAsync<InvalidOperationException>(async () => await query
                         .ToListAsync(CancellationToken.None)
                         .ConfigureAwait(false))
-                .ConfigureAwait(false);
+                    .ConfigureAwait(false),
+                _ => throw new ArgumentOutOfRangeException(nameof(probe))
+            };
 
-            AssertUnknownDiscriminatorException(syncException, nameof(ConvertedDiscriminator.Future));
-            AssertUnknownDiscriminatorException(asyncException, nameof(ConvertedDiscriminator.Future));
+            // Assert
+            AssertUnknownDiscriminatorException(exception, nameof(ConvertedDiscriminator.Future));
         }
         finally
         {
@@ -400,8 +474,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         DbContext context
     )
     {
-        await DropTableAsync(context, StringTableName)
-            .ConfigureAwait(false);
+        await DropTableAsync(context, StringTableName).ConfigureAwait(false);
         await context.Database.ExecuteSqlRawAsync(
                 $"""
                 CREATE TABLE `{StringTableName}` (
@@ -425,8 +498,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         DbContext context
     )
     {
-        await DropTableAsync(context, IntTableName)
-            .ConfigureAwait(false);
+        await DropTableAsync(context, IntTableName).ConfigureAwait(false);
         await context.Database.ExecuteSqlRawAsync(
                 $"""
                 CREATE TABLE `{IntTableName}` (

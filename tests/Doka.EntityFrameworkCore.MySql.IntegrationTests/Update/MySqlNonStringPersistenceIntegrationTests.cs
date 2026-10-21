@@ -15,62 +15,65 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
     /// <summary>
     /// Provides separately reported character cases under both SQL modes.
     /// </summary>
-    public static TheoryData<bool, char> CharacterCases => CreateCharacterCases(
+    public static TheoryData<string, bool, char> CharacterCases => CreateCharacterCases(
         '\'', '"', '\\', '\0', '\u00E4');
+
+    /// <summary>
+    /// Reports each selected engine and SQL mode as a separate binary case.
+    /// </summary>
+    public static TheoryData<string, bool> SqlModeCases => CreateSqlModeCases();
 
     /// <summary>
     /// Checks that entity inserts retain each character's encoded database bytes.
     /// </summary>
     [Theory]
     [MemberData(nameof(CharacterCases))]
-    public async Task Char_insert_preserves_special_characters(bool noBackslashEscapes, char value)
-    {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertCharInsertAsync(target, noBackslashEscapes, value);
-        }
-    }
+    public Task Char_insert_preserves_special_characters(
+        string targetName,
+        bool noBackslashEscapes,
+        char value
+    ) => AssertCharInsertAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        noBackslashEscapes,
+        value);
 
     /// <summary>
     /// Checks that entity updates retain each character's encoded database bytes.
     /// </summary>
     [Theory]
     [MemberData(nameof(CharacterCases))]
-    public async Task Char_update_preserves_special_characters(bool noBackslashEscapes, char value)
-    {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertCharUpdateAsync(target, noBackslashEscapes, value);
-        }
-    }
+    public Task Char_update_preserves_special_characters(
+        string targetName,
+        bool noBackslashEscapes,
+        char value
+    ) => AssertCharUpdateAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        noBackslashEscapes,
+        value);
 
     /// <summary>
     /// Checks that binary inserts do not reinterpret quote, slash, NUL, or high bytes as text.
     /// </summary>
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Binary_insert_preserves_special_bytes(bool noBackslashEscapes)
-    {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertBinaryInsertAsync(target, noBackslashEscapes);
-        }
-    }
+    [MemberData(nameof(SqlModeCases))]
+    public Task Binary_insert_preserves_special_bytes(
+        string targetName,
+        bool noBackslashEscapes
+    ) => AssertBinaryInsertAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        noBackslashEscapes);
 
     /// <summary>
     /// Checks that binary updates retain every byte and leave other rows unchanged.
     /// </summary>
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Binary_update_preserves_special_bytes(bool noBackslashEscapes)
-    {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertBinaryUpdateAsync(target, noBackslashEscapes);
-        }
-    }
+    [MemberData(nameof(SqlModeCases))]
+    public Task Binary_update_preserves_special_bytes(
+        string targetName,
+        bool noBackslashEscapes
+    ) => AssertBinaryUpdateAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        noBackslashEscapes);
 
     private static async Task AssertCharInsertAsync(
         IntegrationDatabaseTarget target,
@@ -78,6 +81,7 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         char value
     )
     {
+        // Arrange
         await using var connection = await OpenConnectionAsync(target, noBackslashEscapes);
         await CreateTemporaryTableAsync(connection);
 
@@ -91,8 +95,10 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
                 BinaryValue = [0x01],
             });
 
+            // Act
             await context.SaveChangesAsync(CancellationToken.None);
 
+            // Assert
             await AssertStoredHexAsync(
                 connection,
                 nameof(NonStringValue.CharacterValue),
@@ -110,6 +116,7 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         char value
     )
     {
+        // Arrange
         await using var connection = await OpenConnectionAsync(target, noBackslashEscapes);
         await CreateTemporaryTableAsync(connection);
 
@@ -133,8 +140,10 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             context.Attach(item);
             context.Entry(item).Property(entry => entry.CharacterValue).IsModified = true;
 
+            // Act
             await context.SaveChangesAsync(CancellationToken.None);
 
+            // Assert
             await AssertStoredHexAsync(
                 connection,
                 nameof(NonStringValue.CharacterValue),
@@ -151,6 +160,7 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         bool noBackslashEscapes
     )
     {
+        // Arrange
         await using var connection = await OpenConnectionAsync(target, noBackslashEscapes);
         await CreateTemporaryTableAsync(connection);
 
@@ -164,8 +174,10 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
                 BinaryValue = s_binaryValue,
             });
 
+            // Act
             await context.SaveChangesAsync(CancellationToken.None);
 
+            // Assert
             await AssertStoredHexAsync(
                 connection,
                 nameof(NonStringValue.BinaryValue),
@@ -182,6 +194,7 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         bool noBackslashEscapes
     )
     {
+        // Arrange
         await using var connection = await OpenConnectionAsync(target, noBackslashEscapes);
         await CreateTemporaryTableAsync(connection);
 
@@ -205,8 +218,10 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             context.Attach(item);
             context.Entry(item).Property(entry => entry.BinaryValue).IsModified = true;
 
+            // Act
             await context.SaveChangesAsync(CancellationToken.None);
 
+            // Assert
             await AssertStoredHexAsync(
                 connection,
                 nameof(NonStringValue.BinaryValue),
@@ -299,14 +314,32 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             .UseMySql(connection, IntegrationTestEnvironment.GetServerVersion(target))
             .Options);
 
-    private static TheoryData<bool, char> CreateCharacterCases(params char[] values)
+    private static TheoryData<string, bool, char> CreateCharacterCases(params char[] values)
     {
-        var cases = new TheoryData<bool, char>();
+        var cases = new TheoryData<string, bool, char>();
 
-        foreach (var value in values)
+        // WHY: The target enum is internal, but xUnit requires public theory
+        // methods. Names keep each engine visible without widening that contract.
+        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
         {
-            cases.Add(false, value);
-            cases.Add(true, value);
+            foreach (var value in values)
+            {
+                cases.Add(target.ToString(), false, value);
+                cases.Add(target.ToString(), true, value);
+            }
+        }
+
+        return cases;
+    }
+
+    private static TheoryData<string, bool> CreateSqlModeCases()
+    {
+        var cases = new TheoryData<string, bool>();
+
+        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
+        {
+            cases.Add(target.ToString(), false);
+            cases.Add(target.ToString(), true);
         }
 
         return cases;

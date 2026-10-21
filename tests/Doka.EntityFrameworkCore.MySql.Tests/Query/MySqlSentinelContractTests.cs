@@ -40,26 +40,40 @@ public sealed class MySqlSentinelContractTests
     }
 
     /// <summary>
-    /// Ensures the time-add contract accepts only the units translated by TimeOnly.
+    /// Ensures the time-add contract accepts the units translated by TimeOnly.
+    /// </summary>
+    [Theory]
+    [InlineData((int)MySqlIntervalUnit.Hour)]
+    [InlineData((int)MySqlIntervalUnit.Minute)]
+    public void Time_add_accepts_supported_interval_unit(int intervalUnitValue)
+    {
+        // Arrange
+        var intervalUnit = (MySqlIntervalUnit)intervalUnitValue;
+        var name = MySqlSentinelContract.GetName(MySqlSentinelKind.TimeAdd, intervalUnit);
+
+        // Act
+        var resolved = MySqlSentinelContract.Resolve(name, argumentCount: 2);
+
+        // Assert
+        Assert.Equal(new MySqlSentinel(MySqlSentinelKind.TimeAdd, intervalUnit), resolved);
+    }
+
+    /// <summary>
+    /// Ensures the time-add contract rejects a unit not translated by TimeOnly.
     /// </summary>
     [Fact]
-    public void Time_add_accepts_only_supported_interval_units()
+    public void Time_add_rejects_unsupported_interval_unit()
     {
-        foreach (var intervalUnit in new[]
-                 {
-                     MySqlIntervalUnit.Hour,
-                     MySqlIntervalUnit.Minute,
-                 })
-        {
-            var name = MySqlSentinelContract.GetName(MySqlSentinelKind.TimeAdd, intervalUnit);
-            var resolved = MySqlSentinelContract.Resolve(name, argumentCount: 2);
+        // Arrange
+        const MySqlIntervalUnit unsupportedUnit = MySqlIntervalUnit.Second;
 
-            Assert.Equal(new MySqlSentinel(MySqlSentinelKind.TimeAdd, intervalUnit), resolved);
-        }
-
-        Assert.Throws<ArgumentException>(() => MySqlSentinelContract.GetName(
+        // Act
+        var exception = Record.Exception(() => MySqlSentinelContract.GetName(
             MySqlSentinelKind.TimeAdd,
-            MySqlIntervalUnit.Second));
+            unsupportedUnit));
+
+        // Assert
+        Assert.IsType<ArgumentException>(exception);
     }
 
     /// <summary>

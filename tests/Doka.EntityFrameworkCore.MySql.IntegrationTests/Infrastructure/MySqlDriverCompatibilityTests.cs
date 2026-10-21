@@ -12,6 +12,11 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed class MySqlDriverCompatibilityTests
 {
     /// <summary>
+    /// Reports each ambient-transaction probe separately for every selected engine.
+    /// </summary>
+    public static TheoryData<string, bool?, bool> AutoDetectCases => CreateAutoDetectCases();
+
+    /// <summary>
     /// Verifies pooling, pool reset, server-version detection, and provider reuse
     /// against the established MySQL 8.4 release line.
     /// </summary>
@@ -114,85 +119,106 @@ public sealed class MySqlDriverCompatibilityTests
         Assert.Throws<MySqlException>(() => MySqlServerVersion.AutoDetect(connectionString));
     }
 
+    /// <summary>Verifies that server-version detection cannot enlist in an ambient transaction.</summary>
     [Theory]
-    [InlineData(null, false)]
-    [InlineData(true, false)]
-    [InlineData(false, false)]
-    [InlineData(null, true)]
-    [InlineData(true, true)]
-    [InlineData(false, true)]
-    public async Task AutoDetect_connection_string_does_not_join_the_ambient_transaction(
+    [MemberData(nameof(AutoDetectCases))]
+    public Task AutoDetect_connection_string_does_not_join_the_ambient_transaction(
+        string targetName,
+        bool? autoEnlist,
+        bool useXaTransactions
+    ) => AssertAutoDetectDoesNotJoinAmbientTransactionAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        autoEnlist,
+        useXaTransactions);
+
+    private static TheoryData<string, bool?, bool> CreateAutoDetectCases()
+    {
+        var cases = new TheoryData<string, bool?, bool>();
+
+        // WHY: Public xUnit theory methods cannot expose the internal target enum.
+        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
+        {
+            cases.Add(target.ToString(), null, false);
+            cases.Add(target.ToString(), true, false);
+            cases.Add(target.ToString(), false, false);
+            cases.Add(target.ToString(), null, true);
+            cases.Add(target.ToString(), true, true);
+            cases.Add(target.ToString(), false, true);
+        }
+
+        return cases;
+    }
+
+    private static async Task AssertAutoDetectDoesNotJoinAmbientTransactionAsync(
+        IntegrationDatabaseTarget target,
         bool? autoEnlist,
         bool useXaTransactions
     )
     {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
+        var builder = new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target))
         {
-            var builder = new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target))
-            {
-                AutoEnlist = true,
-                UseXaTransactions = false,
-                Pooling = false,
-            };
+            AutoEnlist = true,
+            UseXaTransactions = false,
+            Pooling = false,
+        };
 
-            var callerConnectionString = builder.ConnectionString;
-            using var scope = new System.Transactions.TransactionScope(
-                System.Transactions.TransactionScopeOption.RequiresNew,
-                System.Transactions.TransactionScopeAsyncFlowOption.Enabled);
+        var callerConnectionString = builder.ConnectionString;
+        using var scope = new System.Transactions.TransactionScope(
+            System.Transactions.TransactionScopeOption.RequiresNew,
+            System.Transactions.TransactionScopeAsyncFlowOption.Enabled);
 
-            await using var callerConnection = new MySqlConnection(callerConnectionString);
-            await callerConnection
-                .OpenAsync(CancellationToken.None)
-                .ConfigureAwait(true);
+        await using var callerConnection = new MySqlConnection(callerConnectionString);
+        await callerConnection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(true);
 
-            var transaction = System.Transactions.Transaction.Current;
-            Assert.NotNull(transaction);
+        var transaction = System.Transactions.Transaction.Current;
+        Assert.NotNull(transaction);
 
-            var serverThread = callerConnection.ServerThread;
-            var expected = MySqlServerVersion.Parse(callerConnection.ServerVersion);
+        var serverThread = callerConnection.ServerThread;
+        var expected = MySqlServerVersion.Parse(callerConnection.ServerVersion);
 
-            // A second participant is forbidden in a non-XA transaction. This
-            // control makes a successful version probe evidence of isolation.
-            await using var rejectedConnection = new MySqlConnection(callerConnectionString);
-            await Assert
-                .ThrowsAsync<NotSupportedException>(() => rejectedConnection.OpenAsync(CancellationToken.None))
-                .ConfigureAwait(true);
+        // A second participant is forbidden in a non-XA transaction. This
+        // control makes a successful version probe evidence of isolation.
+        await using var rejectedConnection = new MySqlConnection(callerConnectionString);
+        await Assert
+            .ThrowsAsync<NotSupportedException>(() => rejectedConnection.OpenAsync(CancellationToken.None))
+            .ConfigureAwait(true);
 
-            builder.UseXaTransactions = useXaTransactions;
-            if (autoEnlist.HasValue)
-            {
-                builder.AutoEnlist = autoEnlist.Value;
-            }
-            else
-            {
-                builder.Remove("Auto Enlist");
-            }
-
-            var detected = MySqlServerVersion.AutoDetect(builder.ConnectionString);
-
-            Assert.Equal(expected.Version, detected.Version);
-            Assert.Equal(expected.IsMariaDb, detected.IsMariaDb);
-            Assert.Equal(MySqlServerVersionCompatibilityMode.SupportedOnly, detected.CompatibilityMode);
-            Assert.Same(transaction, System.Transactions.Transaction.Current);
-            Assert.Equal(System.Transactions.TransactionStatus.Active, transaction.TransactionInformation.Status);
-
-            Assert.Equal(expected.Version, MySqlServerVersion.AutoDetect(callerConnection).Version);
-            var callerOwned = MySqlServerVersion.AutoDetect(
-                callerConnection,
-                MySqlServerVersionCompatibilityMode.AllowUnsupported);
-
-            Assert.Equal(expected.Version, callerOwned.Version);
-            Assert.Equal(MySqlServerVersionCompatibilityMode.AllowUnsupported, callerOwned.CompatibilityMode);
-            Assert.Equal(ConnectionState.Open, callerConnection.State);
-            Assert.Equal(serverThread, callerConnection.ServerThread);
-
-            await using var stillRejectedConnection = new MySqlConnection(callerConnectionString);
-            await Assert
-                .ThrowsAsync<NotSupportedException>(() => stillRejectedConnection.OpenAsync(CancellationToken.None))
-                .ConfigureAwait(true);
-
-            scope.Complete();
+        builder.UseXaTransactions = useXaTransactions;
+        if (autoEnlist.HasValue)
+        {
+            builder.AutoEnlist = autoEnlist.Value;
         }
+        else
+        {
+            builder.Remove("Auto Enlist");
+        }
+
+        var detected = MySqlServerVersion.AutoDetect(builder.ConnectionString);
+
+        Assert.Equal(expected.Version, detected.Version);
+        Assert.Equal(expected.IsMariaDb, detected.IsMariaDb);
+        Assert.Equal(MySqlServerVersionCompatibilityMode.SupportedOnly, detected.CompatibilityMode);
+        Assert.Same(transaction, System.Transactions.Transaction.Current);
+        Assert.Equal(System.Transactions.TransactionStatus.Active, transaction.TransactionInformation.Status);
+
+        Assert.Equal(expected.Version, MySqlServerVersion.AutoDetect(callerConnection).Version);
+        var callerOwned = MySqlServerVersion.AutoDetect(
+            callerConnection,
+            MySqlServerVersionCompatibilityMode.AllowUnsupported);
+
+        Assert.Equal(expected.Version, callerOwned.Version);
+        Assert.Equal(MySqlServerVersionCompatibilityMode.AllowUnsupported, callerOwned.CompatibilityMode);
+        Assert.Equal(ConnectionState.Open, callerConnection.State);
+        Assert.Equal(serverThread, callerConnection.ServerThread);
+
+        await using var stillRejectedConnection = new MySqlConnection(callerConnectionString);
+        await Assert
+            .ThrowsAsync<NotSupportedException>(() => stillRejectedConnection.OpenAsync(CancellationToken.None))
+            .ConfigureAwait(true);
+
+        scope.Complete();
     }
 
     private static async Task AssertConnectionAndPoolContractsAsync(
@@ -232,9 +258,7 @@ public sealed class MySqlDriverCompatibilityTests
         int firstServerThread;
         await using (var firstConnection = new MySqlConnection(connectionString))
         {
-            await firstConnection
-                .OpenAsync()
-                .ConfigureAwait(false);
+            await firstConnection.OpenAsync().ConfigureAwait(false);
             firstServerThread = firstConnection.ServerThread;
 
             var detected = MySqlServerVersion.AutoDetect(firstConnection);
@@ -249,9 +273,7 @@ public sealed class MySqlDriverCompatibilityTests
 
         await using (var pooledConnection = new MySqlConnection(connectionString))
         {
-            await pooledConnection
-                .OpenAsync()
-                .ConfigureAwait(false);
+            await pooledConnection.OpenAsync().ConfigureAwait(false);
 
             Assert.Equal(firstServerThread, pooledConnection.ServerThread);
         }
